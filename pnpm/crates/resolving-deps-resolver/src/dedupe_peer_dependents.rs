@@ -94,32 +94,37 @@ fn collect_duplicates(graph: &DependenciesGraph) -> Vec<Vec<DepPath>> {
 
 /// Run [`deduplicate_dep_paths`] in rounds: after each round, rewrite the
 /// graph's child edges through the collapse map so the next round can see
-/// newly-compatible variants, then recurse on the duplicates that didn't
-/// collapse.
+/// newly-compatible variants in the next round.
 fn deduplicate_all(
     graph: &mut DependenciesGraph,
     duplicates: &[Vec<DepPath>],
 ) -> HashMap<DepPath, DepPath> {
-    let duplicates_count = duplicates.len();
-    let (dep_paths_map, remaining_duplicates) = deduplicate_dep_paths(duplicates, graph);
-    if remaining_duplicates.len() == duplicates_count {
-        return dep_paths_map;
+    let mut remaining = duplicates.to_vec();
+    let mut merged: HashMap<DepPath, DepPath> = HashMap::default();
+    loop {
+        let (next, survivors) = deduplicate_dep_paths(&remaining, graph);
+        if next.is_empty() {
+            return merged;
+        }
+        rewrite_children(graph, &next);
+        for target in merged.values_mut() {
+            if let Some(replacement) = next.get(target) {
+                *target = replacement.clone();
+            }
+        }
+        merged.extend(next);
+        remaining = survivors;
     }
+}
+
+fn rewrite_children(graph: &mut DependenciesGraph, replacements: &HashMap<DepPath, DepPath>) {
     for node in graph.values_mut() {
-        for child_dep_path in node.edges.children.values_mut() {
-            if let Some(target) = dep_paths_map.get(child_dep_path) {
-                *child_dep_path = target.clone();
+        for child in node.edges.children.values_mut() {
+            if let Some(target) = replacements.get(child) {
+                *child = target.clone();
             }
         }
     }
-    if dep_paths_map.is_empty() {
-        return dep_paths_map;
-    }
-    let mut merged = dep_paths_map;
-    for (collapsed, target) in deduplicate_all(graph, &remaining_duplicates) {
-        merged.insert(collapsed, target);
-    }
-    merged
 }
 
 /// One round of greedy collapse over each duplicate group.
@@ -146,17 +151,17 @@ fn deduplicate_dep_paths(
     let mut remaining_duplicates: Vec<Vec<DepPath>> = Vec::new();
 
     for dep_paths in duplicates {
-        let mut unresolved: HashSet<DepPath> = dep_paths.iter().cloned().collect();
+        let mut survivors: HashSet<DepPath> = dep_paths.iter().cloned().collect();
         let mut current = dep_paths.clone();
         current.sort_by(dep_count_sorter);
 
         while let Some(largest) = current.pop() {
-            absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut unresolved);
+            absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut survivors);
             current.sort_by(dep_count_sorter);
         }
 
-        if !unresolved.is_empty() {
-            let mut leftover: Vec<DepPath> = unresolved.into_iter().collect();
+        if survivors.len() > 1 {
+            let mut leftover: Vec<DepPath> = survivors.into_iter().collect();
             leftover.sort();
             remaining_duplicates.push(leftover);
         }
@@ -172,14 +177,17 @@ fn absorb_compatible(
     largest: &DepPath,
     current: &mut Vec<DepPath>,
     dep_paths_map: &mut HashMap<DepPath, DepPath>,
-    unresolved: &mut HashSet<DepPath>,
+    survivors: &mut HashSet<DepPath>,
 ) {
     let mut next = Vec::new();
     while let Some(candidate) = current.pop() {
-        if is_compatible_and_has_more_deps(graph, largest, &candidate) {
+        // Child variants must agree before a parent can collapse into its sibling.
+        let same_children = graph[&candidate].edges.children
+            .iter()
+            .all(|(alias, child)| graph[largest].edges.children.get(alias) == Some(child));
+        if same_children && is_compatible_and_has_more_deps(graph, largest, &candidate) {
             dep_paths_map.insert(candidate.clone(), largest.clone());
-            unresolved.remove(largest);
-            unresolved.remove(&candidate);
+            survivors.remove(&candidate);
         } else {
             next.push(candidate);
         }

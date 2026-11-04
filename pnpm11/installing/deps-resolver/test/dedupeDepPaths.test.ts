@@ -291,6 +291,99 @@ test('a package whose child carries an optional peer suffix absorbs the variant 
   expect(dependenciesByProjectId.projectBare.get('parent')).toBe('parent/1.0.0(other/1.0.0)')
 })
 
+test('deduplication keeps direct and nested copies on the same optional peer variant', async () => {
+  const childPkg: PartialResolvedPackage = {
+    name: 'child',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'child/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peers: peerSetOf({
+      optPeer: { version: '1.0.0', optional: true },
+      other: { version: '1.0.0', optional: true },
+    }),
+  }
+
+  const parentPkg: PartialResolvedPackage = {
+    name: 'parent',
+    version: '1.0.0',
+    pkgIdWithPatchHash: 'parent/1.0.0' as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peers: peerSetOf({}),
+  }
+
+  const peerPkg = (name: string): PartialResolvedPackage => ({
+    name,
+    version: '1.0.0',
+    pkgIdWithPatchHash: `${name}/1.0.0` as PkgIdWithPatchHash,
+    id: '' as PkgResolutionId,
+    peers: peerSetOf({}),
+  })
+
+  const treeNode = (resolvedPackage: PartialResolvedPackage, children: Record<string, NodeId> = {}) => ({
+    children,
+    installable: true,
+    resolvedPackage,
+    depth: 0,
+  } as DependenciesTreeNode<PartialResolvedPackage>)
+
+  const projectIds = ['projectOptPeer', 'projectOther', 'projectBare'] as const
+  const parentNodeId = (projectId: string) => `>${projectId}>parent/1.0.0>` as NodeId
+  const childNodeId = (projectId: string) => `>${projectId}>parent/1.0.0>child/1.0.0>` as NodeId
+  const peerNodeId = (projectId: string, name: string) => `>${projectId}>${name}/1.0.0>` as NodeId
+
+  const dependenciesTree = new Map<NodeId, DependenciesTreeNode<PartialResolvedPackage>>()
+  for (const projectId of projectIds) {
+    dependenciesTree.set(parentNodeId(projectId), treeNode(parentPkg, { child: childNodeId(projectId) }))
+    dependenciesTree.set(childNodeId(projectId), treeNode(childPkg))
+  }
+  dependenciesTree.set(peerNodeId('projectOptPeer', 'optPeer'), treeNode(peerPkg('optPeer')))
+  dependenciesTree.set(peerNodeId('projectOther', 'other'), treeNode(peerPkg('other')))
+
+  const { dependenciesByProjectId, dependenciesGraph } = await resolvePeers({
+    allPeerDepNames: new Set(['optPeer', 'other']),
+    projects: [
+      {
+        directNodeIdsByAlias: new Map([
+          ['parent', parentNodeId('projectOptPeer')],
+          ['optPeer', peerNodeId('projectOptPeer', 'optPeer')],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'projectOptPeer' as PkgResolutionId,
+      },
+      {
+        directNodeIdsByAlias: new Map([
+          ['child', childNodeId('projectOther')],
+          ['other', peerNodeId('projectOther', 'other')],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'projectOther' as PkgResolutionId,
+      },
+      {
+        directNodeIdsByAlias: new Map([
+          ['parent', parentNodeId('projectBare')],
+          ['child', childNodeId('projectBare')],
+        ]),
+        topParents: [],
+        rootDir: '' as ProjectRootDir,
+        id: 'projectBare' as PkgResolutionId,
+      },
+    ],
+    resolvedImporters: {},
+    dependenciesTree,
+    dedupePeerDependents: true,
+    virtualStoreDir: '',
+    virtualStoreDirMaxLength: 120,
+    lockfileDir: '',
+    peersSuffixMaxLength: 1000,
+    workspaceProjectIds: new Set(),
+  })
+
+  const direct = dependenciesByProjectId.projectBare
+  expect(dependenciesGraph[direct.get('parent')!].children.child).toBe(direct.get('child'))
+})
+
 // Chain longer than the call stack's budget, diverging at every level so the
 // compatibility walk has to reach the bottom. Compatibility stays answerable at
 // a depth the call stack cannot hold.

@@ -153,6 +153,25 @@ fn unbound_optional_peer_dedupes_consistently_across_dependency_paths() {
 }
 
 #[test]
+fn unbound_optional_peer_dedupes_consistently_with_different_parent_variants() {
+    let result = resolve_projects(
+        &[
+            &[("middle", "middle@1.0.0"), ("outer", "outer@1.0.0")],
+            &[("outer", "outer@1.0.0"), ("peer", "peer@1.0.0")],
+            &[("middle", "middle@1.0.0"), ("peer", "peer@2.0.0")],
+        ],
+        &[
+            ("inner", &[("peer", "*", true)], &[]),
+            ("middle", &[], &[("inner", "inner@1.0.0")]),
+            ("outer", &[], &[("middle", "middle@1.0.0")]),
+        ],
+        true,
+    );
+    let direct = &result.direct_dependencies_by_importer["0"];
+    assert_eq!(result.graph[&direct["outer"]].edges.children["middle"], direct["middle"]);
+}
+
+#[test]
 fn locked_optional_peers_do_not_split_an_unbound_project() {
     let (mut tree, importers) = build_projects(
         &[

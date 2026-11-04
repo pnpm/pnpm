@@ -12,24 +12,29 @@ export function deduplicateAll<Pkg extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
   duplicates: Array<Set<DepPath>>
 ): Record<DepPath, DepPath> {
-  const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(duplicates, depGraph)
-  if (remainingDuplicates.length === duplicates.length) {
-    return depPathsMap
+  let remaining = duplicates
+  const merged: Record<DepPath, DepPath> = {}
+  while (true) {
+    const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(remaining, depGraph)
+    if (Object.keys(depPathsMap).length === 0) return merged
+    rewriteChildren(depGraph, depPathsMap)
+    for (const [collapsed, target] of Object.entries<DepPath>(merged)) {
+      merged[collapsed as DepPath] = depPathsMap[target] ?? target
+    }
+    Object.assign(merged, depPathsMap)
+    remaining = remainingDuplicates
   }
+}
+
+function rewriteChildren<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  depPathsMap: Record<DepPath, DepPath>
+): void {
   for (const node of Object.values(depGraph)) {
-    for (const [alias, childDepPath] of Object.entries<DepPath>(node.children)) {
-      if (depPathsMap[childDepPath]) {
-        node.children[alias] = depPathsMap[childDepPath]
-      }
+    for (const [alias, child] of Object.entries<DepPath>(node.children)) {
+      node.children[alias] = depPathsMap[child] ?? child
     }
   }
-  if (Object.keys(depPathsMap).length > 0) {
-    return {
-      ...depPathsMap,
-      ...deduplicateAll(depGraph, remainingDuplicates),
-    }
-  }
-  return depPathsMap
 }
 
 interface DeduplicateDepPathsResult {
@@ -46,9 +51,9 @@ function deduplicateDepPaths<Pkg extends PartialResolvedPackage> (
   const remainingDuplicates: Array<Set<DepPath>> = []
 
   for (const depPaths of duplicates) {
-    const unresolvedDepPaths = collapseCompatibleDepPaths(depGraph, { depPaths, depPathsMap, depCountSorter })
-    if (unresolvedDepPaths.size) {
-      remainingDuplicates.push(unresolvedDepPaths)
+    const survivingDepPaths = collapseCompatibleDepPaths(depGraph, { depPaths, depPathsMap, depCountSorter })
+    if (survivingDepPaths.size > 1) {
+      remainingDuplicates.push(survivingDepPaths)
     }
   }
   return {
@@ -75,7 +80,7 @@ function createDepCountSorter<Pkg extends PartialResolvedPackage> (
 /**
  * Maps every dep path of `depPaths` that a compatible variant with more
  * dependencies can replace into `depPathsMap`, and returns the dep paths
- * that remain unresolved.
+ * that survive the round.
  */
 function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
@@ -85,7 +90,7 @@ function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
     depCountSorter: DepPathSorter
   }
 ): Set<DepPath> {
-  const unresolvedDepPaths = new Set(opts.depPaths.values())
+  const survivingDepPaths = new Set(opts.depPaths.values())
   let currentDepPaths = [...opts.depPaths].sort(opts.depCountSorter)
 
   while (currentDepPaths.length) {
@@ -93,10 +98,13 @@ function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
     const nextDepPaths = []
     while (currentDepPaths.length) {
       const depPath2 = currentDepPaths.pop()!
-      if (isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2)) {
+      // Child variants must agree before a parent can collapse into its sibling.
+      const sameChildren = Object.entries(depGraph[depPath2].children).every(
+        ([alias, child]) => depGraph[depPath1].children[alias] === child
+      )
+      if (sameChildren && isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2)) {
         opts.depPathsMap[depPath2] = depPath1
-        unresolvedDepPaths.delete(depPath1)
-        unresolvedDepPaths.delete(depPath2)
+        survivingDepPaths.delete(depPath2)
       } else {
         nextDepPaths.push(depPath2)
       }
@@ -104,5 +112,5 @@ function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
     nextDepPaths.push(...currentDepPaths)
     currentDepPaths = nextDepPaths.sort(opts.depCountSorter)
   }
-  return unresolvedDepPaths
+  return survivingDepPaths
 }
