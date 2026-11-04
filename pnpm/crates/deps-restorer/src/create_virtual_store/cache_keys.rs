@@ -288,7 +288,7 @@ pub(super) fn variant_cache_key(
     else {
         return Ok(no_key);
     };
-    match selected.resolution() {
+    match &selected.resolution {
         LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
             value: Some(store_index_key(&binary.integrity.to_string(), pkg_id)),
             is_git_hosted: false,
@@ -300,7 +300,7 @@ pub(super) fn variant_cache_key(
         resolution @ LockfileResolution::Tarball(tarball) => {
             tarball_cache_key(tarball, resolution, pkg_id, !built)
         }
-        // A registry package's variant or primary archive, keyed by its own
+        // Any archive of a registry package's variants, keyed by its own
         // digest like any registry archive.
         resolution @ LockfileResolution::Registry(_) => Ok(SnapshotCacheKey {
             value: store_index_key_for_resolution(resolution, pkg_id, built),

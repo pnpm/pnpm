@@ -164,13 +164,15 @@ packages:
     resolution:
       type: variations
       variants:
+        - resolution:
+            integrity: sha512-deadbeef
+            tarball: 'file:///tmp/evil.tgz'
+          targets:
+            - any: true
         - resolution: {integrity: sha512-deadbeef}
           targets:
             - os: linux
               cpu: x64
-      fallback:
-        integrity: sha512-deadbeef
-        tarball: 'file:///tmp/evil.tgz'
 
 snapshots:
 
@@ -183,6 +185,6 @@ snapshots:
         &VerifyLockfileResolutionsOptions::default(),
     )
     .await
-    .expect_err("a file: fallback under a semver key must be rejected");
+    .expect_err("a file: variant that targets any under a semver key must be rejected");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
 }

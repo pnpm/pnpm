@@ -338,7 +338,8 @@ pub fn manifest_bins(
 }
 
 /// Whether the version publishes platform variants. Its `dist` facts then
-/// describe only the primary archive, which a host may not install.
+/// describe only the variant that targets `any`, which a host may not
+/// install.
 fn has_platform_variants(manifest: &Value) -> bool {
     manifest
         .pointer("/dist/pnpr/variants")

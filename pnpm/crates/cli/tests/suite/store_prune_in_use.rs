@@ -428,10 +428,10 @@ fn assert_prune_keeps_every_package_installed_by_copy(
     assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed files the project uses");
 }
 
-/// A package with platform variants installs its primary archive, the
-/// `variations` fallback, on a host none of its variants matches.
+/// A package with platform variants installs its variant that targets
+/// `any` on a host none of its other variants matches.
 #[test]
-fn store_prune_keeps_the_fallback_archive_of_a_package_with_platform_variants() {
+fn store_prune_keeps_the_any_archive_of_a_package_with_platform_variants() {
     let CommandTempCwd {
         root: _root, workspace, npmrc_info, ..
     } = CommandTempCwd::init().add_mocked_registry();
@@ -457,11 +457,13 @@ fn store_prune_keeps_the_fallback_archive_of_a_package_with_platform_variants() 
     resolution:
       type: variations
       variants:
+        - resolution: {resolution}
+          targets:
+            - any: true
         - resolution: {{integrity: sha512-{}==}}
           targets:
             - os: aix
               cpu: ppc64
-      fallback: {resolution}
 ",
         "B".repeat(86),
     );

@@ -2,7 +2,7 @@ use super::{
     LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
     VariationsResolution, assert_eq, integrity, selector, target, variant,
 };
-use crate::{HostFloors, SelectedVariant};
+use crate::HostFloors;
 use pnpm_platform_variants::Floor;
 
 fn registry(digest: &str) -> LockfileResolution {
@@ -12,7 +12,7 @@ fn registry(digest: &str) -> LockfileResolution {
     })
 }
 
-const PRIMARY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+const ANY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 const MUSL: &str = "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==";
 const GLIBC: &str = "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==";
 const NEW_GLIBC: &str = "sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD==";
@@ -21,17 +21,16 @@ fn package_variant(digest: &str, targets: Vec<PlatformAssetTarget>) -> PlatformA
     PlatformAssetResolution { resolution: registry(digest), targets }
 }
 
-fn selected_integrity(selected: Option<SelectedVariant<'_>>) -> Option<String> {
-    selected
-        .and_then(|selected| selected.resolution().integrity())
-        .map(ToString::to_string)
+fn selected_integrity(selected: Option<&PlatformAssetResolution>) -> Option<String> {
+    selected.and_then(|selected| selected.resolution.integrity()).map(ToString::to_string)
 }
 
 /// A runtime's archives select like a package's variants, and a host none
-/// of them targets selects nothing because a runtime has no fallback.
+/// of them targets selects nothing because a runtime has no archive that
+/// targets `any`.
 #[test]
 fn runtime_variations_select_a_variant_or_nothing() {
-    let variations = VariationsResolution::without_fallback(vec![
+    let variations = VariationsResolution::new(vec![
         variant(
             "https://nodejs.org/node-darwin-arm64.tar.gz",
             vec![target("darwin", "arm64", None)],
@@ -39,9 +38,7 @@ fn runtime_variations_select_a_variant_or_nothing() {
         variant("https://nodejs.org/node-linux-x64.tar.gz", vec![target("linux", "x64", None)]),
     ]);
 
-    let Ok(Some(SelectedVariant::Variant(selected))) =
-        variations.select(&selector("linux", "x64", Some("glibc")))
-    else {
+    let Ok(Some(selected)) = variations.select(&selector("linux", "x64", Some("glibc"))) else {
         panic!("the linux-x64 archive is selected");
     };
     let LockfileResolution::Binary(binary) = &selected.resolution else {
@@ -53,26 +50,30 @@ fn runtime_variations_select_a_variant_or_nothing() {
 }
 
 /// A registry package's variants select by the same rule, and a host none
-/// of them targets installs the primary archive.
+/// of them targets installs the variant that targets `any`, wherever it is
+/// listed.
 #[test]
-fn package_variations_fall_back_to_the_primary() {
-    let variations = VariationsResolution {
-        variants: vec![package_variant(MUSL, vec![target("linux", "x64", Some("musl"))])],
-        fallback: Some(Box::new(registry(PRIMARY))),
-        revision: None,
-    };
+fn package_variations_fall_back_to_the_any_variant() {
+    let musl_variant = package_variant(MUSL, vec![target("linux", "x64", Some("musl"))]);
+    let any_variant = PlatformAssetResolution::any(registry(ANY));
+    for variants in [
+        vec![any_variant.clone(), musl_variant.clone()],
+        vec![musl_variant.clone(), any_variant.clone()],
+    ] {
+        let variations = VariationsResolution { variants, revision: None };
 
-    let musl = variations
-        .select(&selector("linux", "x64", Some("musl")))
-        .unwrap();
-    assert!(matches!(musl, Some(SelectedVariant::Variant(_))));
-    assert_eq!(selected_integrity(musl), Some(MUSL.to_string()));
+        let musl = variations
+            .select(&selector("linux", "x64", Some("musl")))
+            .unwrap();
+        assert!(!musl.unwrap().is_any());
+        assert_eq!(selected_integrity(musl), Some(MUSL.to_string()));
 
-    let glibc = variations
-        .select(&selector("linux", "x64", Some("glibc")))
-        .unwrap();
-    assert!(matches!(glibc, Some(SelectedVariant::Fallback(_))));
-    assert_eq!(selected_integrity(glibc), Some(PRIMARY.to_string()));
+        let glibc = variations
+            .select(&selector("linux", "x64", Some("glibc")))
+            .unwrap();
+        assert!(glibc.unwrap().is_any());
+        assert_eq!(selected_integrity(glibc), Some(ANY.to_string()));
+    }
 }
 
 /// The highest glibc floor the host meets wins over a lower one and over a
@@ -85,11 +86,11 @@ fn package_variations_rank_by_floor() {
     };
     let variations = VariationsResolution {
         variants: vec![
+            PlatformAssetResolution::any(registry(ANY)),
             package_variant(MUSL, vec![target("linux", "x64", None)]),
             package_variant(GLIBC, vec![floor(17)]),
             package_variant(NEW_GLIBC, vec![floor(28)]),
         ],
-        fallback: Some(Box::new(registry(PRIMARY))),
         revision: None,
     };
     let host = |minor| {
@@ -112,7 +113,6 @@ fn package_variations_with_equal_fits_are_ambiguous() {
             package_variant(MUSL, vec![target("linux", "x64", None)]),
             package_variant(GLIBC, vec![target("linux", "x64", None)]),
         ],
-        fallback: None,
         revision: None,
     };
     assert!(

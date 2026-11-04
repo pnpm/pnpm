@@ -3,15 +3,14 @@
 
 use super::{InstallPackageBySnapshotError, runtime::render_variant_targets};
 use pnpm_config::Config;
-use pnpm_lockfile::{
-    BinaryResolution, LockfileResolution, PackageKey, PlatformSelector, SelectedVariant,
-};
+use pnpm_lockfile::{BinaryResolution, LockfileResolution, PackageKey, PlatformSelector};
 
 /// How the archive a `variations` resolution selects is fetched.
 pub(super) enum VariantFetch<'a> {
     /// A runtime archive (Node.js, Bun, Deno).
     Binary(&'a BinaryResolution),
-    /// A registry package's archive: a platform variant, or its primary.
+    /// A registry package's archive: a platform variant, or the variant that
+    /// targets `any`.
     Tarball { resolution: LockfileResolution, source: ArchiveSource },
 }
 
@@ -21,12 +20,13 @@ pub(super) enum ArchiveSource {
     /// A platform variant, verified against its tar's digest and served
     /// without redirects, like a revision.
     Variant,
-    /// The version's own archive.
-    Primary,
+    /// The version's archive that every host can install: the variant that
+    /// targets `any`, or the one archive of a version without variants.
+    Any,
 }
 
-/// The archive `variations` installs on `platform`: the first variant
-/// whose targets include it, or the fallback.
+/// The archive `variations` installs on `platform`: the variant that fits
+/// it best, or the variant that targets `any`.
 ///
 /// Runtimes and registry packages share this selection. The selected
 /// resolution's type decides how it is fetched: a `binary` archive goes
@@ -55,19 +55,16 @@ pub(super) fn variant_for_host<'a>(
             available_targets: render_variant_targets(&variations.variants),
         });
     };
-    let source = match selected {
-        SelectedVariant::Variant(_) => ArchiveSource::Variant,
-        SelectedVariant::Fallback(_) => ArchiveSource::Primary,
-    };
-    let resolution = match (selected, selected.resolution()) {
-        (_, LockfileResolution::Binary(binary)) => return Ok(VariantFetch::Binary(binary)),
-        (SelectedVariant::Variant(selected), LockfileResolution::Registry(registry)) => {
+    let source = if selected.is_any() { ArchiveSource::Any } else { ArchiveSource::Variant };
+    let resolution = match &selected.resolution {
+        LockfileResolution::Binary(binary) => return Ok(VariantFetch::Binary(binary)),
+        LockfileResolution::Registry(registry) if !selected.is_any() => {
             variant_registry_tarball(selected, registry, variations.revision, package_key, config)?
         }
-        (_, resolution @ (LockfileResolution::Registry(_) | LockfileResolution::Tarball(_))) => {
+        resolution @ (LockfileResolution::Registry(_) | LockfileResolution::Tarball(_)) => {
             resolution.clone()
         }
-        (_, other) => {
+        other => {
             return Err(InstallPackageBySnapshotError::UnsupportedVariantResolution {
                 package_key: package_key.to_string(),
                 inner_kind: resolution_kind(other),
