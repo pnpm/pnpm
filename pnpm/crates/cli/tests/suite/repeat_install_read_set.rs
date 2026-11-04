@@ -173,13 +173,16 @@ fn source_dirs(dir: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// The files the workspace states record, and the directories whose
-/// contents they record. A workspace whose projects keep their own lockfiles
-/// has a state in each project.
+/// The files the workspace states record, and the local directory
+/// dependencies they record. A workspace whose projects keep their own
+/// lockfiles has a state in each project.
 #[derive(Default)]
 struct Records {
     files: BTreeSet<PathBuf>,
-    directories: Vec<PathBuf>,
+    /// The recorded local directories that are not workspace projects. The
+    /// fast path counts such a directory as changed, so a file in it needs no
+    /// record of its own.
+    blocking_directories: Vec<PathBuf>,
 }
 
 impl Records {
@@ -200,6 +203,7 @@ impl Records {
             .iter()
             .map(|(importer, file)| root.join(importer).join(&file.file_name));
         let local = validation.local_dependencies.values();
+        let projects = &state.projects;
         self.files.extend(
             validation.files
                 .keys()
@@ -212,12 +216,17 @@ impl Records {
                         .flat_map(|deps| deps.tarballs.iter().map(PathBuf::from)),
                 ),
         );
-        self.directories.extend(local.flat_map(|deps| deps.directories.iter().map(PathBuf::from)));
+        self.blocking_directories.extend(
+            local
+                .flat_map(|deps| &deps.directories)
+                .filter(|dir| !projects.contains_key(*dir))
+                .map(PathBuf::from),
+        );
     }
 
     fn contain(&self, path: &Path) -> bool {
         self.files.contains(path)
-            || self.directories
+            || self.blocking_directories
                 .iter()
                 .any(|dir| path.starts_with(dir))
     }
@@ -242,10 +251,10 @@ fn unrecorded_reads(fixture: &Fixture) -> BTreeSet<String> {
             .success();
     };
     install(&[]);
+    let records = Records::of(&workspace);
     let opens = record_opens(&source_dirs(&workspace), || {
         install(&[("PNPM_CONFIG_OPTIMISTIC_REPEAT_INSTALL", "false")]);
     });
-    let records = Records::of(&workspace);
     let unrecorded = opens
         .iter()
         .filter(|path| !records.contain(path))
