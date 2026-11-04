@@ -239,7 +239,8 @@ pub(crate) fn materialized_shape_matches(
     current
         == &crate::filter_lockfile_for_current(
             wanted,
-            &crate::GroupSelection::classify(wanted, included, config.peer_edge_options()),
+            &crate::GroupSelection::classify(wanted, included, config.peer_edge_options())
+                .linking_for(config.supported_architectures.as_ref()),
             &skipped,
         )
 }

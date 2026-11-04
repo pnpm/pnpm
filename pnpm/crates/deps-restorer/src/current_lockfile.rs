@@ -61,12 +61,8 @@ pub fn materialization_closure(
     skipped: &SkippedSnapshots,
 ) -> MaterializationClosure {
     // A platform variant with dependencies of its own is wired as its own
-    // snapshot. The walk follows the host's variant, also when
-    // `supportedArchitectures` names one other platform.
-    let selected = with_selected_variant_snapshots(
-        lockfile,
-        &crate::install_package_by_snapshot::host_platform_selector(),
-    );
+    // snapshot. The walk follows the variant the install links.
+    let selected = with_selected_variant_snapshots(lockfile, &groups.walked_platform());
     let lockfile = selected.as_ref().unwrap_or(lockfile);
     let reachable =
         collect_reachable(lockfile, workspace_root, initial_importer_ids, groups, |key| {

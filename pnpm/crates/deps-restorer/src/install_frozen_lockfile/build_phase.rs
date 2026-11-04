@@ -7,6 +7,7 @@ use super::{
     SkippedSnapshots, SnapshotEntry, direct_dep_names_for_importer, get_patch_info,
     importer_root_dir,
 };
+use crate::platform_selection::VariantPlatforms;
 
 mod post_build_bins;
 
@@ -273,7 +274,8 @@ fn build_or_defer<Reporter: self::Reporter>(
     {
         crate::BuildModulesOutput::default()
     } else {
-        build_modules(inputs, patches, shared_side_effects_publisher)
+        let variant_platforms = VariantPlatforms::of(config.supported_architectures.as_ref());
+        build_modules(inputs, patches, (shared_side_effects_publisher, &variant_platforms))
             .run_with_bin_state::<Reporter>(bin_state)
             .map_err(BuildPhaseError::BuildModules)?
     };
@@ -293,12 +295,34 @@ fn seed_hoisted_bins(
     );
 }
 
+/// The lockfile graph `inputs` builds over, with the patches it applies and
+/// the platforms its cache keys select each archive for.
+fn build_graph_inputs<'a>(
+    inputs: &'a BuildPhaseInputs<'a>,
+    patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
+    variant_platforms: &'a VariantPlatforms,
+) -> crate::BuildGraphInputs<'a> {
+    crate::BuildGraphInputs {
+        snapshots: inputs.graph.snapshots,
+        packages: inputs.graph.packages,
+        patches,
+        requires_build_by_snapshot: Some(inputs.cache.requires_build_by_snapshot),
+        importers: inputs.graph.importers,
+        dependency_groups: (!inputs.directories.is_hoisted).then_some(
+            inputs.graph.dependency_groups,
+        ),
+        build_scope: inputs.graph.build_scope,
+        variant_platforms: Some(variant_platforms),
+    }
+}
+
 fn build_modules<'a>(
     inputs: &'a BuildPhaseInputs<'a>,
     patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
-    shared_side_effects_publisher: Option<
-        &'a crate::shared_side_effects::SharedSideEffectsPublisher,
-    >,
+    (shared_side_effects_publisher, variant_platforms): (
+        Option<&'a crate::shared_side_effects::SharedSideEffectsPublisher>,
+        &'a VariantPlatforms,
+    ),
 ) -> BuildModules<'a> {
     let config = inputs.policy.config;
     BuildModules {
@@ -323,17 +347,7 @@ fn build_modules<'a>(
             import_method: config.package_import_method,
             logged_methods: inputs.directories.logged_methods,
         },
-        graph: crate::BuildGraphInputs {
-            snapshots: inputs.graph.snapshots,
-            packages: inputs.graph.packages,
-            patches,
-            requires_build_by_snapshot: Some(inputs.cache.requires_build_by_snapshot),
-            importers: inputs.graph.importers,
-            dependency_groups: (!inputs.directories.is_hoisted).then_some(
-                inputs.graph.dependency_groups,
-            ),
-            build_scope: inputs.graph.build_scope,
-        },
+        graph: build_graph_inputs(inputs, patches, variant_platforms),
         scripts: crate::BuildScriptOptions::from_config(config, inputs.extra_env),
 
         allow_build_policy: inputs.policy.allow_build_policy,

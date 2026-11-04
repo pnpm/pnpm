@@ -301,9 +301,9 @@ impl InstallPackageBySnapshot<'_> {
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
     ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
-        let platform = super::variations_platform(variations, self.runtime_platform_selector);
+        let platform = self.variant_platforms.for_variations(variations);
         let (selected, archive) =
-            variant_for_host(variations, fetch.package_key, &platform, self.ctx.config)?;
+            variant_for_host(variations, fetch.package_key, platform, self.ctx.config)?;
         let (resolution, source) = match archive {
             VariantFetch::Binary(binary) => {
                 return self

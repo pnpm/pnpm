@@ -541,10 +541,11 @@ impl BuildModules<'_> {
                 .iter()
                 .filter(|&(_, &requires_build)| requires_build)
                 .map(|(key, _)| key.clone());
+            let host = crate::platform_selection::VariantPlatforms::host();
             crate::build_deps_subgraph(
                 snapshots,
                 self.graph.packages.expect("`cache_gate_active` requires packages: Some"),
-                roots,
+                (roots, self.graph.variant_platforms.unwrap_or(&host)),
             )
         });
         let cache = Mutex::new(pnpm_graph_hasher::DepsStateCache::new());

@@ -210,6 +210,8 @@ impl<'a> CreateVirtualStore<'a> {
             packages,
             current_packages: self.current_entries.packages,
             force: self.ctx.config.force,
+            layout: self.ctx.linker.layout,
+            supported_architectures: self.selection.supported_architectures,
         }
     }
 
@@ -273,6 +275,7 @@ impl<'a> CreateVirtualStore<'a> {
                 force: config.force,
                 is_hoisted: self.is_hoisted(),
                 include_optional: self.selection.include_optional,
+                supported_architectures: self.selection.supported_architectures,
             },
             snapshots: wanted.snapshots,
             packages: wanted.packages,

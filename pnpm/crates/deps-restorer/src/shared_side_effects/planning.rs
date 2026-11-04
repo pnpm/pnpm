@@ -6,6 +6,7 @@ use super::{
 use crate::{
     AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsBySnapshot, SideEffectsMapsBySnapshot,
     StoreIndexKeysBySnapshot, build_deps_subgraph, deps_graph::in_lockfile_order,
+    platform_selection::VariantPlatforms,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
@@ -135,7 +136,9 @@ pub(super) struct DepStateHasher {
 }
 impl DepStateHasher {
     fn new(plan: &CandidatePlan<'_>, roots: &[PackageKey]) -> Self {
-        let graph = build_deps_subgraph(plan.snapshots, plan.packages, roots.iter().cloned());
+        let platforms = VariantPlatforms::of(plan.config.supported_architectures.as_ref());
+        let graph =
+            build_deps_subgraph(plan.snapshots, plan.packages, (roots.iter().cloned(), &platforms));
         Self {
             graph,
             cache: pnpm_graph_hasher::DepsStateCache::new(),

@@ -1,5 +1,9 @@
-use pnpm_lockfile::{Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges};
+use crate::platform_selection::{host_platform_selector, listed_link_platform};
+use pnpm_lockfile::{
+    Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges, PlatformSelector,
+};
 use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_is_installable::SupportedArchitectures;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     path::Path,
@@ -16,11 +20,16 @@ pub struct ReachableLockfileGraph {
 ///
 /// The classification is computed once per install and shared, since every
 /// walk of that install over the lockfile, or over a closure of it, skips the
-/// same edges.
+/// same edges. Every walk also follows the same platform variants: a variant
+/// with dependencies of its own is wired as its own snapshot, and the walk
+/// takes the one the install links.
 #[derive(Debug, Clone)]
 pub struct GroupSelection {
     pub included: IncludedDependencies,
     pub skipped_peer_edges: Arc<PeerSatisfactionEdges>,
+    /// The platform whose variant a registry package links, when
+    /// `supportedArchitectures` names one other than the host's.
+    pub linked_platform: Option<PlatformSelector>,
 }
 
 impl GroupSelection {
@@ -37,14 +46,42 @@ impl GroupSelection {
         } else {
             PeerSatisfactionEdges::default()
         };
-        GroupSelection { included, skipped_peer_edges: Arc::new(skipped_peer_edges) }
+        GroupSelection {
+            included,
+            skipped_peer_edges: Arc::new(skipped_peer_edges),
+            linked_platform: None,
+        }
     }
 
     /// `included` without a peer classification, for a walk that only reads
     /// which importers it reaches.
     #[must_use]
     pub fn following_every_edge(included: IncludedDependencies) -> Self {
-        GroupSelection { included, skipped_peer_edges: Arc::default() }
+        GroupSelection { included, skipped_peer_edges: Arc::default(), linked_platform: None }
+    }
+
+    /// This selection, walking the variants `supported` links a registry
+    /// package to.
+    #[must_use]
+    pub fn linking_for(mut self, supported: Option<&SupportedArchitectures>) -> Self {
+        self.linked_platform = listed_link_platform(supported);
+        self
+    }
+
+    /// This selection, walking the variants `other` walks.
+    #[must_use]
+    pub fn linking_as(mut self, other: &GroupSelection) -> Self {
+        self.linked_platform.clone_from(&other.linked_platform);
+        self
+    }
+
+    /// The platform whose variants the walk follows.
+    #[must_use]
+    pub fn walked_platform(&self) -> PlatformSelector {
+        match &self.linked_platform {
+            Some(platform) => platform.clone(),
+            None => host_platform_selector(),
+        }
     }
 
     /// Every group, which leaves no edge out.

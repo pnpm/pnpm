@@ -44,7 +44,8 @@ async fn compute_frozen_skip_set(
         lockfile,
         settled.mode.included,
         settled.install.context.config.peer_edge_options(),
-    );
+    )
+    .linking_for(settled.install.context.config.supported_architectures.as_ref());
     let seed = if settled.install.context.config.force {
         pnpm_deps_restorer::SkippedSnapshots::default()
     } else {
@@ -131,7 +132,8 @@ async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
         lockfile,
         settled.mode.included,
         settled.install.context.config.peer_edge_options(),
-    );
+    )
+    .linking_for(settled.install.context.config.supported_architectures.as_ref());
     let resolutions: Vec<_> = crate::collect_reachable(
         lockfile,
         &workspace_root,
