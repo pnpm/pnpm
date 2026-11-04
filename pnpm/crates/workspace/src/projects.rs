@@ -72,6 +72,18 @@ pub struct FindWorkspaceProjectsOpts {
     pub ignored_directories: Vec<PathBuf>,
 }
 
+impl FindWorkspaceProjectsOpts {
+    /// Whether [`find_workspace_projects`] under `workspace_root` finds the
+    /// same projects with `self` as with `other`, ignoring the directories
+    /// that cannot change what it finds.
+    #[must_use]
+    pub fn finds_the_same_as(&self, other: &Self, workspace_root: &Path) -> bool {
+        self.patterns == other.patterns
+            && resolve_ignored_directories(workspace_root, &self.ignored_directories)
+                == resolve_ignored_directories(workspace_root, &other.ignored_directories)
+    }
+}
+
 /// Error type of the public entry points.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]

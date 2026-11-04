@@ -126,8 +126,7 @@ impl GateWorkspace {
             projects: pnpm_workspace::find_workspace_projects(&self.root, &opts).ok(),
             opts: opts.clone(),
         });
-        let same_opts = discovered.opts.patterns == opts.patterns
-            && discovered.opts.ignored_directories == opts.ignored_directories;
+        let same_opts = discovered.opts.finds_the_same_as(&opts, &self.root);
         discovered.projects.as_deref().filter(|_| same_opts)
     }
 }

@@ -2,7 +2,7 @@
 //! discovery never reports projects from. See
 //! [`FindWorkspaceProjectsOpts::ignored_directories`](super::FindWorkspaceProjectsOpts::ignored_directories).
 
-use super::{Path, PathBuf};
+use super::{Path, PathBuf, walk::has_always_ignored_component};
 use std::path::Component;
 
 /// Whether `path` sits under one of the directories returned by
@@ -52,7 +52,8 @@ fn eq_ignoring_case(left: Component<'_>, right: Component<'_>) -> bool {
 /// normalized paths, dropping any that equal or contain the root: a
 /// workspace checked out inside the state directory still owns its
 /// projects. Directories outside the root are kept, since `../` patterns
-/// can reach them.
+/// can reach them. Directories under a `node_modules` the walk skips
+/// anyway are dropped too.
 pub(super) fn resolve_ignored_directories(
     workspace_root: &Path,
     ignored_directories: &[PathBuf],
@@ -62,5 +63,6 @@ pub(super) fn resolve_ignored_directories(
         .iter()
         .map(|dir| pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
         .filter(|dir| !starts_with_directory(&workspace_root, dir))
+        .filter(|dir| !dir.strip_prefix(&workspace_root).is_ok_and(has_always_ignored_component))
         .collect()
 }

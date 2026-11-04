@@ -75,31 +75,27 @@ pub(crate) fn verify_deps_before_run(
     config: &Config,
     reporter: ReporterType,
 ) -> miette::Result<()> {
+    if !config.verify_deps_before_run.is_enabled() {
+        return Ok(());
+    }
     verify_deps_before_run_in(dir, (selected_project_dirs, None), config, reporter)
 }
 
 /// [`verify_deps_before_run`] with the workspace projects a recursive
 /// command discovered once for the gates of all its projects. The gate
-/// forgets them when it finds the dependencies out of date.
+/// forgets them when it finds the dependencies out of date. The caller
+/// checks that `verifyDepsBeforeRun` is enabled.
 fn verify_deps_before_run_in(
     dir: &Path,
     (selected_project_dirs, workspace): (&[&Path], Option<&mut GateWorkspace>),
     config: &Config,
     reporter: ReporterType,
 ) -> miette::Result<()> {
-    if !config.verify_deps_before_run.is_enabled() {
-        return Ok(());
-    }
     let Some(status) =
         check_deps_status_before_run_at(dir, config, selected_project_dirs, workspace.as_deref())
     else {
         return Ok(());
     };
-    if status != RunDepsStatus::UpToDate
-        && let Some(workspace) = workspace
-    {
-        workspace.forget_projects();
-    }
     let (issue, mut install_args) = match status {
         RunDepsStatus::UpToDate => return Ok(()),
         RunDepsStatus::SkippedPnp => {
@@ -109,7 +105,12 @@ fn verify_deps_before_run_in(
             );
             return Ok(());
         }
-        RunDepsStatus::Outdated { issue, install_args } => (issue, install_args),
+        RunDepsStatus::Outdated { issue, install_args } => {
+            if let Some(workspace) = workspace {
+                workspace.forget_projects();
+            }
+            (issue, install_args)
+        }
     };
     // A filtered `run` or `exec` only selected some of the workspace's
     // projects, so its install has to select the same ones.
