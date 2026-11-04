@@ -79,8 +79,9 @@ fn take_rehashed_resolution_integrity(
     }
 }
 
-/// Replaces `integrity` with `source` when they hold no digest of the same
-/// algorithm, so the same tarball was only hashed differently. A different
+/// Replaces `integrity` with `source` when `source` holds a digest and none
+/// of the same algorithm as `integrity`, so the same tarball was only hashed
+/// differently. A different
 /// digest of the same algorithm means another tarball, which `--check` must
 /// report, so it is kept.
 fn take_rehashed_integrity(integrity: &mut Integrity, source: &Integrity) {
@@ -91,7 +92,7 @@ fn take_rehashed_integrity(integrity: &mut Integrity, source: &Integrity) {
                 .iter()
                 .any(|source| hash.algorithm == source.algorithm)
         });
-    if !shares_an_algorithm {
+    if !shares_an_algorithm && !source.hashes.is_empty() {
         integrity.clone_from(source);
     }
 }

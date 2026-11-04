@@ -1,5 +1,6 @@
-use super::differs_only_in_registry_metadata;
+use super::{differs_only_in_registry_metadata, take_rehashed_integrity};
 use pnpm_lockfile::Lockfile;
+use ssri::Integrity;
 use std::path::Path;
 
 const LOCKFILE: &str = "\
@@ -109,6 +110,14 @@ fn a_tarball_integrity_the_lockfile_did_not_record_is_rejected() {
     let previous = tarball("{tarball: https://example.com/dep.tgz}");
     let next = tarball("{integrity: sha512-dGVzdA==, tarball: https://example.com/dep.tgz}");
     assert!(!only_registry_metadata_differs(&previous, &next));
+}
+
+#[test]
+fn an_integrity_without_any_digest_is_not_taken() {
+    let mut integrity: Integrity = "sha1-dGVzdA==".parse().expect("parse integrity");
+    let locked = integrity.clone();
+    take_rehashed_integrity(&mut integrity, &Integrity { hashes: Vec::new() });
+    assert_eq!(integrity, locked);
 }
 
 #[test]
