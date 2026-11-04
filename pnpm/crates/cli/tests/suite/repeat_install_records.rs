@@ -527,3 +527,31 @@ fn a_workspace_with_a_pnpmfile_reads_an_edited_manifest() {
     assert!(!output.contains(TAKEN_AFTER_CONFIG), "{output}");
     drop((root, mock_instance));
 }
+
+/// A filter leaves the selection to the install, so a filter that matches no
+/// project still fails under `--fail-if-no-match`.
+#[test]
+fn a_filtered_install_with_a_pnpmfile_still_fails_on_no_match() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_pnpmfile(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--filter", "no-such-project", "--fail-if-no-match"])
+        .assert()
+        .failure();
+    drop((root, mock_instance));
+}

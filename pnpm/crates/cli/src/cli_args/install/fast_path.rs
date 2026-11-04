@@ -106,9 +106,24 @@ impl InstallArgs {
         config: &pnpm_config::Config,
         emit: fn(&pnpm_reporter::LogEvent),
     ) -> bool {
-        let config_time_gate =
-            check_config_fast_path(config, config.root_project_manifest_dir(dir));
-        if config_time_gate.is_ok() || self.fast_path_ineligibility(config).is_some() {
+        let config_root = config.root_project_manifest_dir(dir);
+        // A filter, from the command line or an `updateConfig` hook, leaves
+        // the selection and its `failIfNoMatch` error to the install, as the
+        // pre-runtime attempt does.
+        if check_config_fast_path(config, config_root).is_ok()
+            || self.fast_path_ineligibility(config).is_some()
+            || !config.filter.is_empty()
+            || !config.filter_prod.is_empty()
+        {
+            return false;
+        }
+        // The install turns its shortcut off for a hoisted install whose
+        // pnpmfile declares custom fetchers, which may serve a directory that
+        // changed with the lockfile unchanged. Asking means loading the hooks,
+        // which is the install's job.
+        let node_linker =
+            self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        if node_linker == pnpm_config::NodeLinker::Hoisted && uses_pnpmfile(config, config_root) {
             return false;
         }
         let decided =
@@ -233,13 +248,16 @@ fn check_config_fast_path(
     {
         return Err("config dependencies need reconciling");
     }
-    if !pnpm_hooks::finder::find_pnpmfiles(
+    if uses_pnpmfile(config, config_root) {
+        return Err("a pnpmfile is in use");
+    }
+    Ok(())
+}
+
+fn uses_pnpmfile(config: &pnpm_config::Config, config_root: &std::path::Path) -> bool {
+    !pnpm_hooks::finder::find_pnpmfiles(
         config_root,
         pnpm_package_manager::pnpmfile_selection(config),
     )
     .is_empty()
-    {
-        return Err("a pnpmfile is in use");
-    }
-    Ok(())
 }
