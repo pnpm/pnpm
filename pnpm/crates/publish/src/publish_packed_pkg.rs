@@ -64,8 +64,6 @@ pub struct PackedPkg<'a> {
 }
 
 impl PackedPkg<'_> {
-    /// Whether the version has an `any` archive: its bytes, or one another
-    /// machine staged.
     /// Whether the version is published as several archives, which pnpm
     /// stages and references: it has platform variants, or an `any` archive
     /// another job staged.
@@ -73,6 +71,8 @@ impl PackedPkg<'_> {
         !self.variants.is_empty() || self.any_staged.is_some()
     }
 
+    /// Whether the version has an `any` archive: its bytes, or one another
+    /// machine staged.
     pub(crate) fn has_any_archive(&self) -> bool {
         !self.tarball_data.is_empty() || self.any_staged.is_some()
     }

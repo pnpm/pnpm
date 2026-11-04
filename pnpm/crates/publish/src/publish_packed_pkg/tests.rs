@@ -772,23 +772,52 @@ impl OidcFetch for ProvenanceSys {
         Ok(OidcResponse { ok: true, status: 200, body: body.to_owned() })
     }
 }
-/// The statements [`ProvenanceSys`] signed, in order.
-static SIGNED_STATEMENTS: std::sync::Mutex<Vec<Value>> = std::sync::Mutex::new(Vec::new());
-
 impl SignProvenance for ProvenanceSys {
     async fn sign_statement(
         _: &str,
-        statement: &[u8],
+        _: &[u8],
         _: Option<Duration>,
     ) -> Result<SignedProvenance, ProvenanceGenError> {
-        SIGNED_STATEMENTS
-            .lock()
-            .unwrap()
-            .push(serde_json::from_slice(statement).expect("a statement is JSON"));
         Ok(SignedProvenance {
             media_type: "application/vnd.dev.sigstore.bundle.v0.3+json".to_owned(),
             data: "signed-bundle-json".to_owned(),
         })
+    }
+}
+
+/// [`ProvenanceSys`] that also records each statement it signs, so only the
+/// one test that reads the recording shares it.
+struct RecordingProvenanceSys;
+
+/// The statements [`RecordingProvenanceSys`] signed, in order.
+static RECORDED_STATEMENTS: std::sync::Mutex<Vec<Value>> = std::sync::Mutex::new(Vec::new());
+
+impl Clock for RecordingProvenanceSys {
+    fn now_ms() -> u64 {
+        ProvenanceSys::now_ms()
+    }
+}
+impl EnvVar for RecordingProvenanceSys {
+    fn var(name: &str) -> Option<String> {
+        ProvenanceSys::var(name)
+    }
+}
+impl OidcFetch for RecordingProvenanceSys {
+    async fn fetch(request: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+        ProvenanceSys::fetch(request).await
+    }
+}
+impl SignProvenance for RecordingProvenanceSys {
+    async fn sign_statement(
+        jwt: &str,
+        statement: &[u8],
+        timeout: Option<Duration>,
+    ) -> Result<SignedProvenance, ProvenanceGenError> {
+        RECORDED_STATEMENTS
+            .lock()
+            .unwrap()
+            .push(serde_json::from_slice(statement).expect("a statement is JSON"));
+        ProvenanceSys::sign_statement(jwt, statement, timeout).await
     }
 }
 
@@ -942,15 +971,15 @@ async fn signed_subjects(pkg: &PackedPkg<'_>) -> Vec<(String, String)> {
     let client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
-    SIGNED_STATEMENTS
+    RECORDED_STATEMENTS
         .lock()
         .unwrap()
         .clear();
-    publish_packed_pkg::<ProvenanceSys, SilentReporter>(pkg, &opts, &network)
+    publish_packed_pkg::<RecordingProvenanceSys, SilentReporter>(pkg, &opts, &network)
         .await
         .expect("a provenance publish of variants succeeds");
     publish.assert_async().await;
-    let statement = SIGNED_STATEMENTS
+    let statement = RECORDED_STATEMENTS
         .lock()
         .unwrap()
         .pop()
