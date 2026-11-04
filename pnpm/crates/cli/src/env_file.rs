@@ -111,9 +111,6 @@ fn load_one(
         let id = env_key_id(key);
         if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
-            // Set per entry rather than per file: `dotenvy` resolves a
-            // `$VAR` against the environment, so a later file's reference to
-            // an earlier file's variable needs the change to have landed.
             set(key, value);
         }
     }
