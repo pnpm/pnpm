@@ -410,6 +410,6 @@ fn a_cas_write_reports_the_mode_of_the_blob() {
         .unwrap()
         .file;
 
-    assert_eq!(buffered.mode(), Some(pnpm_fs::FileMode::from_mode(0o640)),);
-    assert_eq!(streamed.mode(), Some(pnpm_fs::FileMode::from_mode(0o640)),);
+    assert_eq!(buffered.mode(), Some(pnpm_fs::FileMode::from_mode(0o640)));
+    assert_eq!(streamed.mode(), Some(pnpm_fs::FileMode::from_mode(0o640)));
 }
