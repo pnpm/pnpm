@@ -148,7 +148,6 @@ async fn commit_staged(
     notes: PublishNotes,
     request: Option<PublicationRequest>,
 ) -> Result<PublishReceipt, RegistryError> {
-    let database = std::sync::Arc::clone(state.inner.storage.sql_metadata());
     let orgs = staged
         .iter()
         .map(|stage| stage.org.as_deref().unwrap_or_default());
@@ -162,16 +161,23 @@ async fn commit_staged(
         }
     };
     let promoted = promote_archives(state, &mut staged).await?;
-    let artifacts = promoted.artifacts.clone();
+    let rebases = super::rebase::rebase_bases(&staged);
     let (documents, logged) = batch_documents(staged);
-    let commit =
-        match database.commit_publication(&catalog, documents, artifacts, notes, request).await {
-            Ok(commit) => commit,
-            Err(err) => {
-                promoted.remove_written(state).await;
-                return Err(err);
-            }
-        };
+    let artifacts = promoted.artifacts.clone();
+    let commit = match super::rebase::commit_rebasing(
+        state,
+        super::rebase::Publication { catalog: &catalog, artifacts, notes, request },
+        documents,
+        rebases,
+    )
+    .await
+    {
+        Ok(commit) => commit,
+        Err(err) => {
+            promoted.remove_written(state).await;
+            return Err(err);
+        }
+    };
     if !commit.replayed {
         for ecosystem in logged {
             let log = LogId { catalog: catalog.clone(), ecosystem };
@@ -197,7 +203,7 @@ fn batch_documents(
             ecosystem: stage.ecosystem,
             name: stage.name.as_str().to_string(),
             bytes: stage.document,
-            expected: stage.base_version,
+            expected: stage.base.version,
             principal: stage.publisher,
             records: stage.verification.records,
         })
@@ -237,7 +243,15 @@ impl Promoted {
     /// metadata serves one pnpr process, so no other publish has committed
     /// one of them since. An archive found in place belongs to an earlier
     /// commit and stays.
+    ///
+    /// Replicas sharing a libSQL database hold no lock in common: another
+    /// replica may have found one of these archives in place with the same
+    /// bytes and committed it. Removing it would break that release, so the
+    /// archives stay, referenced by nothing and never served.
     async fn remove_written(&self, state: &AppState) {
+        if !matches!(state.inner.config.storage.metadata, pnpr_config::MetadataBackend::Sqlite(_)) {
+            return;
+        }
         for (org, ecosystem, name, filename) in &self.written {
             let storage = state.inner.storage.for_hosted(org, *ecosystem);
             if let Err(err) = storage.remove_hosted_blob(name, filename).await {

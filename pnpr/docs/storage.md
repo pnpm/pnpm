@@ -168,6 +168,11 @@ file and pulls the primary's changes every `syncInterval`:
   retried publish read the primary.
 - When the replica cannot sync, pnpr reads the primary.
 
+Two instances publishing to one package at the same moment both land. The
+publish that commits second finds the package at another generation, rebases
+its versions, tags, and other changes onto what the first committed, and
+commits again, as if the two had run one after the other.
+
 ## Backends
 
 By default both are local directories. Adding an `s3:` block moves the
@@ -330,7 +335,7 @@ When publishing packages to an S3 backend, pnpr:
 
 ### Interruptions
 
-- **Interrupted publishes**: A publish that fails after uploading its blobs removes them again. A replica that stops between uploading the blobs and committing the metadata leaves blobs that no package references, which are never served.
+- **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no package references, which are never served. A publish refused at its commit leaves its blobs too: another replica may have found the same bytes in place and committed them, so removing them could break that release. A retry with the same bytes reuses them; one with other bytes for the same file is refused as a conflict.
 - **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
 
 ### Operational recommendations

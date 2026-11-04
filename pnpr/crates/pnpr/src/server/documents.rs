@@ -11,7 +11,7 @@
 
 use super::{
     AppState, hosted_read_namespace,
-    publishing::{StagedPublish, Verification, commit_publishes},
+    publishing::{StagedBase, StagedPublish, Verification, commit_publishes},
 };
 use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument};
 use pnpr_error::RegistryError;
@@ -220,7 +220,7 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
         name: key.clone(),
         ecosystem: Document::ECOSYSTEM,
         document: document.to_bytes(),
-        base_version: stored.map(|stored| stored.version),
+        base: StagedBase { version: stored.map(|stored| stored.version), packument: None },
         slots: vec![slot],
         org: Some(org.to_string()),
         // Only an npm document has dist-tags to record a publisher with.

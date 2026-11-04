@@ -116,12 +116,11 @@ impl Replica {
     }
 }
 
-/// Two replicas publishing versions of one package at once never write over
-/// each other: every version a publish reports as published is served by
-/// every replica. The publish that loses the race for the package's
-/// generation is refused rather than merged, and the client retries it.
+/// Two replicas publishing versions of one package at once both land: the one
+/// that commits second rebases its versions and tags onto what the first
+/// committed, instead of writing over it or being refused.
 #[tokio::test]
-async fn concurrent_publishes_of_one_package_never_drop_a_published_version() {
+async fn concurrent_publishes_of_one_package_keep_both_versions() {
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let metadata = SharedMetadata::new();
     let first = Replica::start(&store, &metadata).await;
@@ -130,24 +129,60 @@ async fn concurrent_publishes_of_one_package_never_drop_a_published_version() {
     let publish_one = first.publish("shared-pkg", "1.0.0", b"one");
     let publish_two = second.publish("shared-pkg", "2.0.0", b"two");
     let (left, right) = tokio::join!(publish_one, publish_two);
-    for status in [left, right] {
-        assert!(
-            status == StatusCode::CREATED || status == StatusCode::CONFLICT,
-            "a publish either lands or is refused: {left}, {right}",
-        );
-    }
-    assert!(left == StatusCode::CREATED || right == StatusCode::CREATED, "{left}, {right}");
+    assert_eq!((left, right), (StatusCode::CREATED, StatusCode::CREATED));
+    assert_both_versions(&[&first, &second], "shared-pkg").await;
+}
 
-    for replica in [&first, &second] {
-        let packument = replica.packument("shared-pkg").await;
-        let versions = packument["versions"].as_object().expect("versions");
-        for (version, status) in [("1.0.0", left), ("2.0.0", right)] {
-            assert_eq!(
-                versions.contains_key(version),
-                status == StatusCode::CREATED,
-                "{version} answered {status}: {versions:?}",
-            );
+/// The race made certain: one replica has read the packument and is
+/// uploading its tarball when another replica publishes, so its commit finds
+/// another generation and rebases.
+#[tokio::test]
+async fn a_publish_that_loses_the_race_rebases_onto_the_winner() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    let slow = Replica::start(&store, &metadata).await;
+    let fast = Replica::start(&store, &metadata).await;
+    assert_eq!(fast.publish("raced-pkg", "1.0.0", b"one").await, StatusCode::CREATED);
+
+    objects.pause_write("1.1.0.tgz".to_string());
+    let slow_publish = tokio::spawn({
+        let app = slow.app.clone();
+        let token = slow.token.clone();
+        async move {
+            let body = publish_doc("raced-pkg", "1.1.0", b"slow");
+            let request = Request::put("/npm/raced-pkg")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap();
+            app.oneshot(request).await
+                .unwrap()
+                .status()
         }
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the slow publish reaches its tarball upload");
+    assert_eq!(fast.publish("raced-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
+    objects.resume.notify_one();
+
+    assert_eq!(slow_publish.await.unwrap(), StatusCode::CREATED);
+    for replica in [&slow, &fast] {
+        let packument = replica.packument("raced-pkg").await;
+        let versions = packument["versions"].as_object().expect("versions");
+        for version in ["1.0.0", "1.1.0", "2.0.0"] {
+            assert!(versions.contains_key(version), "{version} is missing: {versions:?}");
+        }
+    }
+}
+
+async fn assert_both_versions(replicas: &[&Replica], name: &str) {
+    for replica in replicas {
+        let packument = replica.packument(name).await;
+        let versions = packument["versions"].as_object().expect("versions");
+        assert!(versions.contains_key("1.0.0"), "1.0.0 is missing: {versions:?}");
+        assert!(versions.contains_key("2.0.0"), "2.0.0 is missing: {versions:?}");
     }
 }
 

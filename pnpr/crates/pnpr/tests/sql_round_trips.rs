@@ -55,7 +55,7 @@ struct Registry {
     primary: Arc<Primary>,
     token: String,
     _server: tokio::task::JoinHandle<()>,
-    _storage: TempDir,
+    storage: TempDir,
 }
 
 impl Registry {
@@ -71,7 +71,7 @@ impl Registry {
             .as_str()
             .unwrap()
             .to_string();
-        Self { app, primary, token, _server: server, _storage: storage }
+        Self { app, primary, token, _server: server, storage }
     }
 
     /// Send `method path` with `body`, and report its status and the
@@ -177,4 +177,37 @@ async fn npm_operations_make_few_round_trips_to_a_libsql_primary() {
         ("an unpublish", 3),
     ];
     assert_eq!(counts, expected, "\n{}", listing(&operations));
+}
+
+/// Replicas sharing a libSQL primary hold no package lock in common, so a
+/// publish refused at its commit leaves the archives it wrote: another
+/// replica may have found one in place and committed it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_refused_publish_on_libsql_leaves_its_archives() {
+    let registry = Registry::start().await;
+    let batch = json!({ "packages": [publish_doc("first", "1.0.0", b"first")] });
+    let committed = keyed(&registry, &batch).await;
+    assert_eq!(committed, StatusCode::CREATED);
+
+    // Another request under the same idempotency key is refused at its
+    // commit, after its archive is in place.
+    let other = json!({ "packages": [publish_doc("second", "1.0.0", b"second")] });
+    assert_eq!(keyed(&registry, &other).await, StatusCode::CONFLICT);
+    let archive = pnpr_storage::layout::local_blob_path(
+        &registry.storage.path().join("registry"),
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        "second",
+        "second-1.0.0.tgz",
+    );
+    assert!(archive.is_file(), "{}", archive.display());
+}
+
+/// Send `batch` as a batch publish under the idempotency key `k1`.
+async fn keyed(registry: &Registry, batch: &Value) -> StatusCode {
+    let mut request = request("PUT", "/-/pnpr/v0/publish", &registry.token, Some(batch));
+    request
+        .headers_mut()
+        .insert("idempotency-key", header::HeaderValue::from_static("k1"));
+    send_to(&registry.app, request).await.0
 }

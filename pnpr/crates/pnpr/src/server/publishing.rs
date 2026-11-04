@@ -5,7 +5,7 @@ pub(super) use atomic::{
     publish_committed_response, replayed_outcome, single_catalog,
 };
 pub(super) use attachments::{
-    StagedPublish, ValidatedPublish, Verification, stage_publish, validate_publish_doc,
+    StagedBase, StagedPublish, ValidatedPublish, Verification, stage_publish, validate_publish_doc,
 };
 pub(super) use notes::{refuse_notes_of_published_python_versions, take_note, take_version_note};
 pub(super) use tombstones::check_publish_tombstone;
@@ -16,6 +16,7 @@ mod generated_archive;
 mod manifest;
 mod notes;
 mod provenance;
+mod rebase;
 mod release_records;
 mod tombstones;
 mod verification;
