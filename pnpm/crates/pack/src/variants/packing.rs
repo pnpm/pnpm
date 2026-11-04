@@ -311,6 +311,7 @@ where
             .iter()
             .map(|(_, bytes)| bytes.len() as u64)
             .sum::<u64>();
+    let mut archive = None;
     if !opts.output.dry_run {
         create_dest_dir::<Sys>(&dest_dir)?;
         let packed = PackedTarball {
@@ -318,13 +319,14 @@ where
             files_map,
             manifest_json: &manifest_json,
         };
-        write_tarball::<Sys>(&opts.output, &packed, &bins).await?;
+        archive = Some(write_tarball::<Sys>(&opts.output, &packed, &bins).await?);
     }
     Ok(PackResult {
         contents: packed_contents_with_injected(files_map, &opts.output.injected_files),
         tarball_path: packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name),
         published_manifest: with_registry_readme(manifest, &source.dir)?,
         unpacked_size,
+        archive,
     })
 }
 

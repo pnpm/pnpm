@@ -5929,6 +5929,7 @@ dependencies = [
  "pnpm-text-sanitize",
  "serde",
  "serde_json",
+ "ssri",
  "tar",
  "tempfile",
  "tokio",

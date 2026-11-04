@@ -36,6 +36,7 @@ miette = { workspace = true }
 pathdiff = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+ssri = { workspace = true }
 tar = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

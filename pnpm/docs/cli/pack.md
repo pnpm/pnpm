@@ -45,7 +45,7 @@ The gzip compression level of the tarball, from `0` to `9`. Values outside that 
 
 ### --json
 
-Log output in JSON format.
+Log output in JSON format. Each archive written has an `integrity`, its SHA-512 in SRI form, and a `size` in bytes. A platform variant's archive also has its `tag`, and every archive of a package that declares `publishConfig.variants` has its `targets`. A dry run writes no archive, so it prints neither `integrity` nor `size`.
 
 ### --variant &lt;target\>
 
