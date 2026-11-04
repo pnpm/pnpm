@@ -147,9 +147,8 @@ fn rejects_manifest_fields_every_archive_shares_or_a_variant_cannot_set() {
     ));
     let mut marked = base(&json!([{ "targets": ["any"] }]));
     marked["variant"] = json!({ "platforms": ["linux-x64"] });
-    assert!(
-        matches!(VariantDeclaration::read(&marked), Err(VariantDeclarationError::BaseVariant),)
-    );
+    let read_marked = VariantDeclaration::read(&marked);
+    assert!(matches!(read_marked, Err(VariantDeclarationError::BaseVariant)), "{read_marked:?}");
 }
 
 #[test]

@@ -166,8 +166,8 @@ fn collect_own_files(
     Ok(out)
 }
 
-/// The [`normalize_contained_field_path`]-ed `main`, `browser`, and `bin`
-/// paths that stay inside the package, which the packlist always includes.
+/// The normalized `main`, `browser`, and `bin` paths that stay inside the
+/// package, which the packlist always includes.
 /// A non-string value, such as a `browser` replacement map, is skipped.
 #[must_use]
 pub fn required_field_paths(manifest: &Value) -> Vec<String> {
