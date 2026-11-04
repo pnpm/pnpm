@@ -11,6 +11,8 @@
 //! sorting the workspace projects — lives in the CLI command alongside
 //! pacquet's other recursive commands, and calls [`api`] per project.
 
+pub mod variants;
+
 pub use capabilities::{
     FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, Host,
 };
@@ -20,6 +22,7 @@ pub use options::{
 };
 pub use output::{archive_result_json, format_pack_output, pack_output_path, to_pack_result_json};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
+pub use variants::{PackedArchive, pack_archives};
 
 mod capabilities;
 mod collation;
@@ -27,9 +30,6 @@ mod manifest_entry;
 mod options;
 mod source;
 mod tarball;
-pub mod variants;
-use variants::VariantDeclaration;
-pub use variants::{PackedArchive, pack_archives};
 
 #[cfg(test)]
 mod tests;
@@ -57,6 +57,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use variants::VariantDeclaration;
 
 /// The published manifest basename used in identity validation errors.
 const MANIFEST_FILE_NAME: &str = "package.json";
