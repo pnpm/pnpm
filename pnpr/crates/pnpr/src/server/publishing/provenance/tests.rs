@@ -3,8 +3,12 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde_json::json;
 
 fn bundle(subjects: &serde_json::Value) -> String {
+    typed_bundle(subjects, "https://in-toto.io/Statement/v1", "application/vnd.in-toto+json")
+}
+
+fn typed_bundle(subjects: &serde_json::Value, statement_type: &str, payload_type: &str) -> String {
     let statement = json!({
-        "_type": "https://in-toto.io/Statement/v1",
+        "_type": statement_type,
         "subject": subjects,
         "predicateType": "https://slsa.dev/provenance/v1",
         "predicate": {},
@@ -13,7 +17,7 @@ fn bundle(subjects: &serde_json::Value) -> String {
         "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
         "dsseEnvelope": {
             "payload": BASE64.encode(statement.to_string()),
-            "payloadType": "application/vnd.in-toto+json",
+            "payloadType": payload_type,
             "signatures": [],
         },
     })
@@ -39,5 +43,23 @@ fn converts_an_sri_sha512_to_hex() {
     let integrity = format!("sha512-{}", BASE64.encode(digest));
     assert_eq!(sha512_hex(Some(&integrity)).unwrap(), "ab".repeat(64));
     assert_eq!(sha512_hex(Some("sha1-AAAA")), None);
+    let other = format!("sha512-{}", BASE64.encode([0xcd_u8; 64]));
+    assert_eq!(sha512_hex(Some(&format!("{integrity} {other}"))), None);
     assert_eq!(sha512_hex(None), None);
+}
+
+#[test]
+fn refuses_a_bundle_that_is_not_an_in_toto_statement() {
+    let subjects = json!([{ "name": "pkg:npm/a@1.0.0", "digest": { "sha512": "ab" } }]);
+    let older = typed_bundle(
+        &subjects,
+        "https://in-toto.io/Statement/v0.1",
+        "application/vnd.in-toto+json",
+    );
+    assert!(statement_subjects(&older).is_ok());
+    let payload = typed_bundle(&subjects, "https://in-toto.io/Statement/v1", "text/plain");
+    assert!(statement_subjects(&payload).unwrap_err().contains("payload type"));
+    let statement =
+        typed_bundle(&subjects, "https://example.com/Other", "application/vnd.in-toto+json");
+    assert!(statement_subjects(&statement).unwrap_err().contains("statement type"));
 }

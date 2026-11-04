@@ -14,12 +14,16 @@ use super::{
     variants::PublishedVariant,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use pnpm_release_record::{Purl, Statement};
+use pnpm_release_record::{IN_TOTO_PAYLOAD_TYPE, Purl, STATEMENT_TYPE, Statement};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use serde_json::Value;
 use ssri::{Algorithm, Integrity};
 use std::{collections::BTreeMap, fmt::Write as _};
+
+/// The in-toto statement types a provenance bundle may carry: npm's older
+/// provenance uses v0.1.
+const STATEMENT_TYPES: [&str; 2] = [STATEMENT_TYPE, "https://in-toto.io/Statement/v0.1"];
 
 /// The subjects of each version's provenance statement, or why its bundle
 /// holds none, by version.
@@ -51,11 +55,18 @@ fn statement_subjects(data: &str) -> Result<Vec<(String, String)>, String> {
         .pointer("/dsseEnvelope/payload")
         .and_then(Value::as_str)
         .ok_or("its bundle has no DSSE envelope")?;
+    let payload_type = bundle.pointer("/dsseEnvelope/payloadType").and_then(Value::as_str);
+    if payload_type != Some(IN_TOTO_PAYLOAD_TYPE) {
+        return Err(format!("its DSSE payload type is not {IN_TOTO_PAYLOAD_TYPE}"));
+    }
     let payload = BASE64
         .decode(payload.trim())
         .map_err(|err| format!("its DSSE payload is not base64: {err}"))?;
     let statement: Statement = serde_json::from_slice(&payload)
         .map_err(|err| format!("its DSSE payload is not an in-toto statement: {err}"))?;
+    if !STATEMENT_TYPES.contains(&statement.statement_type.as_str()) {
+        return Err(format!("its statement type {} is not in-toto's", statement.statement_type));
+    }
     Ok(statement.subject
         .into_iter()
         .filter_map(|subject| Some((subject.name, subject.digest.get("sha512")?.to_lowercase())))
@@ -73,15 +84,17 @@ pub(super) fn check_statements(
     for (version, subjects) in statements {
         let refuse = |reason: String| RegistryError::BadRequest {
             reason: format!(
-                "the provenance statement of {}@{version} {reason}; it names every archive the \
-                 version publishes",
+                "the provenance statement of {}@{version} {reason}; a statement must name every \
+                 archive the version publishes",
                 name.as_str(),
             ),
         };
         let subjects = subjects.as_ref().map_err(|reason| refuse(reason.clone()))?;
         for (purl, tgz_integrity) in archives(name, version, tars, variants)? {
             let digest = sha512_hex(tgz_integrity.as_deref())
-                .ok_or_else(|| refuse(format!("cannot name {purl}, which has no SHA-512")))?;
+                .ok_or_else(|| {
+                    refuse(format!("cannot name {purl}, which has no single SHA-512"))
+                })?;
             let named = subjects
                 .iter()
                 .any(|(subject, sha512)| subject == purl.as_str() && *sha512 == digest);
@@ -113,12 +126,17 @@ fn archives(
     primary.chain(variants).collect()
 }
 
-/// The lowercase hex SHA-512 an SRI `integrity` carries.
+/// The lowercase hex SHA-512 an SRI `integrity` carries, or `None` unless it
+/// carries exactly one. The archive's bytes are verified against any one
+/// SHA-512 of its integrity, so only a single one is known to be theirs.
 fn sha512_hex(integrity: Option<&str>) -> Option<String> {
     let integrity: Integrity = integrity?.parse().ok()?;
-    let hash = integrity.hashes
+    let mut sha512 = integrity.hashes
         .iter()
-        .find(|hash| hash.algorithm == Algorithm::Sha512)?;
+        .filter(|hash| hash.algorithm == Algorithm::Sha512);
+    let (Some(hash), None) = (sha512.next(), sha512.next()) else {
+        return None;
+    };
     let bytes = BASE64.decode(&hash.digest).ok()?;
     Some(
         bytes

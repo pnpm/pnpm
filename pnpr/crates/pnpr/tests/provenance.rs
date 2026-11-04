@@ -476,3 +476,39 @@ async fn a_statement_must_name_the_published_archive() {
         );
     }
 }
+
+/// An archive whose integrity carries a second SHA-512 is verified against
+/// either, so a statement could name the one its bytes do not have: such an
+/// archive is refused rather than named by a digest that may not be its.
+#[tokio::test]
+async fn an_archive_with_two_sha512_digests_cannot_be_named() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
+
+    let mut doc = publish_doc("two-digests", "1.0.0", b"tarball");
+    let other = publish_doc("two-digests", "1.0.0", b"other bytes");
+    let other_integrity = other["versions"]["1.0.0"]["dist"]["integrity"].as_str().unwrap();
+    let integrity = doc["versions"]["1.0.0"]["dist"]["integrity"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    doc["versions"]["1.0.0"]["dist"]["integrity"] = json!(format!("{integrity} {other_integrity}"));
+    let bundle = naming(
+        &sample_sigstore_bundle("https://slsa.dev/provenance/v1"),
+        &[("pkg:npm/two-digests@1.0.0", other_integrity)],
+    );
+    let doc = doc_with_bundle(doc, "two-digests-1.0.0.sigstore", &bundle);
+    let res = app
+        .oneshot(put_publish("/npm/two-digests", &token, &doc))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    assert!(
+        String::from_utf8_lossy(&bytes).contains("which has no single SHA-512"),
+        "{}",
+        String::from_utf8_lossy(&bytes),
+    );
+}
