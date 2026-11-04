@@ -80,6 +80,12 @@ impl<'a> ManifestTransforms<'a> {
         (wanted, projects): (&pnpm_lockfile::Lockfile, &[&ManifestStat<'_>]),
         workspace_packages: Option<&pnpm_resolving_resolver_base::WorkspacePackages>,
     ) -> Result<crate::install::DirectoryManifests, &'static str> {
+        // Reading the manifests may run the hooks, which cannot run on a
+        // current-thread runtime, so a lockfile without directory packages
+        // returns before that.
+        if !resolves_a_directory(wanted) {
+            return Ok(crate::install::DirectoryManifests::default());
+        }
         let importers: Vec<(String, &PackageManifest)> = projects
             .iter()
             .map(|project| {
@@ -130,6 +136,15 @@ impl<'a> ManifestTransforms<'a> {
         overrider.apply(&mut cloned, Some(root_dir));
         std::borrow::Cow::Owned(cloned)
     }
+}
+
+fn resolves_a_directory(lockfile: &pnpm_lockfile::Lockfile) -> bool {
+    lockfile.packages
+        .iter()
+        .flat_map(|packages| packages.values())
+        .any(|metadata| {
+            matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+        })
 }
 
 /// The hooks the install runs over the project manifests: the caller's, or

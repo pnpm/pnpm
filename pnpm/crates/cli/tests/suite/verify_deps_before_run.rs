@@ -2422,6 +2422,15 @@ fn a_pinned_lockfile_dir_starts_an_install() {
     drop(root);
 }
 
+/// Where [`LocalDirectoryFixture`] puts its project.
+#[derive(Clone, Copy)]
+enum ProjectLayout {
+    /// A workspace project, run with `--filter`.
+    Workspace,
+    /// A project without a workspace.
+    Standalone,
+}
+
 /// A project `app` with a dependency on the local directory `lib`, which is no
 /// workspace project. The manifest of `lib` is what the gate has to read: no
 /// validation records it.
@@ -2430,14 +2439,13 @@ struct LocalDirectoryFixture {
     workspace: PathBuf,
     /// Where the commands run: the workspace, or `app` without one.
     cwd: PathBuf,
+    layout: ProjectLayout,
 }
 
 impl LocalDirectoryFixture {
-    /// `app` as a workspace project, or as a standalone project when
-    /// `in_workspace` is unset.
-    fn new(in_workspace: bool) -> Self {
+    fn new(layout: ProjectLayout) -> Self {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-        let cwd = if in_workspace {
+        let cwd = if matches!(layout, ProjectLayout::Workspace) {
             fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n")
                 .expect("write pnpm-workspace.yaml");
             fs::write(
@@ -2457,7 +2465,7 @@ impl LocalDirectoryFixture {
                 .to_string(),
         )
         .expect("write the project manifest");
-        let fixture = Self { root, workspace, cwd };
+        let fixture = Self { root, workspace, cwd, layout };
         fixture.write_directory_manifest("lib", &json!({}));
         fixture.write_directory_manifest("other", &json!({}));
         fixture
@@ -2480,7 +2488,7 @@ impl LocalDirectoryFixture {
 
     fn gated_exec(&self) -> std::process::Output {
         let mut args = vec!["--config.verify-deps-before-run=error"];
-        if self.cwd == self.workspace {
+        if matches!(self.layout, ProjectLayout::Workspace) {
             args.extend(["--filter", "app"]);
         }
         args.extend(["exec", "node", "-e", ""]);
@@ -2513,8 +2521,8 @@ impl LocalDirectoryFixture {
 
 #[test]
 fn a_dependency_added_to_a_local_directory_dependency_fails_the_gate() {
-    for in_workspace in [true, false] {
-        let fixture = LocalDirectoryFixture::new(in_workspace);
+    for layout in [ProjectLayout::Workspace, ProjectLayout::Standalone] {
+        let fixture = LocalDirectoryFixture::new(layout);
         fixture.install();
         fixture.assert_gate_passes();
         fixture.write_directory_manifest("lib", &json!({ "other": "file:../other" }));
@@ -2527,7 +2535,7 @@ fn a_dependency_added_to_a_local_directory_dependency_fails_the_gate() {
 /// hook left them, so the gate compares the hooked manifest.
 #[test]
 fn a_local_directory_dependency_a_hook_extends_passes_the_gate() {
-    let fixture = LocalDirectoryFixture::new(true);
+    let fixture = LocalDirectoryFixture::new(ProjectLayout::Workspace);
     fs::write(
         fixture.workspace.join(".pnpmfile.cjs"),
         "module.exports = { hooks: { readPackage (pkg) {\n\
