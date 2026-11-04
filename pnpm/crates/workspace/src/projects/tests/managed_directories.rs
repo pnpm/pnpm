@@ -294,16 +294,22 @@ fn other_patterns_do_not_find_the_same_projects() {
     assert_ne!(in_a.discovery_key(tmp.path()), other.discovery_key(tmp.path()));
 }
 
-#[cfg(any(windows, target_os = "macos"))]
+/// On a case-insensitive filesystem the configured `node_modules` names the
+/// `NODE_MODULES` on disk, which only the exclusion skips.
 #[test]
 fn a_modules_directory_spelled_otherwise_on_disk_changes_the_projects() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), "packages/a", "a");
     make_project(tmp.path(), "packages/a/NODE_MODULES/dep", "dep");
     make_project(tmp.path(), "packages/b", "b");
+    let case_insensitive = tmp
+        .path()
+        .join("packages/a/node_modules")
+        .exists();
 
     let in_a = modules_dir_opts(tmp.path(), "packages/a");
     let in_b = modules_dir_opts(tmp.path(), "packages/b");
 
-    assert_ne!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+    let same = in_a.discovery_key(tmp.path()) == in_b.discovery_key(tmp.path());
+    assert_eq!(same, !case_insensitive, "case-insensitive: {case_insensitive}");
 }
