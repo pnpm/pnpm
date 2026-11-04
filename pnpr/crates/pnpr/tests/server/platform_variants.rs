@@ -961,6 +961,35 @@ async fn a_version_without_an_any_archive_names_its_own_package_and_version() {
     assert!(body.contains("name"), "{body}");
 }
 
+/// A version without an `any` archive is the version, not one of its
+/// variants, so it declares no `variant`; and it names the package its URL
+/// names even when the body leaves the package's name out.
+#[tokio::test]
+async fn a_version_without_an_any_archive_is_no_variant_of_another_package() {
+    let (_, linux) = archive(&variant_manifest(&["linux-x64"], &json!({})), "linux");
+    let mut marked = any_manifest();
+    marked["variant"] = json!({ "platforms": ["linux-x64"] });
+    let (status, body) =
+        publish_once(|token| variants_only_request(&marked, &[("linux-x64", &linux)], token)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body.contains("declares a variant"), "{body}");
+
+    let (_, nameless) = archive(&variant_manifest(&["linux-x64"], &json!({ "name": "" })), "linux");
+    let (_tmp, app, token) = setup().await;
+    let mut base = any_manifest();
+    base["name"] = json!("");
+    let (parts, body) =
+        variants_only_request(&base, &[("linux-x64", &nameless)], &token).into_parts();
+    let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
+    document
+        .as_object_mut()
+        .unwrap()
+        .remove("name");
+    let request = Request::from_parts(parts, Body::from(serde_json::to_vec(&document).unwrap()));
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
 /// The version's manifest is read as its archives' are, so empty peer maps
 /// on both sides agree.
 #[tokio::test]

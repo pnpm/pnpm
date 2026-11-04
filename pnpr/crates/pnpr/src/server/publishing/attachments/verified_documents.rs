@@ -89,7 +89,7 @@ async fn verify_written(
 ) -> Result<(Vec<String>, pnpr_storage::metadata::ReleaseRecords), RegistryError> {
     let notices = verify_published_manifests(name, merged, &written.tars)?;
     let archives = (written.variants.as_slice(), written.tars.as_slice());
-    variants::attach_variants(merged, checks.declared, archives, checks.without_any)?;
+    variants::attach_variants((name, merged), checks.declared, archives, checks.without_any)?;
     provenance::check_statements(name, checks.statements, &written.tars, &written.variants)?;
     for version in checks.without_any {
         write_generated_archive(name, merged, version, written, writer).await?;

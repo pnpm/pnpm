@@ -7,6 +7,7 @@ use super::{
 };
 use pnpm_package_manifest::{ArchiveFacts, InstallManifest};
 use pnpm_platform_variants::{Platform, variant_tag};
+use pnpr_package_name::CanonicalPackageName;
 use std::collections::{BTreeSet, HashMap};
 
 /// Fields every archive of a version must share, so the package's peers, and
@@ -26,7 +27,7 @@ const IDENTITY_FIELDS: &[&str] = &["name", "version", "deprecated", "_npmUser", 
 /// and described against the manifest they share, which is recorded with it
 /// (see [`GENERATED_ARCHIVE_FIELD`]).
 pub(in super::super) fn attach_variants(
-    merged: &mut Value,
+    (name, merged): (&CanonicalPackageName, &mut Value),
     declared: &Declarations,
     (published, any_archives): (&[PublishedVariant], &[PublishedTar]),
     without_any: &BTreeSet<String>,
@@ -39,11 +40,6 @@ pub(in super::super) fn attach_variants(
             .ok_or_else(|| {
                 bad_request(format!("variants declared for unknown version {version}"))
             })?;
-        let name = merged
-            .get("name")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
         let name = name.as_str();
         let (submitted, shared) = version_manifests(
             (name, version),
@@ -80,6 +76,11 @@ fn version_manifests(
     if !without_any_archive {
         check_any_archive((name, version), &submitted, any_archives)?;
         return Ok((submitted, None));
+    }
+    if submitted.get("variant").is_some() {
+        return Err(bad_request(format!(
+            "version {version} declares a variant: it is the version, not one of its variants",
+        )));
     }
     let submitted = normalized(&submitted);
     check_identity((name, version), &submitted)
