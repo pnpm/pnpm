@@ -12,6 +12,9 @@
 //! check the declaration allows before anything is packed;
 //! [`check_archive`] runs the checks of one packed archive.
 
+pub use packing::{PackedArchive, pack_archives};
+
+mod packing;
 #[cfg(test)]
 mod tests;
 

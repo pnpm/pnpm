@@ -19,11 +19,25 @@ pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
             .unwrap_or_default()
             .to_string(),
         filename: result.tarball_path.clone(),
+        tag: None,
+        targets: None,
         files: result.contents
             .iter()
             .map(|path| PackFile { path: path.clone() })
             .collect(),
     }
+}
+
+/// Project a [`crate::PackedArchive`] into its JSON shape, with the tag and
+/// targets of the entry it was packed for.
+#[must_use]
+pub fn archive_result_json(archive: &crate::PackedArchive) -> PackResultJson {
+    let mut json = to_pack_result_json(&archive.result);
+    if let Some(entry) = &archive.entry {
+        json.tag.clone_from(&entry.tag);
+        json.targets = Some(entry.targets.clone());
+    }
+    json
 }
 
 /// Render packed results the way `pnpm pack` prints them: pretty JSON

@@ -18,7 +18,7 @@ pub use contents::sort_paths_en_locale;
 pub use options::{
     PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
 };
-pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
+pub use output::{archive_result_json, format_pack_output, pack_output_path, to_pack_result_json};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
 
 mod capabilities;
@@ -28,6 +28,8 @@ mod options;
 mod source;
 mod tarball;
 pub mod variants;
+use variants::VariantDeclaration;
+pub use variants::{PackedArchive, pack_archives};
 
 #[cfg(test)]
 mod tests;
@@ -80,6 +82,13 @@ pub struct PackResultJson {
     pub name: String,
     pub version: String,
     pub filename: String,
+    /// The derived tag of a platform variant's archive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    /// The targets of the `publishConfig.variants` entry the archive was
+    /// packed for.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub targets: Option<Vec<String>>,
     pub files: Vec<PackFile>,
 }
 
@@ -172,6 +181,29 @@ pub enum PackError {
         source: io::Error,
     },
 
+    #[diagnostic(transparent)]
+    Variants(#[error(source)] variants::VariantDeclarationError),
+
+    #[diagnostic(transparent)]
+    VariantArchive(#[error(source)] variants::VariantArchiveError),
+
+    #[display("The pattern {pattern:?} of the variant for {targets} matches no file")]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANT_PATTERN_MATCHES_NOTHING),
+        help(
+            "Build the files the archive needs before packing it, so it is never packed without them."
+        )
+    )]
+    VariantPatternMatchesNothing { targets: String, pattern: String },
+
+    #[display("The package declares publishConfig.variants, which this command cannot publish yet")]
+    #[diagnostic(code(ERR_PNPM_VARIANTS_UNSUPPORTED))]
+    OneArchiveOfVariants,
+
+    #[display("The package declares no publishConfig.variants to pack {target:?} from")]
+    #[diagnostic(code(ERR_PNPM_NO_VARIANTS))]
+    NoVariants { target: String },
+
     #[display("The bin file \"{path}\" has a shebang line ending with CRLF (\\r\\n).")]
     #[diagnostic(
         code(ERR_PNPM_BIN_CRLF),
@@ -188,6 +220,22 @@ where
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
     let source = prepare_source::<Reporter>(opts).await?;
+    if VariantDeclaration::read(&source.publish_manifest).map_err(PackError::Variants)?.is_some() {
+        return Err(PackError::OneArchiveOfVariants);
+    }
+    pack_source::<Reporter, Sys>(opts, source).await
+}
+
+/// Pack `source`, prepared by [`prepare_source`], into one archive, then run
+/// `postpack`.
+async fn pack_source<Reporter, Sys>(
+    opts: &PackOptions,
+    source: PackSource,
+) -> Result<PackResult, PackError>
+where
+    Reporter: self::Reporter,
+    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
+{
     let (tarball_name, pack_destination) =
         resolve_output(&opts.output, &source.normalized_name, &source.published_version)?;
     let files_map = packed_files_map(opts, &source)?;
