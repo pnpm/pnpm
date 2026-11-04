@@ -20,7 +20,12 @@ pub(super) fn check_from_files(
     check_fast_path_repeat_install(
         check,
         context,
-        FastPathProjects { state, manifests: &project_manifests, recorded_digests: None },
+        FastPathProjects {
+            state,
+            manifests: &project_manifests,
+            recorded_digests: None,
+            bin_projects: None,
+        },
     )?;
     Ok(workspace_projects.as_ref().map(Vec::len))
 }
