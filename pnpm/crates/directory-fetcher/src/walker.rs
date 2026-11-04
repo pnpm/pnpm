@@ -161,7 +161,7 @@ fn is_lockfile_temp_file(file_name: &str) -> bool {
             if !pid.is_empty()
                 && pid.bytes().all(|byte| byte.is_ascii_digit())
                 && !counter.is_empty()
-                && counter.bytes().all(|byte| byte.is_ascii_digit())
+                && counter.bytes().all(|byte| byte.is_ascii_digit()),
     )
 }
 
