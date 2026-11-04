@@ -1,5 +1,6 @@
-use super::GateWorkspace;
+use super::{GateInputs, GateWorkspace, gate_workspace_projects};
 use pnpm_config::Config;
+use pnpm_package_manifest::PackageManifest;
 use std::fs;
 use tempfile::tempdir;
 
@@ -47,4 +48,47 @@ fn forgetting_the_projects_reads_the_workspace_manifest_again() {
     workspace.forget_projects();
 
     assert_eq!(workspace.projects(&config).map(<[_]>::len), Some(2));
+}
+
+#[test]
+fn a_gate_in_a_nested_workspace_walks_its_own_workspace() {
+    let dir = tempdir().expect("create a temporary directory");
+    let outer = dir.path();
+    let nested = outer.join("packages/nested");
+    for (root, project) in [(outer, "packages/a"), (nested.as_path(), "packages/b")] {
+        fs::create_dir_all(root.join(project)).expect("create the project directory");
+        fs::write(root.join(project).join("package.json"), "{}").expect("write package.json");
+        fs::write(root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+            .expect("write pnpm-workspace.yaml");
+    }
+    let mut config = Config::new();
+    config.shared_workspace_lockfile = false;
+    let workspace = GateWorkspace::of(outer, &config).expect("the outer workspace");
+    let nested_manifest = pnpm_workspace::read_workspace_manifest(&nested)
+        .expect("read the nested workspace manifest")
+        .expect("a nested workspace manifest");
+    let manifest = PackageManifest::from_value(
+        nested.join("packages/b/package.json"),
+        serde_json::json!({ "dependencies": { "a": "workspace:*" } }),
+    );
+    let inputs = GateInputs {
+        config: &config,
+        manifest: &manifest,
+        workspace_manifest: Some(&nested_manifest),
+        workspace_root: &nested,
+        lockfile_root: &nested.join("packages/b"),
+        workspace: Some(&workspace),
+    };
+    let mut loaded = None;
+
+    let projects = gate_workspace_projects(&inputs, None, &mut loaded)
+        .expect("discover the projects")
+        .expect("the projects of the nested workspace");
+
+    let roots: Vec<_> = projects
+        .iter()
+        .map(|project| project.root_dir.clone())
+        .collect();
+    assert!(roots.contains(&nested.join("packages/b")), "{roots:?}");
+    assert!(!roots.contains(&outer.join("packages/a")), "{roots:?}");
 }

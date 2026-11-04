@@ -326,6 +326,7 @@ fn gate_workspace_projects<'a>(
     } = inputs;
     let links = crate::optimistic_repeat_install::validation::links_workspace_commands(manifest);
     let discovered = workspace
+        .filter(|workspace| workspace.root == workspace_root)
         .filter(|_| !config.shares_one_lockfile() && links)
         .and_then(|workspace| workspace.projects(config));
     if discovered.is_some() {
