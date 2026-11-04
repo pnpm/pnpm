@@ -302,7 +302,7 @@ fn walk_package_files_applies_npm_packlist_filter() {
 fn walk_package_files_skips_lockfile_staging_files() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    touch(root, "package.json");
+    fs::write(root.join("package.json"), "{}").unwrap();
     touch(root, "index.js");
     touch(root, ".pnpm-lock.yaml.123.0.tmp");
 
