@@ -296,10 +296,7 @@ pub(crate) struct LinkedPackagesContext<'a> {
 /// Verify that linked packages are up to date: every importer
 /// dependency that resolved to a workspace link must still link under
 /// today's manifest spec, and every one that resolved to the registry
-/// must not have become linkable. The local-file-dependency freshness
-/// branch (a `file:` directory specifier) is not handled here — those
-/// entries conservatively report "not up to date" so the full install
-/// path re-evaluates them.
+/// must not have become linkable.
 pub(crate) fn linked_packages_are_up_to_date(
     ctx: &LinkedPackagesContext<'_>,
     project_dir: &Path,
@@ -354,17 +351,18 @@ fn linked_dep_is_up_to_date(
     dep: &pnpm_lockfile::ResolvedDependencySpec,
     current_spec: &str,
 ) -> bool {
+    if matches!(dep.version, ImporterDepVersion::File(_)) {
+        // A `file:` directory dependency or an injected workspace project: a
+        // copy, not a link. Its own dependencies were compared with its
+        // snapshot by the directory freshness check `check_importer_satisfies`
+        // ran before this one.
+        return true;
+    }
     if crate::install::is_declared_local_directory(&dep.specifier) {
         // A `file:` specifier that resolved to `link:` (e.g. an
         // injected self-reference) is a local link with no
         // `packages:` entry — up to date by construction.
         return matches!(dep.version, ImporterDepVersion::Link(_));
-    }
-    if matches!(dep.version, ImporterDepVersion::File(_)) {
-        // An injected workspace project: a `file:` copy, not a link. Its own
-        // dependencies were compared with its snapshot by the directory
-        // freshness check `check_importer_satisfies` ran before this one.
-        return true;
     }
     let link_target = dep.version.as_link_target();
     let is_linked = link_target.is_some();

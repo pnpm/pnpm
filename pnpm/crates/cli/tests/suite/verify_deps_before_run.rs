@@ -396,6 +396,55 @@ fn error_action_follows_the_dependency_state() {
     drop(root);
 }
 
+/// An edit to a manifest with a `file:` directory dependency passes the gate
+/// while the directory still matches its lockfile entry
+/// ([pnpm/pnpm#17697](https://github.com/pnpm/pnpm/issues/17697)).
+#[cfg(unix)]
+#[test]
+fn error_action_accepts_an_edit_beside_an_unchanged_file_directory_dependency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let local_dir = workspace.join("local-dir");
+    fs::create_dir_all(&local_dir).expect("create the local directory package");
+    let write_local_dir_manifest = |dependencies: serde_json::Value| {
+        let manifest =
+            json!({ "name": "local-dir", "version": "1.0.0", "dependencies": dependencies });
+        fs::write(local_dir.join("package.json"), manifest.to_string())
+            .expect("write the local directory manifest");
+    };
+    write_local_dir_manifest(json!({}));
+    let groups = json!({ "dependencies": { "local-dir": "file:./local-dir" } });
+    write_manifest_with_dependency_groups(
+        &workspace,
+        &workspace.join("marker.txt"),
+        groups.clone(),
+    );
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let marker = workspace.join("edited-marker.txt");
+    write_manifest_with_dependency_groups(&workspace, &marker, groups.clone());
+    pacquet_in(&workspace)
+        .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+        .assert()
+        .success();
+    assert!(marker.exists(), "the script must run");
+
+    write_local_dir_manifest(json!({ "@pnpm.e2e/foo": "100.0.0" }));
+    write_manifest_with_dependency_groups(&workspace, &workspace.join("marker.txt"), groups);
+    bump_mtime(&workspace.join("package.json"));
+    let output = pacquet_in(&workspace)
+        .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+        .output()
+        .expect("spawn pacquet run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "a changed local directory must fail:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"), "unexpected error:\n{stderr}");
+
+    drop(root);
+}
+
 /// Dedicated workspace lockfiles record one project in each workspace
 /// state file. The pre-run check must validate the project being run,
 /// rather than comparing that state to every workspace package.
