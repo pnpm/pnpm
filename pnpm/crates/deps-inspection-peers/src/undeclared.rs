@@ -55,6 +55,7 @@ impl From<bool> for WorkspaceRootScope {
 pub struct UndeclaredPeerInspector<'a> {
     lockfile: &'a Lockfile,
     lockfile_dir: &'a Path,
+    root_scope: Option<Providers>,
     nodes: HashMap<PkgNameVerPeer, PackageNode>,
     reports: HashMap<Query, Vec<UndeclaredPeer>>,
 }
@@ -62,7 +63,13 @@ pub struct UndeclaredPeerInspector<'a> {
 impl<'a> UndeclaredPeerInspector<'a> {
     #[must_use]
     pub fn new(lockfile: &'a Lockfile, lockfile_dir: &'a Path) -> Self {
-        Self { lockfile, lockfile_dir, nodes: HashMap::new(), reports: HashMap::new() }
+        Self {
+            lockfile,
+            lockfile_dir,
+            root_scope: None,
+            nodes: HashMap::new(),
+            reports: HashMap::new(),
+        }
     }
 
     /// Inspect required peers independently of missing and incompatible peer errors.
@@ -89,16 +96,20 @@ impl<'a> UndeclaredPeerInspector<'a> {
         result
     }
 
-    fn root_providers(&self) -> Providers {
+    fn root_providers(&mut self) -> Providers {
+        if let Some(providers) = &self.root_scope {
+            return providers.clone();
+        }
         let Some(root) = self.lockfile.importers.get(".") else { return Providers::new() };
         let declared = self.importer_providers(root, self.lockfile_dir);
         let mut providers = Providers::new();
         for provider in declared.values() {
-            if let Provider::Package(key) = provider {
-                providers.entry(key.name.to_string()).or_insert_with(|| provider.clone());
+            if let Some(name) = provider_name(provider) {
+                providers.entry(name).or_insert_with(|| provider.clone());
             }
         }
         providers.extend(declared);
+        self.root_scope = Some(providers.clone());
         providers
     }
 
@@ -192,6 +203,20 @@ impl<'a> UndeclaredPeerInspector<'a> {
             );
         }
         result
+    }
+}
+
+fn provider_name(provider: &Provider) -> Option<String> {
+    match provider {
+        Provider::Package(key) => Some(key.name.to_string()),
+        Provider::Link(path) => {
+            let manifest = pnpm_workspace::read_project_manifest_only(path).ok()?;
+            manifest
+                .value()
+                .get("name")?
+                .as_str()
+                .map(str::to_string)
+        }
     }
 }
 

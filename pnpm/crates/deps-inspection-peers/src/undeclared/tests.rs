@@ -41,11 +41,22 @@ fn linked_providers_use_the_lockfile_directory_and_importer_declarations() {
     value["importers"]["packages/app"] = value["importers"]["."].clone();
     value["importers"]["packages/app"]["dependencies"]["provider"] =
         json!({"specifier":"workspace:*", "version":"link:../provider"});
-    let declared = lockfile(value);
+    let declared = lockfile(value.clone());
     let mut inspector = UndeclaredPeerInspector::new(&declared, root.path());
     assert!(
         inspector.check("packages/app", crate::WorkspaceRootScope::Exclude).is_empty(),
         "declared linked provider must suppress the warning",
+    );
+    value["importers"]["packages/app"]["dependencies"]
+        .as_object_mut()
+        .unwrap()
+        .remove("provider");
+    value["importers"]["."] = json!({"dependencies":{"alias":{"specifier":"workspace:*", "version":"link:packages/provider"}}});
+    let aliased_root = lockfile(value);
+    let mut inspector = UndeclaredPeerInspector::new(&aliased_root, root.path());
+    assert!(
+        inspector.check("packages/app", crate::WorkspaceRootScope::Include).is_empty(),
+        "aliased root link should provide the peer",
     );
 }
 
