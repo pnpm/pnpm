@@ -1,12 +1,13 @@
 //! Run a command whose stall should be diagnosable from a CI log.
 
 use std::{
+    cmp::Reverse,
     collections::HashSet,
     ffi::OsString,
     fmt::Write as _,
     io::Read,
     mem,
-    process::{Command, Output, Stdio},
+    process::{Child, Command, ExitStatus, Output, Stdio},
     sync::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicUsize, Ordering},
@@ -60,6 +61,29 @@ pub fn output_within(command: &mut Command, deadline: Duration) -> Output {
         }
         thread::sleep(POLL_INTERVAL);
     }
+    fail_stalled(Stall { child, run, status, stdout, stderr, deadline })
+}
+
+/// A command that was not done by its deadline.
+struct Stall {
+    child: Child,
+    run: OsString,
+    /// [`None`] while the command itself is still running.
+    status: Option<ExitStatus>,
+    stdout: EchoedStream,
+    stderr: EchoedStream,
+    deadline: Duration,
+}
+
+fn fail_stalled(stall: Stall) -> ! {
+    let Stall {
+        mut child,
+        run,
+        status,
+        stdout,
+        stderr,
+        deadline,
+    } = stall;
     let root = status.is_none().then(|| Pid::from_u32(child.id()));
     let report = RunProcesses::find(
         &run,
@@ -92,7 +116,6 @@ struct EchoedStream {
 impl EchoedStream {
     /// Echo each chunk as it arrives, so output that does not end in a
     /// newline is echoed before the command stalls.
-    #[expect(clippy::print_stderr, reason = "the echo is test output, which nextest captures")]
     fn start(
         mut stream: impl Read + Send + 'static,
         label: &'static str,
@@ -104,12 +127,8 @@ impl EchoedStream {
             move || {
                 let mut chunk = [0; 8192];
                 while let Ok(read @ 1..) = stream.read(&mut chunk) {
-                    let chunk = &chunk[..read];
-                    let elapsed = started.elapsed().as_secs_f32();
-                    for line in String::from_utf8_lossy(chunk).lines() {
-                        eprintln!("[{elapsed:>6.1}s {label}] {line}");
-                    }
-                    lock(&collected).extend_from_slice(chunk);
+                    echo(&chunk[..read], label, started);
+                    lock(&collected).extend_from_slice(&chunk[..read]);
                 }
             }
         });
@@ -122,6 +141,14 @@ impl EchoedStream {
 
     fn take(&self) -> Vec<u8> {
         mem::take(&mut lock(&self.collected))
+    }
+}
+
+#[expect(clippy::print_stderr, reason = "the echo is test output, which nextest captures")]
+fn echo(chunk: &[u8], label: &str, started: Instant) {
+    let elapsed = started.elapsed().as_secs_f32();
+    for line in String::from_utf8_lossy(chunk).lines() {
+        eprintln!("[{elapsed:>6.1}s {label}] {line}");
     }
 }
 
@@ -204,28 +231,28 @@ impl RunProcesses {
             .iter()
             .filter_map(|&pid| self.system.process(pid))
             .collect();
-        processes.sort_by_key(|process| process.pid());
-        let children_of = |parent: Option<Pid>| {
-            processes
-                .iter()
-                .rev()
-                .filter(move |process| match parent {
-                    Some(parent) => process.parent() == Some(parent),
-                    None => process
-                        .parent()
-                        .is_none_or(|parent| !self.members.contains(&parent)),
-                })
-                .copied()
-        };
+        // Reversed, so the stack below pops siblings in pid order.
+        processes.sort_by_key(|process| Reverse(process.pid()));
         let mut tree = Vec::new();
-        let mut pending: Vec<_> = children_of(None)
-            .map(|process| (0, process))
+        let mut pending: Vec<_> = processes
+            .iter()
+            .filter(|process| self.is_top_level(process))
+            .map(|&process| (0, process))
             .collect();
         while let Some((depth, process)) = pending.pop() {
             tree.push((depth, process));
-            pending.extend(children_of(Some(process.pid())).map(|child| (depth + 1, child)));
+            let children = processes
+                .iter()
+                .filter(|child| child.parent() == Some(process.pid()));
+            pending.extend(children.map(|&child| (depth + 1, child)));
         }
         tree
+    }
+
+    fn is_top_level(&self, process: &Process) -> bool {
+        process
+            .parent()
+            .is_none_or(|parent| !self.members.contains(&parent))
     }
 
     fn report(&self) -> String {
