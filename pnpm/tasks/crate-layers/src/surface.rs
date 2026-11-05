@@ -46,17 +46,42 @@ pub fn scan(tokens: &[Token]) -> Surface {
     surface
 }
 
-/// The keywords an item, a field, or the visibility before one starts with.
-const ITEM_STARTS: [&str; 11] =
-    ["pub", "use", "mod", "fn", "struct", "enum", "trait", "impl", "const", "static", "type"];
+/// The keywords an item starts with, after its visibility and qualifiers.
+const ITEM_KEYWORDS: [&str; 10] =
+    ["use", "mod", "fn", "struct", "enum", "trait", "impl", "const", "static", "type"];
 
-/// The index after the test-only item that starts at `pos`, if one does.
+/// The index after the test-only item or field that starts at `pos`, if one
+/// does. An item ends at its `;` or body. A field also ends at its `,`, which
+/// in an item's header separates generics or `where` predicates instead.
 fn test_only_item_end(tokens: &[Token], pos: usize) -> Option<usize> {
-    let starts_item = matches!(
-        tokens.get(pos),
-        Some(Token::Ident(word)) if ITEM_STARTS.contains(&word.as_str()),
-    );
-    (starts_item && cfg::is_test_only(tokens, pos)).then(|| item_end(tokens, pos, Stop::Extent))
+    let is_keyword = |index: usize| matches!(tokens.get(index), Some(Token::Ident(word)) if ITEM_KEYWORDS.contains(&word.as_str()));
+    let starts = is_keyword(pos) || is_ident(tokens.get(pos), "pub");
+    if !starts || !cfg::is_test_only(tokens, pos) {
+        return None;
+    }
+    let stop = if is_keyword(skip_qualifiers(tokens, skip_visibility(tokens, pos))) {
+        Stop::ItemEnd
+    } else {
+        Stop::Extent
+    };
+    Some(item_end(tokens, pos, stop))
+}
+
+/// The index after `pub` or `pub(…)` at `pos`, or `pos` when there is none.
+fn skip_visibility(tokens: &[Token], pos: usize) -> usize {
+    if !is_ident(tokens.get(pos), "pub") {
+        return pos;
+    }
+    if tokens.get(pos + 1) != Some(&Token::Punct('(')) {
+        return pos + 1;
+    }
+    let close = tokens
+        .iter()
+        .skip(pos + 1)
+        .position(|token| *token == Token::Punct(')'));
+    close
+        .map(|offset| pos + offset + 2)
+        .unwrap_or(pos + 1)
 }
 
 /// The paths of a `use` item without `pub` at `pos`, and the index after it.
@@ -125,8 +150,8 @@ enum Stop {
     FieldEnd,
     /// After the item's `{ … }` body, or at `;` before one.
     ItemEnd,
-    /// Like `ItemEnd`, and also at `,` or a closing bracket, so a field or
-    /// variant ends where it does.
+    /// Like `ItemEnd`, and also at `,` or a closing bracket, so a field
+    /// ends where it does.
     Extent,
 }
 

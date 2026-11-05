@@ -81,6 +81,10 @@ fn surface_skips_test_only_items_and_their_imports() {
         "pub fn after(value: dep::After, shadow: Shadow, local: Local) {}\n",
         "pub struct Probed { #[cfg(test)] pub probe: Option<dep::Probe<'static, u8>>, pub kept: dep::Kept }\n",
         "pub enum Following { Variant(dep::Variant) }\n",
+        "#[cfg(test)]\n",
+        "impl<A, B> Following where A: Clone, B: Copy { pub fn probe(&self) -> dep::TestImpl { todo!() } }\n",
+        "#[cfg(test)] pub(crate) fn scoped(value: dep::Scoped) where u8: Copy, u16: Copy {}\n",
+        "pub fn last(value: dep::Last) {}\n",
     );
     let surface = surface::scan(&lexer::lex(source).tokens);
     dbg!(&surface);
@@ -89,7 +93,7 @@ fn surface_skips_test_only_items_and_their_imports() {
         .filter(|path| path[0] == "dep")
         .map(|path| path.join("::"))
         .collect::<Vec<_>>();
-    assert_eq!(names, ["dep::After", "dep::Kept", "dep::Variant"]);
+    assert_eq!(names, ["dep::After", "dep::Kept", "dep::Variant", "dep::Last"]);
     assert_eq!(surface.reexported, []);
 }
 
