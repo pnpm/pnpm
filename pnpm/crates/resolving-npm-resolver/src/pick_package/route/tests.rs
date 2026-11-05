@@ -206,12 +206,22 @@ fn the_release_age_cutoff_is_offered_where_the_policy_applies() {
 }
 
 #[test]
-fn an_uncacheable_mirror_offers_no_shortcut_online() {
+fn an_uncacheable_mirror_offers_only_the_shortcuts_that_ignore_newer_versions_online() {
+    let untagged = headers(None, false);
     let uncacheable = headers(None, true);
     let release_age = release_age_policy();
     let version = version_pick(&release_age, Some(&uncacheable));
-    assert_eq!(MirrorShortcuts::decide(&range_pick(&NO_POLICY, Some(&uncacheable))), None);
-    assert_eq!(MirrorShortcuts::decide(&version), None);
+    assert_eq!(
+        MirrorShortcuts::decide(&range_pick(&NO_POLICY, Some(&untagged))),
+        Some(MirrorShortcuts { unvalidated_mirror: true, ..RANGE_SHORTCUTS }),
+    );
+    assert_eq!(
+        MirrorShortcuts::decide(&range_pick(&NO_POLICY, Some(&uncacheable))),
+        Some(RANGE_SHORTCUTS),
+    );
+    let shortcuts = MirrorShortcuts::decide(&version).expect("the mirror may answer");
+    assert!(shortcuts.exact_version);
+    assert_eq!(version.written_after(), Some(cutoff()));
 
     let offline = RouteInputs { network: NetworkPolicy::Offline, ..version };
     let shortcuts = MirrorShortcuts::decide(&offline).expect("offline reads the mirror");
@@ -348,15 +358,27 @@ fn an_unverified_cache_hit_serves_only_a_pick_a_stale_mirror_cannot_change() {
     let no_downgrade =
         PackagePickPolicy { trust_policy: Some(TrustPolicy::NoDowngrade), ..NO_POLICY };
     let base = range_pick(&NO_POLICY, None);
+    let uncacheable = headers(None, true);
+    let lowest = with_request(base, |request| request.pick_lowest_version = true);
     let cases = [
         (
             "prefer-offline",
             RouteInputs { network: NetworkPolicy::PreferCache, ..base },
             CacheHitCheck::Serve,
         ),
+        ("pick lowest", lowest, CacheHitCheck::Serve),
         (
-            "pick lowest",
-            with_request(base, |request| request.pick_lowest_version = true),
+            "pick lowest from an uncacheable mirror",
+            RouteInputs { mirror: Some(&uncacheable), ..lowest },
+            CacheHitCheck::Revalidate,
+        ),
+        (
+            "pick lowest from an uncacheable mirror, preferring offline",
+            RouteInputs {
+                network: NetworkPolicy::PreferCache,
+                mirror: Some(&uncacheable),
+                ..lowest
+            },
             CacheHitCheck::Serve,
         ),
         ("version", version_pick(&release_age, None), CacheHitCheck::Serve),
