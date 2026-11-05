@@ -380,3 +380,25 @@ importers:
         &lockfile.importers["app"],
     ));
 }
+#[test]
+fn a_publish_directory_at_another_project_root_keeps_that_project_manifest() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let a_dir = workspace_root.join("a");
+    let b_dir = workspace_root.join("b");
+    fs::create_dir_all(&a_dir).unwrap();
+    fs::create_dir_all(&b_dir).unwrap();
+    fs::write(
+        a_dir.join("package.json"),
+        r#"{"name":"a","version":"1.0.0","publishConfig":{"directory":"../b"}}"#,
+    )
+    .unwrap();
+    fs::write(b_dir.join("package.json"), r#"{"name":"b","version":"2.0.0"}"#).unwrap();
+    let a_manifest = PackageManifest::from_path(a_dir.join("package.json")).unwrap();
+    let b_manifest = PackageManifest::from_path(b_dir.join("package.json")).unwrap();
+    let config = Config::new();
+    let project_manifests = [(b_dir.clone(), &b_manifest), (a_dir, &a_manifest)];
+    let context = LinkedPackagesContext::new(&config, &project_manifests);
+
+    assert_eq!(context.linked_version(&b_dir).as_deref(), Some("2.0.0"));
+}

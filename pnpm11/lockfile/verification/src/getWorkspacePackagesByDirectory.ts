@@ -29,6 +29,7 @@ function addWorkspacePackage (
   // at a directory the coming install step is about to create.
   const publishDir = manifest.publishConfig?.directory
   if (publishDir != null && manifest.publishConfig?.linkDirectory !== false) {
-    workspacePackagesByDirectory[path.join(rootDir, publishDir)] = manifest
+    // Another project's root keeps its own manifest, whichever is indexed first.
+    workspacePackagesByDirectory[path.join(rootDir, publishDir)] ??= manifest
   }
 }

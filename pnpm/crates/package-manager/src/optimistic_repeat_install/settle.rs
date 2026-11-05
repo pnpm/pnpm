@@ -55,10 +55,10 @@ impl<'a> LinkedPackagesContext<'a> {
                 manifest.value(),
             );
             if link_dir != *root_dir {
-                manifests_by_dir.insert(
-                    std::borrow::Cow::Owned(pnpm_fs::lexical_normalize(&link_dir)),
-                    *manifest,
-                );
+                // Another project's root keeps its own manifest, whichever is indexed first.
+                manifests_by_dir
+                    .entry(std::borrow::Cow::Owned(pnpm_fs::lexical_normalize(&link_dir)))
+                    .or_insert(*manifest);
             }
             if let (Some(name), Some(version)) = (
                 manifest_string_field(manifest, "name"),

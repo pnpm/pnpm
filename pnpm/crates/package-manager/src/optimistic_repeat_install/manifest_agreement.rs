@@ -289,7 +289,8 @@ fn is_outdated_linked_package(
 pub(crate) struct LinkedPackagesContext<'a> {
     pub(crate) link_workspace_packages: bool,
     /// Each project's manifest under its root and, when the resolver links
-    /// its `publishConfig.directory` instead, under that directory too.
+    /// its `publishConfig.directory` instead, under that directory too,
+    /// unless that directory is another project's root.
     pub(crate) manifests_by_dir:
         std::collections::HashMap<std::borrow::Cow<'a, Path>, &'a PackageManifest>,
     /// `name → version → root_dir` over the workspace's projects.
