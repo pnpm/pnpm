@@ -4,11 +4,12 @@ import semver from 'semver'
 
 /**
  * Rewrites `engines.pnpm` with the same rule as the devEngines pin
- * (see updateVersionConstraint). Returns whether the manifest changed.
+ * (see updateVersionConstraint), keeping a `*` range as is.
+ * Returns whether the manifest changed.
  */
 export function pinPnpmInEngines (manifest: ProjectManifest, targetVersion: string): boolean {
   const engines = manifest.engines
-  if (engines?.pnpm == null) return false
+  if (engines?.pnpm == null || engines.pnpm === '*') return false
   const updated = updateVersionConstraint(engines.pnpm, targetVersion)
   if (updated === engines.pnpm) return false
   engines.pnpm = updated

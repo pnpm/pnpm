@@ -278,6 +278,8 @@ async function refreshLegacyHomeDirShims (pnpmHomeDir: string, baseDir: string):
 
 async function updateProjectPin (opts: SelfUpdateCommandOptions, targetVersion: string, bootstrapConfig: PackageManagerBootstrapConfig): Promise<string> {
   if (opts.wantedPackageManager?.version === targetVersion) {
+    const { manifest, writeProjectManifest } = await readProjectManifest(opts.workspaceDir ?? opts.dir ?? opts.rootProjectManifestDir)
+    if (pinPnpmInEngines(manifest, targetVersion)) await writeProjectManifest(manifest)
     return `The current project is already set to use pnpm v${targetVersion}`
   }
   const pinUpdate = await updateManifestPinAndDecide(opts, targetVersion)

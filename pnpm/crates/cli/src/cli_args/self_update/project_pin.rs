@@ -134,6 +134,12 @@ pub(super) async fn update_project_pin(
     target_version: &str,
 ) -> miette::Result<String> {
     if pm.version.as_deref() == Some(target_version) {
+        if write_engines_pnpm(manifest.value_mut(), target_version) {
+            manifest
+                .save()
+                .map_err(miette::Report::new)
+                .wrap_err("write the project manifest")?;
+        }
         return Ok(format!("The current project is already set to use pnpm v{target_version}"));
     }
 
@@ -250,13 +256,17 @@ fn write_dev_engines_pin(
 }
 
 /// Rewrite the manifest's `engines.pnpm` range the way
-/// [`update_version_constraint`] rewrites the `devEngines` pin, reporting
-/// whether that changed the manifest.
+/// [`update_version_constraint`] rewrites the `devEngines` pin, keeping a
+/// `*` range as is, and report whether that changed the manifest.
 fn write_engines_pnpm(manifest: &mut Value, target_version: &str) -> bool {
     let Some(engines) = manifest.get_mut("engines") else {
         return false;
     };
-    let Some(current) = engines.get("pnpm").and_then(Value::as_str) else {
+    let Some(current) = engines
+        .get("pnpm")
+        .and_then(Value::as_str)
+        .filter(|range| *range != "*")
+    else {
         return false;
     };
     let updated = update_version_constraint(Some(current), target_version);
