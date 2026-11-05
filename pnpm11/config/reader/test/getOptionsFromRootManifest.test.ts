@@ -73,6 +73,15 @@ test('getOptionsFromPnpmSettings() ignores env variables inside the default regi
   expect(warnings).toStrictEqual([expect.stringContaining('Ignored "registries[\'default\']" in pnpm-workspace.yaml')])
 })
 
+test('getOptionsFromPnpmSettings() fails on a scope route with an env variable beside a dropped declaration', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
+      '@scope': 'https://${PNPM_TEST_HOST}/scope/',
+    } as never,
+  }, { warnings: [] })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' }))
+})
+
 test('getOptionsFromPnpmSettings() fails on env variables inside namedRegistries values', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     namedRegistries: {

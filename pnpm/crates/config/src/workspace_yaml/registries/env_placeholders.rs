@@ -1,4 +1,6 @@
-use super::{DEFAULT_REGISTRY_SCOPE, IndexMap, LoadWorkspaceYamlError, RegistryEntry};
+use super::{
+    DEFAULT_REGISTRY_SCOPE, IndexMap, LoadWorkspaceYamlError, RegistryEntry, python::PythonPattern,
+};
 use crate::workspace_yaml::{WORKSPACE_MANIFEST_FILENAME, redact_registry_url};
 
 /// Drop the entries whose request destination carries an unexpanded `${VAR}`,
@@ -53,7 +55,9 @@ fn routes_non_default_packages(key: &str, entry: &RegistryEntry) -> bool {
                 || declaration.packages
                     .iter()
                     .flatten()
-                    .any(|pattern| pattern != "*")
+                    .any(|pattern| {
+                        !PythonPattern::parse(pattern).is_ok_and(|pattern| pattern.is_default())
+                    })
         }
     }
 }

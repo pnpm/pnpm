@@ -149,6 +149,10 @@ fn refuses_env_vars_inside_workspace_registry_routes() {
             "registries:\n  https://${WORK_HOST}/:\n    prefix: work\n",
             "registries['https://${WORK_HOST}/']",
         ),
+        (
+            "registries:\n  https://${WORK_HOST}/simple/:\n    ecosystem: pypi\n    packages: [alpha]\n",
+            "registries['https://${WORK_HOST}/simple/']",
+        ),
     ] {
         let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
         let error = settings.substitute_env_untrusted::<EnvWithWorkHost>().unwrap_err();
@@ -159,6 +163,38 @@ fn refuses_env_vars_inside_workspace_registry_routes() {
                 if setting == expected_setting && file == WORKSPACE_MANIFEST_FILENAME
         ));
     }
+}
+
+/// `*` and `**` both spell the default Python index, which a dropped entry
+/// leaves to the default the same way a dropped default npm registry does.
+#[test]
+fn drops_a_default_python_index_with_an_env_placeholder() {
+    for pattern in ["*", "**"] {
+        let yaml = format!(
+            "registries:\n  https://${{WORK_HOST}}/simple/:\n    ecosystem: pypi\n    packages: ['{pattern}']\n",
+        );
+        let mut settings: WorkspaceSettings = serde_saphyr::from_str(&yaml).unwrap();
+        let warnings = settings.substitute_env_untrusted::<EnvWithWorkHost>().unwrap();
+        dbg!(&warnings);
+        assert_eq!(warnings.len(), 1);
+        assert!(settings.registries.unwrap().is_empty());
+    }
+}
+
+#[test]
+fn a_config_dependency_entry_error_names_the_entry() {
+    let path = Path::new("/store/config-dep/pnpm-config.yaml");
+    let error = WorkspaceSettings::read_config_dependency_entry::<EnvWithWorkHost>(
+        "registries:\n  '@work': https://${WORK_HOST}/scope/\n",
+        path,
+    )
+    .unwrap_err();
+    eprintln!("{error}");
+    assert!(matches!(
+        &error,
+        crate::LoadWorkspaceYamlError::RegistryEnvNotExpanded { file, .. }
+            if file == &path.display().to_string()
+    ));
 }
 
 struct EnvWithWorkHost;

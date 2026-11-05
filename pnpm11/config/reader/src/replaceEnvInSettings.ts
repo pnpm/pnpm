@@ -108,18 +108,17 @@ function replaceEnvInKeys (value: unknown): unknown {
 }
 
 /**
- * Drops the declarations whose URL carries a placeholder. A declaration that
- * routes a scope or a prefix may not be dropped, for the reason
+ * Drops the entries whose URL carries a placeholder. The URL is the key of a
+ * declaration and the value of a scope route, which a mixed map holds too. An
+ * entry that routes a scope or a prefix may not be dropped, for the reason
  * {@link copyStringValuesWithoutEnvPlaceholders} gives.
  */
 function copyEntriesWithoutEnvPlaceholderKeys (value: unknown, warnings: string[]): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
   for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
-    if (hasEnvPlaceholder(entryKey)) {
-      const setting = `registries['${redactRegistryUrl(entryKey)}']`
-      if (routesNonDefaultPackages(entryValue)) throw new RegistryEnvNotExpandedError(setting, WORKSPACE_MANIFEST)
-      warnings.push(ignoredSettingWarning(setting))
+    if (hasEnvPlaceholder(typeof entryValue === 'string' ? entryValue : entryKey)) {
+      warnings.push(ignoredSettingWarning(droppableEntrySetting(entryKey, entryValue)))
       continue
     }
     out[entryKey] = entryValue
@@ -127,9 +126,16 @@ function copyEntriesWithoutEnvPlaceholderKeys (value: unknown, warnings: string[
   return out
 }
 
-function routesNonDefaultPackages (declaration: unknown): boolean {
-  if (declaration == null || typeof declaration !== 'object') return false
-  const { scopes, prefix } = declaration as { scopes?: unknown, prefix?: unknown }
+function droppableEntrySetting (entryKey: string, entryValue: unknown): string {
+  const setting = `registries['${redactRegistryUrl(entryKey)}']`
+  if (routesNonDefaultPackages(entryKey, entryValue)) throw new RegistryEnvNotExpandedError(setting, WORKSPACE_MANIFEST)
+  return setting
+}
+
+function routesNonDefaultPackages (entryKey: string, entry: unknown): boolean {
+  if (typeof entry === 'string') return entryKey !== 'default'
+  if (entry == null || typeof entry !== 'object') return false
+  const { scopes, prefix } = entry as { scopes?: unknown, prefix?: unknown }
   if (prefix != null) return true
   return Array.isArray(scopes) && scopes.some((scope) => scope !== DEFAULT_REGISTRY_SCOPE)
 }

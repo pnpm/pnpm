@@ -1,8 +1,8 @@
 use super::{
     EnvVar, GetHomeDir, LoadWorkspaceYamlError, Path, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceSettings, has_env_placeholder, join_fragment, registries, substitute_json_string,
-    substitute_optional_inner_string, substitute_optional_string, substitute_optional_string_map,
-    substitute_registry_entries,
+    WorkspaceSettings, has_env_placeholder, join_fragment, redact_registry_url, registries,
+    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
+    substitute_optional_string_map, substitute_registry_entries,
 };
 
 impl WorkspaceSettings {
@@ -33,14 +33,14 @@ impl WorkspaceSettings {
     /// A request setting with a placeholder is dropped, and the returned
     /// warnings name each one. A registry URL that routes packages away from
     /// the default registry fails with
-    /// [`LoadWorkspaceYamlError::RegistryEnvNotExpanded`] instead.
+    /// [`LoadWorkspaceYamlError::RegistryEnvNotExpanded`] instead, and leaves
+    /// the settings unchanged.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`](crate::settings::Config) and filtered values do not.
     pub fn substitute_env_untrusted<Sys: EnvVar>(
         &mut self,
     ) -> Result<Vec<String>, LoadWorkspaceYamlError> {
-        self.substitute_env_scalars::<Sys>();
         self.refuse_unexpanded_named_registries()?;
         let mut dropped = match self.registries.as_mut() {
             Some(registries) => {
@@ -48,6 +48,7 @@ impl WorkspaceSettings {
             }
             None => Vec::new(),
         };
+        self.substitute_env_scalars::<Sys>();
         self.drop_unexpanded_request_scalars(&mut dropped);
         Ok(dropped
             .iter()
@@ -62,7 +63,7 @@ impl WorkspaceSettings {
             .find(|(_, url)| has_env_placeholder(url))
         {
             Some((name, _)) => Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
-                setting: format!("namedRegistries['{name}']"),
+                setting: format!("namedRegistries['{}']", redact_registry_url(name)),
                 file: WORKSPACE_MANIFEST_FILENAME.to_string(),
             }),
             None => Ok(()),

@@ -203,6 +203,26 @@ pub fn repository_scoped_registry_with_env_placeholder_aborts_the_load() {
     }
 }
 
+/// The load that switches to the pinned pnpm leaves out what this pnpm
+/// refuses, so a newer or older pinned pnpm still gets to decide.
+#[test]
+pub fn readable_load_leaves_out_a_scoped_registry_with_env_placeholder() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  '@acme': http://localhost:${MOCK_PORT}/\nlockfile: false\n",
+    );
+    write_file(&project.path().join(".npmrc"), "@other:registry=http://localhost:${MOCK_PORT}/\n");
+
+    let config = Config { settings_read: crate::SettingsRead::Readable, ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
+
+    assert!(!config.lockfile);
+    assert_eq!(config.registries_by_scope.get("@acme"), None);
+    assert_eq!(config.registries_by_scope.get("@other"), None);
+}
+
 #[test]
 pub fn repository_default_registry_with_env_placeholder_warns() {
     let project = tempdir().expect("project tempdir");

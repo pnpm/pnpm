@@ -155,7 +155,7 @@ pub enum LoadWorkspaceYamlError {
     #[diagnostic(
         code(ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED),
         help(
-            "pnpm does not expand environment variables in registry URLs that come from a file committed to the repository. Ignoring the URL would resolve the packages it routes from the default registry. Write the URL literally, or move the setting to the global config.yaml or the user-level .npmrc."
+            "pnpm does not expand environment variables in registry URLs that come from a file committed to the repository. Ignoring the URL would resolve the packages it routes from the default registry. Write the URL literally, or move the setting to the global config.yaml."
         )
     )]
     RegistryEnvNotExpanded { setting: String, file: String },

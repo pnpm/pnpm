@@ -358,7 +358,7 @@ function readNpmrcEntry (ctx: NpmrcFilterContext, rawKey: string, rawValue: unkn
   if (skipsUnexpandedEnv(ctx, { ...keyGate, key })) return undefined
   if (typeof rawValue !== 'string') return { key, value: rawValue }
   if (!ctx.expandRequestDestinationEnv && isScopedRegistryKey(key) && hasEnvPlaceholder(rawValue)) {
-    throw new RegistryEnvNotExpandedError(key, ctx.filePath)
+    throw new RegistryEnvNotExpandedError(redactRegistryUrl(key), ctx.filePath)
   }
   if (skipsUnexpandedEnv(ctx, { text: rawValue, key, reportedKey: key, isRequestDestination: isRequestDestinationValueKey })) {
     return undefined
