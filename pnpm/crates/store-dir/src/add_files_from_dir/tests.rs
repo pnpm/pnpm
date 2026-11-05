@@ -1,11 +1,13 @@
-use super::{AddFilesFromDirError, add_files_from_dir, add_files_from_dir_with_node_modules};
+use super::{
+    AddFilesFromDirError, BundledPackageDirs, add_files_from_dir, add_files_from_dir_with_bundled,
+};
 #[cfg(unix)]
 use crate::SYMLINK_MODE;
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
-use std::{collections::HashSet, fs, path::Path};
+use std::{fs, path::Path};
 use tempfile::tempdir;
 
 fn make_store() -> (tempfile::TempDir, StoreDir) {
@@ -93,23 +95,44 @@ fn top_level_node_modules_is_skipped() {
 }
 
 #[test]
-fn selected_top_level_node_modules_files_are_hashed_without_scanning_other_files() {
+fn bundled_package_directories_are_walked_without_other_top_level_node_modules() {
     let (_tmp, store_dir) = make_store();
     let pkg_dir = tempdir().expect("create pkg dir");
-    write(&pkg_dir.path().join("node_modules/abbrev/package.json"), "patched\n");
-    write(&pkg_dir.path().join("node_modules/abbrev/index.js"), "unchanged\n");
-    write(&pkg_dir.path().join("node_modules/other/index.js"), "not in base index\n");
+    for path in [
+        "node_modules/abbrev/package.json",
+        "node_modules/abbrev/lib/new.js",
+        "node_modules/@scope/bundled/index.js",
+        "node_modules/@scope/other/index.js",
+        "node_modules/other/index.js",
+        "node_modules/.bin/abbrev",
+        "index.js",
+    ] {
+        write(&pkg_dir.path().join(path), "content\n");
+    }
+    let bundled = BundledPackageDirs::from_files([
+        "index.js",
+        "node_modules/abbrev/package.json",
+        "node_modules/@scope/bundled/index.js",
+    ]);
 
-    let added = add_files_from_dir_with_node_modules(
-        &store_dir,
-        pkg_dir.path(),
-        Some(HashSet::from(["node_modules/abbrev/package.json".to_string()])),
-    )
-    .expect("walk");
+    let added = add_files_from_dir_with_bundled(&store_dir, pkg_dir.path(), bundled).expect("walk");
 
-    assert!(added.files.contains_key("node_modules/abbrev/package.json"));
-    assert!(!added.files.contains_key("node_modules/abbrev/index.js"));
-    assert!(!added.files.contains_key("node_modules/other/index.js"));
+    let mut keys: Vec<_> = added.files.into_keys().collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        vec![
+            "index.js",
+            "node_modules/@scope/bundled/index.js",
+            "node_modules/abbrev/lib/new.js",
+            "node_modules/abbrev/package.json",
+        ],
+    );
+}
+
+#[test]
+fn files_outside_node_modules_name_no_bundled_package() {
+    assert!(BundledPackageDirs::from_files(["index.js", "lib/node_modules/x/a.js"]).is_none());
 }
 
 #[test]

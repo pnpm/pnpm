@@ -4,8 +4,8 @@
 //! [`StoreIndexWriter`].
 
 use crate::{
-    AddFilesFromDirError, CafsFileInfo, SideEffectsDiff, StoreDir, StoreIndex, StoreIndexError,
-    StoreIndexWriter, add_files_from_dir_with_node_modules,
+    AddFilesFromDirError, BundledPackageDirs, CafsFileInfo, SideEffectsDiff, StoreDir,
+    StoreIndexError, StoreIndexWriter, add_files_from_dir_with_bundled,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -56,10 +56,9 @@ pub fn upload(
     side_effects_cache_key: &str,
     writer: &StoreIndexWriter,
 ) -> Result<(), UploadError> {
-    let included_node_modules = included_node_modules(store_dir, files_index_file)?;
-    let added =
-        add_files_from_dir_with_node_modules(store_dir, built_pkg_location, included_node_modules)
-            .map_err(UploadError::AddFilesFromDir)?;
+    let bundled = bundled_package_dirs(built_pkg_location, files_index_file, writer);
+    let added = add_files_from_dir_with_bundled(store_dir, built_pkg_location, bundled)
+        .map_err(UploadError::AddFilesFromDir)?;
     if added.has_unrecorded_symlinks {
         writer
             .queue_side_effects_invalidation(
@@ -84,10 +83,9 @@ pub fn upload_with_diff(
     side_effects_cache_key: &str,
     writer: &StoreIndexWriter,
 ) -> Result<Option<SideEffectsDiff>, UploadError> {
-    let included_node_modules = included_node_modules(store_dir, files_index_file)?;
-    let added =
-        add_files_from_dir_with_node_modules(store_dir, built_pkg_location, included_node_modules)
-            .map_err(UploadError::AddFilesFromDir)?;
+    let bundled = bundled_package_dirs(built_pkg_location, files_index_file, writer);
+    let added = add_files_from_dir_with_bundled(store_dir, built_pkg_location, bundled)
+        .map_err(UploadError::AddFilesFromDir)?;
     if added.has_unrecorded_symlinks {
         writer
             .queue_side_effects_invalidation(
@@ -104,20 +102,19 @@ pub fn upload_with_diff(
     ))
 }
 
-fn included_node_modules(
-    store_dir: &StoreDir,
+/// The bundled dependencies the pristine row at `files_index_file` has
+/// files in. Read through `writer` so a row queued by the fetch that
+/// precedes the build is visible.
+fn bundled_package_dirs(
+    built_pkg_location: &Path,
     files_index_file: &str,
-) -> Result<Option<std::collections::HashSet<String>>, UploadError> {
-    let index = StoreIndex::open_readonly_in(store_dir).map_err(UploadError::StoreIndex)?;
-    let Some(package) = index.get(files_index_file).map_err(UploadError::StoreIndex)? else {
-        return Ok(None);
-    };
-    Ok(Some(
-        package.files
-            .into_keys()
-            .filter(|path| path.starts_with("node_modules/"))
-            .collect(),
-    ))
+    writer: &StoreIndexWriter,
+) -> Option<BundledPackageDirs> {
+    if !built_pkg_location.join("node_modules").is_dir() {
+        return None;
+    }
+    let paths = writer.read_file_paths(files_index_file.to_string())?;
+    BundledPackageDirs::from_files(paths.iter().map(String::as_str))
 }
 
 /// Set-difference over file digests, and over modes where the host records them.
