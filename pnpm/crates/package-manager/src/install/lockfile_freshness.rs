@@ -323,9 +323,11 @@ pub(super) fn check_importer_manifests_exist(
     }
     let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
         let project_dir = inputs.lockfile_dir.join(importer_id);
-        project_dir
-            .read_dir()
-            .is_ok_and(|mut entries| entries.next().is_some())
+        let is_empty_or_absent = match project_dir.read_dir() {
+            Ok(mut entries) => entries.next().is_none(),
+            Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+        };
+        !is_empty_or_absent
             && !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
                 .iter()
                 .any(|basename| project_dir.join(basename).exists())

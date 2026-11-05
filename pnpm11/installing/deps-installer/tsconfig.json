@@ -106,6 +106,9 @@
       "path": "../../fs/dir-lock"
     },
     {
+      "path": "../../fs/is-empty-dir-or-nothing"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {

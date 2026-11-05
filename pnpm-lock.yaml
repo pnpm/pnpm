@@ -6251,6 +6251,9 @@ importers:
       '@pnpm/exec.lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/fs.is-empty-dir-or-nothing':
+        specifier: workspace:*
+        version: link:../../fs/is-empty-dir-or-nothing
       '@pnpm/fs.read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir

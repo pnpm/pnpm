@@ -1,10 +1,10 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
-import { isError, PnpmError } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
+import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import type { PnpmContext } from '@pnpm/installing.context'
 import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
@@ -140,18 +140,9 @@ async function findImporterWithoutProjectManifest (
 }
 
 async function isDirectoryWithoutManifest (projectDir: string): Promise<boolean> {
-  if (!await isNonEmptyDirectory(projectDir)) return false
+  if (isEmptyDirOrNothing(projectDir)) return false
   const manifestExists = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(projectDir, basename))))
   return !manifestExists.some(Boolean)
-}
-
-async function isNonEmptyDirectory (dir: string): Promise<boolean> {
-  try {
-    return (await fs.promises.readdir(dir)).length > 0
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
-    throw err
-  }
 }
 
 async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, frozenLockfile: boolean): Promise<ProjectCheck[]> {
