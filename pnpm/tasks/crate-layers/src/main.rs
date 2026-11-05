@@ -7,7 +7,9 @@
 )]
 
 use clap::{Parser, Subcommand};
+use dependencies::Reach;
 use layers::Layers;
+use problem::Metric;
 use std::{
     path::{Path, PathBuf},
     process::ExitCode,
@@ -16,11 +18,14 @@ use tree::{GitRevision, Tree, WorkingTree};
 
 mod cfg;
 mod cycles;
+mod dependencies;
 mod diff;
 mod graph;
 mod layers;
 mod lexer;
 mod modules;
+mod problem;
+mod ratchet;
 mod report;
 mod tree;
 mod use_tree;
@@ -44,8 +49,10 @@ struct CliArgs {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Fail when a crate depends on a crate in a higher layer, when a crate
-    /// is in no layer, when an exception no longer matches an edge, or when a
-    /// crate's largest module cycle differs from its `module_cycles` entry.
+    /// is in no layer, when an exception no longer matches an edge, when a
+    /// crate's largest module cycle or direct dependency count differs from
+    /// its `module_cycles` or `direct_dependencies` entry, or when a crate
+    /// reaches more crates than its layer's `max_transitive_dependencies`.
     Check,
     /// Print, as Markdown, the crates and edges the working tree adds or
     /// removes compared to a git revision.
@@ -62,6 +69,17 @@ enum Command {
         #[clap(long, conflicts_with = "crate_name")]
         baseline: bool,
     },
+    /// Print how many workspace crates each crate depends on, directly and
+    /// transitively.
+    Dependencies {
+        /// Print one crate's direct dependencies and the crates it reaches
+        /// through them.
+        #[clap(long = "crate")]
+        crate_name: Option<String>,
+        /// Print a `[direct_dependencies]` table that accepts the current counts.
+        #[clap(long, conflicts_with = "crate_name")]
+        baseline: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -71,11 +89,19 @@ fn main() -> ExitCode {
         Command::Diff { base } => diff(&args.root, base),
         Command::Modules { crate_name, baseline } => {
             let view = match crate_name {
-                Some(name) => ModulesView::Crate(name),
-                None if *baseline => ModulesView::Baseline,
-                None => ModulesView::Summary,
+                Some(name) => View::Crate(name),
+                None if *baseline => View::Baseline,
+                None => View::Summary,
             };
             modules(&args.root, &view)
+        }
+        Command::Dependencies { crate_name, baseline } => {
+            let view = match crate_name {
+                Some(name) => View::Crate(name),
+                None if *baseline => View::Baseline,
+                None => View::Summary,
+            };
+            dependencies(&args.root, &view)
         }
     };
     result.unwrap_or_else(|error| {
@@ -94,10 +120,19 @@ fn check(root: &Path) -> Result<ExitCode, String> {
         .into_iter()
         .map(|(report, _)| report)
         .collect::<Vec<_>>();
-    problems.extend(cycles::check_baseline(&cycle_reports, &layers.module_cycles));
+    let cycle_sizes = cycles::sizes(&cycle_reports);
+    problems.extend(ratchet::check(Metric::ModuleCycle, &cycle_sizes, &layers.module_cycles));
+    let reach = Reach::new(&graph);
+    problems.extend(ratchet::check(
+        Metric::DirectDependencies,
+        &reach.direct_counts(),
+        &layers.direct_dependencies,
+    ));
+    problems.extend(reach.check_budgets(&layers));
     if problems.is_empty() {
         println!(
-            "Every crate dependency points to its own layer or a lower one, and no module cycle grew.",
+            "Every crate dependency points to its own layer or a lower one, no module cycle or \
+             dependency count grew, and every crate is within its layer's transitive budget.",
         );
         return Ok(ExitCode::SUCCESS);
     }
@@ -116,26 +151,50 @@ fn diff(root: &Path, base: &str) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// What `crate-layers modules` prints.
-enum ModulesView<'name> {
+/// What `crate-layers modules` and `crate-layers dependencies` print.
+enum View<'name> {
     Summary,
     Baseline,
     Crate(&'name str),
 }
 
-fn modules(root: &Path, view: &ModulesView<'_>) -> Result<ExitCode, String> {
+fn modules(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
     let working_tree = WorkingTree { root: root.to_path_buf() };
     let reports = report::read_all(&working_tree, &graph::read(&working_tree)?)?;
     let output = match view {
-        ModulesView::Crate(name) => {
+        View::Crate(name) => {
             let (report, graph) = reports
                 .iter()
                 .find(|(report, _)| report.crate_name == *name)
                 .ok_or_else(|| format!("{name} is not a workspace crate"))?;
             report::render_crate(report, graph)
         }
-        ModulesView::Baseline => report::render_baseline(&reports),
-        ModulesView::Summary => report::render_summary(&reports),
+        View::Baseline => {
+            let sizes = cycles::sizes(
+                &reports
+                    .into_iter()
+                    .map(|(report, _)| report)
+                    .collect::<Vec<_>>(),
+            );
+            ratchet::render_baseline(Metric::ModuleCycle, &sizes)
+        }
+        View::Summary => report::render_summary(&reports),
+    };
+    print!("{output}");
+    Ok(ExitCode::SUCCESS)
+}
+
+fn dependencies(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
+    let working_tree = WorkingTree { root: root.to_path_buf() };
+    let reach = Reach::new(&graph::read(&working_tree)?);
+    let output = match view {
+        View::Crate(name) => reach
+            .render_crate(name)
+            .ok_or_else(|| format!("{name} is not a workspace crate"))?,
+        View::Baseline => {
+            ratchet::render_baseline(Metric::DirectDependencies, &reach.direct_counts())
+        }
+        View::Summary => reach.render_summary(&load_layers(&working_tree)?),
     };
     print!("{output}");
     Ok(ExitCode::SUCCESS)
