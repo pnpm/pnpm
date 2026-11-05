@@ -312,8 +312,8 @@ fn unclaimed_importer_id<'a>(
 /// Fail on an importer no project claims whose directory exists but holds no
 /// project manifest, since that project cannot be installed. A frozen install
 /// skips a project left out of the workspace patterns, which keeps its
-/// manifest, and one whose whole directory is absent, as in a Docker build
-/// context that excludes it.
+/// manifest, and one whose directory is absent or empty, as in a Docker build
+/// context that excludes it or an uninitialized git submodule.
 pub(super) fn check_importer_manifests_exist(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
@@ -323,10 +323,14 @@ pub(super) fn check_importer_manifests_exist(
     }
     let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
         let project_dir = inputs.lockfile_dir.join(importer_id);
-        project_dir.exists()
-            && !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
-                .iter()
-                .any(|basename| project_dir.join(basename).exists())
+        let has_manifest = pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
+            .iter()
+            .any(|basename| project_dir.join(basename).exists());
+        !has_manifest
+            && match project_dir.read_dir() {
+                Ok(mut entries) => entries.next().is_some(),
+                Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+            }
     });
     match missing {
         Some(importer_id) => {

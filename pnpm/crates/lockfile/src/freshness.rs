@@ -103,8 +103,9 @@ pub enum StalenessReason {
 
     /// The lockfile records an importer whose project directory exists
     /// but holds no project manifest, so the project cannot be installed.
-    /// An absent directory is not reported: a build context may leave
-    /// unneeded projects out.
+    /// An absent or empty directory is not reported: a build context may
+    /// leave unneeded projects out, and git leaves an uninitialized
+    /// submodule's directory empty.
     #[display(
         r#"the lockfile records `importers["{importer_id}"]`, but that project's directory has no package.json"#
     )]
