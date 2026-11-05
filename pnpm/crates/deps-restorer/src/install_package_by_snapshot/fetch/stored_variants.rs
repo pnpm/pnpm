@@ -1,51 +1,50 @@
-//! The archives of a registry package version that `supportedArchitectures`
-//! keeps in the store beside the one the install links
-//! ([platform variants](https://github.com/pnpm/rfcs/blob/e920906d80bfb372068eab901fca2bb43fb1b97f/pnpr/text/0000-platform-variants.md#install)):
-//! every variant that matches one of its platforms, and the archive that
-//! targets `any` for a platform no variant can be linked on. They are
-//! fetched for `pnpm fetch`, Docker images, and bundles built for another
-//! machine, and are not linked.
+//! Fetching into the store, without linking, the archives that
+//! `supportedArchitectures` keeps for its platforms beside the ones the
+//! install links, and the packages those archives depend on
+//! ([platform variants](https://github.com/pnpm/rfcs/blob/e920906d80bfb372068eab901fca2bb43fb1b97f/pnpr/text/0000-platform-variants.md#install)).
+//! [`crate::platform_archives`] decides which archives they are. An archive
+//! the store holds already is read from the store index, not downloaded.
 
 use super::{
     super::{
         InstallPackageBySnapshot, InstallPackageBySnapshotError,
-        variant_fetch::{VariantFetch, archive_fetch},
+        variant_fetch::{ArchiveSource, VariantFetch, archive_fetch},
     },
-    SnapshotFetch, TarballFetch,
+    TarballFetch,
 };
-use crate::platform_selection::listed_platforms as fetch_platforms;
-use pnpm_lockfile::{PlatformAssetResolution, PlatformSelector, VariationsResolution};
-
+use crate::StoredArchive;
+use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata};
 use pnpm_reporter::Reporter;
+use std::collections::HashMap;
 
 impl InstallPackageBySnapshot<'_> {
-    /// Fetch into the store every archive of `variations` that
-    /// `supportedArchitectures` keeps besides `linked`, without linking it.
-    pub(super) async fn fetch_stored_variants<Reporter: self::Reporter>(
+    /// Fetch each of `archives` into the store, the client's per-host
+    /// limit bounding how many download at once.
+    pub async fn store_archives<Reporter: self::Reporter>(
         &self,
-        fetch: &SnapshotFetch<'_>,
-        variations: &VariationsResolution,
-        linked: &PlatformAssetResolution,
-        allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
+        archives: &[(PackageKey, StoredArchive)],
+        packages: &HashMap<PackageKey, PackageMetadata>,
     ) -> Result<(), InstallPackageBySnapshotError> {
-        let supported = self.ctx.config.supported_architectures.as_ref();
+        let allow_build = self.allow_build();
         let mut downloads = Vec::new();
-        for archive in stored_archives(variations, &fetch_platforms(supported), linked) {
-            if let VariantFetch::Tarball { resolution, source } =
-                archive_fetch(archive, variations, fetch.package_key, self.ctx.config)?
-            {
-                downloads.push((resolution, source));
+        for (key, archive) in archives {
+            let Some(metadata) = packages.get(&key.without_peer()) else { continue };
+            if let Some((resolution, source)) = stored_fetch(key, metadata, *archive, self)? {
+                downloads.push((key, metadata, resolution, source));
             }
         }
+        let allow_build = &allow_build;
         futures_util::future::try_join_all(
             downloads
                 .into_iter()
-                .map(|(resolution, source)| async move {
+                .map(|(key, metadata, resolution, source)| async move {
+                    let package_id = key.pkg_id();
+                    let download = self.ingest(metadata, &package_id);
                     self.tarball_cas_paths::<Reporter>(TarballFetch {
-                        download: fetch.download,
+                        download: &download,
                         resolution: &resolution,
-                        package_key: fetch.package_key,
-                        package_id: fetch.package_id,
+                        package_key: key,
+                        package_id: &package_id,
                         allow_build,
                         source,
                     })
@@ -57,28 +56,28 @@ impl InstallPackageBySnapshot<'_> {
     }
 }
 
-/// The archives of a registry package's `variations` that `platforms` keep
-/// in the store, except `linked`, each once.
-pub(super) fn stored_archives<'a>(
-    variations: &'a VariationsResolution,
-    platforms: &[PlatformSelector],
-    linked: &PlatformAssetResolution,
-) -> Vec<&'a PlatformAssetResolution> {
-    if variations.is_runtime() {
-        return Vec::new();
-    }
-    let mut stored: Vec<&PlatformAssetResolution> = Vec::new();
-    for archive in platforms
-        .iter()
-        .flat_map(|platform| variations.fetched_for(platform))
-    {
-        let known =
-            std::ptr::eq(archive, linked) || stored.iter().any(|kept| std::ptr::eq(*kept, archive));
-        if !known {
-            stored.push(archive);
+/// The resolution and source `archive` of `metadata` downloads from, `None`
+/// for one the store does not keep this way, such as a runtime's binary.
+fn stored_fetch(
+    key: &PackageKey,
+    metadata: &PackageMetadata,
+    archive: StoredArchive,
+    installer: &InstallPackageBySnapshot<'_>,
+) -> Result<Option<(LockfileResolution, ArchiveSource)>, InstallPackageBySnapshotError> {
+    match (archive, &metadata.resolution) {
+        (StoredArchive::Variant(position), LockfileResolution::Variations(variations)) => {
+            let Some(variant) = variations.variants.get(position) else { return Ok(None) };
+            Ok(match archive_fetch(variant, variations, key, installer.ctx.config)? {
+                VariantFetch::Tarball { resolution, source } => Some((resolution, source)),
+                VariantFetch::Binary(_) => None,
+            })
         }
+        (
+            StoredArchive::Own,
+            resolution @ (LockfileResolution::Registry(_) | LockfileResolution::Tarball(_)),
+        ) => Ok(Some((resolution.clone(), ArchiveSource::Any))),
+        _ => Ok(None),
     }
-    stored
 }
 
 #[cfg(test)]

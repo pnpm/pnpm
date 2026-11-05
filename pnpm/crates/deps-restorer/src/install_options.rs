@@ -66,6 +66,10 @@ pub struct SnapshotSelection<'a> {
     /// materialization.
     pub include_optional: bool,
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    /// The whole wanted lockfile, with every variant's own snapshot, which
+    /// the archives kept for `supported_architectures`' other platforms are
+    /// found in. `None` keeps only what the install links.
+    pub platform_lockfile: Option<&'a pnpm_lockfile::Lockfile>,
     /// Pre-verified `requiresBuild` flags from resolution metadata (`dist.pnpr.requiresBuild`
     /// or `pnpr`'s resolve stream).
     pub known_requires_build: Option<&'a crate::RequiresBuildBySnapshot>,

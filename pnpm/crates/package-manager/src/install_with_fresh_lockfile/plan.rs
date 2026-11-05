@@ -98,17 +98,13 @@ impl MaterializationScope {
                     )
                 }),
         };
-        let materialized: HashSet<String> = closure
-            .as_ref()
-            .map_or_else(
-                || {
-                    built.importers
-                        .keys()
-                        .cloned()
-                        .collect()
-                },
-                |closure| closure.importer_ids.clone(),
-            );
+        let materialized: HashSet<String> = match &closure {
+            Some(closure) => closure.importer_ids.clone(),
+            None => built.importers
+                .keys()
+                .cloned()
+                .collect(),
+        };
         let project_anchor_importer_ids =
             project_anchor_importer_ids(install.projects.selected_ids, is_hoisted, &materialized);
         FinalScope { closure, project_anchor_importer_ids }
@@ -126,6 +122,7 @@ impl FinalScope {
     ) -> super::on_disk::OnDiskProjects<'l> {
         super::on_disk::OnDiskProjects {
             materialization_lockfile: self.lockfile(built),
+            platform_lockfile: built,
             importer_manifests,
             project_anchor_importer_ids: &self.project_anchor_importer_ids,
         }

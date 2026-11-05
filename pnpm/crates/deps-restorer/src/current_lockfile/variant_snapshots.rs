@@ -54,6 +54,14 @@ pub(super) fn variant_keys_by_base(lockfile: &Lockfile) -> HashMap<PackageKey, V
     by_base
 }
 
+/// The key of the snapshot a variant tagged `tag` of the version of `base`
+/// has of its own, `<name>@<version>/variants/<tag>(<peers>)`.
+pub(super) fn variant_snapshot_key(base: &PackageKey, tag: &str) -> Option<PackageKey> {
+    let base = base.to_string();
+    let end = base.find('(').unwrap_or(base.len());
+    format!("{}{VARIANT_SEGMENT}{tag}{}", &base[..end], &base[end..]).parse().ok()
+}
+
 /// Remove and return the variants' own snapshots.
 fn take_variant_snapshots(lockfile: &mut Lockfile) -> Vec<(PackageKey, SnapshotEntry)> {
     let Some(snapshots) = lockfile.snapshots.as_mut() else { return Vec::new() };

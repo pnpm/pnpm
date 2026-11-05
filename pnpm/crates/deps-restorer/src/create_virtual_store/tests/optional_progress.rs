@@ -93,6 +93,7 @@ async fn install_unfetchable_optional_dependency(progress_reported: &SharedRepor
             skipped: &skipped,
             include_optional: true,
             supported_architectures: None,
+            platform_lockfile: None,
             known_requires_build: None,
             known_bins: None,
         },
