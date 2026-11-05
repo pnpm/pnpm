@@ -4,7 +4,7 @@
 
 use super::{
     PackageKey, SqlMetadata,
-    adapter::Query,
+    adapter::{Connection, Query},
     batch::WriteTransaction,
     blobs::{id_from, json_array},
     commit::{package_row_from, package_row_query},
@@ -168,40 +168,43 @@ impl SqlMetadata {
             .into_iter()
             .map(|unmapping| (unmapping.artifact, unmapping.mapping))
             .collect();
-        self.write(move |connection| {
-            let (catalog, ecosystem, name) = key.params();
-            let artifacts = json_array(&pairs);
-            let transaction = WriteTransaction::begin(connection)?;
-            let mapped = Query::new(
-                "SELECT DISTINCT integrity FROM artifact_blobs
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
-                   AND EXISTS (SELECT 1 FROM json_each(?4) WHERE json_extract(value, '$[0]') = artifact_blobs.artifact
-                                 AND (json_extract(value, '$[1]') IS NULL
-                                      OR json_extract(value, '$[1]') = artifact_blobs.mapping))",
-                params![catalog, ecosystem, name, artifacts],
-            );
-            let mut results = transaction
-                .query_all(&[package_row_query(&key), mapped])?
-                .into_iter();
-            let generation =
-                package_row_from(results.next().unwrap_or_default())?.map(|row| row.generation);
-            if generation != expected {
-                return Ok(None);
-            }
-            let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
-            transaction.execute(
-                "DELETE FROM artifact_blobs
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
-                   AND EXISTS (SELECT 1 FROM json_each(?4) WHERE json_extract(value, '$[0]') = artifact_blobs.artifact
-                                 AND (json_extract(value, '$[1]') IS NULL
-                                      OR json_extract(value, '$[1]') = artifact_blobs.mapping))",
-                params![catalog, ecosystem, name, artifacts],
-            )?;
-            transaction.commit()?;
-            Ok(Some(ids))
-        })
-        .await
+        let scanned = json_array(&pairs);
+        self.write(move |connection| unmap(connection, &key, &scanned, expected)).await
     }
+}
+
+/// The mappings of a package that `?4`, a JSON array of `[artifact,
+/// mapping]` with `mapping` null for any, names.
+const SCANNED_MAPPINGS: &str = "catalog = ?1 AND ecosystem = ?2 AND name = ?3
+     AND EXISTS (SELECT 1 FROM json_each(?4)
+                 WHERE json_extract(value, '$[0]') = artifact_blobs.artifact
+                   AND (json_extract(value, '$[1]') IS NULL
+                        OR json_extract(value, '$[1]') = artifact_blobs.mapping))";
+
+/// Drop the mappings `scanned` names while `key` is still at `expected`.
+fn unmap(
+    connection: &dyn Connection,
+    key: &PackageKey,
+    scanned: &str,
+    expected: Option<u64>,
+) -> Result<Option<Vec<BlobId>>> {
+    let (catalog, ecosystem, name) = key.params();
+    let transaction = WriteTransaction::begin(connection)?;
+    let select = format!("SELECT DISTINCT integrity FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
+    let mapped = Query::new(&select, params![catalog, ecosystem, name, scanned]);
+    let mut results = transaction
+        .query_all(&[package_row_query(key), mapped])?
+        .into_iter();
+    let generation =
+        package_row_from(results.next().unwrap_or_default())?.map(|row| row.generation);
+    if generation != expected {
+        return Ok(None);
+    }
+    let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
+    let delete = format!("DELETE FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
+    transaction.execute(&delete, params![catalog, ecosystem, name, scanned])?;
+    transaction.commit()?;
+    Ok(Some(ids))
 }
 
 impl super::PackageMetadata {
