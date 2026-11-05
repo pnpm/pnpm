@@ -160,9 +160,8 @@ pub(super) fn fund<'a>(ctx: &RunCtx<'a>, args: FundArgs) -> miette::Result<Comma
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
-    let reporter = ctx.reporter();
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
+        apply_update_config(config, dir).await?;
         args.run::<pnpm_network_web_auth::Host>(config, dir, recursive)
     }))
 }

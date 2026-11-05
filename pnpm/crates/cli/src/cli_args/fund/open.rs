@@ -33,9 +33,10 @@ pub fn open_package_funding<Sys: OpenUrl>(
             .first()
             .filter(|_| sources.len() == 1),
     };
-    match chosen {
-        Some(source) => open_source::<Sys>(source),
-        None => println!("{}", ambiguous_sources_message(spec, which, &sources)),
+    if let Some(source) = chosen {
+        open_source::<Sys>(source);
+    } else {
+        pnpm_diagnostics::println!("{}", ambiguous_sources_message(spec, which, &sources));
     }
     Ok(())
 }
@@ -84,7 +85,7 @@ fn visit_named(nodes: &[DependencyNode], name: &str, visit: &mut impl FnMut(Inst
 
 fn open_source<Sys: OpenUrl>(source: &FundingSource<'_>) {
     let url = source.public_url();
-    println!("{}:\n{}", source_title(source), sanitize_inline(&url));
+    pnpm_diagnostics::println!("{}:\n{}", source_title(source), sanitize_inline(&url));
     if let Err(error) = Sys::open_url(&url) {
         tracing::debug!(target: "pnpm_cli", %error, "could not open browser");
     }

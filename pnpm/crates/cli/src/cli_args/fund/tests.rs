@@ -232,6 +232,32 @@ fn human_output_groups_siblings_under_a_shared_url() {
     assert_eq!(render_human(&report), expected.join("\n"));
 }
 
+/// `npm fund` roots the tree at the project's own funding URL when the
+/// project declares one.
+#[test]
+fn human_output_roots_the_tree_at_the_project_funding() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    let manifest =
+        |name: &str, url: &str| json!({ "name": name, "version": "1.0.0", "funding": url });
+    let dependencies = vec![
+        installed(root.path(), &manifest("a", "https://example.com/a"), Vec::new()),
+        installed(root.path(), &manifest("c", "https://example.com/root"), Vec::new()),
+    ];
+    let report = FundingReport::build(&project(
+        root.path(),
+        manifest("root", "https://example.com/root"),
+        dependencies,
+    ));
+    let expected = [
+        "https://example.com/root",
+        "│ └── root@1.0.0, c@1.0.0",
+        "└── https://example.com/a",
+        "    └── a@1.0.0",
+        "",
+    ];
+    assert_eq!(render_human(&report), expected.join("\n"));
+}
+
 #[test]
 fn open_package_funding_opens_the_only_source() {
     let root = tempfile::tempdir().expect("create temp dir");
