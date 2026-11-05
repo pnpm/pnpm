@@ -287,6 +287,8 @@ async fn an_upload_that_stopped_stops_counting_and_is_swept() {
     };
     write_record(&storage, &staged, record).await;
 
+    // Expired, it no longer counts toward the limit, even before a sweep.
+    assert_eq!(storage.staged_archive_count("alice").await.unwrap(), 0);
     assert_eq!(storage.staged_archive_usage("alice").await.unwrap(), StagedArchiveUsage::default());
     let collectable = unix_now() + SWEEP_GRACE.as_secs();
     storage.sweep_staged_archives_at(collectable).await.unwrap();

@@ -28,13 +28,17 @@ impl Storage {
         Ok(usage)
     }
 
-    /// How many archives `principal` has records for that no sweep took, so
-    /// a principal with too many is refused before anything reads them.
+    /// How many archives `principal` holds: records that have not expired.
+    /// Expired ones count for nothing, so reservations that never completed
+    /// do not refuse the next upload before a sweep takes them.
     pub async fn staged_archive_count(&self, principal: &str) -> Result<usize> {
+        let now = unix_now();
         Ok(self.database
             .staged_records(Some(principal.to_string()))
             .await?
-            .len())
+            .iter()
+            .filter(|(_, record)| is_held(record, now))
+            .count())
     }
 
     /// Remove every staged archive past its expiry, and every stored
