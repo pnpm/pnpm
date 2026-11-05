@@ -226,7 +226,7 @@ pub fn write_hosted_file(
             .blob_rows(vec![id.clone()])
             .await
             .unwrap_or_else(|error| fail(&error));
-        let row = rows.get(&id).cloned();
+        let row = rows.get(&id).copied();
         let promoted = store
             .promote_blob_slot(slot, (id, size), row.as_ref())
             .await
