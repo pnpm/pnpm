@@ -4,9 +4,7 @@ use super::{
 use crate::workspace_yaml::{WORKSPACE_MANIFEST_FILENAME, redact_registry_url};
 
 /// Drop the entries whose request destination carries an unexpanded `${VAR}`,
-/// and return the settings dropped. The destination is the value of a scope
-/// route and the key of a declaration, so which half is gated follows the
-/// entry's shape.
+/// and return the settings dropped.
 ///
 /// Only an entry for the default registry may be dropped. Any other entry
 /// routes packages that would otherwise resolve from the default registry, so
@@ -17,11 +15,7 @@ pub fn drop_env_placeholder_entries(
 ) -> Result<Vec<String>, LoadWorkspaceYamlError> {
     let mut dropped = Vec::new();
     for (key, entry) in entries.iter() {
-        let destination = match entry {
-            RegistryEntry::ScopeRoute(url) => url,
-            RegistryEntry::Declaration(_) => key,
-        };
-        if !has_env_placeholder(destination) {
+        if !has_env_placeholder(destination(key, entry)) {
             continue;
         }
         let setting = format!("registries['{}']", redact_registry_url(key));
@@ -33,11 +27,25 @@ pub fn drop_env_placeholder_entries(
         }
         dropped.push(setting);
     }
-    entries.retain(|key, entry| match entry {
-        RegistryEntry::ScopeRoute(url) => !has_env_placeholder(url),
-        RegistryEntry::Declaration(_) => !has_env_placeholder(key),
-    });
+    retain_without_env_placeholders(entries, has_env_placeholder);
     Ok(dropped)
+}
+
+/// Drop every entry whose request destination carries an unexpanded `${VAR}`,
+/// whatever it routes.
+pub fn retain_without_env_placeholders(
+    entries: &mut IndexMap<String, RegistryEntry>,
+    has_env_placeholder: impl Fn(&str) -> bool,
+) {
+    entries.retain(|key, entry| !has_env_placeholder(destination(key, entry)));
+}
+
+/// The value of a scope route, and the key of a declaration.
+fn destination<'entry>(key: &'entry str, entry: &'entry RegistryEntry) -> &'entry str {
+    match entry {
+        RegistryEntry::ScopeRoute(url) => url,
+        RegistryEntry::Declaration(_) => key,
+    }
 }
 
 fn routes_non_default_packages(key: &str, entry: &RegistryEntry) -> bool {

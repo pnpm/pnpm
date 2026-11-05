@@ -210,7 +210,7 @@ pub fn readable_load_leaves_out_a_scoped_registry_with_env_placeholder() {
     let project = tempdir().expect("project tempdir");
     write_file(
         &project.path().join("pnpm-workspace.yaml"),
-        "registries:\n  '@acme': http://localhost:${MOCK_PORT}/\nlockfile: false\n",
+        "registries:\n  '@acme': http://localhost:${MOCK_PORT}/\n  '@good': https://good.example/\nlockfile: false\n",
     );
     write_file(&project.path().join(".npmrc"), "@other:registry=http://localhost:${MOCK_PORT}/\n");
 
@@ -220,6 +220,10 @@ pub fn readable_load_leaves_out_a_scoped_registry_with_env_placeholder() {
 
     assert!(!config.lockfile);
     assert_eq!(config.registries_by_scope.get("@acme"), None);
+    assert_eq!(
+        config.registries_by_scope.get("@good").map(String::as_str),
+        Some("https://good.example/"),
+    );
     assert_eq!(config.registries_by_scope.get("@other"), None);
 }
 

@@ -56,6 +56,18 @@ impl WorkspaceSettings {
             .collect())
     }
 
+    /// Drop the `registries` and `namedRegistries` entries
+    /// [`Self::substitute_env_untrusted`] would refuse, for a load that leaves
+    /// out what this pnpm refuses.
+    pub(crate) fn drop_unexpanded_registry_routes(&mut self) {
+        if let Some(registries) = self.registries.as_mut() {
+            registries::retain_without_env_placeholders(registries, has_env_placeholder);
+        }
+        if let Some(named_registries) = self.named_registries.as_mut() {
+            named_registries.retain(|_, url| !has_env_placeholder(url));
+        }
+    }
+
     fn refuse_unexpanded_named_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         match self.named_registries
             .iter()
