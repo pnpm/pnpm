@@ -169,7 +169,12 @@ impl ThrottledClient {
             let hop_started = client.acquired_at();
             let deadline = head_budget.map(|budget| hop_started + budget);
             let request = configure(client.request(method.clone(), &current_url), &current_url);
-            let response = within(deadline, request.send()).await?
+            // A head timeout lowers the origin's cap the way a request timeout
+            // does, while this hop still holds its permit.
+            let response = within(deadline, request.send()).await
+                .inspect_err(|_| {
+                    self.downscale_while_peers_active(&current_url);
+                })?
                 .inspect_err(|error| self.downscale_on_timeout(&current_url, error))
                 .map_err(HeadError::Request)?;
             let target = response
