@@ -90,28 +90,6 @@ impl S3Store {
         }
     }
 
-    /// Remove a record while it still holds `expected`. An object store
-    /// offers no conditional delete here, so the record is compared just
-    /// before it is removed: a replacement that lands in between is
-    /// removed with it.
-    pub async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool> {
-        let location = self.record_key(namespace, key);
-        let current = match self.store.get(&location).await {
-            Ok(result) => result.bytes().await?,
-            Err(object_store::Error::NotFound { .. }) => return Ok(false),
-            Err(err) => return Err(err.into()),
-        };
-        if current.as_ref() != expected {
-            return Ok(false);
-        }
-        self.remove_record(namespace, key).await
-    }
-
     pub async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         let scope = format!("{}{namespace}/", self.prefix);
         let mut listing = self.store.list(Some(&ObjectPath::from(scope.as_str())));

@@ -152,15 +152,6 @@ impl HostedBackend for Store {
         Store::remove_record(self, namespace, key).await
     }
 
-    async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool> {
-        Store::remove_record_if_current(self, namespace, key, expected).await
-    }
-
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         Store::list_record_keys(self, namespace).await
     }
@@ -185,24 +176,33 @@ async fn list_archive_files(dir: &Path) -> Result<Vec<StoredArchive>> {
         return Ok(files);
     };
     while let Some(shard) = shards.next_entry().await? {
-        if !shard.file_type().await?.is_dir() {
-            continue;
-        }
-        let mut entries = fs::read_dir(shard.path()).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let metadata = entry.metadata().await?;
-            if !metadata.is_file() {
-                continue;
+        if shard.file_type().await?.is_dir() {
+            let mut entries = fs::read_dir(shard.path()).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                files.extend(stored_archive(&entry).await?);
             }
-            files.push(StoredArchive {
-                name: entry
-                    .file_name()
-                    .to_string_lossy()
-                    .into_owned(),
-                modified: metadata.modified()?,
-                size: metadata.len(),
-            });
         }
     }
     Ok(files)
+}
+
+/// The archive `entry` holds, `None` for anything but a file, or for one a
+/// reclaim removed while it was listed.
+async fn stored_archive(entry: &fs::DirEntry) -> Result<Option<StoredArchive>> {
+    let metadata = match entry.metadata().await {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err.into()),
+    };
+    if !metadata.is_file() {
+        return Ok(None);
+    }
+    Ok(Some(StoredArchive {
+        name: entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned(),
+        modified: metadata.modified()?,
+        size: metadata.len(),
+    }))
 }

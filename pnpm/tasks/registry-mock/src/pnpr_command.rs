@@ -80,20 +80,21 @@ pub fn pnpr_command(port: u16, public_url: Option<&str>) -> Command {
 /// read-only, so concurrent mocks don't contend.
 #[must_use]
 pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>) -> Command {
-    pnpr_command_with_metadata(bin, port, public_url, None)
+    pnpr_command_with_home(bin, port, public_url, None)
 }
 
-/// Like [`pnpr_command_with_binary`], reading the metadata database at
-/// `metadata` instead of the fixture build's when one is given. The fixture
-/// database carries this checkout's metadata schema, which a `pnpr` built
-/// from another revision may refuse; given a database of its own, that
-/// `pnpr` creates its schema there and serves everything it proxies.
+/// Like [`pnpr_command_with_binary`], keeping the hosted store and its
+/// metadata database in `home` instead of the fixture build's when one is
+/// given. The fixture build's store and database carry this checkout's
+/// layout and metadata schema, which a `pnpr` built from another revision
+/// may refuse; given a home of its own, that `pnpr` creates its own there
+/// and serves everything it proxies, sharing only the proxy cache.
 #[must_use]
-pub fn pnpr_command_with_metadata(
+pub fn pnpr_command_with_home(
     bin: &Path,
     port: u16,
     public_url: Option<&str>,
-    metadata: Option<&Path>,
+    home: Option<&Path>,
 ) -> Command {
     assert!(
         bin.is_file(),
@@ -112,28 +113,21 @@ pub fn pnpr_command_with_metadata(
         default_public_url = port_to_url(port);
         default_public_url.trim_end_matches('/')
     };
-    let mut cmd = Command::new(bin);
-    // pnpr binds each of its options to the `PNPR_*` variable named after
-    // it, so an ambient one — a developer's `PNPR_CONFIG`, a stray
-    // `PNPR_DISABLE_REGISTRY` — would quietly reconfigure the mock. The
-    // arguments below are the only thing allowed to.
-    for (name, _) in env::vars_os() {
-        let key = name.to_string_lossy().to_ascii_uppercase();
-        if key.starts_with("PNPR_") {
-            cmd.env_remove(&name);
-        }
-    }
+    let mut cmd = command_without_pnpr_env(bin);
     // Front pnpr with the registry-mock config from `pnpr/.fixtures/config.yaml`
     // (the fixture namespace served from local hosted storage, everything else
     // proxied through the pattern-less npmjs upstream). We pin the runtime bits
     // the config file can't know about via CLI arguments.
-    let database = metadata.map_or_else(crate::runtime_metadata_path, Path::to_path_buf);
+    let (storage, database) = match home {
+        Some(home) => (home.join("storage"), home.join("metadata.sqlite")),
+        None => (crate::runtime_hosted_storage(), crate::runtime_metadata_path()),
+    };
     let config = runtime_mock_config(&database)
         .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
     cmd.arg("--config")
         .arg(config)
         .arg("--storage")
-        .arg(crate::runtime_hosted_storage())
+        .arg(storage)
         .arg("--cache")
         .arg(crate::runtime_cache())
         .arg("--packument-ttl")
@@ -142,6 +136,22 @@ pub fn pnpr_command_with_metadata(
         .arg(format!("127.0.0.1:{port}"))
         .arg("--public-url")
         .arg(public_url);
+    cmd
+}
+
+/// A [`Command`] of `bin` without the ambient `PNPR_*` variables. pnpr binds
+/// each of its options to the variable named after it, so an ambient one — a
+/// developer's `PNPR_CONFIG`, a stray `PNPR_DISABLE_REGISTRY` — would quietly
+/// reconfigure the mock. The arguments the caller adds are the only thing
+/// allowed to.
+fn command_without_pnpr_env(bin: &Path) -> Command {
+    let mut cmd = Command::new(bin);
+    for (name, _) in env::vars_os() {
+        let key = name.to_string_lossy().to_ascii_uppercase();
+        if key.starts_with("PNPR_") {
+            cmd.env_remove(&name);
+        }
+    }
     cmd
 }
 

@@ -5,7 +5,7 @@ use super::{
     blobs::{commit, id, row, tgz},
     npm, storage,
 };
-use crate::metadata::{BlobRef, BlobRow, BlobState};
+use crate::metadata::{BlobRef, BlobRow, BlobState, Uncommitted};
 use pnpr_package_name::Ecosystem;
 use std::time::Duration;
 
@@ -65,17 +65,17 @@ async fn a_settle_removes_only_what_no_commit_can_make_live(db: Db) {
         .unwrap();
     let unseen = id(b"unseen");
     let at = |id: &crate::BlobId, incarnation| BlobRef { id: id.clone(), incarnation };
-    let candidates = vec![(at(&live, 1), true), (at(&live, 2), true), (at(&unseen, 3), false)];
+    let candidates = vec![fenced(at(&live, 1)), fenced(at(&live, 2)), unfenced(at(&unseen, 3))];
     let settle = |stored| database.settle_stored("", Ecosystem::Npm, stored);
     assert!(settle(candidates).await.unwrap().is_empty());
     assert_eq!(row(&storage, &unseen).await, None);
 
-    let fenced = settle(vec![(at(&unseen, 3), true)]).await.unwrap();
-    assert_eq!(fenced, vec![at(&unseen, 3)]);
+    let taken = settle(vec![fenced(at(&unseen, 3))]).await.unwrap();
+    assert_eq!(taken, vec![at(&unseen, 3)]);
     let gone = BlobRow { incarnation: 3, state: BlobState::Gone, size: 0 };
     assert_eq!(row(&storage, &unseen).await, Some(gone));
     // Below the current incarnation, or at it once gone, nothing can commit.
-    let dead = vec![(at(&unseen, 2), false), (at(&unseen, 3), false)];
+    let dead = vec![unfenced(at(&unseen, 2)), unfenced(at(&unseen, 3))];
     assert_eq!(settle(dead).await.unwrap(), vec![at(&unseen, 2), at(&unseen, 3)]);
 }
 
@@ -94,7 +94,7 @@ async fn a_stopped_reclaim_is_taken_over_after_its_lease(db: Db) {
         .await
         .unwrap();
     let reclaiming = BlobRow { incarnation: 1, state: BlobState::Reclaiming, size: 3 };
-    let kept = vec![(marked[0].clone(), true)];
+    let kept = vec![fenced(marked[0].clone())];
     assert!(
         database
             .settle_stored("", Ecosystem::Npm, kept)
@@ -126,4 +126,12 @@ conformance! {
     only_live_blobs_nothing_maps_are_marked,
     a_settle_removes_only_what_no_commit_can_make_live,
     a_stopped_reclaim_is_taken_over_after_its_lease,
+}
+
+fn fenced(blob: BlobRef) -> Uncommitted {
+    Uncommitted { blob, may_fence: true }
+}
+
+fn unfenced(blob: BlobRef) -> Uncommitted {
+    Uncommitted { blob, may_fence: false }
 }

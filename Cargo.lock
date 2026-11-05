@@ -5702,7 +5702,9 @@ dependencies = [
 name = "pnpm-integrated-benchmark"
 version = "0.0.0"
 dependencies = [
+ "base64 0.23.1",
  "clap",
+ "flate2",
  "itertools 0.15.0",
  "os_display",
  "pipe-trait",
@@ -5717,6 +5719,7 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "ssri",
+ "tar",
  "tempfile",
  "tokio",
  "which 8.0.6",

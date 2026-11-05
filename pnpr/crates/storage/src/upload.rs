@@ -9,7 +9,7 @@ pub(crate) use remote::RemoteUploadStore;
 
 mod remote;
 
-use crate::{BlobId, BlobSlot, Storage};
+use crate::{BlobId, BlobSlot, Storage, metadata::Uncommitted};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use std::{
@@ -231,7 +231,9 @@ impl Storage {
         if let Err(error) = self.map_hosted_artifact(promoted.artifact.clone()).await {
             if promoted.stored {
                 let blob = promoted.artifact.blob;
-                if let Err(error) = self.remove_uncommitted(vec![(blob, true)]).await {
+                if let Err(error) =
+                    self.remove_uncommitted(vec![Uncommitted { blob, may_fence: true }]).await
+                {
                     tracing::warn!(%error, "an unmapped upload awaits `pnpr gc`");
                 }
             }

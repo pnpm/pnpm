@@ -11,7 +11,7 @@ mod tests;
 
 use crate::{
     BlobId, BlobSlot, GetRange, RangedBlob, Storage,
-    metadata::{ArtifactBlob, BlobLookup, BlobRef, BlobRow, PublishBase},
+    metadata::{ArtifactBlob, BlobLookup, BlobRef, BlobRow, PublishBase, PublishIncarnation},
 };
 use axum::body::Body;
 use pnpr_error::Result;
@@ -128,7 +128,10 @@ impl Storage {
         (id, size): (BlobId, u64),
         row: Option<&BlobRow>,
     ) -> Result<PromotedArchive> {
-        let (incarnation, store) = BlobRow::incarnation_for_publish(row);
+        let (incarnation, store) = match BlobRow::incarnation_for_publish(row) {
+            PublishIncarnation::Reuse(incarnation) => (incarnation, false),
+            PublishIncarnation::Store(incarnation) => (incarnation, true),
+        };
         let blob = BlobRef { id, incarnation };
         if store {
             if let Err(error) = self.hosted.put_archive(&slot.tmp_path, &blob.key()).await {

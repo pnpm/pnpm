@@ -1,5 +1,9 @@
 use super::testing::{promote_file, served, store_file};
-use crate::{BlobId, HostedStoreConfig, Storage, layout::local_archive_path, metadata::BlobRef};
+use crate::{
+    BlobId, HostedStoreConfig, Storage,
+    layout::local_archive_path,
+    metadata::{BlobRef, Uncommitted},
+};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use tempfile::TempDir;
 
@@ -148,7 +152,7 @@ async fn an_uncommitted_incarnation_is_removed_and_other_names_are_left() {
     assert_eq!(listed, vec![blob.clone()]);
 
     let removed = storage
-        .remove_uncommitted(vec![(blob.clone(), true)])
+        .remove_uncommitted(vec![Uncommitted { blob: blob.clone(), may_fence: true }])
         .await
         .unwrap();
     assert_eq!(removed, vec![blob.clone()]);

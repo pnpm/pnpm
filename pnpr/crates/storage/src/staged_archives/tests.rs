@@ -1,8 +1,11 @@
 use super::{
-    INCOMPLETE_MAX_AGE, STAGED_ARCHIVE_MAX_AGE, SWEEP_GRACE, StagedArchiveKey, StagedArchiveRecord,
-    StagedArchiveUsage, unix_now,
+    INCOMPLETE_MAX_AGE, STAGED_ARCHIVE_MAX_AGE, SWEEP_GRACE, StagedArchiveKey, StagedArchiveUsage,
+    unix_now,
 };
-use crate::Storage;
+use crate::{
+    Storage,
+    metadata::{StagedRecord, StagedState},
+};
 use pnpr_config::HostedStoreConfig;
 use tempfile::TempDir;
 
@@ -177,9 +180,8 @@ async fn usage_counts_only_claimable_archives_of_the_principal() {
         storage.root
             .list_record_keys(&key("alice", DIGEST).namespace())
             .await
-            .unwrap()
-            .len(),
-        2,
+            .unwrap(),
+        [key("alice", OTHER_DIGEST).object_name(1)],
     );
     assert_eq!(
         storage.staged_archive_usage("bob").await.unwrap(),
@@ -193,7 +195,7 @@ async fn an_archive_without_its_record_is_swept() {
     let storage = storage_in(&tmp);
     let staged = key("alice", DIGEST);
     storage.root
-        .create_record(&staged.namespace(), DIGEST, b"orphan")
+        .create_record(&staged.namespace(), &staged.object_name(1), b"orphan")
         .await
         .unwrap();
 
@@ -277,8 +279,13 @@ async fn an_upload_that_stopped_stops_counting_and_is_swept() {
     let storage = storage_in(&tmp);
     let staged = key("alice", DIGEST);
     let stopped = unix_now() - INCOMPLETE_MAX_AGE.as_secs();
-    let record = StagedArchiveRecord { staged_at: stopped, size: 9, complete: false };
-    storage.write_staged_archive_record(&staged, &record).await.unwrap();
+    let record = StagedRecord {
+        incarnation: 1,
+        staged_at: stopped,
+        size: 9,
+        state: StagedState::Incomplete,
+    };
+    write_record(&storage, &staged, record).await;
 
     assert_eq!(storage.staged_archive_usage("alice").await.unwrap(), StagedArchiveUsage::default());
     let collectable = unix_now() + SWEEP_GRACE.as_secs();
@@ -341,12 +348,8 @@ async fn completing_an_upload_is_not_undone_by_an_older_completion() {
         .await
         .unwrap();
 
-    let record = storage
-        .read_staged_archive_record(&staged)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!((record.staged_at, record.complete), (now, true));
+    let record = read_record(&storage, &staged).await.unwrap();
+    assert_eq!((record.staged_at, record.state), (now, StagedState::Complete));
 }
 
 /// What one upload does once its bytes are verified: reserve, then store.
@@ -388,25 +391,6 @@ async fn parallel_uploads_and_a_sweep_leave_the_archive_staged() {
 }
 
 #[tokio::test]
-async fn a_record_that_does_not_parse_is_swept_with_its_archive() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let staged = key("alice", DIGEST);
-    storage.stage_archive(&staged, b"bytes".to_vec()).await.unwrap();
-    let namespace = staged.namespace();
-    let record = staged.record().unwrap();
-    let stored = storage.root
-        .read_record(&namespace, &record)
-        .await
-        .unwrap()
-        .unwrap();
-    storage.root.replace_record_if_current(&namespace, &record, &stored, b"{").await.unwrap();
-
-    assert_eq!(storage.sweep_staged_archives().await.unwrap(), 1);
-    assert_eq!(storage.staged_archive_count("alice").await.unwrap(), 0);
-}
-
-#[tokio::test]
 async fn retiring_a_claimed_archive_frees_it_unless_it_was_renewed() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
@@ -422,53 +406,35 @@ async fn retiring_a_claimed_archive_frees_it_unless_it_was_renewed() {
     // Uploaded again after the commit read its record: the renewal stands.
     let renewed = key("alice", OTHER_DIGEST);
     storage.stage_archive(&renewed, b"other".to_vec()).await.unwrap();
-    let namespace = renewed.namespace();
-    let record = renewed.record().unwrap();
-    let read = storage.root
-        .read_record(&namespace, &record)
-        .await
-        .unwrap()
-        .unwrap();
+    let read = read_record(&storage, &renewed).await.unwrap();
     storage
         .stage_archive_at(&renewed, b"other".to_vec(), unix_now() + 1)
         .await
         .unwrap();
-    let retired = StagedArchiveRecord { staged_at: 0, complete: false, size: 5 };
-    let written = storage.root
-        .replace_record_if_current(
-            &namespace,
-            &record,
-            &read,
-            &serde_json::to_vec(&retired).unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(written, crate::DocumentWrite::Conflict);
+    storage.retire_record(&renewed, read).await.unwrap();
     assert_eq!(storage.claimable_staged_archive_size(&renewed).await.unwrap(), Some(5));
 }
 
-/// The sweep read an expired record, removed its archive, and an upload
-/// renewed the archive before the sweep removed the record: the renewed
-/// record and its archive stay.
+/// The sweep recorded an expired incarnation gone and stalled before it
+/// removed its key; an upload renewed the archive in between. The upload
+/// stores the next incarnation, so the sweep's late removal leaves the
+/// renewed archive claimable.
 #[tokio::test]
-async fn a_renewal_after_the_sweep_removed_the_archive_keeps_its_record() {
+async fn a_renewal_that_races_the_sweep_stays_claimable() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let staged = key("alice", DIGEST);
     let expired = unix_now() - STAGED_ARCHIVE_MAX_AGE.as_secs() - SWEEP_GRACE.as_secs();
     storage.stage_archive_at(&staged, b"bytes".to_vec(), expired).await.unwrap();
-    let (namespace, record) = (staged.namespace(), staged.record().unwrap());
-    let stored = storage.root
-        .read_record(&namespace, &record)
-        .await
-        .unwrap()
-        .unwrap();
+    let record = read_record(&storage, &staged).await.unwrap();
 
-    // The sweep's two steps, with the renewal in between.
-    assert!(storage.root.remove_record(&namespace, DIGEST).await.unwrap());
+    // The sweep's transaction, then the renewal, then the sweep's removal.
+    write_record(&storage, &staged, StagedRecord { state: StagedState::Gone, ..record }).await;
     upload(&storage, &staged, b"bytes").await;
-    assert!(!storage.root.remove_record_if_current(&namespace, &record, &stored).await.unwrap());
+    let (namespace, stale) = (staged.namespace(), staged.object_name(1));
+    assert!(storage.root.remove_record(&namespace, &stale).await.unwrap());
 
+    assert_eq!(read_record(&storage, &staged).await.unwrap().incarnation, 2);
     assert_eq!(storage.staged_archive_size(&staged).await.unwrap(), Some(5));
     assert_eq!(
         storage
@@ -480,31 +446,27 @@ async fn a_renewal_after_the_sweep_removed_the_archive_keeps_its_record() {
     );
 }
 
-/// An upload renewed the archive while it was still in place, and the sweep
-/// then removed it: the renewed record vouches for bytes that are gone. The
-/// first claim retires it, so the next upload stores the bytes again.
+/// A renewal that lands before the sweep's transaction makes the record the
+/// sweep read stale, so the sweep takes nothing and removes nothing.
 #[tokio::test]
-async fn a_renewal_that_found_the_archive_before_the_sweep_removed_it_is_uploaded_again() {
+async fn a_sweep_after_a_renewal_leaves_the_archive_alone() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let staged = key("alice", DIGEST);
     let expired = unix_now() - STAGED_ARCHIVE_MAX_AGE.as_secs() - SWEEP_GRACE.as_secs();
     storage.stage_archive_at(&staged, b"bytes".to_vec(), expired).await.unwrap();
-    let (namespace, record) = (staged.namespace(), staged.record().unwrap());
-    let stored = storage.root
-        .read_record(&namespace, &record)
-        .await
-        .unwrap()
-        .unwrap();
+    let read = read_record(&storage, &staged).await.unwrap();
 
     upload(&storage, &staged, b"bytes").await;
-    assert!(storage.collect_recorded_archive(&namespace, &record, &stored).await.unwrap());
-    // The renewal's record stands, though its archive is gone.
-    assert_eq!(storage.staged_archive_size(&staged).await.unwrap(), Some(5));
+    let id = staged.id().unwrap();
+    assert!(
+        !storage
+            .sweep_record(&id, read, unix_now())
+            .await
+            .unwrap(),
+    );
 
-    assert_eq!(storage.read_staged_archive(&staged).await.unwrap(), None);
-    assert_eq!(storage.staged_archive_size(&staged).await.unwrap(), None);
-    upload(&storage, &staged, b"bytes").await;
+    assert_eq!(read_record(&storage, &staged).await.unwrap().incarnation, 1);
     assert_eq!(
         storage
             .read_staged_archive(&staged)
@@ -513,4 +475,16 @@ async fn a_renewal_that_found_the_archive_before_the_sweep_removed_it_is_uploade
             .as_deref(),
         Some(b"bytes".as_slice()),
     );
+}
+
+async fn read_record(storage: &Storage, staged: &StagedArchiveKey<'_>) -> Option<StagedRecord> {
+    storage.database
+        .staged_record(staged.id().unwrap())
+        .await
+        .unwrap()
+}
+
+async fn write_record(storage: &Storage, staged: &StagedArchiveKey<'_>, record: StagedRecord) {
+    let id = staged.id().unwrap();
+    storage.database.change_staged_record(id, move |_| Some(record)).await.unwrap();
 }

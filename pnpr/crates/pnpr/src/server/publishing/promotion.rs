@@ -11,7 +11,7 @@ use crate::server::AppState;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId, BlobSlot, PromotedArchive, Storage,
-    metadata::{ArtifactMember, BlobFence, BlobRef, BlobRow},
+    metadata::{ArtifactMember, BlobFence, BlobRef, BlobRow, Uncommitted},
 };
 use std::collections::BTreeMap;
 
@@ -39,7 +39,7 @@ pub(super) async fn promote_fenced(
     for index in 0..staged.len() {
         let stage = &mut staged[index];
         let namespace = (stage.org.clone().unwrap_or_default(), stage.ecosystem);
-        promoted.fence.artifacts.append(&mut stage.base.references);
+        promoted.fence.references.append(&mut stage.base.references);
         let storage = state.inner.storage.for_hosted(&namespace.0, namespace.1);
         let slots = std::mem::take(&mut stage.slots);
         match promote_slots(&storage, slots, &stage.base.blobs).await {
@@ -82,13 +82,12 @@ impl Promoted {
     /// fenced off first, which refuses that commit. What cannot be removed is
     /// left for `pnpr gc`.
     pub(super) async fn discard(&self, state: &AppState) {
-        let mut by_namespace: BTreeMap<&(String, Ecosystem), Vec<(BlobRef, bool)>> =
-            BTreeMap::new();
+        let mut by_namespace: BTreeMap<&(String, Ecosystem), Vec<Uncommitted>> = BTreeMap::new();
         for (namespace, blob) in &self.stored {
             by_namespace
                 .entry(namespace)
                 .or_default()
-                .push((blob.clone(), true));
+                .push(Uncommitted { blob: blob.clone(), may_fence: true });
         }
         for ((org, ecosystem), stored) in by_namespace {
             let storage = state.inner.storage.for_hosted(org, *ecosystem);
@@ -178,7 +177,7 @@ async fn store_identified(
                 let stored = promoted
                     .into_iter()
                     .filter(|archive| archive.stored)
-                    .map(|archive| (archive.artifact.blob, true))
+                    .map(|archive| Uncommitted { blob: archive.artifact.blob, may_fence: true })
                     .collect();
                 let _ = storage.remove_uncommitted(stored).await;
                 return Err(err);

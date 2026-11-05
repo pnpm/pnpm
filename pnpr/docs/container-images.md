@@ -161,8 +161,9 @@ names.
 
 `DELETE /v2/<name>/blobs/<digest>` removes an unreferenced blob for a caller with
 `unpublish` permission, which the registry default denies. A blob reachable from
-any retained manifest or index is refused. The deletion unmaps the blob from the
-repository, while the repository is still as the deletion found it, and the
+a retained manifest or index of that repository is refused. The deletion unmaps
+the blob from the repository, while the repository is still as the deletion
+found it, and the
 metadata database fences the removal of its bytes the same way it fences `gc`:
 a manifest push that read the blob before it was deleted is refused with `409`
 when it commits, and a push that starts afterwards does not find the blob. If a

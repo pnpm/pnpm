@@ -154,3 +154,32 @@ async fn a_manifest_whose_layer_was_reclaimed_after_it_was_checked_is_refused() 
     );
     assert!(has_blob(&storage, &repository, &layer).await);
 }
+
+/// A manifest push read its layer, which another repository maps too, and
+/// the layer was then deleted from the push's repository: the push is
+/// refused rather than mapping the deleted layer back, and the other
+/// repository keeps the bytes.
+#[tokio::test]
+async fn a_manifest_does_not_bring_back_a_layer_deleted_from_its_repository() {
+    let temp = TempDir::new().unwrap();
+    let state = state(&temp);
+    let storage = images(&state);
+    let repository = CanonicalPackageName::parse("acme/app", Ecosystem::Oci).unwrap();
+    let other = CanonicalPackageName::parse("acme/other", Ecosystem::Oci).unwrap();
+    let layer = put_blob(&storage, &repository, b"layer").await;
+    put_blob(&storage, &other, b"layer").await;
+    let staged = push(&repository, manifest(&layer))
+        .stage(&state)
+        .await
+        .map_err(|_| "staged")
+        .unwrap();
+
+    let artifacts = vec![layer.blob_filename()];
+    let removed = storage.unmap_hosted_artifacts(&repository, None, artifacts).await.unwrap();
+    assert_eq!(removed.map(|removed| removed.len()), Some(0), "the other repository keeps it");
+
+    let err = commit_publishes(&state, vec![staged]).await.unwrap_err();
+    assert!(matches!(err, RegistryError::ArchiveReclaimed { .. }), "{err:?}");
+    assert!(!has_blob(&storage, &repository, &layer).await);
+    assert!(has_blob(&storage, &other, &layer).await);
+}

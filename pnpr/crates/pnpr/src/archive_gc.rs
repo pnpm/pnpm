@@ -18,7 +18,7 @@ pub(crate) mod liveness;
 use crate::{Config, Ecosystem, RegistryError, Result};
 use pnpr_storage::{
     Storage, StoredArchive,
-    metadata::{BlobRef, BlobRow, BlobState},
+    metadata::{BlobRef, BlobRow, BlobState, Uncommitted},
 };
 use std::{collections::BTreeMap, time::Duration};
 
@@ -152,7 +152,7 @@ impl Collection<'_> {
             .collect();
         let candidates = stored
             .into_iter()
-            .map(|(blob, file)| (blob, older_than(&file, min_age)))
+            .map(|(blob, file)| Uncommitted { may_fence: older_than(&file, min_age), blob })
             .collect();
         let removed = self.storage.remove_uncommitted(candidates).await?;
         for blob in &removed {
@@ -215,7 +215,6 @@ fn older_than(file: &StoredArchive, min_age: Duration) -> bool {
     file.modified.elapsed().unwrap_or_default() >= min_age
 }
 
-/// The report of `removed`, each of the size `size_of` gives it.
 fn report_of(removed: &[BlobRef], size_of: impl Fn(&BlobRef) -> u64) -> GcReport {
     GcReport { archives: removed.len(), bytes: removed.iter().map(size_of).sum() }
 }

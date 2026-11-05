@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     BlobId,
-    metadata::{BlobRef, BlobRow, BlobState},
+    metadata::{BlobRef, BlobRow, BlobState, Uncommitted},
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
@@ -150,7 +150,7 @@ impl SqlMetadata {
         self: &Arc<Self>,
         catalog: &str,
         ecosystem: Ecosystem,
-        stored: Vec<(BlobRef, bool)>,
+        stored: Vec<Uncommitted>,
     ) -> Result<Vec<BlobRef>> {
         if stored.is_empty() {
             return Ok(Vec::new());
@@ -218,15 +218,16 @@ fn settled(row: Option<&BlobRow>, incarnation: u64, fence: bool) -> Settled {
 fn settle(
     connection: &dyn Connection,
     namespace: (&str, Ecosystem),
-    stored: &[(BlobRef, bool)],
+    stored: &[Uncommitted],
 ) -> Result<Vec<BlobRef>> {
     let transaction = WriteTransaction::begin(connection)?;
-    let mut rows = read_rows(&*transaction, namespace, stored.iter().map(|(blob, _)| &blob.id))?;
-    let mut ordered: Vec<&(BlobRef, bool)> = stored.iter().collect();
-    ordered.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut rows =
+        read_rows(&*transaction, namespace, stored.iter().map(|stored| &stored.blob.id))?;
+    let mut ordered: Vec<&Uncommitted> = stored.iter().collect();
+    ordered.sort_by(|left, right| left.blob.cmp(&right.blob));
     let mut removable = Vec::new();
-    for (blob, fence) in ordered {
-        match settled(rows.get(&blob.id), blob.incarnation, *fence) {
+    for Uncommitted { blob, may_fence } in ordered {
+        match settled(rows.get(&blob.id), blob.incarnation, *may_fence) {
             Settled::Keep => continue,
             Settled::Remove => {}
             Settled::Fence => {

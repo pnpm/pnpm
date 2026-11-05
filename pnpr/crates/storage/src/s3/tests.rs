@@ -413,22 +413,3 @@ async fn empty_records_can_be_created_read_replaced_and_listed() {
         Some(&b"non-empty"[..]),
     );
 }
-
-/// A sweep removes a record only while it still holds what the sweep read:
-/// a record an upload renewed since stays.
-#[tokio::test]
-async fn a_record_is_removed_only_while_it_is_unchanged() {
-    let (store, _staging) = store_with_prefix("");
-    store.create_record(".staged-archives", "a.json", b"old").await.unwrap();
-    store
-        .replace_record_if_current(".staged-archives", "a.json", b"old", b"renewed")
-        .await
-        .unwrap();
-    assert!(!store.remove_record_if_current(".staged-archives", "a.json", b"old").await.unwrap());
-    assert!(
-        store.remove_record_if_current(".staged-archives", "a.json", b"renewed").await.unwrap(),
-    );
-    assert!(
-        !store.remove_record_if_current(".staged-archives", "a.json", b"renewed").await.unwrap(),
-    );
-}

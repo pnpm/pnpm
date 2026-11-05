@@ -143,7 +143,7 @@ fn commit_packuments(
                     panic!("open registry metadata at {}: {error}", path.display())
                 }),
         );
-        let fence = BlobFence { artifacts: archives };
+        let fence = BlobFence { artifacts: archives, references: Vec::new() };
         database
             .commit_fenced_publication(
                 "",

@@ -10,7 +10,7 @@
 
 use crate::{
     BlobId, Storage, StoredArchive,
-    metadata::{BlobRef, BlobRow},
+    metadata::{BlobRef, BlobRow, Uncommitted},
     parse_blob_key,
 };
 use futures_util::TryStreamExt as _;
@@ -48,7 +48,7 @@ impl Storage {
     /// one that may still be, by a publish on its way, is first fenced off
     /// when its flag says so (see [`crate::metadata::SqlMetadata::settle_stored`]).
     /// Returns the incarnations removed.
-    pub async fn remove_uncommitted(&self, stored: Vec<(BlobRef, bool)>) -> Result<Vec<BlobRef>> {
+    pub async fn remove_uncommitted(&self, stored: Vec<Uncommitted>) -> Result<Vec<BlobRef>> {
         let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
         let removable = self.database.settle_stored(catalog, ecosystem, stored).await?;
         let mut removed = Vec::with_capacity(removable.len());

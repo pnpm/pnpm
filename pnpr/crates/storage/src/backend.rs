@@ -138,15 +138,6 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool>;
 
-    /// Remove a record only while it still holds `expected`, reporting
-    /// whether it was removed. A record a concurrent writer replaced stays.
-    async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool>;
-
     /// Every key stored in `namespace`, in unspecified order, relative to the
     /// namespace and `/`-separated whatever the backend stores them on.
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>>;

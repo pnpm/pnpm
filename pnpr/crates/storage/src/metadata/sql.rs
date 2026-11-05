@@ -31,6 +31,7 @@ pub(crate) mod adapter;
 
 pub use cache::RenderStats;
 pub use mappings::Mapping;
+pub(crate) use staged::{StagedEntry, StagedId};
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
 
@@ -40,6 +41,7 @@ mod batch;
 mod blobs;
 mod cache;
 mod commit;
+mod fence;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
@@ -52,6 +54,7 @@ mod reclaims;
 mod render;
 mod schema;
 mod sqlite;
+mod staged;
 mod tags;
 mod transactions;
 mod versions;

@@ -55,17 +55,35 @@ pub struct BlobRow {
 }
 
 impl BlobRow {
-    /// The incarnation a publish of these bytes stores them under: the live
-    /// one, which it reuses without storing anything, or the next one, which
-    /// it stores. `row` is `None` when the bytes were never stored.
+    /// The incarnation a publish of these bytes stores them under. `row` is
+    /// `None` when the bytes were never stored.
     #[must_use]
-    pub fn incarnation_for_publish(row: Option<&Self>) -> (u64, bool) {
+    pub fn incarnation_for_publish(row: Option<&Self>) -> PublishIncarnation {
         match row {
-            Some(row) if row.state == BlobState::Live => (row.incarnation, false),
-            Some(row) => (row.incarnation + 1, true),
-            None => (1, true),
+            Some(row) if row.state == BlobState::Live => PublishIncarnation::Reuse(row.incarnation),
+            Some(row) => PublishIncarnation::Store(row.incarnation + 1),
+            None => PublishIncarnation::Store(1),
         }
     }
+}
+
+/// The incarnation a publish stores its bytes under.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PublishIncarnation {
+    /// The live one, which it reuses without storing anything.
+    Reuse(u64),
+    /// The next one, which it stores.
+    Store(u64),
+}
+
+/// An incarnation stored that no commit made live, as a settle takes it
+/// (see [`crate::metadata::SqlMetadata::settle_stored`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Uncommitted {
+    pub blob: BlobRef,
+    /// Whether the settle may fence the incarnation off when a publish on
+    /// its way could still commit it.
+    pub may_fence: bool,
 }
 
 /// An incarnation of a blob.
@@ -99,11 +117,15 @@ pub struct ArtifactBlob {
 }
 
 /// What a commit maps and depends on in the hosted store, checked as it
-/// commits: every file its documents reference, each with the incarnation
-/// holding its bytes.
+/// commits, each file with the incarnation holding its bytes.
 #[derive(Debug, Default, Clone)]
 pub struct BlobFence {
+    /// The files the commit stored, which it maps.
     pub artifacts: Vec<ArtifactBlob>,
+    /// Files of a package mapped already that the commit's documents
+    /// reference without storing them, such as the layers an image manifest
+    /// names: each must still be mapped to its blob as the commit commits.
+    pub references: Vec<ArtifactBlob>,
 }
 
 /// What a publish reads with the package's document: the rows of the blobs

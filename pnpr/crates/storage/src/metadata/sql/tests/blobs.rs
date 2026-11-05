@@ -6,7 +6,7 @@ use crate::{
     BlobId, Storage,
     metadata::{
         ArtifactBlob, BatchDocument, BlobFence, BlobRef, BlobRow, BlobState, PublicationCommit,
-        PublishNotes, ReleaseRecords,
+        PublishNotes, ReleaseRecords, Uncommitted,
     },
 };
 use pnpr_error::RegistryError;
@@ -48,7 +48,7 @@ pub(super) async fn commit(
         principal: Some("alice".to_string()),
         records: ReleaseRecords::new(),
     };
-    let fence = BlobFence { artifacts };
+    let fence = BlobFence { artifacts, references: Vec::new() };
     storage
         .sql_metadata()
         .commit_fenced_publication(
@@ -165,7 +165,8 @@ async fn two_commits_of_one_new_blob_both_land(db: Db) {
 async fn a_fenced_incarnation_is_never_committed(db: Db) {
     let storage = storage(&db);
     let bytes = id(b"in flight");
-    let stored = vec![(BlobRef { id: bytes.clone(), incarnation: 1 }, true)];
+    let stored =
+        vec![Uncommitted { blob: BlobRef { id: bytes.clone(), incarnation: 1 }, may_fence: true }];
     let removable = storage
         .sql_metadata()
         .settle_stored("", Ecosystem::Npm, stored)

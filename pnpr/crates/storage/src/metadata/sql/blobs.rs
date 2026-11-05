@@ -1,18 +1,16 @@
 //! The rows of the hosted store's blobs and of the files mapped to them (see
-//! [`crate::metadata::BlobRow`]), as a publish reads them and a commit
-//! checks and writes them.
+//! [`crate::metadata::BlobRow`]), as a publish reads them.
 
 use super::{
     PackageKey,
-    adapter::{Connection, Query, Row},
-    to_column, to_generation,
+    adapter::{Query, Row},
+    to_generation,
 };
 use crate::{
     BlobId,
-    metadata::{ArtifactBlob, BlobFence, BlobLookup, BlobRow, BlobState, MappedArtifact},
+    metadata::{BlobLookup, BlobRow, BlobState, MappedArtifact},
 };
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::Ecosystem;
 use std::collections::BTreeMap;
 
 /// The current time in seconds since the Unix epoch, as the database tells
@@ -20,7 +18,7 @@ use std::collections::BTreeMap;
 pub(super) const NOW: &str = "CAST(strftime('%s', 'now') AS INTEGER)";
 
 /// The rows of the blobs a JSON array of identities names, in one namespace.
-const ROWS: &str = "SELECT integrity, incarnation, state, size FROM blobs
+pub(super) const ROWS: &str = "SELECT integrity, incarnation, state, size FROM blobs
      WHERE catalog = ?1 AND ecosystem = ?2
        AND integrity IN (SELECT value FROM json_each(?3))";
 
@@ -154,155 +152,4 @@ fn mapped_from(mut row: Row) -> Result<MappedArtifact> {
         id: id_from(&row.get::<String>(2)?)?,
         row: row_from(&mut row, 3)?,
     })
-}
-
-/// What a commit adds to its first round trip to check its fence, and what
-/// it writes with its `COMMIT`.
-pub(super) struct FenceRead {
-    artifacts: Vec<ArtifactBlob>,
-    /// The identities the fence depends on in each ecosystem, as [`ROWS`]
-    /// takes them.
-    ids: Vec<(Ecosystem, String)>,
-}
-
-/// The blobs a commit found in place and those it creates.
-pub(super) struct FenceCheck {
-    created: Vec<(Ecosystem, ArtifactBlob)>,
-}
-
-impl FenceRead {
-    /// `None` for a fence with no files, which needs no read.
-    pub(super) fn new(fence: &BlobFence) -> Option<Self> {
-        if fence.artifacts.is_empty() {
-            return None;
-        }
-        let mut by_ecosystem: BTreeMap<&str, (Ecosystem, Vec<&str>)> = BTreeMap::new();
-        for artifact in &fence.artifacts {
-            let entry = by_ecosystem
-                .entry(artifact.ecosystem.as_str())
-                .or_insert_with(|| (artifact.ecosystem, Vec::new()));
-            entry.1.push(artifact.blob.id.as_str());
-        }
-        let ids = by_ecosystem
-            .into_values()
-            .map(|(ecosystem, ids)| (ecosystem, json_array(&ids)))
-            .collect();
-        Some(Self { artifacts: fence.artifacts.clone(), ids })
-    }
-
-    pub(super) fn queries<'read>(&'read self, catalog: &'read str) -> Vec<Query<'read>> {
-        self.ids
-            .iter()
-            .map(|(ecosystem, ids)| query!(ROWS, catalog, ecosystem.as_str(), ids.as_str()))
-            .collect()
-    }
-
-    /// Check every file against the rows of [`Self::queries`], taken from
-    /// `results`: its incarnation must be live, or be the next one, which
-    /// the commit creates. Anything else is refused with
-    /// [`RegistryError::ArchiveReclaimed`].
-    pub(super) fn check(&self, results: &mut impl Iterator<Item = Vec<Row>>) -> Result<FenceCheck> {
-        let mut rows: BTreeMap<(&str, BlobId), BlobRow> = BTreeMap::new();
-        for (ecosystem, _) in &self.ids {
-            for (id, row) in rows_from(results.next().unwrap_or_default())? {
-                rows.insert((ecosystem.as_str(), id), row);
-            }
-        }
-        let mut created: Vec<(Ecosystem, ArtifactBlob)> = Vec::new();
-        for artifact in &self.artifacts {
-            let row = rows.get(&(artifact.ecosystem.as_str(), artifact.blob.id.clone()));
-            match depends(row, artifact.blob.incarnation) {
-                Some(false) => {}
-                Some(true) => created.push((artifact.ecosystem, artifact.clone())),
-                None => {
-                    return Err(RegistryError::ArchiveReclaimed {
-                        package: artifact.name.clone(),
-                        artifact: artifact.artifact.clone(),
-                    });
-                }
-            }
-        }
-        Ok(FenceCheck { created })
-    }
-
-    /// Create the blobs `check` found to be new, and map every file to its
-    /// blob, in the commit's transaction.
-    pub(super) fn write(
-        &self,
-        transaction: &dyn Connection,
-        catalog: &str,
-        check: &FenceCheck,
-    ) -> Result<()> {
-        for (ecosystem, artifact) in &check.created {
-            write_live(transaction, (catalog, *ecosystem), artifact)?;
-        }
-        for artifact in &self.artifacts {
-            write_mapping(transaction, catalog, artifact)?;
-        }
-        Ok(())
-    }
-}
-
-/// Whether a commit may depend on `incarnation` of a blob with `row`, and
-/// whether it creates it: `Some(false)` for the live one, `Some(true)` for
-/// the next one after one that is not live, or the first of a blob without a
-/// row, and `None` for any other.
-fn depends(row: Option<&BlobRow>, incarnation: u64) -> Option<bool> {
-    match row {
-        Some(row) if row.state == BlobState::Live => {
-            (row.incarnation == incarnation).then_some(false)
-        }
-        Some(row) => (row.incarnation + 1 == incarnation).then_some(true),
-        None => (incarnation == 1).then_some(true),
-    }
-}
-
-/// Make `artifact`'s incarnation the live one of its blob.
-fn write_live(
-    transaction: &dyn Connection,
-    (catalog, ecosystem): (&str, Ecosystem),
-    artifact: &ArtifactBlob,
-) -> Result<()> {
-    let sql = format!(
-        "INSERT INTO blobs (catalog, ecosystem, integrity, incarnation, state, size, changed_at)
-         VALUES (?1, ?2, ?3, ?4, 'live', ?5, {NOW})
-         ON CONFLICT (catalog, ecosystem, integrity) DO UPDATE
-         SET incarnation = excluded.incarnation, state = 'live', size = excluded.size,
-             changed_at = excluded.changed_at",
-    );
-    transaction.execute(
-        &sql,
-        params![
-            catalog,
-            ecosystem.as_str(),
-            artifact.blob.id.as_str(),
-            to_column(artifact.blob.incarnation),
-            to_column(artifact.size),
-        ],
-    )
-}
-
-/// Map `artifact`'s file to its blob, unless the file is mapped already.
-fn write_mapping(
-    transaction: &dyn Connection,
-    catalog: &str,
-    artifact: &ArtifactBlob,
-) -> Result<()> {
-    let sql = format!(
-        "INSERT INTO artifact_blobs
-             (catalog, ecosystem, name, artifact, version, integrity, mapped_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, {NOW})
-         ON CONFLICT DO NOTHING",
-    );
-    transaction.execute(
-        &sql,
-        params![
-            catalog,
-            artifact.ecosystem.as_str(),
-            artifact.name,
-            artifact.artifact,
-            artifact.version,
-            artifact.blob.id.as_str(),
-        ],
-    )
 }

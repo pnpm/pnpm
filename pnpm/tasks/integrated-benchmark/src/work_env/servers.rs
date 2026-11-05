@@ -1,8 +1,9 @@
 use super::{
     BenchId, PNPR_SERVER_REGISTRY_ENV, PNPR_TARBALL_REWRITE_FROM_ENV, PnprServer, PnprServerPaths,
     RevisionMockRegistry, WorkEnv, append_pnpr_auth_to_npmrc, cold_revision_mock_command,
-    distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth, serves_npm_under_base_path,
-    wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    distinct_public_route_registries, mint_pnpr_token,
+    mock_home::{COLD_ORIGIN, REVISION_MOCK, revision_mock_home},
+    seed_pnpr_auth, serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
 };
 use crate::{
     cli_args::{BenchmarkScenario, RegistryMode, TargetKind},
@@ -85,6 +86,9 @@ impl WorkEnv {
         let mut server = PnprServer { process, latency_proxy: None, origin };
         wait_for_pnpr_ready(mock_port);
         self.follow_revision_npm_base_path(revision, &registry.origin, mock_port);
+        if !cold {
+            self.publish_scenario_packages(mock_port);
+        }
         server.latency_proxy =
             Some(self.front_revision_mock(revision, registry.listener, mock_port));
         server
@@ -112,13 +116,13 @@ impl WorkEnv {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            let metadata =
-                self.revision_mock_metadata(bench_dir, super::mock_metadata::REVISION_MOCK);
-            let command = pnpm_registry_mock::pnpr_command_with_metadata(
+            let home = revision_mock_home(bench_dir, REVISION_MOCK);
+            self.allow_scenario_publisher();
+            let command = pnpm_registry_mock::pnpr_command_with_home(
                 binary,
                 mock_port,
                 Some(public_url),
-                metadata.as_deref(),
+                Some(home.as_path()),
             );
             (command, None)
         }
@@ -148,11 +152,11 @@ impl WorkEnv {
         let public_origin = latency_proxy
             .as_ref()
             .map(|proxy| format!("http://{}", proxy.addr));
-        let mut command = pnpm_registry_mock::pnpr_command_with_metadata(
+        let mut command = pnpm_registry_mock::pnpr_command_with_home(
             binary,
             origin_port,
             public_origin.as_deref(),
-            self.revision_mock_metadata(bench_dir, super::mock_metadata::COLD_ORIGIN).as_deref(),
+            Some(revision_mock_home(bench_dir, COLD_ORIGIN).as_path()),
         );
         self.apply_serve_timing(&mut command);
         let process = command

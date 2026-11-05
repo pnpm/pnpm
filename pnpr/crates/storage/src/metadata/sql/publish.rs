@@ -5,8 +5,8 @@ use super::{
     Expected, PackageKey,
     adapter::{Connection, Query, Row},
     batch::Batch,
-    blobs::{FenceCheck, FenceRead},
     commit::StoredPackage,
+    fence::{FenceCheck, FenceRead},
     notes, publications,
 };
 use crate::metadata::{

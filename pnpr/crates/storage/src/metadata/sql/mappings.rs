@@ -6,8 +6,9 @@ use super::{
     PackageKey, SqlMetadata,
     adapter::Query,
     batch::WriteTransaction,
-    blobs::{FenceRead, id_from, json_array},
+    blobs::{id_from, json_array},
     commit::{package_row_from, package_row_query},
+    fence::FenceRead,
     to_generation,
     transactions::Freshness,
 };
@@ -39,7 +40,7 @@ impl SqlMetadata {
         artifact: ArtifactBlob,
     ) -> Result<()> {
         let catalog = catalog.to_string();
-        let fence = BlobFence { artifacts: vec![artifact] };
+        let fence = BlobFence { artifacts: vec![artifact], references: Vec::new() };
         self.write(move |connection| {
             let read = FenceRead::new(&fence).expect("a fence of one file");
             let transaction = WriteTransaction::begin(connection)?;
