@@ -14,6 +14,18 @@ fn mapped_unc_path_uses_its_original_drive_when_available() {
 }
 
 #[test]
+fn mapped_unc_path_prefers_its_original_drive_between_aliases() {
+    assert_eq!(
+        mapped_drive_path(
+            Path::new(r"\\server\share\project"),
+            &[('H', PathBuf::from(r"\\server\share")), ('J', PathBuf::from(r"\\server\share")),],
+            Some('H'),
+        ),
+        Some(PathBuf::from(r"H:\project")),
+    );
+}
+
+#[test]
 fn mapped_verbatim_unc_path_uses_its_original_drive() {
     assert_eq!(
         mapped_drive_path(
@@ -22,6 +34,18 @@ fn mapped_verbatim_unc_path_uses_its_original_drive() {
             Some('H'),
         ),
         Some(PathBuf::from(r"H:\project")),
+    );
+}
+
+#[test]
+fn mapped_unc_share_root_maps_to_the_drive_root() {
+    assert_eq!(
+        mapped_drive_path(
+            Path::new(r"\\server\share"),
+            &[('H', PathBuf::from(r"\\server\share\"))],
+            None,
+        ),
+        Some(PathBuf::from(r"H:\")),
     );
 }
 
@@ -58,6 +82,18 @@ fn mapped_unc_path_does_not_match_a_partial_share_name() {
         mapped_drive_path(
             Path::new(r"\\server\share-other\project"),
             &[('H', PathBuf::from(r"\\server\share"))],
+            None,
+        ),
+        None,
+    );
+}
+
+#[test]
+fn mapped_unc_path_does_not_match_a_path_shorter_than_the_share() {
+    assert_eq!(
+        mapped_drive_path(
+            Path::new(r"\\server\share"),
+            &[('H', PathBuf::from(r"\\server\share\nested"))],
             None,
         ),
         None,
