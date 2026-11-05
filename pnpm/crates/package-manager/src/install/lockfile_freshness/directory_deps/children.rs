@@ -4,13 +4,13 @@
 use super::{
     FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_local_directory,
     package::check_single_directory_dep_freshness,
-    peers,
     scope::{AliasScope, Visited},
     spec::spec_satisfies_snapshot_dep,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{
-    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, local_directory_child_specs,
+    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, declared_peer_dependencies,
+    local_directory_child_specs,
 };
 use std::collections::HashSet;
 /// Compares the children the resolver walks for the package (see
@@ -156,15 +156,11 @@ fn check_snapshot_keys_are_children(
     local_manifest: &PackageManifest,
     (children, snapshot): (&[DependencySpec], &pnpm_lockfile::SnapshotEntry),
 ) -> Result<(), FreshnessCheckError> {
+    let peers = declared_peer_dependencies(local_manifest.value());
     let expected: HashSet<&str> = children
         .iter()
         .map(|spec| spec.alias.as_str())
-        .chain(
-            local_manifest
-                .dependencies([DependencyGroup::Peer])
-                .map(|(name, _)| name),
-        )
-        .chain(peers::optional_peer_names(local_manifest))
+        .chain(peers.keys().map(String::as_str))
         .collect();
     // An install without optional dependencies leaves the optional map alone.
     let optional =
