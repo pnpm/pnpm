@@ -16,6 +16,7 @@ fn pnpm_and_npm_settings_match_in_either_spelling() {
         "npm_config_registry",
         "PNPM_SHIM_BYPASS",
         "pnpm_shim_bypass",
+        "PNPM_SHIM_PREPARING",
         "npm_lifecycle_event",
         "NPM_LIFECYCLE_EVENT",
     ] {
