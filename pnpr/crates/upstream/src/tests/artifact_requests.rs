@@ -207,7 +207,7 @@ async fn tarball_head_deadline_starts_after_waiting_for_a_permit() {
 }
 
 #[tokio::test]
-async fn a_redirect_hop_waiting_for_a_permit_is_bounded_by_the_head_deadline() {
+async fn a_redirect_hops_permit_wait_does_not_count_toward_the_head_deadline() {
     let target = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let target_url = format!("http://{}/final", target.local_addr().unwrap());
     let origin = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -216,30 +216,33 @@ async fn a_redirect_hop_waiting_for_a_permit_is_bounded_by_the_head_deadline() {
         "HTTP/1.1 302 Found\r\nLocation: {target_url}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
     );
     let server = tokio::spawn(async move {
-        let (mut socket, _) = origin.accept().await.unwrap();
         let mut request = [0u8; 4096];
-        assert!(socket.read(&mut request).await.unwrap() > 0);
-        socket.write_all(redirect.as_bytes()).await.unwrap();
+        let (mut first, _) = origin.accept().await.unwrap();
+        assert!(first.read(&mut request).await.unwrap() > 0);
+        first.write_all(redirect.as_bytes()).await.unwrap();
+        let (mut second, _) = target.accept().await.unwrap();
+        assert!(second.read(&mut request).await.unwrap() > 0);
+        second.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody").await.unwrap();
     });
     let mut config = UpstreamConfig::with_defaults(origin_url.clone(), HeaderMap::new());
-    config.requests.timeout = Duration::from_millis(300);
+    config.requests.timeout = Duration::from_millis(250);
     let mut upstream = Upstream::new("test", &config);
     upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
-    let _held = upstream.http.client.acquire_for_url(&target_url).await;
-    let started = std::time::Instant::now();
-    let result = upstream.fetch_artifact_response(&origin_url).await;
-    assert!(
-        matches!(result, Err(pnpr_error::RegistryError::UpstreamTimeout { .. })),
-        "got {result:?}",
-    );
-    assert!(
-        started.elapsed() < Duration::from_secs(5),
-        "the redirect hop's permit wait was not bounded",
-    );
+    let held = upstream.http.client.acquire_for_url(&target_url).await;
+    let release_permit = async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        drop(held);
+    };
+    let fetch = upstream.fetch_artifact_response(&origin_url);
+    let (result, ()) = tokio::join!(fetch, release_permit);
+    let FetchOutcome::Ok(response) = result.unwrap() else {
+        panic!("expected an artifact response")
+    };
+    let mut stream = Box::pin(response.bytes_stream());
+    assert_eq!(stream.next().await.unwrap().unwrap(), "body");
     server.await.unwrap();
-    drop(target);
 }
 
 #[tokio::test]

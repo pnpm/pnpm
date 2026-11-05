@@ -43,7 +43,9 @@ impl Upstream {
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let (base, mut url) = self.oci_object_url(repository, endpoint)?;
-        let mut started = None;
+        // Hops and token negotiation share one budget. Waiting for a hop's
+        // permits is pnpr's own queue, so it does not count.
+        let mut budget = self.http.timeout;
         let mut bearer = self.cached_oci_token(repository);
         let mut negotiated = false;
         for _ in 0..8 {
@@ -53,11 +55,12 @@ impl Upstream {
                 UNPRIORITIZED,
             )
             .await;
-            let started = *started.get_or_insert_with(Instant::now);
+            let hop_started = guard.acquired_at();
             let request = guard.request(method.clone(), url.clone()).header(header::ACCEPT, accept);
             let request = self.with_oci_credentials(request, &url, &base, bearer.as_deref());
+            let deadline = hop_started + budget;
             let response =
-                self.within_head_deadline(url.as_str(), started, self.run(request, url.as_str()))
+                self.within_head_deadline(url.as_str(), deadline, self.run(request, url.as_str()))
                     .await?;
             if response.status() == StatusCode::UNAUTHORIZED
                 && !negotiated
@@ -68,10 +71,12 @@ impl Upstream {
                 drop(guard);
                 bearer = Some(self.oci_token(&base, repository, challenge).await?);
                 negotiated = true;
+                budget = budget.saturating_sub(hop_started.elapsed());
                 continue;
             }
             if response.status().is_redirection() {
                 url = self.oci_redirect_target(&response, &url, &base)?;
+                budget = budget.saturating_sub(hop_started.elapsed());
                 continue;
             }
             return self.finish_oci_fetch(response, guard, &url).await;

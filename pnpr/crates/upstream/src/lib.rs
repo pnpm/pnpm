@@ -399,7 +399,8 @@ impl Upstream {
             .get(&url)
             .headers(self.request_headers(&url))
             .header(reqwest::header::ACCEPT_ENCODING, "gzip");
-        let response = self.within_head_deadline(&url, started, self.run(request, &url)).await?;
+        let deadline = started + self.http.timeout;
+        let response = self.within_head_deadline(&url, deadline, self.run(request, &url)).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);

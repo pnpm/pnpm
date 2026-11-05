@@ -62,16 +62,16 @@ impl Upstream {
         })
     }
 
-    /// Wait for `response` until the upstream's timeout, counted from
-    /// `started`, runs out. Used for a body pnpr streams: the head is bounded
+    /// Wait for `response` until `deadline`. Used for a body pnpr streams:
+    /// the head is bounded
     /// here and the body by [`ThrottledResponse::bytes_stream`](pnpm_network::ThrottledResponse::bytes_stream).
     pub(crate) async fn within_head_deadline<Response>(
         &self,
         url: &str,
-        started: Instant,
+        deadline: Instant,
         response: impl Future<Output = Result<Response>>,
     ) -> Result<Response> {
-        let remaining = self.http.timeout.saturating_sub(started.elapsed());
+        let remaining = deadline.saturating_duration_since(Instant::now());
         tokio::time::timeout(remaining, response).await
             .unwrap_or_else(|_| {
                 self.breaker.record_failure();

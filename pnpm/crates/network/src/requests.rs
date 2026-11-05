@@ -129,9 +129,9 @@ impl ThrottledClient {
 
     /// Like [`Self::get_response_with_scoped_headers`], failing with
     /// [`HeadError::TimedOut`] when the response head has not arrived within
-    /// `timeout`. The time starts once the first hop holds its permits, so
-    /// queueing for them does not count, and redirects share it. The response
-    /// body has no deadline here.
+    /// `timeout`. Only the time each hop spends after taking its permits
+    /// counts, so queueing for them does not, and redirects share the rest of
+    /// `timeout`. The response body has no deadline here.
     pub async fn get_response_head_within(
         &self,
         url: &str,
@@ -161,16 +161,13 @@ impl ThrottledClient {
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), HeadError> {
         let mut current_url = url.to_string();
-        let mut head_deadline = None;
+        let mut head_budget = head_timeout;
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
-            // The first hop's permit wait is not the upstream's time. A later
-            // hop's is bounded by the deadline the first hop started.
-            let acquire =
-                self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED);
-            let client = within(head_deadline, acquire).await?;
-            let deadline = head_timeout.map(|timeout| {
-                *head_deadline.get_or_insert_with(|| Instant::now() + timeout)
-            });
+            let client =
+                self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
+                    .await;
+            let hop_started = client.acquired_at();
+            let deadline = head_budget.map(|budget| hop_started + budget);
             let request = configure(client.request(method.clone(), &current_url), &current_url);
             let response = within(deadline, request.send()).await?
                 .inspect_err(|error| self.downscale_on_timeout(&current_url, error))
@@ -184,6 +181,8 @@ impl ThrottledClient {
                 && redirect_count < MAX_REDIRECT_HOPS
                 && let Some(target) = target
             {
+                head_budget =
+                    head_budget.map(|budget| budget.saturating_sub(hop_started.elapsed()));
                 current_url = target.to_string();
                 continue;
             }
