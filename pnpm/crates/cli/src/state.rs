@@ -326,7 +326,7 @@ pub(crate) fn check_root_project_engine<Output: Reporter>(
         manifest.value(),
         config,
         use_manifest_runtime,
-        wanted,
+        &wanted,
     )
 }
 
@@ -335,7 +335,7 @@ fn check_root_engine_compatibility<Output: Reporter>(
     manifest: &serde_json::Value,
     config: &Config,
     use_manifest_runtime: bool,
-    wanted: WantedEngine,
+    wanted: &WantedEngine,
 ) -> Result<(), InitStateError> {
     let configured_node = config.node_version
         .clone()
@@ -348,7 +348,7 @@ fn check_root_engine_compatibility<Output: Reporter>(
         node: host.node_version,
         pnpm: wanted.pnpm.as_ref().map(|_| PNPM_VERSION.to_string()),
     };
-    match check_engine(&project_dir.to_string_lossy(), &wanted, &current) {
+    match check_engine(&project_dir.to_string_lossy(), wanted, &current) {
         Ok(None) => Ok(()),
         Ok(Some(error)) if config.engine_strict => {
             Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))

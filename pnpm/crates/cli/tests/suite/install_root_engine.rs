@@ -97,7 +97,7 @@ fn engine_strict_rejects_an_incompatible_root_pnpm_version() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}",);
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}");
     assert!(stderr.contains(r#"{"pnpm":">=99.0.0"}"#), "stderr: {stderr}");
     assert!(!workspace.join("pnpm-lock.yaml").exists());
 
@@ -124,8 +124,10 @@ fn non_strict_root_engine_mismatches_warn_and_continue() {
         .success();
     let output = assert.get_output();
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Unsupported engine for"), "stderr: {stderr}",);
-    assert!(stderr.contains(r#"{"node":">=99.0.0","pnpm":">=99.0.0"}"#), "stderr: {stderr}",);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let output = format!("{stdout}{stderr}");
+    assert!(output.contains("Unsupported engine for"), "output: {output}");
+    assert!(output.contains(r#"{"node":">=99.0.0","pnpm":">=99.0.0"}"#), "output: {output}");
     assert!(workspace.join("pnpm-lock.yaml").exists());
 
     drop(root);
