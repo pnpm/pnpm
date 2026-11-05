@@ -93,6 +93,8 @@ export interface ResolutionContext extends RegistryContext {
   autoInstallPeersFromHighestMatch: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
+  /** Whether a missing optional peer may be supplied by a version that another importer's dependencies resolve. */
+  dedupePeerDependents: boolean
   updatedSet: Set<string>
   /**
    * One snapshot of each package in the wanted lockfile. The dependencies of

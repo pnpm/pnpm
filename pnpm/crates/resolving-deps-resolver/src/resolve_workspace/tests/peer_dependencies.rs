@@ -126,6 +126,7 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = true;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
@@ -146,6 +147,93 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
         direct.get("opt").map(std::string::ToString::to_string),
         Some("opt@1.0.0".to_string()),
     );
+}
+
+/// `pkg-a` depends on `needs-opt`, whose optional peer `opt` only
+/// `pkg-b` resolves, unless `pkg-a` also depends on `provider`, which
+/// depends on `opt`. Returns how `pkg-a`'s `needs-opt` resolved.
+async fn resolve_optional_peer_provided_by(
+    pkg_a_deps: serde_json::Value,
+    dedupe_peer_dependents: bool,
+) -> String {
+    let mut table = HashMap::default();
+    table.insert(
+        ("needs-opt".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "needs-opt",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "needs-opt",
+                "version": "1.0.0",
+                "peerDependencies": { "opt": "^1.0.0" },
+                "peerDependenciesMeta": { "opt": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("provider".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "provider",
+            "1.0.0",
+            None,
+            serde_json::json!({ "name": "provider", "version": "1.0.0", "dependencies": { "opt": "1.0.0" } }),
+        ),
+    );
+    table.insert(
+        ("opt".to_string(), "1.0.0".to_string()),
+        fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" })),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({}));
+    let (tmp_a, a_manifest) = fake_manifest(pkg_a_deps);
+    let (tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "opt": "1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path(), tmp_b.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = dedupe_peer_dependents;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        importer_opts(dir, None)
+    })
+    .await
+    .unwrap();
+
+    result.peers.direct_dependencies_by_importer["pkg-a"]["needs-opt"].to_string()
+}
+
+/// <https://github.com/orgs/pnpm/discussions/16666>
+#[tokio::test]
+async fn without_dedupe_peer_dependents_another_importers_version_does_not_supply_an_optional_peer()
+{
+    let resolved =
+        resolve_optional_peer_provided_by(serde_json::json!({ "needs-opt": "1.0.0" }), false).await;
+    assert_eq!(resolved, "needs-opt@1.0.0");
+}
+
+#[tokio::test]
+async fn with_dedupe_peer_dependents_another_importers_version_supplies_an_optional_peer() {
+    let resolved =
+        resolve_optional_peer_provided_by(serde_json::json!({ "needs-opt": "1.0.0" }), true).await;
+    assert_eq!(resolved, "needs-opt@1.0.0(opt@1.0.0)");
+}
+
+#[tokio::test]
+async fn without_dedupe_peer_dependents_the_importers_own_dependencies_supply_an_optional_peer() {
+    let resolved = resolve_optional_peer_provided_by(
+        serde_json::json!({ "needs-opt": "1.0.0", "provider": "1.0.0" }),
+        false,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0(opt@1.0.0)");
 }
 
 /// The pin satisfies `host`'s optional peer range and the owner's

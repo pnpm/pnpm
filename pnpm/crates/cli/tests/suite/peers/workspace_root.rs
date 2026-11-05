@@ -285,13 +285,15 @@ fn check_peer_reuse(
     ["@pnpm.e2e/abc-optional-peers"]["version"]
     .as_str()
     .unwrap();
-    let optional_resolved = auto_install || dedupe || (root_provider && from_root);
+    let root_scope_provides = root_provider && from_root;
+    let required_resolved = auto_install || dedupe || root_scope_provides;
+    let optional_resolved = dedupe || root_scope_provides;
     assert_eq!(
         version.contains("peer-c@1.0.0"),
         optional_resolved,
         "bundle={bundle:?}, auto={auto_install}, dedupe={dedupe}, root={root_provider}, root scope={from_root}: {version}",
     );
-    assert_eq!(version.contains("peer-a@"), optional_resolved);
+    assert_eq!(version.contains("peer-a@"), required_resolved);
     let issues = ndjson_records(&output)
         .into_iter()
         .find(|record| record["name"] == "pnpm:peer-dependency-issues");
@@ -300,13 +302,13 @@ fn check_peer_reuse(
         .and_then(|record| record["issuesByProjects"]["packages/consumer"]["missing"].as_object());
     assert_eq!(
         missing.is_some_and(|peers| peers.contains_key("@pnpm.e2e/peer-a")),
-        !optional_resolved,
+        !required_resolved,
     );
 
     assert_success(&run(&["install", "--lockfile-only", "--frozen-lockfile"]));
     assert_eq!(fs::read_to_string(&lock_path).unwrap(), fresh);
-    if bundle.is_none() && optional_resolved {
-        check_reuse_warning(&fixture, !auto_install && dedupe && !(root_provider && from_root));
+    if bundle.is_none() && required_resolved {
+        check_reuse_warning(&fixture, !auto_install && dedupe && !root_scope_provides);
     }
 }
 

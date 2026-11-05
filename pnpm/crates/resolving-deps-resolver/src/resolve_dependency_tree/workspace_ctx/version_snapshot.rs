@@ -1,8 +1,8 @@
 use super::{
-    Arc, ChildrenOwnerEntry, DirectDep, FirstWalkMissing, HashMap, MissingNames, MutexGuard,
-    OwnerMissingRecord, ResolvedTree, RunVersionsCache, WorkspaceTreeCtx, collect_newly_visited,
-    fold_version, fold_visited_versions, lock_recoverable, take_locked, take_write_locked,
-    walk_reachable_children, walk_reachable_nodes,
+    Arc, ChildrenOwnerEntry, DirectDep, FirstWalkMissing, HashMap, HashSet, MissingNames,
+    MutexGuard, OwnerMissingRecord, ResolvedTree, RunVersionsCache, WorkspaceTreeCtx,
+    collect_newly_visited, fold_version, fold_visited_versions, lock_recoverable, take_locked,
+    take_write_locked, walk_reachable_children, walk_reachable_nodes,
 };
 
 impl WorkspaceTreeCtx {
@@ -154,6 +154,42 @@ impl WorkspaceTreeCtx {
         cache.revision = revision;
         cache.children_rewrites = children_rewrites;
         cache
+    }
+
+    /// `name → versions` of `names` among the packages reachable from
+    /// `roots`, the pkg ids of one importer's direct dependencies.
+    pub(crate) fn versions_reachable_from<'id>(
+        &self,
+        roots: impl Iterator<Item = &'id str>,
+        names: &HashSet<&str>,
+    ) -> HashMap<String, HashSet<String>> {
+        let mut queue: Vec<String> = roots.map(str::to_owned).collect();
+        let reached = {
+            let children_by_id = lock_recoverable(&self.children.by_id);
+            collect_newly_visited(&children_by_id, &mut queue, &mut HashSet::default())
+        };
+        let packages = lock_recoverable(&self.tree.packages);
+        let mut versions: HashMap<String, HashSet<String>> = HashMap::default();
+        for name_ver in reached
+            .iter()
+            .filter_map(|pkg_id| {
+                packages
+                    .get(pkg_id.as_str())?
+                    .result()
+                    .package
+                    .name_ver
+                    .as_ref()
+            })
+        {
+            let name = name_ver.name.to_string();
+            if names.contains(name.as_str()) {
+                versions
+                    .entry(name)
+                    .or_default()
+                    .insert(name_ver.suffix.to_string());
+            }
+        }
+        versions
     }
 
     /// Fold the versions of the workspace packages whose manifest

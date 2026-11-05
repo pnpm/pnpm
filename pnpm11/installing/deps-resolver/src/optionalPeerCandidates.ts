@@ -1,6 +1,6 @@
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
+import type { PkgResolutionId, PreferredVersions } from '@pnpm/resolving.resolver-base'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
 
 import type { PkgAddressOrLink, ResolutionContext, ResolvedPackage, ResolvedPkgsById } from './resolutionTypes.js'
@@ -93,4 +93,51 @@ export function peersAcceptProvidedVersions (
     }
   }
   return true
+}
+
+/**
+ * The `preferredVersions` of `names` that the importer's own dependency
+ * closure resolves, or that `extraVersions` lists. A version that only
+ * another importer resolves is left out.
+ */
+export function pickVersionsInClosure (
+  ctx: Pick<ResolutionContext, 'childrenByParentId' | 'resolvedPkgsById'>,
+  { extraVersions, names, preferredVersions, roots }: {
+    extraVersions: Iterable<[string, string]>
+    names: Set<string>
+    preferredVersions: PreferredVersions
+    roots: Array<Pick<PkgAddressOrLink, 'pkgId'>>
+  }
+): PreferredVersions {
+  const closureVersions = new Map<string, Set<string>>()
+  for (const [name, version] of [...extraVersions, ...listClosureVersions(ctx, roots)]) {
+    if (!names.has(name)) continue
+    const versions = closureVersions.get(name) ?? new Set()
+    versions.add(version)
+    closureVersions.set(name, versions)
+  }
+  const picked = Object.create(null) as PreferredVersions
+  for (const [name, versions] of closureVersions) {
+    const kept = Object.fromEntries(Object.entries(preferredVersions[name] ?? {}).filter(([version]) => versions.has(version)))
+    if (Object.keys(kept).length > 0) picked[name] = kept
+  }
+  return picked
+}
+
+function listClosureVersions (
+  ctx: Pick<ResolutionContext, 'childrenByParentId' | 'resolvedPkgsById'>,
+  roots: Array<Pick<PkgAddressOrLink, 'pkgId'>>
+): Array<[string, string]> {
+  const nameVersions: Array<[string, string]> = []
+  const visited = new Set<PkgResolutionId>()
+  const pending = roots.map(({ pkgId }) => pkgId)
+  while (pending.length) {
+    const pkgId = pending.pop()!
+    const pkg = ctx.resolvedPkgsById[pkgId]
+    if (visited.has(pkgId) || pkg == null) continue
+    visited.add(pkgId)
+    nameVersions.push([pkg.name, pkg.version])
+    pending.push(...(ctx.childrenByParentId[pkgId] ?? []).map(({ id }) => id))
+  }
+  return nameVersions
 }

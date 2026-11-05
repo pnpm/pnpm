@@ -13,6 +13,7 @@ import {
   createCandidatePeerRangesLookup,
   getDirectDepVersions,
   peersAcceptProvidedVersions,
+  pickVersionsInClosure,
 } from './optionalPeerCandidates.js'
 import type {
   ImporterToResolve,
@@ -312,7 +313,14 @@ async function hoistOptionalPeersOfImporter (
   ])
   const optionalDependencies = getHoistableOptionalPeers(
     allMissingOptionalPeers,
-    ctx.allPreferredVersions,
+    ctx.dedupePeerDependents
+      ? ctx.allPreferredVersions
+      : pickVersionsInClosure(ctx, {
+        extraVersions: providedPeerVersions,
+        names: new Set(Object.keys(allMissingOptionalPeers)),
+        preferredVersions: ctx.allPreferredVersions,
+        roots: hoisting.importerResults[index].pkgAddresses,
+      }),
     hoisting.workspaceRootDeps,
     (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(name, version), providedPeerVersions),
     {
