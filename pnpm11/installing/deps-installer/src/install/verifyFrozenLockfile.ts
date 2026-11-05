@@ -140,9 +140,8 @@ async function findImporterWithoutProjectManifest (
 }
 
 async function isDirectoryWithoutManifest (projectDir: string): Promise<boolean> {
-  if (isEmptyDirOrNothing(projectDir)) return false
   const manifestExists = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(projectDir, basename))))
-  return !manifestExists.some(Boolean)
+  return !manifestExists.some(Boolean) && !isEmptyDirOrNothing(projectDir)
 }
 
 async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, frozenLockfile: boolean): Promise<ProjectCheck[]> {
