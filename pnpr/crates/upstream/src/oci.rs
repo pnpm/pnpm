@@ -43,7 +43,7 @@ impl Upstream {
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let (base, mut url) = self.oci_object_url(repository, endpoint)?;
-        let started = Instant::now();
+        let mut started = None;
         let mut bearer = self.cached_oci_token(repository);
         let mut negotiated = false;
         for _ in 0..8 {
@@ -53,6 +53,7 @@ impl Upstream {
                 UNPRIORITIZED,
             )
             .await;
+            let started = *started.get_or_insert_with(Instant::now);
             let request = guard.request(method.clone(), url.clone()).header(header::ACCEPT, accept);
             let request = self.with_oci_credentials(request, &url, &base, bearer.as_deref());
             let response =

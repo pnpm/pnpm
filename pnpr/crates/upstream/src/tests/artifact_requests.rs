@@ -177,6 +177,36 @@ async fn a_streamed_body_that_keeps_arriving_outlives_the_timeout() {
 }
 
 #[tokio::test]
+async fn tarball_head_deadline_starts_after_waiting_for_a_permit() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody").await.unwrap();
+    });
+    let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(250);
+    let mut upstream = Upstream::new("test", &config);
+    upstream.http.client = std::sync::Arc::new(
+        pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
+    );
+    let held = upstream.http.client.acquire_for_url(&url).await;
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let release_permit = async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        drop(held);
+    };
+    let fetch = upstream.fetch_tarball_response(&name, "foo.tgz");
+    let (result, ()) = tokio::join!(fetch, release_permit);
+    let FetchOutcome::Ok(response) = result.unwrap() else { panic!("expected a tarball response") };
+    let mut stream = Box::pin(response.bytes_stream());
+    assert_eq!(stream.next().await.unwrap().unwrap(), "body");
+    server.await.unwrap();
+}
+
+#[tokio::test]
 async fn a_stalled_error_body_is_bounded_by_the_timeout() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
