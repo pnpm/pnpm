@@ -392,3 +392,17 @@ fn local_spec_satisfies(
     super::spec_satisfies_snapshot_dep(dirs, local_dep_dir, dep_name, spec, lockfile_dep)
         .expect("a local spec is judged")
 }
+
+#[test]
+fn a_recorded_local_path_is_not_read_as_a_specifier() {
+    let workspace_root = PathBuf::from("/workspace");
+    let dirs = dirs(&workspace_root, &workspace_root);
+    let lib = workspace_root.join("lib");
+    let satisfies = |spec: &str, recorded: &str| {
+        let lockfile_dep: pnpm_lockfile::SnapshotDepRef = recorded.parse().unwrap();
+        local_spec_satisfies(&dirs, &lib, "vendored", spec, &lockfile_dep)
+    };
+    assert!(satisfies("file:../file:vendor", "file:file:vendor"));
+    assert!(!satisfies("file:../vendor", "file:file:vendor"));
+    assert!(!satisfies("link:../vendor", "link:file:vendor"));
+}

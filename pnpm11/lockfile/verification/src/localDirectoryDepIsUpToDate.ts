@@ -16,7 +16,7 @@ import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
-import { localSpecPath } from '@pnpm/resolving.local-resolver'
+import { localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -397,7 +397,7 @@ async function localSpecIsUpToDate (
   if (currentSpec.startsWith('link:')) {
     return (
       lockfileDep.startsWith('link:') &&
-      localSpecPath(currentSpec, localDep.localDepDir) === localSpecPath(lockfileDep.slice(5), localDep.lockfileDir)
+      localSpecPath(currentSpec, localDep.localDepDir) === recordedLocalPath(lockfileDep.slice(5), localDep.lockfileDir)
     )
   }
   const cleanLockfileDep = removeSuffix(lockfileDep)
@@ -410,7 +410,7 @@ async function localSpecIsUpToDate (
 
 function localPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfilePath: string | null): boolean {
   return lockfilePath != null &&
-    localSpecPath(currentSpec, localDep.localDepDir) === localSpecPath(lockfilePath, localDep.lockfileDir)
+    localSpecPath(currentSpec, localDep.localDepDir) === recordedLocalPath(lockfilePath, localDep.lockfileDir)
 }
 
 function hasExpectedName (cleanLockfileDep: string, { depName, currentSpec }: { depName: string, currentSpec: string }): boolean {

@@ -8,7 +8,7 @@ import type {
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import { localSpecPath } from '@pnpm/resolving.local-resolver'
+import { localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -189,7 +189,7 @@ function checkLinkTarget (
   projectDir: string,
   { depName, currentSpec, lockfileRef }: DependencyToCheck
 ): CheckLinkedPackagesResult {
-  return localSpecPath(currentSpec, projectDir) === localSpecPath(lockfileRef.slice(5), projectDir)
+  return localSpecPath(currentSpec, projectDir) === recordedLocalPath(lockfileRef.slice(5), projectDir)
     ? UP_TO_DATE
     : outdated(`Dependency "${depName}" is linked to "${lockfileRef}", which does not match "${currentSpec}"`)
 }

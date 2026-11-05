@@ -202,6 +202,14 @@ pub fn local_spec_path(bare_specifier: &str, project_dir: &Path) -> PathBuf {
     resolve_normalized_spec(&normalize_specifier(bare_specifier), project_dir)
 }
 
+/// The path a lockfile records for a local dependency, resolved against
+/// `base_dir`. Unlike [`local_spec_path`], it reads no protocol: `file:x` is
+/// a directory named `file:x`.
+#[must_use]
+pub fn recorded_local_path(recorded: &str, base_dir: &Path) -> PathBuf {
+    resolve_path(base_dir, recorded)
+}
+
 /// [`local_spec_path`] of a specifier that [`normalize_specifier`] already
 /// normalized.
 fn resolve_normalized_spec(spec: &str, project_dir: &Path) -> PathBuf {

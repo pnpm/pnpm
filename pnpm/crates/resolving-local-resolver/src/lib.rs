@@ -30,7 +30,7 @@ pub use local_resolver::{
 };
 pub use parse_bare_specifier::{
     PathProtocolNotSupportedError, WantedLocalDependency, local_file_path, local_spec_path,
-    local_tarball_path,
+    local_tarball_path, recorded_local_path,
 };
 pub use pnpm_local_spec::{is_local_filesystem_specifier, is_tarball_filename};
 
