@@ -165,7 +165,7 @@ userAgent: ${PNPM_TEST_HOST}
     assert_eq!(settings.cache_dir.as_deref(), Some("${PNPM_TEST_UNSET:-cache}"));
     assert_eq!(settings.user_agent.as_deref(), Some("${PNPM_TEST_HOST}"));
 
-    settings.substitute_env_untrusted::<Env>();
+    settings.substitute_env_untrusted::<Env>().unwrap();
 
     assert_eq!(settings.cache_dir.as_deref(), Some("cache"));
 }

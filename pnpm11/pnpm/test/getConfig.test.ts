@@ -132,10 +132,10 @@ test('console warnings before rethrowing a config error when onlyInheritDlxSetti
 test('console a warning when a project-level .npmrc uses an env variable in a request destination', async () => {
   prepare()
 
-  // Env placeholders in repository-controlled registry/proxy URLs are not
+  // Env placeholders in repository-controlled proxy URLs are not
   // expanded at all — the setting is dropped with a dedicated warning
   // instead of the generic env-replace one.
-  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8')
+  fs.writeFileSync('.npmrc', 'https-proxy=${ENV_VAR_123}', 'utf8')
 
   await getConfig({
     json: false,
@@ -144,7 +144,7 @@ test('console a warning when a project-level .npmrc uses an env variable in a re
     excludeReporter: false,
   })
 
-  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Ignored project-level request destination "registry"'))
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Ignored project-level request destination "https-proxy"'))
 })
 
 describe('calcPnpmfilePathsOfPluginDeps', () => {

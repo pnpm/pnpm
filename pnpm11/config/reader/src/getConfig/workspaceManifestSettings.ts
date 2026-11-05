@@ -19,6 +19,7 @@ export interface WorkspaceManifestSettingsOptions {
   skipSettings?: ReadonlySet<SkippableKey>
   /** See {@link getOptionsFromPnpmSettings}. Only the global config yaml is trusted. */
   trustedSource?: boolean
+  warnings?: string[]
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }
@@ -30,11 +31,12 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
   expandRequestDestinationEnv,
   projectManifest,
   skipSettings,
+  warnings,
   workspaceManifest,
   workspaceDir,
 }: WorkspaceManifestSettingsOptions): OptionsFromRootManifest {
   const skipped: ReadonlySet<string> | undefined = skipSettings
-  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
+  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource, warnings })
   resolveLockfileDir(settingsFromManifest as { lockfileDir?: unknown }, workspaceDir)
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
   const newSettings = { ...settingsFromManifest, ...configFromCliOpts }
