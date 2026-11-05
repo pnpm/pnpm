@@ -1,3 +1,4 @@
+use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
@@ -135,7 +136,7 @@ fn non_strict_root_engine_mismatches_warn_and_continue() {
 
 #[test]
 fn repeat_install_warns_for_incompatible_root_engines() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -147,12 +148,12 @@ fn repeat_install_warns_for_incompatible_root_engines() {
     )
     .expect("write package.json");
 
-    pacquet
+    _utils::pacquet_in(&workspace)
         .with_arg("install")
         .assert()
         .success();
 
-    let output = pacquet
+    let output = _utils::pacquet_in(&workspace)
         .with_arg("install")
         .output()
         .expect("run repeat install");
