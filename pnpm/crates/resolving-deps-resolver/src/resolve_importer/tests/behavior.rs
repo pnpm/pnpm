@@ -177,11 +177,14 @@ fn repeated_non_semver_peer_ranges_stay_verbatim() {
 
 #[tokio::test]
 async fn conflicting_path_peers_stay_missing_without_resolution() {
-    for ranges in
-        [["file:../packages/b", "file:../libs/b"], ["file:../b", "^1.0.0"], ["^1.0.0", "file:../b"]]
-    {
+    for ranges in [
+        ["file:../packages/b", "file:../libs/b", "file:../other/b"],
+        ["file:../b", "^1.0.0", "^2.0.0"],
+        ["^1.0.0", "file:../b", "^2.0.0"],
+        ["npm:a@1", "npm:b@1", "npm:c@1"],
+    ] {
         let mut table = HashMap::default();
-        for (name, range) in ["consumer-a", "consumer-c"].into_iter().zip(ranges) {
+        for (name, range) in ["consumer-a", "consumer-c", "consumer-d"].into_iter().zip(ranges) {
             table.insert(
                 (name.to_string(), "1.0.0".to_string()),
                 fake_result(
@@ -199,6 +202,7 @@ async fn conflicting_path_peers_stay_missing_without_resolution() {
         let (_tmp, manifest) = fake_manifest(serde_json::json!({
             "consumer-a": "1.0.0",
             "consumer-c": "1.0.0",
+            "consumer-d": "1.0.0",
         }));
         let mut opts = default_opts();
         opts.peers.auto_install_peers_from_highest_match = true;
@@ -207,7 +211,7 @@ async fn conflicting_path_peers_stay_missing_without_resolution() {
             .unwrap();
 
         assert!(!result.peers_result.direct_dependencies_by_alias.contains_key("b"));
-        assert_eq!(result.peers_result.peer_dependency_issues.missing["b"].len(), 2);
+        assert_eq!(result.peers_result.peer_dependency_issues.missing["b"].len(), 3);
         assert!(
             resolver.calls
                 .lock()

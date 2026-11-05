@@ -8,7 +8,7 @@ import { getHoistableRootDeps } from './hoistableRootDeps.js'
 import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpecifier, type HoistableRootDep, hoistPeers } from './hoistPeers.js'
 import { addDirectDepVersion } from './indexResolvedDependencies.js'
 import { getImporterLockedPeerVersions } from './lockedPeerVersions.js'
-import { collectMissingRequiredPeers, filterMissingPeers, mergePkgsDeps } from './missingPeers.js'
+import { filterMissingPeers, mergeMissingPeersOfImporter } from './missingPeers.js'
 import {
   createCandidatePeerRangesLookup,
   getDirectDepVersions,
@@ -171,10 +171,7 @@ function collectMissingPeersOfImporter (
     parentPkgAliases[pkgAddress.alias] = true
   }
   if (ctx.autoInstallPeers) {
-    importerResult.missingPeers = mergePkgsDeps([
-      importerResult.missingPeers,
-      collectMissingRequiredPeers(ctx, importerResult.pkgAddresses),
-    ], ctx)
+    importerResult.missingPeers = mergeMissingPeersOfImporter(ctx, importerResult)
   }
   const { missingOptionalPeers, missingRequiredPeers } = partitionMissingPeers(importerResult.missingPeers, parentPkgAliases)
   if (ctx.autoInstallPeers) {
