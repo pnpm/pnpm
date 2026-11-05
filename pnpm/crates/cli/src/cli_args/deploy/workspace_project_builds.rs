@@ -73,7 +73,10 @@ fn is_workspace_project_package(
         return Ok(false);
     };
     let directory = lexical_normalize(&ctx.deploy_dir.join(&resolution.directory));
-    if !ctx.projects_by_path.contains_key(&ProjectPathKey::new(&directory)) {
+    let is_project_root = ctx.projects_by_path
+        .get(&ProjectPathKey::new(&directory))
+        .is_some_and(|project| project.root_dir == directory);
+    if !is_project_root {
         return Ok(false);
     }
     Ok(create_file_url_key(&directory, "", ctx.projects_by_path, None)? == *package_key)

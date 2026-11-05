@@ -24,10 +24,12 @@ impl Workspace {
     fn with_project(name: &str) -> Self {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path().join("workspace");
+        let project_root = root.join("packages").join(name);
         let mut projects_by_path = HashMap::new();
         projects_by_path.insert(
-            ProjectPathKey::new(&root.join("packages").join(name)),
+            ProjectPathKey::new(&project_root),
             ProjectInfo {
+                root_dir: project_root,
                 name: Some(name.to_string()),
                 has_bin: false,
                 peer_dependencies: Vec::new(),
@@ -146,4 +148,30 @@ fn approves_a_legacy_workspace_project_relative_to_the_lockfile_dir() {
     .expect("approve legacy workspace project builds");
 
     assert_eq!(allow_builds, approvals(&[("denied", false), ("lib@file:packages/lib", true)]));
+}
+
+#[cfg(unix)]
+#[test]
+fn does_not_approve_a_directory_whose_name_only_prints_like_a_project_root() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
+    let workspace = Workspace::with_project("lib");
+    let project_root = workspace.root.join(OsStr::from_bytes(b"lib\xff"));
+    let mut projects_by_path = HashMap::new();
+    projects_by_path.insert(
+        ProjectPathKey::new(&project_root),
+        ProjectInfo {
+            root_dir: project_root,
+            name: Some("lib".to_string()),
+            has_bin: false,
+            peer_dependencies: Vec::new(),
+            peer_blocks: (None, None),
+            declared_dependencies: HashSet::default(),
+        },
+    );
+    let workspace = Workspace { projects_by_path, ..workspace };
+    let look_alike = workspace.file_key("lib\u{FFFD}");
+    let lockfile = Workspace::lockfile(&[(&look_alike, "../lib\u{FFFD}")]);
+
+    assert_eq!(workspace.approve(&[], &lockfile), approvals(&[]));
 }

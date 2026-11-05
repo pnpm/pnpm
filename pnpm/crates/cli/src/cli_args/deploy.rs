@@ -124,6 +124,9 @@ enum DeployError {
 
 #[derive(Clone)]
 struct ProjectInfo {
+    /// The project's root as discovered. [`ProjectPathKey`] compares paths
+    /// lossily, so a check that must name this exact directory compares it.
+    root_dir: PathBuf,
     name: Option<String>,
     has_bin: bool,
     peer_dependencies: Vec<PkgName>,
@@ -367,6 +370,7 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
         projects_by_path
             .entry(ProjectPathKey::new(&project.root_dir))
             .or_insert_with(|| ProjectInfo {
+                root_dir: lexical_normalize(&project.root_dir),
                 name: project.manifest
                     .value()
                     .get("name")
