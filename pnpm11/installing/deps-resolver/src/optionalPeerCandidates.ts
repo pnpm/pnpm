@@ -137,7 +137,13 @@ function listClosureVersions (
     if (visited.has(pkgId) || pkg == null) continue
     visited.add(pkgId)
     nameVersions.push([pkg.name, pkg.version])
-    pending.push(...(ctx.childrenByParentId[pkgId] ?? []).map(({ id }) => id))
+    for (const child of ctx.childrenByParentId[pkgId] ?? []) {
+      if (child.linked != null) {
+        nameVersions.push([child.linked.name, child.linked.version])
+      } else {
+        pending.push(child.id)
+      }
+    }
   }
   return nameVersions
 }

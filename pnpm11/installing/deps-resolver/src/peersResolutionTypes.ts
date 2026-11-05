@@ -105,6 +105,8 @@ export interface ResolvePeersContext {
   nodeIdsByPreviousDepPath: Map<DepPath, NodeId>
   resolvedPeerProviderPaths?: Map<NodeId, DepPath>
   currentProviderSources: CurrentProviderSource[]
+  /** When off, a lockfile pin does not bind a peer that nothing in the node's scope provides. */
+  dedupePeerDependents?: boolean
 }
 
 export interface ResolveNodePeersContext<Pkg extends PartialResolvedPackage> extends ResolvePeersContext {

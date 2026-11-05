@@ -398,3 +398,63 @@ fn reused_required_peer_executable_availability() {
         );
     }
 }
+
+/// <https://github.com/orgs/pnpm/discussions/16666>
+#[test]
+fn turning_off_dedupe_peer_dependents_drops_an_optional_peer_another_project_provided() {
+    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success};
+
+    let bundle = crate::_utils::read_v11_bundle_path();
+    for cli in std::iter::once(None).chain(bundle.as_deref().map(Some)) {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml("dedupePeerDependents: true\n");
+        fixture.write_root_manifest("root", ManifestDeps::default());
+        fixture.project(
+            "provider",
+            "provider",
+            ManifestDeps { dev: &[("@pnpm.e2e/peer-c", "1.0.0")], ..ManifestDeps::default() },
+        );
+        fixture.project(
+            "consumer",
+            "consumer",
+            ManifestDeps {
+                prod: &[("@pnpm.e2e/abc-optional-peers", "1.0.0")],
+                ..ManifestDeps::default()
+            },
+        );
+        let consumer_version = || {
+            let lock: serde_json::Value = serde_saphyr::from_str(
+                &fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml")).unwrap(),
+            )
+            .unwrap();
+            lock["importers"]["packages/consumer"]["dependencies"]
+                ["@pnpm.e2e/abc-optional-peers"]["version"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+
+        assert_success(&run_peer_fixture(&fixture, cli, &["install", "--lockfile-only"]));
+        assert!(consumer_version().contains("peer-c@1.0.0"), "cli={cli:?}: {}", consumer_version());
+
+        let yaml_path = fixture.workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&yaml_path).unwrap();
+        fs::write(
+            &yaml_path,
+            yaml.replace("dedupePeerDependents: true", "dedupePeerDependents: false"),
+        )
+        .unwrap();
+        // Changing only the setting does not make the lockfile outdated, so
+        // a manifest edit makes the install resolve again from the lockfile.
+        fixture.project(
+            "provider",
+            "provider",
+            ManifestDeps {
+                dev: &[("@pnpm.e2e/peer-c", "1.0.0"), ("@pnpm.e2e/foo", "100.0.0")],
+                ..ManifestDeps::default()
+            },
+        );
+        assert_success(&run_peer_fixture(&fixture, cli, &["install", "--lockfile-only"]));
+        assert!(!consumer_version().contains("peer-c@"), "cli={cli:?}: {}", consumer_version());
+    }
+}

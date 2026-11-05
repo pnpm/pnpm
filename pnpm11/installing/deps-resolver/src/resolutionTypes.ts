@@ -83,6 +83,8 @@ export interface ChildrenByParentId {
   [id: PkgResolutionId]: Array<{
     alias: string
     id: PkgResolutionId
+    /** Set for a linked local package, which `resolvedPkgsById` does not hold. */
+    linked?: { name: string, version: string }
   }>
 }
 

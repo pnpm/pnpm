@@ -157,7 +157,9 @@ impl WorkspaceTreeCtx {
     }
 
     /// `name → versions` of `names` among the packages reachable from
-    /// `roots`, the pkg ids of one importer's direct dependencies.
+    /// `roots`, the pkg ids of one importer's direct dependencies. A
+    /// workspace package without a `name_ver` is identified by its
+    /// recorded manifest identity.
     pub(crate) fn versions_reachable_from<'id>(
         &self,
         roots: impl Iterator<Item = &'id str>,
@@ -168,25 +170,40 @@ impl WorkspaceTreeCtx {
             let children_by_id = lock_recoverable(&self.children.by_id);
             collect_newly_visited(&children_by_id, &mut queue, &mut HashSet::default())
         };
-        let packages = lock_recoverable(&self.tree.packages);
-        let mut versions: HashMap<String, HashSet<String>> = HashMap::default();
-        for name_ver in reached
-            .iter()
-            .filter_map(|pkg_id| {
-                packages
-                    .get(pkg_id.as_str())?
-                    .result()
-                    .package
-                    .name_ver
-                    .as_ref()
-            })
+        let mut name_versions: Vec<(String, String)> = Vec::new();
+        let mut unnamed: Vec<String> = Vec::new();
         {
-            let name = name_ver.name.to_string();
+            let packages = lock_recoverable(&self.tree.packages);
+            for pkg_id in reached {
+                match packages
+                    .get(pkg_id.as_str())
+                    .and_then(|pkg| pkg.result().package.name_ver.as_ref())
+                {
+                    Some(name_ver) => {
+                        name_versions.push((
+                            name_ver.name.to_string(),
+                            name_ver.suffix.to_string(),
+                        ));
+                    }
+                    None => unnamed.push(pkg_id),
+                }
+            }
+        }
+        {
+            let identities = lock_recoverable(&self.versions.workspace_manifest_identities);
+            name_versions.extend(
+                unnamed
+                    .iter()
+                    .filter_map(|pkg_id| identities.get(pkg_id).cloned()),
+            );
+        }
+        let mut versions: HashMap<String, HashSet<String>> = HashMap::default();
+        for (name, version) in name_versions {
             if names.contains(name.as_str()) {
                 versions
                     .entry(name)
                     .or_default()
-                    .insert(name_ver.suffix.to_string());
+                    .insert(version);
             }
         }
         versions
