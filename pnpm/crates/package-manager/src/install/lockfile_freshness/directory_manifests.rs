@@ -5,7 +5,7 @@ use super::{
     FreshnessCheckError, LockfileFreshnessInputs,
     directory_deps::{
         GraphEdges, InjectedDirectory, NestedByImporter, NestedDirectoryPackage,
-        is_declared_local_directory, is_deploy_file_url_key,
+        is_declared_by_path, is_deploy_file_url_key,
         nested_directory_packages as nested_directory_packages_along, overridden_unhooked_manifest,
         unhooked_manifest,
     },
@@ -13,11 +13,12 @@ use super::{
 };
 use crate::install::{Arc, Lockfile, PackageManifest, PathBuf};
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_resolving_deps_resolver::{ChildCatalogs, ManifestTransformHooks};
+use pnpm_resolving_deps_resolver::{ChildCatalogs, ManifestTransformHooks, directory_package_dir};
 use std::collections::{HashMap, HashSet};
 
 /// A directory dependency as the check reaches it: the directory the
-/// lockfile records, as written, and whether a `file:` spec declared it.
+/// lockfile records, as written, and whether a path spec declared it
+/// ([`is_declared_by_path`]).
 /// The two declarations can read different manifests; see
 /// [`unhooked_manifest`].
 type DirectoryDep = (String, bool);
@@ -34,8 +35,8 @@ impl DirectoryManifests {
         NONE.get_or_init(Self::default)
     }
 
-    pub(crate) fn get(&self, directory: &str, declared_as_file: bool) -> Option<&PackageManifest> {
-        self.0.get(&(directory.to_string(), declared_as_file))
+    pub(crate) fn get(&self, directory: &str, declared_by_path: bool) -> Option<&PackageManifest> {
+        self.0.get(&(directory.to_string(), declared_by_path))
     }
 }
 
@@ -162,16 +163,16 @@ pub(super) fn injected_project_manifests<'a>(
         .flat_map(|(importer_id, _)| lockfile.injected_dependencies(importer_id, groups))
         .filter_map(|dependency| {
             let directory = &dependency.directory.directory;
-            let declared_as_file = is_declared_local_directory(&dependency.spec.specifier);
-            let manifest = directory_manifests.get(directory, declared_as_file)?;
-            let dir = pnpm_fs::lexical_normalize(&inputs.lockfile_dir.join(directory));
-            Some((declared_as_file, dir, manifest))
+            let declared_by_path = is_declared_by_path(&dependency.spec.specifier);
+            let manifest = directory_manifests.get(directory, declared_by_path)?;
+            let dir = directory_package_dir(inputs.lockfile_dir, directory);
+            Some((declared_by_path, dir, manifest))
         })
         .collect();
     // The map these extend is keyed by directory and serves workspace specs,
     // so a directory reached both ways keeps the workspace declaration's
     // manifest: it comes last.
-    injected.sort_by_key(|(declared_as_file, ..)| !declared_as_file);
+    injected.sort_by_key(|(declared_by_path, ..)| !declared_by_path);
     injected
         .into_iter()
         .map(|(_, dir, manifest)| (dir, manifest))
@@ -200,7 +201,7 @@ fn direct_directory_deps(
             let key = dependency.spec.version.resolved_key(dependency.alias)?;
             let directory = &dependency.directory.directory;
             (!is_deploy_file_url_key(dependency.spec, &key, directory)).then(|| Visit {
-                dep: (directory.clone(), is_declared_local_directory(&dependency.spec.specifier)),
+                dep: (directory.clone(), is_declared_by_path(&dependency.spec.specifier)),
                 alias: dependency.alias.to_string(),
                 key,
             })
@@ -214,8 +215,8 @@ fn nested_directory_deps<'n>(nested: &'n NestedByImporter<'_>) -> impl Iterator<
     nested
         .packages()
         .flat_map(|package| {
-            [false, true].map(|declared_as_file| Visit {
-                dep: (package.directory.clone(), declared_as_file),
+            [false, true].map(|declared_by_path| Visit {
+                dep: (package.directory.clone(), declared_by_path),
                 alias: package.alias.clone(),
                 key: package.key.clone(),
             })
@@ -263,11 +264,11 @@ impl DirectoryWalk<'_, '_> {
         &self,
         visit: &Visit,
     ) -> Result<Option<(PackageManifest, bool)>, FreshnessCheckError> {
-        let (directory, declared_as_file) = &visit.dep;
-        let dir = pnpm_fs::lexical_normalize(&self.inputs.lockfile_dir.join(directory));
+        let (directory, declared_by_path) = &visit.dep;
+        let dir = directory_package_dir(self.inputs.lockfile_dir, directory);
         let injected = InjectedDirectory {
             dir: &dir,
-            declared_as_file: *declared_as_file,
+            declared_by_path: *declared_by_path,
             workspace_root: self.inputs.config.workspace_dir
                 .as_deref()
                 .unwrap_or(self.inputs.lockfile_dir),
@@ -301,9 +302,9 @@ impl DirectoryWalk<'_, '_> {
         else {
             return Vec::new();
         };
-        let (directory, declared_as_file) = &visit.dep;
-        let dir = self.inputs.lockfile_dir.join(directory);
-        let catalogs = (!declared_as_file).then_some(ChildCatalogs {
+        let (directory, declared_by_path) = &visit.dep;
+        let dir = directory_package_dir(self.inputs.lockfile_dir, directory);
+        let catalogs = (!declared_by_path).then_some(ChildCatalogs {
             catalogs: self.inputs.catalogs,
             workspace_dir: self.inputs.config.workspace_dir.as_deref(),
             package_dir: &dir,
@@ -342,7 +343,7 @@ impl DirectoryWalk<'_, '_> {
             return None;
         };
         Some(Visit {
-            dep: (resolution.directory.clone(), is_declared_local_directory(&child.bare_specifier)),
+            dep: (resolution.directory.clone(), is_declared_by_path(&child.bare_specifier)),
             alias: child.alias,
             key,
         })

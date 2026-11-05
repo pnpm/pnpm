@@ -5727,6 +5727,7 @@ name = "pnpm-local-spec"
 version = "0.0.1"
 dependencies = [
  "pnpm-fs",
+ "pnpm-workspace-spec",
  "pretty_assertions",
 ]
 
@@ -6512,6 +6513,7 @@ dependencies = [
  "pnpm-resolving-resolver-base",
  "pnpm-semver-include-prerelease",
  "pnpm-tool-protocol",
+ "pnpm-workspace-spec",
  "pretty_assertions",
  "rustc-hash 2.1.3",
  "serde_json",

@@ -100,8 +100,7 @@ impl LocalSpec {
     /// resolver reads as a path rather than as a version range.
     #[must_use]
     pub fn parse_workspace_path(specifier: &str, base_dir: &Path) -> Option<Self> {
-        specifier
-            .starts_with("workspace:.")
+        pnpm_workspace_spec::is_workspace_path_specifier(specifier)
             .then(|| {
                 Self::anchor(
                     Some(LocalSpecProtocol::Workspace),

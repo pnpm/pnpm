@@ -20,7 +20,7 @@ import { execPnpm } from '../utils/index.js'
 //   project.
 
 type Injection = 'injectWorkspacePackages' | 'dependenciesMeta' | 'fileSpec'
-type Edit = 'none' | 'dependency' | 'peer' | 'optionalPeer' | 'catalogPeer'
+type Edit = 'none' | 'dependency' | 'peer' | 'optionalPeer' | 'catalogPeer' | 'catalogChild'
 
 interface Layout {
   sharedWorkspaceLockfile: boolean
@@ -30,7 +30,7 @@ interface Layout {
 const LAYOUTS: Layout[] = [true, false].flatMap((sharedWorkspaceLockfile) =>
   (['injectWorkspacePackages', 'dependenciesMeta', 'fileSpec'] as const).map((injection) => ({ sharedWorkspaceLockfile, injection }))
 )
-const EDITS: Edit[] = ['none', 'dependency', 'peer', 'optionalPeer', 'catalogPeer']
+const EDITS: Edit[] = ['none', 'dependency', 'peer', 'optionalPeer', 'catalogPeer', 'catalogChild']
 const FILTERS: string[][] = [[], ['--filter=app']]
 
 // A filtered install leaves a shared lockfile's other importers as they were,
@@ -61,6 +61,13 @@ describe.each(LAYOUTS)('injected package edits: %j', (layout) => {
     prepareWorkspace(layout)
     await execPnpm(['install'])
     applyEdit(layout, edit)
+    if (layout.injection === 'fileSpec' && edit === 'catalogChild') {
+      // The children of a dependency declared by path keep their `catalog:`
+      // specs, which no resolver accepts, so both installs fail.
+      expect(await frozenInstallPasses()).toBe(false)
+      await expect(execPnpm(['install', '--no-frozen-lockfile', ...filter])).rejects.toThrow('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
+      return
+    }
 
     const frozenPassed = await frozenInstallPasses()
     const before = readLockfiles('.')
@@ -114,7 +121,7 @@ function writeWorkspaceYaml (layout: Layout, barCatalogEntry: string): void {
     packages: ['**', '!store/**'],
     sharedWorkspaceLockfile: layout.sharedWorkspaceLockfile,
     injectWorkspacePackages: layout.injection === 'injectWorkspacePackages',
-    catalog: { '@pnpm.e2e/bar': barCatalogEntry },
+    catalog: { '@pnpm.e2e/bar': barCatalogEntry, '@pnpm.e2e/foo': '100.0.0' },
   })
 }
 
@@ -136,6 +143,9 @@ function applyEdit (layout: Layout, edit: Edit): void {
     case 'catalogPeer':
       writeWorkspaceYaml(layout, '100.0.0')
       return
+    case 'catalogChild':
+      manifest.dependencies['@pnpm.e2e/foo'] = 'catalog:'
+      break
   }
   fs.writeFileSync('lib/package.json', JSON.stringify(manifest, null, 2))
 }

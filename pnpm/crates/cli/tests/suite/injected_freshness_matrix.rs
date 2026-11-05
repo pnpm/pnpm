@@ -39,6 +39,7 @@ enum Injection {
     InjectWorkspacePackages,
     DependenciesMeta,
     FileSpec,
+    BarePath,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -88,6 +89,7 @@ impl Scenario {
             Injection::InjectWorkspacePackages => ("workspace:*", json!({})),
             Injection::DependenciesMeta => ("workspace:*", json!({ "lib": { "injected": true } })),
             Injection::FileSpec => ("file:../lib", json!({})),
+            Injection::BarePath => ("../lib", json!({ "lib": { "injected": true } })),
         };
         scenario.write_manifest(
             "app",
@@ -274,7 +276,10 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
     scenario.edit(edit);
-    if matches!((layout.injection, edit), (Injection::FileSpec, Edit::CatalogFileChild)) {
+    if matches!(
+        (layout.injection, edit),
+        (Injection::FileSpec | Injection::BarePath, Edit::CatalogFileChild),
+    ) {
         check_unresolvable_child(&mut scenario, filter);
         return;
     }
@@ -329,14 +334,12 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     }
 }
 
-/// The children of a `file:` dependency keep their `catalog:` specs, which no
-/// resolver accepts. A frozen install accepts a child spec it cannot judge, so
-/// a filtered one, which leaves `lib`'s importer unchecked, passes.
+/// The children of a dependency declared by path keep their `catalog:`
+/// specs, which no resolver accepts, so both installs fail.
 fn check_unresolvable_child(scenario: &mut Scenario, filter: &[&str]) {
-    assert_eq!(
-        scenario.frozen_install_passes(filter),
-        !filter.is_empty(),
-        "{:?}, filter {filter:?}",
+    assert!(
+        !scenario.frozen_install_passes(filter),
+        "{:?}, filter {filter:?}: the frozen install passed",
         scenario.layout,
     );
     scenario.assert_install_fails(filter, "ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER");
@@ -435,6 +438,14 @@ matrix! {
     dedicated_file_spec: Layout {
         shared_lockfile: false,
         injection: Injection::FileSpec,
+    },
+    shared_bare_path: Layout {
+        shared_lockfile: true,
+        injection: Injection::BarePath,
+    },
+    dedicated_bare_path: Layout {
+        shared_lockfile: false,
+        injection: Injection::BarePath,
     },
 }
 

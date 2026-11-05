@@ -395,7 +395,7 @@ fn linked_dep_is_up_to_date(
 fn linked_spec_needs_no_resolution(current_spec: &str) -> bool {
     current_spec.starts_with("link:")
         || current_spec.starts_with("file:")
-        || current_spec.starts_with("workspace:.")
+        || pnpm_workspace_spec::is_workspace_path_specifier(current_spec)
         || spec_is_distribution_tag(current_spec)
 }
 

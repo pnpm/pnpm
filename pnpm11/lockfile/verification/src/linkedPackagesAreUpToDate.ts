@@ -8,7 +8,7 @@ import type {
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import { localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
+import { isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -118,11 +118,13 @@ async function checkNestedDirectoryPackages (
       !isDeployDirectoryRef(ref, snapshot) &&
       reached.some((direct) => direct === depPath || ancestors.has(direct))
     )
-    .map(async ({ depPath, snapshot, ancestorAliases }) =>
-      await localDirectoryDepIsUpToDate(snapshot, { ...ancestorAliases, ...projectAliases })
+    .map(async ({ depPath, snapshot, ancestorAliases }) => {
+      const parentPkgAliases = { ...ancestorAliases, ...projectAliases }
+      return await localDirectoryDepIsUpToDate(snapshot, parentPkgAliases, { declaredByPath: false, declarationAssumed: true }) &&
+        await localDirectoryDepIsUpToDate(snapshot, parentPkgAliases, { declaredByPath: true, declarationAssumed: true })
         ? UP_TO_DATE
         : outdated(`The dependencies of local directory dependency "${depPath}" do not match the lockfile`)
-    ))
+    }))
   return results.find((result) => !result.upToDate) ?? UP_TO_DATE
 }
 
@@ -168,7 +170,7 @@ async function checkLocalDirectoryDependency (
   if (
     !ctx.skipLocalDirectoryDependencies &&
     !isDeployDirectoryRef(lockfileRef, pkgSnapshot) &&
-    !await localDirectoryDepIsUpToDate(pkgSnapshot, dependencyAliases(project.manifest))
+    !await localDirectoryDepIsUpToDate(pkgSnapshot, dependencyAliases(project.manifest), { declaredByPath: isLocalFilesystemSpecifier(currentSpec) })
   ) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }

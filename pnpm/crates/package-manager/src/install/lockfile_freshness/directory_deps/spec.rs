@@ -4,6 +4,7 @@ use super::{
 };
 use pnpm_resolving_deps_resolver::locked_child_admits;
 use pnpm_resolving_local_resolver::{local_spec_path, recorded_local_path};
+use pnpm_workspace_spec::is_workspace_path_specifier;
 use std::path::Path;
 
 /// Where the specs of a local directory dependency resolve.
@@ -148,10 +149,6 @@ fn workspace_path_spec_satisfies(
     }
 }
 
-fn is_workspace_path(workspace_spec: &str) -> bool {
-    pnpm_local_spec::is_filespec(workspace_spec)
-}
-
 fn workspace_spec_satisfies(
     dirs: &SpecDirs<'_>,
     local_dep_dir: &Path,
@@ -160,7 +157,7 @@ fn workspace_spec_satisfies(
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    if is_workspace_path(workspace_spec) {
+    if is_workspace_path_specifier(spec) {
         workspace_path_spec_satisfies(dirs, local_dep_dir, spec, workspace_spec, lockfile_dep)
     } else {
         workspace_range_spec_satisfies(dirs, dep_name, workspace_spec, lockfile_dep)
@@ -233,7 +230,7 @@ pub(super) fn importer_link_satisfies(
     let Some(workspace_spec) = spec.strip_prefix("workspace:") else {
         return true;
     };
-    if is_workspace_path(workspace_spec) {
+    if is_workspace_path_specifier(spec) {
         return workspace_path_matches_target(
             dirs,
             &local_spec_path(spec, project_dir),
