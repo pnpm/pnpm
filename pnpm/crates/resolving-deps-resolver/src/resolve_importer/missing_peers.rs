@@ -184,9 +184,9 @@ pub(super) fn distinct_wanted_ranges(entries: &[MissingPeer]) -> Vec<String> {
 /// Combine multiple consumers' wanted ranges into a single specifier,
 /// the upstream `mergePkgsDeps` policy: a single (or single unique)
 /// range passes through unchanged, distinct compatible ranges reduce to
-/// their semver intersection, and an empty intersection falls back to a
-/// `||`-join under `auto_install_peers_from_highest_match` — or `None`,
-/// dropping the peer on an unresolvable conflict.
+/// their semver intersection, and disjoint semver ranges fall back to a
+/// `||`-join under `auto_install_peers_from_highest_match`. Conflicting
+/// non-semver specifiers return `None`, leaving the peer missing.
 ///
 /// Only the unique ranges reach [`intersect_ranges`]: folding a range in
 /// a second time cannot narrow the result, and every pass costs another
@@ -210,7 +210,11 @@ pub(super) fn merge_ranges(
     if let Some(intersection) = intersect_ranges(&unique) {
         return Some(intersection);
     }
-    if auto_install_peers_from_highest_match {
+    if auto_install_peers_from_highest_match
+        && unique
+            .iter()
+            .all(|range| Range::parse(range).is_ok())
+    {
         return Some(ranges.join(" || "));
     }
     None
