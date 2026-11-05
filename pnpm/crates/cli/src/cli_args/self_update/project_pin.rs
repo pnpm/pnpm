@@ -199,6 +199,7 @@ fn write_updated_manifest_pin(
             "packageManager".to_string(),
             Value::String(format!("pnpm@{target_version}")),
         );
+        write_engines_pnpm(manifest.value_mut(), target_version);
         manifest
             .save()
             .map_err(miette::Report::new)
@@ -237,6 +238,7 @@ fn write_dev_engines_pin(
         let new_legacy = format!("pnpm@{target_version}");
         changed |= insert_string_if_changed(manifest.value_mut(), "packageManager", &new_legacy);
     }
+    changed |= write_engines_pnpm(manifest.value_mut(), target_version);
     if changed {
         manifest
             .save()
@@ -244,6 +246,20 @@ fn write_dev_engines_pin(
             .wrap_err("write the project manifest")?;
     }
     Ok(pin_specifier)
+}
+
+/// Rewrite the manifest's `engines.pnpm` range the way
+/// [`update_version_constraint`] rewrites the `devEngines` pin, reporting
+/// whether that changed the manifest.
+fn write_engines_pnpm(manifest: &mut Value, target_version: &str) -> bool {
+    let Some(engines) = manifest.get_mut("engines") else {
+        return false;
+    };
+    let Some(current) = engines.get("pnpm").and_then(Value::as_str) else {
+        return false;
+    };
+    let updated = update_version_constraint(Some(current), target_version);
+    insert_string_if_changed(engines, "pnpm", &updated)
 }
 
 /// Set `key` to `value`, reporting whether that changed the object.
