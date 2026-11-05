@@ -10,6 +10,7 @@ use crate::{
 use pretty_assertions::assert_eq;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod leaks;
 mod modules;
 
 struct MemoryTree(BTreeMap<&'static str, &'static str>);

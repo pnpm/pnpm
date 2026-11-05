@@ -10,6 +10,9 @@ pub enum Metric {
     /// The number of workspace crates the crate depends on through normal
     /// and build dependencies.
     DirectDependencies,
+    /// The number of workspace crates whose items the crate names in its
+    /// public signatures without re-exporting them.
+    LeakedDependencies,
 }
 
 impl Metric {
@@ -17,6 +20,7 @@ impl Metric {
         match self {
             Self::ModuleCycle => "module_cycles",
             Self::DirectDependencies => "direct_dependencies",
+            Self::LeakedDependencies => "leaked_dependencies",
         }
     }
 }
@@ -58,6 +62,13 @@ impl fmt::Display for Mismatch {
                 "{crate_name} depends on {measured} workspace crates, more than the {baseline} \
                  in crate-layers.toml; raise its {table} entry only when the new dependency \
                  belongs in this crate",
+            ),
+            Metric::LeakedDependencies => write!(
+                formatter,
+                "{crate_name} names items of {measured} dependencies in its public signatures \
+                 without re-exporting them, more than the {baseline} in crate-layers.toml; \
+                 re-export the items or keep them out of the public API. \
+                 `crate-layers leaks --crate {crate_name}` lists them",
             ),
         }
     }

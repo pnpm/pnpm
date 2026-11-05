@@ -126,9 +126,11 @@ impl<'graph> Tarjan<'graph> {
 }
 
 /// Each crate's largest cycle size, for [`crate::ratchet::check`].
-pub fn sizes(reports: &[CycleReport]) -> BTreeMap<String, usize> {
+pub fn sizes<'report>(
+    reports: impl IntoIterator<Item = &'report CycleReport>,
+) -> BTreeMap<String, usize> {
     reports
-        .iter()
+        .into_iter()
         .map(|report| (report.crate_name.clone(), report.size()))
         .collect()
 }

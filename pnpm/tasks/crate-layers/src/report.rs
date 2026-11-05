@@ -1,22 +1,18 @@
 use crate::{
     cycles::CycleReport,
-    graph::CrateGraph,
     modules::{CrateModules, TopLevelGraph},
-    tree::Tree,
 };
-use std::fmt::Write as _;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 /// The module graph and largest cycle of every workspace crate.
-pub fn read_all(
-    tree: &dyn Tree,
-    graph: &CrateGraph,
-) -> Result<Vec<(CycleReport, TopLevelGraph)>, String> {
-    let mut reports = Vec::new();
-    for (crate_name, dir) in &graph.dirs {
-        let modules = CrateModules::read(tree, dir)?.top_level_graph();
-        reports.push((CycleReport::new(crate_name, &modules), modules));
-    }
-    Ok(reports)
+pub fn read_all(modules: &BTreeMap<String, CrateModules>) -> Vec<(CycleReport, TopLevelGraph)> {
+    modules
+        .iter()
+        .map(|(crate_name, modules)| {
+            let graph = modules.top_level_graph();
+            (CycleReport::new(crate_name, &graph), graph)
+        })
+        .collect()
 }
 
 /// One line per crate with a module cycle, largest cycle first.
