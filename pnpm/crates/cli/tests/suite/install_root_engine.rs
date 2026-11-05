@@ -134,6 +134,39 @@ fn non_strict_root_engine_mismatches_warn_and_continue() {
 }
 
 #[test]
+fn repeat_install_warns_for_incompatible_root_engines() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet
+        .with_arg("install")
+        .output()
+        .expect("run repeat install");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let output = format!("{stdout}{stderr}");
+    assert!(output.contains("Unsupported engine for"), "output: {output}");
+    assert!(output.contains("Already up to date"), "output: {output}");
+
+    drop(root);
+}
+
+#[test]
 fn update_config_can_enable_the_root_engine_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
