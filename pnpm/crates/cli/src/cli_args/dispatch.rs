@@ -65,7 +65,7 @@ impl CliArgs {
         }) {
             configure_color(color);
         }
-        let dir = dunce::canonicalize(&self.paths.dir)
+        let dir = pnpm_fs::canonicalize_preserving_mapped_drive(&self.paths.dir)
             .unwrap_or_else(|_| self.paths.dir.clone());
         pnpm_default_reporter::set_progress(self.progress_enabled(true));
         configure_default_reporter(&DefaultReporterSetup {

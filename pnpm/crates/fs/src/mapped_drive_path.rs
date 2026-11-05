@@ -1,0 +1,167 @@
+use std::path::{Path, PathBuf};
+
+#[cfg(windows)]
+#[path = "mapped_drive_path/tests.rs"]
+mod tests;
+
+pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<PathBuf> {
+    let absolute =
+        if path.is_absolute() { path.to_path_buf() } else { std::env::current_dir()?.join(path) };
+    let canonical = dunce::canonicalize(&absolute)?;
+    #[cfg(windows)]
+    if is_unc_path(&canonical) {
+        let preferred_drive = drive_letter(&absolute);
+        if let Some(drive) = preferred_drive
+            && let Some(remote) = mapped_drive(drive)
+            && let Some(mapped) = mapped_drive_path(&canonical, &[(drive, remote)], preferred_drive)
+        {
+            return Ok(mapped);
+        }
+        if let Some(mapped) = mapped_drive_path(&canonical, &mapped_drives(), preferred_drive) {
+            return Ok(mapped);
+        }
+    }
+    Ok(canonical)
+}
+
+#[cfg(windows)]
+fn is_unc_path(path: &Path) -> bool {
+    use std::path::Prefix;
+
+    matches!(
+        path.components().next(),
+        Some(std::path::Component::Prefix(prefix))
+            if matches!(prefix.kind(), Prefix::UNC(..) | Prefix::VerbatimUNC(..)),
+    )
+}
+
+#[cfg(windows)]
+fn drive_letter(path: &Path) -> Option<char> {
+    match path.components().next()? {
+        std::path::Component::Prefix(prefix) => match prefix.kind() {
+            std::path::Prefix::Disk(letter) | std::path::Prefix::VerbatimDisk(letter) => {
+                Some((letter as char).to_ascii_uppercase())
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+#[cfg(windows)]
+fn mapped_drives() -> Vec<(char, PathBuf)> {
+    ('A'..='Z')
+        .filter_map(|letter| mapped_drive(letter).map(|path| (letter, path)))
+        .collect()
+}
+
+#[cfg(windows)]
+fn mapped_drive(letter: char) -> Option<PathBuf> {
+    use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+    use windows_sys::Win32::{
+        Foundation::ERROR_MORE_DATA, NetworkManagement::WNet::WNetGetConnectionW,
+    };
+
+    let drive_name = [letter as u16, b':' as u16, 0];
+    let mut remote_name = vec![0u16; 512];
+    let mut length = remote_name.len() as u32;
+    let mut result =
+        unsafe { WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &mut length) };
+    if result == ERROR_MORE_DATA {
+        remote_name.resize(length as usize, 0);
+        result = unsafe {
+            WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &mut length)
+        };
+    }
+    if result != 0 {
+        return None;
+    }
+    let remote_length = remote_name
+        .iter()
+        .position(|unit| *unit == 0)?;
+    Some(PathBuf::from(OsString::from_wide(&remote_name[..remote_length])))
+}
+
+#[cfg(windows)]
+fn mapped_drive_path(
+    path: &Path,
+    mappings: &[(char, PathBuf)],
+    preferred_drive: Option<char>,
+) -> Option<PathBuf> {
+    let path = remove_verbatim_unc_prefix(path);
+    mappings
+        .iter()
+        .filter_map(|(drive, remote)| {
+            let suffix = mapped_path_suffix(&path, remote)?;
+            Some((remote.as_os_str().encode_wide().count(), *drive, suffix))
+        })
+        .max_by_key(|(length, drive, _)| (*length, Some(*drive) == preferred_drive))
+        .map(|(_, drive, suffix)| PathBuf::from(format!(r"{drive}:\")).join(suffix))
+}
+
+#[cfg(windows)]
+fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
+    use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+    use windows_sys::Win32::Globalization::{CSTR_EQUAL, CompareStringOrdinal};
+
+    let path: Vec<u16> = path.as_os_str().encode_wide().collect();
+    let mut remote: Vec<u16> = remote
+        .as_os_str()
+        .encode_wide()
+        .collect();
+    while remote
+        .last()
+        .is_some_and(|unit| matches!(*unit, 0x2f | 0x5c))
+    {
+        remote.pop();
+    }
+    if path.len() < remote.len()
+        || (path.len() > remote.len() && !matches!(path[remote.len()], 0x2f | 0x5c))
+    {
+        return None;
+    }
+    // SAFETY: Both pointers address initialized UTF-16 slices for the lengths passed.
+    let equal = unsafe {
+        CompareStringOrdinal(
+            path.as_ptr(),
+            remote.len() as i32,
+            remote.as_ptr(),
+            remote.len() as i32,
+            1,
+        )
+    };
+    if equal != CSTR_EQUAL {
+        return None;
+    }
+    let mut suffix = remote.len();
+    while path
+        .get(suffix)
+        .is_some_and(|unit| matches!(*unit, 0x2f | 0x5c))
+    {
+        suffix += 1;
+    }
+    Some(PathBuf::from(std::ffi::OsString::from_wide(&path[suffix..])))
+}
+
+#[cfg(windows)]
+fn remove_verbatim_unc_prefix(path: &Path) -> PathBuf {
+    use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+
+    let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+    let prefix = [
+        b'\\' as u16,
+        b'\\' as u16,
+        b'?' as u16,
+        b'\\' as u16,
+        b'U' as u16,
+        b'N' as u16,
+        b'C' as u16,
+        b'\\' as u16,
+    ];
+    if wide.len() < prefix.len() || wide[..prefix.len()] != prefix {
+        return path.to_path_buf();
+    }
+    let mut unc = vec![b'\\' as u16, b'\\' as u16];
+    unc.extend_from_slice(&wide[prefix.len()..]);
+    PathBuf::from(std::ffi::OsString::from_wide(&unc))
+}

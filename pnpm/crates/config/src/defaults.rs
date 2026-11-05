@@ -46,10 +46,16 @@ fn get_drive_letter(current_dir: &Path) -> Option<char> {
 
 #[cfg(windows)]
 fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
-    let current_drive =
-        get_drive_letter(current_dir).expect("current dir is an absolute path with drive letter");
-    let home_drive =
-        get_drive_letter(home_dir).expect("home dir is an absolute path with drive letter");
+    let current_dir = pnpm_fs::canonicalize_preserving_mapped_drive(current_dir)
+        .unwrap_or_else(|_| current_dir.to_path_buf());
+    let home_dir = pnpm_fs::canonicalize_preserving_mapped_drive(home_dir)
+        .unwrap_or_else(|_| home_dir.to_path_buf());
+    let Some(current_drive) = get_drive_letter(&current_dir) else {
+        return current_dir.join(".pnpm-store");
+    };
+    let Some(home_drive) = get_drive_letter(&home_dir) else {
+        return PathBuf::from(format!(r"{current_drive}:\.pnpm-store"));
+    };
 
     if current_drive == home_drive {
         return home_dir
