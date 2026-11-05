@@ -189,6 +189,9 @@ catalog:
   normalize-package-data: ^8.0.0
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.1
+  # npm 12.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
+  # supported floor of Node.js >=22.13.
+  npm: 11.21.1
   # npm-packlist 11.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above
   # pnpm's supported floor of Node.js >=22.13.
   npm-packlist: 10.0.4
@@ -333,6 +336,7 @@ update:
     - libnpmpublish
     - node-gyp
     - normalize-package-data
+    - npm
     - npm-packlist
     - npm-registry-fetch
     - ssri
