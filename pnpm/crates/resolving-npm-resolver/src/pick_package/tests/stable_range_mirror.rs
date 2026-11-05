@@ -147,3 +147,15 @@ async fn release_age_excluded_range_reuses_the_packument_left_in_memory() {
     let picked = pick_from_warm_mirror(&lockfile_selectors(&["1.1.0"]), mirror, 0).await;
     assert_eq!(picked, "1.1.0");
 }
+
+#[tokio::test]
+async fn release_age_range_reuses_the_mirror_promoted_after_the_cutoff() {
+    let mirror = Mirror {
+        fresh: true,
+        dropped_after_first_pick: true,
+        published_by: Some(parse_cutoff(CUTOFF)),
+        published_by_exclude: None,
+    };
+    let picked = pick_from_warm_mirror(&VersionSelectors::new(), mirror, 0).await;
+    assert_eq!(picked, "1.0.0");
+}
