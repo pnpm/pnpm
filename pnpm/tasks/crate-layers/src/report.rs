@@ -77,15 +77,3 @@ pub fn render_crate(report: &CycleReport, graph: &TopLevelGraph) -> String {
     }
     text
 }
-
-/// A `[module_cycles]` table that accepts every crate's current cycle.
-pub fn render_baseline(reports: &[(CycleReport, TopLevelGraph)]) -> String {
-    let mut text = String::from("[module_cycles]\n");
-    for (report, _) in reports
-        .iter()
-        .filter(|(report, _)| report.size() > 0)
-    {
-        let _ = writeln!(text, "{} = {}", report.crate_name, report.size());
-    }
-    text
-}
