@@ -6,10 +6,15 @@ use super::{Arc, DashMap, Package, Semaphore};
 #[derive(Debug, Clone)]
 pub struct CachedPackument {
     pub meta: Arc<Package>,
-    /// `false` when the packument was parsed straight from the
-    /// on-disk mirror without a validating registry round-trip (see
-    /// [`PackageMetaCache::set_unverified`]).
     pub registry_verified: bool,
+    pub(crate) verification: CacheVerification,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CacheVerification {
+    Registry,
+    Mirror,
+    MirrorMissOnly,
 }
 
 /// In-memory packument cache the orchestrator consults before any
@@ -59,6 +64,10 @@ pub trait PackageMetaCache: Send + Sync {
     /// these entries as verified would silently turn a recoverable
     /// stale-mirror miss into a terminal "no matching version".
     fn set_unverified(&self, key: String, meta: Arc<Package>);
+
+    fn set_unverified_on_miss(&self, key: String, meta: Arc<Package>) {
+        self.set_unverified(key, meta);
+    }
 }
 
 /// The packument-fetching state one install owns, shared across every
@@ -167,11 +176,36 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(key, CachedPackument { meta, registry_verified: true });
+        self.inner.insert(
+            key,
+            CachedPackument {
+                meta,
+                registry_verified: true,
+                verification: CacheVerification::Registry,
+            },
+        );
     }
 
     fn set_unverified(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(key, CachedPackument { meta, registry_verified: false });
+        self.inner.insert(
+            key,
+            CachedPackument {
+                meta,
+                registry_verified: false,
+                verification: CacheVerification::Mirror,
+            },
+        );
+    }
+
+    fn set_unverified_on_miss(&self, key: String, meta: Arc<Package>) {
+        self.inner.insert(
+            key,
+            CachedPackument {
+                meta,
+                registry_verified: false,
+                verification: CacheVerification::MirrorMissOnly,
+            },
+        );
     }
 }
 

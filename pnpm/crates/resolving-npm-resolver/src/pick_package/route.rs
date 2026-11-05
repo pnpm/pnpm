@@ -6,6 +6,7 @@
 use chrono::{DateTime, TimeDelta, Utc};
 use pnpm_resolving_resolver_base::{NetworkPolicy, TrustPolicy};
 
+use super::metadata_cache::CacheVerification;
 use crate::{
     PackagePickPolicy, metadata_cache_policy::mirror_may_answer, mirror::MetaHeaders,
     pick_package_from_meta::RegistryPackageSpecType,
@@ -125,14 +126,14 @@ pub(super) enum CacheHitCheck {
 }
 
 impl CacheHitCheck {
-    /// `registry_verified` is false for an entry parsed from the mirror
-    /// without a registry round-trip (see
-    /// [`super::PackageMetaCache::set_unverified`]). `picked` is whether the
-    /// entry produced a pick. Offline, every pick is served: there is nothing
-    /// to revalidate against.
-    pub(super) fn decide(inputs: &RouteInputs<'_>, registry_verified: bool, picked: bool) -> Self {
+    /// Offline, every pick is served: there is nothing to revalidate against.
+    pub(super) fn decide(
+        inputs: &RouteInputs<'_>,
+        verification: CacheVerification,
+        picked: bool,
+    ) -> Self {
         let RouteInputs { network, request, .. } = *inputs;
-        if network.forbids_registry() || registry_verified {
+        if network.forbids_registry() || verification == CacheVerification::Registry {
             return CacheHitCheck::Serve;
         }
         if request.refresh_metadata && !network.prefers_reachable_cache() {
@@ -140,6 +141,9 @@ impl CacheHitCheck {
         }
         if !picked {
             return CacheHitCheck::Revalidate;
+        }
+        if verification == CacheVerification::MirrorMissOnly {
+            return CacheHitCheck::Serve;
         }
         // These picks answer the same from a stale mirror.
         if network.prefers_reachable_cache()

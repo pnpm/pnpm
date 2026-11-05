@@ -701,6 +701,110 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
     network_mock.assert_async().await;
 }
 
+#[tokio::test]
+async fn published_by_mtime_pick_revalidates_when_a_later_spec_misses() {
+    let mut server = mockito::Server::new_async().await;
+    let network_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(
+            r#"{
+            "name": "acme",
+            "dist-tags": { "latest": "2.0.0" },
+            "time": {
+                "created": "2024-01-01T00:00:00.000Z",
+                "1.0.0": "2024-01-01T00:00:00.000Z",
+                "2.0.0": "2024-01-02T00:00:00.000Z",
+                "modified": "2024-01-02T00:00:00.000Z"
+            },
+            "versions": {
+                "1.0.0": {
+                    "name": "acme",
+                    "version": "1.0.0",
+                    "dist": { "tarball": "https://registry/acme-1.0.0.tgz" }
+                },
+                "2.0.0": {
+                    "name": "acme",
+                    "version": "2.0.0",
+                    "dist": { "tarball": "https://registry/acme-2.0.0.tgz" }
+                }
+            }
+        }"#,
+        )
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let stale_body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "time": {
+            "created": "2024-01-01T00:00:00.000Z",
+            "1.0.0": "2024-01-01T00:00:00.000Z",
+            "modified": "2024-01-01T00:00:00.000Z"
+        },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry/acme-1.0.0.tgz" }
+            }
+        }
+    }"#;
+    let stale_meta: pnpm_registry::Package =
+        serde_json::from_str(stale_body).expect("parse stale packument");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &stale_meta)
+        .expect("warm stale mirror");
+    let mirror_path =
+        get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+            .expect("path");
+    let forced_mtime: std::time::SystemTime = parse_cutoff("2025-01-01T00:00:00Z").into();
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&mirror_path)
+        .expect("open mirror")
+        .set_times(std::fs::FileTimes::new().set_modified(forced_mtime))
+        .expect("set mirror mtime");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        pnpr_format: None,
+        full_metadata: false,
+        needs_full_metadata_for: None,
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
+            ignore_missing_time_field: false,
+        },
+        store_view: None,
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    let first = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.0.0");
+
+    let second =
+        pick_package(&ctx, &range_spec("acme", "2.0.0"), &opts).await.expect("second pick");
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "2.0.0");
+    network_mock.assert_async().await;
+}
+
 /// [`published_by_upgrade_answering_200_is_remembered_across_picks`] for an
 /// online lowest-version pick, which reads the mirror before it fetches and
 /// upgrades the mirror's document there.

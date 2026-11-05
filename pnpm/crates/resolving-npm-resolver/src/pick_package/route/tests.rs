@@ -1,5 +1,5 @@
 use super::{
-    CacheHitCheck, DiskFirst, MirrorShortcuts, RouteInputs, RouteRequest,
+    CacheHitCheck, CacheVerification, DiskFirst, MirrorShortcuts, RouteInputs, RouteRequest,
     UNVALIDATED_MIRROR_MAX_AGE, fetch_failure_falls_back, unvalidated_mirror_is_fresh,
 };
 use crate::{
@@ -313,8 +313,14 @@ fn a_verified_or_offline_cache_hit_is_served_as_picked() {
     let online = range_pick(&NO_POLICY, None);
     let offline = RouteInputs { network: NetworkPolicy::Offline, ..online };
     for picked in [true, false] {
-        assert_eq!(CacheHitCheck::decide(&online, true, picked), CacheHitCheck::Serve);
-        assert_eq!(CacheHitCheck::decide(&offline, false, picked), CacheHitCheck::Serve);
+        assert_eq!(
+            CacheHitCheck::decide(&online, CacheVerification::Registry, picked),
+            CacheHitCheck::Serve,
+        );
+        assert_eq!(
+            CacheHitCheck::decide(&offline, CacheVerification::Mirror, picked),
+            CacheHitCheck::Serve,
+        );
     }
 }
 
@@ -330,11 +336,24 @@ fn an_unverified_cache_hit_without_a_pick_revalidates() {
     ];
     for (name, inputs) in cases {
         assert_eq!(
-            CacheHitCheck::decide(&inputs, false, false),
+            CacheHitCheck::decide(&inputs, CacheVerification::Mirror, false),
             CacheHitCheck::Revalidate,
             "{name}",
         );
     }
+}
+
+#[test]
+fn a_published_by_shortcut_cache_hit_revalidates_only_when_it_misses() {
+    let inputs = range_pick(&NO_POLICY, None);
+    assert_eq!(
+        CacheHitCheck::decide(&inputs, CacheVerification::MirrorMissOnly, true),
+        CacheHitCheck::Serve,
+    );
+    assert_eq!(
+        CacheHitCheck::decide(&inputs, CacheVerification::MirrorMissOnly, false),
+        CacheHitCheck::Revalidate,
+    );
 }
 
 #[test]
@@ -392,6 +411,10 @@ fn an_unverified_cache_hit_serves_only_a_pick_a_stale_mirror_cannot_change() {
         ),
     ];
     for (name, inputs, check) in cases {
-        assert_eq!(CacheHitCheck::decide(&inputs, false, true), check, "{name}");
+        assert_eq!(
+            CacheHitCheck::decide(&inputs, CacheVerification::Mirror, true),
+            check,
+            "{name}",
+        );
     }
 }

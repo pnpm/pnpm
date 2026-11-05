@@ -3,10 +3,10 @@
 //! the registry-unverified guard.
 
 use super::{
-    CachedPackument, Package, PackageMetaCache, PackageVersion, PickPackageContext,
-    PickPackageError, PickPackageOptions, PickPackageResult, PickState, PickerOpts,
-    RegistryPackageSpec, pick_from_meta, pick_from_meta_offline, pick_stable_cached_range_version,
-    route::CacheHitCheck,
+    CacheVerification, CachedPackument, Package, PackageMetaCache, PackageVersion,
+    PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult, PickState,
+    PickerOpts, RegistryPackageSpec, pick_from_meta, pick_from_meta_offline,
+    pick_stable_cached_range_version, route::CacheHitCheck,
 };
 use std::sync::Arc;
 
@@ -32,14 +32,14 @@ pub(super) async fn handle_cache_hit<Cache: PackageMetaCache>(
     let upgrade = state.upgrade_for_release_age(ctx, spec, opts, cached.meta).await?;
     let upgraded = upgrade.upgraded();
     // The upgrade fetch (re)validated the packument against the registry.
-    let registry_verified = cached.registry_verified || upgraded;
+    let verification = if upgraded { CacheVerification::Registry } else { cached.verification };
     let meta = upgrade.meta;
     if upgraded && !opts.request.dry_run {
         ctx.metadata.meta_cache.set(state.cache_key.clone(), Arc::clone(&meta));
     }
     let unfiltered_meta = Arc::clone(&meta);
     let (meta, picked) = pick_from_meta(&state.picker_opts, spec, meta, opts.blocked_versions)?;
-    finish_cache_hit_pick(ctx, state, spec, &unfiltered_meta, meta, picked, registry_verified, opts)
+    finish_cache_hit_pick(ctx, state, spec, &unfiltered_meta, meta, picked, verification, opts)
         .await
 }
 
@@ -57,7 +57,7 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     unfiltered_meta: &Arc<Package>,
     meta: Arc<Package>,
     picked: Option<Arc<PackageVersion>>,
-    registry_verified: bool,
+    verification: CacheVerification,
     opts: &PickPackageOptions<'_>,
 ) -> Result<Option<PickPackageResult>, PickPackageError> {
     let (meta, picked) = if ctx.cache_policy.network.forbids_registry() {
@@ -79,7 +79,7 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
         return Ok(None);
     }
     let inputs = state.route_inputs(ctx, spec, opts, None);
-    let serve = match CacheHitCheck::decide(&inputs, registry_verified, picked.is_some()) {
+    let serve = match CacheHitCheck::decide(&inputs, verification, picked.is_some()) {
         CacheHitCheck::Serve => true,
         CacheHitCheck::StableRangePick => {
             is_stable_range_pick(&state.picker_opts, spec, &meta, picked.as_ref())

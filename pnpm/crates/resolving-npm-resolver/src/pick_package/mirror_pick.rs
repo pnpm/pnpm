@@ -212,10 +212,11 @@ impl PickState<'_> {
         if picked_meta.versions.corrupt_mirror_fragment_found() {
             return None;
         }
-        // Same rationale as the version-spec fast path — promote the
-        // disk-loaded packument into the install-scoped in-memory cache.
         if !opts.request.dry_run {
-            ctx.metadata.meta_cache.set(self.cache_key.clone(), meta);
+            ctx.metadata.meta_cache.set_unverified_on_miss(
+                self.cache_key.clone(),
+                Arc::clone(&meta),
+            );
         }
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
     }

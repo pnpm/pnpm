@@ -80,6 +80,7 @@ use state::PickState;
 use version_pick::{PickerOpts, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline};
 
 mod metadata_cache;
+use metadata_cache::CacheVerification;
 
 use crate::{
     FetchMetadataError,
