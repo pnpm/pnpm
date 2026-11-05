@@ -18,10 +18,6 @@ pub struct ResolutionSettings {
     /// `true`, `false` or `"deep"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_workspace_packages: Option<Value>,
-    /// `Some(true)` only while the setting takes effect, so a lockfile
-    /// recorded before the setting existed stays current.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub project_scoped_optional_peers: Option<bool>,
 }
 
 /// A field of [`ResolutionSettings`], displayed as its setting name.
@@ -35,8 +31,6 @@ pub enum ResolutionSetting {
     DedupePeerDependents,
     #[display("linkWorkspacePackages")]
     LinkWorkspacePackages,
-    #[display("projectScopedOptionalPeers")]
-    ProjectScopedOptionalPeers,
 }
 
 impl ResolutionSetting {
@@ -48,7 +42,6 @@ impl ResolutionSetting {
             ResolutionSetting::DedupeInjectedDeps => "settings.dedupeInjectedDeps",
             ResolutionSetting::DedupePeerDependents => "settings.dedupePeerDependents",
             ResolutionSetting::LinkWorkspacePackages => "settings.linkWorkspacePackages",
-            ResolutionSetting::ProjectScopedOptionalPeers => "settings.projectScopedOptionalPeers",
         }
     }
 }
@@ -77,16 +70,12 @@ impl ResolutionSettings {
             })
     }
 
-    fn values(&self) -> [(ResolutionSetting, Option<Value>); 5] {
+    fn values(&self) -> [(ResolutionSetting, Option<Value>); 4] {
         [
             (ResolutionSetting::AutoDedupe, self.auto_dedupe.map(Value::Bool)),
             (ResolutionSetting::DedupeInjectedDeps, self.dedupe_injected_deps.map(Value::Bool)),
             (ResolutionSetting::DedupePeerDependents, self.dedupe_peer_dependents.map(Value::Bool)),
             (ResolutionSetting::LinkWorkspacePackages, self.link_workspace_packages.clone()),
-            (
-                ResolutionSetting::ProjectScopedOptionalPeers,
-                self.project_scoped_optional_peers.map(Value::Bool),
-            ),
         ]
     }
 }

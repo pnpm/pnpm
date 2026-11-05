@@ -201,7 +201,6 @@ When set to `true`, pnpm records these settings in the `settings` section of `pn
 * [dedupeInjectedDeps](../workspaces.md#dedupeinjecteddeps)
 * [dedupePeerDependents](./peer-dependencies.md#dedupepeerdependents)
 * [linkWorkspacePackages](../workspaces.md#linkworkspacepackages)
-* [projectScopedOptionalPeers](./peer-dependencies.md#projectscopedoptionalpeers), recorded only when it is `true` and `dedupePeerDependents` is `true`
 
 ```yaml title="pnpm-workspace.yaml"
 lockfile:

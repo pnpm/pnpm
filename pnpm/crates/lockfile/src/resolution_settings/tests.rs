@@ -26,7 +26,6 @@ settings:
   dedupePeerDependents: true
   excludeLinksFromLockfile: false
   linkWorkspacePackages: deep
-  projectScopedOptionalPeers: true
 
 importers:
 
@@ -40,7 +39,6 @@ importers:
             dedupe_injected_deps: Some(false),
             dedupe_peer_dependents: Some(true),
             link_workspace_packages: Some(Value::String("deep".to_string())),
-            project_scoped_optional_peers: Some(true),
         },
     );
     let dir = tempfile::tempdir().unwrap();
@@ -56,7 +54,6 @@ fn first_difference_names_the_first_differing_setting() {
         dedupe_injected_deps: Some(true),
         dedupe_peer_dependents: Some(true),
         link_workspace_packages: Some(Value::Bool(false)),
-        project_scoped_optional_peers: None,
     };
     assert_eq!(expected.first_difference(&expected), None);
     let recorded = ResolutionSettings { dedupe_peer_dependents: Some(false), ..expected.clone() };

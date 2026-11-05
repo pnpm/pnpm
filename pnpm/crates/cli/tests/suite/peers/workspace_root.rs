@@ -500,3 +500,80 @@ fn project_scoped_optional_peers_keep_another_projects_optional_peer_out() {
     assert!(!consumer.contains("peer-c@"), "{consumer}");
     assert!(provider.contains("peer-c@1.0.0"), "{provider}");
 }
+
+#[test]
+fn turning_on_project_scoped_optional_peers_re_resolves_the_lockfile() {
+    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success};
+
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.project(
+        "provider",
+        "provider",
+        ManifestDeps { dev: &[("@pnpm.e2e/peer-c", "1.0.0")], ..ManifestDeps::default() },
+    );
+    fixture.project(
+        "consumer",
+        "consumer",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/abc-optional-peers", "1.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+    let lock = || -> serde_json::Value {
+        serde_saphyr::from_str(
+            &fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml")).unwrap(),
+        )
+        .unwrap()
+    };
+    let consumer_version = || {
+        lock()["importers"]["packages/consumer"]["dependencies"]["@pnpm.e2e/abc-optional-peers"]
+            ["version"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    let install = |args: &[&str]| run_peer_fixture(&fixture, None, args);
+
+    assert_success(&install(&["install", "--lockfile-only"]));
+    assert!(consumer_version().contains("peer-c@1.0.0"), "{}", consumer_version());
+
+    fixture.append_workspace_yaml("projectScopedOptionalPeers: true\n");
+    let frozen = install(&["install", "--lockfile-only", "--frozen-lockfile"]);
+    assert!(!frozen.status.success(), "{frozen:?}");
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&frozen.stdout),
+        String::from_utf8_lossy(&frozen.stderr),
+    );
+    assert!(output.contains("settings.projectScopedOptionalPeers"), "{output}");
+
+    assert_success(&install(&["install", "--lockfile-only"]));
+    assert!(!consumer_version().contains("peer-c@"), "{}", consumer_version());
+    assert_eq!(lock()["settings"]["projectScopedOptionalPeers"], serde_json::json!(true));
+
+    fixture.append_workspace_yaml("dedupePeerDependents: false\n");
+    assert_success(&install(&["install", "--lockfile-only"]));
+    assert!(
+        lock()["settings"].get("projectScopedOptionalPeers").is_none(),
+        "{}",
+        lock()["settings"],
+    );
+}
+
+#[test]
+fn project_scoped_optional_peers_reject_delegated_resolution() {
+    use crate::_utils::{ManifestDeps, WorkspaceFixture};
+
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("projectScopedOptionalPeers: true\n");
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    let output = run_peer_fixture(
+        &fixture,
+        None,
+        &["install", "--lockfile-only", "--pnpr-server", "http://127.0.0.1:1"],
+    );
+    assert!(!output.status.success(), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PROJECT_SCOPED_OPTIONAL_PEERS_WITH_PNPR_SERVER"), "{stderr}");
+}

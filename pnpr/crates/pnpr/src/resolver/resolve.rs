@@ -381,6 +381,7 @@ fn check_frozen_settings(
             package_extensions_checksum: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
+            project_scoped_optional_peers: config.project_scoped_optional_peers_take_effect(),
             resolution: pnpm_lockfile::ResolutionSettingsCheck {
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers: config.dedupe_peers,

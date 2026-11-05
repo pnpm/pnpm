@@ -117,7 +117,9 @@ In the [`dedupePeerDependents`](#dedupepeerdependents) example, `project1` keeps
 
 This setting has no effect when `dedupePeerDependents` is `false`, because optional peers are already resolved only from the project's own dependencies then.
 
-Changing this setting changes the lockfile.
+Changing this setting changes the lockfile. pnpm records it in the lockfile's `settings` while it takes effect, so the next install resolves the lockfile again.
+
+This setting needs local dependency resolution, so an install that is not frozen fails when `pnprServer` is set.
 
 ### dedupePeers
 
