@@ -2,6 +2,7 @@ use super::{FreshInputs, errors::InstallWithFreshLockfileError};
 use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
+use pnpm_deps_restorer::PlatformLockfile;
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
@@ -28,6 +29,7 @@ pub(super) struct MaterializationScope {
 /// The second closure, with the importers that anchor project links.
 pub(super) struct FinalScope {
     closure: Option<crate::MaterializationClosure>,
+    groups: crate::GroupSelection,
     pub(super) project_anchor_importer_ids: HashSet<String>,
 }
 impl MaterializationScope {
@@ -98,20 +100,16 @@ impl MaterializationScope {
                     )
                 }),
         };
-        let materialized: HashSet<String> = closure
-            .as_ref()
-            .map_or_else(
-                || {
-                    built.importers
-                        .keys()
-                        .cloned()
-                        .collect()
-                },
-                |closure| closure.importer_ids.clone(),
-            );
+        let materialized: HashSet<String> = match &closure {
+            Some(closure) => closure.importer_ids.clone(),
+            None => built.importers
+                .keys()
+                .cloned()
+                .collect(),
+        };
         let project_anchor_importer_ids =
             project_anchor_importer_ids(install.projects.selected_ids, is_hoisted, &materialized);
-        FinalScope { closure, project_anchor_importer_ids }
+        FinalScope { closure, groups: self.groups.clone(), project_anchor_importer_ids }
     }
 }
 impl FinalScope {
@@ -126,6 +124,7 @@ impl FinalScope {
     ) -> super::on_disk::OnDiskProjects<'l> {
         super::on_disk::OnDiskProjects {
             materialization_lockfile: self.lockfile(built),
+            platform_lockfile: PlatformLockfile { lockfile: built, groups: &self.groups },
             importer_manifests,
             project_anchor_importer_ids: &self.project_anchor_importer_ids,
         }

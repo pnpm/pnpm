@@ -210,3 +210,153 @@ fn the_hoisted_linker_relinks_when_the_platform_changes() {
     assert!(!linked.join("native/foreign").exists());
     drop((root, npmrc_info));
 }
+
+/// The content of every file in `store_dir` that a published archive of
+/// [`publish_cli`] holds.
+fn stored_files(store_dir: &Path) -> Vec<String> {
+    let mut files: Vec<String> = pnpm_testing_utils::fs::get_all_files(store_dir)
+        .into_iter()
+        .filter_map(|path| fs::read_to_string(store_dir.join(path)).ok())
+        .filter(|content| {
+            ["portable/any", "native/host", "native/foreign", "dep.js"].contains(&content.as_str())
+        })
+        .collect();
+    files.sort();
+    files.dedup();
+    files
+}
+
+/// Empty `store_dir` and `workspace`'s `node_modules`, leaving the lockfile:
+/// resolving prefetches every package the lockfile names, so only an
+/// install from the lockfile shows what the install itself stores.
+fn forget_installed(workspace: &Path, store_dir: &Path) {
+    for dir in [store_dir, &workspace.join("node_modules")] {
+        if dir.exists() {
+            fs::remove_dir_all(dir).expect("remove directory");
+        }
+    }
+}
+
+fn frozen_install(workspace: &Path) {
+    pacquet_at(workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn another_listed_platforms_variant_and_its_dependency_are_stored_not_linked() {
+    let (registry, token) = start_hosted_pnpr();
+    publish_cli(&registry, &token);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = consumer(&registry, &token);
+    set_supported_architectures(&workspace, &["current", foreign_target()]);
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    forget_installed(&workspace, &npmrc_info.store_dir);
+
+    frozen_install(&workspace);
+    assert_eq!(stored_files(&npmrc_info.store_dir), ["dep.js", "native/foreign", "native/host"]);
+    let linked = workspace.join("node_modules/@acme/cli");
+    assert!(linked.join("native/host").exists(), "the host's variant is linked");
+    assert!(!workspace.join("node_modules/.pnpm/node_modules/@acme/dep").exists());
+    assert!(!linked.join("node_modules/@acme/dep").exists());
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn a_platform_listed_after_a_warm_install_is_stored_with_its_dependency() {
+    let (registry, token) = start_hosted_pnpr();
+    publish_cli(&registry, &token);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = consumer(&registry, &token);
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    forget_installed(&workspace, &npmrc_info.store_dir);
+
+    frozen_install(&workspace);
+    frozen_install(&workspace);
+    assert_eq!(
+        stored_files(&npmrc_info.store_dir),
+        ["native/host"],
+        "without supportedArchitectures only the linked archive is stored",
+    );
+
+    set_supported_architectures(&workspace, &["current", foreign_target()]);
+    frozen_install(&workspace);
+    assert_eq!(stored_files(&npmrc_info.store_dir), ["dep.js", "native/foreign", "native/host"]);
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn fetch_stores_the_archives_of_every_listed_platform_and_their_dependencies() {
+    let (registry, token) = start_hosted_pnpr();
+    publish_cli(&registry, &token);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = consumer(&registry, &token);
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    forget_installed(&workspace, &npmrc_info.store_dir);
+
+    set_supported_architectures(&workspace, &["current", foreign_target()]);
+    pacquet_at(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
+    assert_eq!(stored_files(&npmrc_info.store_dir), ["dep.js", "native/foreign", "native/host"]);
+    drop((root, npmrc_info));
+}
+
+/// The walk starts at what the install materializes, so a production
+/// install keeps no archive for a platform of a dev dependency.
+#[test]
+fn a_production_install_stores_nothing_for_a_dev_dependency() {
+    let (registry, token) = start_hosted_pnpr();
+    publish_cli(&registry, &token);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = consumer(&registry, &token);
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "devDependencies": { "@acme/cli": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    set_supported_architectures(&workspace, &["current", foreign_target()]);
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    forget_installed(&workspace, &npmrc_info.store_dir);
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--prod"])
+        .assert()
+        .success();
+    assert_eq!(stored_files(&npmrc_info.store_dir), Vec::<String>::new());
+    drop((root, npmrc_info));
+}

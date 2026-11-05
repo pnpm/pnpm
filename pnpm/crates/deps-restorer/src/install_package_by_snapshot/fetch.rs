@@ -302,7 +302,7 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
         let platform = self.variant_platforms.for_variations(variations);
-        let (selected, archive) =
+        let (_, archive) =
             variant_for_host(variations, fetch.package_key, platform, self.ctx.config)?;
         let (resolution, source) = match archive {
             VariantFetch::Binary(binary) => {
@@ -313,19 +313,15 @@ impl InstallPackageBySnapshot<'_> {
             }
             VariantFetch::Tarball { resolution, source } => (resolution, source),
         };
-        let linked = self.tarball_cas_paths::<Reporter>(TarballFetch {
+        self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
             resolution: &resolution,
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
             source,
-        });
-        let stored =
-            self.fetch_stored_variants::<Reporter>(fetch, variations, selected, allow_build);
-        // The archives kept for other platforms download beside the linked
-        // one; the client's per-host limit bounds them.
-        futures_util::future::try_join(linked, stored).await.map(|(linked, ())| linked)
+        })
+        .await
     }
 
     /// Returns the fetched CAS paths alongside extracted package metadata and

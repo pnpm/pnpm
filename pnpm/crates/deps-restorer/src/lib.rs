@@ -66,8 +66,8 @@ pub use import_indexed_dir::*;
 pub use install_context::*;
 pub use install_frozen_lockfile::*;
 pub use install_options::{
-    DirectLinkPolicy, ImporterDependencyGraph, ImporterLinkContext, SkipSetClosure,
-    SnapshotSelection, VirtualStoreFetchInputs,
+    DirectLinkPolicy, ImporterDependencyGraph, ImporterLinkContext, PlatformLockfile,
+    SkipSetClosure, SnapshotSelection, VirtualStoreFetchInputs,
 };
 pub use install_package_by_snapshot::*;
 pub use install_package_from_registry::*;

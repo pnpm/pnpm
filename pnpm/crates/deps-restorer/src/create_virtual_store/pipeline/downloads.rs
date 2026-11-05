@@ -113,6 +113,11 @@ impl<'a> CreateVirtualStore<'a> {
         .await?;
         indexes.add_cold(cold_cas_paths);
         unlink_fetch_failed_children(self.ctx, inputs.wanted.snapshots, &fetch_failed)?;
+        // Every install passes here, warm or cold, so the archives kept for
+        // the other listed platforms are checked on each.
+        let stored =
+            self.store_platform_archives::<Reporter>(inputs.wanted.snapshots, &inputs.store);
+        run_checked(check, stored).await?;
         Ok(fetch_failed)
     }
 
