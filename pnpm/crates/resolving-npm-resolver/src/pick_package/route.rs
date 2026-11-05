@@ -59,6 +59,16 @@ impl RouteInputs<'_> {
             && !self.policy.release_age_applies_to(self.pkg_name)
     }
 
+    /// Whether a pick from a stale mirror is the one the registry would give.
+    /// `mirror` is read only for a lowest-version pick, which an uncacheable
+    /// mirror must not answer online (see [`DiskFirst::UnlessUncacheable`]).
+    fn stale_mirror_picks_the_same(&self) -> bool {
+        let request = self.request;
+        self.network.prefers_reachable_cache()
+            || request.spec_type == RegistryPackageSpecType::Version
+            || (request.pick_lowest_version && mirror_may_answer(self.network, self.mirror))
+    }
+
     /// The `minimumReleaseAge` cutoff when a mirror written at or after it
     /// may answer the pick: such a mirror cannot be missing a mature version.
     /// The last mirror read, asked only after [`MirrorShortcuts::decide`]
@@ -131,9 +141,7 @@ pub(super) enum CacheHitCheck {
 
 impl CacheHitCheck {
     /// `picked` is whether the entry produced a pick. Offline, every pick is
-    /// served: there is nothing to revalidate against. `inputs.mirror` is
-    /// read only for a lowest-version pick, which an uncacheable mirror must
-    /// not answer online (see [`DiskFirst::UnlessUncacheable`]).
+    /// served: there is nothing to revalidate against.
     pub(super) fn decide(inputs: &RouteInputs<'_>, source: PackumentSource, picked: bool) -> Self {
         let RouteInputs { network, request, .. } = *inputs;
         let PackumentSource::Mirror { written_at } = source else {
@@ -145,14 +153,10 @@ impl CacheHitCheck {
         if request.refresh_metadata && !network.prefers_reachable_cache() {
             return CacheHitCheck::Revalidate;
         }
-        if !picked || (request.pick_lowest_version && !mirror_may_answer(network, inputs.mirror)) {
+        if !picked {
             return CacheHitCheck::Revalidate;
         }
-        // These picks answer the same from a stale mirror.
-        if network.prefers_reachable_cache()
-            || request.pick_lowest_version
-            || request.spec_type == RegistryPackageSpecType::Version
-        {
+        if inputs.stale_mirror_picks_the_same() {
             return CacheHitCheck::Serve;
         }
         if written_at.is_some_and(|mtime| {
