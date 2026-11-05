@@ -75,7 +75,7 @@ fn engine_strict_accepts_the_active_node_version() {
 }
 
 #[test]
-fn engine_strict_rejects_an_incompatible_root_pnpm_version() {
+fn an_incompatible_root_pnpm_version_fails_without_engine_strict() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("package.json"),
@@ -87,8 +87,6 @@ fn engine_strict_rejects_an_incompatible_root_pnpm_version() {
         .to_string(),
     )
     .expect("write package.json");
-    fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\n")
-        .expect("write workspace settings");
 
     let assert = pacquet
         .with_args(["install", "--lockfile-only"])
@@ -103,14 +101,14 @@ fn engine_strict_rejects_an_incompatible_root_pnpm_version() {
 }
 
 #[test]
-fn non_strict_root_engine_mismatches_warn_and_continue() {
+fn non_strict_root_node_mismatch_warns_and_continues() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
             "name": "incompatible-root",
             "version": "1.0.0",
-            "engines": { "node": ">=99.0.0", "pnpm": ">=99.0.0" },
+            "engines": { "node": ">=99.0.0" },
         })
         .to_string(),
     )
@@ -125,7 +123,7 @@ fn non_strict_root_engine_mismatches_warn_and_continue() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let output = format!("{stdout}{stderr}");
     assert!(output.contains("Unsupported engine for"), "output: {output}");
-    assert!(output.contains(r#"{"node":">=99.0.0","pnpm":">=99.0.0"}"#), "output: {output}");
+    assert!(output.contains(r#"{"node":">=99.0.0"}"#), "output: {output}");
     assert!(workspace.join("pnpm-lock.yaml").exists());
 
     drop(root);

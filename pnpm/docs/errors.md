@@ -128,9 +128,9 @@ If you changed the store directory intentionally, run `pnpm install` and pnpm wi
 
 A project's `engines.node` or `engines.pnpm` range, or a dependency's `engines.node` range, does not accept the current version. The message names the package, the wanted range, and the current version.
 
-pnpm raises this error only with [`engineStrict`](./settings/cli.md#enginestrict) enabled. Without it, an incompatible project or dependency produces a warning.
+A project's incompatible `engines.pnpm` always raises this error. For `engines.node`, pnpm raises it only with [`engineStrict`](./settings/cli.md#enginestrict) enabled. Without it, an incompatible `engines.node` produces a warning.
 
-To fix this error, switch to a Node.js or pnpm version the package accepts, or turn `engineStrict` off.
+To fix this error, switch to a Node.js or pnpm version the package accepts, or turn `engineStrict` off for an `engines.node` mismatch.
 
 ## ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF
 

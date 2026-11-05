@@ -37,12 +37,12 @@ You can specify the version of Node and pnpm that your software works on:
 }
 ```
 
-During installation, pnpm checks the project's `engines.node` and
-`engines.pnpm` fields. An incompatible engine produces an error when
-[`engineStrict`](./settings/cli.md#enginestrict) is enabled, and a warning when
-it is disabled. For dependencies, an incompatible `engines.node` field
-produces an error when `engineStrict` is enabled, and a warning when it is
-disabled.
+If the project's `engines.pnpm` does not accept the running pnpm version,
+the install fails.
+
+An incompatible `engines.node`, in the project or in a dependency, fails the
+install when [`engineStrict`](./settings/cli.md#enginestrict) is enabled. When
+it is disabled, pnpm prints a warning and continues.
 
 ## engines.runtime
 

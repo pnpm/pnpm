@@ -292,6 +292,9 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
     manifest
 }
 
+/// Check the root project's `engines.node` and `engines.pnpm`. An
+/// unsatisfied `engines.pnpm` always fails. An unsatisfied `engines.node`
+/// fails under `engineStrict` and is a warning otherwise.
 pub(crate) fn check_root_project_engine(
     manifest_path: &Path,
     config: &Config,
@@ -353,7 +356,7 @@ fn check_root_engine_compatibility(
     };
     match check_engine(&project_dir.to_string_lossy(), wanted, &current) {
         Ok(None) => Ok(()),
-        Ok(Some(error)) if config.engine_strict => {
+        Ok(Some(error)) if config.engine_strict || error.wanted.pnpm.is_some() => {
             Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
         }
         Ok(Some(error)) => {
