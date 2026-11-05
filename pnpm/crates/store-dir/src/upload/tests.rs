@@ -224,6 +224,49 @@ async fn check_unrecordable_symlink_output(with_diff: bool, cached_keys: &[&str]
     }
 }
 
+#[tokio::test]
+async fn upload_caches_changes_to_indexed_bundled_dependencies() {
+    let store_root = tempdir().expect("create store root");
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    store_dir.init().expect("init store dir");
+    let pkg_dir = tempdir().expect("create package dir");
+    fs::create_dir_all(pkg_dir.path().join("node_modules/abbrev"))
+        .expect("create bundled dependency dir");
+    fs::create_dir_all(pkg_dir.path().join("node_modules/unbundled"))
+        .expect("create unbundled dependency dir");
+    fs::write(pkg_dir.path().join("node_modules/abbrev/package.json"), "patched")
+        .expect("write patched package manifest");
+    fs::write(pkg_dir.path().join("node_modules/unbundled/index.js"), "ignored")
+        .expect("write unindexed dependency");
+    let pristine = store_dir.write_cas_file(b"pristine", false).expect("write pristine file");
+    let index_key = "bundled-dependency-side-effects-pkg";
+    let base_index = PackageFilesIndex {
+        manifest: None,
+        requires_build: Some(true),
+        requires_prepare: None,
+        algo: HASH_ALGORITHM.to_string(),
+        files: map(&[("node_modules/abbrev/package.json", pristine.index_entry(0o644, None))]),
+        side_effects: None,
+        remote_side_effects_quarantine: None,
+        tar_integrity: None,
+    };
+    StoreIndex::open(store_dir.root())
+        .expect("open store index")
+        .set(index_key, &base_index)
+        .expect("write base package index");
+    let (writer, task) = StoreIndexWriter::spawn(&store_dir);
+
+    let diff = upload_with_diff(&store_dir, pkg_dir.path(), index_key, "test-engine", &writer)
+        .expect("upload side effects")
+        .expect("base index entry");
+
+    let added = diff.added.expect("patched bundled file recorded");
+    assert!(added.contains_key("node_modules/abbrev/package.json"));
+    assert_eq!(diff.deleted, None);
+    drop(writer);
+    task.await.expect("join store index writer").expect("flush side effects");
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn relative_symlink_output_is_cached_as_symlink_entry() {

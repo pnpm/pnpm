@@ -1,11 +1,11 @@
-use super::{AddFilesFromDirError, add_files_from_dir};
+use super::{AddFilesFromDirError, add_files_from_dir, add_files_from_dir_with_node_modules};
 #[cfg(unix)]
 use crate::SYMLINK_MODE;
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path};
 use tempfile::tempdir;
 
 fn make_store() -> (tempfile::TempDir, StoreDir) {
@@ -90,6 +90,26 @@ fn top_level_node_modules_is_skipped() {
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
     let keys: Vec<_> = added.files.keys().cloned().collect();
     assert_eq!(keys, vec!["index.js".to_string()]);
+}
+
+#[test]
+fn selected_top_level_node_modules_files_are_hashed_without_scanning_other_files() {
+    let (_tmp, store_dir) = make_store();
+    let pkg_dir = tempdir().expect("create pkg dir");
+    write(&pkg_dir.path().join("node_modules/abbrev/package.json"), "patched\n");
+    write(&pkg_dir.path().join("node_modules/abbrev/index.js"), "unchanged\n");
+    write(&pkg_dir.path().join("node_modules/other/index.js"), "not in base index\n");
+
+    let added = add_files_from_dir_with_node_modules(
+        &store_dir,
+        pkg_dir.path(),
+        Some(HashSet::from(["node_modules/abbrev/package.json".to_string()])),
+    )
+    .expect("walk");
+
+    assert!(added.files.contains_key("node_modules/abbrev/package.json"));
+    assert!(!added.files.contains_key("node_modules/abbrev/index.js"));
+    assert!(!added.files.contains_key("node_modules/other/index.js"));
 }
 
 #[test]

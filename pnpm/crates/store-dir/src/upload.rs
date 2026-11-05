@@ -4,8 +4,8 @@
 //! [`StoreIndexWriter`].
 
 use crate::{
-    AddFilesFromDirError, CafsFileInfo, SideEffectsDiff, StoreDir, StoreIndexError,
-    StoreIndexWriter, add_files_from_dir,
+    AddFilesFromDirError, CafsFileInfo, SideEffectsDiff, StoreDir, StoreIndex, StoreIndexError,
+    StoreIndexWriter, add_files_from_dir_with_node_modules,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -39,7 +39,7 @@ pub const HASH_ALGORITHM: &str = "sha512";
 /// Behaviour at the writer side:
 ///
 /// - Build output contains symlinks that cannot be recorded (see
-///   [`add_files_from_dir()`]) → remove the matching cache entry and
+///   [`crate::add_files_from_dir()`]) → remove the matching cache entry and
 ///   wait for persistence; read, write, or unavailable-writer errors propagate.
 /// - No base row at `files_index_file` → silent skip.
 /// - Existing row's `algo` differs from [`HASH_ALGORITHM`] → log
@@ -56,8 +56,10 @@ pub fn upload(
     side_effects_cache_key: &str,
     writer: &StoreIndexWriter,
 ) -> Result<(), UploadError> {
+    let included_node_modules = included_node_modules(store_dir, files_index_file)?;
     let added =
-        add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+        add_files_from_dir_with_node_modules(store_dir, built_pkg_location, included_node_modules)
+            .map_err(UploadError::AddFilesFromDir)?;
     if added.has_unrecorded_symlinks {
         writer
             .queue_side_effects_invalidation(
@@ -82,8 +84,10 @@ pub fn upload_with_diff(
     side_effects_cache_key: &str,
     writer: &StoreIndexWriter,
 ) -> Result<Option<SideEffectsDiff>, UploadError> {
+    let included_node_modules = included_node_modules(store_dir, files_index_file)?;
     let added =
-        add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+        add_files_from_dir_with_node_modules(store_dir, built_pkg_location, included_node_modules)
+            .map_err(UploadError::AddFilesFromDir)?;
     if added.has_unrecorded_symlinks {
         writer
             .queue_side_effects_invalidation(
@@ -100,12 +104,28 @@ pub fn upload_with_diff(
     ))
 }
 
+fn included_node_modules(
+    store_dir: &StoreDir,
+    files_index_file: &str,
+) -> Result<Option<std::collections::HashSet<String>>, UploadError> {
+    let index = StoreIndex::open_readonly_in(store_dir).map_err(UploadError::StoreIndex)?;
+    let Some(package) = index.get(files_index_file).map_err(UploadError::StoreIndex)? else {
+        return Ok(None);
+    };
+    Ok(Some(
+        package.files
+            .into_keys()
+            .filter(|path| path.starts_with("node_modules/"))
+            .collect(),
+    ))
+}
+
 /// Set-difference over file digests, and over modes where the host records them.
 ///
 /// `base`     — the pristine `PackageFilesIndex.files` map (pre-build).
-/// `current`  — the rehashed map produced by [`add_files_from_dir()`].
+/// `current`  — the rehashed map produced by [`crate::add_files_from_dir()`].
 ///
-/// Off Unix [`add_files_from_dir()`] reports a fixed mode, so a mode
+/// Off Unix [`crate::add_files_from_dir()`] reports a fixed mode, so a mode
 /// difference from `base` is not a change the build made. Those
 /// differences are ignored. A digest change is still recorded.
 pub fn calculate_diff(
