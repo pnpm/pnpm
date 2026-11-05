@@ -277,6 +277,7 @@ const SH_SHIM_HARDENED_LINES = [
   '    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
   '    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
   '    */node_modules/*|*/node_modules) ;;\n',
+  '  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi\n',
 ]
 
 function isShimHardened (content: string): boolean {

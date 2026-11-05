@@ -365,8 +365,14 @@ fn alias_scripts_follow_a_symlink_when_the_default_path_lacks_readlink() {
     for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
         let alias = bin_dir.join(name);
         let script = std::fs::read_to_string(&alias).expect("read alias script");
-        std::fs::write(&alias, script.replace("command -p ", "PATH=/nonexistent command "))
-            .expect("rewrite alias script");
+        std::fs::write(
+            &alias,
+            script
+                .replace(r#"[ -x "/usr/bin/"#, r#"[ -x "/nonexistent/"#)
+                .replace(r#"[ -x "/bin/"#, r#"[ -x "/nonexistent/"#)
+                .replace("command -p ", "PATH=/nonexistent command "),
+        )
+        .expect("rewrite alias script");
         std::os::unix::fs::symlink(&alias, link_dir.join(name)).expect("link the alias");
 
         let output = std::process::Command::new(link_dir.join(name))
