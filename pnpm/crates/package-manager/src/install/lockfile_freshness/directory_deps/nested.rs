@@ -231,6 +231,7 @@ pub(crate) fn check_nested_directory_package(
         let dep = LocalDepContext {
             name: &nested.alias,
             declared_by_path,
+            declaration_assumed: true,
             rel_path: &nested.directory,
             dir: &dir,
             dirs: spec_dirs(check),

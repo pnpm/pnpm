@@ -2911,9 +2911,12 @@ describe('local directory dependency beneath a registry package', () => {
     await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: '2.0.0' } }))
     expect((await checkLinkedPackagesAreUpToDate(ctx(), projectDependingOn('other'))).upToDate).toBe(true)
   })
-  test('checkLinkedPackagesAreUpToDate(): reports a catalog dependency of a directory beneath a registry package', async () => {
+  test('checkLinkedPackagesAreUpToDate(): judges a catalog dependency of a directory beneath a registry package through the catalogs', async () => {
     await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: 'catalog:' } }))
-    const catalogs = { default: { leaf: '1.0.0' } }
-    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), resolution: { catalogs } }, projectDependingOn('reg'))).upToDate).toBe(false)
+    const check = async (leaf: string, frozenLockfile: boolean) =>
+      (await checkLinkedPackagesAreUpToDate({ ...ctx(), resolution: { catalogs: { default: { leaf } }, frozenLockfile } }, projectDependingOn('reg'))).upToDate
+    expect(await check('1.0.0', false)).toBe(true)
+    expect(await check('1.0.0', true)).toBe(true)
+    expect(await check('2.0.0', false)).toBe(false)
   })
 })

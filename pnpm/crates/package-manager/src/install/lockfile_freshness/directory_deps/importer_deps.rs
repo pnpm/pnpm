@@ -138,6 +138,7 @@ fn check_directory_resolution(
     let dep = LocalDepContext {
         name: dep_str,
         declared_by_path: is_declared_by_path(&dep_spec.specifier),
+        declaration_assumed: false,
         rel_path,
         dir: &local_dep_dir,
         dirs: spec_dirs(check),

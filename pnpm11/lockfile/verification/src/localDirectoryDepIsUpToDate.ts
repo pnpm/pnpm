@@ -102,25 +102,35 @@ interface DependencyOfLocalDirectoryDep {
  */
 export function createLocalDirectoryDepUpToDateChecker (
   ctx: LocalDirectoryDepContext
-): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>, declaredByPath?: boolean) => Promise<boolean> {
+): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>, declaration?: Declaration) => Promise<boolean> {
   const visited = new Map<PackageSnapshot, Set<string>>()
   // Collected on the first check, since most projects have no local directory dependency to check.
   let recordedPeers: string[] | undefined
-  return async (pkgSnapshot, parentPkgAliases, declaredByPath = false) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
-    declaredByPath,
+  return async (pkgSnapshot, parentPkgAliases, declaration = { declaredByPath: false }) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+    ...declaration,
     parentPkgAliases,
     visited,
     recordedPeers: recordedPeers ??= recordedPeersOf(ctx.lockfilePackages),
   })
 }
 
-interface DirectoryWalk {
+/** How the package being checked was declared. */
+export interface Declaration {
   /**
    * Whether a path spec, such as `file:../lib` or `../lib`, declared the
    * package. The resolver leaves the `catalog:` specs of such a package's
    * children unresolved.
    */
   declaredByPath: boolean
+  /**
+   * The lockfile does not record which spec declared the package, so it is
+   * checked under both declarations. Only the workspace one judges its
+   * `catalog:` children then.
+   */
+  declarationAssumed?: boolean
+}
+
+interface DirectoryWalk extends Declaration {
   /** The aliases of every ancestor, which supply the package's peers. */
   parentPkgAliases: Record<string, unknown>
   /** The peer scopes each snapshot was checked in. */
@@ -170,6 +180,7 @@ async function localDirectoryDepIsUpToDateRec (
   }
   const childWalk: DirectoryWalk = {
     declaredByPath: walk.declaredByPath,
+    declarationAssumed: walk.declarationAssumed,
     parentPkgAliases: { ...walk.parentPkgAliases, ...dependencyAliasesOf(pkgSnapshot) },
     visited: walk.visited,
     recordedPeers: walk.recordedPeers,
@@ -313,7 +324,7 @@ async function childIsUpToDate (
  * accepts.
  */
 function resolvedChildSpec (ctx: LocalDirectoryDepContext, child: ManifestWantedDependency, walk: DirectoryWalk): string | undefined {
-  if (!walk.declaredByPath) return resolveCatalogSpec(ctx, child)
+  if (!walk.declaredByPath || walk.declarationAssumed) return resolveCatalogSpec(ctx, child)
   return parseCatalogProtocol(child.bareSpecifier) == null ? child.bareSpecifier : undefined
 }
 
@@ -348,6 +359,7 @@ async function localChildIsUpToDate (
   return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, {
     ...walk,
     declaredByPath: isLocalFilesystemSpecifier(child.bareSpecifier),
+    declarationAssumed: false,
   })
 }
 

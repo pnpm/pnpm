@@ -107,12 +107,14 @@ fn child_is_fresh(
     if child.optional && !check.config.optional {
         return recorded_child(snapshot, name, RecordedDeps::Required).is_none();
     }
-    // No resolver accepts the `catalog:` spec of a child of a package
-    // declared by path, so a frozen install must not keep the old one.
-    if dep.declared_by_path && parse_catalog_protocol(&child.bare_specifier).is_some() {
-        return false;
-    }
     match recorded_child(snapshot, name, RecordedDeps::of(child)) {
+        // No resolver accepts the `catalog:` spec of a child of a package
+        // declared by path, so a frozen install must not keep the old one.
+        Some(_)
+            if dep.declared_by_path && parse_catalog_protocol(&child.bare_specifier).is_some() =>
+        {
+            dep.declaration_assumed
+        }
         Some(recorded) => {
             spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, &child.bare_specifier, recorded)
                 .unwrap_or(check.optional_exclusions.frozen_lockfile)

@@ -67,7 +67,7 @@ pub(super) fn check_single_directory_dep_freshness(
     };
     // A revisit in the same peer scope is a cycle or a shared dependency
     // already checked.
-    if !visited.first_visit((pkg_key, dep.declared_by_path), &local_manifest, scope) {
+    if !visited.first_visit(pkg_key, dep, &local_manifest, scope) {
         return Ok(());
     }
     let peers = PeerShadowing::of(

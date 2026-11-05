@@ -33,6 +33,10 @@ struct LocalDepContext<'a> {
     name: &'a str,
     /// See [`is_declared_by_path`].
     declared_by_path: bool,
+    /// The lockfile does not record which spec declared the package, so it
+    /// is checked under both declarations. Only the workspace one judges its
+    /// `catalog:` children then.
+    declaration_assumed: bool,
     rel_path: &'a str,
     dir: &'a Path,
     dirs: SpecDirs<'a>,
@@ -48,6 +52,7 @@ impl<'a> LocalDepContext<'a> {
         Self {
             name,
             declared_by_path: is_declared_by_path(spec),
+            declaration_assumed: false,
             rel_path,
             dir,
             dirs: self.dirs,
