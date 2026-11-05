@@ -45,10 +45,12 @@ pub(crate) fn record_names(record: &Path, linked: &str) -> bool {
     std::fs::read_to_string(record).is_ok_and(|recorded| recorded.trim() == linked)
 }
 
-/// Write `linked` to the record at `record`. A record that cannot be written
-/// only makes the next install import the copy again.
+/// Write `linked` to the record at `record`, replacing the file rather than
+/// writing through it: a package that ships a file of the record's name has
+/// it hard-linked from the store, which other installs share. A record that
+/// cannot be written only makes the next install import the copy again.
 pub(crate) fn write_record(record: &Path, linked: &str) {
-    if let Err(error) = std::fs::write(record, linked) {
+    if let Err(error) = pnpm_fs::write_atomic(record, linked.as_bytes()) {
         tracing::debug!(path = %record.display(), %error, "could not record the linked archive");
     }
 }
@@ -151,3 +153,6 @@ pub(crate) fn record_hoisted_archives(
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
