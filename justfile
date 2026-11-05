@@ -150,6 +150,10 @@ codecov:
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
+# Report the linked size of the install engine as an embedding application links it.
+engine-size *args:
+  cargo run --quiet --bin=engine-size -- {{args}}
+
 # Compare Rust artifact reuse between two disposable worktrees.
 bench-rust-cache *args:
   node pnpm/scripts/bench-rust-cache.mjs {{args}}

@@ -1,0 +1,30 @@
+[package]
+name = "pnpm-engine-size-probe"
+version = "0.0.0"
+publish = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "engine-size-probe"
+path = "src/main.rs"
+
+[dependencies]
+pnpm-config = { workspace = true }
+pnpm-lockfile = { workspace = true }
+pnpm-network = { workspace = true }
+pnpm-package-manager = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-reporter = { workspace = true }
+pnpm-tarball = { workspace = true }
+
+miette = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

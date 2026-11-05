@@ -201,6 +201,7 @@ napi = { version = "3.16.1", default-features = false, features = [
 napi-build = { version = "2.6.0" }
 napi-derive = { version = "3.7.0" }
 num_cpus = { version = "1.17.0" }
+object = { version = "0.40.0", default-features = false, features = ["read", "std"] }
 object_store = { version = "0.14.2", features = ["aws"] }
 open = { version = "5.4.5" }
 os_display = { version = "0.1.4" }
@@ -230,6 +231,7 @@ rayon = { version = "1.12.0" }
 regex = { version = "1.13.1" }
 regress = { version = "0.12.0" }
 rmp-serde = { version = "1.3.1" }
+rustc-demangle = { version = "0.1.28" }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
 security-framework = { version = "3.7.0" }
