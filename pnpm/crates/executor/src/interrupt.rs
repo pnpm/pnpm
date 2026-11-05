@@ -73,15 +73,24 @@ static INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
 /// that handler runs.
 #[must_use]
 pub fn interrupt_count() -> usize {
-    INTERRUPTS.load(Ordering::Relaxed) + pending_interrupts()
+    // A handler that runs between the two reads has moved its signal from
+    // pending to counted, so the sample is retaken until it is stable.
+    loop {
+        let handled = INTERRUPTS.load(Ordering::Relaxed);
+        let pending = pending_interrupts();
+        if INTERRUPTS.load(Ordering::Relaxed) == handled {
+            return handled + pending;
+        }
+    }
 }
 
 /// How many of the signals [`install_handler`] handles are queued for pnpm
-/// and not yet handled. `sigpending` reports only the signals the calling
-/// thread blocks, so they are blocked around the call. Restoring the mask
-/// lets this thread run the handler for any of them.
+/// and not yet handled.
 #[cfg(unix)]
 fn pending_interrupts() -> usize {
+    // `sigpending` reports only the signals the calling thread blocks, so
+    // they are blocked around the call. Restoring the mask lets this
+    // thread run the handler for any of them.
     // SAFETY: every call takes stack locals that outlive it.
     unsafe {
         let mut handled: libc::sigset_t = std::mem::zeroed();
@@ -512,6 +521,9 @@ use windows::install_handler;
 
 #[cfg(target_family = "wasm")]
 mod wasm;
+
+#[cfg(all(test, unix))]
+mod tests;
 #[cfg(target_family = "wasm")]
 use wasm::install_handler;
 
