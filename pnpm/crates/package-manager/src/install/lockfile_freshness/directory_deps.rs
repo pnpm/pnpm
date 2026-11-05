@@ -31,10 +31,8 @@ use std::path::Path;
 
 struct LocalDepContext<'a> {
     name: &'a str,
-    /// The importer declared the dependency with a `file:` spec, which the
-    /// resolver reads from the directory itself rather than from a workspace
-    /// project.
-    declared_as_file: bool,
+    /// See [`is_declared_by_path`].
+    declared_by_path: bool,
     rel_path: &'a str,
     dir: &'a Path,
     dirs: SpecDirs<'a>,
@@ -49,7 +47,7 @@ impl<'a> LocalDepContext<'a> {
     fn child(&self, name: &'a str, spec: &str, rel_path: &'a str, dir: &'a Path) -> Self {
         Self {
             name,
-            declared_as_file: is_declared_local_directory(spec),
+            declared_by_path: is_declared_by_path(spec),
             rel_path,
             dir,
             dirs: self.dirs,
@@ -63,6 +61,14 @@ fn local_dependency_outdated(name: &str, path: &str) -> FreshnessCheckError {
         name: name.to_string(),
         path: path.to_string(),
     })
+}
+
+/// Whether the local resolver claims `spec` as a filesystem path, a `file:`
+/// spec or a bare one such as `../lib`. It resolves such a directory as
+/// `local-filesystem`, not through the workspace: the directory's children
+/// skip the catalogs, and its manifest is read from the directory itself.
+pub(crate) fn is_declared_by_path(spec: &str) -> bool {
+    pnpm_local_spec::is_local_filesystem_specifier(spec)
 }
 
 pub(crate) fn is_declared_local_directory(spec: &str) -> bool {

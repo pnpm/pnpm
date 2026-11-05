@@ -39,6 +39,7 @@ enum Injection {
     InjectWorkspacePackages,
     DependenciesMeta,
     FileSpec,
+    BarePath,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -88,6 +89,7 @@ impl Scenario {
             Injection::InjectWorkspacePackages => ("workspace:*", json!({})),
             Injection::DependenciesMeta => ("workspace:*", json!({ "lib": { "injected": true } })),
             Injection::FileSpec => ("file:../lib", json!({})),
+            Injection::BarePath => ("../lib", json!({ "lib": { "injected": true } })),
         };
         scenario.write_manifest(
             "app",
@@ -274,7 +276,10 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
     scenario.edit(edit);
-    if matches!((layout.injection, edit), (Injection::FileSpec, Edit::CatalogFileChild)) {
+    if matches!(
+        (layout.injection, edit),
+        (Injection::FileSpec | Injection::BarePath, Edit::CatalogFileChild)
+    ) {
         check_unresolvable_child(&mut scenario, filter);
         return;
     }
@@ -329,7 +334,7 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     }
 }
 
-/// The children of a `file:` dependency keep their `catalog:` specs, which no
+/// The children of a dependency declared by path keep their `catalog:` specs, which no
 /// resolver accepts. A frozen install accepts a child spec it cannot judge, so
 /// a filtered one, which leaves `lib`'s importer unchecked, passes.
 fn check_unresolvable_child(scenario: &mut Scenario, filter: &[&str]) {
@@ -435,6 +440,14 @@ matrix! {
     dedicated_file_spec: Layout {
         shared_lockfile: false,
         injection: Injection::FileSpec,
+    },
+    shared_bare_path: Layout {
+        shared_lockfile: true,
+        injection: Injection::BarePath,
+    },
+    dedicated_bare_path: Layout {
+        shared_lockfile: false,
+        injection: Injection::BarePath,
     },
 }
 

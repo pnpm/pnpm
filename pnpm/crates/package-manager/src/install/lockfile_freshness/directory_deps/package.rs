@@ -17,13 +17,13 @@ fn read_and_override_manifest(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
 ) -> Result<PackageManifest, FreshnessCheckError> {
-    let hooked = check.workspace.directory_manifests.get(dep.rel_path, dep.declared_as_file);
+    let hooked = check.workspace.directory_manifests.get(dep.rel_path, dep.declared_by_path);
     if let Some(manifest) = hooked {
         return Ok(manifest.clone());
     }
     let injected = InjectedDirectory {
         dir: dep.dir,
-        declared_as_file: dep.declared_as_file,
+        declared_by_path: dep.declared_by_path,
         workspace_root: dep.dirs.workspace_root,
         manifests_by_dir: check.workspace.manifests_by_dir,
     };

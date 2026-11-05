@@ -76,7 +76,7 @@ fn check_peer_spec(
 ) -> Result<(), FreshnessCheckError> {
     let dep = LocalDepContext {
         name: "lib",
-        declared_as_file: false,
+        declared_by_path: false,
         rel_path: "lib",
         dir: Path::new("lib"),
         dirs: SpecDirs {
@@ -295,7 +295,7 @@ fn check_directory_dep_in_scope(
     };
     let dep = LocalDepContext {
         name: "lib",
-        declared_as_file: false,
+        declared_by_path: false,
         rel_path: "lib",
         dir: &dep_dir,
         dirs: SpecDirs {
@@ -670,7 +670,7 @@ fn only_a_directory_without_a_manifest_is_described_by_its_name() {
     let describe = || {
         super::unhooked_manifest(&super::InjectedDirectory {
             dir: &dir,
-            declared_as_file: true,
+            declared_by_path: true,
             workspace_root: tmp.path(),
             manifests_by_dir: &manifests_by_dir,
         })
@@ -708,7 +708,7 @@ fn publish_config_directory_manifest_follows_declaration_kind() {
     let manifests_by_dir = HashMap::new();
     let ws_injected = super::unhooked_manifest(&super::InjectedDirectory {
         dir: &ws_dist,
-        declared_as_file: false,
+        declared_by_path: false,
         workspace_root: &workspace_root,
         manifests_by_dir: &manifests_by_dir,
     })
@@ -717,7 +717,7 @@ fn publish_config_directory_manifest_follows_declaration_kind() {
 
     let outside_file = super::unhooked_manifest(&super::InjectedDirectory {
         dir: &outside_dist,
-        declared_as_file: true,
+        declared_by_path: true,
         workspace_root: &workspace_root,
         manifests_by_dir: &manifests_by_dir,
     })

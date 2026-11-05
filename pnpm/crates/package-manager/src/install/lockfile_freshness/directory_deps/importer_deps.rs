@@ -2,8 +2,8 @@
 //! one, and the lockfile entry each resolves to.
 
 use super::{
-    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_local_directory,
-    is_deploy_file_url_key, local_dependency_outdated,
+    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_by_path,
+    is_declared_local_directory, is_deploy_file_url_key, local_dependency_outdated,
     package::check_single_directory_dep_freshness,
     scope::{Visited, importer_aliases},
     spec, spec_dirs,
@@ -135,7 +135,7 @@ fn check_directory_resolution(
     let local_dep_dir = check.lockfile_dir.join(rel_path);
     let dep = LocalDepContext {
         name: dep_str,
-        declared_as_file: is_declared_local_directory(&dep_spec.specifier),
+        declared_by_path: is_declared_by_path(&dep_spec.specifier),
         rel_path,
         dir: &local_dep_dir,
         dirs: spec_dirs(check),

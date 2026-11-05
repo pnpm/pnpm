@@ -25,7 +25,7 @@ pub(super) fn check_local_dep_children_freshness(
 ) -> Result<(), FreshnessCheckError> {
     // A `file:` dependency resolves through the local resolver, which leaves
     // its children's `catalog:` specs alone.
-    let catalogs = (!dep.declared_as_file).then_some(ChildCatalogs {
+    let catalogs = (!dep.declared_by_path).then_some(ChildCatalogs {
         catalogs: dep.catalogs,
         workspace_dir: check.config.workspace_dir.as_deref(),
         package_dir: dep.dir,
