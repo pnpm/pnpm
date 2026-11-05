@@ -6,7 +6,37 @@ use super::{
     project_names, select_install_family,
 };
 use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use tracing::Instrument as _;
+
+/// A plain install outside a workspace found no project manifest. Only
+/// `pnpm add` and `pnpm link` create one.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("No package.json found in {}", dir.display())]
+#[diagnostic(code(ERR_PNPM_NO_PKG_MANIFEST))]
+pub(crate) struct NoPkgManifest {
+    #[error(not(source))]
+    pub(crate) dir: PathBuf,
+}
+
+/// Fail a non-recursive install outside a workspace that has no manifest
+/// to install from. A workspace root may lack a manifest.
+///
+/// Call it before anything the command writes, removes, or fetches.
+pub(crate) fn ensure_project_manifest(
+    cfg: &Config,
+    manifest_path: &Path,
+) -> Result<(), NoPkgManifest> {
+    let dir = manifest_path.parent().expect("manifest path always has a parent dir");
+    if cfg.recursive
+        || cfg.workspace_dir.is_some()
+        || pnpm_package_manifest::project_manifest_path(dir).is_file()
+    {
+        return Ok(());
+    }
+    Err(NoPkgManifest { dir: dir.to_path_buf() })
+}
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
 /// type through config-dependency sync, the `updateConfig` hooks, and the

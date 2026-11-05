@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::Value;
-use std::{env, fs, process::Command};
+use std::{env, fs, path::Path, process::Command};
 
 fn fixture() -> CommandTempCwd<()> {
     let mut fixture = CommandTempCwd::init();
@@ -127,18 +127,41 @@ fn sbom_from_a_lockfile_does_not_invent_manifest_metadata() {
 }
 
 #[test]
-fn install_still_initializes_a_missing_manifest() {
+fn install_without_a_manifest_fails() {
+    for args in [
+        &["install", "--offline"][..],
+        &["install", "--offline", "--allow-build=example-pkg"],
+        &["ci", "--offline"],
+        &["install-test", "--offline"],
+    ] {
+        let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+        let output = pacquet
+            .args(args)
+            .assert()
+            .failure()
+            .get_output()
+            .stderr
+            .clone();
+        let stderr = String::from_utf8_lossy(&output);
+        assert!(stderr.contains("ERR_PNPM_NO_PKG_MANIFEST"), "{args:?} stderr: {stderr}");
+        for written in ["package.json", "pnpm-lock.yaml", "node_modules", "pnpm-workspace.yaml"] {
+            assert!(!workspace.join(written).exists(), "{args:?} wrote {written}");
+        }
+        drop(root);
+    }
+}
+
+#[test]
+fn ci_without_a_manifest_keeps_node_modules() {
     let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+    let installed = workspace.join("node_modules/example-pkg/index.js");
+    fs::create_dir_all(installed.parent().expect("parent")).expect("create node_modules");
+    fs::write(&installed, "").expect("write installed file");
     pacquet
-        .args(["install", "--offline", "--ignore-scripts"])
+        .args(["ci", "--offline"])
         .assert()
-        .success();
-    let manifest: Value = serde_json::from_slice(
-        &fs::read(workspace.join("package.json")).expect("install wrote manifest"),
-    )
-    .expect("parse manifest");
-    assert_eq!(manifest["version"], "1.0.0");
-    assert_eq!(manifest["license"], "ISC");
+        .failure();
+    assert!(installed.exists(), "ci removed node_modules before failing");
     drop(root);
 }
 
@@ -243,19 +266,37 @@ fn assert_native_build(args: &[&str], exit_code: i32, existing: bool, after_reso
     drop(root);
 }
 
+/// A plain install fails without a manifest, so it only runs against an
+/// existing one.
+fn manifest_states(args: &[&str]) -> &'static [bool] {
+    if args[0] == "install" { &[true] } else { &[false, true] }
+}
+
+/// Give a plain install the manifest it needs, and report whether the
+/// command must leave the directory without one.
+fn prepare_manifest(args: &[&str], workspace: &Path) -> bool {
+    let needs_manifest = args[0] == "install";
+    if needs_manifest {
+        fs::write(workspace.join("package.json"), "{}").expect("write manifest");
+    }
+    !needs_manifest
+}
+
 #[test]
 fn native_build_runs_with_initialized_manifest_data() {
     for args in NATIVE_COMMANDS {
-        assert_native_build(args, 0, false, false);
-        assert_native_build(args, 0, true, false);
+        for &existing in manifest_states(args) {
+            assert_native_build(args, 0, existing, false);
+        }
     }
 }
 
 #[test]
 fn native_build_failure_is_propagated() {
     for args in NATIVE_COMMANDS {
-        assert_native_build(args, 17, false, false);
-        assert_native_build(args, 17, true, false);
+        for &existing in manifest_states(args) {
+            assert_native_build(args, 17, existing, false);
+        }
     }
 }
 
@@ -273,8 +314,9 @@ fn native_build_runs_after_resolution_creates_trigger() {
     ];
     for args in commands {
         for exit_code in [0, 17] {
-            assert_native_build(args, exit_code, false, true);
-            assert_native_build(args, exit_code, true, true);
+            for &existing in manifest_states(args) {
+                assert_native_build(args, exit_code, existing, true);
+            }
         }
     }
 }
@@ -283,13 +325,14 @@ fn native_build_runs_after_resolution_creates_trigger() {
 fn native_build_respects_ignore_scripts() {
     for args in NATIVE_COMMANDS {
         let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(17);
+        let leaves_no_manifest = prepare_manifest(args, &workspace);
         pacquet
             .arg("--ignore-scripts")
             .args(*args)
             .assert()
             .success();
         assert!(!workspace.join("native-marker").exists(), "{args:?} ran a native build");
-        if args[0] != "install" {
+        if leaves_no_manifest {
             assert!(!workspace.join("package.json").exists(), "{args:?} created a manifest");
         }
         drop(root);
@@ -323,6 +366,7 @@ fn native_build_is_skipped_when_not_materializing() {
         &["dedupe", "--offline", "--check"],
     ] {
         let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(17);
+        let leaves_no_manifest = prepare_manifest(args, &workspace);
         let result = pacquet.args(args).assert();
         if args.contains(&"--check") {
             let result = result.failure();
@@ -332,7 +376,7 @@ fn native_build_is_skipped_when_not_materializing() {
             result.success();
         }
         assert!(!workspace.join("native-marker").exists(), "{args:?} ran a native build");
-        if args != ["install", "--offline", "--lockfile-only"] {
+        if leaves_no_manifest {
             assert!(!workspace.join("package.json").exists(), "{args:?} created a manifest");
         }
         drop(root);

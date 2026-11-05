@@ -252,7 +252,7 @@ impl State {
 /// A missing manifest is never written here: command initialization
 /// precedes argument validation and serves read-only commands, so the
 /// scaffold stays in memory until a command that writes the manifest
-/// (`install`, `add`, `link`) saves it.
+/// (`add`, `link`) saves it.
 ///
 /// Inside a workspace, a missing root manifest is tolerated rather
 /// than scaffolded: pnpm installs such a workspace with no root
