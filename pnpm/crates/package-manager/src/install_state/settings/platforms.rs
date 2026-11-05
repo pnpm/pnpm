@@ -2,8 +2,10 @@
 //! with and the platform it linked registry packages' variants for.
 
 use pnpm_deps_restorer::platform_selection::{
-    linked_platform_record, linked_platform_record_with_floors,
+    has_registry_variants, has_variant_with_floor, linked_platform_record,
+    linked_platform_record_with_floors,
 };
+use pnpm_lockfile::Lockfile;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_workspace_state::WorkspaceState;
 
@@ -44,14 +46,46 @@ pub(super) fn live_linked_platform(
 
 /// Whether the previous install recorded the `supportedArchitectures` this
 /// run uses and linked registry packages' variants for the platform it
-/// links. A missing record does not match.
+/// links. A state without a linked platform matches only when `lockfile`
+/// has no registry variants, as one pnpm v11 or a project without variants
+/// writes.
 pub(crate) fn recorded_platforms_match(
     recorded: Option<&WorkspaceState>,
     supported: Option<&SupportedArchitectures>,
+    lockfile: Option<&Lockfile>,
 ) -> bool {
     let linked = recorded.and_then(|state| state.settings.linked_platform.as_deref());
     recorded_supported_architectures_match(recorded, supported)
-        && linked.is_some_and(|linked| linked == live_linked_platform(Some(linked), supported))
+        && match linked {
+            Some(linked) => linked == live_linked_platform(Some(linked), supported),
+            None => !lockfile.is_some_and(has_registry_variants),
+        }
+}
+
+/// Whether `state` records no linked platform though `lockfile` has
+/// registry variants, which are linked for a platform. A state pnpm v11
+/// wrote, or one for a lockfile without variants, records none.
+pub(crate) fn linked_platform_missing(state: &WorkspaceState, lockfile: Option<&Lockfile>) -> bool {
+    state.settings.linked_platform.is_none() && lockfile.is_some_and(has_registry_variants)
+}
+
+/// What the workspace state records as the linked platform for `lockfile`:
+/// nothing for a lockfile without registry variants, so a state is the same
+/// as one pnpm v11 writes, and otherwise the platform `supported` links,
+/// with the versions its floors and ABI are matched against when a variant
+/// states one.
+pub(crate) fn linked_platform_to_record(
+    lockfile: &Lockfile,
+    supported: Option<&SupportedArchitectures>,
+) -> Option<String> {
+    if !has_registry_variants(lockfile) {
+        return None;
+    }
+    Some(if has_variant_with_floor(lockfile) {
+        linked_platform_record_with_floors(supported)
+    } else {
+        linked_platform_record(supported)
+    })
 }
 
 pub(super) fn supported_architectures_json(

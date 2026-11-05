@@ -287,6 +287,22 @@ pub fn linked_platform_record_with_floors(supported: Option<&SupportedArchitectu
     format!("{} {floors:?}", linked_platform_record(supported))
 }
 
+/// Whether `lockfile` has a registry package published with platform
+/// variants, whose linked variant depends on the platform.
+#[must_use]
+pub fn has_registry_variants(lockfile: &pnpm_lockfile::Lockfile) -> bool {
+    lockfile.packages
+        .iter()
+        .flat_map(|packages| packages.values())
+        .any(|metadata| {
+            matches!(
+                &metadata.resolution,
+                pnpm_lockfile::LockfileResolution::Variations(variations)
+                    if !variations.is_runtime(),
+            )
+        })
+}
+
 /// Whether a registry package's variant in `lockfile` states a floor or an
 /// ABI.
 #[must_use]

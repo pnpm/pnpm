@@ -14,8 +14,9 @@ pub(crate) use local_file_deps::{
 pub use manifest_source::{DeclaredManifests, ManifestHooks, RepeatInstallManifests};
 pub(crate) use settings::{
     ResolvedImporters, catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_default_registry, recorded_extend_node_path_matches, recorded_platforms_match,
-    recorded_registry_prefixes, recorded_registry_routes_after_install, records_registry_keys_of,
+    linked_platform_missing, linked_platform_to_record, recorded_default_registry,
+    recorded_extend_node_path_matches, recorded_platforms_match, recorded_registry_prefixes,
+    recorded_registry_routes_after_install, records_registry_keys_of,
 };
 pub(crate) use timestamps::{
     file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,

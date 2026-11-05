@@ -249,6 +249,9 @@ fn check_settings_and_workspace_freshness(
     ) {
         return Err(Stale::SettingChanged(setting));
     }
+    if crate::install_state::linked_platform_missing(state, check.lockfile.loaded()) {
+        return Err(Stale::SettingChanged("linkedPlatform"));
+    }
     if config_dependencies_drifted(config, state) {
         return Err(Stale::ConfigDependencies);
     }

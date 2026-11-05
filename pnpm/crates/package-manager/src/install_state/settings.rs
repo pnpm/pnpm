@@ -1,7 +1,9 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 pub(crate) use install_policy::recorded_extend_node_path_matches;
-pub(crate) use platforms::recorded_platforms_match;
+pub(crate) use platforms::{
+    linked_platform_missing, linked_platform_to_record, recorded_platforms_match,
+};
 pub(crate) use recorded_values::{
     catalogs_to_json, empty_json_object, filter_null_object_values,
     link_workspace_packages_to_json, map_node_linker,
@@ -26,7 +28,6 @@ use equivalence::{
 };
 use install_policy::install_policy_settings;
 use platforms::{live_linked_platform, supported_architectures_json};
-use pnpm_deps_restorer::platform_selection::linked_platform_record;
 use recorded_values::map_trust_policy;
 
 use pnpm_catalogs_types::Catalogs;
@@ -75,7 +76,9 @@ pub(crate) fn first_setting_drift(
 ) -> Option<&'static str> {
     let mut current = current_settings(config, node_linker, included, supported_architectures);
     let recorded_linked = state.settings.linked_platform.as_deref();
-    current.linked_platform = Some(live_linked_platform(recorded_linked, supported_architectures));
+    current.linked_platform = recorded_linked.map(|recorded| {
+        live_linked_platform(Some(recorded), supported_architectures)
+    });
     SettingsComparison {
         recorded: &state.settings,
         live: &current,
@@ -343,7 +346,6 @@ pub(crate) fn current_settings(
         // `--libc`), like `included` above: a change through either
         // channel re-evaluates the skipped optionals on the next run.
         supported_architectures: supported_architectures_json(supported_architectures),
-        linked_platform: Some(linked_platform_record(supported_architectures)),
         ..current_policy_settings(config)
     }
 }

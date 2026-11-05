@@ -61,14 +61,12 @@ fn record_registry_keys_and_linked_floors(state: &mut WorkspaceState, write: &St
         state.settings.default_registry =
             crate::install_state::recorded_default_registry(write.config);
     }
-    if write.projects.lockfile.is_some_and(
-        pnpm_deps_restorer::platform_selection::has_variant_with_floor,
-    ) {
-        state.settings.linked_platform =
-            Some(pnpm_deps_restorer::platform_selection::linked_platform_record_with_floors(
-                write.layout.supported_architectures,
-            ));
-    }
+    state.settings.linked_platform = write.projects.lockfile.and_then(|lockfile| {
+        crate::install_state::linked_platform_to_record(
+            lockfile,
+            write.layout.supported_architectures,
+        )
+    });
 }
 
 /// The workspace state `write` records. Every writer goes through here, so a

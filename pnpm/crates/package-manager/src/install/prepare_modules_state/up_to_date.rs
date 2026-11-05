@@ -79,6 +79,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         || !crate::install_state::recorded_platforms_match(
             context.recorded.state,
             context.repeat.supported_architectures,
+            Some(wanted_lockfile),
         )
         || !crate::install_state::recorded_extend_node_path_matches(
             context.recorded.state,
