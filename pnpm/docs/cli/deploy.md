@@ -104,6 +104,11 @@ Since v12.16.0, it checks the source workspace lockfile against [`minimumRelease
   resolved against the deploy directory. With the global virtual store enabled
   or an absolute `virtualStoreDir`, it stays at `node_modules/.pnpm`.
 * The `prepare` script of the deployed project is not run.
+* A workspace project that the deploy installs as a `file:` dependency runs
+  its build scripts. pnpm approves it by its dependency path in the
+  [`allowBuilds`](../settings/build.md#allowbuilds) setting of the deployed
+  `pnpm-workspace.yaml`. An `allowBuilds` entry that denies the project still
+  applies.
 
 ## Reproducible output
 

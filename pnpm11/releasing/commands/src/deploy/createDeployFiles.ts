@@ -33,6 +33,7 @@ import {
   filterDeployPackageSnapshots,
   type LinkedWorkspaceProject,
 } from './deployPackageGraph.js'
+import { approveWorkspaceProjectBuilds } from './workspaceProjectBuilds.js'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
@@ -104,8 +105,13 @@ export function createDeployFiles (opts: CreateDeployFilesOptions): DeployFiles 
     }
   }
 
-  if (opts.allowBuilds) {
-    workspaceManifest.allowBuilds = opts.allowBuilds
+  const allowBuilds = approveWorkspaceProjectBuilds(opts.allowBuilds, {
+    allProjects: opts.allProjects,
+    deployDir: opts.deployDir,
+    packageSnapshots: deployPackageSnapshots,
+  })
+  if (allowBuilds) {
+    workspaceManifest.allowBuilds = allowBuilds
   }
 
   return result

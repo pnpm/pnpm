@@ -1,7 +1,7 @@
 use super::{
     Arc, Config, Context, DeployArgs, DeployInstallMode, DirectSpecs, LazyLockfile, Lockfile,
     NodeLinker, NodeLinkerArg, Path, PathBuf, PreferredVersions, Reporter, State,
-    WantedLockfileSelection, deployed_workspace_projects,
+    WantedLockfileSelection, approve_legacy_workspace_project_builds, deployed_workspace_projects,
     get_preferred_versions_from_lockfile_and_manifests, resolve_bool_override, warn,
 };
 use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
@@ -185,14 +185,14 @@ impl DeployArgs {
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
         legacy_source: Option<LegacyDeploySource>,
     ) -> miette::Result<()> {
-        let legacy = matches!(&mode, DeployInstallMode::Legacy);
+        let legacy = matches!(&mode, DeployInstallMode::Legacy { .. });
         let config = self.deploy_install_config(
             base_config,
             deploy_dir,
             mode,
             frozen_lockfile,
             source_hooks.is_none(),
-        );
+        )?;
         let pnpmfile_hook = deploy_pnpmfile_hooks(source_hooks, legacy);
         let mut state = State::init(deploy_dir.join("package.json"), config, frozen_lockfile)
             .wrap_err("initialize the deploy install state")?;
@@ -280,7 +280,7 @@ impl DeployArgs {
         mode: DeployInstallMode,
         frozen_lockfile: bool,
         ignore_pnpmfile: bool,
-    ) -> &'static Config {
+    ) -> miette::Result<&'static Config> {
         let node_linker = self.install_args.materialization.node_linker.map_or(
             base_config.node_linker,
             NodeLinkerArg::into_config,
@@ -304,10 +304,16 @@ impl DeployArgs {
         // This applies to every workspace package of the deploy install,
         // whatever the workspace sets; a legacy deploy saves no lockfile,
         // so the setting is not recorded anywhere.
-        if matches!(mode, DeployInstallMode::Legacy) {
+        if let DeployInstallMode::Legacy { workspace_projects } = &mode {
             deploy_config.inject_workspace_packages = true;
+            let lockfile_dir = deploy_config.lockfile_dir_for(deploy_dir).to_path_buf();
+            approve_legacy_workspace_project_builds(
+                &mut deploy_config.allow_builds,
+                workspace_projects,
+                &lockfile_dir,
+            )?;
         }
         apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
-        Config::leak(deploy_config)
+        Ok(Config::leak(deploy_config))
     }
 }

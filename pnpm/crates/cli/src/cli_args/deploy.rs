@@ -54,6 +54,9 @@ use target::{
     resolve_target_dir, validate_deploy_target, write_deploy_files,
 };
 use workspace_manifest::{DeployWorkspaceSettings, deploy_workspace_settings};
+use workspace_project_builds::{
+    NamedProjectRoot, approve_legacy_workspace_project_builds, approve_workspace_project_builds,
+};
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
@@ -135,6 +138,8 @@ struct ProjectInfo {
 struct SelectedProject {
     project: Project,
     projects_by_path: HashMap<ProjectPathKey, ProjectInfo>,
+    /// The root of every workspace project, in discovery order.
+    project_roots: Vec<PathBuf>,
 }
 
 impl SelectedProject {
@@ -145,10 +150,20 @@ impl SelectedProject {
     fn has_bin(&self, root: &Path) -> Option<bool> {
         self.project_info(root).map(|project| project.has_bin)
     }
+
+    fn named_project_roots(&self) -> Vec<NamedProjectRoot> {
+        self.project_roots
+            .iter()
+            .filter_map(|root_dir| {
+                let name = self.project_info(root_dir)?.name.clone()?;
+                Some(NamedProjectRoot { name, root_dir: root_dir.clone() })
+            })
+            .collect()
+    }
 }
 
 enum DeployInstallMode {
-    Legacy,
+    Legacy { workspace_projects: Vec<NamedProjectRoot> },
     Shared { workspace_config: Box<DeployWorkspaceSettings> },
 }
 
@@ -214,7 +229,7 @@ impl DeployArgs {
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
             deploy_dir,
-            DeployInstallMode::Legacy,
+            DeployInstallMode::Legacy { workspace_projects: selected.named_project_roots() },
             false,
             source_hooks,
             legacy_source,
@@ -322,6 +337,10 @@ fn select_project(
 ) -> miette::Result<SelectedProject> {
     let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
     let projects_by_path = index_projects(&projects);
+    let project_roots = projects
+        .iter()
+        .map(|project| project.root_dir.clone())
+        .collect();
 
     let selected_root = {
         let selection =
@@ -337,7 +356,7 @@ fn select_project(
         .into_iter()
         .find(|project| lexical_normalize(&project.root_dir) == selected_root)
         .ok_or(DeployError::NothingToDeploy)?;
-    Ok(SelectedProject { project, projects_by_path })
+    Ok(SelectedProject { project, projects_by_path, project_roots })
 }
 
 /// Index the workspace projects by [`ProjectPathKey`]. When two roots compare
@@ -398,3 +417,5 @@ mod lockfile;
 mod install;
 
 mod workspace_manifest;
+
+mod workspace_project_builds;

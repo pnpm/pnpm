@@ -108,6 +108,8 @@ Since v11.28.0:
 * The `prepare` script of the deployed project is not run.
 * `--package-import-method` passed on the command line is respected.
 
+Since v11.28.12, a workspace project that the deploy installs as a `file:` dependency runs its build scripts. pnpm approves it by its dependency path in the [`allowBuilds`](../settings/build.md#allowbuilds) setting. An `allowBuilds` entry that denies the project still applies.
+
 ## Configuration
 
 ### forceLegacyDeploy

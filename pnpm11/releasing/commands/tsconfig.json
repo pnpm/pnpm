@@ -25,6 +25,9 @@
       "path": "../../bins/resolver"
     },
     {
+      "path": "../../building/policy"
+    },
+    {
       "path": "../../catalogs/config"
     },
     {

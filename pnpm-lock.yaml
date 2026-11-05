@@ -9184,6 +9184,9 @@ importers:
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: link:../../bins/resolver
+      '@pnpm/building.policy':
+        specifier: workspace:*
+        version: link:../../building/policy
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
