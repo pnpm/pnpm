@@ -78,6 +78,25 @@ pub(super) fn align_target_mode(source_file: &Path, target_link: &Path) -> io::R
     }
 }
 
+/// [`align_target_mode`] for a target that a reflink of `source` just
+/// created. The reflink gave the target the source's mode, so the target
+/// is left alone when this install already read that mode as the desired
+/// one. Skipping the check saves an `open`, `fstat`, and `close` per file.
+#[cfg(any(unix, target_os = "wasi"))]
+pub(super) fn align_reflinked_target_mode(
+    source: &StoreFile,
+    target_link: &Path,
+) -> io::Result<()> {
+    let Some(desired) = desired_mode(&source.path) else { return Ok(()) };
+    if source
+        .mode()
+        .is_some_and(|mode| mode & 0o7777 == desired)
+    {
+        return Ok(());
+    }
+    pnpm_fs::file_mode::set_path_permissions(target_link, desired)
+}
+
 #[cfg(not(any(unix, target_os = "wasi")))]
 pub(super) fn source_has_desired_mode(_source: &StoreFile) -> io::Result<bool> {
     Ok(true)
@@ -85,5 +104,13 @@ pub(super) fn source_has_desired_mode(_source: &StoreFile) -> io::Result<bool> {
 
 #[cfg(not(any(unix, target_os = "wasi")))]
 pub(super) fn align_target_mode(_source_file: &Path, _target_link: &Path) -> io::Result<()> {
+    Ok(())
+}
+
+#[cfg(not(any(unix, target_os = "wasi")))]
+pub(super) fn align_reflinked_target_mode(
+    _source: &StoreFile,
+    _target_link: &Path,
+) -> io::Result<()> {
     Ok(())
 }
