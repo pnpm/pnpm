@@ -170,7 +170,7 @@ struct RunProcesses {
 impl RunProcesses {
     /// `details` is what to read of each process beyond its environment.
     fn find(run: &OsString, root: Option<Pid>, details: ProcessRefreshKind) -> Self {
-        let mut system = System::new();
+        let mut system = System::new().expect("read the process table");
         system.refresh_processes_specifics(
             ProcessesToUpdate::All,
             true,
