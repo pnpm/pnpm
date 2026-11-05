@@ -108,6 +108,7 @@ export function createDeployFiles (opts: CreateDeployFilesOptions): DeployFiles 
   const allowBuilds = approveWorkspaceProjectBuilds(opts.allowBuilds, {
     allProjects: opts.allProjects,
     deployDir: opts.deployDir,
+    lockfileDir: opts.lockfileDir,
     packageSnapshots: deployPackageSnapshots,
   })
   if (allowBuilds) {

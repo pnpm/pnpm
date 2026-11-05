@@ -129,6 +129,37 @@ fn keeps_a_denial_of_a_workspace_project() {
 }
 
 #[test]
+fn keeps_a_denial_of_the_key_the_source_workspace_gives_a_project() {
+    let workspace = Workspace::with_project("lib");
+    let lib = workspace.file_key("packages/lib");
+    let lockfile = Workspace::lockfile(&[(&lib, "../packages/lib")]);
+
+    let allow_builds = workspace.approve(&[("lib@file:packages/lib", false)], &lockfile);
+
+    assert_eq!(allow_builds, approvals(&[("lib@file:packages/lib", false)]));
+}
+
+#[test]
+fn keeps_a_source_workspace_denial_of_a_legacy_workspace_project() {
+    let workspace = Workspace::with_project("lib");
+    let workspace_projects = [NamedProjectRoot {
+        name: "lib".to_string(),
+        root_dir: workspace.root.join("packages/lib"),
+    }];
+    let mut allow_builds = approvals(&[("lib@file:packages/lib", false)]);
+
+    approve_legacy_workspace_project_builds(
+        &mut allow_builds,
+        &workspace_projects,
+        &workspace.deploy_dir,
+        &workspace.root,
+    )
+    .expect("approve legacy workspace project builds");
+
+    assert_eq!(allow_builds, approvals(&[("lib@file:packages/lib", false)]));
+}
+
+#[test]
 fn approves_a_legacy_workspace_project_relative_to_the_lockfile_dir() {
     let workspace = Workspace::with_project("lib");
     let workspace_projects = [
@@ -143,6 +174,7 @@ fn approves_a_legacy_workspace_project_relative_to_the_lockfile_dir() {
     approve_legacy_workspace_project_builds(
         &mut allow_builds,
         &workspace_projects,
+        &workspace.root,
         &workspace.root,
     )
     .expect("approve legacy workspace project builds");

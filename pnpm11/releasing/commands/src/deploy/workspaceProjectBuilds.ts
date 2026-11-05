@@ -6,7 +6,8 @@
  *
  * Each approval is the exact dependency path of a discovered workspace
  * project's root directory. A `file:` dependency on any other directory stays
- * unapproved. A denial in `allowBuilds` wins over the approval.
+ * unapproved. A denial in `allowBuilds` wins over the approval, whether it
+ * names the project's deployed key or the key the source workspace gives it.
  */
 import path from 'node:path'
 
@@ -32,11 +33,13 @@ export function approveWorkspaceProjectBuilds (
   opts: {
     allProjects: DeployAllProjects
     deployDir: string
+    /** The lockfile dir of the source workspace. */
+    lockfileDir: string
     packageSnapshots: PackageSnapshots
   }
 ): AllowBuilds | undefined {
-  const projectDirs = projectRootDirs(opts.allProjects)
-  const approved = new Set<string>()
+  const projectsByDir = indexProjectsByRootDir(opts.allProjects)
+  const approved = new Map<string, ProjectBuildKey>()
   const rejected = new Set<string>()
   for (const depPath in opts.packageSnapshots) {
     const key = dp.getPkgIdWithPatchHash(depPath as DepPath)
@@ -44,16 +47,18 @@ export function approveWorkspaceProjectBuilds (
     const directory = resolution.type === 'directory' && typeof resolution.directory === 'string'
       ? path.resolve(opts.deployDir, resolution.directory)
       : undefined
-    const isProject = directory != null &&
-      projectDirs.has(directory) &&
+    const project = directory == null ? undefined : projectsByDir.get(directory)
+    if (
+      directory != null &&
+      project != null &&
       createFileUrlDepPath({ resolvedPath: directory }, opts.allProjects) === dp.removeSuffix(depPath)
-    if (isProject) {
-      approved.add(key)
+    ) {
+      approved.set(key, { key, sourceKeys: sourceProjectKeys(project, opts.lockfileDir) })
     } else {
       rejected.add(key)
     }
   }
-  return approve(allowBuilds, Array.from(approved).filter(key => !rejected.has(key)))
+  return approve(allowBuilds, Array.from(approved.values()).filter(({ key }) => !rejected.has(key)))
 }
 
 /**
@@ -67,19 +72,22 @@ export function approveLegacyWorkspaceProjectBuilds (
     lockfileDir: string
   }
 ): AllowBuilds | undefined {
-  const keys = new Set<string>()
-  for (const project of opts.allProjects) {
-    if (!project.manifest.name) continue
-    for (const rootDir of [project.rootDir, project.rootDirRealPath]) {
-      keys.add(`${project.manifest.name}@file:${normalizePath(path.relative(opts.lockfileDir, rootDir))}`)
-    }
-  }
-  return approve(allowBuilds, Array.from(keys))
+  const keys = opts.allProjects.flatMap(project => sourceProjectKeys(project, opts.lockfileDir))
+  return approve(allowBuilds, Array.from(new Set(keys), key => ({ key, sourceKeys: [] })))
 }
 
-function approve (allowBuilds: AllowBuilds | undefined, keys: string[]): AllowBuilds | undefined {
+/** A key to approve, and the source workspace keys of the same project, a denial of which also applies to it. */
+interface ProjectBuildKey {
+  key: string
+  sourceKeys: string[]
+}
+
+function approve (allowBuilds: AllowBuilds | undefined, keys: ProjectBuildKey[]): AllowBuilds | undefined {
   const sourcePolicy = createAllowBuildFunction({ allowBuilds })
-  const approvals = keys.filter(key => !isBuildExplicitlyDisallowed(key as DepPath, sourcePolicy))
+  const isDenied = (key: string) => isBuildExplicitlyDisallowed(key as DepPath, sourcePolicy)
+  const approvals = keys
+    .filter(({ key, sourceKeys }) => !isDenied(key) && !sourceKeys.some(isDenied))
+    .map(({ key }) => key)
   if (approvals.length === 0) return allowBuilds
   return {
     ...allowBuilds,
@@ -87,6 +95,16 @@ function approve (allowBuilds: AllowBuilds | undefined, keys: string[]): AllowBu
   }
 }
 
-function projectRootDirs (allProjects: DeployAllProjects): Set<string> {
-  return new Set(allProjects.flatMap(project => [project.rootDir, project.rootDirRealPath]))
+/** The keys an install in `lockfileDir` gives the project as an injected `file:` dependency. */
+function sourceProjectKeys (project: DeployAllProjects[number], lockfileDir: string): string[] {
+  if (!project.manifest.name) return []
+  return [project.rootDir, project.rootDirRealPath]
+    .map(rootDir => `${project.manifest.name}@file:${normalizePath(path.relative(lockfileDir, rootDir))}`)
+}
+
+function indexProjectsByRootDir (allProjects: DeployAllProjects): Map<string, DeployAllProjects[number]> {
+  return new Map(allProjects.flatMap(project => [
+    [project.rootDir as string, project],
+    [project.rootDirRealPath as string, project],
+  ]))
 }

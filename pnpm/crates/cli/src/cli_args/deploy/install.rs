@@ -304,13 +304,18 @@ impl DeployArgs {
         // This applies to every workspace package of the deploy install,
         // whatever the workspace sets; a legacy deploy saves no lockfile,
         // so the setting is not recorded anywhere.
-        if let DeployInstallMode::Legacy { workspace_projects } = &mode {
+        if let DeployInstallMode::Legacy {
+            workspace_projects,
+            source_lockfile_dir,
+        } = &mode
+        {
             deploy_config.inject_workspace_packages = true;
             let lockfile_dir = deploy_config.lockfile_dir_for(deploy_dir).to_path_buf();
             approve_legacy_workspace_project_builds(
                 &mut deploy_config.allow_builds,
                 workspace_projects,
                 &lockfile_dir,
+                source_lockfile_dir,
             )?;
         }
         apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);

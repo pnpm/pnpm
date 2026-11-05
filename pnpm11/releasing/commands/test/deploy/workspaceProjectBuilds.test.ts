@@ -93,7 +93,7 @@ test('approveWorkspaceProjectBuilds approves a workspace project by its dependen
     [`${fileKey(libDir)}(peer@1.0.0)` as DepPath]: directoryResolution(libDir),
   }
 
-  expect(approveWorkspaceProjectBuilds({ lib: true }, { allProjects, deployDir, packageSnapshots }))
+  expect(approveWorkspaceProjectBuilds({ lib: true }, { allProjects, deployDir, lockfileDir: workspaceDir, packageSnapshots }))
     .toStrictEqual({ lib: true, [fileKey(libDir)]: true })
 })
 
@@ -103,7 +103,7 @@ test('approveWorkspaceProjectBuilds does not approve a directory that is not a w
     [fileKey(vendoredDir)]: directoryResolution(vendoredDir),
   }
 
-  expect(approveWorkspaceProjectBuilds(undefined, { allProjects, deployDir, packageSnapshots })).toBeUndefined()
+  expect(approveWorkspaceProjectBuilds(undefined, { allProjects, deployDir, lockfileDir: workspaceDir, packageSnapshots })).toBeUndefined()
 })
 
 test('approveWorkspaceProjectBuilds does not approve a project key that one of its snapshots redirects', () => {
@@ -112,7 +112,7 @@ test('approveWorkspaceProjectBuilds does not approve a project key that one of i
     [`${fileKey(libDir)}(peer@1.0.0)` as DepPath]: directoryResolution(path.join(workspaceDir, 'vendor/lib')),
   }
 
-  expect(approveWorkspaceProjectBuilds(undefined, { allProjects, deployDir, packageSnapshots })).toBeUndefined()
+  expect(approveWorkspaceProjectBuilds(undefined, { allProjects, deployDir, lockfileDir: workspaceDir, packageSnapshots })).toBeUndefined()
 })
 
 test('approveWorkspaceProjectBuilds keeps a denial of a workspace project', () => {
@@ -120,8 +120,19 @@ test('approveWorkspaceProjectBuilds keeps a denial of a workspace project', () =
     [fileKey(libDir)]: directoryResolution(libDir),
   }
 
-  expect(approveWorkspaceProjectBuilds({ lib: false }, { allProjects, deployDir, packageSnapshots }))
+  expect(approveWorkspaceProjectBuilds({ lib: false }, { allProjects, deployDir, lockfileDir: workspaceDir, packageSnapshots }))
     .toStrictEqual({ lib: false })
+})
+
+test('approveWorkspaceProjectBuilds keeps a denial of the key the source workspace gives a project', () => {
+  const packageSnapshots: PackageSnapshots = {
+    [fileKey(libDir)]: directoryResolution(libDir),
+  }
+
+  expect(approveWorkspaceProjectBuilds(
+    { 'lib@file:lib': false },
+    { allProjects, deployDir, lockfileDir: workspaceDir, packageSnapshots }
+  )).toStrictEqual({ 'lib@file:lib': false })
 })
 
 test('approveLegacyWorkspaceProjectBuilds approves a workspace project relative to the lockfile dir', () => {
