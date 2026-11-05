@@ -91,22 +91,29 @@ fn load_hierarchies(
             peer_edges: config.peer_edge_options(),
         },
     );
-    build_dependencies_tree(
-        &state,
-        &env,
-        &graph,
-        project_dirs,
-        &BuildTreeOptions {
-            lockfile_dir,
-            depth: MaxDepth::Unlimited,
-            include,
-            exclude_peer_dependencies: false,
-            only_projects: false,
-            search: None,
-            show_deduped_search_matches: false,
-            modules_dir_opt: Some(config.modules_dir.as_path()),
-        },
-    )
+    let options = BuildTreeOptions {
+        lockfile_dir,
+        depth: MaxDepth::Unlimited,
+        include,
+        exclude_peer_dependencies: false,
+        only_projects: false,
+        search: None,
+        show_deduped_search_matches: false,
+        modules_dir_opt: Some(config.modules_dir.as_path()),
+    };
+    // One call per project: a call elides the subtrees an earlier project
+    // in the same call already listed, and each report needs them all.
+    let mut hierarchies = Vec::with_capacity(project_dirs.len());
+    for project_dir in project_dirs {
+        hierarchies.extend(build_dependencies_tree(
+            &state,
+            &env,
+            &graph,
+            std::slice::from_ref(project_dir),
+            &options,
+        )?);
+    }
+    Ok(hierarchies)
 }
 
 /// The tree walk expands a project's dependencies in alias order across

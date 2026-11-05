@@ -5,7 +5,7 @@ use super::{
     projects::ProjectDependencies,
     report::FundingReport,
 };
-use crate::cli_args::deps_tree::{DependencyNode, DependencyPackage};
+use crate::cli_args::deps_tree::{DependencyNode, DependencyPackage, DependencyStatus};
 use pnpm_network_web_auth::OpenUrl;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
@@ -297,6 +297,75 @@ fn open_package_funding_uses_the_newest_installed_version() {
     open_package_funding::<RecordingBrowser>("dup", None, root.path(), &projects)
         .expect("open dup");
     assert_eq!(opened_urls(), ["https://example.com/1.10.0"]);
+}
+
+#[test]
+fn open_package_funding_ignores_a_skipped_newer_version() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    let installed_version = installed(
+        root.path(),
+        &json!({ "name": "dup", "version": "1.0.0", "funding": "https://example.com/1.0.0" }),
+        Vec::new(),
+    );
+    let skipped_version = DependencyNode {
+        alias: "dup".to_string(),
+        package: DependencyPackage {
+            name: "dup".to_string(),
+            version: "2.0.0".to_string(),
+            path: root
+                .path()
+                .join("not-installed")
+                .to_string_lossy()
+                .into_owned(),
+            ..DependencyPackage::default()
+        },
+        status: DependencyStatus { is_skipped: true, ..DependencyStatus::default() },
+        ..DependencyNode::default()
+    };
+    let wrapper = installed(
+        root.path(),
+        &json!({ "name": "wrapper", "version": "1.0.0" }),
+        vec![skipped_version],
+    );
+    let projects =
+        [project(root.path(), json!({ "name": "root" }), vec![installed_version, wrapper])];
+
+    open_package_funding::<RecordingBrowser>("dup", None, root.path(), &projects)
+        .expect("open dup");
+    assert_eq!(opened_urls(), ["https://example.com/1.0.0"]);
+}
+
+#[test]
+fn linked_project_funding_is_read_from_any_project_manifest() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    let linked_dir = root.path().join("linked");
+    fs::create_dir_all(&linked_dir).expect("create linked project dir");
+    fs::write(
+        linked_dir.join("package.yaml"),
+        "name: linked\nversion: 1.0.0\nfunding: https://example.com/linked\n",
+    )
+    .expect("write package.yaml");
+    let linked = DependencyNode {
+        alias: "linked".to_string(),
+        package: DependencyPackage {
+            name: "linked".to_string(),
+            version: "link:linked".to_string(),
+            path: linked_dir.to_string_lossy().into_owned(),
+            ..DependencyPackage::default()
+        },
+        ..DependencyNode::default()
+    };
+    let projects = [project(root.path(), json!({ "name": "root" }), vec![linked])];
+
+    let report =
+        serde_json::to_value(FundingReport::build(&projects[0])).expect("serialize report");
+    assert_eq!(
+        report["dependencies"]["linked"],
+        json!({ "version": "1.0.0", "funding": { "url": "https://example.com/linked" } }),
+    );
+    open_package_funding::<RecordingBrowser>("linked", None, root.path(), &projects)
+        .expect("open linked");
+    assert_eq!(opened_urls(), ["https://example.com/linked"]);
 }
 
 #[test]

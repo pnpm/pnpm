@@ -75,7 +75,7 @@ fn is_directory_spec(spec: &str) -> bool {
 }
 
 fn visit_named(nodes: &[DependencyNode], name: &str, visit: &mut impl FnMut(InstalledPackage)) {
-    for node in nodes {
+    for node in nodes.iter().filter(|node| !node.status.is_skipped) {
         if node.package.name == name {
             visit(InstalledPackage::read(node));
         }

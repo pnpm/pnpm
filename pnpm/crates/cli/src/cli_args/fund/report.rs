@@ -6,7 +6,7 @@ use super::{
 };
 use crate::cli_args::deps_tree::DependencyNode;
 use indexmap::IndexMap;
-use pnpm_package_manifest::safe_read_package_json_from_dir;
+use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use serde::Serialize;
 use serde_json::Value;
 use std::{collections::HashSet, path::Path};
@@ -46,7 +46,7 @@ impl InstalledPackage {
     pub fn read(node: &DependencyNode) -> Self {
         // A package without a readable manifest has no funding to list.
         let manifest =
-            safe_read_package_json_from_dir(Path::new(&node.package.path)).ok().flatten();
+            safe_read_project_manifest_from_dir(Path::new(&node.package.path)).ok().flatten();
         let field = |key: &str| {
             manifest
                 .as_ref()

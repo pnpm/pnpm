@@ -254,3 +254,45 @@ fn fund_recursive_reads_dedicated_lockfiles() {
 
     drop(env);
 }
+
+#[test]
+fn fund_recursive_lists_shared_dependencies_in_every_project() {
+    let env = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &env.workspace;
+    let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap_or_default();
+    fs::write(workspace.join("pnpm-workspace.yaml"), format!("{yaml}packages:\n  - projects/*\n"))
+        .expect("write pnpm-workspace.yaml");
+    write_funded_packages(&workspace.join("libs"));
+    write_manifest(workspace, &json!({ "name": "root", "private": true }));
+    for name in ["first", "second"] {
+        write_manifest(
+            &workspace.join("projects").join(name),
+            &json!({ "name": name, "version": "1.0.0", "dependencies": { "a": "file:../../libs/a" } }),
+        );
+    }
+    run(pacquet_in(workspace), &["install"]);
+
+    let reports: Value = serde_json::from_str(&run(
+        pacquet_in(workspace),
+        &["--filter", "./projects/*", "fund", "--json"],
+    ))
+    .expect("parse fund JSON");
+    let funded_dependencies_of_a: Vec<&Value> = reports
+        .as_array()
+        .expect("a recursive report is an array")
+        .iter()
+        .map(|report| &report["dependencies"]["a"]["dependencies"])
+        .collect();
+    let expected = json!({
+        "b": {
+            "version": "2.0.0",
+            "funding": [
+                { "type": "github", "url": "https://github.com/sponsors/b" },
+                { "url": "https://example.com/b" },
+            ],
+        },
+    });
+    assert_eq!(funded_dependencies_of_a, [&expected, &expected]);
+
+    drop(env);
+}
