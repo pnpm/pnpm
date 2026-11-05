@@ -163,9 +163,11 @@ impl ThrottledClient {
         let mut current_url = url.to_string();
         let mut head_deadline = None;
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
-            let client =
-                self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
-                    .await;
+            // The first hop's permit wait is not the upstream's time. A later
+            // hop's is bounded by the deadline the first hop started.
+            let acquire =
+                self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED);
+            let client = within(head_deadline, acquire).await?;
             let deadline = head_timeout.map(|timeout| {
                 *head_deadline.get_or_insert_with(|| Instant::now() + timeout)
             });

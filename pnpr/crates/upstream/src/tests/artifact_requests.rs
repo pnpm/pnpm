@@ -207,6 +207,42 @@ async fn tarball_head_deadline_starts_after_waiting_for_a_permit() {
 }
 
 #[tokio::test]
+async fn a_redirect_hop_waiting_for_a_permit_is_bounded_by_the_head_deadline() {
+    let target = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let target_url = format!("http://{}/final", target.local_addr().unwrap());
+    let origin = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin_url = format!("http://{}", origin.local_addr().unwrap());
+    let redirect = format!(
+        "HTTP/1.1 302 Found\r\nLocation: {target_url}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    );
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = origin.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        socket.write_all(redirect.as_bytes()).await.unwrap();
+    });
+    let mut config = UpstreamConfig::with_defaults(origin_url.clone(), HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(300);
+    let mut upstream = Upstream::new("test", &config);
+    upstream.http.client = std::sync::Arc::new(
+        pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
+    );
+    let _held = upstream.http.client.acquire_for_url(&target_url).await;
+    let started = std::time::Instant::now();
+    let result = upstream.fetch_artifact_response(&origin_url).await;
+    assert!(
+        matches!(result, Err(pnpr_error::RegistryError::UpstreamTimeout { .. })),
+        "got {result:?}",
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "the redirect hop's permit wait was not bounded",
+    );
+    server.await.unwrap();
+    drop(target);
+}
+
+#[tokio::test]
 async fn a_stalled_error_body_is_bounded_by_the_timeout() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
