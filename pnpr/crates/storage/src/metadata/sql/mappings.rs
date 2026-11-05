@@ -164,34 +164,42 @@ impl SqlMetadata {
         (expected, unmappings): (Option<u64>, Vec<Unmapping>),
     ) -> Result<Option<Vec<BlobId>>> {
         let key = PackageKey { catalog: catalog.to_string(), ecosystem, name: name.to_string() };
-        let pairs: Vec<(String, Option<String>)> = unmappings
+        let (any, exact): (Vec<_>, Vec<_>) =
+            unmappings.into_iter().partition(|unmapping| unmapping.mapping.is_none());
+        let any: Vec<String> = any
+            .into_iter()
+            .map(|unmapping| unmapping.artifact)
+            .collect();
+        let exact: Vec<(String, Option<String>)> = exact
             .into_iter()
             .map(|unmapping| (unmapping.artifact, unmapping.mapping))
             .collect();
-        let scanned = json_array(&pairs);
+        let scanned = (json_array(&any), json_array(&exact));
         self.write(move |connection| unmap(connection, &key, &scanned, expected)).await
     }
 }
 
-/// The mappings of a package that `?4`, a JSON array of `[artifact,
-/// mapping]` with `mapping` null for any, names.
+/// The mappings of a package that `?4`, a JSON array of files whose current
+/// mapping goes, or `?5`, a JSON array of `[file, mapping]` that goes only
+/// while the file still has that mapping, names. Each list is read once
+/// into a lookup the package's rows are checked against.
 const SCANNED_MAPPINGS: &str = "catalog = ?1 AND ecosystem = ?2 AND name = ?3
-     AND EXISTS (SELECT 1 FROM json_each(?4)
-                 WHERE json_extract(value, '$[0]') = artifact_blobs.artifact
-                   AND (json_extract(value, '$[1]') IS NULL
-                        OR json_extract(value, '$[1]') = artifact_blobs.mapping))";
+     AND (artifact IN (SELECT value FROM json_each(?4))
+          OR (artifact, mapping) IN (
+              SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')
+              FROM json_each(?5)))";
 
 /// Drop the mappings `scanned` names while `key` is still at `expected`.
 fn unmap(
     connection: &dyn Connection,
     key: &PackageKey,
-    scanned: &str,
+    (any, exact): &(String, String),
     expected: Option<u64>,
 ) -> Result<Option<Vec<BlobId>>> {
     let (catalog, ecosystem, name) = key.params();
     let transaction = WriteTransaction::begin(connection)?;
     let select = format!("SELECT DISTINCT integrity FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
-    let mapped = Query::new(&select, params![catalog, ecosystem, name, scanned]);
+    let mapped = Query::new(&select, params![catalog, ecosystem, name, any, exact]);
     let mut results = transaction
         .query_all(&[package_row_query(key), mapped])?
         .into_iter();
@@ -202,7 +210,7 @@ fn unmap(
     }
     let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
     let delete = format!("DELETE FROM artifact_blobs WHERE {SCANNED_MAPPINGS}");
-    transaction.execute(&delete, params![catalog, ecosystem, name, scanned])?;
+    transaction.execute(&delete, params![catalog, ecosystem, name, any, exact])?;
     transaction.commit()?;
     Ok(Some(ids))
 }

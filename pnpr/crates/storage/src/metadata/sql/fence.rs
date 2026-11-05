@@ -215,7 +215,9 @@ fn write_live(
     )
 }
 
-/// Map `artifact`'s file to its blob, unless the file is mapped already.
+/// Map `artifact`'s file to its blob, unless the file is mapped to other
+/// bytes already. A file mapped to these bytes again gets a fresh mapping,
+/// so a collection that scanned the earlier one leaves it.
 fn write_mapping(
     transaction: &dyn Connection,
     catalog: &str,
@@ -225,7 +227,9 @@ fn write_mapping(
         "INSERT INTO artifact_blobs
              (catalog, ecosystem, name, artifact, version, integrity, mapped_at, mapping)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, {NOW}, ?7)
-         ON CONFLICT DO NOTHING",
+         ON CONFLICT (catalog, ecosystem, name, artifact) DO UPDATE
+         SET mapped_at = excluded.mapped_at, mapping = excluded.mapping
+         WHERE artifact_blobs.integrity = excluded.integrity",
     );
     transaction.execute(
         &sql,

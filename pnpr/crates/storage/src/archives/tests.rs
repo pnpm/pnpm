@@ -198,3 +198,37 @@ async fn a_stale_collector_leaves_a_mapping_made_since_its_scan() {
     assert_eq!(stale.as_deref(), Some(&[][..]));
     assert_eq!(served(&storage, &name, "a-1.0.0.tgz").await.as_deref(), Some(&b"bytes"[..]));
 }
+
+/// Uploading bytes a file is already mapped to maps it afresh: a collector
+/// that scanned the mapping before the upload leaves the file mapped.
+#[tokio::test]
+async fn a_reupload_of_mapped_bytes_outlives_a_stale_collector() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("a");
+    store_file(&storage, &name, "a-1.0.0.tgz", b"bytes").await;
+    let (expected, scanned) = storage.package_mappings(&name).await.unwrap();
+
+    store_file(&storage, &name, "a-1.0.0.tgz", b"bytes").await;
+    let (_, remapped) = storage.package_mappings(&name).await.unwrap();
+    assert_ne!(remapped[0].mapping, scanned[0].mapping);
+
+    let stale = storage.unmap_hosted_artifacts(&name, expected, scanned).await.unwrap();
+    assert_eq!(stale.as_deref(), Some(&[][..]));
+    assert_eq!(served(&storage, &name, "a-1.0.0.tgz").await.as_deref(), Some(&b"bytes"[..]));
+}
+
+/// A file mapped to other bytes keeps that mapping when other bytes are
+/// mapped to it: the first mapping stands.
+#[tokio::test]
+async fn mapping_other_bytes_to_a_mapped_file_keeps_the_first() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("a");
+    store_file(&storage, &name, "a-1.0.0.tgz", b"first").await;
+    let (_, before) = storage.package_mappings(&name).await.unwrap();
+    store_file(&storage, &name, "a-1.0.0.tgz", b"second").await;
+    let (_, after) = storage.package_mappings(&name).await.unwrap();
+    assert_eq!(after[0].mapping, before[0].mapping);
+    assert_eq!(served(&storage, &name, "a-1.0.0.tgz").await.as_deref(), Some(&b"first"[..]));
+}
