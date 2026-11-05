@@ -812,6 +812,7 @@ fn assert_workspace_lockfile_untouched(workspace: &Path, before: &str) {
 /// The `allowBuilds` key a shared-lockfile deploy writes for the workspace
 /// project in `packages/<dirname>`.
 fn workspace_project_key(workspace: &Path, dirname: &str) -> String {
+    let workspace = dunce::canonicalize(workspace).unwrap();
     let url = url::Url::from_file_path(workspace.join("packages").join(dirname)).unwrap();
     format!("{dirname}@{url}")
 }
