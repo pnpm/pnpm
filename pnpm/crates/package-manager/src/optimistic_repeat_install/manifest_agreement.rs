@@ -380,8 +380,9 @@ fn linked_dep_is_up_to_date(
         // A linkable dir exists, but nothing requests linking it.
         return true;
     }
-    let local_package_satisfies_range =
-        workspace_version_satisfies(ctx.linked_version(&linked_dir), available_range);
+    let local_package_satisfies_range = ctx
+        .linked_version(&linked_dir)
+        .is_some_and(|version| workspace_version_satisfies(version, available_range));
     is_linked == local_package_satisfies_range
 }
 
@@ -427,8 +428,8 @@ pub(crate) fn spec_is_distribution_tag(spec: &str) -> bool {
 }
 
 /// Whether the resolver picks a workspace project at `version` for `range`.
-/// A project without a version matches only the pick-the-highest tokens.
-fn workspace_version_satisfies(version: Option<String>, range: &str) -> bool {
-    let versions = [version.unwrap_or_default()];
-    pnpm_workspace_range_resolver::resolve_workspace_range(range, &versions).is_some()
+/// A project without a version, passed as the empty string, matches only the
+/// pick-the-highest tokens.
+fn workspace_version_satisfies(version: String, range: &str) -> bool {
+    pnpm_workspace_range_resolver::resolve_workspace_range(range, &[version]).is_some()
 }

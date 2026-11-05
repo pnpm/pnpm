@@ -271,7 +271,7 @@ async function checkLinkedPackageVersion (
   { isLinked, linkedDir, availableRange }: { isLinked: boolean, linkedDir: string, availableRange: string }
 ): Promise<CheckLinkedPackagesResult> {
   const linkedPkg = ctx.manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
-  const localPackageSatisfiesRange = versionSatisfies(linkedPkg?.version, availableRange)
+  const localPackageSatisfiesRange = linkedPkg != null && versionSatisfies(linkedPkg.version, availableRange)
   if (isLinked === localPackageSatisfiesRange) return UP_TO_DATE
   return outdated(isLinked
     ? `Linked workspace package "${depName}" (${linkedPkg?.version ?? 'unknown'}) does not satisfy range "${currentSpec}"`

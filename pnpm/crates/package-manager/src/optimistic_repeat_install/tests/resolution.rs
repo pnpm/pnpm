@@ -299,3 +299,38 @@ importers:
         lockfile.root_project().unwrap(),
     ));
 }
+#[test]
+fn a_link_to_a_directory_without_a_manifest_is_not_up_to_date() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::create_dir_all(workspace_root.join("pkg-a")).unwrap();
+    fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"pkg-a":"workspace:*"}}"#,
+    )
+    .unwrap();
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      pkg-a:
+        specifier: workspace:*
+        version: link:pkg-a
+",
+    )
+    .unwrap();
+    let config = Config::new();
+    let project_manifests = [(workspace_root.to_path_buf(), &root_manifest)];
+    let context = LinkedPackagesContext::new(&config, &project_manifests);
+
+    assert!(!linked_packages_are_up_to_date(
+        &context,
+        workspace_root,
+        &root_manifest,
+        lockfile.root_project().unwrap(),
+    ));
+}
