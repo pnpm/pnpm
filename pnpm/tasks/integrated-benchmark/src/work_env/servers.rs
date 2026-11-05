@@ -37,6 +37,16 @@ impl WorkEnv {
         }
     }
 }
+/// The metadata database a revision's mock reads, in its bench dir. The
+/// fixture build's database carries this checkout's metadata schema, which
+/// the `pnpr` of another revision may refuse, so every revision's mock gets a
+/// database of its own and serves what it proxies from the shared cache.
+const REVISION_MOCK_METADATA: &str = "revision-mock-metadata.sqlite";
+
+/// The metadata database of a cold mock's warm origin, apart from the warm
+/// mock's so the two processes never share one `SQLite` file.
+const COLD_ORIGIN_METADATA: &str = "cold-origin-metadata.sqlite";
+
 impl WorkEnv {
     /// Spawn the tarball-serving mock for every planned revision (see
     /// [`Self::plan_revision_mocks`]), each running that revision's `pnpr`
@@ -98,7 +108,7 @@ impl WorkEnv {
         public_url: &str,
     ) -> (Command, Option<Box<PnprServer>>) {
         if self.options.selection.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache) {
-            let (origin_url, origin) = self.start_cold_revision_mock_origin(binary);
+            let (origin_url, origin) = self.start_cold_revision_mock_origin(binary, bench_dir);
             let cmd = cold_revision_mock_command(
                 revision,
                 binary,
@@ -112,17 +122,25 @@ impl WorkEnv {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            (
-                pnpm_registry_mock::pnpr_command_with_binary(binary, mock_port, Some(public_url)),
-                None,
-            )
+            let metadata = bench_dir.join(REVISION_MOCK_METADATA);
+            let command = pnpm_registry_mock::pnpr_command_with_metadata(
+                binary,
+                mock_port,
+                Some(public_url),
+                Some(&metadata),
+            );
+            (command, None)
         }
     }
     /// Spawn a warm origin from the same revision's `pnpr` binary over the
     /// shared runtime storage, fronted by the client↔registry latency and
     /// bandwidth profile so the cold mock fetches packuments and tarballs from
     /// an origin that speaks its own revision's URL format.
-    fn start_cold_revision_mock_origin(&self, binary: &Path) -> (String, PnprServer) {
+    fn start_cold_revision_mock_origin(
+        &self,
+        binary: &Path,
+        bench_dir: &Path,
+    ) -> (String, PnprServer) {
         let origin_port = pick_unused_port().expect("pick a port for the cold mock warm origin");
         let rate_limit = mbps_to_bytes_per_sec(self.options.network.registry_bandwidth_mbps);
         let latency_proxy = (self.options.network.registry_latency_ms > 0 || rate_limit.is_some())
@@ -139,10 +157,12 @@ impl WorkEnv {
         let public_origin = latency_proxy
             .as_ref()
             .map(|proxy| format!("http://{}", proxy.addr));
-        let mut command = pnpm_registry_mock::pnpr_command_with_binary(
+        let metadata = bench_dir.join(COLD_ORIGIN_METADATA);
+        let mut command = pnpm_registry_mock::pnpr_command_with_metadata(
             binary,
             origin_port,
             public_origin.as_deref(),
+            Some(&metadata),
         );
         self.apply_serve_timing(&mut command);
         let process = command

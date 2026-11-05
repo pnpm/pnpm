@@ -17,7 +17,7 @@ use futures_util::TryStreamExt as _;
 use liveness::{Live, archive_version};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{HostedBlobFile, Storage, metadata::ReclaimTarget};
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 /// What `pnpr gc` collects, and how.
 #[derive(Debug, Default, Clone)]
@@ -147,12 +147,12 @@ impl Collection<'_> {
     /// package does not reference.
     ///
     /// The listing yields a package's files together, so each package is
-    /// collected once its files are all listed. One listed again later is
-    /// collected again, which finds what the first pass left. A package
-    /// whose metadata cannot be read keeps every archive, and the others are
-    /// still collected; the first such error is returned.
+    /// checked once its files are all listed. One listed again later is
+    /// checked again, which finds what the first pass left. A package whose
+    /// metadata cannot be read keeps every archive, and the others are still
+    /// collected; the first such error is returned.
     pub(crate) async fn collect(&self, min_age: Duration, dry_run: bool) -> Result<GcReport> {
-        let mut tally = Tally::default();
+        let mut tally = Tally::new(dry_run);
         let mut files = self.storage.hosted_blob_files();
         let mut package: Option<(String, Vec<HostedBlobFile>)> = None;
         while let Some(file) = files.try_next().await? {
@@ -166,35 +166,39 @@ impl Collection<'_> {
                 continue;
             }
             if let Some((name, listed)) = package.replace((file.package.clone(), vec![file])) {
-                tally.add(&name, self.collect_package(&name, listed, dry_run).await);
+                self.check_package(&mut tally, &name, listed).await;
             }
         }
         if let Some((name, listed)) = package {
-            tally.add(&name, self.collect_package(&name, listed, dry_run).await);
+            self.check_package(&mut tally, &name, listed).await;
         }
+        self.flush(&mut tally).await;
         tally.finish()
     }
 
-    async fn collect_package(
-        &self,
-        package: &str,
-        listed: Vec<HostedBlobFile>,
-        dry_run: bool,
-    ) -> Result<GcReport> {
-        let Ok(name) = CanonicalPackageName::parse(package, self.ecosystem) else {
-            return Ok(GcReport::default());
-        };
-        let (expected, live) = self.read_live(&name).await?;
-        let unreferenced: Vec<(String, u64)> = listed
-            .into_iter()
-            .filter_map(|file| Some((file.blob?, file.size)))
-            .filter(|(blob, _)| live.is_unreferenced(&name, blob))
-            .collect();
-        self.reclaim_files(&name, expected, unreferenced, dry_run).await
+    /// Add the archives of `package` among `listed` that it does not
+    /// reference to `tally`, reclaiming a batch once it is full.
+    async fn check_package(&self, tally: &mut Tally, package: &str, listed: Vec<HostedBlobFile>) {
+        let Ok(name) = CanonicalPackageName::parse(package, self.ecosystem) else { return };
+        match self.read_live(&name).await {
+            Ok((expected, live)) => {
+                let unreferenced = listed
+                    .into_iter()
+                    .filter_map(|file| Some((file.blob?, file.size)))
+                    .filter(|(blob, _)| live.is_unreferenced(&name, blob))
+                    .collect();
+                tally.plan(self.ecosystem, &name, expected, unreferenced);
+            }
+            Err(error) => tally.fail(package, error),
+        }
+        if tally.targets.len() >= RECLAIM_BATCH {
+            self.flush(tally).await;
+        }
     }
 
     /// Reclaim the archives of each `<name>@<version>` of `specs`, whatever
-    /// their age. A version the package still holds is refused.
+    /// their age. Every spec is checked before any archive goes: a version
+    /// the package still holds, or one with no archive stored, is refused.
     pub(crate) async fn collect_versions(
         &self,
         specs: &[String],
@@ -207,38 +211,47 @@ impl Collection<'_> {
                     .to_string(),
             });
         }
-        let mut report = GcReport::default();
+        let mut tally = Tally::new(dry_run);
         for spec in specs {
-            let (raw, version) = parse_version_spec(spec)?;
-            let name = CanonicalPackageName::parse(raw, self.ecosystem)?;
-            let files: Vec<String> = self.storage
-                .hosted_package_blobs(&name)
-                .await?
-                .into_iter()
-                .filter(|blob| archive_version(&name, blob).as_deref() == Some(version))
-                .collect();
-            let (expected, live) = self.read_live(&name).await?;
-            if files
-                .iter()
-                .any(|blob| !live.is_unreferenced(&name, blob))
-            {
-                return Err(RegistryError::BadRequest {
-                    reason: format!(
-                        "{spec} is a live version; unpublish it rather than removing its archives",
-                    ),
-                });
-            }
-            if files.is_empty() {
-                tracing::info!(%spec, "no archive of this version is stored");
-                continue;
-            }
-            let files = files
-                .into_iter()
-                .map(|blob| (blob, 0))
-                .collect();
-            report.add(self.reclaim_files(&name, expected, files, dry_run).await?);
+            let (name, expected, files) = self.named_version(spec).await?;
+            tally.plan(self.ecosystem, &name, expected, files);
         }
-        Ok(report)
+        self.flush(&mut tally).await;
+        tally.finish()
+    }
+
+    /// The archives of the version `spec` names, with the package generation
+    /// they were found unreferenced at.
+    async fn named_version(
+        &self,
+        spec: &str,
+    ) -> Result<(CanonicalPackageName, Option<u64>, Vec<(String, u64)>)> {
+        let (raw, version) = parse_version_spec(spec)?;
+        let name = CanonicalPackageName::parse(raw, self.ecosystem)?;
+        let files: Vec<(String, u64)> = self.storage
+            .hosted_package_blobs(&name)
+            .await?
+            .into_iter()
+            .filter(|blob| archive_version(&name, blob).as_deref() == Some(version))
+            .map(|blob| (blob, 0))
+            .collect();
+        if files.is_empty() {
+            return Err(RegistryError::BadRequest {
+                reason: format!("no archive of {spec} is stored"),
+            });
+        }
+        let (expected, live) = self.read_live(&name).await?;
+        if files
+            .iter()
+            .any(|(blob, _)| !live.is_unreferenced(&name, blob))
+        {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "{spec} is a live version; unpublish it rather than removing its archives",
+                ),
+            });
+        }
+        Ok((name, expected, files))
     }
 
     /// What `name`'s metadata keeps alive, with the package generation it
@@ -250,68 +263,93 @@ impl Collection<'_> {
         Ok((base.package_generation(), live))
     }
 
-    async fn reclaim_files(
-        &self,
-        name: &CanonicalPackageName,
-        expected: Option<u64>,
-        files: Vec<(String, u64)>,
-        dry_run: bool,
-    ) -> Result<GcReport> {
-        if files.is_empty() {
-            return Ok(GcReport::default());
+    /// Reclaim the archives `tally` planned, in one reclaim: one transaction
+    /// marks them and one records them gone, however many packages they
+    /// belong to.
+    async fn flush(&self, tally: &mut Tally) {
+        let targets = std::mem::take(&mut tally.targets);
+        let sizes = std::mem::take(&mut tally.sizes);
+        if targets.is_empty() {
+            return;
         }
-        if dry_run {
-            for (artifact, size) in &files {
-                tracing::info!(package = name.as_str(), %artifact, size, "unreferenced archive");
+        match reclaim::reclaim(self.storage, self.catalog, targets).await {
+            Ok(removed) => {
+                for archive in removed {
+                    let size = sizes
+                        .get(&(archive.name.clone(), archive.artifact.clone()))
+                        .copied()
+                        .unwrap_or_default();
+                    tracing::info!(
+                        package = %archive.name,
+                        artifact = %archive.artifact,
+                        size,
+                        "removed an unreferenced archive",
+                    );
+                    tally.report.add(GcReport { archives: 1, bytes: size });
+                }
             }
-            let bytes = files.iter().map(|(_, size)| size).sum();
-            return Ok(GcReport { archives: files.len(), bytes });
+            Err(error) => tally.fail(self.catalog, error),
         }
-        let target = ReclaimTarget {
-            ecosystem: self.ecosystem,
-            name: name.as_str().to_string(),
-            expected,
-            artifacts: files
-                .iter()
-                .map(|(artifact, _)| artifact.clone())
-                .collect(),
-        };
-        let removed = reclaim::reclaim(self.storage, self.catalog, vec![target]).await?;
-        let mut report = GcReport::default();
-        for archive in removed {
-            let size = files
-                .iter()
-                .find(|(artifact, _)| *artifact == archive.artifact)
-                .map_or(0, |(_, size)| *size);
-            tracing::info!(
-                package = name.as_str(),
-                artifact = %archive.artifact,
-                size,
-                "removed an unreferenced archive",
-            );
-            report.archives += 1;
-            report.bytes += size;
-        }
-        Ok(report)
     }
 }
 
-/// What a sweep removed so far, and the first package it could not collect.
-#[derive(Default)]
+/// Packages whose unreferenced archives one reclaim marks and records
+/// together.
+const RECLAIM_BATCH: usize = 64;
+
+/// What a collection removed or planned so far, and the first failure.
 struct Tally {
+    dry_run: bool,
     report: GcReport,
+    /// The reclaims of the batch not yet run.
+    targets: Vec<ReclaimTarget>,
+    /// The size of each planned archive, by package and file name.
+    sizes: HashMap<(String, String), u64>,
     failure: Option<RegistryError>,
 }
 
 impl Tally {
-    fn add(&mut self, package: &str, collected: Result<GcReport>) {
-        match collected {
-            Ok(collected) => self.report.add(collected),
-            Err(error) => {
-                tracing::warn!(%package, %error, "archives not collected");
-                self.failure.get_or_insert(error);
-            }
+    fn new(dry_run: bool) -> Self {
+        Self {
+            dry_run,
+            report: GcReport::default(),
+            targets: Vec::new(),
+            sizes: HashMap::new(),
+            failure: None,
         }
+    }
+
+    /// Plan reclaiming `files` of `name`, found unreferenced at `expected`;
+    /// a dry run only reports them.
+    fn plan(
+        &mut self,
+        ecosystem: Ecosystem,
+        name: &CanonicalPackageName,
+        expected: Option<u64>,
+        files: Vec<(String, u64)>,
+    ) {
+        if files.is_empty() {
+            return;
+        }
+        if self.dry_run {
+            for (artifact, size) in files {
+                tracing::info!(package = name.as_str(), %artifact, size, "unreferenced archive");
+                self.report.add(GcReport { archives: 1, bytes: size });
+            }
+            return;
+        }
+        let mut artifacts = Vec::with_capacity(files.len());
+        for (artifact, size) in files {
+            self.sizes.insert((name.as_str().to_string(), artifact.clone()), size);
+            artifacts.push(artifact);
+        }
+        let name = name.as_str().to_string();
+        self.targets.push(ReclaimTarget { ecosystem, name, expected, artifacts });
+    }
+
+    fn fail(&mut self, scope: &str, error: RegistryError) {
+        tracing::warn!(%scope, %error, "archives not collected");
+        self.failure.get_or_insert(error);
     }
 
     fn finish(self) -> Result<GcReport> {

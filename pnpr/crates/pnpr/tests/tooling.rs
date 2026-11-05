@@ -319,6 +319,15 @@ async fn gc_removes_a_named_orphan_and_refuses_a_live_version() {
     assert!(err.to_string().contains("live version"), "{err}");
     assert!(blob("demo-1.0.0.tgz").exists());
 
+    // Every named version is checked before any archive goes.
+    let mut both = named("2.0.0");
+    both.versions.push(format!("{pkg}@1.0.0"));
+    let err = collect_archives(&config, &both).await.unwrap_err();
+    assert!(err.to_string().contains("live version"), "{err}");
+    assert!(blob("demo-2.0.0.tgz").exists());
+    let err = collect_archives(&config, &named("3.0.0")).await.unwrap_err();
+    assert!(err.to_string().contains("no archive of"), "{err}");
+
     let removed = collect_archives(&config, &named("2.0.0")).await.unwrap();
     assert_eq!(removed.archives, 3);
     for file in ["demo-2.0.0.tgz", "demo-2.0.0.sigstore", "demo-2.0.0~linux-x64.tgz"] {

@@ -27,9 +27,8 @@ pub(super) async fn promote_fenced(
         .unwrap_or_default();
     let references = referenced_archives(staged);
     let mut promoted = promote_archives(state, staged).await?;
-    let mut archives = promoted.depended.clone();
-    archives.extend(references);
-    promoted.fence = ArchiveFence { token, archives };
+    promoted.fence.token = token;
+    promoted.fence.archives.extend(references);
     Ok(promoted)
 }
 
@@ -56,24 +55,47 @@ pub(super) struct Promoted {
     /// The archives of other ecosystems than npm, whose publication members
     /// the metadata cannot derive.
     pub(super) artifacts: Vec<ArtifactMember>,
-    /// Every archive promoted, written or found in place, which the commit
-    /// depends on.
-    depended: Vec<ArchiveRef>,
-    /// What the commit checks: the promoted archives and the ones the staged
-    /// documents reference.
+    /// What the commit checks: every archive promoted, written or found in
+    /// place, and the ones the staged documents reference.
     pub(super) fence: ArchiveFence,
     /// The archives this publish created.
     written: Vec<(String, pnpr_registry::Ecosystem, CanonicalPackageName, String)>,
 }
 
 impl Promoted {
+    /// Clean up after the commit was refused with `err`: finish a reclaim
+    /// that marked an archive the commit depends on and stopped before it
+    /// finished, so a retry writes the archive afresh instead of meeting the
+    /// same mark until `pnpr gc` runs, and reclaim what this publish wrote.
+    pub(super) async fn clean_up(&self, state: &AppState, catalog: &str, err: &RegistryError) {
+        if matches!(err, RegistryError::ArchiveReclaimed { .. })
+            && let Err(err) = self.finish_pending(state, catalog).await
+        {
+            tracing::warn!(%err, "a pending archive reclaim was not finished");
+        }
+        self.remove_written(state).await;
+    }
+
+    async fn finish_pending(&self, state: &AppState, catalog: &str) -> Result<(), RegistryError> {
+        let storage = &state.inner.storage;
+        let pending: Vec<ArchiveRef> = storage
+            .sql_metadata()
+            .pending_reclaims(catalog)
+            .await?
+            .into_iter()
+            .filter(|archive| self.fence.archives.contains(archive))
+            .collect();
+        crate::archive_gc::reclaim::finish(storage, catalog, pending).await?;
+        Ok(())
+    }
+
     /// Reclaim the archives this publish created, after its commit was
     /// refused, so no archive outlives the metadata that would have
     /// referenced it. Another replica may have found one of them in place
     /// with the same bytes and committed it: the reclaim leaves what the
     /// package references, and is fenced against a commit still on its way.
     /// What it cannot remove is left for `pnpr gc`.
-    pub(super) async fn remove_written(&self, state: &AppState) {
+    async fn remove_written(&self, state: &AppState) {
         let mut packages: Vec<(&str, &CanonicalPackageName, Vec<String>)> = Vec::new();
         for (org, _, name, filename) in &self.written {
             match packages
@@ -135,11 +157,11 @@ async fn promote_archives(
         let storage = state.inner.storage.for_hosted(&org, ecosystem);
         match promote_one(&storage, &name, slot).await {
             Ok(BlobFinalize::Written) => {
-                promoted.depended.push(archive_ref(ecosystem, &name, &filename));
+                promoted.fence.archives.push(archive_ref(ecosystem, &name, &filename));
                 promoted.written.push((org, ecosystem, name.clone(), filename.clone()));
             }
             Ok(BlobFinalize::AlreadyIdentical) => {
-                promoted.depended.push(archive_ref(ecosystem, &name, &filename));
+                promoted.fence.archives.push(archive_ref(ecosystem, &name, &filename));
             }
             outcome @ (Ok(BlobFinalize::Conflict) | Err(_)) => {
                 let _ = tokio::fs::remove_file(&tmp_path).await;

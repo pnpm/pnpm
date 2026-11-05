@@ -275,11 +275,24 @@ impl Storage {
         let Ok(record) = serde_json::from_slice::<StagedArchiveRecord>(&stored) else {
             return Ok(());
         };
+        self.retire_record(&namespace, &record_key, &stored, record).await
+    }
+
+    /// Rewrite `record`, stored as `stored`, as long expired and incomplete,
+    /// so it stops counting and the sweep collects it, unless a writer
+    /// changed it since it was read.
+    async fn retire_record(
+        &self,
+        namespace: &str,
+        record_key: &str,
+        stored: &[u8],
+        record: StagedArchiveRecord,
+    ) -> Result<()> {
         let retired = StagedArchiveRecord { staged_at: 0, complete: false, ..record };
         self.root.replace_record_if_current(
-            &namespace,
-            &record_key,
-            &stored,
+            namespace,
+            record_key,
+            stored,
             &serde_json::to_vec(&retired)?,
         )
         .await?;
@@ -306,14 +319,7 @@ impl Storage {
         }
         let archive = self.root.read_record(&namespace, &key.archive()?).await?;
         if archive.is_none() {
-            let retired = StagedArchiveRecord { staged_at: 0, complete: false, ..record };
-            self.root.replace_record_if_current(
-                &namespace,
-                &record_key,
-                &stored,
-                &serde_json::to_vec(&retired)?,
-            )
-            .await?;
+            self.retire_record(&namespace, &record_key, &stored, record).await?;
         }
         Ok(archive)
     }
