@@ -82,8 +82,10 @@ fn dealiased(modules: &CrateModules) -> (Vec<Vec<String>>, Vec<Vec<String>>) {
     for module in modules.surfaces() {
         let aliases = module_aliases(module, root_aliases);
         exposed.extend(module.exposed.iter().map(|path| surface::dealias(path, &aliases)));
+        exposed.extend(module.resolved.exposed.iter().cloned());
         let reexports = module.reexported.iter();
         reexported.extend(reexports.map(|reexport| surface::dealias(&reexport.segments, &aliases)));
+        reexported.extend(module.resolved.reexported.iter().cloned());
     }
     (exposed, reexported)
 }

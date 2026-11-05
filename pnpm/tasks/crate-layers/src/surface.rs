@@ -19,6 +19,43 @@ pub struct Surface {
     /// `extern crate name as alias;` items. An alias binds in its own module,
     /// and in the whole crate when the crate root declares it.
     pub crate_aliases: Vec<UsePath>,
+    /// Exposed and re-exported paths whose first segment an inline module's
+    /// own `extern crate` alias already replaced. No outer alias applies to
+    /// them.
+    pub resolved: Resolved,
+}
+
+impl Surface {
+    /// Moves the paths that an inline module's own `extern crate` aliases
+    /// bind into `resolved`, with each alias replaced, and drops the aliases.
+    /// The other paths stay for the enclosing scopes' aliases.
+    fn resolve_own_aliases(&mut self) {
+        let owned = std::mem::take(&mut self.crate_aliases);
+        let aliases = owned.iter().collect::<Vec<_>>();
+        let binds = |path: &[String]| {
+            aliases
+                .iter()
+                .any(|alias| alias.binding.as_ref() == path.first())
+        };
+        let (aliased, plain) = std::mem::take(&mut self.exposed)
+            .into_iter()
+            .partition::<Vec<_>, _>(|path| binds(path));
+        self.exposed = plain;
+        let resolved = aliased.iter().map(|path| dealias(path, &aliases));
+        self.resolved.exposed.extend(resolved);
+        let (aliased, plain) = std::mem::take(&mut self.reexported)
+            .into_iter()
+            .partition::<Vec<_>, _>(|reexport| binds(&reexport.segments));
+        self.reexported = plain;
+        let resolved = aliased.iter().map(|reexport| dealias(&reexport.segments, &aliases));
+        self.resolved.reexported.extend(resolved);
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Resolved {
+    pub exposed: Vec<Vec<String>>,
+    pub reexported: Vec<Vec<String>>,
 }
 
 /// The surface of one file. Test-only items, including their imports, are
@@ -53,7 +90,8 @@ struct Scope<'tokens> {
     tokens: &'tokens [Token],
     surface: Surface,
     imports: Vec<UsePath>,
-    /// The surfaces of inline modules, already expanded and dealiased.
+    /// The surfaces of inline modules, already expanded through their own
+    /// imports and aliases.
     nested: Vec<Surface>,
     /// The depth of `{` blocks: a `use` inside a function body or another
     /// block is not one of the scope's imports.
@@ -98,16 +136,7 @@ impl Scope<'_> {
             .get(pos + 3..end.saturating_sub(1))
             .unwrap_or_default();
         let mut inner = scan(body);
-        let aliases = inner.crate_aliases
-            .drain(..)
-            .collect::<Vec<_>>();
-        let aliases = aliases.iter().collect::<Vec<_>>();
-        for path in &mut inner.exposed {
-            *path = dealias(path, &aliases);
-        }
-        for reexport in &mut inner.reexported {
-            reexport.segments = dealias(&reexport.segments, &aliases);
-        }
+        inner.resolve_own_aliases();
         self.nested.push(inner);
         Some(end)
     }
@@ -136,6 +165,8 @@ impl Scope<'_> {
         for inner in self.nested {
             self.surface.exposed.extend(inner.exposed);
             self.surface.reexported.extend(inner.reexported);
+            self.surface.resolved.exposed.extend(inner.resolved.exposed);
+            self.surface.resolved.reexported.extend(inner.resolved.reexported);
         }
         self.surface
     }

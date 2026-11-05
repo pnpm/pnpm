@@ -16,6 +16,7 @@ fn exposed(source: &str) -> Vec<String> {
     dbg!(&surface);
     surface.exposed
         .into_iter()
+        .chain(surface.resolved.exposed)
         .filter(|path| path[0] == "dep")
         .map(|path| path.join("::"))
         .collect()
@@ -221,12 +222,22 @@ fn workspace() -> (CrateGraph, BTreeMap<String, CrateModules>) {
 #[test]
 fn a_module_sees_its_own_extern_crate_aliases_before_the_roots() {
     let tree = MemoryTree(BTreeMap::from([
-        ("api/src/lib.rs", "extern crate base as renamed;\nmod child;\nmod plain;\n"),
+        (
+            "api/src/lib.rs",
+            "extern crate base as renamed;\nextern crate base as other;\nmod child;\nmod plain;\n",
+        ),
         (
             "api/src/child.rs",
             "extern crate other as renamed;\npub fn shadowed(_: renamed::Item) {}\n",
         ),
-        ("api/src/plain.rs", "pub fn rooted(_: renamed::RootItem) {}\n"),
+        (
+            "api/src/plain.rs",
+            concat!(
+                "pub fn rooted(_: renamed::RootItem) {}\n",
+                "mod inline { extern crate other as renamed; pub fn once(_: renamed::Once) {} }\n",
+                "mod uses_root { pub fn inherited(_: renamed::Inherited) {} }\n",
+            ),
+        ),
     ]));
     let edge =
         |to: &str| Edge { from: "api".to_owned(), to: to.to_owned(), kind: DependencyKind::Normal };
@@ -245,7 +256,7 @@ fn a_module_sees_its_own_extern_crate_aliases_before_the_roots() {
         .iter()
         .flat_map(|leak| leak.items.iter().cloned())
         .collect::<Vec<_>>();
-    assert_eq!(items, ["base::RootItem", "other::Item"]);
+    assert_eq!(items, ["base::Inherited", "base::RootItem", "other::Item", "other::Once"]);
 }
 
 #[test]
