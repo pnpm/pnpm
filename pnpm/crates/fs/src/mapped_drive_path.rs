@@ -4,22 +4,23 @@ use std::path::{Path, PathBuf};
 #[path = "mapped_drive_path/tests.rs"]
 mod tests;
 
+/// [`dunce::canonicalize`], except that a path on a mapped Windows network
+/// drive keeps its drive letter instead of turning into the share's UNC form.
+///
+/// Only the drive `path` itself names is restored. A path given in UNC form
+/// stays UNC: mapping it onto some drive could cut off ancestors that lie
+/// above that drive's root, such as the workspace root.
 pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<PathBuf> {
     let absolute =
         if path.is_absolute() { path.to_path_buf() } else { std::env::current_dir()?.join(path) };
     let canonical = dunce::canonicalize(&absolute)?;
     #[cfg(windows)]
-    if is_unc_path(&canonical) {
-        let preferred_drive = drive_letter(&absolute);
-        if let Some(drive) = preferred_drive
-            && let Some(remote) = mapped_drive(drive)
-            && let Some(mapped) = mapped_drive_path(&canonical, &[(drive, remote)], preferred_drive)
-        {
-            return Ok(mapped);
-        }
-        if let Some(mapped) = mapped_drive_path(&canonical, &mapped_drives(), preferred_drive) {
-            return Ok(mapped);
-        }
+    if is_unc_path(&canonical)
+        && let Some(drive) = drive_letter(&absolute)
+        && let Some(remote) = mapped_drive(drive)
+        && let Some(mapped) = mapped_drive_path(&canonical, drive, &remote)
+    {
+        return Ok(mapped);
     }
     Ok(canonical)
 }
@@ -46,13 +47,6 @@ fn drive_letter(path: &Path) -> Option<char> {
         },
         _ => None,
     }
-}
-
-#[cfg(windows)]
-fn mapped_drives() -> Vec<(char, PathBuf)> {
-    ('A'..='Z')
-        .filter_map(|letter| mapped_drive(letter).map(|path| (letter, path)))
-        .collect()
 }
 
 #[cfg(windows)]
@@ -86,22 +80,9 @@ fn mapped_drive(letter: char) -> Option<PathBuf> {
 }
 
 #[cfg(windows)]
-fn mapped_drive_path(
-    path: &Path,
-    mappings: &[(char, PathBuf)],
-    preferred_drive: Option<char>,
-) -> Option<PathBuf> {
-    use std::os::windows::ffi::OsStrExt as _;
-
-    let path = remove_verbatim_unc_prefix(path);
-    mappings
-        .iter()
-        .filter_map(|(drive, remote)| {
-            let suffix = mapped_path_suffix(&path, remote)?;
-            Some((remote.as_os_str().encode_wide().count(), *drive, suffix))
-        })
-        .max_by_key(|(length, drive, _)| (*length, Some(*drive) == preferred_drive))
-        .map(|(_, drive, suffix)| PathBuf::from(format!(r"{drive}:\")).join(suffix))
+fn mapped_drive_path(path: &Path, drive: char, remote: &Path) -> Option<PathBuf> {
+    let suffix = mapped_path_suffix(&remove_verbatim_unc_prefix(path), remote)?;
+    Some(PathBuf::from(format!(r"{drive}:\")).join(suffix))
 }
 
 #[cfg(windows)]

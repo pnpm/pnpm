@@ -104,12 +104,6 @@ where
     #[cfg(windows)]
     if cfg!(windows) {
         let current_dir = Sys::current_dir().expect("current directory is unavailable");
-        // A UNC cwd reached through a mapped drive picks the store by that drive.
-        let current_dir = if get_drive_letter(&current_dir).is_some() {
-            current_dir
-        } else {
-            pnpm_fs::canonicalize_preserving_mapped_drive(&current_dir).unwrap_or(current_dir)
-        };
         return default_store_dir_windows(&home_dir, &current_dir).into();
     }
 

@@ -211,6 +211,7 @@ mod team;
 mod test_command;
 mod token;
 mod umask;
+mod unc_project_dir;
 mod undeprecate;
 mod unlink;
 mod unpublish;
