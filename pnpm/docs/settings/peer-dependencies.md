@@ -38,7 +38,7 @@ In case of a version conflict, you'll need to evaluate which version of the peer
 * Default: **false**
 * Type: **Boolean**
 
-When set to `true`, pnpm joins conflicting peer dependency ranges with `||` and installs the highest version that satisfies any of them. For example, if one dependency requires `react@^16.0.0` and another requires `react@^17.0.0`, pnpm installs the highest `react@17`.
+When set to `true`, pnpm treats conflicting semver ranges as alternatives for automatic installation. For example, if one dependency requires `react@^16.0.0` and another requires `react@^17.0.0`, pnpm can install a version satisfying either range.
 
 Only semver ranges can be joined. Conflicting paths, aliases, or tags leave the peer dependency missing. Identical non-semver specifiers are preserved.
 
