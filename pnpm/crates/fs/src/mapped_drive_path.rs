@@ -62,7 +62,7 @@ fn mapped_drive(letter: char) -> Option<PathBuf> {
         Foundation::ERROR_MORE_DATA, NetworkManagement::WNet::WNetGetConnectionW,
     };
 
-    let drive_name = [letter as u16, b':' as u16, 0];
+    let drive_name = [u16::from(letter), u16::from(b':'), 0];
     let mut remote_name = vec![0u16; 512];
     let mut length = remote_name.len() as u32;
     let mut result =
@@ -151,19 +151,19 @@ fn remove_verbatim_unc_prefix(path: &Path) -> PathBuf {
 
     let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
     let prefix = [
-        b'\\' as u16,
-        b'\\' as u16,
-        b'?' as u16,
-        b'\\' as u16,
-        b'U' as u16,
-        b'N' as u16,
-        b'C' as u16,
-        b'\\' as u16,
+        u16::from(b'\\'),
+        u16::from(b'\\'),
+        u16::from(b'?'),
+        u16::from(b'\\'),
+        u16::from(b'U'),
+        u16::from(b'N'),
+        u16::from(b'C'),
+        u16::from(b'\\'),
     ];
     if wide.len() < prefix.len() || wide[..prefix.len()] != prefix {
         return path.to_path_buf();
     }
-    let mut unc = vec![b'\\' as u16, b'\\' as u16];
+    let mut unc = vec![u16::from(b'\\'), u16::from(b'\\')];
     unc.extend_from_slice(&wide[prefix.len()..]);
     PathBuf::from(std::ffi::OsString::from_wide(&unc))
 }
