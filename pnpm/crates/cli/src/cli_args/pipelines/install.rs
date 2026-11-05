@@ -22,7 +22,12 @@ pub(crate) struct NoPkgManifest {
 
 /// Fail a non-recursive install outside a workspace that has no manifest
 /// to install from. A workspace root may lack a manifest.
-fn ensure_project_manifest(cfg: &Config, manifest_path: &Path) -> Result<(), NoPkgManifest> {
+///
+/// Call it before anything the command writes, removes, or fetches.
+pub(crate) fn ensure_project_manifest(
+    cfg: &Config,
+    manifest_path: &Path,
+) -> Result<(), NoPkgManifest> {
     let dir = manifest_path.parent().expect("manifest path always has a parent dir");
     if cfg.recursive
         || cfg.workspace_dir.is_some()
@@ -56,7 +61,6 @@ impl InstallPipeline {
     pub(crate) async fn run_with_config<Reporter: self::Reporter + 'static>(
         self,
     ) -> miette::Result<&'static Config> {
-        ensure_project_manifest(self.cfg, &self.manifest_path)?;
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
         prepare_root_config::<Reporter>(
             root_config,

@@ -128,9 +128,12 @@ fn sbom_from_a_lockfile_does_not_invent_manifest_metadata() {
 
 #[test]
 fn install_without_a_manifest_fails() {
-    for args in
-        [&["install", "--offline"][..], &["ci", "--offline"], &["install-test", "--offline"]]
-    {
+    for args in [
+        &["install", "--offline"][..],
+        &["install", "--offline", "--allow-build=example-pkg"],
+        &["ci", "--offline"],
+        &["install-test", "--offline"],
+    ] {
         let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
         let output = pacquet
             .args(args)
@@ -141,11 +144,25 @@ fn install_without_a_manifest_fails() {
             .clone();
         let stderr = String::from_utf8_lossy(&output);
         assert!(stderr.contains("ERR_PNPM_NO_PKG_MANIFEST"), "{args:?} stderr: {stderr}");
-        for written in ["package.json", "pnpm-lock.yaml", "node_modules"] {
+        for written in ["package.json", "pnpm-lock.yaml", "node_modules", "pnpm-workspace.yaml"] {
             assert!(!workspace.join(written).exists(), "{args:?} wrote {written}");
         }
         drop(root);
     }
+}
+
+#[test]
+fn ci_without_a_manifest_keeps_node_modules() {
+    let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+    let installed = workspace.join("node_modules/example-pkg/index.js");
+    fs::create_dir_all(installed.parent().expect("parent")).expect("create node_modules");
+    fs::write(&installed, "").expect("write installed file");
+    pacquet
+        .args(["ci", "--offline"])
+        .assert()
+        .failure();
+    assert!(installed.exists(), "ci removed node_modules before failing");
+    drop(root);
 }
 
 #[test]

@@ -29,7 +29,7 @@ use super::{
     pipelines::{
         AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
         RemovePipeline, UpdatePipeline, apply_install_cli_config, derive_config_root,
-        installed_project_config, keeps_project_lockfiles,
+        ensure_project_manifest, installed_project_config, keeps_project_lockfiles,
         run_dedicated_lockfile_workspace_install, warn_about_config_root,
     },
     prune::PruneArgs,
@@ -275,6 +275,7 @@ fn install_with_config<'a>(
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    ensure_project_manifest(cfg, manifest_path)?;
     let reporter = selected_reporter();
     Ok(Box::pin(async move {
         // Applied between `config()` and `State::init`, while
@@ -330,12 +331,16 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
     let mut install_args = args.install_args;
     install_args.lockfile.frozen = true;
 
+    // Built before clean so its up-front checks reject the command before
+    // anything is removed.
+    let install = install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?;
+
     // Run clean eagerly before the async future so errors surface
     // immediately. `ci` is not an overridable command, so this is always
     // the built-in clean, never a `clean` script the project declares.
     clean_builtin(ctx, (ctx.loaders.config)()?, false)?;
 
-    install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)
+    Ok(install)
 }
 
 pub(super) fn dlx<'a>(ctx: &RunCtx<'a>, args: DlxArgs) -> miette::Result<CommandFuture<'a>> {
