@@ -1,5 +1,5 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
-pub use lifecycle::{prepare_storage, serve, serve_listener};
+pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};

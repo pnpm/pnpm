@@ -189,8 +189,18 @@ fn log_enabled_surfaces(config: &Config) {
 /// address, and then hand that listener here without a bind/drop/rebind
 /// race.
 pub async fn serve_listener(
+    config: Config,
+    listener: tokio::net::TcpListener,
+) -> pnpr_error::Result<()> {
+    serve_listener_with(config, listener, std::convert::identity).await
+}
+
+/// Like [`serve_listener`], serving `wrap` applied to the router, such as a
+/// test harness that adds its own middleware.
+pub async fn serve_listener_with(
     mut config: Config,
     listener: tokio::net::TcpListener,
+    wrap: impl FnOnce(Router) -> Router,
 ) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
     config.features.ensure_a_feature_is_enabled()?;
@@ -205,5 +215,5 @@ pub async fn serve_listener(
     let (state, app) = state_and_router(config, auth, osv_index)?;
     let metrics = bind_metrics_listener(state).await?;
     tracing::info!(%listen, "pnpr listening");
-    serve_until_shutdown(listener, app, metrics).await
+    serve_until_shutdown(listener, wrap(app), metrics).await
 }
