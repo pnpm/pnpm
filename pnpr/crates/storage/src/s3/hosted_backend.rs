@@ -118,10 +118,14 @@ impl HostedBackend for S3Store {
         self.staging_tmp_path().await
     }
 
+    fn archive_tmp_base(&self) -> PathBuf {
+        self.staging_tmp_base()
+    }
+
     async fn put_archive(&self, tmp_path: &Path, key: &str) -> Result<()> {
-        self.upload_archive(tmp_path, key).await?;
+        let uploaded = self.upload_archive(tmp_path, key).await;
         let _ = fs::remove_file(tmp_path).await;
-        Ok(())
+        uploaded
     }
 
     async fn remove_archive(&self, key: &str) -> Result<bool> {

@@ -242,7 +242,13 @@ impl S3Store {
     /// bucket once its identity is known.
     pub async fn staging_tmp_path(&self) -> Result<PathBuf> {
         fs::create_dir_all(&self.staging_dir).await?;
-        Ok(crate::unique_tmp_path(&self.staging_dir.join("archive")))
+        Ok(crate::unique_tmp_path(&self.staging_tmp_base()))
+    }
+
+    /// The path the staging files are named after.
+    #[must_use]
+    pub fn staging_tmp_base(&self) -> PathBuf {
+        self.staging_dir.join("archive")
     }
 
     /// Upload the staged file at `tmp_path` under `key`. A key only ever

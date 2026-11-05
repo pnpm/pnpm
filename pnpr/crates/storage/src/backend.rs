@@ -69,8 +69,13 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// the way in, before the backend sees them.
     async fn reserve_archive_tmp(&self) -> Result<PathBuf>;
 
-    /// Store the staged file at `tmp_path` under `key`, consuming it.
+    /// Store the staged file at `tmp_path` under `key`, consuming it
+    /// whether or not it is stored.
     async fn put_archive(&self, tmp_path: &Path, key: &str) -> Result<()>;
+
+    /// The path [`Self::reserve_archive_tmp`] names its staging files
+    /// after, so files a process left behind when it stopped can be found.
+    fn archive_tmp_base(&self) -> PathBuf;
 
     /// Remove the archive stored under `key`, reporting whether it was there.
     async fn remove_archive(&self, key: &str) -> Result<bool>;

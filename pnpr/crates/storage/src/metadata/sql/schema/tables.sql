@@ -294,3 +294,7 @@ CREATE TABLE IF NOT EXISTS staged_archives (
     state TEXT NOT NULL,
     PRIMARY KEY (principal, digest)
 ) STRICT, WITHOUT ROWID;
+-- The records a principal still holds, so its usage and its sweeps read
+-- them without the tombstones of every archive it ever staged.
+CREATE INDEX IF NOT EXISTS staged_archives_held
+    ON staged_archives (principal) WHERE state != 'gone';

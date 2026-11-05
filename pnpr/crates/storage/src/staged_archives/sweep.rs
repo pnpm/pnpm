@@ -31,11 +31,10 @@ impl Storage {
     /// How many archives `principal` has records for that no sweep took, so
     /// a principal with too many is refused before anything reads them.
     pub async fn staged_archive_count(&self, principal: &str) -> Result<usize> {
-        let entries = self.database.staged_records(Some(principal.to_string())).await?;
-        Ok(entries
-            .iter()
-            .filter(|(_, record)| record.state != StagedState::Gone)
-            .count())
+        Ok(self.database
+            .staged_records(Some(principal.to_string()))
+            .await?
+            .len())
     }
 
     /// Remove every staged archive past its expiry, and every stored

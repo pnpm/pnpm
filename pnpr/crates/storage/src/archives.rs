@@ -134,10 +134,7 @@ impl Storage {
         };
         let blob = BlobRef { id, incarnation };
         if store {
-            if let Err(error) = self.hosted.put_archive(&slot.tmp_path, &blob.key()).await {
-                let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-                return Err(error);
-            }
+            self.hosted.put_archive(&slot.tmp_path, &blob.key()).await?;
         } else {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;
         }
@@ -190,6 +187,13 @@ impl Storage {
 }
 
 impl Storage {
+    /// Remove the archive staging files of this namespace that a process
+    /// stopped before storing, once they are older than `max_age`. Returns
+    /// how many went.
+    pub async fn sweep_archive_temps(&self, max_age: std::time::Duration) -> Result<usize> {
+        crate::atomic_write::remove_stale_temps(&self.hosted.archive_tmp_base(), max_age).await
+    }
+
     /// Store `bytes`, read from another store under `blob`'s key, under the
     /// same key here, as a copy of a store between backends does.
     pub async fn store_archive_copy(&self, blob: &BlobRef, bytes: &[u8]) -> Result<()> {

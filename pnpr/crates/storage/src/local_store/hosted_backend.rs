@@ -66,18 +66,30 @@ impl HostedBackend for Store {
     }
 
     async fn reserve_archive_tmp(&self) -> Result<PathBuf> {
-        let dir = self.root.join(ARCHIVES_DIR);
-        fs::create_dir_all(&dir).await?;
-        Ok(unique_tmp_path(&dir.join("archive")))
+        let base = self.archive_tmp_base();
+        if let Some(dir) = base.parent() {
+            fs::create_dir_all(dir).await?;
+        }
+        Ok(unique_tmp_path(&base))
+    }
+
+    fn archive_tmp_base(&self) -> PathBuf {
+        self.root.join(ARCHIVES_DIR).join("archive")
     }
 
     async fn put_archive(&self, tmp_path: &Path, key: &str) -> Result<()> {
         let path = self.archive_path(key);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
+        let stored = async {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).await?;
+            }
+            fs::rename(tmp_path, &path).await
         }
-        fs::rename(tmp_path, &path).await?;
-        Ok(())
+        .await;
+        if stored.is_err() {
+            let _ = fs::remove_file(tmp_path).await;
+        }
+        Ok(stored?)
     }
 
     async fn remove_archive(&self, key: &str) -> Result<bool> {

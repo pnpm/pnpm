@@ -38,8 +38,9 @@ impl SqlMetadata {
             .await
     }
 
-    /// Every record of `principal`, or of every principal for `None`, read
-    /// from the primary.
+    /// Every record of `principal`, or of every principal for `None`, that
+    /// no sweep took, read from the primary. A taken record only keeps its
+    /// incarnation from being reused, which no caller of this needs.
     pub(crate) async fn staged_records(
         self: &Arc<Self>,
         principal: Option<String>,
@@ -48,7 +49,8 @@ impl SqlMetadata {
             connection
                 .query(
                     "SELECT principal, digest, incarnation, staged_at, size, state
-                     FROM staged_archives WHERE ?1 IS NULL OR principal = ?1",
+                     FROM staged_archives
+                     WHERE (?1 IS NULL OR principal = ?1) AND state != 'gone'",
                     params![principal],
                 )?
                 .into_iter()

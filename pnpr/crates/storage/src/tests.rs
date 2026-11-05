@@ -574,3 +574,22 @@ async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_sto
     expected.sort();
     assert_eq!(listed, expected);
 }
+
+/// An archive staging file a process left behind is swept once it is old
+/// enough; anything else in the archives directory stays.
+#[tokio::test]
+async fn abandoned_archive_staging_files_are_swept() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let staged = storage.hosted.reserve_archive_tmp().await.unwrap();
+    tokio::fs::write(&staged, b"left behind").await.unwrap();
+    let other = staged.with_file_name("not-a-staging-file");
+    tokio::fs::write(&other, b"keep").await.unwrap();
+
+    let young = std::time::Duration::from_hours(1);
+    assert_eq!(storage.sweep_archive_temps(young).await.unwrap(), 0);
+    assert!(staged.exists());
+    assert_eq!(storage.sweep_archive_temps(std::time::Duration::ZERO).await.unwrap(), 1);
+    assert!(!staged.exists());
+    assert!(other.exists());
+}
