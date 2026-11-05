@@ -41,9 +41,15 @@ pub(crate) struct FrozenLocalTarballCheck<'a> {
 }
 
 impl FrozenLocalTarballCheck<'_> {
+    /// The snapshots the install materializes. A variant with dependencies
+    /// of its own is wired as its own snapshot, so the walk follows the
+    /// variant the install links; package metadata is read from
+    /// [`Self::lockfile`], which the selection leaves as it is.
     fn package_keys(&self) -> HashSet<pnpm_lockfile::PackageKey> {
+        let selected =
+            crate::with_selected_variant_snapshots(self.lockfile, &self.groups.walked_platform());
         crate::collect_reachable(
-            self.lockfile,
+            selected.as_ref().unwrap_or(self.lockfile),
             self.workspace_root,
             self.importer_ids,
             self.groups,
@@ -416,3 +422,6 @@ fn file_matches_integrity(
 ) -> bool {
     pnpm_tarball::verify_local_file_integrity(path, integrity, kind).is_ok()
 }
+
+#[cfg(test)]
+mod tests;

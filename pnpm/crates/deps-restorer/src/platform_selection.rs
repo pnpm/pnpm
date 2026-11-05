@@ -260,5 +260,57 @@ fn names_host(selector: &PlatformSelector, host: &PlatformSelector) -> bool {
         && musl(selector.libc.as_deref()) == musl(host.libc.as_deref())
 }
 
+/// What the workspace state records as the linked platform: the `os`,
+/// `cpu`, and C library of the platform `supported` links registry
+/// packages' variants for.
+#[must_use]
+pub fn linked_platform_record(supported: Option<&SupportedArchitectures>) -> String {
+    let linked = linked_platform(supported);
+    let mut record = format!("{}-{}", linked.os, linked.cpu);
+    if let Some(libc) = &linked.libc {
+        record.push('-');
+        record.push_str(libc);
+    }
+    record
+}
+
+/// [`linked_platform_record`] followed by the versions the platform's floors
+/// and ABI are matched against: those it states, or the host's, probed. A
+/// probe spawns a process, so this is recorded only for a lockfile with a
+/// variant that states a floor or an ABI (see [`has_variant_with_floor`]).
+#[must_use]
+pub fn linked_platform_record_with_floors(supported: Option<&SupportedArchitectures>) -> String {
+    let floors = match linked_platform(supported).floors {
+        Some(stated) => stated,
+        None => pnpm_lockfile::host_floors(),
+    };
+    format!("{} {floors:?}", linked_platform_record(supported))
+}
+
+/// Whether a registry package's variant in `lockfile` states a floor or an
+/// ABI.
+#[must_use]
+pub fn has_variant_with_floor(lockfile: &pnpm_lockfile::Lockfile) -> bool {
+    lockfile.packages
+        .iter()
+        .flat_map(|packages| packages.values())
+        .filter_map(|metadata| match &metadata.resolution {
+            pnpm_lockfile::LockfileResolution::Variations(variations)
+                if !variations.is_runtime() =>
+            {
+                Some(variations)
+            }
+            _ => None,
+        })
+        .flat_map(|variations| &variations.variants)
+        .flat_map(|variant| &variant.targets)
+        .any(|target| {
+            target.libc_version.is_some()
+                || target.os_version.is_some()
+                || target.napi.is_some()
+                || target.node_abi.is_some()
+        })
+}
+
 #[cfg(test)]
 mod tests;

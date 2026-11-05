@@ -51,6 +51,26 @@ pub(crate) struct CarriedSettings<'a> {
     pub(crate) kept_settings: Option<&'a pnpm_workspace_state::WorkspaceStateSettings>,
 }
 
+/// Record the registry prefixes `write` verified the lockfile's keys for, and
+/// the versions the linked platform's floors and ABI are matched against
+/// when the lockfile has a variant that states one.
+fn record_registry_keys_and_linked_floors(state: &mut WorkspaceState, write: &StateWrite<'_>) {
+    if write.carried.registry_keys_verified {
+        state.settings.registry_prefixes =
+            crate::install_state::recorded_registry_prefixes(write.config);
+        state.settings.default_registry =
+            crate::install_state::recorded_default_registry(write.config);
+    }
+    if write.projects.lockfile.is_some_and(
+        pnpm_deps_restorer::platform_selection::has_variant_with_floor,
+    ) {
+        state.settings.linked_platform =
+            Some(pnpm_deps_restorer::platform_selection::linked_platform_record_with_floors(
+                write.layout.supported_architectures,
+            ));
+    }
+}
+
 /// The workspace state `write` records. Every writer goes through here, so a
 /// field one of them carries over cannot be left out by another.
 pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState {
@@ -66,12 +86,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
     );
     state.settings.auto_dedupe =
         recorded_auto_dedupe(write.config, write.carried.established_auto_dedupe);
-    if write.carried.registry_keys_verified {
-        state.settings.registry_prefixes =
-            crate::install_state::recorded_registry_prefixes(write.config);
-        state.settings.default_registry =
-            crate::install_state::recorded_default_registry(write.config);
-    }
+    record_registry_keys_and_linked_floors(&mut state, write);
     state.settings.registry_routes.clone_from(&write.carried.registry_routes);
     if let Some(kept) = write.carried.kept_settings {
         state.settings.dev = kept.dev;

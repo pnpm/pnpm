@@ -385,6 +385,14 @@ pub struct WorkspaceStateSettings {
     /// are re-evaluated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supported_architectures: Option<serde_json::Value>,
+    /// The platform the install linked packages with platform variants
+    /// for: its `os`, `cpu`, and C library, and the versions its floors and
+    /// ABI were matched against when the lockfile has a variant that states
+    /// one. A different value, such as from a `node_modules` mounted into a
+    /// musl container, must invalidate the repeat-install fast path so the
+    /// install links the variant the platform now selects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_platform: Option<String>,
     /// `trustLockfile`, recorded only while it is on. Turned off, the lockfile
     /// that no install verified has to be verified.
     #[serde(default, skip_serializing_if = "Option::is_none")]

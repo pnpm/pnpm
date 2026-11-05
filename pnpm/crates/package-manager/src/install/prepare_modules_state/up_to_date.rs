@@ -76,7 +76,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     // `extendNodePath` change the bin shims, without touching the lockfile or
     // `.modules.yaml`, so the unchanged-layout premise doesn't hold.
     if !modules_consistent_with(modules, config, context.tree.node_linker, context.tree.included)
-        || !crate::install_state::recorded_supported_architectures_match(
+        || !crate::install_state::recorded_platforms_match(
             context.recorded.state,
             context.repeat.supported_architectures,
         )
