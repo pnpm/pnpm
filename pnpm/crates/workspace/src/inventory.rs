@@ -138,7 +138,7 @@ fn find_workspace_inventory_with(
 }
 
 fn canonical_workspace_root(workspace_root: &Path) -> Result<PathBuf, FindWorkspaceInventoryError> {
-    pnpm_fs::canonicalize_preserving_mapped_drive(workspace_root)
+    std::fs::canonicalize(workspace_root)
         .map_err(|source| FindWorkspaceInventoryError::ReadDirectory {
             path: workspace_root.to_path_buf(),
             source,
@@ -176,7 +176,7 @@ fn ignored_paths_under(
     let mut paths = BTreeSet::new();
     for path in ignored_directories {
         let path = workspace_root.join(path);
-        let canonical = match pnpm_fs::canonicalize_preserving_mapped_drive(&path) {
+        let canonical = match std::fs::canonicalize(&path) {
             Ok(path) => path,
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(source) => {
