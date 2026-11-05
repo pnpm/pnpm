@@ -5,8 +5,8 @@
 //!   sends.
 //! - [`MirrorWrite`]: how a `2xx` response is recorded in the mirror. It is
 //!   the only writer of a fetched document's [`MetaHeaders`].
-//! - [`mirror_may_answer`]: whether a pick may be answered from the mirror
-//!   without the registry.
+//! - [`mirror_may_answer`]: whether a pick that depends on the mirror being
+//!   current may be answered from it without the registry.
 
 use std::path::Path;
 
@@ -174,9 +174,10 @@ pub(crate) fn normalizes_to_abbreviated(kind: DocumentKind, headers: &HeaderMap)
     kind == DocumentKind::Abbreviated && !is_abbreviated_content_type(headers)
 }
 
-/// Whether a pick may be answered from the mirror without asking the
-/// registry. An online pick asks the registry when it forbade caching the
-/// mirror's document. Offline and prefer-offline still read the mirror.
+/// Whether a pick that depends on the mirror being current may be answered
+/// from it without asking the registry. An online pick asks the registry when
+/// it forbade caching the mirror's document. Offline and prefer-offline still
+/// read the mirror.
 pub(crate) fn mirror_may_answer(network: NetworkPolicy, stored: Option<&MetaHeaders>) -> bool {
     network.reads_cache_first() || !stored.is_some_and(|headers| headers.uncacheable)
 }

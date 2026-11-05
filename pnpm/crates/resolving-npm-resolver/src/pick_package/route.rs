@@ -82,6 +82,10 @@ pub(super) struct MirrorShortcuts {
     /// A public mirror stored without an `ETag`, while
     /// [`unvalidated_mirror_is_fresh`] holds. A private route still
     /// contacts the registry so a `401` is not hidden behind the mirror.
+    ///
+    /// The only shortcut whose pick depends on the mirror being current, so
+    /// the only one closed by [`mirror_may_answer`]. The others pick the same
+    /// version whatever was published after the mirror was written.
     pub unvalidated_mirror: bool,
 }
 
@@ -95,9 +99,6 @@ impl MirrorShortcuts {
             mirror,
             ..
         } = *inputs;
-        if !mirror_may_answer(network, mirror) {
-            return None;
-        }
         if request.refresh_metadata && !network.reads_cache_first() {
             return None;
         }
@@ -109,7 +110,10 @@ impl MirrorShortcuts {
                 && !request.include_latest_tag
                 && !request.update_checksums,
             dominant_lockfile_version: stable_range,
-            unvalidated_mirror: stable_range && public_scope && mirror_has_no_etag,
+            unvalidated_mirror: stable_range
+                && public_scope
+                && mirror_has_no_etag
+                && mirror_may_answer(network, mirror),
         })
     }
 }
