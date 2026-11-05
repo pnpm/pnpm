@@ -327,3 +327,36 @@ fn fetch_stores_the_archives_of_every_listed_platform_and_their_dependencies() {
     assert_eq!(stored_files(&npmrc_info.store_dir), ["dep.js", "native/foreign", "native/host"]);
     drop((root, npmrc_info));
 }
+
+/// The walk starts at what the install materializes, so a production
+/// install keeps no archive for a platform of a dev dependency.
+#[test]
+fn a_production_install_stores_nothing_for_a_dev_dependency() {
+    let (registry, token) = start_hosted_pnpr();
+    publish_cli(&registry, &token);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = consumer(&registry, &token);
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "devDependencies": { "@acme/cli": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    set_supported_architectures(&workspace, &["current", foreign_target()]);
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    forget_installed(&workspace, &npmrc_info.store_dir);
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--prod"])
+        .assert()
+        .success();
+    assert_eq!(stored_files(&npmrc_info.store_dir), Vec::<String>::new());
+    drop((root, npmrc_info));
+}
