@@ -294,6 +294,57 @@ test('allProjectsAreUpToDate(): returns false if a workspace: dependency is link
   })).toBeFalsy()
 })
 
+test('allProjectsAreUpToDate(): a workspace: link to a publish directory without a manifest reads the project manifest', async () => {
+  const libManifest = { name: 'lib', version: '1.2.0', publishConfig: { directory: 'dist' } }
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'app' as ProjectId,
+      manifest: {
+        dependencies: {
+          lib: 'workspace:^1.0.0',
+        },
+      },
+      rootDir: 'app' as ProjectRootDir,
+    },
+    {
+      id: 'lib' as ProjectId,
+      manifest: libManifest,
+      rootDir: 'lib' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['app' as ProjectId]: {
+          dependencies: {
+            lib: 'link:../lib/dist',
+          },
+          specifiers: {
+            lib: 'workspace:^1.0.0',
+          },
+        },
+        ['lib' as ProjectId]: {
+          publishDirectory: 'dist',
+          specifiers: {},
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map([
+      ['lib', new Map([
+        ['1.2.0', {
+          rootDir: 'lib' as ProjectRootDir,
+          manifest: libManifest,
+        }],
+      ])],
+    ]),
+    lockfileDir: '',
+  })).toBeTruthy()
+})
+
 test('allProjectsAreUpToDate(): returns false if aliased workspace: dependency version is out of date', async () => {
   expect(await allProjectsAreUpToDate([
     {

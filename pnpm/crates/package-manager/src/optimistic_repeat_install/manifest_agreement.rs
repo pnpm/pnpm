@@ -288,7 +288,10 @@ fn is_outdated_linked_package(
 /// per content check.
 pub(crate) struct LinkedPackagesContext<'a> {
     pub(crate) link_workspace_packages: bool,
-    pub(crate) manifests_by_dir: std::collections::HashMap<&'a Path, &'a PackageManifest>,
+    /// Each project's manifest under its root and, when the resolver links
+    /// its `publishConfig.directory` instead, under that directory too.
+    pub(crate) manifests_by_dir:
+        std::collections::HashMap<std::borrow::Cow<'a, Path>, &'a PackageManifest>,
     /// `name → version → root_dir` over the workspace's projects.
     pub(crate) workspace_packages:
         std::collections::HashMap<String, std::collections::HashMap<String, &'a Path>>,

@@ -334,3 +334,49 @@ importers:
         lockfile.root_project().unwrap(),
     ));
 }
+#[test]
+fn a_link_to_a_publish_directory_without_a_manifest_reads_the_project_manifest() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let app_dir = workspace_root.join("app");
+    let lib_dir = workspace_root.join("lib");
+    fs::create_dir_all(&app_dir).unwrap();
+    fs::create_dir_all(lib_dir.join("dist")).unwrap();
+    fs::write(
+        app_dir.join("package.json"),
+        r#"{"name":"app","version":"1.0.0","dependencies":{"lib":"workspace:^1.0.0"}}"#,
+    )
+    .unwrap();
+    fs::write(
+        lib_dir.join("package.json"),
+        r#"{"name":"lib","version":"1.2.0","publishConfig":{"directory":"dist"}}"#,
+    )
+    .unwrap();
+    let app_manifest = PackageManifest::from_path(app_dir.join("package.json")).unwrap();
+    let lib_manifest = PackageManifest::from_path(lib_dir.join("package.json")).unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  app:
+    dependencies:
+      lib:
+        specifier: workspace:^1.0.0
+        version: link:../lib/dist
+
+  lib: {}
+",
+    )
+    .unwrap();
+    let config = Config::new();
+    let project_manifests = [(app_dir.clone(), &app_manifest), (lib_dir, &lib_manifest)];
+    let context = LinkedPackagesContext::new(&config, &project_manifests);
+
+    assert!(linked_packages_are_up_to_date(
+        &context,
+        &app_dir,
+        &app_manifest,
+        &lockfile.importers["app"],
+    ));
+}

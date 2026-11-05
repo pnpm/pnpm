@@ -49,7 +49,17 @@ impl<'a> LinkedPackagesContext<'a> {
             std::collections::HashMap<String, &'a Path>,
         > = std::collections::HashMap::new();
         for (root_dir, manifest) in project_manifests {
-            manifests_by_dir.insert(root_dir.as_path(), *manifest);
+            manifests_by_dir.insert(std::borrow::Cow::Borrowed(root_dir.as_path()), *manifest);
+            let link_dir = pnpm_resolving_npm_resolver::resolve_workspace_package_dir(
+                root_dir,
+                manifest.value(),
+            );
+            if link_dir != *root_dir {
+                manifests_by_dir.insert(
+                    std::borrow::Cow::Owned(pnpm_fs::lexical_normalize(&link_dir)),
+                    *manifest,
+                );
+            }
             if let (Some(name), Some(version)) = (
                 manifest_string_field(manifest, "name"),
                 manifest_string_field(manifest, "version"),
@@ -72,7 +82,8 @@ impl<'a> LinkedPackagesContext<'a> {
     /// without a version yields the empty string; `None` means `dir` has no
     /// readable manifest.
     pub(super) fn linked_version(&self, dir: &Path) -> Option<String> {
-        if let Some(manifest) = self.manifests_by_dir.get(dir) {
+        if let Some(manifest) = self.manifests_by_dir.get(pnpm_fs::lexical_normalize(dir).as_path())
+        {
             return Some(manifest_string_field(manifest, "version").unwrap_or_default());
         }
         let manifest =
