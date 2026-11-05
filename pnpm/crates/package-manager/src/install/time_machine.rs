@@ -2,6 +2,8 @@
 use pnpm_config::Config;
 #[cfg(any(target_os = "macos", test))]
 use pnpm_network::redact_and_sanitize;
+#[cfg(any(target_os = "macos", test))]
+use pnpm_process::Command;
 use pnpm_reporter::Reporter;
 #[cfg(target_os = "macos")]
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
@@ -10,7 +12,7 @@ use std::{
     collections::HashSet,
     io,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::Output,
     time::Duration,
 };
 #[cfg(any(target_os = "macos", all(test, unix)))]

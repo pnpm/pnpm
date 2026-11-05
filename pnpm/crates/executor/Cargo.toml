@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-fs = { workspace = true }
 pnpm-package-manifest = { workspace = true }
+pnpm-process = { path = "../process" }
 pnpm-reporter = { workspace = true }
 
 derive_more = { workspace = true }
@@ -46,7 +47,6 @@ tokio = { workspace = true, features = ["net", "process", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-which = { workspace = true }
-pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

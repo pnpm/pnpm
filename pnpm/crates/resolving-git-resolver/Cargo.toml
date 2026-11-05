@@ -15,6 +15,7 @@ pnpm-git-fetcher = { workspace = true }
 pnpm-git-utils = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
+pnpm-process = { path = "../process" }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-store-dir = { workspace = true }
@@ -37,7 +38,6 @@ reqwest = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-pnpm-process = { path = "../process" }
 pnpm-http = { workspace = true }
 
 [lints]

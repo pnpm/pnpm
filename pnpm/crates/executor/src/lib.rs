@@ -1,14 +1,8 @@
-#[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process as process;
 #[cfg(target_family = "wasm")]
 extern crate pnpm_which as which;
 
-#[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process::asynchronous as async_process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use tokio::process as async_process;
 
 pub use bundled_node_gyp::{bundled_node_gyp_bin, bundled_node_gyp_entry};
 pub use exit::{before_exit, exit};

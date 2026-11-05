@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 #[cfg(unix)]
-use std::{os::unix::process::CommandExt, path::Path, ptr, time::Duration};
+use std::{path::Path, ptr, time::Duration};
 
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::watch;
@@ -250,8 +250,6 @@ fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<
 /// Spawn `command` so that it cannot race the start of the group watchdog.
 /// Every Unix spawn of this crate but the watchdog's goes through here.
 pub(crate) fn spawn(command: &mut Command) -> io::Result<Child> {
-    #[cfg(unix)]
-    let _spawning = group_watchdog::spawning();
     command.spawn()
 }
 

@@ -1,8 +1,3 @@
-#[cfg(target_family = "wasm")]
-pub(crate) use pnpm_process as process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
-
 pub mod build_graph;
 pub mod build_modules;
 pub mod cas;
@@ -44,6 +39,9 @@ pub mod symlink_package;
 pub mod validate_lockfile_paths;
 pub mod version_policy;
 pub mod virtual_store_layout;
+
+pub(crate) use pnpm_process as process;
+
 pub use build_graph::*;
 pub use build_modules::*;
 pub use build_options::{
