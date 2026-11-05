@@ -22,7 +22,7 @@ use std::fmt;
 /// another version is refused, and the operator wipes pnpr's metadata tables
 /// by hand so that pnpr creates them afresh. With 1.0 the schema moves to
 /// numbered migrations.
-pub(super) const SCHEMA_VERSION: &str = "0.1";
+pub(super) const SCHEMA_VERSION: &str = "0.2";
 
 /// The table that marks a database as pnpr's metadata. Its one row is the
 /// [`SCHEMA_VERSION`] of the layout that created the tables.
@@ -281,6 +281,22 @@ CREATE TABLE IF NOT EXISTS note_history (
     previous TEXT,
     next TEXT
 ) STRICT;
+
+-- Archives being removed, or removed, while no package references them. A
+-- row with no `done_generation` is pending: its archive may be on its way
+-- out, so no commit may depend on it. Once the archive is gone the row
+-- records the catalog generation that saw it go, and a commit staged before
+-- that generation is refused, since what it promoted may be what went.
+-- `done_at` is in seconds since the Unix epoch, so old rows can be dropped.
+CREATE TABLE IF NOT EXISTS archive_reclaims (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    artifact TEXT NOT NULL,
+    done_generation INTEGER,
+    done_at INTEGER,
+    PRIMARY KEY (catalog, ecosystem, name, artifact)
+) STRICT, WITHOUT ROWID;
 ";
 
 /// What a database holds where pnpr expects its metadata.

@@ -288,14 +288,34 @@ impl Storage {
 
     /// The bytes of `key`'s archive, while it is claimable. `None` when it was
     /// never staged by this principal, has not completed, or has expired.
+    ///
+    /// A claimable record whose archive is missing lost a race with a sweep:
+    /// the upload that renewed it found the archive in place just before the
+    /// sweep removed it. The record is retired, so the publisher's next
+    /// upload stores the bytes again instead of finding them staged.
     pub async fn read_staged_archive(&self, key: &StagedArchiveKey<'_>) -> Result<Option<Vec<u8>>> {
-        let Some(record) = self.read_staged_archive_record(key).await? else {
+        let (namespace, record_key) = (key.namespace(), key.record()?);
+        let Some(stored) = self.root.read_record(&namespace, &record_key).await? else {
+            return Ok(None);
+        };
+        let Ok(record) = serde_json::from_slice::<StagedArchiveRecord>(&stored) else {
             return Ok(None);
         };
         if !record.is_claimable(unix_now()) {
             return Ok(None);
         }
-        self.root.read_record(&key.namespace(), &key.archive()?).await
+        let archive = self.root.read_record(&namespace, &key.archive()?).await?;
+        if archive.is_none() {
+            let retired = StagedArchiveRecord { staged_at: 0, complete: false, ..record };
+            self.root.replace_record_if_current(
+                &namespace,
+                &record_key,
+                &stored,
+                &serde_json::to_vec(&retired)?,
+            )
+            .await?;
+        }
+        Ok(archive)
     }
 
     /// What `principal` holds staged or reserved. Archives of `principal`
@@ -397,15 +417,32 @@ impl Storage {
             return Ok((record.is_held(now).then_some(record.size), false));
         }
         // An upload that renewed the archive since it was read keeps it.
-        if self.root.read_record(namespace, record_key).await? != Some(stored) {
+        if self.root.read_record(namespace, record_key).await?.as_deref() != Some(stored.as_slice())
+        {
             return Ok((None, false));
         }
+        Ok((None, self.collect_recorded_archive(namespace, record_key, &stored).await?))
+    }
+
+    /// Remove the archive `record_key` records and then the record, unless
+    /// it no longer holds `stored`, the expired record the sweep read.
+    async fn collect_recorded_archive(
+        &self,
+        namespace: &str,
+        record_key: &str,
+        stored: &[u8],
+    ) -> Result<bool> {
         let archive = record_key.strip_suffix(RECORD_SUFFIX).unwrap_or(record_key);
         // The archive first, so a record never outlives the archive it vouches
         // for long enough to look like an upload in flight.
         let removed = self.root.remove_record(namespace, archive).await?;
-        self.root.remove_record(namespace, record_key).await?;
-        Ok((None, removed))
+        // Only the record that expired: an upload that renewed the archive
+        // since wrote a record of its own, which stands. If that upload found
+        // the archive in place before it was removed here, its record vouches
+        // for bytes that are gone, and the first claim retires it (see
+        // [`Self::read_staged_archive`]).
+        self.root.remove_record_if_current(namespace, record_key, stored).await?;
+        Ok(removed)
     }
 
     /// Remove `archive`, listed without its record, unless its record has

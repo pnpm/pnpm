@@ -288,6 +288,25 @@ impl Store {
         }
     }
 
+    /// Under the record-write lock, so no conditional replace lands between
+    /// the comparison and the removal.
+    pub(super) async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool> {
+        let _guard = self.record_write_lock.lock().await;
+        if self.read_record(namespace, key).await?.as_deref() != Some(expected) {
+            return Ok(false);
+        }
+        match fs::remove_file(self.record_path(namespace, key)).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     pub(super) async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         let root = self.root.join(namespace);
         let mut keys = Vec::new();

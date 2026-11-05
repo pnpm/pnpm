@@ -180,10 +180,11 @@ async fn npm_operations_make_few_round_trips_to_a_libsql_primary() {
 }
 
 /// Replicas sharing a libSQL primary hold no package lock in common, so a
-/// publish refused at its commit leaves the archives it wrote: another
-/// replica may have found one in place and committed it.
+/// publish refused at its commit removes the archives it wrote through the
+/// reclaim fence, which keeps one another replica found in place and
+/// committed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_refused_publish_on_libsql_leaves_its_archives() {
+async fn a_refused_publish_on_libsql_removes_its_archives() {
     let registry = Registry::start().await;
     let batch = json!({ "packages": [publish_doc("first", "1.0.0", b"first")] });
     let committed = keyed(&registry, &batch).await;
@@ -200,7 +201,7 @@ async fn a_refused_publish_on_libsql_leaves_its_archives() {
         "second",
         "second-1.0.0.tgz",
     );
-    assert!(archive.is_file(), "{}", archive.display());
+    assert!(!archive.exists(), "{}", archive.display());
 }
 
 /// Send `batch` as a batch publish under the idempotency key `k1`.

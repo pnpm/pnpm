@@ -21,8 +21,8 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     BlobFinalize, BlobSlot, Storage,
     metadata::{
-        ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest,
-        PublishNotes,
+        ArchiveFence, ArchiveRef, ArtifactMember, BatchDocument, Generation, PublicationCommit,
+        PublicationRequest, PublishNotes,
     },
     transparency_log::LogId,
 };
@@ -160,13 +160,25 @@ async fn commit_staged(
             return Err(err);
         }
     };
+    // Every archive a commit depends on was promoted, or checked present,
+    // after its package was read, so the earliest catalog generation read
+    // fences them all.
+    let token = staged
+        .iter()
+        .map(|stage| stage.base.catalog_generation)
+        .min()
+        .unwrap_or_default();
+    let references = referenced_archives(&staged);
     let promoted = promote_archives(state, &mut staged).await?;
     let rebases = super::rebase::rebase_bases(&mut staged);
     let (documents, logged) = batch_documents(staged);
     let artifacts = promoted.artifacts.clone();
+    let mut archives = promoted.depended.clone();
+    archives.extend(references);
+    let fence = ArchiveFence { token, archives };
     let commit = match super::rebase::commit_rebasing(
         state,
-        super::rebase::Publication { catalog: &catalog, artifacts, notes, request },
+        super::rebase::Publication { catalog: &catalog, artifacts, notes, request, fence },
         documents,
         rebases,
     )
@@ -185,6 +197,23 @@ async fn commit_staged(
         }
     }
     Ok(commit.into())
+}
+
+/// The archives already in the store that staged publishes reference
+/// without promoting them.
+fn referenced_archives(staged: &[StagedPublish]) -> Vec<ArchiveRef> {
+    staged
+        .iter()
+        .flat_map(|stage| {
+            stage.references
+                .iter()
+                .map(|artifact| ArchiveRef {
+                    ecosystem: stage.ecosystem,
+                    name: stage.name.as_str().to_string(),
+                    artifact: artifact.clone(),
+                })
+        })
+        .collect()
 }
 
 /// The documents a commit writes, and the ecosystems whose logs the records
@@ -232,30 +261,42 @@ struct Promoted {
     /// The archives of other ecosystems than npm, whose publication members
     /// the metadata cannot derive.
     artifacts: Vec<ArtifactMember>,
+    /// Every archive promoted, written or found in place, which the commit
+    /// depends on.
+    depended: Vec<ArchiveRef>,
     /// The archives this publish created.
     written: Vec<(String, pnpr_registry::Ecosystem, CanonicalPackageName, String)>,
 }
 
 impl Promoted {
-    /// Remove the archives this publish created, after its commit was
+    /// Reclaim the archives this publish created, after its commit was
     /// refused, so no archive outlives the metadata that would have
-    /// referenced it. The caller holds every package's lock, and `SQLite`
-    /// metadata serves one pnpr process, so no other publish has committed
-    /// one of them since. An archive found in place belongs to an earlier
-    /// commit and stays.
-    ///
-    /// Replicas sharing a libSQL database hold no lock in common: another
-    /// replica may have found one of these archives in place with the same
-    /// bytes and committed it. Removing it would break that release, so the
-    /// archives stay, referenced by nothing and never served.
+    /// referenced it. Another replica may have found one of them in place
+    /// with the same bytes and committed it: the reclaim leaves what the
+    /// package references, and is fenced against a commit still on its way.
+    /// What it cannot remove is left for `pnpr gc`.
     async fn remove_written(&self, state: &AppState) {
-        if !matches!(state.inner.config.storage.metadata, pnpr_config::MetadataBackend::Sqlite(_)) {
-            return;
+        let mut packages: Vec<(&str, &CanonicalPackageName, Vec<String>)> = Vec::new();
+        for (org, _, name, filename) in &self.written {
+            match packages
+                .iter_mut()
+                .find(|(held_org, held, _)| *held_org == org && *held == name)
+            {
+                Some((_, _, filenames)) => filenames.push(filename.clone()),
+                None => packages.push((org, name, vec![filename.clone()])),
+            }
         }
-        for (org, ecosystem, name, filename) in &self.written {
-            let storage = state.inner.storage.for_hosted(org, *ecosystem);
-            if let Err(err) = storage.remove_hosted_blob(name, filename).await {
-                tracing::warn!(package = %name.as_str(), %filename, %err, "refused publish left its archive");
+        let manifest_limit = state.inner.config.http.oci.max_manifest_bytes;
+        for (org, name, filenames) in packages {
+            let reclaimed = crate::archive_gc::reclaim::reclaim_unreferenced(
+                &state.inner.storage,
+                org,
+                name,
+                filenames,
+                manifest_limit,
+            );
+            if let Err(err) = reclaimed.await {
+                tracing::warn!(package = %name.as_str(), %err, "refused publish left its archives");
             }
         }
     }
@@ -296,9 +337,12 @@ async fn promote_archives(
         let storage = state.inner.storage.for_hosted(&org, ecosystem);
         match promote_one(&storage, &name, slot).await {
             Ok(BlobFinalize::Written) => {
+                promoted.depended.push(archive_ref(ecosystem, &name, &filename));
                 promoted.written.push((org, ecosystem, name.clone(), filename.clone()));
             }
-            Ok(BlobFinalize::AlreadyIdentical) => {}
+            Ok(BlobFinalize::AlreadyIdentical) => {
+                promoted.depended.push(archive_ref(ecosystem, &name, &filename));
+            }
             outcome @ (Ok(BlobFinalize::Conflict) | Err(_)) => {
                 let _ = tokio::fs::remove_file(&tmp_path).await;
                 super::cleanup_tmp_slots(
@@ -372,6 +416,14 @@ pub(super) async fn same_bytes(
         }
     }
     Ok(file.read(&mut buffer[..1]).await? == 0)
+}
+
+fn archive_ref(
+    ecosystem: pnpr_registry::Ecosystem,
+    name: &CanonicalPackageName,
+    artifact: &str,
+) -> ArchiveRef {
+    ArchiveRef { ecosystem, name: name.as_str().to_string(), artifact: artifact.to_string() }
 }
 
 /// A publication member for an archive whose version the metadata does not

@@ -223,6 +223,19 @@ pub enum RegistryError {
         packages: String,
     },
 
+    /// A publish depended on an archive a reclaim marked, or removed after
+    /// the publish read its catalog, so the bytes it promoted may be gone.
+    #[display(
+        "Archive {artifact:?} of {package} was reclaimed while the publish was in flight; publish again"
+    )]
+    #[from(skip)]
+    ArchiveReclaimed {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        artifact: String,
+    },
+
     #[display("Upload {id:?} changed; query its offset before retrying")]
     #[from(skip)]
     BlobUploadConflict {

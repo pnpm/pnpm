@@ -242,7 +242,7 @@ const BLOB_REMOVALS_IN_FLIGHT: usize = 16;
 /// A rewrite that drops versions deletes their tarballs too: a client that
 /// read the packument from a tar registry has no `dist.tarball` to send the
 /// follow-up tarball DELETE for. The versions are already unpublished, so a
-/// blob that fails to go is logged and left for `pnpr verify --prune-orphans`.
+/// blob that fails to go is logged and left for `pnpr gc`.
 async fn remove_unpublished_blobs(
     storage: &pnpr_storage::Storage,
     name: &CanonicalPackageName,

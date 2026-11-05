@@ -133,35 +133,32 @@ must reach the same instance.
 
 ## Reclaiming space
 
-To collect blobs that no retained manifest references, stop **every writer**
-sharing the store and run:
+To collect blobs that no retained manifest references, run:
 
 ```sh
-pnpr -c config.yaml oci-gc --registry images --dry-run
-pnpr -c config.yaml oci-gc --registry images
+pnpr -c config.yaml gc --registry images --dry-run
+pnpr -c config.yaml gc --registry images
 ```
 
-`--registry` takes the concrete hosted OCI registry's config name. Keep writers
-stopped for the whole scan and deletion. `--dry-run` reports candidates without
-deleting them. `--min-age` defaults to `1d`, which preserves recent
-uploads so an interrupted push can resume; set it to zero to collect every
-unreferenced blob.
+[`pnpr gc`](cli.md#gc) runs while the registry serves and other replicas push.
+`--registry` takes the hosted OCI registry's config name; without it, `gc`
+collects every hosted registry. `--dry-run` reports candidates without deleting
+them. `--min-age` defaults to `1d`, which preserves recent uploads so an
+interrupted push can resume; set it to zero to collect every unreferenced blob.
 
 Collection keeps untagged manifests, the children of retained indexes, and their
 config and layer blobs, so removing a tag alone does not make its image
-collectible. A missing or corrupt retained manifest stops collection before any
-blob is deleted. The inventory covers unpublished repositories and nested
-repository names, and is streamed into a temporary SQLite database, so local
-temporary storage needs room for it.
+collectible. A missing or corrupt retained manifest keeps every blob of its
+repository. The scan covers unpublished repositories and nested repository
+names.
 
 `DELETE /v2/<name>/blobs/<digest>` removes an unreferenced blob for a caller with
 `unpublish` permission, which the registry default denies. A blob reachable from
-any retained manifest or index is refused. A stored deletion marker blocks
-concurrent manifest publication, and a generation counter rejects publishes
-staged before the deletion. If a deletion is interrupted, stop all writers and
-run `oci-gc` without `--dry-run` to finish it and unblock the repository;
-recovering an explicit deletion ignores `--min-age`. Every replica sharing a
-store must run this version before online deletion is used.
+any retained manifest or index is refused. The metadata database fences the
+deletion the same way it fences `gc`: a manifest push that checked the blob
+before it was deleted is refused with `409` when it commits, and a push that
+starts afterwards does not find the blob. If a deletion is interrupted, the blob
+stays marked and no manifest can depend on it until `gc` finishes the deletion.
 
 ## Caching Docker Hub and GHCR
 

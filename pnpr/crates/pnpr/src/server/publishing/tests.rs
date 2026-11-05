@@ -213,3 +213,5 @@ fn semver_validation_is_strict() {
         assert!(!super::is_valid_semver(invalid), "{invalid:?} should be invalid");
     }
 }
+
+mod fence;

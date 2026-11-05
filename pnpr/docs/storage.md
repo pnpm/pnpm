@@ -339,13 +339,13 @@ When publishing packages to an S3 backend, pnpr:
 
 ### Interruptions
 
-- **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no package references, which are never served. A publish refused at its commit leaves its blobs too: another replica may have found the same bytes in place and committed them, so removing them could break that release. A retry with the same bytes reuses them; one with other bytes for the same file is refused as a conflict.
+- **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no package references, which are never served. A publish refused at its commit removes the blobs it wrote, through the same fence as [`pnpr gc`](cli.md#gc), unless the package references them by then: another replica may have found the same bytes in place and committed them. A retry with the same bytes reuses blobs still in place; one with other bytes for the same file is refused as a conflict, until `pnpr gc --registry <name> <name>@<version>` removes the old ones.
 - **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
 
 ### Operational recommendations
 
 - **Abort incomplete multipart uploads**: Configure a lifecycle rule on your S3 bucket to abort incomplete multipart uploads after 1 to 7 days.
 - **Enable bucket versioning**: Enable S3 bucket versioning to protect against accidental object deletion or overwrite.
-- **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr verify --prune-orphans` to detect and remove orphaned blobs associated with verified npm packages.
+- **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr gc` to remove the archives no hosted package references. Both run while the registry serves.
 - **Backup procedures**: Follow the guidelines in [Backup and restore](backup-and-restore.md) for snapshotting and restoring S3 package data and revision history.
 

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::server::{
     Action, AppState, Identity, RegistrySource, authorize,
-    documents::stage_hosted_artifact,
+    documents::{HostedArtifact, stage_hosted_artifact_on},
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
 };
 use axum::body::Bytes;
@@ -92,21 +92,11 @@ impl OciPublication {
 
     pub(in crate::server) async fn stage(self, state: &AppState) -> Result<StagedPublish, Refusal> {
         let storage = state.inner.storage.for_hosted(&self.org, Ecosystem::Oci);
-        let snapshot = storage
-            .read_hosted_document(&self.key)
-            .await?
-            .map(|bytes| ImageDocument::parse(&bytes))
-            .transpose()
-            .map_err(RegistryError::from)?
-            .unwrap_or_default();
-        if snapshot.deleting_blob.is_some() {
-            return Err(RegistryError::DocumentWriteConflict {
-                package: self.key.as_str().to_string(),
-            }
-            .into());
-        }
-        self.check_referenced_blobs(&storage).await?;
-        let addition = self.document_addition(snapshot.generation);
+        // Read before the referenced blobs are checked: the commit is refused
+        // if a reclaim removes one of them after this read.
+        let base = storage.read_hosted_document_for_publish(&self.key).await?;
+        let references = self.check_referenced_blobs(&storage).await?;
+        let addition = self.document_addition();
         let children: Vec<Digest> = if pnpr_oci::media_type::is_index(self.manifest.media_type()) {
             self.manifest
                 .references()
@@ -115,24 +105,15 @@ impl OciPublication {
         } else {
             Vec::new()
         };
-        let refuse = |stored: &ImageDocument| {
-            refuse_moved_document(stored, snapshot.generation, self.key.as_str(), &children)
-        };
-        stage_hosted_artifact(
-            state,
-            &self.org,
-            &self.key,
-            &self.digest.blob_filename(),
-            &self.bytes,
-            &refuse,
-            addition,
-        )
-        .await
-        .map_err(Into::into)
+        let refuse = |stored: &ImageDocument| refuse_missing_children(stored, &children);
+        let filename = self.digest.blob_filename();
+        let artifact = HostedArtifact { filename: &filename, bytes: &self.bytes, references };
+        stage_hosted_artifact_on(state, &self.org, &self.key, artifact, base, &refuse, addition)
+            .await
+            .map_err(Into::into)
     }
-    fn document_addition(&self, generation: u64) -> ImageDocument {
+    fn document_addition(&self) -> ImageDocument {
         let mut addition = ImageDocument::new(self.key.as_str());
-        addition.generation = generation;
         addition.insert_manifest(ManifestEntry {
             digest: self.digest.clone(),
             media_type: self.manifest.media_type().to_string(),
@@ -150,8 +131,12 @@ impl OciPublication {
     }
 
     /// Every blob the manifest references must already be in this repository,
-    /// at the size the manifest declares.
-    async fn check_referenced_blobs(&self, storage: &pnpr_storage::Storage) -> Result<(), Refusal> {
+    /// at the size the manifest declares. Returns their file names, which the
+    /// commit depends on.
+    async fn check_referenced_blobs(
+        &self,
+        storage: &pnpr_storage::Storage,
+    ) -> Result<Vec<String>, Refusal> {
         let mut looked_up = HashSet::new();
         for descriptor in self.manifest.references() {
             if !looked_up.insert(descriptor.digest.clone()) {
@@ -186,21 +171,19 @@ impl OciPublication {
                 }
             }
         }
-        Ok(())
+        Ok(looked_up
+            .iter()
+            .map(Digest::blob_filename)
+            .collect())
     }
 }
 
-/// A staged manifest only lands on the document it was built against, with
-/// every child manifest it names still present.
-fn refuse_moved_document(
+/// A staged index only lands on a document that holds every child manifest
+/// it names.
+fn refuse_missing_children(
     stored: &ImageDocument,
-    generation: u64,
-    package: &str,
     children: &[Digest],
 ) -> Result<(), RegistryError> {
-    if stored.generation != generation || stored.deleting_blob.is_some() {
-        return Err(RegistryError::DocumentWriteConflict { package: package.to_string() });
-    }
     for child in children {
         if stored.manifest(child).is_none() {
             return Err(RegistryError::BadRequest {

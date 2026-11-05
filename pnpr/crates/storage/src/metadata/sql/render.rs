@@ -29,20 +29,47 @@ pub(super) fn read_view(
     cache: &RenderCache,
     key: &PackageKey,
 ) -> Result<Option<PackageView>> {
+    Ok(read_view_with_catalog(snapshot, cache, key, false)?.0)
+}
+
+/// [`read_view`], and with `catalog` the catalog's generation, read in the
+/// same round trip; `0` without it.
+pub(super) fn read_view_with_catalog(
+    snapshot: &dyn Connection,
+    cache: &RenderCache,
+    key: &PackageKey,
+    catalog: bool,
+) -> Result<(Option<PackageView>, u64)> {
     let view_key = ViewKey { package: key.clone(), representation: Representation::Full };
     // The rows a view is rendered from are read with the package's own row,
     // in one round trip to a remote database, unless the package is still
     // at the generation of the view the cache holds.
     let cached = cache.view_generation(&view_key);
     let unless = cached.map_or(NO_GENERATION, to_column);
-    let mut reads = vec![package_row_query(key)];
+    let mut reads = Vec::new();
+    if catalog {
+        reads.push(query!("SELECT generation FROM catalogs WHERE catalog = ?1", &key.catalog));
+    }
+    reads.push(package_row_query(key));
     let npm = key.ecosystem == Ecosystem::Npm;
     if npm {
         reads.extend([tags_query(key, &unless), version_entries_query(key, &unless)]);
     }
     let mut results = snapshot.query_all(&reads)?.into_iter();
+    let catalog_generation = if catalog {
+        results
+            .next()
+            .unwrap_or_default()
+            .into_iter()
+            .next()
+            .map(|mut row| row.get(0).map(to_generation))
+            .transpose()?
+            .unwrap_or(0)
+    } else {
+        0
+    };
     let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
-        return Ok(None);
+        return Ok((None, catalog_generation));
     };
     // The rows of the tags and versions were read unless the cached view was
     // at the package's generation.
@@ -60,7 +87,8 @@ pub(super) fn read_view(
         cache.store_view(view_key, package.generation, Arc::clone(&bytes));
         bytes
     };
-    Ok(Some(PackageView { bytes, generation: key.generation(package.generation) }))
+    let view = PackageView { bytes, generation: key.generation(package.generation) };
+    Ok((Some(view), catalog_generation))
 }
 
 /// One version as the version list reads it, before its fragment.

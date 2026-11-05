@@ -93,14 +93,14 @@ pnpr verify
 # Check that every packument version points to an existing blob, without comparing hashes
 pnpr verify --skip-hashes
 
-# Prune unreferenced/orphaned blobs left behind by interrupted uploads
-pnpr verify --prune-orphans
+# Remove unreferenced archives left behind by interrupted uploads
+pnpr gc
 ```
 
 `pnpr verify` checks:
 - **Missing blobs**: Tarballs referenced in a package document's version metadata that do not exist in storage.
 - **Corrupted blobs**: Tarballs whose content hashes do not match the declared `shasum` or `integrity`.
-- **Orphaned blobs**: Physical files in the store that are not referenced by any version of any hosted package document.
+- **Orphaned blobs**: Physical files in the store that are not referenced by any version of any hosted package document. `verify` only reports them; [`pnpr gc`](cli.md#gc) removes them.
 
 ## Migrating storage to S3
 

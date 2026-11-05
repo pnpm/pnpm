@@ -11,6 +11,7 @@ mod libsql;
 mod log;
 mod notes;
 mod publications;
+mod reclaims;
 mod schema;
 
 use crate::{

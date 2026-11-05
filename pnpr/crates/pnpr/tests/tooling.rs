@@ -1,8 +1,9 @@
-use std::path::Path;
+use std::{path::Path, time::Duration};
 use tempfile::TempDir;
 
 use pnpr::{
     Config,
+    archive_gc::{GcOptions, GcReport, collect_archives},
     config_check::{check_config, format_report},
     export::{export_storage, format_export_report},
     htpasswd_import::{HtpasswdImportOptions, import_htpasswd},
@@ -28,6 +29,15 @@ fn seed_file(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) {
 }
 
 fn create_test_config(dir: &Path) -> (Config, tempfile::NamedTempFile) {
+    create_test_config_with(dir, "")
+}
+
+/// [`create_test_config`] that hosts npm packages in the registry `local`.
+fn create_hosting_test_config(dir: &Path) -> (Config, tempfile::NamedTempFile) {
+    create_test_config_with(dir, "registries:\n  local:\n    type: hosted\n")
+}
+
+fn create_test_config_with(dir: &Path, registries: &str) -> (Config, tempfile::NamedTempFile) {
     let storage_dir = dir.join("storage");
     let cache_dir = dir.join("cache");
     let htpasswd_file = dir.join("htpasswd");
@@ -42,7 +52,7 @@ cache: '{}'
 auth:
   htpasswd:
     file: '{}'
-",
+{registries}",
         storage_dir.display(),
         cache_dir.display(),
         htpasswd_file.display(),
@@ -182,8 +192,8 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
     );
     seed_file(stored_tar.clone(), b"zstd tar bytes");
 
-    let prune = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
-    let report = verify_storage(&config, &prune).await.unwrap();
+    let opts = VerifyOptions { check_hashes: true };
+    let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.blobs_checked, 1);
     assert!(report.missing_blobs.is_empty(), "{:?}", report.missing_blobs);
     assert!(report.orphaned_blobs.is_empty(), "{:?}", report.orphaned_blobs);
@@ -198,9 +208,9 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
 }
 
 #[tokio::test]
-async fn test_verify_storage_health_and_orphan_prune() {
+async fn test_verify_reports_orphans_and_gc_removes_unreferenced_archives() {
     let dir = TempDir::new().unwrap();
-    let (config, _cfg_file) = create_test_config(dir.path());
+    let (config, _cfg_file) = create_hosting_test_config(dir.path());
 
     let pkg = "demo-pkg";
     write_local_layout_marker(&config.storage.hosted_dir).unwrap();
@@ -231,47 +241,94 @@ async fn test_verify_storage_health_and_orphan_prune() {
         tarball_bytes,
     );
 
-    // Add an orphaned blob
-    let orphan_path =
+    // A file no publish produces, and the archive of a version the package
+    // does not hold.
+    let unknown_path =
         local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "orphaned-blob.tgz");
-    std::fs::write(&orphan_path, b"unreferenced").unwrap();
+    std::fs::write(&unknown_path, b"unreferenced").unwrap();
+    let orphan_path =
+        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-0.9.0.tgz");
+    std::fs::write(&orphan_path, b"refused at its commit").unwrap();
+    let live_path =
+        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz");
 
-    // 1. Verify detecting the orphan even with min_age_secs: 86400 (audit reports all orphans)
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 86400 };
+    // Verify reports every orphan and removes none.
+    let opts = VerifyOptions { check_hashes: true };
     let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.packages_checked, 1);
     assert_eq!(report.versions_checked, 1);
     assert_eq!(report.blobs_checked, 1);
     assert!(report.missing_blobs.is_empty());
     assert!(report.corrupted_blobs.is_empty());
-    assert_eq!(report.orphaned_blobs.len(), 1);
+    assert_eq!(report.orphaned_blobs.len(), 2, "{:?}", report.orphaned_blobs);
+    assert!(orphan_path.exists() && unknown_path.exists());
+
+    // An archive younger than the minimum age stays.
+    let mut gc = GcOptions { min_age: Duration::from_hours(24), ..GcOptions::default() };
+    assert_eq!(collect_archives(&config, &gc).await.unwrap(), GcReport::default());
     assert!(orphan_path.exists());
 
-    // 2. Prune with min_age_secs: 86400 does NOT prune freshly created orphan
-    let guard_opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 86400 };
-    let guard_report = verify_storage(&config, &guard_opts).await.unwrap();
-    assert_eq!(guard_report.orphaned_blobs.len(), 0);
+    // A dry run reports what goes.
+    gc.min_age = Duration::ZERO;
+    gc.dry_run = true;
+    assert_eq!(collect_archives(&config, &gc).await.unwrap().archives, 1);
     assert!(orphan_path.exists());
 
-    // 3. Verify with prune_orphans: true and min_age_secs: 0 prunes the orphan
-    let prune_opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
-    let prune_report = verify_storage(&config, &prune_opts).await.unwrap();
-    assert_eq!(prune_report.orphaned_blobs.len(), 1);
-    assert!(prune_report.prune_failures.is_empty());
+    // The unreferenced archive goes; the live one and the unknown file stay.
+    gc.dry_run = false;
+    assert_eq!(collect_archives(&config, &gc).await.unwrap().archives, 1);
     assert!(!orphan_path.exists());
+    assert!(live_path.exists() && unknown_path.exists());
+}
 
-    // 4. Verify an undeclared .sigstore file is pruned when dist.attestations is absent
-    let undeclared_sigstore = local_blob_path(
+/// A named version's archives go whatever their age, so a publisher whose
+/// commit was refused can publish rebuilt bytes; a live version is refused.
+#[tokio::test]
+async fn gc_removes_a_named_orphan_and_refuses_a_live_version() {
+    let dir = TempDir::new().unwrap();
+    let (config, _cfg_file) = create_hosting_test_config(dir.path());
+    let pkg = "@scope/demo";
+    write_local_layout_marker(&config.storage.hosted_dir).unwrap();
+    let doc = serde_json::json!({
+        "name": pkg,
+        "versions": { "1.0.0": { "name": pkg, "version": "1.0.0", "dist": {
+            "tarball": "http://localhost:7677/@scope/demo/-/demo-1.0.0.tgz"
+        } } }
+    });
+    seed_document(
         &config.storage.hosted_dir,
-        "",
         Ecosystem::Npm,
         pkg,
-        "demo-pkg-1.0.0.sigstore",
+        &serde_json::to_vec(&doc).unwrap(),
     );
-    std::fs::write(&undeclared_sigstore, b"abandoned sigstore").unwrap();
-    let sigstore_report = verify_storage(&config, &prune_opts).await.unwrap();
-    assert_eq!(sigstore_report.orphaned_blobs.len(), 1);
-    assert!(!undeclared_sigstore.exists());
+    let blob =
+        |file: &str| local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, file);
+    for file in
+        ["demo-1.0.0.tgz", "demo-2.0.0.tgz", "demo-2.0.0.sigstore", "demo-2.0.0~linux-x64.tgz"]
+    {
+        seed_file(blob(file), file);
+    }
+
+    let named = |version: &str| GcOptions {
+        registries: vec!["local".to_string()],
+        min_age: Duration::from_hours(24),
+        versions: vec![format!("{pkg}@{version}")],
+        ..GcOptions::default()
+    };
+    let err = collect_archives(&config, &named("1.0.0")).await.unwrap_err();
+    assert!(err.to_string().contains("live version"), "{err}");
+    assert!(blob("demo-1.0.0.tgz").exists());
+
+    let removed = collect_archives(&config, &named("2.0.0")).await.unwrap();
+    assert_eq!(removed.archives, 3);
+    for file in ["demo-2.0.0.tgz", "demo-2.0.0.sigstore", "demo-2.0.0~linux-x64.tgz"] {
+        assert!(!blob(file).exists(), "{file}");
+    }
+    assert!(blob("demo-1.0.0.tgz").exists());
+
+    let unnamed = GcOptions { versions: vec![format!("{pkg}@1.0.0")], ..GcOptions::default() };
+    let err = collect_archives(&config, &unnamed).await.unwrap_err();
+    assert!(err.to_string().contains("exactly one --registry"), "{err}");
 }
 
 #[tokio::test]
@@ -313,7 +370,7 @@ async fn test_verify_storage_corrupted_and_missing() {
         b"some mismatched content",
     );
 
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
+    let opts = VerifyOptions { check_hashes: true };
     let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.missing_blobs.len(), 1);
     assert_eq!(report.corrupted_blobs.len(), 1);
@@ -542,7 +599,7 @@ async fn test_verify_and_export_attestations() {
         b"sigstore bundle bytes",
     );
 
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
+    let opts = VerifyOptions { check_hashes: true };
     let rep = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(rep.packages_checked, 1);
     assert_eq!(rep.missing_blobs.len(), 0);

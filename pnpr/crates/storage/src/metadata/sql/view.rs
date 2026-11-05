@@ -116,6 +116,28 @@ impl PackageMetadata {
         }))
     }
 
+    /// [`Self::read_for_update`], with the catalog's generation read in the
+    /// same round trip: what a publish reads before it promotes the archives
+    /// it commits, so the commit can tell whether a reclaim removed one of
+    /// them since.
+    pub(crate) async fn read_for_publish(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<crate::metadata::PublishBase> {
+        let key = self.key(name);
+        let (view, catalog_generation) = self.database.read(
+            self.catalog.clone(),
+            Freshness::Current,
+            move |connection, cache| render::read_view_with_catalog(connection, cache, &key, true),
+        )
+        .await?;
+        let stored = view.map(|view| HostedDocumentForUpdate {
+            bytes: view.bytes.to_vec(),
+            version: HostedDocumentVersion::Generation(view.generation.value),
+        });
+        Ok(crate::metadata::PublishBase { stored, catalog_generation })
+    }
+
     /// Commit `bytes` as the package's document while the stored one is still
     /// at `version`: absent for `None`, any for
     /// [`HostedDocumentVersion::Unversioned`]. `principal` is who asked for

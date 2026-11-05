@@ -316,6 +316,16 @@ impl Storage {
         self.metadata.read_for_update(name).await
     }
 
+    /// [`Self::read_hosted_document_for_update`] for a publish, with the
+    /// catalog generation that fences the archives the publish promotes
+    /// next (see [`metadata::ArchiveFence`]), read in the same round trip.
+    pub async fn read_hosted_document_for_publish(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<metadata::PublishBase> {
+        self.metadata.read_for_publish(name).await
+    }
+
     /// Write `bytes` as the package's document while the stored one is still
     /// at `version`. `principal` is who asked for the write; the metadata
     /// store records it with every dist-tag the write moves.

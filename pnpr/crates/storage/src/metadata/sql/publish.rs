@@ -7,10 +7,11 @@ use super::{
     batch::Batch,
     commit::StoredPackage,
     notes, publications,
+    reclaims::FenceRead,
 };
 use crate::metadata::{
-    ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest, PublishNotes,
-    RecordedOutcome,
+    ArchiveFence, ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest,
+    PublishNotes, RecordedOutcome,
 };
 use pnpr_error::{RegistryError, Result};
 
@@ -23,6 +24,9 @@ pub(super) struct Submission<'input> {
     pub(super) artifacts: &'input [ArtifactMember],
     pub(super) notes: &'input PublishNotes,
     pub(super) request: Option<&'input PublicationRequest>,
+    /// The archives the commit depends on, and the catalog generation read
+    /// before they were promoted.
+    pub(super) fence: &'input ArchiveFence,
 }
 
 /// Commit every document of `submission` under one new generation of its
@@ -102,6 +106,8 @@ struct Reads<'request> {
     /// The package each document writes.
     keys: Vec<PackageKey>,
     notes: &'request PublishNotes,
+    /// The check of the commit's fence, when it depends on any archive.
+    fence: Option<FenceRead>,
 }
 
 /// What the reads of a publication found.
@@ -125,7 +131,12 @@ impl<'request> Reads<'request> {
     /// per publication, since its reads are made before any write.
     fn new(submission: &Submission<'request>) -> Result<Self> {
         let Submission {
-            catalog, documents, notes, request, ..
+            catalog,
+            documents,
+            notes,
+            request,
+            fence,
+            ..
         } = *submission;
         let mut keys: Vec<PackageKey> = Vec::with_capacity(documents.len());
         for document in documents {
@@ -141,7 +152,7 @@ impl<'request> Reads<'request> {
             }
             keys.push(key);
         }
-        Ok(Self { catalog, request, keys, notes })
+        Ok(Self { catalog, request, keys, notes, fence: FenceRead::new(fence) })
     }
 
     fn name(&self) -> Option<&'request str> {
@@ -161,6 +172,9 @@ impl<'request> Reads<'request> {
         }
         for note in &self.notes.versions {
             queries.push(notes::version_note_query(self.catalog, note));
+        }
+        if let Some(fence) = &self.fence {
+            queries.push(fence.query(self.catalog));
         }
         queries
     }
@@ -185,6 +199,9 @@ impl<'request> Reads<'request> {
             .iter()
             .map(|_| Ok(!next(&mut results)?.is_empty()))
             .collect::<Result<_>>()?;
+        if self.fence.is_some() {
+            FenceRead::check(next(&mut results)?)?;
+        }
         Ok(Answer::Read(Read { name_taken, stored, noted }))
     }
 }

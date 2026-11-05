@@ -45,6 +45,7 @@ mod notes;
 mod packument;
 mod publications;
 mod publish;
+mod reclaims;
 mod render;
 mod schema;
 mod sqlite;
@@ -54,8 +55,8 @@ mod versions;
 mod view;
 
 use super::{
-    ArtifactMember, BatchDocument, Generation, Publication, PublicationCommit, PublicationRequest,
-    PublishNotes, RecordedOutcome,
+    ArchiveFence, ArtifactMember, BatchDocument, Generation, Publication, PublicationCommit,
+    PublicationRequest, PublishNotes, RecordedOutcome,
 };
 use crate::{HostedDocumentVersion, transparency_log::LogId};
 use adapter::{Adapter, Connection};
@@ -254,6 +255,23 @@ impl SqlMetadata {
         notes: PublishNotes,
         request: Option<PublicationRequest>,
     ) -> Result<PublicationCommit> {
+        let fence = ArchiveFence::default();
+        self.commit_fenced_publication(catalog, documents, artifacts, notes, request, fence).await
+    }
+
+    /// [`Self::commit_publication`], refused with
+    /// [`RegistryError::ArchiveReclaimed`] when `fence` names an archive a
+    /// reclaim marked, or removed after the fence's token. The check is read
+    /// with the commit's other reads, in the same round trip.
+    pub async fn commit_fenced_publication(
+        self: &Arc<Self>,
+        catalog: &str,
+        documents: Vec<BatchDocument>,
+        artifacts: Vec<ArtifactMember>,
+        notes: PublishNotes,
+        request: Option<PublicationRequest>,
+        fence: ArchiveFence,
+    ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
         self.write(move |connection| {
             let submission = publish::Submission {
@@ -262,6 +280,7 @@ impl SqlMetadata {
                 artifacts: &artifacts,
                 notes: &notes,
                 request: request.as_ref(),
+                fence: &fence,
             };
             publish::commit_publication(connection, &submission)
         })

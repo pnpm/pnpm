@@ -16,11 +16,13 @@ pub use publication::{
     ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationRequest,
     RecordedOutcome, ReleaseRecords,
 };
+pub use reclaims::{ArchiveFence, ArchiveRef, PublishBase, ReclaimTarget};
 pub(crate) use sql::PackageMetadata;
 pub use sql::{RenderStats, SqlMetadata, TagHistoryEntry};
 
 mod notes;
 mod publication;
+mod reclaims;
 
 use crate::{DocumentUpdate, DocumentWrite, Storage, wait_after_document_write_conflict};
 use pnpr_config::MetadataBackend;

@@ -4,7 +4,7 @@ title: CLI reference
 ---
 
 `pnpr` runs the registry server when no subcommand is given. The other
-subcommands are offline maintenance tools.
+subcommands are maintenance tools.
 
 ```sh
 pnpr [serve] [OPTIONS]
@@ -14,7 +14,7 @@ pnpr export --out <dir> [OPTIONS]
 pnpr migrate-storage [OPTIONS]
 pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr add-user <username>
-pnpr oci-gc --registry <name> [OPTIONS]
+pnpr gc [OPTIONS] [<name>@<version>...]
 pnpr cache-gc [OPTIONS]
 ```
 
@@ -74,19 +74,13 @@ pnpr verify
 
 # Check that every blob exists, without comparing hashes
 pnpr verify --skip-hashes
-
-# Prune unreferenced blobs left behind by interrupted operations (older than 24h)
-pnpr verify --prune-orphans
-
-# Prune immediately without age guard
-pnpr verify --prune-orphans --min-age 0
 ```
+
+`verify` reports orphaned blobs and changes nothing; [`gc`](#gc) removes them.
 
 | Flag | Description |
 | --- | --- |
 | `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). |
-| `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. Recommended when registry writers are stopped. |
-| `--min-age <interval>` | Minimum age before an unreferenced blob is considered for pruning (e.g. `1d`, `86400s`, or bare seconds; defaults to `1d`). |
 
 ### export
 
@@ -176,19 +170,52 @@ printf '%s\n' "$PASSWORD" | pnpr add-user alice
 The password is read from the terminal, or from one line of stdin when stdin is
 not a terminal. It cannot be passed as a flag.
 
-### oci-gc
+### gc
 
-Added in: v0.1.0-alpha.11
+Removes archives that no hosted package references, in every hosted registry:
+npm, PyPI, Cargo, and OCI. It is safe to run while the registry serves and other
+replicas publish.
 
-Reclaims [container image](container-images.md#reclaiming-space) blobs that no
-retained manifest references. Every writer sharing the store must be stopped for
-the whole run.
+```sh
+# Report what would go
+pnpr gc --dry-run
+
+# Remove unreferenced archives older than a day, in one registry
+pnpr gc --registry local
+
+# Remove the archives of a version whose publish was refused at its commit,
+# so the publisher can publish rebuilt bytes
+pnpr gc --registry local @acme/widget@1.2.3
+```
+
+Such archives are left by a publish that stopped before its commit, an unpublish
+whose archive removal failed, or an image push that never got its manifest. A
+publish refused at its commit removes the archives it wrote itself, unless the
+package references them by then.
+
+An archive goes only when its file name is one the ecosystem's publishes
+produce: for npm a version's `.tgz`, variant `.tgz`, `.tar.zst`, or `.sigstore`;
+for Cargo a `.crate`; for PyPI a wheel or sdist; for OCI a `sha256-` blob. Any
+other file stays. An npm, Cargo, or PyPI archive stays while its version or file
+is in the package's metadata. An OCI blob stays while a retained manifest
+reaches it: untagged manifests, the children of retained indexes, and their
+config and layer blobs. A repository whose retained manifest is missing or
+corrupt keeps every blob, and `gc` reports the error after collecting the rest.
+
+The metadata database fences each removal. `gc` first marks the archives in a
+transaction that holds only while their package is unchanged since it found them
+unreferenced, then removes them, then records that they are gone. A publish
+whose commit depends on a marked archive, or on one removed after the publish
+read its package, is refused with `409` and can be retried. `gc` also finishes
+removals that an interrupted run or an interrupted [blob
+`DELETE`](container-images.md#reclaiming-space) left marked.
 
 | Flag | Description |
 | --- | --- |
-| `--registry <name>` | The concrete hosted OCI registry to collect, by its config name. Required. |
-| `--dry-run` | Report the candidates without deleting anything. |
-| `--min-age <interval>` | Keep blobs younger than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so an interrupted push can still resume. `0` collects every unreferenced blob. |
+| `--registry <name>` | A hosted registry to collect, by its config name. Repeat it for more. Defaults to every hosted registry. |
+| `--dry-run` | Report the archives that would be removed without removing them. |
+| `--min-age <interval>` | Keep archives younger than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so a publish or image push still in flight is not refused. `0` collects every unreferenced archive. |
+| `<name>@<version>` | Remove that version's archives whatever their age, instead of sweeping. Needs exactly one `--registry`, and refuses a version the package still holds. Not for OCI: delete an image blob by its digest. |
 
 ### cache-gc
 

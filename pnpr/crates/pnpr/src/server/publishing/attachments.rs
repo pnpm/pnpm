@@ -141,6 +141,10 @@ pub(in super::super) struct StagedPublish {
     /// What the store held when `document` was computed from it.
     pub(in super::super) base: StagedBase,
     pub(in super::super) slots: Vec<pnpr_storage::BlobSlot>,
+    /// Archives already in the package's store that the document references
+    /// and the publish did not stage, such as the layers an image manifest
+    /// names. The commit depends on them as on the ones it promotes.
+    pub(in super::super) references: Vec<String>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit so the write
     /// lands in the right org.
@@ -161,6 +165,10 @@ pub(in super::super) struct StagedBase {
     /// another replica rebases the publish's changes off; `None` for a
     /// first publish and for other ecosystems.
     pub(in super::super) packument: Option<Value>,
+    /// The catalog generation read with it, before any archive of the
+    /// publish was promoted: the token of the commit's fence (see
+    /// [`pnpr_storage::metadata::ArchiveFence`]).
+    pub(in super::super) catalog_generation: u64,
 }
 
 /// What verifying a publish's archives against its version metadata
@@ -188,10 +196,9 @@ pub(in super::super) async fn stage_publish(
 ) -> Result<StagedPublish, RegistryError> {
     let storage = hosted_storage(state, org);
 
-    let (hosted, base_version) = parse_hosted_packument(
-        &doc.name,
-        storage.read_hosted_document_for_update(&doc.name).await?,
-    )?;
+    let base = storage.read_hosted_document_for_publish(&doc.name).await?;
+    let catalog_generation = base.catalog_generation;
+    let (hosted, base_version) = parse_hosted_packument(&doc.name, base.stored)?;
 
     check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
     let publisher = doc.publisher.username().map(str::to_string);
@@ -225,8 +232,9 @@ pub(in super::super) async fn stage_publish(
         name,
         ecosystem: Ecosystem::Npm,
         document: verified.document,
-        base: StagedBase { version: base_version, packument: hosted },
+        base: StagedBase { version: base_version, packument: hosted, catalog_generation },
         slots: verified.slots,
+        references: Vec::new(),
         org: org.map(str::to_string),
         publisher,
         verification: verified.verification,
