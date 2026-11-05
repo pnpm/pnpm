@@ -81,3 +81,6 @@ impl Lto {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

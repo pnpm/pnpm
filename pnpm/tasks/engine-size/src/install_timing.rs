@@ -3,6 +3,7 @@
 use crate::cli_args::CliArgs;
 use serde::Serialize;
 use std::{
+    ffi::OsString,
     fs,
     path::Path,
     process::Command,
@@ -27,17 +28,17 @@ pub fn measure(probe: &Path, registry: &str, args: &CliArgs) -> Result<InstallTi
     let mut warm = Vec::with_capacity(args.runs.into());
     for _ in 0..args.runs {
         let project = tempfile::tempdir().map_err(|error| format!("create a temp dir: {error}"))?;
-        prepare_project(&fixture, project.path(), registry)?;
-        cold.push(install(probe, project.path())?);
+        prepare_project(&fixture, project.path())?;
+        let env = benchmark_env(project.path(), registry);
+        cold.push(install(probe, project.path(), &env)?);
         remove_dir(&project.path().join("node_modules"))?;
-        warm.push(install(probe, project.path())?);
+        warm.push(install(probe, project.path(), &env)?);
     }
     Ok(InstallTimings { cold_store_ms: median(cold), warm_store_ms: median(warm) })
 }
 
-/// Copy the fixture into `project` and point it at `registry`, with a
-/// store and cache inside `project`.
-fn prepare_project(fixture: &Path, project: &Path, registry: &str) -> Result<(), String> {
+/// Copy the fixture's files into `project` unchanged.
+fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
     for file in FIXTURE_FILES {
         let from = fixture.join(file);
         if from.exists() {
@@ -45,54 +46,43 @@ fn prepare_project(fixture: &Path, project: &Path, registry: &str) -> Result<(),
                 .map_err(|error| format!("copy {}: {error}", from.display()))?;
         }
     }
-    let workspace_manifest = project.join("pnpm-workspace.yaml");
-    let mut settings = fs::read_to_string(&workspace_manifest).unwrap_or_default();
-    let registry_setting = format!("registry: {registry}");
-    for setting in [
-        registry_setting.as_str(),
-        "storeDir: ./store-dir",
-        "cacheDir: ./cache-dir",
-        "ignoreScripts: true",
-    ] {
-        set_setting(&mut settings, setting);
-    }
-    fs::write(&workspace_manifest, settings)
-        .map_err(|error| format!("write {}: {error}", workspace_manifest.display()))
+    Ok(())
 }
 
-/// Set the top-level `key: value` line `setting` in the YAML in
-/// `settings`, replacing the key's existing entry and its indented or
-/// block-sequence continuation lines.
-pub fn set_setting(settings: &mut String, setting: &str) {
-    let key = setting.split_once(':').map_or(setting, |(key, _)| key);
-    let mut kept = String::with_capacity(settings.len() + setting.len() + 1);
-    let mut in_replaced_entry = false;
-    for line in settings.lines() {
-        let continues_entry = line.starts_with([' ', '\t', '-']);
-        if line
-            .strip_prefix(key)
-            .is_some_and(|rest| rest.starts_with(':'))
-        {
-            in_replaced_entry = true;
-        } else if !(in_replaced_entry && continues_entry) {
-            in_replaced_entry = false;
-            kept.push_str(line);
-            kept.push('\n');
-        }
-    }
-    kept.push_str(setting);
-    kept.push('\n');
-    *settings = kept;
+/// One environment change for the probe: set `name` to the value, or
+/// remove it when the value is `None`.
+pub type EnvChange = (String, Option<OsString>);
+
+/// The settings the benchmark owns, passed as `PNPM_CONFIG_*` variables,
+/// which take precedence over the fixture's files. The lowercase spelling
+/// of each is removed first, so an inherited one cannot compete. Every
+/// other variable, credentials included, is inherited unchanged.
+pub fn benchmark_env(project: &Path, registry: &str) -> Vec<EnvChange> {
+    let settings: [(&str, OsString); 4] = [
+        ("REGISTRY", registry.into()),
+        ("STORE_DIR", project.join("store-dir").into_os_string()),
+        ("CACHE_DIR", project.join("cache-dir").into_os_string()),
+        ("IGNORE_SCRIPTS", "true".into()),
+    ];
+    let removals = settings
+        .iter()
+        .map(|(suffix, _)| (format!("pnpm_config_{}", suffix.to_lowercase()), None));
+    let assignments = settings
+        .iter()
+        .map(|(suffix, value)| (format!("PNPM_CONFIG_{suffix}"), Some(value.clone())));
+    removals.chain(assignments).collect()
 }
 
-/// Run the probe on `project` without the `PNPM_CONFIG_*` and
-/// `npm_config_*` variables of the caller's environment, which would
-/// override the settings [`prepare_project`] writes.
-fn install(probe: &Path, project: &Path) -> Result<Duration, String> {
+fn install(probe: &Path, project: &Path, env: &[EnvChange]) -> Result<Duration, String> {
+    let mut command = Command::new(probe);
+    for (name, value) in env {
+        match value {
+            Some(value) => command.env(name, value),
+            None => command.env_remove(name),
+        };
+    }
     let start = Instant::now();
-    let status = Command::new(probe)
-        .env_clear()
-        .envs(std::env::vars_os().filter(|(name, _)| !is_config_variable(name)))
+    let status = command
         .arg(project)
         .arg("--frozen-lockfile")
         .status()
@@ -103,11 +93,6 @@ fn install(probe: &Path, project: &Path) -> Result<Duration, String> {
     } else {
         Err(format!("the probe failed to install {}: {status}", project.display()))
     }
-}
-
-fn is_config_variable(name: &std::ffi::OsStr) -> bool {
-    let name = name.to_string_lossy().to_ascii_lowercase();
-    name.starts_with("pnpm_config_") || name.starts_with("npm_config_")
 }
 
 fn remove_dir(dir: &Path) -> Result<(), String> {

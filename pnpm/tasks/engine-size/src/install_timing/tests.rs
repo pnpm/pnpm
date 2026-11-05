@@ -1,25 +1,20 @@
-use super::set_setting;
+use super::benchmark_env;
 use pretty_assertions::assert_eq;
+use std::{ffi::OsString, path::Path};
 
 #[test]
-fn set_setting_appends_a_missing_key() {
-    let mut settings = "packages:\n  - a\n".to_string();
-    set_setting(&mut settings, "ignoreScripts: true");
-    assert_eq!(settings, "packages:\n  - a\nignoreScripts: true\n");
-}
-
-#[test]
-fn set_setting_replaces_an_existing_entry_and_its_continuation_lines() {
-    let mut settings =
-        "storeDir: /shared/store\nignoreScripts:\n  false\nregistries:\n  default: x\n".to_string();
-    set_setting(&mut settings, "ignoreScripts: true");
-    set_setting(&mut settings, "storeDir: ./store-dir");
-    assert_eq!(settings, "registries:\n  default: x\nignoreScripts: true\nstoreDir: ./store-dir\n");
-}
-
-#[test]
-fn set_setting_leaves_keys_that_share_a_prefix() {
-    let mut settings = "storeDirectory: x\n".to_string();
-    set_setting(&mut settings, "storeDir: ./store-dir");
-    assert_eq!(settings, "storeDirectory: x\nstoreDir: ./store-dir\n");
+fn benchmark_env_replaces_both_spellings_of_each_owned_setting() {
+    let project = Path::new("/bench/project");
+    let env = benchmark_env(project, "https://registry.example/");
+    let expected: Vec<(String, Option<OsString>)> = vec![
+        ("pnpm_config_registry".into(), None),
+        ("pnpm_config_store_dir".into(), None),
+        ("pnpm_config_cache_dir".into(), None),
+        ("pnpm_config_ignore_scripts".into(), None),
+        ("PNPM_CONFIG_REGISTRY".into(), Some("https://registry.example/".into())),
+        ("PNPM_CONFIG_STORE_DIR".into(), Some(project.join("store-dir").into())),
+        ("PNPM_CONFIG_CACHE_DIR".into(), Some(project.join("cache-dir").into())),
+        ("PNPM_CONFIG_IGNORE_SCRIPTS".into(), Some("true".into())),
+    ];
+    assert_eq!(env, expected);
 }
