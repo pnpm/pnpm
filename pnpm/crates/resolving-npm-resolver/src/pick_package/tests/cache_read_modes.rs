@@ -1,11 +1,11 @@
 use super::{
     ABBREVIATED_BODY, ABBREVIATED_META_DIR, Arc, AuthHeaders, EXISTING_VERSION_SELECTOR_WEIGHT,
     FULL_FILTERED_META_DIR, FULL_META_DIR, InMemoryPackageMetaCache, MetadataCacheScope,
-    PACKAGE_BODY, PickPackageContext, PickPackageError, RetryOpts, STALE_PACKAGE_BODY, TempDir,
-    ThrottledClient, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
-    VersionSelectors, assert_eq, default_opts, get_legacy_pkg_mirror_paths, get_pkg_mirror_path,
-    metadata_cache_key, persist_meta_to_mirror, pick_package, range_spec,
-    shared_packument_fetch_locker, version_spec,
+    PACKAGE_BODY, PackumentSource, PickPackageContext, PickPackageError, RetryOpts,
+    STALE_PACKAGE_BODY, TempDir, ThrottledClient, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight, VersionSelectors, assert_eq, default_opts,
+    get_legacy_pkg_mirror_paths, get_pkg_mirror_path, metadata_cache_key, persist_meta_to_mirror,
+    pick_package, range_spec, shared_packument_fetch_locker, version_spec,
 };
 use crate::pick_package::metadata_cache::PackageMetaCache;
 
@@ -301,10 +301,10 @@ fn meta_cache_tracks_registry_verification_per_entry() {
     let cache = InMemoryPackageMetaCache::default();
     let meta: pnpm_registry::Package = serde_json::from_str(PACKAGE_BODY).expect("parse packument");
     let meta = Arc::new(meta);
-    cache.set_unverified("k".to_string(), Arc::clone(&meta));
-    assert!(!cache.get("k").expect("entry").registry_verified);
+    cache.set_unverified("k".to_string(), Arc::clone(&meta), None);
+    assert_eq!(cache.get("k").expect("entry").source, PackumentSource::Mirror { written_at: None });
     cache.set("k".to_string(), meta);
-    assert!(cache.get("k").expect("entry").registry_verified);
+    assert_eq!(cache.get("k").expect("entry").source, PackumentSource::Registry);
 }
 
 /// A second offline resolve succeeds after the mirror file is deleted,

@@ -46,7 +46,7 @@ pub(crate) use mirror_persistence::{SkippedTimeCheck, warn_missing_time_once};
 
 pub use metadata_cache::{
     CachedPackument, InMemoryPackageMetaCache, PackageMetaCache, PackumentFetchLocker,
-    PickedManifestCache, shared_in_memory_cache, shared_packument_fetch_locker,
+    PackumentSource, PickedManifestCache, shared_in_memory_cache, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
 
