@@ -1,10 +1,11 @@
 use super::{
-    Config, Context, EnvLockfile, PackageManifest, Path, Value, infer_range_spec_style,
-    range_satisfies, version_lt,
+    Config, Context, EnvLockfile, PackageManifest, Path, Value, infer_range_spec_style, version_lt,
 };
 use crate::{
     cli_args::{
-        package_manager::{PinRoots, WantedPackageManager, wanted_package_manager},
+        package_manager::{
+            PinRoots, WantedPackageManager, version_satisfies, wanted_package_manager,
+        },
         pre_command::{
             Invocation, PinDecision, PinInput, SwitchProcessState, decide, read_pin_lockfile,
         },
@@ -320,7 +321,7 @@ pub(super) fn update_version_constraint(current: Option<&str>, new_version: &str
     };
     match infer_range_spec_style(current) {
         Some(pinned) => format!("{}{new_version}", pinned.range_prefix()),
-        None if range_satisfies(current, new_version) => current.to_string(),
+        None if version_satisfies(new_version, current) => current.to_string(),
         None => format!("^{new_version}"),
     }
 }

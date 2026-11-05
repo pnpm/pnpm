@@ -256,6 +256,22 @@ fn self_update_rewrites_the_engines_pnpm_range_with_a_dev_engines_pin() {
 }
 
 #[test]
+fn self_update_keeps_engines_without_a_pnpm_range() {
+    let mut project = PinnedProject::with_manifest(
+        r#"{"packageManager":"pnpm@0.1.0","engines":{"node":">=18"}}"#,
+        OLDER_PNPM,
+    );
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(
+        project.manifest_text(),
+        format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}","engines":{{"node":">=18"}}}}"#),
+    );
+}
+
+#[test]
 fn self_update_rewrites_the_workspace_root_pin_from_a_workspace_package() {
     let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
     let package_dir = project.run_from_workspace_package();
