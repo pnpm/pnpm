@@ -13,8 +13,6 @@ Only auth, registry, TLS, proxy, and `local-address` settings are read from `.np
 
 The `pnpm config` command can be used to read and edit the contents of the project and global configuration files.
 
-Commands that edit `pnpm-workspace.yaml` reject a standalone `null` or `~` value without changing the file. Remove that value to leave an empty or comment-only file before adding settings.
-
 The relevant configuration files are:
 
 * Per-project configuration file: `/path/to/my/project/pnpm-workspace.yaml`

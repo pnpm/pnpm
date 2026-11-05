@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Commands that update `pnpm-workspace.yaml` now reject a standalone `null` value without changing the file. Empty and comment-only files remain supported.
+Commands that add settings to `pnpm-workspace.yaml` now fail with an error if the file contains only `null`, and leave the file unchanged. Previously they wrote invalid YAML.
