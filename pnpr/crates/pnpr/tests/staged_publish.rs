@@ -217,11 +217,17 @@ async fn staged_publish_rejects_invalid_semver_versions() {
     let body = publish_doc("invalid-staged", "banana", &archive);
 
     let response = app
+        .clone()
         .oneshot(json_request("POST", "/npm/-/stage/package/invalid-staged", &body, Some(&token)))
         .await
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let list = app
+        .oneshot(request("GET", "/npm/-/stage?package=invalid-staged", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(body_json(list.into_body()).await["total"], 0);
     assert!(
         pnpr_fixtures::read_hosted_document(
             &storage,
