@@ -18,7 +18,10 @@ use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry}
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache};
 use pnpm_tarball::PrefetchResult;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 impl<'a> CreateVirtualStore<'a> {
     /// Execute the subroutine. Returns the set of bundled manifests
@@ -71,7 +74,7 @@ impl<'a> CreateVirtualStore<'a> {
             check,
         )
         .await?;
-        self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
+        self.settle_materialized::<Reporter>(wanted, planned, &output.fetch_failed);
         let handoff = retained_keys.map(|cache_keys| {
             retained_handoff(
                 (prefetch.store_index, prefetch.verified_files_cache),
@@ -81,6 +84,25 @@ impl<'a> CreateVirtualStore<'a> {
             )
         });
         Ok((output, handoff))
+    }
+
+    /// Record the archive each materialized slot of a package with platform
+    /// variants holds, and report how many snapshots this pass added.
+    fn settle_materialized<Reporter: self::Reporter>(
+        &self,
+        wanted: WantedEntries<'a>,
+        planned: usize,
+        fetch_failed: &HashSet<PackageKey>,
+    ) {
+        if !self.is_hoisted() {
+            super::linked_archives::record_linked_archives(
+                self.ctx.linker.layout,
+                (wanted.snapshots, wanted.packages),
+                self.selection.supported_architectures,
+                fetch_failed,
+            );
+        }
+        self.report_added::<Reporter>(planned.saturating_sub(fetch_failed.len()));
     }
 
     async fn prefetch_and_prepare_store(

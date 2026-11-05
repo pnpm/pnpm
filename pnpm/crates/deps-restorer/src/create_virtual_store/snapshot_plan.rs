@@ -234,7 +234,7 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     )? {
         return Ok(false);
     }
-    if super::cache_keys::slot_holds_other_variant(
+    if super::linked_archives::slot_holds_other_variant(
         probe.layout,
         (snapshot_key, probe.packages),
         probe.policy.supported_architectures,

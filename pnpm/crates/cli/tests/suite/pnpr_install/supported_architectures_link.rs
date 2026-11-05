@@ -79,8 +79,15 @@ fn publish_cli(registry: &str, token: &str) {
     publish(registry, token, &cli, &["portable/any", "native/host", "native/foreign"]);
 }
 
-/// Set `supportedArchitectures` to `platforms` in `workspace`'s manifest.
+/// Set `supportedArchitectures` to the list `platforms` in `workspace`'s
+/// manifest.
 fn set_supported_architectures(workspace: &Path, platforms: &[&str]) {
+    set_supported_architectures_to(workspace, &format!("[{}]", platforms.join(", ")));
+}
+
+/// Set `supportedArchitectures` to the YAML flow value `value` in
+/// `workspace`'s manifest.
+fn set_supported_architectures_to(workspace: &Path, value: &str) {
     let manifest = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&manifest).expect("read pnpm-workspace.yaml");
     let mut kept = String::new();
@@ -90,10 +97,49 @@ fn set_supported_architectures(workspace: &Path, platforms: &[&str]) {
     {
         writeln!(kept, "{line}").expect("keep line");
     }
-    writeln!(kept, "supportedArchitectures: [{}]", platforms.join(", ")).expect(
-        "write supportedArchitectures",
-    );
+    writeln!(kept, "supportedArchitectures: {value}").expect("write supportedArchitectures");
     fs::write(&manifest, kept).expect("write pnpm-workspace.yaml");
+}
+
+/// A project depending on `@acme/cli` from `registry`.
+fn consumer(
+    registry: &str,
+    token: &str,
+) -> CommandTempCwd<pnpm_testing_utils::bin::AddMockedRegistry> {
+    let command = CommandTempCwd::init().add_mocked_registry();
+    point_npmrc_registry_at(&command.npmrc_info.npmrc_path, registry);
+    configure_pnpr_auth(&command.npmrc_info.npmrc_path, registry, token);
+    fs::write(
+        command.workspace.join("package.json"),
+        json!({ "dependencies": { "@acme/cli": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    declare_pnpr_registries(&command.workspace, &[registry]);
+    command
+}
+
+#[test]
+fn the_object_form_naming_one_platform_links_its_variant() {
+    let (registry, token) = start_hosted_pnpr();
+    publish_cli(&registry, &token);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = consumer(&registry, &token);
+    let (os, cpu) = foreign_target().split_once('-').expect("an os-cpu target");
+    set_supported_architectures_to(&workspace, &format!("{{ os: [{os}], cpu: [{cpu}] }}"));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let linked = workspace.join("node_modules/@acme/cli");
+    assert!(linked.join("native/foreign").exists(), "the named platform's variant is linked");
+    assert!(!linked.join("native/host").exists());
+    drop((root, npmrc_info));
 }
 
 #[test]
@@ -106,15 +152,7 @@ fn one_listed_platform_links_its_variant_and_its_dependencies() {
         workspace,
         npmrc_info,
         ..
-    } = CommandTempCwd::init().add_mocked_registry();
-    point_npmrc_registry_at(&npmrc_info.npmrc_path, &registry);
-    configure_pnpr_auth(&npmrc_info.npmrc_path, &registry, &token);
-    fs::write(
-        workspace.join("package.json"),
-        json!({ "dependencies": { "@acme/cli": "1.0.0" } }).to_string(),
-    )
-    .expect("write package.json");
-    declare_pnpr_registries(&workspace, &[&registry]);
+    } = consumer(&registry, &token);
     set_supported_architectures(&workspace, &[foreign_target()]);
 
     pacquet

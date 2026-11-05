@@ -11,7 +11,9 @@
 
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_lockfile::{HostFloors, PlatformSelector, VariationsResolution};
-use pnpm_package_is_installable::{NamedPlatform, SupportedArchitectures, SupportedPlatform};
+use pnpm_package_is_installable::{
+    ArchitectureAxes, NamedPlatform, SupportedArchitectures, SupportedPlatform,
+};
 
 /// Build the host's [`PlatformSelector`] for runtime-variant
 /// matching, from the host's os, cpu, and libc (the latter only on
@@ -166,21 +168,47 @@ fn linked_platform(supported: Option<&SupportedArchitectures>) -> PlatformSelect
     }
 }
 
-/// The one platform `supported` lists, when it lists exactly one and that
-/// one is not `current`: a registry package links that platform's variant
-/// instead of the host's. Only the list form names a single platform this
-/// way; the `os`, `cpu`, and `libc` form links the host's.
+/// The one platform `supported` names, when it names exactly one and not
+/// `current`: a registry package links that platform's variant instead of
+/// the host's. A list names one platform by one entry. The `os`, `cpu`, and
+/// `libc` form names one when `os` and `cpu` each hold one value and no axis
+/// says `current`; an unset `libc` is the host's C library, as everywhere
+/// else in that form, and does not keep it from naming one platform.
 #[must_use]
 pub fn listed_link_platform(
     supported: Option<&SupportedArchitectures>,
 ) -> Option<PlatformSelector> {
-    let Some(SupportedArchitectures::Platforms(listed)) = supported else {
-        return None;
+    let supported = supported?;
+    let names_a_platform = match supported {
+        SupportedArchitectures::Platforms(listed) => {
+            matches!(listed.as_slice(), [SupportedPlatform::Named(_)])
+        }
+        SupportedArchitectures::Axes(axes) => axes_name_a_platform(axes),
     };
-    match listed.as_slice() {
-        [SupportedPlatform::Named(named)] => Some(named_platform(named, &host_platform_selector())),
+    if !names_a_platform {
+        return None;
+    }
+    let host = host_platform_selector();
+    let host_libc = host.libc.as_deref().unwrap_or("unknown");
+    match supported.platforms(&host.os, &host.cpu, host_libc).as_slice() {
+        [named] => Some(named_platform(named, &host)),
         _ => None,
     }
+}
+
+/// Whether `axes` set `os` and `cpu` and say `current` on no axis, so they
+/// can name a platform other than the host.
+fn axes_name_a_platform(axes: &ArchitectureAxes) -> bool {
+    let set = |axis: &Option<Vec<String>>| {
+        axis.as_ref()
+            .is_some_and(|values| !values.is_empty())
+    };
+    let names_current = [&axes.os, &axes.cpu, &axes.libc]
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|value| value == "current");
+    set(&axes.os) && set(&axes.cpu) && !names_current
 }
 
 /// The platforms `supported` names, as [`SupportedArchitectures::platforms`]

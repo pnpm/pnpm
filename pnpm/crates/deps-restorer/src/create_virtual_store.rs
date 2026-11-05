@@ -17,6 +17,7 @@ mod slot_linking;
 use slot_linking::LinkSlotsParallel;
 
 mod cache_keys;
+mod linked_archives;
 use cache_keys::{
     SnapshotCacheKey, derive_cache_keys, integrity_equal, prefetch_keys, snapshot_deps_equal,
 };

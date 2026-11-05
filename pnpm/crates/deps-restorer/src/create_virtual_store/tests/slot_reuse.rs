@@ -88,13 +88,14 @@ fn a_first_install_without_force_leaves_the_verdict_to_the_import() {
     assert!(!reuse.must_replace(&key()));
 }
 
-/// `dep-a` with an `any` archive and a variant for the host.
+/// `dep-a` with an `any` archive of integrity `OLD` and a variant for the
+/// host of integrity `NEW`.
 fn variations_packages() -> HashMap<PackageKey, PackageMetadata> {
     let host = host_platform_selector();
     let mut metadata = metadata_with_integrity(OLD);
     let any = metadata.resolution.clone();
     let host_variant = PlatformAssetResolution {
-        resolution: any.clone(),
+        resolution: metadata_with_integrity(NEW).resolution,
         targets: vec![PlatformAssetTarget {
             os: host.os,
             cpu: host.cpu,
@@ -109,33 +110,30 @@ fn variations_packages() -> HashMap<PackageKey, PackageMetadata> {
     HashMap::from([(key(), metadata)])
 }
 
-/// A slot whose `package.json` declares the variant `platforms`.
-fn write_slot(layout: &VirtualStoreLayout, platforms: &[&str]) {
-    let package_dir = layout
-        .slot_dir(&key())
-        .join("node_modules/dep-a");
+/// A slot holding an archive whose `package.json` names no variant, with
+/// the linked-archive record `recorded` when given.
+fn write_slot(layout: &VirtualStoreLayout, recorded: Option<&str>) {
+    let slot = layout.slot_dir(&key());
+    let package_dir = slot.join("node_modules/dep-a");
     fs::create_dir_all(&package_dir).expect("create slot");
-    let manifest = serde_json::json!({ "name": "dep-a", "variant": { "platforms": platforms } });
-    fs::write(package_dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    fs::write(package_dir.join("package.json"), r#"{"name":"dep-a"}"#).expect("write manifest");
+    let record = slot.join(".pnpm-linked-archive");
+    match recorded {
+        Some(integrity) => fs::write(record, integrity).expect("write record"),
+        None => {
+            let _ = fs::remove_file(record);
+        }
+    }
 }
 
-/// The slot path does not name the archive, so a slot holding another
-/// variant than the one the install links is replaced, though the lockfile
-/// records the package unchanged.
+/// The slot path does not name the archive, so a slot is replaced when the
+/// integrity recorded for the archive it holds differs from the one the
+/// lockfile lists for the archive the install links, or when it has none.
 #[test]
-fn a_slot_holding_another_variant_is_replaced() {
+fn a_slot_holding_another_archive_is_replaced() {
     let dir = tempfile::tempdir().expect("tempdir");
     let layout = layout(dir.path());
     let packages = variations_packages();
-    let LockfileResolution::Variations(variations) = &packages[&key()].resolution else {
-        unreachable!("the package has variants");
-    };
-    let host_tag = variations
-        .select(&host_platform_selector())
-        .ok()
-        .flatten()
-        .and_then(PlatformAssetResolution::variant_tag)
-        .expect("the host has a variant");
     let reuse = SlotReuse {
         packages: &packages,
         current_packages: Some(&packages),
@@ -144,8 +142,10 @@ fn a_slot_holding_another_variant_is_replaced() {
         supported_architectures: None,
     };
 
-    write_slot(&layout, &["freebsd-x64"]);
-    assert!(reuse.must_replace(&key()), "another variant's slot is replaced");
-    write_slot(&layout, &[host_tag.as_str()]);
+    write_slot(&layout, Some(OLD));
+    assert!(reuse.must_replace(&key()), "the any archive's slot is replaced by the host's variant");
+    write_slot(&layout, None);
+    assert!(reuse.must_replace(&key()), "a slot without a record is replaced");
+    write_slot(&layout, Some(NEW));
     assert!(!reuse.must_replace(&key()), "the linked variant's slot is kept");
 }

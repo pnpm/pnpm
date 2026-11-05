@@ -247,57 +247,6 @@ pub(crate) fn package_content_changed(
     current.is_some() && !integrity_equal(current, wanted)
 }
 
-/// Whether the virtual-store slot of `snapshot_key` holds another archive
-/// of a package with platform variants than the one `supported` links. The
-/// slot's path does not name the archive, so a change of
-/// `supportedArchitectures` or of the host leaves the previous one there;
-/// each platform variant names itself in its `package.json` `variant`
-/// field, and the archive that targets `any` has none.
-pub(crate) fn slot_holds_other_variant(
-    layout: &crate::VirtualStoreLayout,
-    (snapshot_key, packages): (&PackageKey, &HashMap<PackageKey, PackageMetadata>),
-    supported: Option<&pnpm_package_is_installable::SupportedArchitectures>,
-) -> bool {
-    let Some(LockfileResolution::Variations(variations)) = packages
-        .get(&snapshot_key.without_peer())
-        .map(|metadata| &metadata.resolution)
-    else {
-        return false;
-    };
-    if variations.is_runtime() {
-        return false;
-    }
-    let manifest_path = layout
-        .slot_dir(snapshot_key)
-        .join("node_modules")
-        .join(snapshot_key.name.to_string())
-        .join("package.json");
-    let Ok(manifest) = std::fs::read(&manifest_path) else { return false };
-    let Ok(manifest) = serde_json::from_slice::<serde_json::Value>(&manifest) else {
-        return false;
-    };
-    let platforms = VariantPlatforms::of(supported);
-    let selected = variations
-        .select(platforms.for_variations(variations))
-        .ok()
-        .flatten()
-        .and_then(pnpm_lockfile::PlatformAssetResolution::variant_tag);
-    installed_variant_tag(&manifest) != selected
-}
-
-/// The tag of the variant an archive's `manifest` declares itself, `None`
-/// for the archive that targets `any`.
-fn installed_variant_tag(manifest: &serde_json::Value) -> Option<String> {
-    let mut platforms: Vec<&str> = manifest
-        .pointer("/variant/platforms")?
-        .as_array()?
-        .iter()
-        .filter_map(serde_json::Value::as_str)
-        .collect();
-    platforms.sort_unstable();
-    Some(platforms.join("+"))
-}
-
 /// What the link pass reads to decide a slot's fate: the `packages:`
 /// records it is installing, the previous install's to compare them
 /// against, and whether `--force` settles it outright.
@@ -322,7 +271,7 @@ impl SlotReuse<'_> {
     pub(super) fn must_replace(&self, snapshot_key: &PackageKey) -> bool {
         self.force
             || package_content_changed(self.current_packages, self.packages, snapshot_key)
-            || slot_holds_other_variant(
+            || super::linked_archives::slot_holds_other_variant(
                 self.layout,
                 (snapshot_key, self.packages),
                 self.supported_architectures,

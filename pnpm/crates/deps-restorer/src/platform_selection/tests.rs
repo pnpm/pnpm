@@ -68,15 +68,53 @@ fn a_list_with_current_or_several_platforms_links_the_hosts() {
     }
 }
 
+/// The `os`, `cpu`, and `libc` form names one platform the same way a list
+/// does, its unset `libc` being the host's C library.
 #[test]
-fn the_axes_form_links_the_hosts() {
+fn the_axes_form_naming_one_platform_links_it() {
     let axes = ArchitectureAxes {
         os: Some(vec!["linux".into()]),
         cpu: Some(vec!["s390x".into()]),
         libc: None,
     };
-    let supported = SupportedArchitectures::Axes(axes);
-    assert_eq!(VariantPlatforms::of(Some(&supported)).linked, host_platform_selector());
+    let platforms = VariantPlatforms::of(Some(&SupportedArchitectures::Axes(axes)));
+    assert_eq!((platforms.linked.os.as_str(), platforms.linked.cpu.as_str()), ("linux", "s390x"));
+    assert_eq!(
+        linked_tag(&SupportedArchitectures::Axes(ArchitectureAxes {
+            os: Some(vec!["linux".into()]),
+            cpu: Some(vec!["s390x".into()]),
+            libc: Some(vec!["glibc".into()]),
+        })),
+        "any",
+        "an unstated floor is not met",
+    );
+}
+
+#[test]
+fn the_axes_form_with_current_an_unset_axis_or_several_platforms_links_the_hosts() {
+    let axes = |os: Option<Vec<&str>>, cpu: Option<Vec<&str>>| {
+        let owned = |values: Option<Vec<&str>>| {
+            values.map(|values| {
+                values
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect()
+            })
+        };
+        SupportedArchitectures::Axes(ArchitectureAxes {
+            os: owned(os),
+            cpu: owned(cpu),
+            libc: None,
+        })
+    };
+    for supported in [
+        axes(Some(vec!["linux"]), None),
+        axes(None, Some(vec!["s390x"])),
+        axes(Some(vec!["current"]), Some(vec!["s390x"])),
+        axes(Some(vec!["linux"]), Some(vec!["s390x", "arm64"])),
+    ] {
+        assert_eq!(listed_link_platform(Some(&supported)), None, "{supported:?}");
+    }
 }
 
 /// A floor the listed platform does not state is not met for linking, so
