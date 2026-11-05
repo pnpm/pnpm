@@ -508,7 +508,7 @@ async fn a_record_is_removed_only_while_it_is_unchanged() {
         .replace_record_if_current(".staged-archives", "a.json", b"old", b"renewed")
         .await
         .unwrap();
-    assert!(!store.remove_record_if_current(".staged-archives", "a.json", b"old").await.unwrap(),);
+    assert!(!store.remove_record_if_current(".staged-archives", "a.json", b"old").await.unwrap());
     assert!(
         store.remove_record_if_current(".staged-archives", "a.json", b"renewed").await.unwrap(),
     );

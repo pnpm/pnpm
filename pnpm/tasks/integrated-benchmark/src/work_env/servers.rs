@@ -157,12 +157,11 @@ impl WorkEnv {
         let public_origin = latency_proxy
             .as_ref()
             .map(|proxy| format!("http://{}", proxy.addr));
-        let metadata = bench_dir.join(COLD_ORIGIN_METADATA);
         let mut command = pnpm_registry_mock::pnpr_command_with_metadata(
             binary,
             origin_port,
             public_origin.as_deref(),
-            Some(&metadata),
+            Some(&bench_dir.join(COLD_ORIGIN_METADATA)),
         );
         self.apply_serve_timing(&mut command);
         let process = command
