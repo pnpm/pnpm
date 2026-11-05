@@ -186,16 +186,41 @@ fn local_protocol(bare: &str, kind: LocalSpecKind, injected: bool) -> &'static s
 /// records for it. A `~` specifier resolves against the home directory and is
 /// recorded verbatim; a relative one is recorded relative to the project.
 fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (PathBuf, String) {
-    if let Some(rest) = strip_tilde_prefix(spec) {
-        let home = crate::home_dir().unwrap_or_default();
-        return (resolve_path(&home, rest), format!("{protocol}{spec}"));
-    }
-    let fetched = resolve_path(project_dir, spec);
-    if is_absolute_specifier(spec) {
+    let fetched = resolve_normalized_spec(spec, project_dir);
+    if strip_tilde_prefix(spec).is_some() || is_absolute_specifier(spec) {
         return (fetched, format!("{protocol}{spec}"));
     }
     let relative = forward_slashes(relative_path(project_dir, &fetched).display().to_string());
     (fetched, format!("{protocol}{relative}"))
+}
+
+/// The path a local specifier names when the project in `project_dir`
+/// declares it: the directory or tarball the resolver reads. A `link:`,
+/// `file:`, or `workspace:` protocol is optional. A rooted path without a
+/// drive, such as `/vendor` on Windows, takes the drive of `project_dir`, so
+/// the result compares equal to [`recorded_local_path`].
+#[must_use]
+pub fn local_spec_path(bare_specifier: &str, project_dir: &Path) -> PathBuf {
+    let path = resolve_normalized_spec(&normalize_specifier(bare_specifier), project_dir);
+    lexical_normalize(&project_dir.join(path))
+}
+
+/// The path a lockfile records for a local dependency, resolved against
+/// `base_dir` by the host's path rules. Unlike [`local_spec_path`], it reads
+/// no protocol or drive prefix: on Unix, `file:x` and `a:x` are directories
+/// with those names.
+#[must_use]
+pub fn recorded_local_path(recorded: &str, base_dir: &Path) -> PathBuf {
+    lexical_normalize(&base_dir.join(recorded))
+}
+
+/// [`local_spec_path`] of a specifier that [`normalize_specifier`] already
+/// normalized.
+fn resolve_normalized_spec(spec: &str, project_dir: &Path) -> PathBuf {
+    match strip_tilde_prefix(spec) {
+        Some(rest) => resolve_path(&crate::home_dir().unwrap_or_default(), rest),
+        None => resolve_path(project_dir, spec),
+    }
 }
 
 /// Resolve `spec` against `where_dir`, mirroring Node's

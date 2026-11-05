@@ -246,17 +246,38 @@ function resolveLocalFetchSpec (
   protocol: string,
   projectDir: string
 ): { fetchSpec: string, normalizedBareSpecifier: string } {
-  if (/^~\//.test(spec)) {
-    return {
-      fetchSpec: resolvePath(os.homedir(), spec.slice(2)),
-      normalizedBareSpecifier: `${protocol}${spec}`,
-    }
-  }
-  const fetchSpec = resolvePath(projectDir, spec)
-  const normalizedBareSpecifier = isAbsolute(spec)
+  const fetchSpec = resolveNormalizedSpec(spec, projectDir)
+  const normalizedBareSpecifier = spec.startsWith('~/') || isAbsolute(spec)
     ? `${protocol}${spec}`
     : `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
   return { fetchSpec, normalizedBareSpecifier }
+}
+
+/**
+ * The path a local specifier names when the project in `projectDir` declares
+ * it: the directory or tarball the resolver reads. A `link:`, `file:`, or
+ * `workspace:` protocol is optional. A rooted path without a drive, such as
+ * `/vendor` on Windows, takes the drive of `projectDir`, so the result
+ * compares equal to {@link recordedLocalPath}.
+ */
+export function localSpecPath (bareSpecifier: string, projectDir: string): string {
+  return path.resolve(projectDir, resolveNormalizedSpec(normalizeBareSpec(bareSpecifier), projectDir))
+}
+
+/**
+ * The path a lockfile records for a local dependency, resolved against
+ * `baseDir` by the host's path rules. Unlike {@link localSpecPath}, it reads
+ * no protocol or drive prefix: on Unix, `file:x` and `a:x` are directories
+ * with those names.
+ */
+export function recordedLocalPath (recorded: string, baseDir: string): string {
+  return path.resolve(baseDir, recorded)
+}
+
+function resolveNormalizedSpec (spec: string, projectDir: string): string {
+  return spec.startsWith('~/')
+    ? resolvePath(os.homedir(), spec.slice(2))
+    : resolvePath(projectDir, spec)
 }
 
 

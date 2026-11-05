@@ -1597,6 +1597,41 @@ describe('local file dependency', () => {
     expect(await check('other@file:local-dir')).toBeFalsy()
   })
 
+  test('allProjectsAreUpToDate(): reads a file dependency of local file the way the resolver does', async () => {
+    await mkdir('other-dir')
+    await writeFile('./other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    expect(await checkFileDependencyOfLocalFile('file:..\\other-dir', 'file:other-dir')).toBeTruthy()
+    expect(await checkFileDependencyOfLocalFile('file:/../other-dir', 'file:other-dir')).toBeTruthy()
+    expect(await checkFileDependencyOfLocalFile('file:/other-dir', 'file:other-dir')).toBeFalsy()
+  })
+
+  // Windows forbids a colon in a directory name.
+  const testOnUnix = process.platform === 'win32' ? test.skip : test
+  testOnUnix('allProjectsAreUpToDate(): reads the locked path of a file dependency of local file as a path', async () => {
+    await mkdir('file:other-dir')
+    await writeFile('./file:other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    expect(await checkFileDependencyOfLocalFile('file:../file:other-dir', 'file:file:other-dir')).toBeTruthy()
+    await mkdir('a:other-dir')
+    await writeFile('./a:other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    expect(await checkFileDependencyOfLocalFile('file:../a:other-dir', 'file:a:other-dir')).toBeTruthy()
+  })
+
+  async function checkFileDependencyOfLocalFile (spec: string, ref: string): Promise<boolean> {
+    await writeLocalDirManifest({ dependencies: { other: spec } })
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    return allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      wantedLockfile: {
+        ...options.wantedLockfile,
+        packages: {
+          'local@file:./local-dir': { ...localDirSnapshot, dependencies: { other: ref } },
+          [`other@${ref}`]: { resolution: { directory: ref.slice(5), type: 'directory' } },
+        } as LockfileObject['packages'],
+      },
+    })
+  }
+
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
     await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
   }
