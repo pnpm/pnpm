@@ -10,7 +10,7 @@ pub(super) struct ImporterHoistPolicy {
 
 impl ImporterHoistPolicy {
     pub(super) fn should_hoist_peers(&self) -> bool {
-        self.peers.auto_install_peers || self.peers.dedupe_peer_dependents
+        self.peers.auto_install_peers || self.peers.dedupe_peer_dependents.dedupes()
     }
 }
 

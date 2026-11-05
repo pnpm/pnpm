@@ -43,14 +43,14 @@ pub struct ImporterPeerOptions {
     /// Threaded into [`crate::ResolvePeersOptions::dedupe_peers`] on every
     /// `resolve_peers` invocation inside the auto-install-peers loop.
     pub dedupe_peers: bool,
-    /// The `dedupePeerDependents` setting (default `true`). Together
-    /// with [`Self::auto_install_peers`] it decides whether the hoist
-    /// rounds run at all — a peer nothing asked to install is still
+    /// Together with [`Self::auto_install_peers`] it decides whether the
+    /// hoist rounds run at all — a peer nothing asked to install is still
     /// hoisted to collapse peer-suffixed variants, so turning both off
-    /// leaves every missing peer missing. The cross-importer collapse
+    /// leaves every missing peer missing. It also decides which versions
+    /// may supply a missing optional peer. The cross-importer collapse
     /// itself lives in [`fn@crate::resolve_peers_workspace`] and reads
     /// the setting separately.
-    pub dedupe_peer_dependents: bool,
+    pub dedupe_peer_dependents: crate::PeerDependentsDedupe,
 }
 
 #[derive(Debug, Default, Clone)]

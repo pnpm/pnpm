@@ -5,6 +5,7 @@ use super::{
     graph_versions_of, importer_opts, link_root_dep_peer_provider, resolve_single_importer,
     resolve_with_transient_shared_walk, resolve_workspace, table_entry, workspace_opts,
 };
+use crate::PeerDependentsDedupe;
 
 #[tokio::test]
 async fn workspace_root_direct_deps_resolve_child_importer_peers() {
@@ -126,7 +127,7 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.dedupe_peer_dependents = true;
+    opts.peers.dedupe_peer_dependents = PeerDependentsDedupe::On;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
@@ -147,12 +148,6 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
         direct.get("opt").map(std::string::ToString::to_string),
         Some("opt@1.0.0".to_string()),
     );
-}
-
-#[derive(Clone, Copy)]
-enum PeerDependentsDedupe {
-    On,
-    Off,
 }
 
 /// `needs-opt` has an optional peer `opt`. `provider` depends on `opt`,
@@ -216,11 +211,20 @@ async fn resolve_optional_peer_of_pkg_a(
     pkg_a_deps: serde_json::Value,
     dedupe: PeerDependentsDedupe,
 ) -> String {
+    resolve_optional_peer_of_pkg_a_beside(pkg_a_deps, serde_json::json!({ "opt": "1.0.0" }), dedupe)
+        .await
+}
+
+async fn resolve_optional_peer_of_pkg_a_beside(
+    pkg_a_deps: serde_json::Value,
+    pkg_b_deps: serde_json::Value,
+    dedupe: PeerDependentsDedupe,
+) -> String {
     let resolver =
         RecordingResolver { table: optional_peer_table(), seen: Mutex::new(HashMap::default()) };
     let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({}));
     let (tmp_a, a_manifest) = fake_manifest(pkg_a_deps);
-    let (tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "opt": "1.0.0" }));
+    let (tmp_b, b_manifest) = fake_manifest(pkg_b_deps);
     let importers = [
         WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
         WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
@@ -230,10 +234,7 @@ async fn resolve_optional_peer_of_pkg_a(
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.dedupe_peer_dependents = match dedupe {
-        PeerDependentsDedupe::On => true,
-        PeerDependentsDedupe::Off => false,
-    };
+    opts.peers.dedupe_peer_dependents = dedupe;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
@@ -273,6 +274,41 @@ async fn without_dedupe_peer_dependents_the_importers_own_dependencies_supply_an
     let resolved = resolve_optional_peer_of_pkg_a(
         serde_json::json!({ "needs-opt": "1.0.0", "provider": "1.0.0" }),
         PeerDependentsDedupe::Off,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0(opt@1.0.0)");
+}
+
+#[tokio::test]
+async fn project_scoped_optional_peers_keep_another_importers_version_from_supplying_an_optional_peer()
+ {
+    let resolved = resolve_optional_peer_of_pkg_a(
+        serde_json::json!({ "needs-opt": "1.0.0" }),
+        PeerDependentsDedupe::OnWithProjectScopedOptionalPeers,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0");
+}
+
+/// `pkg-b` resolves `needs-opt` with the peer, and deduplication must not
+/// hand that variant to `pkg-a`.
+#[tokio::test]
+async fn project_scoped_optional_peers_survive_peer_dependents_deduplication() {
+    let resolved = resolve_optional_peer_of_pkg_a_beside(
+        serde_json::json!({ "needs-opt": "1.0.0" }),
+        serde_json::json!({ "needs-opt": "1.0.0", "opt": "1.0.0" }),
+        PeerDependentsDedupe::OnWithProjectScopedOptionalPeers,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0");
+}
+
+#[tokio::test]
+async fn project_scoped_optional_peers_let_the_importers_own_dependencies_supply_an_optional_peer()
+{
+    let resolved = resolve_optional_peer_of_pkg_a(
+        serde_json::json!({ "needs-opt": "1.0.0", "provider": "1.0.0" }),
+        PeerDependentsDedupe::OnWithProjectScopedOptionalPeers,
     )
     .await;
     assert_eq!(resolved, "needs-opt@1.0.0(opt@1.0.0)");

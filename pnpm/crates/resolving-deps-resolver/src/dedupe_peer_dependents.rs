@@ -30,9 +30,11 @@ mod survivor_names;
 use cycles::collapse_cycles;
 
 use crate::{
+    PeerDependentsDedupe,
     dedupe_injected_deps::{DirectByImporter, prune_unreachable},
     dep_path_compatibility::{is_compatible_and_has_more_deps, node_deps_count},
     dependencies_graph::DependenciesGraph,
+    peer_dependents_dedupe::OptionalPeerScope,
 };
 
 /// Collapse peer-dependent duplicate variants in `graph` into their
@@ -46,12 +48,16 @@ pub(crate) fn dedupe_peer_dependents(
     graph: &mut DependenciesGraph,
     direct_by_importer: &mut DirectByImporter,
     peer_suffixes: &PeerSuffixes<'_>,
+    dedupe: PeerDependentsDedupe,
 ) {
+    if !dedupe.dedupes() {
+        return;
+    }
     let duplicates = collect_duplicates(graph);
     if duplicates.is_empty() {
         return;
     }
-    let dep_paths_map = deduplicate_all(graph, &duplicates);
+    let dep_paths_map = deduplicate_all(graph, &duplicates, dedupe.optional_peer_scope());
     if dep_paths_map.is_empty() {
         return;
     }
@@ -100,12 +106,13 @@ fn collect_duplicates(graph: &DependenciesGraph) -> Vec<Vec<DepPath>> {
 fn deduplicate_all(
     graph: &mut DependenciesGraph,
     duplicates: &[Vec<DepPath>],
+    optional_peers: OptionalPeerScope,
 ) -> HashMap<DepPath, DepPath> {
     let mut incoming = incoming_edges(graph);
     let mut remaining = duplicates.to_vec();
     let mut merged: HashMap<DepPath, DepPath> = HashMap::default();
     loop {
-        let (next, survivors) = deduplicate_round(&remaining, graph);
+        let (next, survivors) = deduplicate_round(&remaining, graph, optional_peers);
         if next.is_empty() {
             return merged;
         }
@@ -123,12 +130,13 @@ fn deduplicate_all(
 fn deduplicate_round(
     duplicates: &[Vec<DepPath>],
     graph: &DependenciesGraph,
+    optional_peers: OptionalPeerScope,
 ) -> (HashMap<DepPath, DepPath>, Vec<Vec<DepPath>>) {
-    let (next, mut survivors) = deduplicate_dep_paths(duplicates, graph);
+    let (next, mut survivors) = deduplicate_dep_paths(duplicates, graph, optional_peers);
     if !next.is_empty() {
         return (next, survivors);
     }
-    let next = collapse_cycles(graph, duplicates);
+    let next = collapse_cycles(graph, duplicates, optional_peers);
     for group in &mut survivors {
         group.retain(|path| !next.contains_key(path));
     }
@@ -179,6 +187,7 @@ fn rewrite_children(
 fn deduplicate_dep_paths(
     duplicates: &[Vec<DepPath>],
     graph: &DependenciesGraph,
+    optional_peers: OptionalPeerScope,
 ) -> (HashMap<DepPath, DepPath>, Vec<Vec<DepPath>>) {
     let mut dep_paths_map: HashMap<DepPath, DepPath> = HashMap::default();
     let mut remaining_duplicates: Vec<Vec<DepPath>> = Vec::new();
@@ -189,7 +198,14 @@ fn deduplicate_dep_paths(
         sort_variants(graph, &mut current);
 
         while let Some(largest) = current.pop() {
-            absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut survivors);
+            absorb_compatible(
+                graph,
+                optional_peers,
+                &largest,
+                &mut current,
+                &mut dep_paths_map,
+                &mut survivors,
+            );
             sort_variants(graph, &mut current);
         }
 
@@ -221,6 +237,7 @@ fn sort_variants(graph: &DependenciesGraph, paths: &mut [DepPath]) {
 /// in `current` for the next round.
 fn absorb_compatible(
     graph: &DependenciesGraph,
+    optional_peers: OptionalPeerScope,
     largest: &DepPath,
     current: &mut Vec<DepPath>,
     dep_paths_map: &mut HashMap<DepPath, DepPath>,
@@ -232,7 +249,9 @@ fn absorb_compatible(
         let same_children = graph[&candidate].edges.children
             .iter()
             .all(|(alias, child)| graph[largest].edges.children.get(alias) == Some(child));
-        if same_children && is_compatible_and_has_more_deps(graph, largest, &candidate) {
+        if same_children
+            && is_compatible_and_has_more_deps(graph, largest, &candidate, optional_peers)
+        {
             dep_paths_map.insert(candidate.clone(), largest.clone());
             survivors.remove(&candidate);
         } else {

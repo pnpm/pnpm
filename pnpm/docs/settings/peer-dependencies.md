@@ -19,7 +19,7 @@ pnpm installs a missing optional peer dependency only if a version of it that sa
 
 When [`dedupePeerDependents`](#dedupepeerdependents) is `true`, that version can come from any project in the workspace, including another project's `devDependencies`. For example, if one project depends on `webpack` and another has `webpack-cli` in its `devDependencies`, both projects get the `webpack` instance that has `webpack-cli` as its optional peer.
 
-When `dedupePeerDependents` is `false`, that version must come from the project's own dependencies. The workspace root's dependencies also count if [`resolvePeersFromWorkspaceRoot`](#resolvepeersfromworkspaceroot) is `true`.
+When `dedupePeerDependents` is `false`, or [`projectScopedOptionalPeers`](#projectscopedoptionalpeers) is `true`, that version must come from the project's own dependencies. The workspace root's dependencies also count if [`resolvePeersFromWorkspaceRoot`](#resolvepeersfromworkspaceroot) is `true`.
 
 pnpm also resolves optional peers this way when `autoInstallPeers` is `false` and `dedupePeerDependents` is `true`. To stop it, set both settings to `false`.
 
@@ -101,6 +101,23 @@ project2
 ```
 
 In this case, we cannot dedupe `webpack` as `webpack` has `react` in its peer dependencies and `react` is resolved from two different versions in the context of the two projects.
+
+### projectScopedOptionalPeers
+
+Added in: v12.19.0
+
+* Default: **false**
+* Type: **Boolean**
+
+When `true`, a project gets a missing optional peer dependency only if the project's own dependencies already install a version of it. The workspace root's dependencies also count if [`resolvePeersFromWorkspaceRoot`](#resolvepeersfromworkspaceroot) is `true`. A version that only another workspace project installs does not count.
+
+[`dedupePeerDependents`](#dedupepeerdependents) keeps working for everything else. It still deduplicates packages across projects, unless deduplicating would give a project an optional peer its own dependencies don't install. Required peers are not affected.
+
+In the [`dedupePeerDependents`](#dedupepeerdependents) example, `project1` keeps the `webpack` instance without `esbuild`.
+
+This setting has no effect when `dedupePeerDependents` is `false`, because optional peers are already resolved only from the project's own dependencies then.
+
+Changing this setting changes the lockfile.
 
 ### dedupePeers
 

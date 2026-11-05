@@ -6,7 +6,7 @@ use super::{
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
-use crate::peer_provider::optional_peer_specifier;
+use crate::{peer_dependents_dedupe::OptionalPeerScope, peer_provider::optional_peer_specifier};
 
 impl ImporterHoistState {
     /// Resolve the importer's missing *required* peers to a fixpoint,
@@ -344,8 +344,11 @@ impl ImporterHoistState {
         let preferred_tiers =
             self.ctx.optional_peer_version_tiers(&self.selection.locked_versions, names());
         let provided_peer_versions = self.hoisted_provider_peer_versions();
-        if !self.policy.peers.dedupe_peer_dependents {
-            self.retain_own_closure_versions(&mut hoist_preferred, &provided_peer_versions);
+        match self.policy.peers.dedupe_peer_dependents.optional_peer_scope() {
+            OptionalPeerScope::Project => {
+                self.retain_own_closure_versions(&mut hoist_preferred, &provided_peer_versions);
+            }
+            OptionalPeerScope::Workspace => {}
         }
         let workspace = self.ctx.workspace();
         let peer_ranges = CandidatePeerRanges::new(workspace);

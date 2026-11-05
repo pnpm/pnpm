@@ -458,3 +458,45 @@ fn turning_off_dedupe_peer_dependents_drops_an_optional_peer_another_project_pro
         assert!(!consumer_version().contains("peer-c@"), "cli={cli:?}: {}", consumer_version());
     }
 }
+
+#[test]
+fn project_scoped_optional_peers_keep_another_projects_optional_peer_out() {
+    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success};
+
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("dedupePeerDependents: true\nprojectScopedOptionalPeers: true\n");
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.project(
+        "provider",
+        "provider",
+        ManifestDeps {
+            dev: &[("@pnpm.e2e/abc-optional-peers", "1.0.0"), ("@pnpm.e2e/peer-c", "1.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+    fixture.project(
+        "consumer",
+        "consumer",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/abc-optional-peers", "1.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+
+    assert_success(&run_peer_fixture(&fixture, None, &["install", "--lockfile-only"]));
+
+    let lock: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml")).unwrap(),
+    )
+    .unwrap();
+    let version_in = |project: &str, group: &str| {
+        lock["importers"][project][group]["@pnpm.e2e/abc-optional-peers"]["version"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    let consumer = version_in("packages/consumer", "dependencies");
+    let provider = version_in("packages/provider", "devDependencies");
+    assert!(!consumer.contains("peer-c@"), "{consumer}");
+    assert!(provider.contains("peer-c@1.0.0"), "{provider}");
+}

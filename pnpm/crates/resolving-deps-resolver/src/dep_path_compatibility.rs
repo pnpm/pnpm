@@ -7,7 +7,10 @@ use std::collections::VecDeque;
 use pnpm_deps_path::DepPath;
 use rustc_hash::FxHashSet as HashSet;
 
-use crate::dependencies_graph::{DependenciesGraph, DependenciesGraphNode};
+use crate::{
+    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+    peer_dependents_dedupe::OptionalPeerScope,
+};
 
 /// Number of edges a variant carries: its child dependencies plus the
 /// peers it resolved against its ancestors.
@@ -33,10 +36,11 @@ pub(crate) fn is_compatible_and_has_more_deps<'a>(
     graph: &'a DependenciesGraph,
     larger: &'a DepPath,
     smaller: &'a DepPath,
+    optional_peers: OptionalPeerScope,
 ) -> bool {
     let mut queue = PairQueue::new(larger, smaller);
     while let Some((larger, smaller)) = queue.pop() {
-        if !pair_is_compatible(graph, larger, smaller, &mut queue) {
+        if !pair_is_compatible(graph, (larger, smaller), optional_peers, &mut queue) {
             return false;
         }
     }
@@ -72,8 +76,8 @@ impl<'a> PairQueue<'a> {
 /// Checks one pair and queues the child pairs whose depPaths differ.
 fn pair_is_compatible<'a>(
     graph: &'a DependenciesGraph,
-    larger: &DepPath,
-    smaller: &DepPath,
+    (larger, smaller): (&DepPath, &DepPath),
+    optional_peers: OptionalPeerScope,
     queue: &mut PairQueue<'a>,
 ) -> bool {
     let (Some(larger_node), Some(smaller_node)) = (graph.get(larger), graph.get(smaller)) else {
@@ -86,6 +90,15 @@ fn pair_is_compatible<'a>(
 
     if !has_all_resolved_peers(larger_node, smaller_node) {
         return false;
+    }
+
+    match optional_peers {
+        OptionalPeerScope::Workspace => {}
+        OptionalPeerScope::Project => {
+            if adds_optional_peer(larger_node, smaller_node) {
+                return false;
+            }
+        }
     }
 
     smaller_node.edges.children
@@ -102,6 +115,22 @@ fn has_all_resolved_peers(
     smaller_node.edges.resolved_peer_names
         .iter()
         .all(|peer| larger_node.edges.resolved_peer_names.contains(peer))
+}
+
+/// Whether `larger` resolves one of its own optional peers that `smaller`
+/// left missing.
+fn adds_optional_peer(
+    larger_node: &DependenciesGraphNode,
+    smaller_node: &DependenciesGraphNode,
+) -> bool {
+    larger_node.edges.peer_set
+        .taken()
+        .iter()
+        .any(|(name, peer)| {
+            peer.optional
+                && larger_node.edges.resolved_peer_names.contains(name)
+                && !smaller_node.edges.resolved_peer_names.contains(name)
+        })
 }
 
 fn queue_child_pair<'a>(

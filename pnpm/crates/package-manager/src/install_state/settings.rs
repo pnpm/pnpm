@@ -158,6 +158,11 @@ impl SettingsComparison<'_> {
             "addMissingPeerTypes",
             recorded.add_missing_peer_types != live.add_missing_peer_types,
         );
+        return_drift_if!(
+            self,
+            "projectScopedOptionalPeers",
+            recorded.project_scoped_optional_peers != live.project_scoped_optional_peers,
+        );
         return_drift_if!(self, "autoDedupe", recorded.auto_dedupe != live.auto_dedupe);
         return_drift_if!(self, "dev", recorded.dev != live.dev);
         None
@@ -391,6 +396,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         minimum_release_age_strict: config.minimum_release_age_strict.or_else(|| {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
+        project_scoped_optional_peers: config.project_scoped_optional_peers.then_some(true),
         registry_prefixes: recorded_registry_prefixes(config),
         default_registry: recorded_default_registry(config),
         registry_routes: Some(recorded_registry_routes(config)),
