@@ -31,6 +31,8 @@ If there are conflicting version requirements for a peer dependency from differe
 
 In case of a version conflict, you'll need to evaluate which version of the peer dependency to install yourself, or update the dependencies to align their peer dependency requirements.
 
+With `autoInstallPeersFromHighestMatch: true`, pnpm joins conflicting semver ranges with `||` and installs the highest version that satisfies any of them. Conflicting paths, aliases, or tags leave the peer dependency missing. Identical non-semver specifiers are preserved.
+
 ### dedupePeerDependents
 
 * Default: **true**

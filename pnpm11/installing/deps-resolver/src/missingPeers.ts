@@ -1,5 +1,6 @@
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import { pickBy } from 'ramda'
+import semver from 'semver'
 
 import { safeIntersect } from './mergePeers.js'
 import type {
@@ -161,10 +162,10 @@ export async function startResolvingPeers (
 export function mergePkgsDeps (pkgsDeps: MissingPeers[], opts: { autoInstallPeersFromHighestMatch: boolean }): MissingPeers {
   const mergedPkgDeps = {} as MissingPeers
   for (const [name, { ranges, optional }] of Object.entries(groupPeerRanges(pkgsDeps))) {
-    const intersection = safeIntersect(ranges)
+    const intersection = safeIntersect(ranges) ?? (ranges.every((range) => range === ranges[0]) ? ranges[0] : null)
     if (intersection) {
       mergedPkgDeps[name] = { range: intersection, optional }
-    } else if (opts.autoInstallPeersFromHighestMatch) {
+    } else if (opts.autoInstallPeersFromHighestMatch && ranges.every((range) => semver.validRange(range) !== null)) {
       mergedPkgDeps[name] = { range: ranges.join(' || '), optional }
     }
   }
