@@ -123,10 +123,7 @@ where
         configuration::record_no_runtime_flag(config);
     }
     let may_update_config = config_deps::may_update_config(config, config_root);
-    let has_config_dependencies = config.config_dependencies
-        .as_ref()
-        .is_some_and(|dependencies| !dependencies.is_empty());
-    if !may_update_config && !has_config_dependencies && config.engine_strict {
+    if !may_update_config && config.engine_strict {
         check_root_project_engine(
             manifest_path,
             config,
