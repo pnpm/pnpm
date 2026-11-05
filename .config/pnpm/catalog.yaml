@@ -316,6 +316,8 @@ catalogPrune: true
 # (>=22.13); the comment at each catalog entry above records the reason.
 # typescript is held on 6.x because typescript-eslint does not support the
 # TypeScript 7.0 API yet.
+# The rusqlite crate is held on 0.39: from 0.41 its bundled SQLite collides
+# with libsql-ffi's copy when both link into one binary.
 update:
   ignoreDeps:
     - '@babel/core'
@@ -335,6 +337,7 @@ update:
     - normalize-package-data
     - npm-packlist
     - npm-registry-fetch
+    - rusqlite
     - ssri
     - tempy
     - typescript
