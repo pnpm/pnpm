@@ -1,9 +1,10 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { PnpmContext } from '@pnpm/installing.context'
 import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
@@ -122,8 +123,8 @@ async function throwOnImporterWithoutProjectManifest (ctx: PnpmContext, opts: St
  * A project whose directory exists without a manifest cannot be installed, so
  * the lockfile no longer describes the workspace. A frozen install skips a
  * project removed from the workspace patterns, which keeps its manifest, and
- * one whose whole directory is absent, as in a Docker build context that
- * excludes it.
+ * one whose directory is absent or empty, as in a Docker build context that
+ * excludes it or an uninitialized git submodule.
  */
 async function findImporterWithoutProjectManifest (
   lockfile: LockfileObject,
@@ -139,9 +140,18 @@ async function findImporterWithoutProjectManifest (
 }
 
 async function isDirectoryWithoutManifest (projectDir: string): Promise<boolean> {
-  if (!await pathExists(projectDir)) return false
+  if (!await isNonEmptyDirectory(projectDir)) return false
   const manifestExists = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(projectDir, basename))))
   return !manifestExists.some(Boolean)
+}
+
+async function isNonEmptyDirectory (dir: string): Promise<boolean> {
+  try {
+    return (await fs.promises.readdir(dir)).length > 0
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    throw err
+  }
 }
 
 async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, frozenLockfile: boolean): Promise<ProjectCheck[]> {
