@@ -65,12 +65,15 @@ fn mapped_drive(letter: char) -> Option<PathBuf> {
     let drive_name = [letter as u16, u16::from(b':'), 0];
     let mut remote_name = vec![0u16; 512];
     let mut length = remote_name.len() as u32;
-    let mut result =
-        unsafe { WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &mut length) };
+    // SAFETY: The buffers are writable for the lengths passed to WNetGetConnectionW.
+    let mut result = unsafe {
+        WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
+    };
     if result == ERROR_MORE_DATA {
         remote_name.resize(length as usize, 0);
+        // SAFETY: The resized buffer and length pointer are writable for this call.
         result = unsafe {
-            WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &mut length)
+            WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
         };
     }
     if result != 0 {
