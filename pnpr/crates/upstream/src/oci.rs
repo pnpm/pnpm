@@ -53,12 +53,11 @@ impl Upstream {
                 UNPRIORITIZED,
             )
             .await;
-            let request = guard
-                .request(method.clone(), url.clone())
-                .timeout(self.http.timeout.saturating_sub(started.elapsed()))
-                .header(header::ACCEPT, accept);
+            let request = guard.request(method.clone(), url.clone()).header(header::ACCEPT, accept);
             let request = self.with_oci_credentials(request, &url, &base, bearer.as_deref());
-            let response = self.run(request, url.as_str()).await?;
+            let response =
+                self.within_head_deadline(url.as_str(), started, self.run(request, url.as_str()))
+                    .await?;
             if response.status() == StatusCode::UNAUTHORIZED
                 && !negotiated
                 && url.origin() == base.origin()
@@ -74,7 +73,7 @@ impl Upstream {
                 url = self.oci_redirect_target(&response, &url, &base)?;
                 continue;
             }
-            return self.finish_oci_fetch(response, guard, &url, started).await;
+            return self.finish_oci_fetch(response, guard, &url).await;
         }
         Err(self.oci_error("too many OCI redirects"))
     }
@@ -84,7 +83,6 @@ impl Upstream {
         response: reqwest::Response,
         guard: pnpm_network::ThrottledClientGuard<'_>,
         url: &Url,
-        started: Instant,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -92,10 +90,7 @@ impl Upstream {
         }
         let response = self.checked(response, url.as_str()).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(guard.retain_for_body(
-            response,
-            self.http.timeout.saturating_sub(started.elapsed()),
-        )))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(response, self.http.timeout)))
     }
 
     fn oci_object_url(&self, repository: &str, endpoint: &str) -> Result<(Url, Url)> {

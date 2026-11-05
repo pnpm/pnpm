@@ -7,7 +7,7 @@ pub(super) struct UpstreamHttp {
     /// Resolved per-upstream request headers (auth + custom) attached to
     /// every fetch. Empty for an upstream with no `auth:`/`headers:`.
     pub(super) headers: HeaderMap,
-    /// Per-request deadline (verdaccio's `timeout`).
+    /// The upstream's `timeout`. See [`crate::Deadline`] for what it bounds.
     pub(super) timeout: Duration,
 }
 

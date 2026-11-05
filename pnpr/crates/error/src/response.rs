@@ -19,6 +19,7 @@ impl RegistryError {
     pub fn is_transient_upstream_error(&self) -> bool {
         match self {
             RegistryError::Upstream { .. }
+            | RegistryError::UpstreamTimeout { .. }
             | RegistryError::UpstreamBody { .. }
             | RegistryError::UpstreamUnavailable { .. } => true,
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
@@ -33,7 +34,9 @@ impl RegistryError {
             return kind;
         }
         match self {
-            RegistryError::Upstream { .. } | RegistryError::UpstreamBody { .. } => "upstream",
+            RegistryError::Upstream { .. }
+            | RegistryError::UpstreamTimeout { .. }
+            | RegistryError::UpstreamBody { .. } => "upstream",
             RegistryError::UpstreamStatus { .. } => "upstream_status",
             RegistryError::UpstreamResponse { .. } => "upstream_response",
             RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
@@ -177,6 +180,7 @@ impl RegistryError {
         match self {
             RegistryError::Upstream { source, .. } => upstream_status_code(source),
             RegistryError::UpstreamBody { source, .. } => upstream_body_status_code(source),
+            RegistryError::UpstreamTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,
             RegistryError::UpstreamStatus { .. }
             | RegistryError::UpstreamResponse { .. }
             | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,

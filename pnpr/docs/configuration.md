@@ -263,7 +263,7 @@ registries:
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
 | `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
-| `timeout` | Per-request upstream deadline. Defaults to `30s`. |
+| `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
 | `failTimeout` | Cooldown before an open circuit is probed again. Defaults to `5m`. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |

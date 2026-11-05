@@ -219,7 +219,8 @@ impl Upstream {
             conditional_headers.insert(header::IF_MODIFIED_SINCE, value);
         }
         let sent_conditional = !conditional_headers.is_empty();
-        let (response, _guard) = self.get_with_scoped_headers(&url, &conditional_headers).await?;
+        let (response, _guard) =
+            self.get_with_scoped_headers(&url, &conditional_headers, Deadline::Whole).await?;
         if response.status() == StatusCode::NOT_FOUND {
             // A 404 is an authoritative answer, not an upstream failure.
             self.breaker.record_success();
@@ -289,9 +290,9 @@ impl Upstream {
     }
 
     async fn fetch_tarball_url(&self, url: &str) -> Result<FetchOutcome<ThrottledResponse>> {
-        let started = Instant::now();
         self.ensure_available()?;
-        let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
+        let (response, guard) =
+            self.get_with_scoped_headers(url, &HeaderMap::new(), Deadline::Head).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -301,10 +302,7 @@ impl Upstream {
         // the caller's to observe. Recording success on a clean status is
         // what verdaccio does too.
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(guard.retain_for_body(
-            response,
-            self.http.timeout.saturating_sub(started.elapsed()),
-        )))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(response, self.http.timeout)))
     }
 
     /// Fetch a document by path relative to the upstream's base URL — a Cargo
@@ -332,7 +330,8 @@ impl Upstream {
         {
             headers.insert(header::ACCEPT, value);
         }
-        let (response, _guard) = self.get_with_scoped_headers(&url, &headers).await?;
+        let (response, _guard) =
+            self.get_with_scoped_headers(&url, &headers, Deadline::Whole).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -368,19 +367,16 @@ impl Upstream {
         &self,
         url: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        let started = Instant::now();
         self.ensure_available()?;
-        let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
+        let (response, guard) =
+            self.get_with_scoped_headers(url, &HeaderMap::new(), Deadline::Head).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
         let response = self.checked(response, url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(guard.retain_for_body(
-            response,
-            self.http.timeout.saturating_sub(started.elapsed()),
-        )))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(response, self.http.timeout)))
     }
 
     /// Fetch an immutable registry revision without following redirects.
@@ -399,20 +395,16 @@ impl Upstream {
         let started = Instant::now();
         let request = client
             .get(&url)
-            .timeout(self.http.timeout)
             .headers(self.request_headers(&url))
             .header(reqwest::header::ACCEPT_ENCODING, "gzip");
-        let response = self.run(request, &url).await?;
+        let response = self.within_head_deadline(&url, started, self.run(request, &url)).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
         let response = self.checked(response, &url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(client.retain_for_body(
-            response,
-            self.http.timeout.saturating_sub(started.elapsed()),
-        )))
+        Ok(FetchOutcome::Ok(client.retain_for_body(response, self.http.timeout)))
     }
 
     pub(crate) fn request_headers(&self, url: &str) -> HeaderMap {
@@ -453,20 +445,49 @@ impl Upstream {
         &self,
         url: &str,
         headers: &HeaderMap,
+        deadline: Deadline,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
         self.ensure_allowed_url(url)?;
         let started = Instant::now();
-        self.http.client
-            .get_response_with_scoped_headers(url, |request, destination| {
-                request
-                    .timeout(self.http.timeout.saturating_sub(started.elapsed()))
-                    .headers(self.request_headers(destination))
-                    .headers(headers.clone())
-            })
-            .await
-            .map_err(|source| {
+        let response = async {
+            self.http.client
+                .get_response_with_scoped_headers(url, |request, destination| {
+                    let request = request
+                        .headers(self.request_headers(destination))
+                        .headers(headers.clone());
+                    match deadline {
+                        Deadline::Whole => {
+                            request.timeout(self.http.timeout.saturating_sub(started.elapsed()))
+                        }
+                        Deadline::Head => request,
+                    }
+                })
+                .await
+                .map_err(|source| {
+                    self.breaker.record_failure();
+                    RegistryError::Upstream { url: url.to_string(), source }
+                })
+        };
+        match deadline {
+            Deadline::Whole => response.await,
+            Deadline::Head => self.within_head_deadline(url, started, response).await,
+        }
+    }
+
+    /// Wait for `response` until the upstream's timeout, counted from
+    /// `started`, runs out. Used for a body pnpr streams: the head is bounded
+    /// here and the body by [`ThrottledResponse::bytes_stream`].
+    pub(crate) async fn within_head_deadline<Response>(
+        &self,
+        url: &str,
+        started: Instant,
+        response: impl Future<Output = Result<Response>>,
+    ) -> Result<Response> {
+        let remaining = self.http.timeout.saturating_sub(started.elapsed());
+        tokio::time::timeout(remaining, response).await
+            .unwrap_or_else(|_| {
                 self.breaker.record_failure();
-                RegistryError::Upstream { url: url.to_string(), source }
+                Err(RegistryError::UpstreamTimeout { url: url.to_string() })
             })
     }
 
@@ -508,3 +529,14 @@ impl Upstream {
 
 #[cfg(test)]
 mod tests;
+
+/// What an upstream request's `timeout` bounds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Deadline {
+    /// The whole response, for a body pnpr reads into memory.
+    Whole,
+    /// The wait for the response head, for a body pnpr streams. The body is
+    /// bounded per chunk instead, so a download that keeps arriving is not
+    /// cut off.
+    Head,
+}
