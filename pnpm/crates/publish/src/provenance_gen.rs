@@ -201,12 +201,12 @@ const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
 const DEFAULT_SIGN_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[cfg(not(target_family = "wasm"))]
-async fn with_sign_deadline<T, Fut>(
+async fn with_sign_deadline<Success, Fut>(
     deadline: Duration,
     attempt: Fut,
-) -> Result<T, ProvenanceGenError>
+) -> Result<Success, ProvenanceGenError>
 where
-    Fut: Future<Output = Result<T, ProvenanceGenError>>,
+    Fut: Future<Output = Result<Success, ProvenanceGenError>>,
 {
     match tokio::time::timeout(deadline, attempt).await {
         Ok(result) => result,
@@ -220,14 +220,14 @@ where
 }
 
 #[cfg(not(target_family = "wasm"))]
-async fn setup_signing_context<T, E, Fut>(
+async fn setup_signing_context<Context, SetupError, Fut>(
     deadline: Duration,
     retry_opts: RetryOpts,
     mut setup: impl FnMut() -> Fut,
-) -> Result<T, ProvenanceGenError>
+) -> Result<Context, ProvenanceGenError>
 where
-    E: std::fmt::Display,
-    Fut: Future<Output = Result<T, E>>,
+    SetupError: std::fmt::Display,
+    Fut: Future<Output = Result<Context, SetupError>>,
 {
     sign_with_retry(retry_opts, || {
         let setup = setup();
@@ -239,12 +239,12 @@ where
 }
 
 #[cfg(not(target_family = "wasm"))]
-async fn sign_with_retry<T, Fut>(
+async fn sign_with_retry<Success, Fut>(
     retry_opts: RetryOpts,
     mut attempt_fn: impl FnMut() -> Fut,
-) -> Result<T, ProvenanceGenError>
+) -> Result<Success, ProvenanceGenError>
 where
-    Fut: Future<Output = Result<T, ProvenanceGenError>>,
+    Fut: Future<Output = Result<Success, ProvenanceGenError>>,
 {
     let mut attempt = 0;
     loop {
