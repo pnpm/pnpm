@@ -221,6 +221,24 @@ fn gitignore_excludes_when_no_npmignore() {
 }
 
 #[test]
+fn ignore_files_with_a_utf8_bom_keep_their_first_rule() {
+    for ignore_file in [".npmignore", ".gitignore"] {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        touch(root, "package.json");
+        touch(root, "index.js");
+        touch(root, "secret.txt");
+        fs::write(root.join(ignore_file), "\u{feff}secret.txt\n").unwrap();
+
+        let manifest = json!({ "name": "x", "version": "0.0.0" });
+        let mut out = packlist(root, &manifest).unwrap();
+        out.sort();
+
+        assert_eq!(out, ["index.js", "package.json"], "{ignore_file} starting with a BOM");
+    }
+}
+
+#[test]
 fn ignore_files_are_not_packed() {
     let dir = tempdir().unwrap();
     let root = dir.path();
