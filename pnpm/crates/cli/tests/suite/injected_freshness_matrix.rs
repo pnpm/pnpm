@@ -49,8 +49,8 @@ enum Edit {
     OptionalPeer,
     ShadowedPeer,
     CatalogPeer,
-    WorkspaceChild,
-    FileChild,
+    WorkspaceChildRange,
+    FileChildPath,
     CatalogFileChild,
 }
 
@@ -62,8 +62,8 @@ struct Scenario {
 
 impl Scenario {
     /// `app` injects `lib`, and `lib` has a dependency and a peer from the
-    /// catalog that `app` provides. `other` is a workspace project nothing
-    /// depends on yet, and `lib/vendor` a directory package inside `lib`.
+    /// catalog that `app` provides. `lib` also depends on the workspace
+    /// project `other` and on the directory package `lib/vendor`.
     fn new(layout: Layout) -> Self {
         let fixture = WorkspaceFixture::new();
         fixture.write_root_manifest("root", ManifestDeps::default());
@@ -72,7 +72,11 @@ impl Scenario {
         scenario.write_manifest(
             "lib",
             json!({
-                "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+                "dependencies": {
+                    "@pnpm.e2e/foo": "100.0.0",
+                    "other": "workspace:*",
+                    "vendored": "file:./vendor",
+                },
                 "peerDependencies": { "@pnpm.e2e/bar": "catalog:" },
             }),
         );
@@ -170,10 +174,10 @@ impl Scenario {
                 );
             }
             Edit::CatalogPeer => self.write_workspace_yaml("100.0.0"),
-            Edit::WorkspaceChild => {
+            Edit::WorkspaceChildRange => {
                 set_dependency(&lib, "dependencies", "other", "workspace:^1.0.0");
             }
-            Edit::FileChild => set_dependency(&lib, "dependencies", "vendored", "file:./vendor"),
+            Edit::FileChildPath => set_dependency(&lib, "dependencies", "vendored", "file:vendor"),
             Edit::CatalogFileChild => set_dependency(&lib, "dependencies", "vendored", "catalog:"),
         }
     }
@@ -271,7 +275,7 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     scenario.install(&[]);
     scenario.edit(edit);
     if matches!((layout.injection, edit), (Injection::FileSpec, Edit::CatalogFileChild)) {
-        check_unresolvable_child(&mut scenario, edit, filter);
+        check_unresolvable_child(&mut scenario, filter);
         return;
     }
 
@@ -326,19 +330,16 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
 }
 
 /// The children of a `file:` dependency keep their `catalog:` specs, which no
-/// resolver accepts. A filtered install of a shared lockfile links `lib` and
-/// leaves its importer, which declares the child, unresolved.
-fn check_unresolvable_child(scenario: &mut Scenario, edit: Edit, filter: &[&str]) {
-    if filter.is_empty() || !scenario.layout.shared_lockfile {
-        scenario.assert_install_fails(filter, "ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER");
-        assert!(
-            !scenario.frozen_install_passes(filter),
-            "{:?}, filter {filter:?}",
-            scenario.layout,
-        );
-    } else {
-        assert_agreement(scenario, edit, filter);
-    }
+/// resolver accepts. A frozen install accepts a child spec it cannot judge, so
+/// a filtered one, which leaves `lib`'s importer unchecked, passes.
+fn check_unresolvable_child(scenario: &mut Scenario, filter: &[&str]) {
+    assert_eq!(
+        scenario.frozen_install_passes(filter),
+        !filter.is_empty(),
+        "{:?}, filter {filter:?}",
+        scenario.layout,
+    );
+    scenario.assert_install_fails(filter, "ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER");
 }
 
 /// Asserts that `pnpm install --frozen-lockfile` from a clean tree passes
@@ -384,8 +385,8 @@ macro_rules! matrix {
                     an_optional_peer: Edit::OptionalPeer,
                     a_shadowed_peer: Edit::ShadowedPeer,
                     a_catalog_peer: Edit::CatalogPeer,
-                    a_workspace_child: Edit::WorkspaceChild,
-                    a_file_child: Edit::FileChild,
+                    a_workspace_child_range: Edit::WorkspaceChildRange,
+                    a_file_child_path: Edit::FileChildPath,
                     a_catalog_file_child: Edit::CatalogFileChild,
                 );
             }
@@ -453,6 +454,11 @@ fn publish_config_directory_with_built_manifest_agrees_across_layouts() {
         fs::create_dir_all(&dist_dir).unwrap();
         let mut lib_manifest = read_manifest(&lib_dir);
         lib_manifest["publishConfig"] = json!({ "directory": "dist" });
+        // `file:./vendor` would resolve from `dist`.
+        lib_manifest["dependencies"]
+            .as_object_mut()
+            .expect("lib declares dependencies")
+            .remove("vendored");
         write_manifest_value(&lib_dir, &lib_manifest);
         write_manifest_value(&dist_dir, &json!({ "name": "lib", "version": "1.0.0" }));
 
