@@ -66,5 +66,5 @@ fn mapped_unc_path_does_not_match_a_partial_share_name() {
 
 #[test]
 fn mapped_unc_path_stays_unc_when_it_has_no_matching_drive() {
-    assert_eq!(mapped_drive_path(Path::new(r"\\server\share\project"), &[], None), None,);
+    assert_eq!(mapped_drive_path(Path::new(r"\\server\share\project"), &[], None), None);
 }
