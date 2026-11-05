@@ -99,6 +99,14 @@ impl CrateModules {
         self.modules.values().map(|module| &module.surface)
     }
 
+    /// The surface of the crate root, whose `extern crate` aliases bind in
+    /// every module.
+    pub fn root_surface(&self) -> Option<&Surface> {
+        self.modules
+            .get(&ModulePath::new())
+            .map(|module| &module.surface)
+    }
+
     pub fn top_level_graph(&self) -> TopLevelGraph {
         let mut graph = TopLevelGraph::default();
         for (path, module) in &self.modules {

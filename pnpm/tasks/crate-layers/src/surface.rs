@@ -4,6 +4,7 @@
 
 use crate::{
     cfg,
+    extent::{Nesting, Stop, closing_brace, item_end},
     lexer::Token,
     use_tree::{self, UsePath},
 };
@@ -11,42 +12,140 @@ use crate::{
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Surface {
     /// Paths named in public signatures, with a first segment that a `use`
-    /// in the same file imports replaced by the imported path.
+    /// in the same scope imports replaced by the imported path.
     pub exposed: Vec<Vec<String>>,
     /// The paths of `pub use` items.
     pub reexported: Vec<UsePath>,
-    /// `extern crate name as alias;` items, which bind `alias` in the whole
-    /// crate.
+    /// `extern crate name as alias;` items. An alias binds in its own module,
+    /// and in the whole crate when the crate root declares it.
     pub crate_aliases: Vec<UsePath>,
 }
 
 /// The surface of one file. Test-only items, including their imports, are
-/// left out.
+/// left out. An inline `mod name { … }` is a scope of its own: its imports
+/// and aliases apply only inside it.
 pub fn scan(tokens: &[Token]) -> Surface {
-    let mut surface = Surface::default();
-    let mut imports = Vec::new();
+    let mut scope = Scope { tokens, ..Scope::default() };
     let mut pos = 0;
     while pos < tokens.len() {
-        if let Some(alias) = extern_crate_alias(tokens, pos) {
-            surface.crate_aliases.push(alias);
+        pos = scope.step(pos).max(pos + 1);
+    }
+    scope.finish()
+}
+
+/// Replaces a first segment that an `extern crate` alias binds with the
+/// crate's name.
+pub fn dealias(path: &[String], aliases: &[&UsePath]) -> Vec<String> {
+    let alias = aliases
+        .iter()
+        .find(|alias| alias.binding.as_ref() == path.first());
+    let Some(alias) = alias else { return path.to_vec() };
+    alias.segments
+        .iter()
+        .chain(&path[1..])
+        .cloned()
+        .collect()
+}
+
+/// The state of one scope's scan.
+#[derive(Default)]
+struct Scope<'tokens> {
+    tokens: &'tokens [Token],
+    surface: Surface,
+    imports: Vec<UsePath>,
+    /// The surfaces of inline modules, already expanded and dealiased.
+    nested: Vec<Surface>,
+    /// The depth of `{` blocks: a `use` inside a function body or another
+    /// block is not one of the scope's imports.
+    braces: usize,
+}
+
+impl Scope<'_> {
+    /// Reads what starts at `pos` and returns where scanning continues.
+    fn step(&mut self, pos: usize) -> usize {
+        let tokens = self.tokens;
+        if let Some(end) = test_only_item_end(tokens, pos) {
+            return end;
         }
-        pos = if let Some(end) = test_only_item_end(tokens, pos) {
-            end
-        } else if let Some(item) = use_item(tokens, pos) {
-            item.record(&mut surface, &mut imports)
-        } else {
-            scan_at(tokens, pos, &mut surface).max(pos + 1)
-        };
+        if let Some(end) = self.inline_module(pos) {
+            return end;
+        }
+        if let Some(alias) = extern_crate_alias(tokens, pos) {
+            self.surface.crate_aliases.push(alias);
+        }
+        match tokens[pos] {
+            Token::Punct('{') => self.braces += 1,
+            Token::Punct('}') => self.braces = self.braces.saturating_sub(1),
+            _ => {}
+        }
+        if let Some(item) = use_item(tokens, pos) {
+            return self.record_use(item);
+        }
+        scan_at(tokens, pos, &mut self.surface)
     }
-    for path in &mut surface.exposed {
-        expand(path, &imports);
+
+    /// Scans the inline module `mod name { … }` at `pos` as its own scope.
+    fn inline_module(&mut self, pos: usize) -> Option<usize> {
+        let tokens = self.tokens;
+        let opens = is_ident(tokens.get(pos), "mod")
+            && matches!(tokens.get(pos + 1), Some(Token::Ident(_)))
+            && tokens.get(pos + 2) == Some(&Token::Punct('{'));
+        if !opens {
+            return None;
+        }
+        let end = closing_brace(tokens, pos + 2);
+        let body = tokens
+            .get(pos + 3..end.saturating_sub(1))
+            .unwrap_or_default();
+        let mut inner = scan(body);
+        let aliases = inner.crate_aliases
+            .drain(..)
+            .collect::<Vec<_>>();
+        let aliases = aliases.iter().collect::<Vec<_>>();
+        for path in &mut inner.exposed {
+            *path = dealias(path, &aliases);
+        }
+        for reexport in &mut inner.reexported {
+            reexport.segments = dealias(&reexport.segments, &aliases);
+        }
+        self.nested.push(inner);
+        Some(end)
     }
-    surface
+
+    /// Adds a `use` item at the scope's top level to its imports, and a
+    /// `pub use` to its re-exports, after expanding each path through the
+    /// imports before it. Returns the index after the item.
+    fn record_use(&mut self, item: UseItem) -> usize {
+        if self.braces > 0 {
+            return item.next;
+        }
+        for mut path in item.paths {
+            expand(&mut path.segments, &self.imports);
+            if item.is_public {
+                self.surface.reexported.push(path.clone());
+            }
+            self.imports.push(path);
+        }
+        item.next
+    }
+
+    fn finish(mut self) -> Surface {
+        for path in &mut self.surface.exposed {
+            expand(path, &self.imports);
+        }
+        for inner in self.nested {
+            self.surface.exposed.extend(inner.exposed);
+            self.surface.reexported.extend(inner.reexported);
+        }
+        self.surface
+    }
 }
 
 /// The keywords an item starts with, after its visibility and qualifiers.
-const ITEM_KEYWORDS: [&str; 10] =
-    ["use", "mod", "fn", "struct", "enum", "trait", "impl", "const", "static", "type"];
+const ITEM_KEYWORDS: [&str; 13] = [
+    "use", "mod", "fn", "struct", "enum", "union", "trait", "impl", "const", "static", "type",
+    "extern", "crate",
+];
 
 /// The index after the test-only item or field that starts at `pos`, if one
 /// does. An item ends at its `;` or body. A field also ends at its `,`, which
@@ -89,18 +188,6 @@ struct UseItem {
     next: usize,
 }
 
-impl UseItem {
-    /// Adds the paths to the file's imports, and to its re-exports for a
-    /// `pub use`. Returns the index after the item.
-    fn record(self, surface: &mut Surface, imports: &mut Vec<UsePath>) -> usize {
-        if self.is_public {
-            surface.reexported.extend(self.paths.iter().cloned());
-        }
-        imports.extend(self.paths);
-        self.next
-    }
-}
-
 /// The `use` or `pub use` item at `pos`, if one starts there. `use<'a>` in an
 /// `impl Trait + use<'a>` bound is not a `use` item.
 fn use_item(tokens: &[Token], pos: usize) -> Option<UseItem> {
@@ -129,7 +216,8 @@ fn extern_crate_alias(tokens: &[Token], pos: usize) -> Option<UsePath> {
 }
 
 /// Reads the public item at `pos`, if one starts there, and returns where
-/// scanning continues.
+/// scanning continues. A `pub mod` returns the index of `mod`, so the scope
+/// sees an inline module.
 fn scan_at(tokens: &[Token], pos: usize, surface: &mut Surface) -> usize {
     if !is_ident(tokens.get(pos), "pub") || tokens.get(pos + 1) == Some(&Token::Punct('(')) {
         return pos + 1;
@@ -140,7 +228,8 @@ fn scan_at(tokens: &[Token], pos: usize, surface: &mut Surface) -> usize {
         return collect(tokens, item, Stop::FieldEnd, surface);
     };
     match keyword.as_str() {
-        "mod" | "macro_rules" | "crate" | "extern" => item + 1,
+        "mod" => item,
+        "macro_rules" | "crate" | "extern" => item + 1,
         "fn" => collect(tokens, item, Stop::Signature, surface),
         "struct" | "union" => collect(tokens, item, Stop::Body, surface),
         "type" => collect(tokens, item, Stop::Signature, surface),
@@ -154,25 +243,6 @@ fn scan_at(tokens: &[Token], pos: usize, surface: &mut Surface) -> usize {
     }
 }
 
-/// Where the public part of an item ends.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Stop {
-    /// Before a body or tuple fields: `{`, `(`, or `;` outside brackets.
-    Body,
-    /// At `{` or `;` outside brackets: a function's body, or the end of a
-    /// type alias or a body-less trait method.
-    Signature,
-    /// At `=` or `;` outside brackets.
-    Value,
-    /// At `,` or a closing bracket outside the field's own brackets.
-    FieldEnd,
-    /// After the item's `{ … }` body, or at `;` before one.
-    ItemEnd,
-    /// Like `ItemEnd`, and also at `,` or a closing bracket, so a field
-    /// ends where it does.
-    Extent,
-}
-
 /// Records the paths in `tokens[start..]` up to `stop` and returns where the
 /// public part ends.
 fn collect(tokens: &[Token], start: usize, stop: Stop, surface: &mut Surface) -> usize {
@@ -181,89 +251,25 @@ fn collect(tokens: &[Token], start: usize, stop: Stop, surface: &mut Surface) ->
     end
 }
 
-fn item_end(tokens: &[Token], start: usize, stop: Stop) -> usize {
-    let end = boundary(tokens, start, stop);
-    let opens_body =
-        matches!(stop, Stop::ItemEnd | Stop::Extent) && tokens.get(end) == Some(&Token::Punct('{'));
-    if opens_body { closing_brace(tokens, end) } else { end }
-}
-
-/// The first token from `start` that ends the item under `stop` outside
-/// brackets, or the bracket that closes the one the item is in.
-fn boundary(tokens: &[Token], start: usize, stop: Stop) -> usize {
-    let mut depth = 0usize;
-    for (pos, token) in tokens.iter().enumerate().skip(start) {
-        let Token::Punct(punct) = token else { continue };
-        if depth == 0 && (ends_at(*punct, stop) || matches!(punct, ')' | ']' | '}')) {
-            return pos;
-        }
-        if stop.tracks_angles() || !matches!(punct, '<' | '>') {
-            depth = nested_depth(depth, tokens, pos);
-        }
-    }
-    tokens.len()
-}
-
-/// The bracket depth after the punctuation at `pos`, counting `<` and `>`
-/// but not the `>` of an arrow.
-fn nested_depth(depth: usize, tokens: &[Token], pos: usize) -> usize {
-    match tokens[pos] {
-        Token::Punct('(' | '[' | '{' | '<') => depth + 1,
-        Token::Punct('>') if is_arrow(tokens, pos) => depth,
-        Token::Punct(')' | ']' | '}' | '>') => depth.saturating_sub(1),
-        _ => depth,
-    }
-}
-
-impl Stop {
-    /// Whether `<` and `>` count as brackets. They must where a `,` or `(`
-    /// inside generics would end the scan early. Elsewhere they are left
-    /// out, so a comparison or shift in a value, as in `1 << 3`, cannot
-    /// hide the item's end.
-    fn tracks_angles(self) -> bool {
-        matches!(self, Self::Body | Self::FieldEnd | Self::Extent)
-    }
-}
-
-fn ends_at(punct: char, stop: Stop) -> bool {
-    match stop {
-        Stop::Body => matches!(punct, '{' | '(' | ';'),
-        Stop::Signature => matches!(punct, '{' | ';'),
-        Stop::Value => matches!(punct, '=' | ';'),
-        Stop::FieldEnd => punct == ',',
-        Stop::ItemEnd => matches!(punct, '{' | ';'),
-        Stop::Extent => matches!(punct, '{' | ';' | ','),
-    }
-}
-
-/// Whether the `>` at `pos` is the second half of `->` or `=>`.
-fn is_arrow(tokens: &[Token], pos: usize) -> bool {
-    pos > 0 && matches!(tokens[pos - 1], Token::Punct('-' | '='))
-}
-
-/// The index after the `}` that closes the `{` at `open`.
-fn closing_brace(tokens: &[Token], open: usize) -> usize {
-    let mut depth = 0usize;
-    for (offset, token) in tokens[open..].iter().enumerate() {
-        match token {
-            Token::Punct('{') => depth += 1,
-            Token::Punct('}') if depth == 1 => return open + offset + 1,
-            Token::Punct('}') => depth -= 1,
-            _ => {}
-        }
-    }
-    tokens.len()
-}
-
-/// A trait's header and the signatures of its items, without the bodies of
-/// its provided methods or the default values of its constants and types.
+/// A trait's header and the signatures of its items, without test-only
+/// items, the bodies of its provided methods, or the default values of its
+/// constants and types.
 fn collect_trait(tokens: &[Token], start: usize, surface: &mut Surface) -> usize {
     let end = item_end(tokens, start, Stop::ItemEnd);
     let mut filter = TraitFilter::default();
-    let kept = (start..end)
-        .filter(|pos| filter.keeps(tokens, *pos))
-        .map(|pos| tokens[pos].clone())
-        .collect::<Vec<_>>();
+    let mut kept = Vec::new();
+    let mut pos = start;
+    while pos < end {
+        let test_only_end = (filter.braces == 1).then(|| test_only_item_end(tokens, pos)).flatten();
+        if let Some(member_end) = test_only_end {
+            pos = member_end;
+            continue;
+        }
+        if filter.keeps(tokens, pos) {
+            kept.push(tokens[pos].clone());
+        }
+        pos += 1;
+    }
     surface.exposed.extend(paths_in(&kept));
     end
 }
@@ -272,8 +278,8 @@ fn collect_trait(tokens: &[Token], start: usize, surface: &mut Surface) -> usize
 #[derive(Default)]
 struct TraitFilter {
     braces: usize,
-    /// The depth of `(`, `[`, and `<` inside the trait body.
-    brackets: usize,
+    /// The nesting inside the current item of the trait body.
+    nesting: Nesting,
     in_default: bool,
 }
 
@@ -285,16 +291,14 @@ impl TraitFilter {
     fn keeps(&mut self, tokens: &[Token], pos: usize) -> bool {
         let in_signature = self.braces == 1 && !self.in_default;
         match tokens[pos] {
-            Token::Punct('{') => self.braces += 1,
-            Token::Punct('}') => self.braces -= 1,
-            Token::Punct('=') if in_signature && self.brackets == 0 => self.in_default = true,
+            Token::Punct('{') if self.nesting.is_flat() => self.braces += 1,
+            Token::Punct('}') if self.nesting.is_flat() => self.braces -= 1,
+            Token::Punct('=') if in_signature && self.nesting.is_flat() => self.in_default = true,
             Token::Punct(';') if self.braces == 1 => {
                 self.in_default = false;
-                self.brackets = 0;
+                self.nesting = Nesting::default();
             }
-            Token::Punct('(' | '[' | '<' | ')' | ']' | '>') if in_signature => {
-                self.brackets = nested_depth(self.brackets, tokens, pos);
-            }
+            _ if in_signature => self.nesting.step(tokens, pos, true),
             _ => {}
         }
         self.braces <= 1 && !self.in_default && !matches!(tokens[pos], Token::Punct('{' | '}'))

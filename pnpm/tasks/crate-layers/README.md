@@ -74,8 +74,9 @@ it out of the public signature.
 
 The public signatures are those of `pub` functions, fields, enums, traits,
 type aliases, constants, and statics, outside test-only modules. The tool
-reads `pub` alone, so a `pub` item in a private module counts. It follows a
-file's own imports and the crate's `extern crate … as …` aliases. It misses:
+reads `pub` alone, so a `pub` item in a private module counts. It follows
+the imports of the item's own file or inline module, and `extern crate … as …`
+aliases from the item's module and the crate root. It misses:
 
 - a path that reaches the dependency through another module of the crate;
 - a name brought in by a glob import such as `use dep::*`;

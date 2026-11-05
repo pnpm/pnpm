@@ -22,6 +22,7 @@ mod cfg;
 mod cycles;
 mod dependencies;
 mod diff;
+mod extent;
 mod graph;
 mod layers;
 mod leaks;

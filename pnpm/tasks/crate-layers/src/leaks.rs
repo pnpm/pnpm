@@ -1,4 +1,9 @@
-use crate::{dependencies::Reach, modules::CrateModules, surface::Surface};
+use crate::{
+    dependencies::Reach,
+    modules::CrateModules,
+    surface::{self, Surface},
+    use_tree::UsePath,
+};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
@@ -21,8 +26,7 @@ pub struct Leak {
 pub fn find(reach: &Reach, modules: &BTreeMap<String, CrateModules>) -> Vec<Leak> {
     let mut leaks = Vec::new();
     for (crate_name, modules) in modules {
-        let surfaces = modules.surfaces().collect::<Vec<_>>();
-        let (exposed, reexported) = dealiased(&surfaces);
+        let (exposed, reexported) = dealiased(modules);
         for dependency in reach.direct
             .get(crate_name)
             .into_iter()
@@ -65,35 +69,33 @@ pub fn counts(leaks: &[Leak]) -> BTreeMap<String, usize> {
     counts
 }
 
-/// The exposed and re-exported paths of every surface, with an
-/// `extern crate` alias replaced by the crate's name.
-fn dealiased(surfaces: &[&Surface]) -> (Vec<Vec<String>>, Vec<Vec<String>>) {
-    let aliases = surfaces
-        .iter()
-        .flat_map(|surface| &surface.crate_aliases)
-        .collect::<Vec<_>>();
-    let dealias = |path: &Vec<String>| {
-        let alias = aliases
-            .iter()
-            .find(|alias| alias.binding.as_ref() == path.first());
-        let Some(alias) = alias else { return path.clone() };
-        alias.segments
-            .iter()
-            .chain(&path[1..])
-            .cloned()
-            .collect()
-    };
-    let exposed = surfaces
-        .iter()
-        .flat_map(|surface| &surface.exposed)
-        .map(dealias)
-        .collect();
-    let reexported = surfaces
-        .iter()
-        .flat_map(|surface| &surface.reexported)
-        .map(|reexport| dealias(&reexport.segments))
-        .collect();
+/// The exposed and re-exported paths of every module, with an `extern crate`
+/// alias replaced by the crate's name. A module sees its own aliases first,
+/// then the crate root's.
+fn dealiased(modules: &CrateModules) -> (Vec<Vec<String>>, Vec<Vec<String>>) {
+    let root_aliases = modules
+        .root_surface()
+        .map(|root| root.crate_aliases.as_slice())
+        .unwrap_or_default();
+    let mut exposed = Vec::new();
+    let mut reexported = Vec::new();
+    for module in modules.surfaces() {
+        let aliases = module_aliases(module, root_aliases);
+        exposed.extend(module.exposed.iter().map(|path| surface::dealias(path, &aliases)));
+        let reexports = module.reexported.iter();
+        reexported.extend(reexports.map(|reexport| surface::dealias(&reexport.segments, &aliases)));
+    }
     (exposed, reexported)
+}
+
+fn module_aliases<'surface>(
+    module: &'surface Surface,
+    root_aliases: &'surface [UsePath],
+) -> Vec<&'surface UsePath> {
+    module.crate_aliases
+        .iter()
+        .chain(root_aliases)
+        .collect()
 }
 
 /// The paths into `lib` that `exposed` names and `reexported` does not
