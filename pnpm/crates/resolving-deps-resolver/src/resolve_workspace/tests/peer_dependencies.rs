@@ -230,7 +230,10 @@ async fn resolve_optional_peer_of_pkg_a(
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
-    opts.peers.dedupe_peer_dependents = matches!(dedupe, PeerDependentsDedupe::On);
+    opts.peers.dedupe_peer_dependents = match dedupe {
+        PeerDependentsDedupe::On => true,
+        PeerDependentsDedupe::Off => false,
+    };
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
