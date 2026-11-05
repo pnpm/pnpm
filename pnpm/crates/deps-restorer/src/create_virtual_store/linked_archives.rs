@@ -76,10 +76,10 @@ pub(crate) fn slot_holds_other_variant(
 }
 
 /// Record in each materialized slot of a package with platform variants the
-/// integrity of the archive it now holds. Every slot whose record differed
-/// was replaced by this install, so the archive it holds is the one
-/// `supported` links. A record that cannot be written only makes the next
-/// install replace the slot.
+/// integrity of the archive it now holds. It runs after the virtual store
+/// pass replaces every slot whose record differs, so the archive each slot
+/// holds is the one `supported` links. A record that cannot be written only
+/// makes the next install replace the slot.
 pub(crate) fn record_linked_archives(
     layout: &VirtualStoreLayout,
     (snapshots, packages): (
