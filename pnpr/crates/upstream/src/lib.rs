@@ -522,7 +522,12 @@ impl Upstream {
         if status.is_server_error() {
             self.breaker.record_failure();
         }
-        let body = read_upstream_error_body(response).await;
+        // A streamed request has no deadline on its body, so the error body
+        // gets the upstream timeout here; one that does not arrive in time is
+        // reported as empty.
+        let body = tokio::time::timeout(self.http.timeout, read_upstream_error_body(response))
+            .await
+            .unwrap_or_default();
         Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
     }
 }

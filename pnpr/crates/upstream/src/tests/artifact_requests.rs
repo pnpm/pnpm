@@ -177,6 +177,32 @@ async fn a_streamed_body_that_keeps_arriving_outlives_the_timeout() {
 }
 
 #[tokio::test]
+async fn a_stalled_error_body_is_bounded_by_the_timeout() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        let response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 100\r\n\r\nbroke";
+        socket.write_all(response.as_bytes()).await.unwrap();
+        tokio::time::sleep(Duration::from_mins(1)).await;
+    });
+    let mut config = UpstreamConfig::with_defaults(url, HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(300);
+    let upstream = Upstream::new("test", &config);
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let started = std::time::Instant::now();
+    let result = upstream.fetch_tarball_response(&name, "foo.tgz").await;
+    assert!(
+        matches!(result, Err(pnpr_error::RegistryError::UpstreamStatus { status: 500, .. })),
+        "got {result:?}",
+    );
+    assert!(started.elapsed() < Duration::from_secs(5), "the error body read was not bounded");
+    server.abort();
+}
+
+#[tokio::test]
 async fn a_streamed_body_that_stalls_fails_after_the_timeout() {
     let (upstream, server) = spawn_slow_body(1, Duration::from_mins(1)).await;
     let error = read_tarball(&upstream, 2).await.expect_err("a stalled body times out");
