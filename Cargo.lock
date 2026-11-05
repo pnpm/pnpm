@@ -5419,6 +5419,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-engine-size"
+version = "0.0.0"
+dependencies = [
+ "clap",
+ "object",
+ "pretty_assertions",
+ "rustc-demangle",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "pnpm-engine-size-probe"
+version = "0.0.0"
+dependencies = [
+ "miette 7.6.0",
+ "pnpm-config",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpm-package-manager",
+ "pnpm-package-manifest",
+ "pnpm-reporter",
+ "pnpm-tarball",
+ "tokio",
+]
+
+[[package]]
 name = "pnpm-env-installer"
 version = "0.0.1"
 dependencies = [

@@ -168,6 +168,8 @@ crates = [
   "pnpm-cargo-equivalence",
   "pnpm-crate-layers",
   "pnpm-ecosystem-e2e",
+  "pnpm-engine-size",
+  "pnpm-engine-size-probe",
   "pnpm-integrated-benchmark",
   "pnpm-micro-benchmark",
   "pnpm-network-web-auth-testing",
