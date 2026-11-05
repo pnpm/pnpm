@@ -297,6 +297,27 @@ async fn check_bundled_dependency_upload(base_row_committed: bool) {
     task.await.expect("join store index writer").expect("flush side effects");
 }
 
+// The disabled writer drains its channel on the runtime, so the blocking
+// read needs a second worker thread.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn upload_is_skipped_when_the_bundled_paths_cannot_be_read() {
+    let store_root = tempdir().expect("create store root");
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    store_dir.init().expect("init store dir");
+    let pkg_dir = tempdir().expect("create package dir");
+    let bundled_file = pkg_dir.path().join("node_modules/abbrev/package.json");
+    fs::create_dir_all(bundled_file.parent().expect("parent dir")).expect("create bundled dir");
+    fs::write(&bundled_file, "patched").expect("write bundled file");
+    let (writer, task) = StoreIndexWriter::spawn_disabled();
+
+    let diff = upload_with_diff(&store_dir, pkg_dir.path(), "unreadable-row", "engine", &writer)
+        .expect("upload side effects");
+
+    assert!(diff.is_none());
+    drop(writer);
+    task.await.expect("join store index writer").expect("drain writer");
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn relative_symlink_output_is_cached_as_symlink_entry() {

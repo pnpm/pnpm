@@ -56,7 +56,9 @@ pub fn upload(
     side_effects_cache_key: &str,
     writer: &StoreIndexWriter,
 ) -> Result<(), UploadError> {
-    let bundled = bundled_package_dirs(built_pkg_location, files_index_file, writer);
+    let Some(bundled) = bundled_package_dirs(built_pkg_location, files_index_file, writer) else {
+        return Ok(());
+    };
     let added = add_files_from_dir_with_bundled(store_dir, built_pkg_location, bundled)
         .map_err(UploadError::AddFilesFromDir)?;
     if added.has_unrecorded_symlinks {
@@ -83,7 +85,9 @@ pub fn upload_with_diff(
     side_effects_cache_key: &str,
     writer: &StoreIndexWriter,
 ) -> Result<Option<SideEffectsDiff>, UploadError> {
-    let bundled = bundled_package_dirs(built_pkg_location, files_index_file, writer);
+    let Some(bundled) = bundled_package_dirs(built_pkg_location, files_index_file, writer) else {
+        return Ok(None);
+    };
     let added = add_files_from_dir_with_bundled(store_dir, built_pkg_location, bundled)
         .map_err(UploadError::AddFilesFromDir)?;
     if added.has_unrecorded_symlinks {
@@ -105,16 +109,20 @@ pub fn upload_with_diff(
 /// The bundled dependencies the pristine row at `files_index_file` has
 /// files in. Read through `writer` so a row queued by the fetch that
 /// precedes the build is visible.
+///
+/// `None` when the built package has a `node_modules` directory but the
+/// row cannot be read. A diff without its bundled files would record them
+/// as deleted, so the caller skips the upload.
 fn bundled_package_dirs(
     built_pkg_location: &Path,
     files_index_file: &str,
     writer: &StoreIndexWriter,
-) -> Option<BundledPackageDirs> {
+) -> Option<Option<BundledPackageDirs>> {
     if !built_pkg_location.join("node_modules").is_dir() {
-        return None;
+        return Some(None);
     }
     let paths = writer.read_file_paths(files_index_file.to_string())?;
-    BundledPackageDirs::from_files(paths.iter().map(String::as_str))
+    Some(BundledPackageDirs::from_files(paths.iter().map(String::as_str)))
 }
 
 /// Set-difference over file digests, and over modes where the host records them.
