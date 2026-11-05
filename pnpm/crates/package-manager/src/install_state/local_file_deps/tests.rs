@@ -48,8 +48,6 @@ fn verified(linked: Option<PlatformSelector>) -> usize {
     .len()
 }
 
-/// A local tarball only the linked variant depends on is verified, and one
-/// only another platform's variant depends on is not.
 #[test]
 fn a_local_tarball_the_linked_variant_depends_on_is_verified() {
     let aix = PlatformSelector {

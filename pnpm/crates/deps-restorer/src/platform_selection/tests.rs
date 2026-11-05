@@ -117,8 +117,6 @@ fn the_axes_form_with_current_an_unset_axis_or_several_platforms_links_the_hosts
     }
 }
 
-/// A floor the listed platform does not state is not met for linking, so
-/// the archive that targets `any` is linked; stating it links the variant.
 #[test]
 fn a_variant_links_only_where_the_listed_platform_states_its_floor() {
     assert_eq!(linked_tag(&listed(&[FOREIGN])), "any");
