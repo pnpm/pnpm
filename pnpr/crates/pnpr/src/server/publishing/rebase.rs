@@ -106,13 +106,7 @@ pub(super) async fn commit_rebasing(
     mut documents: Vec<BatchDocument>,
     bases: Option<Vec<Option<Value>>>,
 ) -> Result<PublicationCommit, RegistryError> {
-    let Publication {
-        catalog,
-        artifacts,
-        notes,
-        request,
-        fence,
-    } = publication;
+    let catalog = publication.catalog;
     let database = state.inner.storage.sql_metadata();
     // What the publish computed, parsed only once a race calls for it.
     let mut ours: Option<Vec<Value>> = None;
@@ -121,10 +115,10 @@ pub(super) async fn commit_rebasing(
         let commit = database.commit_fenced_publication(
             catalog,
             documents.clone(),
-            artifacts.clone(),
-            notes.clone(),
-            request.clone(),
-            fence.clone(),
+            publication.artifacts.clone(),
+            publication.notes.clone(),
+            publication.request.clone(),
+            publication.fence.clone(),
         );
         let conflict = match (commit.await, &bases) {
             (Err(conflict @ RegistryError::DocumentWriteConflict { .. }), Some(bases))

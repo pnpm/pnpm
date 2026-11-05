@@ -130,7 +130,7 @@ async fn archives_compare_a_bounded_chunk_at_a_time() {
     ];
     for (index, (existing, length, same)) in cases.into_iter().enumerate() {
         let body = axum::body::Body::from(existing);
-        let compared = super::atomic::same_bytes(body, length, &staged).await.unwrap();
+        let compared = super::promotion::same_bytes(body, length, &staged).await.unwrap();
         assert_eq!(compared, same, "case {index}");
     }
 }

@@ -249,9 +249,9 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             version: stored.map(|stored| stored.version),
             packument: None,
             catalog_generation: base.catalog_generation,
+            references: artifact.references,
         },
         slots: vec![slot],
-        references: artifact.references,
         org: Some(org.to_string()),
         // Only an npm document has dist-tags to record a publisher with.
         publisher: None,

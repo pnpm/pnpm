@@ -9,30 +9,21 @@
 //! request is the key. A retry is authorized against current permissions
 //! like any publish before its outcome is looked up.
 
-use super::{RegistryError, StagedPublish, Value};
+use super::{RegistryError, StagedPublish, Value, promotion::promote_fenced};
 use crate::server::{AppState, Identity};
 use axum::{
     body::Body,
     http::{StatusCode, header},
     response::Response,
 };
-use futures_util::StreamExt as _;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
-    BlobFinalize, BlobSlot, Storage,
-    metadata::{
-        ArchiveFence, ArchiveRef, ArtifactMember, BatchDocument, Generation, PublicationCommit,
-        PublicationRequest, PublishNotes,
-    },
+    metadata::{BatchDocument, Generation, PublicationCommit, PublicationRequest, PublishNotes},
     transparency_log::LogId,
 };
 use serde_json::json;
 use ssri::{Algorithm, IntegrityOpts};
-use std::{
-    io::{self, Write as _},
-    path::Path,
-};
-use tokio::io::AsyncReadExt as _;
+use std::io::{self, Write as _};
 
 /// What a publish committed, as its response reports it.
 #[derive(Debug, Default)]
@@ -160,29 +151,17 @@ async fn commit_staged(
             return Err(err);
         }
     };
-    // Every archive a commit depends on was promoted, or checked present,
-    // after its package was read, so the earliest catalog generation read
-    // fences them all.
-    let token = staged
-        .iter()
-        .map(|stage| stage.base.catalog_generation)
-        .min()
-        .unwrap_or_default();
-    let references = referenced_archives(&staged);
-    let promoted = promote_archives(state, &mut staged).await?;
+    let promoted = promote_fenced(state, &mut staged).await?;
     let rebases = super::rebase::rebase_bases(&mut staged);
     let (documents, logged) = batch_documents(staged);
-    let artifacts = promoted.artifacts.clone();
-    let mut archives = promoted.depended.clone();
-    archives.extend(references);
-    let fence = ArchiveFence { token, archives };
-    let commit = match super::rebase::commit_rebasing(
-        state,
-        super::rebase::Publication { catalog: &catalog, artifacts, notes, request, fence },
-        documents,
-        rebases,
-    )
-    .await
+    let publication = super::rebase::Publication {
+        catalog: &catalog,
+        artifacts: promoted.artifacts.clone(),
+        notes,
+        request,
+        fence: promoted.fence.clone(),
+    };
+    let commit = match super::rebase::commit_rebasing(state, publication, documents, rebases).await
     {
         Ok(commit) => commit,
         Err(err) => {
@@ -197,23 +176,6 @@ async fn commit_staged(
         }
     }
     Ok(commit.into())
-}
-
-/// The archives already in the store that staged publishes reference
-/// without promoting them.
-fn referenced_archives(staged: &[StagedPublish]) -> Vec<ArchiveRef> {
-    staged
-        .iter()
-        .flat_map(|stage| {
-            stage.references
-                .iter()
-                .map(|artifact| ArchiveRef {
-                    ecosystem: stage.ecosystem,
-                    name: stage.name.as_str().to_string(),
-                    artifact: artifact.clone(),
-                })
-        })
-        .collect()
 }
 
 /// The documents a commit writes, and the ecosystems whose logs the records
@@ -253,187 +215,6 @@ pub(in super::super) fn single_catalog<'org>(
         });
     }
     Ok(first.to_string())
-}
-
-/// The archives a publish promoted before its metadata commit.
-#[derive(Default)]
-struct Promoted {
-    /// The archives of other ecosystems than npm, whose publication members
-    /// the metadata cannot derive.
-    artifacts: Vec<ArtifactMember>,
-    /// Every archive promoted, written or found in place, which the commit
-    /// depends on.
-    depended: Vec<ArchiveRef>,
-    /// The archives this publish created.
-    written: Vec<(String, pnpr_registry::Ecosystem, CanonicalPackageName, String)>,
-}
-
-impl Promoted {
-    /// Reclaim the archives this publish created, after its commit was
-    /// refused, so no archive outlives the metadata that would have
-    /// referenced it. Another replica may have found one of them in place
-    /// with the same bytes and committed it: the reclaim leaves what the
-    /// package references, and is fenced against a commit still on its way.
-    /// What it cannot remove is left for `pnpr gc`.
-    async fn remove_written(&self, state: &AppState) {
-        let mut packages: Vec<(&str, &CanonicalPackageName, Vec<String>)> = Vec::new();
-        for (org, _, name, filename) in &self.written {
-            match packages
-                .iter_mut()
-                .find(|(held_org, held, _)| *held_org == org && *held == name)
-            {
-                Some((_, _, filenames)) => filenames.push(filename.clone()),
-                None => packages.push((org, name, vec![filename.clone()])),
-            }
-        }
-        let manifest_limit = state.inner.config.http.oci.max_manifest_bytes;
-        for (org, name, filenames) in packages {
-            let reclaimed = crate::archive_gc::reclaim::reclaim_unreferenced(
-                &state.inner.storage,
-                org,
-                name,
-                filenames,
-                manifest_limit,
-            );
-            if let Err(err) = reclaimed.await {
-                tracing::warn!(package = %name.as_str(), %err, "refused publish left its archives");
-            }
-        }
-    }
-}
-
-/// Every staged blob slot with the org, ecosystem and package it belongs to,
-/// last first, so popping them promotes in staging order.
-fn take_slots(
-    staged: &mut [StagedPublish],
-) -> Vec<((String, pnpr_registry::Ecosystem, pnpr_package_name::CanonicalPackageName), BlobSlot)> {
-    let mut slots: Vec<_> = staged
-        .iter_mut()
-        .flat_map(|stage| {
-            let owner =
-                (stage.org.clone().unwrap_or_default(), stage.ecosystem, stage.name.clone());
-            std::mem::take(&mut stage.slots)
-                .into_iter()
-                .map(move |slot| (owner.clone(), slot))
-        })
-        .collect();
-    slots.reverse();
-    slots
-}
-
-/// Promote every staged archive before the metadata commit that references
-/// it. A slot another writer holds with other bytes fails the whole publish,
-/// so the commit never records part of it, and the archives this publish
-/// already wrote are removed again.
-async fn promote_archives(
-    state: &AppState,
-    staged: &mut [StagedPublish],
-) -> Result<Promoted, RegistryError> {
-    let mut promoted = Promoted::default();
-    let mut pending = take_slots(staged);
-    while let Some(((org, ecosystem, name), slot)) = pending.pop() {
-        let filename = slot.filename().to_string();
-        let tmp_path = slot.tmp_path.clone();
-        let storage = state.inner.storage.for_hosted(&org, ecosystem);
-        match promote_one(&storage, &name, slot).await {
-            Ok(BlobFinalize::Written) => {
-                promoted.depended.push(archive_ref(ecosystem, &name, &filename));
-                promoted.written.push((org, ecosystem, name.clone(), filename.clone()));
-            }
-            Ok(BlobFinalize::AlreadyIdentical) => {
-                promoted.depended.push(archive_ref(ecosystem, &name, &filename));
-            }
-            outcome @ (Ok(BlobFinalize::Conflict) | Err(_)) => {
-                let _ = tokio::fs::remove_file(&tmp_path).await;
-                super::cleanup_tmp_slots(
-                    pending
-                        .into_iter()
-                        .map(|(_, slot)| slot)
-                        .collect(),
-                )
-                .await;
-                promoted.remove_written(state).await;
-                outcome?;
-                return Err(RegistryError::PublishNotRecorded {
-                    packages: format!("{ecosystem} {}", name.as_str()),
-                });
-            }
-        }
-        if ecosystem != pnpr_registry::Ecosystem::Npm {
-            promoted.artifacts.push(artifact_member(ecosystem, &name, filename));
-        }
-    }
-    Ok(promoted)
-}
-
-/// Promote one staged archive, never over an archive already in place: a
-/// filesystem store would rename over it and still report it written. An
-/// archive in place with the same bytes is already identical; with other
-/// bytes it is a conflict. Either way the staged file is left for the
-/// caller. `Written` therefore always means this publish created the
-/// archive.
-async fn promote_one(
-    storage: &Storage,
-    name: &CanonicalPackageName,
-    slot: BlobSlot,
-) -> Result<BlobFinalize, RegistryError> {
-    let Some((existing, length)) = storage.open_hosted_blob(name, slot.filename()).await? else {
-        return storage.finalize_blob_slot(slot).await;
-    };
-    if !same_bytes(existing, length, &slot.tmp_path).await? {
-        return Ok(BlobFinalize::Conflict);
-    }
-    let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-    Ok(BlobFinalize::AlreadyIdentical)
-}
-
-/// Bytes compared at a time, so comparing never holds a whole archive.
-const COMPARE_CHUNK: usize = 64 * 1024;
-
-/// Whether the archive `existing` streams holds the bytes of the file at
-/// `staged`, read a bounded chunk at a time.
-pub(super) async fn same_bytes(
-    existing: axum::body::Body,
-    length: Option<u64>,
-    staged: &Path,
-) -> Result<bool, RegistryError> {
-    let mut file = tokio::fs::File::open(staged).await?;
-    let staged_length = file.metadata().await?.len();
-    if length.is_some_and(|length| length != staged_length) {
-        return Ok(false);
-    }
-    let mut buffer = vec![0; COMPARE_CHUNK];
-    let mut chunks = existing.into_data_stream();
-    while let Some(chunk) = chunks.next().await {
-        let chunk = chunk.map_err(|err| RegistryError::Internal {
-            reason: format!("reading an archive: {err}"),
-        })?;
-        for part in chunk.chunks(COMPARE_CHUNK) {
-            let read = &mut buffer[..part.len()];
-            if file.read_exact(read).await.is_err() || read != part {
-                return Ok(false);
-            }
-        }
-    }
-    Ok(file.read(&mut buffer[..1]).await? == 0)
-}
-
-fn archive_ref(
-    ecosystem: pnpr_registry::Ecosystem,
-    name: &CanonicalPackageName,
-    artifact: &str,
-) -> ArchiveRef {
-    ArchiveRef { ecosystem, name: name.as_str().to_string(), artifact: artifact.to_string() }
-}
-
-/// A publication member for an archive whose version the metadata does not
-/// tie it to.
-fn artifact_member(
-    ecosystem: pnpr_registry::Ecosystem,
-    name: &CanonicalPackageName,
-    artifact: String,
-) -> ArtifactMember {
-    ArtifactMember { ecosystem, name: name.as_str().to_string(), version: String::new(), artifact }
 }
 
 /// The digest of a request, independent of the order of its object keys:

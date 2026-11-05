@@ -145,42 +145,34 @@ impl Collection<'_> {
 
     /// Reclaim every archive of the namespace older than `min_age` that its
     /// package does not reference.
+    ///
+    /// The listing yields a package's files together, so each package is
+    /// collected once its files are all listed. One listed again later is
+    /// collected again, which finds what the first pass left. A package
+    /// whose metadata cannot be read keeps every archive, and the others are
+    /// still collected; the first such error is returned.
     pub(crate) async fn collect(&self, min_age: Duration, dry_run: bool) -> Result<GcReport> {
-        let mut report = GcReport::default();
+        let mut tally = Tally::default();
         let mut files = self.storage.hosted_blob_files();
-        // The listing yields a package's files together, so each package is
-        // collected once its files are all listed. One listed again later is
-        // collected again, which finds what the first pass left.
-        // A package whose metadata cannot be read keeps every archive, and
-        // the others are still collected; the first such error is returned.
-        let mut failure = None;
         let mut package: Option<(String, Vec<HostedBlobFile>)> = None;
-        loop {
-            let file = files.try_next().await?;
-            let next_package = file.as_ref().map(|file| file.package.as_str());
-            if package
-                .as_ref()
-                .is_some_and(|(current, _)| Some(current.as_str()) != next_package)
-                && let Some((name, listed)) = package.take()
-            {
-                match self.collect_package(&name, listed, dry_run).await {
-                    Ok(collected) => report.add(collected),
-                    Err(error) => {
-                        tracing::warn!(package = %name, %error, "archives not collected");
-                        failure.get_or_insert(error);
-                    }
-                }
-            }
-            let Some(file) = file else { break };
+        while let Some(file) = files.try_next().await? {
             if file.blob.is_none() || file.modified.elapsed().unwrap_or_default() < min_age {
                 continue;
             }
-            match &mut package {
-                Some((_, listed)) => listed.push(file),
-                None => package = Some((file.package.clone(), vec![file])),
+            if let Some((current, listed)) = &mut package
+                && *current == file.package
+            {
+                listed.push(file);
+                continue;
+            }
+            if let Some((name, listed)) = package.replace((file.package.clone(), vec![file])) {
+                tally.add(&name, self.collect_package(&name, listed, dry_run).await);
             }
         }
-        failure.map_or(Ok(report), Err)
+        if let Some((name, listed)) = package {
+            tally.add(&name, self.collect_package(&name, listed, dry_run).await);
+        }
+        tally.finish()
     }
 
     async fn collect_package(
@@ -301,6 +293,29 @@ impl Collection<'_> {
             report.bytes += size;
         }
         Ok(report)
+    }
+}
+
+/// What a sweep removed so far, and the first package it could not collect.
+#[derive(Default)]
+struct Tally {
+    report: GcReport,
+    failure: Option<RegistryError>,
+}
+
+impl Tally {
+    fn add(&mut self, package: &str, collected: Result<GcReport>) {
+        match collected {
+            Ok(collected) => self.report.add(collected),
+            Err(error) => {
+                tracing::warn!(%package, %error, "archives not collected");
+                self.failure.get_or_insert(error);
+            }
+        }
+    }
+
+    fn finish(self) -> Result<GcReport> {
+        self.failure.map_or(Ok(self.report), Err)
     }
 }
 

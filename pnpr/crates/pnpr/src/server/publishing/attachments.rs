@@ -141,10 +141,6 @@ pub(in super::super) struct StagedPublish {
     /// What the store held when `document` was computed from it.
     pub(in super::super) base: StagedBase,
     pub(in super::super) slots: Vec<pnpr_storage::BlobSlot>,
-    /// Archives already in the package's store that the document references
-    /// and the publish did not stage, such as the layers an image manifest
-    /// names. The commit depends on them as on the ones it promotes.
-    pub(in super::super) references: Vec<String>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit so the write
     /// lands in the right org.
@@ -169,6 +165,10 @@ pub(in super::super) struct StagedBase {
     /// publish was promoted: the token of the commit's fence (see
     /// [`pnpr_storage::metadata::ArchiveFence`]).
     pub(in super::super) catalog_generation: u64,
+    /// Archives already in the package's store that the document references
+    /// and the publish did not stage, such as the layers an image manifest
+    /// names. The commit depends on them as on the ones it promotes.
+    pub(in super::super) references: Vec<String>,
 }
 
 /// What verifying a publish's archives against its version metadata
@@ -197,8 +197,8 @@ pub(in super::super) async fn stage_publish(
     let storage = hosted_storage(state, org);
 
     let base = storage.read_hosted_document_for_publish(&doc.name).await?;
-    let catalog_generation = base.catalog_generation;
-    let (hosted, base_version) = parse_hosted_packument(&doc.name, base.stored)?;
+    let base = staged_base(&doc.name, base)?;
+    let hosted = base.packument.as_ref();
 
     check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
     let publisher = doc.publisher.username().map(str::to_string);
@@ -210,12 +210,11 @@ pub(in super::super) async fn stage_publish(
         variants,
         ..
     } = doc;
-    restore_submitted_tgz_integrities(&storage, &name, hosted.as_ref(), &mut incoming).await?;
+    restore_submitted_tgz_integrities(&storage, &name, hosted, &mut incoming).await?;
 
-    let without_any =
-        check_publishable_versions(&name, &incoming, hosted.as_ref(), (&prepared, &variants))?;
+    let without_any = check_publishable_versions(&name, &incoming, hosted, (&prepared, &variants))?;
 
-    let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
+    let merged = prepare_staged_document(&name, hosted, &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -232,12 +231,25 @@ pub(in super::super) async fn stage_publish(
         name,
         ecosystem: Ecosystem::Npm,
         document: verified.document,
-        base: StagedBase { version: base_version, packument: hosted, catalog_generation },
+        base,
         slots: verified.slots,
-        references: Vec::new(),
         org: org.map(str::to_string),
         publisher,
         verification: verified.verification,
+    })
+}
+
+/// The packument a publish of `name` is computed from, as `base` read it.
+fn staged_base(
+    name: &CanonicalPackageName,
+    base: pnpr_storage::metadata::PublishBase,
+) -> Result<StagedBase, RegistryError> {
+    let (packument, version) = parse_hosted_packument(name, base.stored)?;
+    Ok(StagedBase {
+        version,
+        packument,
+        catalog_generation: base.catalog_generation,
+        references: Vec::new(),
     })
 }
 
