@@ -86,7 +86,7 @@ pub(super) fn redact_parseable_url_candidate(candidate: &str) -> Option<String> 
     let mut changed = redact_url_userinfo(&mut url);
     changed |= redact_url_query(&mut url);
     changed |= redact_url_fragment(&mut url);
-    changed.then(|| url.to_string())
+    Some(if changed { url.to_string() } else { candidate.to_string() })
 }
 
 pub(super) fn redact_url_userinfo(url: &mut url::Url) -> bool {
