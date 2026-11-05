@@ -31,10 +31,7 @@ impl SignProvenance for Host {
         let token = IdentityToken::from_jwt(jwt)
             .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
         let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
-        let context = SIGNING_CONTEXT.get_or_try_init(|| {
-            setup_signing_context(deadline, SIGN_RETRY_OPTS, load_signing_context)
-        })
-        .await?;
+        let context = SIGNING_CONTEXT.get_or_try_init(|| load_signing_context(deadline)).await?;
         sign_with_retry(SIGN_RETRY_OPTS, || {
             with_sign_deadline(deadline, async {
                 let bundle = context
@@ -50,10 +47,17 @@ impl SignProvenance for Host {
     }
 }
 
+/// Only the TUF fetch is retried. Selecting the services fails the same way on
+/// every attempt.
 #[cfg(not(target_family = "wasm"))]
-async fn load_signing_context() -> Result<SigningContext, sigstore_sign::Error> {
-    let config = SigningConfig::from_tuf(TufConfig::production()).await?;
-    Ok(SigningContext::new(signing_services(&config)?))
+async fn load_signing_context(deadline: Duration) -> Result<SigningContext, ProvenanceGenError> {
+    let config = setup_signing_context(deadline, SIGN_RETRY_OPTS, || {
+        SigningConfig::from_tuf(TufConfig::production())
+    })
+    .await?;
+    let services = signing_services(&config)
+        .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
+    Ok(SigningContext::new(services))
 }
 
 /// Selects the services from the TUF signing configuration, with Rekor pinned
