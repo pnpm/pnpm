@@ -27,12 +27,6 @@ use axum::response::{IntoResponse, Response};
 use serde_json::Value;
 use ssri::Integrity;
 
-use super::{
-    Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
-    authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
-    resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
-    staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
-};
 use node_semver::Version;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
@@ -45,6 +39,13 @@ use pnpr_storage::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
         verify_and_write, write_sigstore_bundle,
     },
+};
+
+use super::{
+    Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
+    authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
+    resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
+    staged_archives::StagedReferences, tar_integrity_of, tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -204,7 +205,7 @@ pub(super) async fn publish_package(
         Ok(v) => v,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    if let Err(err) = check_body(&name, &incoming) {
+    if let Err(err) = check_body_name(&name, &incoming) {
         return err.into_response();
     }
 
@@ -259,25 +260,21 @@ async fn stage_and_commit(
     Ok(publish_committed_response(&receipt))
 }
 
-fn check_body(name: &CanonicalPackageName, incoming: &Value) -> Result<(), RegistryError> {
-    check_body_name(name, incoming)
-}
-
 /// Reject a publish whose body name disagrees with the URL. npm and verdaccio
 /// answer 400 here too; without this check a misrouted `PUT` would overwrite
 /// another package's document.
 fn check_body_name(name: &CanonicalPackageName, incoming: &Value) -> Result<(), RegistryError> {
     let body_name = incoming.get("name").and_then(Value::as_str);
-    if body_name.is_some_and(|body_name| body_name != name.as_str()) {
-        return Err(RegistryError::BadRequest {
-            reason: format!(
-                "package in URL ({:?}) does not match body ({:?})",
-                name.as_str(),
-                body_name.unwrap_or(""),
-            ),
-        });
+    if body_name.is_none_or(|body_name| body_name == name.as_str()) {
+        return Ok(());
     }
-    Ok(())
+    Err(RegistryError::BadRequest {
+        reason: format!(
+            "package in URL ({:?}) does not match body ({:?})",
+            name.as_str(),
+            body_name.unwrap_or(""),
+        ),
+    })
 }
 
 pub(super) fn check_body_versions(incoming: &Value) -> Result<(), RegistryError> {
@@ -307,8 +304,16 @@ pub(super) fn check_body_versions(incoming: &Value) -> Result<(), RegistryError>
     Ok(())
 }
 
+/// Accepts only a version already in canonical form. Build metadata is
+/// compared raw: the parser stores numeric build identifiers as integers, so
+/// re-rendering `1.0.0+001` would drop leading zeros that are valid there.
 fn is_valid_semver(raw: &str) -> bool {
-    Version::parse(raw).is_ok_and(|version| version.to_string() == raw)
+    let Ok(mut version) = Version::parse(raw) else {
+        return false;
+    };
+    version.build.clear();
+    let without_build = raw.split_once('+').map_or(raw, |(core, _)| core);
+    version.to_string() == without_build
 }
 
 /// The version note at the top of a single npm publish document.
