@@ -264,11 +264,12 @@ export function localSpecPath (bareSpecifier: string, projectDir: string): strin
 
 /**
  * The path a lockfile records for a local dependency, resolved against
- * `baseDir`. Unlike {@link localSpecPath}, it reads no protocol: `file:x` is
- * a directory named `file:x`.
+ * `baseDir` by the host's path rules. Unlike {@link localSpecPath}, it reads
+ * no protocol or drive prefix: on Unix, `file:x` and `a:x` are directories
+ * with those names.
  */
 export function recordedLocalPath (recorded: string, baseDir: string): string {
-  return resolvePath(baseDir, recorded)
+  return path.resolve(baseDir, recorded)
 }
 
 function resolveNormalizedSpec (spec: string, projectDir: string): string {

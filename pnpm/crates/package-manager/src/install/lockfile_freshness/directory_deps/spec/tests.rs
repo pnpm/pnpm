@@ -406,3 +406,17 @@ fn a_recorded_local_path_is_not_read_as_a_specifier() {
     assert!(!satisfies("file:../vendor", "file:file:vendor"));
     assert!(!satisfies("link:../vendor", "link:file:vendor"));
 }
+
+#[test]
+#[cfg_attr(windows, ignore = "Windows reads `a:` as a drive and forbids it in a directory name")]
+fn a_recorded_local_path_is_not_read_as_a_drive() {
+    let workspace_root = PathBuf::from("/workspace");
+    let lockfile_dep: pnpm_lockfile::SnapshotDepRef = "file:a:vendor".parse().unwrap();
+    assert!(local_spec_satisfies(
+        &dirs(&workspace_root, &workspace_root),
+        &workspace_root.join("lib"),
+        "vendored",
+        "file:../a:vendor",
+        &lockfile_dep,
+    ));
+}

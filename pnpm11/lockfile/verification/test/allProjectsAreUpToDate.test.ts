@@ -1611,6 +1611,9 @@ describe('local file dependency', () => {
     await mkdir('file:other-dir')
     await writeFile('./file:other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
     expect(await checkFileDependencyOfLocalFile('file:../file:other-dir', 'file:file:other-dir')).toBeTruthy()
+    await mkdir('a:other-dir')
+    await writeFile('./a:other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    expect(await checkFileDependencyOfLocalFile('file:../a:other-dir', 'file:a:other-dir')).toBeTruthy()
   })
 
   async function checkFileDependencyOfLocalFile (spec: string, ref: string): Promise<boolean> {
