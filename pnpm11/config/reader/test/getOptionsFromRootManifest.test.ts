@@ -59,21 +59,16 @@ test('getOptionsFromPnpmSettings() fails on env variables inside scoped registri
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' }))
 })
 
-test('getOptionsFromPnpmSettings() ignores env variables inside the default registries value', () => {
-  const warnings: string[] = []
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registries: {
-      default: 'https://registry.example.com/${PNPM_TEST_TOKEN}/',
-      '@scope': 'https://registry.npmjs.org/',
-    },
-  }, { warnings }) as any // eslint-disable-line
-  expect(options.registriesByScope).toStrictEqual({
-    '@scope': 'https://registry.npmjs.org/',
-  })
-  expect(warnings).toStrictEqual([expect.stringContaining('Ignored "registries[\'default\']" in pnpm-workspace.yaml')])
+test.each([
+  ['registry', { registry: 'https://${PNPM_TEST_HOST}/npm/' }],
+  ['the default registries value', { registries: { default: 'https://${PNPM_TEST_HOST}/npm/' } }],
+  ['a registries declaration', { registries: { 'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' } } }],
+])('getOptionsFromPnpmSettings() fails on env variables inside %s', (_caseName, settings) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), settings as PnpmSettings, { warnings: [] }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' }))
 })
 
-test('getOptionsFromPnpmSettings() fails on a scope route with an env variable beside a dropped declaration', () => {
+test('getOptionsFromPnpmSettings() fails on a scope route with an env variable inside a declaration map', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     registries: {
       'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
@@ -88,14 +83,6 @@ test('getOptionsFromPnpmSettings() fails on env variables inside namedRegistries
       work: 'https://${PNPM_TEST_HOST}/npm/',
     },
   } as any)).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' })) // eslint-disable-line
-})
-
-test('getOptionsFromPnpmSettings() ignores env variables inside registry setting', () => {
-  process.env.PNPM_TEST_HOST = 'registry.example.com'
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registry: 'https://${PNPM_TEST_HOST}/npm/',
-  } as any) as any // eslint-disable-line
-  expect(options.registry).toBeUndefined()
 })
 
 test('getOptionsFromPnpmSettings() ignores env variables inside pnprServer setting', () => {
@@ -601,17 +588,6 @@ test('getOptionsFromPnpmSettings() rejects a registries map that mixes both shap
       'https://artifactory.example/': { serverType: 'artifactory' },
     } as never,
   })).toThrow(/mixes registry declarations with "<scope>: <url>" entries \("@acme"\)/)
-})
-
-test('getOptionsFromPnpmSettings() drops a registries entry whose URL has an unexpanded env placeholder', () => {
-  // The key is a request destination, so it gets the same gate the `registries`
-  // values get: no silent expansion outside a trusted context.
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registries: {
-      'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
-    },
-  })
-  expect(options.registryOptionsByUrl).toBeUndefined()
 })
 
 test('getOptionsFromPnpmSettings() expands the registries key when request destinations may be expanded', () => {

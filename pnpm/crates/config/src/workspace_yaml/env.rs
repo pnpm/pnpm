@@ -30,25 +30,20 @@ impl WorkspaceSettings {
     /// destinations would let the file choose the host, and `userAgent` would
     /// send that host the variable's value as a request header.
     ///
-    /// A request setting with a placeholder is dropped, and the returned
-    /// warnings name each one. A registry URL that routes packages away from
-    /// the default registry fails with
-    /// [`LoadWorkspaceYamlError::RegistryEnvNotExpanded`] instead, and leaves
-    /// the settings unchanged.
+    /// A registry URL with a placeholder fails with
+    /// [`LoadWorkspaceYamlError::RegistryEnvNotExpanded`] and leaves the
+    /// settings unchanged: dropping it would resolve the packages it serves
+    /// from another registry. Any other request setting with a placeholder is
+    /// dropped, and the returned warnings name each one.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`](crate::settings::Config) and filtered values do not.
     pub fn substitute_env_untrusted<Sys: EnvVar>(
         &mut self,
     ) -> Result<Vec<String>, LoadWorkspaceYamlError> {
-        self.refuse_unexpanded_named_registries()?;
-        let mut dropped = match self.registries.as_mut() {
-            Some(registries) => {
-                registries::drop_env_placeholder_entries(registries, has_env_placeholder)?
-            }
-            None => Vec::new(),
-        };
+        self.refuse_unexpanded_registries()?;
         self.substitute_env_scalars::<Sys>();
+        let mut dropped = Vec::new();
         self.drop_unexpanded_request_scalars(&mut dropped);
         Ok(dropped
             .iter()
@@ -56,10 +51,12 @@ impl WorkspaceSettings {
             .collect())
     }
 
-    /// Drop the `registries` and `namedRegistries` entries
-    /// [`Self::substitute_env_untrusted`] would refuse, for a load that leaves
-    /// out what this pnpm refuses.
-    pub(crate) fn drop_unexpanded_registry_routes(&mut self) {
+    /// Drop the registry settings [`Self::substitute_env_untrusted`] would
+    /// refuse, for a load that leaves out what this pnpm refuses.
+    pub(crate) fn drop_unexpanded_registries(&mut self) {
+        if self.registry.as_deref().is_some_and(has_env_placeholder) {
+            self.registry = None;
+        }
         if let Some(registries) = self.registries.as_mut() {
             registries::retain_without_env_placeholders(registries, has_env_placeholder);
         }
@@ -68,23 +65,32 @@ impl WorkspaceSettings {
         }
     }
 
-    fn refuse_unexpanded_named_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
-        match self.named_registries
+    fn refuse_unexpanded_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let refuse = |setting: String| {
+            Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
+                setting,
+                file: WORKSPACE_MANIFEST_FILENAME.to_string(),
+            })
+        };
+        if self.registry.as_deref().is_some_and(has_env_placeholder) {
+            return refuse("registry".to_string());
+        }
+        if let Some((name, _)) = self.named_registries
             .iter()
             .flatten()
             .find(|(_, url)| has_env_placeholder(url))
         {
-            Some((name, _)) => Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
-                setting: format!("namedRegistries['{}']", redact_registry_url(name)),
-                file: WORKSPACE_MANIFEST_FILENAME.to_string(),
-            }),
-            None => Ok(()),
+            return refuse(format!("namedRegistries['{}']", redact_registry_url(name)));
         }
+        self.registries
+            .as_ref()
+            .map_or(Ok(()), |registries| {
+                registries::refuse_env_placeholder_entries(registries, has_env_placeholder)
+            })
     }
 
     fn drop_unexpanded_request_scalars(&mut self, dropped: &mut Vec<String>) {
         for (setting, scalar) in [
-            ("registry", &mut self.registry),
             ("pnprServer", &mut self.pnpr_server),
             ("httpsProxy", &mut self.https_proxy),
             ("httpProxy", &mut self.http_proxy),
@@ -162,7 +168,7 @@ impl WorkspaceSettings {
 
 fn ignored_setting_warning(setting: &str) -> String {
     format!(
-        r#"Ignored "{setting}" in {WORKSPACE_MANIFEST_FILENAME}: environment variables are not expanded in the registry, proxy, and user agent settings of a file committed to the repository. Write the value literally, or move the setting to the global config.yaml."#,
+        r#"Ignored "{setting}" in {WORKSPACE_MANIFEST_FILENAME}: environment variables are not expanded in the proxy, pnprServer, and userAgent settings of a file committed to the repository. Write the value literally, or move the setting to the global config.yaml."#,
     )
 }
 

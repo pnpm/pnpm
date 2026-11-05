@@ -5,10 +5,10 @@ export function hasEnvPlaceholder (value: string): boolean {
 }
 
 /**
- * A repository-controlled file routes packages to a registry whose URL holds
- * an environment variable placeholder. pnpm does not expand it, and dropping
- * the route would resolve those packages from the default registry, so the
- * setting fails instead of being ignored.
+ * A repository-controlled file names a registry whose URL holds an environment
+ * variable placeholder. pnpm does not expand it, and dropping the URL would
+ * resolve the packages it serves from another registry, so the setting fails
+ * instead of being ignored.
  *
  * `setting` must already be redacted.
  */
@@ -18,7 +18,7 @@ export class RegistryEnvNotExpandedError extends PnpmError {
       `The "${setting}" registry URL in "${filePath}" contains an environment variable`,
       {
         hint: 'pnpm does not expand environment variables in registry URLs that come from a file committed to the repository. ' +
-          'Ignoring the URL would resolve the packages it routes from the default registry. ' +
+          'Ignoring the URL would resolve the packages it serves from another registry. ' +
           'Write the URL literally, or move the setting to the global config.yaml.',
       })
   }

@@ -132,7 +132,7 @@ pub(super) fn note_declared_registries(
 
 impl Config {
     /// The project `.npmrc`, parsed as untrusted unless the user-level auth
-    /// file explicitly points at it. A scope route it may not expand fails the
+    /// file explicitly points at it. A registry URL it may not expand fails the
     /// load, unless [`Config::settings_read`] leaves out what this pnpm refuses.
     fn project_auth_source<Sys>(
         &self,
@@ -165,7 +165,7 @@ impl Config {
             auth
         });
         if let Some(key) =
-            source.as_mut().and_then(|auth| auth.unexpanded_scoped_registry.take())
+            source.as_mut().and_then(|auth| auth.unexpanded_registry.take())
             && !self.settings_read.skips_unreadable()
         {
             return Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {

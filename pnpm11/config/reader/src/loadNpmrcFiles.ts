@@ -357,7 +357,7 @@ function readNpmrcEntry (ctx: NpmrcFilterContext, rawKey: string, rawValue: unkn
   const key = substituteEnv(rawKey, ctx.env, { warnings: ctx.warnings, key: rawKey })
   if (skipsUnexpandedEnv(ctx, { ...keyGate, key })) return undefined
   if (typeof rawValue !== 'string') return { key, value: rawValue }
-  if (!ctx.expandRequestDestinationEnv && isScopedRegistryKey(key) && hasEnvPlaceholder(rawValue)) {
+  if (!ctx.expandRequestDestinationEnv && isRegistryKey(key) && hasEnvPlaceholder(rawValue)) {
     throw new RegistryEnvNotExpandedError(redactRegistryUrl(key), ctx.filePath)
   }
   if (skipsUnexpandedEnv(ctx, { text: rawValue, key, reportedKey: key, isRequestDestination: isRequestDestinationValueKey })) {
@@ -413,11 +413,7 @@ function isRequestDestinationValueKey (key: string): boolean {
 }
 
 function isRegistryKey (key: string): boolean {
-  return key === 'registry' || isScopedRegistryKey(key)
-}
-
-function isScopedRegistryKey (key: string): boolean {
-  return key.startsWith('@') && key.endsWith(':registry')
+  return key === 'registry' || (key.startsWith('@') && key.endsWith(':registry'))
 }
 
 const AUTH_VALUE_KEYS = ['_authToken', '_auth', '_password', 'username', 'tokenHelper', 'cert', 'key'] as const

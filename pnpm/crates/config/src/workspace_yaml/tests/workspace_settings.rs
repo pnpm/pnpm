@@ -74,7 +74,6 @@ ignoredBuiltDependencies: [core-js]
 fn ignores_env_vars_inside_workspace_request_destination_values() {
     let yaml = r"
 pnprServer: https://${WORK_HOST}/pnpr/
-registry: https://${WORK_HOST}/npm/
 httpsProxy: http://${WORK_HOST}:8080/
 httpProxy: http://${WORK_HOST}:8081/
 noProxy: ${WORK_HOST}
@@ -82,7 +81,6 @@ proxy: http://${WORK_HOST}:8082/
 noproxy: ${WORK_HOST}
 userAgent: agent/${WORK_HOST}
 registries:
-  default: https://${WORK_HOST}/default/
   '@safe': https://safe.example.com/npm/
 namedRegistries:
   literal: 'https://registry.example.com/${/npm/'
@@ -102,17 +100,7 @@ namedRegistries:
         .collect();
     assert_eq!(
         ignored,
-        [
-            "registries['default']",
-            "registry",
-            "pnprServer",
-            "httpsProxy",
-            "httpProxy",
-            "proxy",
-            "userAgent",
-            "noProxy",
-            "noproxy",
-        ],
+        ["pnprServer", "httpsProxy", "httpProxy", "proxy", "userAgent", "noProxy", "noproxy",],
     );
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
@@ -133,12 +121,18 @@ namedRegistries:
     );
 }
 
-/// Dropping a registry URL that routes packages away from the default
-/// registry would resolve those packages from the default registry.
+/// Dropping a registry URL would resolve the packages it serves from another
+/// registry.
 /// <https://github.com/pnpm/pnpm/issues/17762>
 #[test]
 fn refuses_env_vars_inside_workspace_registry_routes() {
     for (yaml, expected_setting) in [
+        ("registry: https://${WORK_HOST}/npm/\n", "registry"),
+        ("registries:\n  default: https://${WORK_HOST}/npm/\n", "registries['default']"),
+        (
+            "registries:\n  https://${WORK_HOST}/:\n    serverType: artifactory\n",
+            "registries['https://${WORK_HOST}/']",
+        ),
         ("registries:\n  '@work': https://${WORK_HOST}/scope/\n", "registries['@work']"),
         ("namedRegistries:\n  work: https://${WORK_HOST}/npm/\n", "namedRegistries['work']"),
         (
@@ -162,22 +156,6 @@ fn refuses_env_vars_inside_workspace_registry_routes() {
             crate::LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, file }
                 if setting == expected_setting && file == WORKSPACE_MANIFEST_FILENAME
         ));
-    }
-}
-
-/// `*` and `**` both spell the default Python index, which a dropped entry
-/// leaves to the default the same way a dropped default npm registry does.
-#[test]
-fn drops_a_default_python_index_with_an_env_placeholder() {
-    for pattern in ["*", "**"] {
-        let yaml = format!(
-            "registries:\n  https://${{WORK_HOST}}/simple/:\n    ecosystem: pypi\n    packages: ['{pattern}']\n",
-        );
-        let mut settings: WorkspaceSettings = serde_saphyr::from_str(&yaml).unwrap();
-        let warnings = settings.substitute_env_untrusted::<EnvWithWorkHost>().unwrap();
-        dbg!(&warnings);
-        assert_eq!(warnings.len(), 1);
-        assert!(settings.registries.unwrap().is_empty());
     }
 }
 

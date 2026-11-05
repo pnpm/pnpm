@@ -99,7 +99,7 @@ impl Config {
         explicit.note(&settings);
         let ignored_settings = match settings.substitute_env_untrusted::<Sys>() {
             Err(_) if self.settings_read.skips_unreadable() => {
-                settings.drop_unexpanded_registry_routes();
+                settings.drop_unexpanded_registries();
                 settings.substitute_env_untrusted::<Sys>()?
             }
             result => result?,

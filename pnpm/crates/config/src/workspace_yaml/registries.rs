@@ -10,7 +10,7 @@ pub use python::{EcosystemIndex, PythonRegistryRoute};
 
 pub use ecosystems::{Ecosystem, serves_another_ecosystem, take_roles_from_earlier_layers};
 
-pub use env_placeholders::{drop_env_placeholder_entries, retain_without_env_placeholders};
+pub use env_placeholders::{refuse_env_placeholder_entries, retain_without_env_placeholders};
 
 use super::LoadWorkspaceYamlError;
 use crate::workspace_yaml::{redact_registry_url, registry_url_has_userinfo};
