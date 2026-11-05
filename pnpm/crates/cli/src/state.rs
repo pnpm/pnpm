@@ -320,11 +320,18 @@ pub(crate) fn check_root_project_engine(
     if wanted.node.is_none() && wanted.pnpm.is_none() {
         return Ok(());
     }
-    check_root_engine_compatibility(project_dir, config, use_manifest_runtime, wanted)
+    check_root_engine_compatibility(
+        project_dir,
+        manifest.value(),
+        config,
+        use_manifest_runtime,
+        wanted,
+    )
 }
 
 fn check_root_engine_compatibility(
     project_dir: &Path,
+    manifest: &serde_json::Value,
     config: &Config,
     use_manifest_runtime: bool,
     wanted: WantedEngine,
@@ -332,9 +339,7 @@ fn check_root_engine_compatibility(
     let configured_node = config.node_version
         .clone()
         .or_else(|| {
-            use_manifest_runtime
-                .then(|| node_version_from_engines_runtime(manifest.value()))
-                .flatten()
+            use_manifest_runtime.then(|| node_version_from_engines_runtime(manifest)).flatten()
         });
     let host =
         pnpm_deps_restorer::InstallabilityHost::detect_with(config.engine_strict, configured_node);
