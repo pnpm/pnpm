@@ -28,7 +28,7 @@ fn exposed(source: &str) -> Vec<String> {
 
 #[test]
 fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
-    let source = r"
+    let source = r#"
         pub fn run(input: dep::Input) -> Result<Imported, dep::Error> { dep::body_only(); }
         pub(crate) fn internal(value: dep::Internal) {}
         fn private(value: dep::Private) {}
@@ -39,7 +39,11 @@ fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
         pub type Alias = dep::Aliased;
         pub const LIMIT: dep::Limit = dep::value();
         pub async unsafe fn qualified(value: dep::Qualified) {}
-    ";
+        pub const unsafe fn const_unsafe(value: dep::ConstUnsafe) { dep::const_unsafe_body() }
+        pub const extern "C" fn const_extern(value: dep::ConstExtern) { dep::const_extern_body() }
+        pub const r#unsafe: dep::RawConst = dep::raw_const_value();
+        pub trait Defaults { const LIMIT: dep::Limit2 = dep::default_limit(); fn after(&self) -> dep::After; }
+    "#;
     assert_eq!(
         exposed(source),
         [
@@ -56,8 +60,30 @@ fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
             "dep::Aliased",
             "dep::Limit",
             "dep::Qualified",
+            "dep::ConstUnsafe",
+            "dep::ConstExtern",
+            "dep::RawConst",
+            "dep::Limit2",
+            "dep::After",
         ],
     );
+}
+
+#[test]
+fn surface_skips_test_only_inline_modules() {
+    let source = concat!(
+        "#[cfg(test)]\n",
+        "mod tests { pub fn helper(value: dep::TestOnly) {} pub use dep::Hidden; }\n",
+        "pub fn after(value: dep::After) {}\n",
+    );
+    let surface = surface::scan(&lexer::lex(source).tokens, &[]);
+    dbg!(&surface);
+    let exposed = surface.exposed
+        .iter()
+        .filter(|path| path[0] == "dep")
+        .collect::<Vec<_>>();
+    assert_eq!(exposed, [&vec!["dep".to_owned(), "After".to_owned()]]);
+    assert_eq!(surface.reexported, []);
 }
 
 #[test]
@@ -79,12 +105,12 @@ fn surface_records_reexports_and_extern_crate_aliases() {
     );
 }
 
-/// `app` depends on `api` and `base`; `api` depends on `base` and `other`.
 fn workspace() -> (CrateGraph, BTreeMap<String, CrateModules>) {
     let api = concat!(
         "extern crate base as renamed;\n",
+        "extern crate other as aliased;\n",
         "use other::Shared;\n",
-        "pub use other::Shared as Reexported;\n",
+        "pub use aliased::Shared as Reexported;\n",
         "pub fn make(input: renamed::Input, shared: Shared) -> base::Output { todo!() }\n",
     );
     let tree = MemoryTree(BTreeMap::from([

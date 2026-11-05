@@ -3,6 +3,7 @@
 //! item inside a private module counts as public.
 
 use crate::{
+    cfg,
     lexer::Token,
     use_tree::{self, UsePath},
 };
@@ -26,12 +27,25 @@ pub fn scan(tokens: &[Token], imports: &[UsePath]) -> Surface {
         if let Some(alias) = extern_crate_alias(tokens, pos) {
             surface.crate_aliases.push(alias);
         }
+        if let Some(end) = test_only_inline_module_end(tokens, pos) {
+            pos = end;
+            continue;
+        }
         pos = scan_at(tokens, pos, &mut surface).max(pos + 1);
     }
     for path in &mut surface.exposed {
         expand(path, imports);
     }
     surface
+}
+
+/// The index after a test-only inline module `mod name { … }` that starts at
+/// `pos`.
+fn test_only_inline_module_end(tokens: &[Token], pos: usize) -> Option<usize> {
+    let is_inline_module = is_ident(tokens.get(pos), "mod")
+        && matches!(tokens.get(pos + 1), Some(Token::Ident(_)))
+        && tokens.get(pos + 2) == Some(&Token::Punct('{'));
+    (is_inline_module && cfg::is_test_only(tokens, pos)).then(|| closing_brace(tokens, pos + 2))
 }
 
 /// The `extern crate name as alias;` at `pos`, if there is one.
@@ -163,16 +177,19 @@ fn closing_brace(tokens: &[Token], open: usize) -> usize {
 }
 
 /// A trait's header and the signatures of its items, without the bodies of
-/// its provided methods.
+/// its provided methods or the default values of its constants and types.
 fn collect_trait(tokens: &[Token], start: usize, surface: &mut Surface) -> usize {
     let end = item_end(tokens, start, Stop::ItemEnd);
     let mut depth = 0usize;
+    let mut in_default = false;
     let mut kept = Vec::new();
     for token in &tokens[start..end] {
         match token {
             Token::Punct('{') => depth += 1,
             Token::Punct('}') => depth -= 1,
-            _ if depth <= 1 => kept.push(token.clone()),
+            Token::Punct('=') if depth == 1 => in_default = true,
+            Token::Punct(';') if depth == 1 => in_default = false,
+            _ if depth <= 1 && !in_default => kept.push(token.clone()),
             _ => {}
         }
     }
@@ -180,18 +197,28 @@ fn collect_trait(tokens: &[Token], start: usize, surface: &mut Surface) -> usize
     end
 }
 
-/// Skips `async`, `const`, `unsafe`, and `extern "ABI"` before `fn`.
-fn skip_qualifiers(tokens: &[Token], mut pos: usize) -> usize {
-    let qualifier = |token: Option<&Token>| {
-        ["async", "unsafe", "extern"].iter().any(|word| is_ident(token, word))
-    };
-    loop {
-        let const_fn = is_ident(tokens.get(pos), "const") && is_ident(tokens.get(pos + 1), "fn");
-        if !qualifier(tokens.get(pos)) && !const_fn {
-            return pos;
-        }
+/// Skips `const`, `async`, `unsafe`, and `extern "ABI"` before `fn`. A
+/// `const` counts only when the qualifiers after it end in `fn name`, so
+/// `pub const r#unsafe: T` stays a constant.
+fn skip_qualifiers(tokens: &[Token], pos: usize) -> usize {
+    let after = skip_fn_qualifiers(tokens, pos + 1);
+    let starts_fn =
+        is_ident(tokens.get(after), "fn") && matches!(tokens.get(after + 1), Some(Token::Ident(_)));
+    if is_ident(tokens.get(pos), "const") && starts_fn {
+        return after;
+    }
+    skip_fn_qualifiers(tokens, pos)
+}
+
+/// Skips `async`, `unsafe`, and `extern` (the lexer drops the ABI string).
+fn skip_fn_qualifiers(tokens: &[Token], mut pos: usize) -> usize {
+    while ["async", "unsafe", "extern"]
+        .iter()
+        .any(|word| is_ident(tokens.get(pos), word))
+    {
         pos += 1;
     }
+    pos
 }
 
 /// Every `ident (:: ident)*` path in `tokens`, including single names.

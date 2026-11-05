@@ -17,8 +17,8 @@ Checks the Rust workspace's crate dependency graph against the layers in
   dependencies. `--baseline` prints a `direct_dependencies` table for the
   current state.
 - `just crate-layers leaks` lists the [leaks](#leaks): for each crate, the
-  dependencies whose items it names in its public signatures without
-  re-exporting them. `--crate <name>` lists one crate's leaked items and the
+  workspace dependencies whose items it names in its public signatures
+  without re-exporting them. `--crate <name>` lists one crate's leaked items and the
   crates that depend on both. `--baseline` prints a `leaked_dependencies`
   table for the current state.
 - `just crate-layers diff <rev>` prints, as Markdown, the crates and edges the
@@ -66,8 +66,8 @@ belongs in that crate.
 
 ## Leaks
 
-A crate leaks a dependency when a public signature names one of the
-dependency's items and the crate does not re-export it with `pub use`. A
+A crate leaks a workspace dependency when a public signature names one of
+the dependency's items and the crate does not re-export it with `pub use`. A
 caller that uses the signature then has to depend on that crate too. Fix a
 leak by re-exporting the item from the crate that exposes it, or by keeping
 it out of the public signature.
@@ -75,8 +75,12 @@ it out of the public signature.
 The public signatures are those of `pub` functions, fields, enums, traits,
 type aliases, constants, and statics, outside test-only modules. The tool
 reads `pub` alone, so a `pub` item in a private module counts. It follows a
-file's own imports and the crate's `extern crate … as …` aliases, but not
-paths that reach the dependency through another module of the crate.
+file's own imports and the crate's `extern crate … as …` aliases. It misses:
+
+- a path that reaches the dependency through another module of the crate;
+- a name brought in by a glob import such as `use dep::*`;
+- a dependency renamed in `Cargo.toml`, which it looks for under its package
+  name.
 
 ## Transitive budgets
 

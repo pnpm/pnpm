@@ -1,4 +1,4 @@
-use crate::{dependencies::Reach, modules::CrateModules, surface::Surface, use_tree::UsePath};
+use crate::{dependencies::Reach, modules::CrateModules, surface::Surface};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
@@ -22,26 +22,21 @@ pub fn find(reach: &Reach, modules: &BTreeMap<String, CrateModules>) -> Vec<Leak
     let mut leaks = Vec::new();
     for (crate_name, modules) in modules {
         let surfaces = modules.surfaces().collect::<Vec<_>>();
-        let exposed = exposed_paths(&surfaces);
+        let (exposed, reexported) = dealiased(&surfaces);
         for dependency in reach.direct
             .get(crate_name)
             .into_iter()
             .flatten()
         {
-            let items = leaked_items(&surfaces, &exposed, &lib_name(dependency));
+            let items = leaked_items(&exposed, &reexported, &lib_name(dependency));
             if items.is_empty() {
                 continue;
             }
-            let shared_dependents = reach.direct
-                .iter()
-                .filter(|(_, deps)| deps.contains(crate_name) && deps.contains(dependency))
-                .map(|(name, _)| name.clone())
-                .collect();
             leaks.push(Leak {
                 crate_name: crate_name.clone(),
                 dependency: dependency.clone(),
                 items,
-                shared_dependents,
+                shared_dependents: shared_dependents(reach, crate_name, dependency),
             });
         }
     }
@@ -50,6 +45,15 @@ pub fn find(reach: &Reach, modules: &BTreeMap<String, CrateModules>) -> Vec<Leak
         (std::cmp::Reverse(leak.shared_dependents.len()), key)
     });
     leaks
+}
+
+/// The crates that depend directly on both `first` and `second`.
+fn shared_dependents(reach: &Reach, first: &str, second: &str) -> BTreeSet<String> {
+    reach.direct
+        .iter()
+        .filter(|(_, deps)| deps.contains(first) && deps.contains(second))
+        .map(|(name, _)| name.clone())
+        .collect()
 }
 
 /// The number of dependencies each crate leaks, for [`crate::ratchet::check`].
@@ -61,51 +65,55 @@ pub fn counts(leaks: &[Leak]) -> BTreeMap<String, usize> {
     counts
 }
 
-/// The exposed paths of every surface, with an `extern crate` alias replaced
-/// by the crate's name.
-fn exposed_paths(surfaces: &[&Surface]) -> Vec<Vec<String>> {
+/// The exposed and re-exported paths of every surface, with an
+/// `extern crate` alias replaced by the crate's name.
+fn dealiased(surfaces: &[&Surface]) -> (Vec<Vec<String>>, Vec<Vec<String>>) {
     let aliases = surfaces
         .iter()
         .flat_map(|surface| &surface.crate_aliases)
         .collect::<Vec<_>>();
-    let mut exposed = surfaces
-        .iter()
-        .flat_map(|surface| surface.exposed.iter().cloned())
-        .collect::<Vec<_>>();
-    for path in &mut exposed {
+    let dealias = |path: &Vec<String>| {
         let alias = aliases
             .iter()
             .find(|alias| alias.binding.as_ref() == path.first());
-        if let Some(alias) = alias {
-            path.splice(0..1, alias.segments.iter().cloned());
-        }
-    }
-    exposed
-}
-
-/// The paths into `lib` that `exposed` names and the surfaces do not re-export.
-fn leaked_items(surfaces: &[&Surface], exposed: &[Vec<String>], lib: &str) -> BTreeSet<String> {
-    let reexports = surfaces
+        let Some(alias) = alias else { return path.clone() };
+        alias.segments
+            .iter()
+            .chain(&path[1..])
+            .cloned()
+            .collect()
+    };
+    let exposed = surfaces
+        .iter()
+        .flat_map(|surface| &surface.exposed)
+        .map(dealias)
+        .collect();
+    let reexported = surfaces
         .iter()
         .flat_map(|surface| &surface.reexported)
-        .filter(|reexport| {
-            reexport.segments
-                .first()
-                .is_some_and(|first| first == lib)
-        })
-        .collect::<Vec<_>>();
-    exposed
-        .iter()
-        .filter(|path| path.len() > 1 && path[0] == lib)
-        .filter(|path| !reexports.iter().any(|reexport| covers(reexport, path)))
-        .map(|path| path.join("::"))
-        .collect()
+        .map(|reexport| dealias(&reexport.segments))
+        .collect();
+    (exposed, reexported)
 }
 
-/// Whether a `pub use` makes `path` reachable through the crate: it
-/// re-exports the item itself, or a module or glob that contains it.
-fn covers(reexport: &UsePath, path: &[String]) -> bool {
-    path.starts_with(&reexport.segments)
+/// The paths into `lib` that `exposed` names and `reexported` does not
+/// cover. A re-export covers the item itself, or a module or glob that
+/// contains it.
+fn leaked_items(
+    exposed: &[Vec<String>],
+    reexported: &[Vec<String>],
+    lib: &str,
+) -> BTreeSet<String> {
+    let covered = |path: &[String]| {
+        reexported
+            .iter()
+            .any(|reexport| !reexport.is_empty() && path.starts_with(reexport))
+    };
+    exposed
+        .iter()
+        .filter(|path| path.len() > 1 && path[0] == lib && !covered(path))
+        .map(|path| path.join("::"))
+        .collect()
 }
 
 /// The name a crate is imported by in Rust source.
