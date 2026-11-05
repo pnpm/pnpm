@@ -29,6 +29,7 @@ use pnpm_deps_path::{DepPath, get_pkg_id_with_patch_hash};
 
 use crate::{
     dep_path_compatibility::is_compatible_and_has_more_deps, dependencies_graph::DependenciesGraph,
+    peer_dependents_dedupe::OptionalPeerScope,
 };
 
 /// Per-importer direct deps map keyed by lockfile importer id (`"."`
@@ -125,7 +126,14 @@ fn child_matches_target(
     {
         return false;
     }
-    is_compatible_and_has_more_deps(graph, target_dep_path, child_dep_path)
+    // The child collapses into the target project's own dependency, so it
+    // gains only peers that project already resolves.
+    is_compatible_and_has_more_deps(
+        graph,
+        target_dep_path,
+        child_dep_path,
+        OptionalPeerScope::Workspace,
+    )
 }
 
 /// Return the workspace project id (lockfile importer key) this node

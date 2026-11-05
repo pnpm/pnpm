@@ -149,6 +149,9 @@ pub struct ResolutionSettings {
     pub dedupe_peers: Option<bool>,
     pub exclude_links_from_lockfile: Option<bool>,
     pub add_missing_peer_types: Option<bool>,
+    /// Whether `projectScopedOptionalPeers` takes effect for the client,
+    /// which it does only while `dedupePeerDependents` is on.
+    pub project_scoped_optional_peers: Option<bool>,
     /// The client's `resolutionMode`. The server picks versions the way
     /// the client would, instead of falling back to its own default.
     pub resolution_mode: ResolutionMode,

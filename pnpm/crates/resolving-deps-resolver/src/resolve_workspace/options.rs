@@ -47,7 +47,7 @@ pub struct WorkspacePeerResolutionOptions {
     /// Threaded into [`crate::WorkspacePeerSettings::dedupe_peer_dependents`],
     /// and overrides every per-importer
     /// [`crate::ImporterPeerOptions::dedupe_peer_dependents`].
-    pub dedupe_peer_dependents: bool,
+    pub dedupe_peer_dependents: crate::PeerDependentsDedupe,
     /// Threaded into
     /// [`crate::WorkspacePeerSettings::resolve_peers_from_workspace_root`].
     pub resolve_peers_from_workspace_root: bool,

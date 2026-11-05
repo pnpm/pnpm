@@ -272,6 +272,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
   * [Conflict Resolution](./settings/peer-dependencies.md#conflict-resolution)
 * [autoInstallPeersFromHighestMatch](./settings/peer-dependencies.md#autoinstallpeersfromhighestmatch)
 * [dedupePeerDependents](./settings/peer-dependencies.md#dedupepeerdependents)
+* [projectScopedOptionalPeers](./settings/peer-dependencies.md#projectscopedoptionalpeers)
 * [dedupePeers](./settings/peer-dependencies.md#dedupepeers)
 * [addMissingPeerTypes](./settings/peer-dependencies.md#addmissingpeertypes)
 * [strictPeerDependencies](./settings/peer-dependencies.md#strictpeerdependencies)

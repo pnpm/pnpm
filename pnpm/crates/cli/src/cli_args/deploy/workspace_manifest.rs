@@ -195,6 +195,9 @@ impl DeployWorkspaceSettings {
             return;
         };
         settings.inject_workspace_packages = self.store.inject_workspace_packages;
+        // Deploy turns dedupePeerDependents off, which leaves this setting
+        // without effect.
+        settings.project_scoped_optional_peers = None;
         let resolution = &mut settings.resolution;
         if resolution.dedupe_injected_deps.is_some() {
             resolution.dedupe_injected_deps = Some(self.store.dedupe_injected_deps);

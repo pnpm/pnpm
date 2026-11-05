@@ -79,6 +79,7 @@ fn single_importer_opts<'a>(
             dedupe_peers: None,
             exclude_links_from_lockfile,
             add_missing_peer_types: None,
+            project_scoped_optional_peers: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
             integrity_target: None,

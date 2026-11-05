@@ -990,6 +990,105 @@ test('a locked optional peer follows a sibling workspace package down to a lower
   }
 })
 
+// https://github.com/orgs/pnpm/discussions/16666
+test('with dedupePeerDependents off, an optional peer is not supplied by another workspace project', async () => {
+  const project = prepareEmpty()
+  const mutations: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project2') as ProjectRootDir },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project1',
+        dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+      },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        devDependencies: {
+          '@pnpm.e2e/abc-optional-peers': '1.0.0',
+          '@pnpm.e2e/peer-c': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+  ]
+  const readOptionalPeersVersions = () => {
+    const lockfile = project.readLockfile()
+    return {
+      project1: lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers']?.version,
+      project2: lockfile.importers.project2.devDependencies?.['@pnpm.e2e/abc-optional-peers']?.version,
+    }
+  }
+
+  await mutateModules(mutations, testDefaults({ autoInstallPeers: true, allProjects, dedupePeerDependents: true }))
+  expect(readOptionalPeersVersions().project1).toContain('(@pnpm.e2e/peer-c@1.0.0)')
+
+  // Changing only the setting does not make the lockfile outdated, so a
+  // manifest edit makes the install resolve again from the lockfile.
+  ;(allProjects[1].manifest.devDependencies as Record<string, string>)['@pnpm.e2e/foo'] = '100.0.0'
+  await mutateModules(mutations, testDefaults({ autoInstallPeers: true, allProjects, dedupePeerDependents: false }))
+  expect(readOptionalPeersVersions().project1).not.toContain('@pnpm.e2e/peer-c@')
+  expect(readOptionalPeersVersions().project2).toContain('(@pnpm.e2e/peer-c@1.0.0)')
+
+  await mutateModules(mutations, testDefaults({ autoInstallPeers: true, allProjects, dedupePeerDependents: false }))
+  expect(readOptionalPeersVersions().project1).not.toContain('@pnpm.e2e/peer-c@')
+})
+
+test('with dedupePeerDependents off, an optional peer is supplied by a workspace package that an injected dependency links', async () => {
+  const project = prepareEmpty()
+  const manifests = {
+    'peer-c': { name: '@pnpm.e2e/peer-c', version: '1.0.0' },
+    carrier: {
+      name: 'carrier',
+      version: '1.0.0',
+      dependencies: { '@pnpm.e2e/peer-c': 'workspace:*' },
+    },
+    app: {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/abc-optional-peers': '1.0.0',
+        carrier: 'workspace:*',
+      },
+      dependenciesMeta: { carrier: { injected: true } },
+    },
+  }
+  const allProjects = Object.entries(manifests).map(([dir, manifest]) => {
+    const rootDir = path.resolve(dir) as ProjectRootDir
+    fs.mkdirSync(rootDir)
+    fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify(manifest))
+    return { buildIndex: 0, manifest, rootDir }
+  })
+
+  await mutateModules(
+    allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })),
+    testDefaults({ autoInstallPeers: true, allProjects, dedupePeerDependents: false })
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.app.dependencies?.['@pnpm.e2e/abc-optional-peers']?.version).toContain('@pnpm.e2e/peer-c@')
+})
+
+test('with dedupePeerDependents off, an optional peer is supplied by a version in the project\'s own dependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-regular-deps@1.0.0', '@pnpm.e2e/abc-optional-peers@1.0.0'],
+    testDefaults({ autoInstallPeers: true, dedupePeerDependents: false })
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeDefined()
+})
+
 test('a root dependency does not override the peers provided inside a self-contained subtree', async () => {
   // Regression test for the closure-poisoning bug: @pnpm.e2e/closure-plugins
   // provides every peer of its own subtree (closure-lib-a and closure-lib-b

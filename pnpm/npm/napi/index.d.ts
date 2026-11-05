@@ -176,6 +176,12 @@ export interface InstallOptions extends SharedEngineOptions {
    * or the install re-resolves from scratch.
    */
   addMissingPeerTypes?: boolean
+  /**
+   * Install a missing optional peer only from a version the project's own
+   * dependencies resolve (the `projectScopedOptionalPeers` setting). Has no
+   * effect while `dedupePeerDependents` is `false`.
+   */
+  projectScopedOptionalPeers?: boolean
   dedupeDirectDeps?: boolean
   dedupeInjectedDeps?: boolean
   resolvePeersFromWorkspaceRoot?: boolean

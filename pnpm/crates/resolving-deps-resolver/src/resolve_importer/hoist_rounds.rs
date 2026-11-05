@@ -1,12 +1,12 @@
 use super::{
     Arc, BTreeMap, CandidatePeerRanges, DependencySpec, DirectDep, HashMap, HashSet,
     HoistMissingScope, HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases,
-    PeerDiscoveryResult, PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver,
-    WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
+    PeerDiscoveryResult, PeerHoistDiscovery, PreferredVersions, RequiredRound,
+    ResolveImporterError, Resolver, WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
-use crate::peer_provider::optional_peer_specifier;
+use crate::{peer_dependents_dedupe::OptionalPeerScope, peer_provider::optional_peer_specifier};
 
 impl ImporterHoistState {
     /// Resolve the importer's missing *required* peers to a fixpoint,
@@ -339,11 +339,17 @@ impl ImporterHoistState {
     /// provides one of its own peers at a version its range rejects.
     fn hoistable_optional_peers(&self) -> BTreeMap<String, String> {
         let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
-        let hoist_preferred =
+        let mut hoist_preferred =
             self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
         let preferred_tiers =
             self.ctx.optional_peer_version_tiers(&self.selection.locked_versions, names());
         let provided_peer_versions = self.hoisted_provider_peer_versions();
+        match self.policy.peers.dedupe_peer_dependents.optional_peer_scope() {
+            OptionalPeerScope::Project => {
+                self.retain_own_closure_versions(&mut hoist_preferred, &provided_peer_versions);
+            }
+            OptionalPeerScope::Workspace => {}
+        }
         let workspace = self.ctx.workspace();
         let peer_ranges = CandidatePeerRanges::new(workspace);
         let accepts_candidate = |name: &str, version: &str| {
@@ -360,6 +366,37 @@ impl ImporterHoistState {
             &preferred_tiers,
             &accepts_candidate,
         )
+    }
+
+    /// Drops from `preferred` every version that neither the importer's
+    /// own dependency closure nor `provided_versions` holds, so a version
+    /// that only another importer resolves does not supply an optional
+    /// peer.
+    fn retain_own_closure_versions(
+        &self,
+        preferred: &mut PreferredVersions,
+        provided_versions: &HashMap<String, String>,
+    ) {
+        let names: HashSet<&str> = self.dependencies.all_missing_optional_peers
+            .keys()
+            .map(String::as_str)
+            .collect();
+        let mut own_versions = self.ctx
+            .workspace()
+            .versions_reachable_from(self.dependencies.direct.iter().map(|dep| &*dep.id), &names);
+        for (name, version) in provided_versions {
+            if names.contains(name.as_str()) {
+                own_versions
+                    .entry(name.clone())
+                    .or_default()
+                    .insert(version.clone());
+            }
+        }
+        preferred.retain(|name, selectors| {
+            let Some(versions) = own_versions.get(name) else { return false };
+            selectors.retain(|version, _| versions.contains(version));
+            !selectors.is_empty()
+        });
     }
 
     /// Hoist this round's missing optional peers; `true` when any were

@@ -86,6 +86,13 @@ pub const DEFAULT_PEERS_SUFFIX_MAX_LENGTH: u64 = 1000;
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the `settings` block of pnpm-lock.yaml."
+    )
+)]
 pub struct LockfileSettings {
     pub auto_install_peers: bool,
     /// Recorded as `Some(true)` when the install ran with
@@ -101,6 +108,10 @@ pub struct LockfileSettings {
     /// [`Self::dedupe_peers`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub add_missing_peer_types: Option<bool>,
+    /// Recorded as `Some(true)` while `projectScopedOptionalPeers` takes
+    /// effect, omitted otherwise, like [`Self::dedupe_peers`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_scoped_optional_peers: Option<bool>,
     /// `injectWorkspacePackages` recorded by the install that wrote
     /// this lockfile. `false` round-trips as a missing key — the key
     /// is stripped on save so historic v9 lockfiles (which never
