@@ -74,15 +74,20 @@ fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
 /// Recreate the link at `from` as `to`. A target inside `fixture` keeps
 /// its relative spelling, so it resolves inside the copy. A target
 /// outside it is linked by its absolute path, which the copy can still
-/// reach.
+/// reach. A dangling link is recreated as it is.
 fn copy_symlink(from: &Path, to: &Path, fixture: &Path) -> std::io::Result<()> {
     let raw_target = fs::read_link(from)?;
     let resolved = from
         .parent()
         .unwrap_or(fixture)
         .join(&raw_target)
-        .canonicalize()?;
-    let target = if resolved.starts_with(fixture) { raw_target } else { resolved };
+        .canonicalize();
+    let target = match resolved {
+        Ok(resolved) if !resolved.starts_with(fixture) => resolved,
+        Ok(_) => raw_target,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => raw_target,
+        Err(error) => return Err(error),
+    };
     #[cfg(unix)]
     return std::os::unix::fs::symlink(target, to);
     #[cfg(windows)]

@@ -93,3 +93,13 @@ fn prepare_project_points_links_that_leave_the_fixture_at_their_absolute_target(
     let copied = std::fs::read_to_string(project.path().join("package.json")).unwrap();
     assert_eq!(copied, r#"{"name":"shared"}"#);
 }
+
+#[cfg(unix)]
+#[test]
+fn prepare_project_keeps_dangling_links() {
+    let fixture = tempfile::tempdir().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink("missing", fixture.path().join("dangling")).unwrap();
+    prepare_project(fixture.path(), project.path()).unwrap();
+    assert_eq!(std::fs::read_link(project.path().join("dangling")).unwrap(), Path::new("missing"));
+}
