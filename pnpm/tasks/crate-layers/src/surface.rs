@@ -20,32 +20,51 @@ pub struct Surface {
     pub crate_aliases: Vec<UsePath>,
 }
 
-pub fn scan(tokens: &[Token], imports: &[UsePath]) -> Surface {
+/// The surface of one file. Test-only items, including their imports, are
+/// left out.
+pub fn scan(tokens: &[Token]) -> Surface {
     let mut surface = Surface::default();
+    let mut imports = Vec::new();
     let mut pos = 0;
     while pos < tokens.len() {
         if let Some(alias) = extern_crate_alias(tokens, pos) {
             surface.crate_aliases.push(alias);
         }
-        if let Some(end) = test_only_inline_module_end(tokens, pos) {
-            pos = end;
-            continue;
-        }
-        pos = scan_at(tokens, pos, &mut surface).max(pos + 1);
+        pos = if let Some(end) = test_only_item_end(tokens, pos) {
+            end
+        } else if let Some((paths, next)) = private_use(tokens, pos) {
+            imports.extend(paths);
+            next
+        } else {
+            scan_at(tokens, pos, &mut surface).max(pos + 1)
+        };
     }
+    imports.extend(surface.reexported.iter().cloned());
     for path in &mut surface.exposed {
-        expand(path, imports);
+        expand(path, &imports);
     }
     surface
 }
 
-/// The index after a test-only inline module `mod name { … }` that starts at
-/// `pos`.
-fn test_only_inline_module_end(tokens: &[Token], pos: usize) -> Option<usize> {
-    let is_inline_module = is_ident(tokens.get(pos), "mod")
-        && matches!(tokens.get(pos + 1), Some(Token::Ident(_)))
-        && tokens.get(pos + 2) == Some(&Token::Punct('{'));
-    (is_inline_module && cfg::is_test_only(tokens, pos)).then(|| closing_brace(tokens, pos + 2))
+/// The keywords an item, a field, or the visibility before one starts with.
+const ITEM_STARTS: [&str; 11] =
+    ["pub", "use", "mod", "fn", "struct", "enum", "trait", "impl", "const", "static", "type"];
+
+/// The index after the test-only item that starts at `pos`, if one does.
+fn test_only_item_end(tokens: &[Token], pos: usize) -> Option<usize> {
+    let starts_item = matches!(
+        tokens.get(pos),
+        Some(Token::Ident(word)) if ITEM_STARTS.contains(&word.as_str()),
+    );
+    (starts_item && cfg::is_test_only(tokens, pos)).then(|| item_end(tokens, pos, Stop::Extent))
+}
+
+/// The paths of a `use` item without `pub` at `pos`, and the index after it.
+/// `use<'a>` in an `impl Trait + use<'a>` bound is not a `use` item.
+fn private_use(tokens: &[Token], pos: usize) -> Option<(Vec<UsePath>, usize)> {
+    let is_use =
+        is_ident(tokens.get(pos), "use") && tokens.get(pos + 1) != Some(&Token::Punct('<'));
+    is_use.then(|| use_tree::parse(tokens, pos + 1))
 }
 
 /// The `extern crate name as alias;` at `pos`, if there is one.
@@ -106,6 +125,9 @@ enum Stop {
     FieldEnd,
     /// After the item's `{ … }` body, or at `;` before one.
     ItemEnd,
+    /// Like `ItemEnd`, and also at `,` or a closing bracket, so a field or
+    /// variant ends where it does.
+    Extent,
 }
 
 /// Records the paths in `tokens[start..]` up to `stop` and returns where the
@@ -118,7 +140,8 @@ fn collect(tokens: &[Token], start: usize, stop: Stop, surface: &mut Surface) ->
 
 fn item_end(tokens: &[Token], start: usize, stop: Stop) -> usize {
     let end = boundary(tokens, start, stop);
-    let opens_body = stop == Stop::ItemEnd && tokens.get(end) == Some(&Token::Punct('{'));
+    let opens_body =
+        matches!(stop, Stop::ItemEnd | Stop::Extent) && tokens.get(end) == Some(&Token::Punct('{'));
     if opens_body { closing_brace(tokens, end) } else { end }
 }
 
@@ -154,6 +177,7 @@ fn ends_at(punct: char, stop: Stop) -> bool {
         Stop::Value => matches!(punct, '=' | ';'),
         Stop::FieldEnd => punct == ',',
         Stop::ItemEnd => matches!(punct, '{' | ';'),
+        Stop::Extent => matches!(punct, '{' | ';' | ','),
     }
 }
 
@@ -180,21 +204,42 @@ fn closing_brace(tokens: &[Token], open: usize) -> usize {
 /// its provided methods or the default values of its constants and types.
 fn collect_trait(tokens: &[Token], start: usize, surface: &mut Surface) -> usize {
     let end = item_end(tokens, start, Stop::ItemEnd);
-    let mut depth = 0usize;
-    let mut in_default = false;
-    let mut kept = Vec::new();
-    for token in &tokens[start..end] {
-        match token {
-            Token::Punct('{') => depth += 1,
-            Token::Punct('}') => depth -= 1,
-            Token::Punct('=') if depth == 1 => in_default = true,
-            Token::Punct(';') if depth == 1 => in_default = false,
-            _ if depth <= 1 && !in_default => kept.push(token.clone()),
-            _ => {}
-        }
-    }
+    let mut filter = TraitFilter::default();
+    let kept = (start..end)
+        .filter(|pos| filter.keeps(tokens, *pos))
+        .map(|pos| tokens[pos].clone())
+        .collect::<Vec<_>>();
     surface.exposed.extend(paths_in(&kept));
     end
+}
+
+/// Which tokens of a trait belong to its signatures.
+#[derive(Default)]
+struct TraitFilter {
+    braces: usize,
+    /// The depth of `(`, `[`, and `<` inside the trait body.
+    brackets: usize,
+    in_default: bool,
+}
+
+impl TraitFilter {
+    /// Whether the token at `pos` is part of a signature: not inside a
+    /// provided method's body, and not after the `=` of an item's default.
+    /// An `=` inside brackets, as in `Iterator<Item = T>`, is part of a
+    /// bound.
+    fn keeps(&mut self, tokens: &[Token], pos: usize) -> bool {
+        match tokens[pos] {
+            Token::Punct('{') => self.braces += 1,
+            Token::Punct('}') => self.braces -= 1,
+            Token::Punct('=') if self.braces == 1 && self.brackets == 0 => self.in_default = true,
+            Token::Punct(';') if self.braces == 1 => self.in_default = false,
+            Token::Punct('(' | '[' | '<' | ')' | ']' | '>') if self.braces == 1 => {
+                self.brackets = nested_depth(self.brackets, tokens, pos);
+            }
+            _ => return self.braces <= 1 && !self.in_default,
+        }
+        false
+    }
 }
 
 /// Skips `const`, `async`, `unsafe`, and `extern "ABI"` before `fn`. A

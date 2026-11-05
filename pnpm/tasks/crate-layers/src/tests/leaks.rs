@@ -12,12 +12,7 @@ use pretty_assertions::assert_eq;
 use std::collections::{BTreeMap, BTreeSet};
 
 fn exposed(source: &str) -> Vec<String> {
-    let tokens = lexer::lex(source).tokens;
-    let imports = vec![UsePath {
-        segments: vec!["dep".to_owned(), "Imported".to_owned()],
-        binding: Some("Imported".to_owned()),
-    }];
-    let surface = surface::scan(&tokens, &imports);
+    let surface = surface::scan(&lexer::lex(source).tokens);
     dbg!(&surface);
     surface.exposed
         .into_iter()
@@ -29,6 +24,7 @@ fn exposed(source: &str) -> Vec<String> {
 #[test]
 fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
     let source = r#"
+        use dep::Imported;
         pub fn run(input: dep::Input) -> Result<Imported, dep::Error> { dep::body_only(); }
         pub(crate) fn internal(value: dep::Internal) {}
         fn private(value: dep::Private) {}
@@ -43,6 +39,7 @@ fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
         pub const extern "C" fn const_extern(value: dep::ConstExtern) { dep::const_extern_body() }
         pub const r#unsafe: dep::RawConst = dep::raw_const_value();
         pub trait Defaults { const LIMIT: dep::Limit2 = dep::default_limit(); fn after(&self) -> dep::After; }
+        pub trait Bounded { type Items: Iterator<Item = dep::BoundItem>; fn last(&self) -> dep::Last; }
     "#;
     assert_eq!(
         exposed(source),
@@ -65,31 +62,41 @@ fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
             "dep::RawConst",
             "dep::Limit2",
             "dep::After",
+            "dep::BoundItem",
+            "dep::Last",
         ],
     );
 }
 
 #[test]
-fn surface_skips_test_only_inline_modules() {
+fn surface_skips_test_only_items_and_their_imports() {
     let source = concat!(
         "#[cfg(test)]\n",
-        "mod tests { pub fn helper(value: dep::TestOnly) {} pub use dep::Hidden; }\n",
-        "pub fn after(value: dep::After) {}\n",
+        "mod tests { pub fn helper(value: dep::TestOnly) {} pub use dep::Shadow; }\n",
+        "#[cfg(test)] pub use dep::Hidden;\n",
+        "#[cfg(test)] pub fn test_helper(value: dep::TestFn) {}\n",
+        "#[cfg(test)] use dep::Local;\n",
+        "pub struct Shadow;\n",
+        "pub struct Local;\n",
+        "pub fn after(value: dep::After, shadow: Shadow, local: Local) {}\n",
+        "pub struct Probed { #[cfg(test)] pub probe: Option<dep::Probe<'static, u8>>, pub kept: dep::Kept }\n",
+        "pub enum Following { Variant(dep::Variant) }\n",
     );
-    let surface = surface::scan(&lexer::lex(source).tokens, &[]);
+    let surface = surface::scan(&lexer::lex(source).tokens);
     dbg!(&surface);
-    let exposed = surface.exposed
+    let names = surface.exposed
         .iter()
         .filter(|path| path[0] == "dep")
+        .map(|path| path.join("::"))
         .collect::<Vec<_>>();
-    assert_eq!(exposed, [&vec!["dep".to_owned(), "After".to_owned()]]);
+    assert_eq!(names, ["dep::After", "dep::Kept", "dep::Variant"]);
     assert_eq!(surface.reexported, []);
 }
 
 #[test]
 fn surface_records_reexports_and_extern_crate_aliases() {
     let tokens = lexer::lex("extern crate dep as alias;\npub use dep::{Item, nested::*};\n").tokens;
-    let surface = surface::scan(&tokens, &[]);
+    let surface = surface::scan(&tokens);
     dbg!(&surface);
     let path = |segments: &[&str], binding: Option<&str>| UsePath {
         segments: segments

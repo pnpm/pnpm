@@ -86,7 +86,7 @@ impl CrateModules {
         }
         let module = Module {
             code_lines: lexed.code_lines,
-            surface: surface::scan(&lexed.tokens, &scan.imports),
+            surface: surface::scan(&lexed.tokens),
             imports: scan.imports,
             references: scan.references,
         };
