@@ -10,8 +10,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Directories of a fixture that hold install output, not install input.
-const SKIPPED_DIRS: [&str; 4] = ["node_modules", "store-dir", "cache-dir", ".git"];
+/// Directories that hold install output, not install input, at any depth.
+const SKIPPED_DIRS: [&str; 2] = ["node_modules", ".git"];
+
+/// The store and cache the benchmark creates in the project root.
+const SKIPPED_ROOT_DIRS: [&str; 2] = ["store-dir", "cache-dir"];
 
 #[derive(Debug, Serialize)]
 pub struct InstallTimings {
@@ -39,15 +42,12 @@ pub fn measure(probe: &Path, registry: &str, args: &CliArgs) -> Result<InstallTi
 }
 
 /// Copy the fixture into `project` unchanged, with its local inputs
-/// such as `file:` dependencies and patches, leaving out [`SKIPPED_DIRS`].
+/// such as `file:` dependencies and patches, leaving out [`SKIPPED_DIRS`] and
+/// [`SKIPPED_ROOT_DIRS`].
 fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
     let entries = walkdir::WalkDir::new(fixture)
         .into_iter()
-        .filter_entry(|entry| {
-            !SKIPPED_DIRS
-                .iter()
-                .any(|dir| entry.file_name() == *dir)
-        });
+        .filter_entry(|entry| !is_install_output(entry));
     for entry in entries {
         let entry = entry.map_err(|error| format!("read {}: {error}", fixture.display()))?;
         let relative = entry
@@ -63,6 +63,19 @@ fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
         copied.map_err(|error| format!("copy {}: {error}", entry.path().display()))?;
     }
     Ok(())
+}
+
+fn is_install_output(entry: &walkdir::DirEntry) -> bool {
+    let name = entry.file_name();
+    let root_only = entry.depth() == 1
+        && SKIPPED_ROOT_DIRS
+            .iter()
+            .any(|dir| name == *dir);
+    entry.depth() > 0
+        && (root_only
+            || SKIPPED_DIRS
+                .iter()
+                .any(|dir| name == *dir))
 }
 
 /// One environment change for the probe: set `name` to the value, or
@@ -106,9 +119,11 @@ fn config_setting(name: &std::ffi::OsStr) -> Option<String> {
 }
 
 /// URL-scoped settings (`//host/:_authToken`), top-level auth such as
-/// `_auth`, and the user config file that holds them.
+/// `_auth`, and the files that hold them.
 fn is_credential(setting: &str) -> bool {
-    setting.starts_with("//") || setting.starts_with('_') || setting == "userconfig"
+    setting.starts_with("//")
+        || setting.starts_with('_')
+        || matches!(setting, "userconfig" | "npmrc_auth_file")
 }
 
 fn install(probe: &Path, project: &Path, env: &[EnvChange]) -> Result<Duration, String> {

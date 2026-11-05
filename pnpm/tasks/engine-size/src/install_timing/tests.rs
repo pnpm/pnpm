@@ -1,4 +1,4 @@
-use super::benchmark_env;
+use super::{benchmark_env, prepare_project};
 use pretty_assertions::assert_eq;
 use std::{ffi::OsString, path::Path};
 
@@ -13,6 +13,7 @@ fn benchmark_env_removes_inherited_settings_but_keeps_credentials() {
         "npm_config_//registry.example/:_authToken",
         "NPM_CONFIG__AUTH",
         "NPM_CONFIG_USERCONFIG",
+        "PNPM_CONFIG_NPMRC_AUTH_FILE",
         "PATH",
     ]
     .map(OsString::from);
@@ -28,4 +29,38 @@ fn benchmark_env_removes_inherited_settings_but_keeps_credentials() {
         ("PNPM_CONFIG_IGNORE_SCRIPTS".into(), Some("true".into())),
     ];
     assert_eq!(env, expected);
+}
+
+#[test]
+fn prepare_project_skips_install_output_but_keeps_nested_inputs() {
+    let fixture = tempfile::tempdir().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    for file in [
+        "package.json",
+        "patches/a.patch",
+        "packages/store-dir/package.json",
+        "store-dir/index",
+        "cache-dir/meta",
+        "node_modules/a/package.json",
+        "packages/b/node_modules/c/package.json",
+    ] {
+        let path = fixture.path().join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, "{}").unwrap();
+    }
+    prepare_project(fixture.path(), project.path()).unwrap();
+    let mut copied: Vec<String> = walkdir::WalkDir::new(project.path())
+        .into_iter()
+        .map(Result::unwrap)
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| {
+            let relative = entry
+                .path()
+                .strip_prefix(project.path())
+                .unwrap();
+            relative.to_string_lossy().replace('\\', "/")
+        })
+        .collect();
+    copied.sort();
+    assert_eq!(copied, ["package.json", "packages/store-dir/package.json", "patches/a.patch"]);
 }
