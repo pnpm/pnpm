@@ -1031,7 +1031,7 @@ test('with dedupePeerDependents off, an optional peer is not supplied by another
 
   // Changing only the setting does not make the lockfile outdated, so a
   // manifest edit makes the install resolve again from the lockfile.
-  allProjects[1].manifest.devDependencies['@pnpm.e2e/foo'] = '100.0.0'
+  ;(allProjects[1].manifest.devDependencies as Record<string, string>)['@pnpm.e2e/foo'] = '100.0.0'
   await mutateModules(mutations, testDefaults({ autoInstallPeers: true, allProjects, dedupePeerDependents: false }))
   expect(readOptionalPeersVersions().project1).not.toContain('@pnpm.e2e/peer-c@')
   expect(readOptionalPeersVersions().project2).toContain('(@pnpm.e2e/peer-c@1.0.0)')
