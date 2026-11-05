@@ -184,3 +184,32 @@ fn a_tilde_in_the_package_name_does_not_make_a_variant_attachment() {
         ("a~b-1.0.0~musl.tgz", "1.0.0", "musl"),
     );
 }
+
+#[test]
+fn semver_validation_is_strict() {
+    for valid in [
+        "1.0.0",
+        "1.0.0-alpha.1",
+        "1.0.0+001",
+        "1.0.0-alpha+001",
+        "1.0.0+build.01",
+        "1.0.0-18446744073709551616",
+    ] {
+        assert!(super::is_valid_semver(valid), "{valid:?} should be valid");
+    }
+    for invalid in [
+        "01.0.0",
+        "v1.0.0",
+        "=1.0.0",
+        "1.0.0-01",
+        "1.0.0-0000000000000000000018446744073709551616",
+        "1.0.0-\u{141}",
+        " 1.0.0",
+        "1.0",
+        "1.0.0+",
+        "1.0.0+a+b",
+        "9007199254740992.0.0",
+    ] {
+        assert!(!super::is_valid_semver(invalid), "{invalid:?} should be invalid");
+    }
+}

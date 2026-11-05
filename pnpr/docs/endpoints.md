@@ -456,6 +456,9 @@ a hosted registry.
 | `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string version, for example `"1.0.0"`. Requires `publish`. |
 | `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Requires `publish`. |
 
+Every key under `versions` and its manifest's `version` must be valid SemVer.
+pnpr rejects an invalid version with `400`.
+
 ### Platform variants
 
 A hosted version can carry platform variants: archives that pnpm links in

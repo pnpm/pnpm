@@ -21,10 +21,10 @@ use super::{
     oci::{OciPublication, authorize_publication},
     oidc::WorkloadScope,
     publishing::{
-        PublishReceipt, StagedPublish, cleanup_tmp_slots, commit_publication, publication_name,
-        publication_request, publish_committed_response, refuse_notes_of_published_python_versions,
-        replayed_outcome, single_catalog, stage_publish, take_note, take_version_note,
-        validate_publish_doc,
+        PublishReceipt, StagedPublish, check_body_versions, cleanup_tmp_slots, commit_publication,
+        publication_name, publication_request, publish_committed_response,
+        refuse_notes_of_published_python_versions, replayed_outcome, single_catalog, stage_publish,
+        take_note, take_version_note, validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
     resolve_write_target,
@@ -449,6 +449,7 @@ async fn validate_npm_entry(
     if let Some(entry) = package.as_object_mut() {
         entry.remove("ecosystem");
     }
+    check_body_versions(&package)?;
     let name = package
         .get("name")
         .and_then(Value::as_str)

@@ -793,6 +793,30 @@ fn variants_only_request_at(
         .unwrap()
 }
 
+#[tokio::test]
+async fn a_version_without_an_any_archive_rejects_a_non_semver_version() {
+    let (tmp, app, token) = setup().await;
+    let (_, linux) = archive(&variant_manifest(&["linux-x64"], &json!({})), "linux");
+    let mut manifest = any_manifest();
+    manifest["version"] = json!("banana");
+    let response = app
+        .oneshot(variants_only_request_at("banana", &manifest, &[("linux-x64", &linux)], &token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(reason.contains("semver"), "{reason}");
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/fast",
+        )
+        .is_none(),
+    );
+}
+
 /// A version published without an `any` archive: npm's documents describe
 /// the minimal archive pnpr generates, which lists where the variants run,
 /// and pnpr's own document and release record describe only the variants.

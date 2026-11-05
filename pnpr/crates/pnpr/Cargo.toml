@@ -97,6 +97,7 @@ object_store = { workspace = true }
 percent-encoding = { workspace = true }
 reqwest = { workspace = true }
 rusqlite = { workspace = true }
+semver = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 serde_json = { workspace = true }

@@ -276,6 +276,40 @@ fn check_body_name(name: &CanonicalPackageName, incoming: &Value) -> Result<(), 
     })
 }
 
+pub(super) fn check_body_versions(incoming: &Value) -> Result<(), RegistryError> {
+    let Some(versions) = incoming.get("versions").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    for (version_key, manifest) in versions {
+        if !is_valid_semver(version_key) {
+            return Err(RegistryError::BadRequest {
+                reason: format!("version key {version_key:?} is not valid semver"),
+            });
+        }
+        let manifest_version = manifest.get("version").and_then(Value::as_str);
+        let Some(manifest_version) = manifest_version else {
+            return Err(RegistryError::BadRequest {
+                reason: format!("version key {version_key:?} has no valid semver manifest version"),
+            });
+        };
+        if !is_valid_semver(manifest_version) {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "manifest version {manifest_version:?} for version key {version_key:?} is not valid semver",
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Whether `raw` is a version npm clients can install: strict `SemVer` 2.0,
+/// as the `semver` crate parses it for Cargo publishes, within the length and
+/// integer limits of the npm parser pnpr reads stored versions with.
+fn is_valid_semver(raw: &str) -> bool {
+    semver::Version::parse(raw).is_ok() && node_semver::Version::parse(raw).is_ok()
+}
+
 /// The version note at the top of a single npm publish document.
 fn single_publish_notes(incoming: &mut Value) -> Result<PublishNotes, RegistryError> {
     let versions = take_version_note(incoming, Ecosystem::Npm)?.into_iter().collect();

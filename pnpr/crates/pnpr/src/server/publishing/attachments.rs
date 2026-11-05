@@ -94,6 +94,8 @@ pub(in super::super) async fn validate_publish_doc(
     name: CanonicalPackageName,
     mut incoming: Value,
 ) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
+    super::check_body_versions(&incoming)?;
+
     // Route write to hosted target and enforce the registry's publish rule.
     let target = resolve_write_target(state, identity, registry, &name)?;
     authorize_package(

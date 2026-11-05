@@ -7120,6 +7120,7 @@ dependencies = [
  "pnpr-upstream",
  "reqwest",
  "rusqlite",
+ "semver",
  "serde",
  "serde-saphyr",
  "serde_json",

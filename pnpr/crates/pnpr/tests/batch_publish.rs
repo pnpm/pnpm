@@ -136,6 +136,32 @@ async fn batch_publish_writes_every_package_in_one_request() {
 }
 
 #[tokio::test]
+async fn batch_publish_rejects_invalid_semver_versions_before_storing_them() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let archive = npm_tgz("invalid-batch", "banana", b"invalid");
+    let body = json!({ "packages": [publish_doc("invalid-batch", "banana", &archive)] });
+
+    let response = app
+        .oneshot(put_json_with_token("/npm/-/pnpr/v0/publish", &body, &token))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "invalid-batch",
+        )
+        .is_none(),
+    );
+}
+
+#[tokio::test]
 async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_names() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
