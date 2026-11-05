@@ -167,3 +167,38 @@ fn a_git_hosted_tarball_is_not_kept() {
         "{kept:?}",
     );
 }
+
+const REQUIRED_FOREIGN: &str = "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      tool:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  tool@1.0.0:
+    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}
+  tool-win32@1.0.0:
+    resolution: {integrity: sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==}
+    os: [win32]
+  child@1.0.0:
+    resolution: {integrity: sha512-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD==}
+snapshots:
+  tool@1.0.0:
+    dependencies:
+      tool-win32: 1.0.0
+  tool-win32@1.0.0:
+    dependencies:
+      child: 1.0.0
+  child@1.0.0: {}
+";
+
+#[test]
+fn a_required_dependency_another_platform_cannot_run_is_kept_with_its_children() {
+    let lockfile = parse(REQUIRED_FOREIGN);
+    let mut kept =
+        kept_for_production(&lockfile, &["tool@1.0.0"], &PeerSatisfactionEdges::default());
+    kept.sort_by_key(|kept| kept.key.to_string());
+
+    assert_eq!(kept, [own("child@1.0.0", false), own("tool-win32@1.0.0", false)]);
+}

@@ -109,7 +109,10 @@ impl<'w> PlatformWalk<'w> {
                 _ => {}
             }
             self.visited.insert(key.clone(), optional);
-            if self.runs_on_platform(&key, optional) {
+            // A required package another platform cannot run is still
+            // installed there, with a warning unless `engineStrict` is set,
+            // so only an optional one is left out.
+            if !optional || self.runs_on_platform(&key, optional) {
                 self.visit(&key, optional);
             }
         }
