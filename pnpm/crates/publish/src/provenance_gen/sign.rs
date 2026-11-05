@@ -6,7 +6,12 @@ use std::time::Duration;
 #[cfg(not(target_family = "wasm"))]
 use pnpm_network::{RetryOpts, redact_url_credentials};
 #[cfg(not(target_family = "wasm"))]
-use sigstore_sign::{SigningContext, oidc::IdentityToken};
+use sigstore_sign::{
+    SigningContext, SigningServices,
+    oidc::IdentityToken,
+    rekor::RekorApiVersion,
+    trust_root::{SigningConfig, TufConfig},
+};
 
 use super::{ProvenanceGenError, SignProvenance, SignedProvenance};
 use crate::capabilities::Host;
@@ -26,10 +31,7 @@ impl SignProvenance for Host {
         let token = IdentityToken::from_jwt(jwt)
             .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
         let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
-        let context = SIGNING_CONTEXT.get_or_try_init(|| {
-            setup_signing_context(deadline, SIGN_RETRY_OPTS, SigningContext::production)
-        })
-        .await?;
+        let context = SIGNING_CONTEXT.get_or_try_init(|| load_signing_context(deadline)).await?;
         sign_with_retry(SIGN_RETRY_OPTS, || {
             with_sign_deadline(deadline, async {
                 let bundle = context
@@ -43,6 +45,30 @@ impl SignProvenance for Host {
         })
         .await
     }
+}
+
+/// Only the TUF fetch is retried. Selecting the services fails the same way on
+/// every attempt.
+#[cfg(not(target_family = "wasm"))]
+async fn load_signing_context(deadline: Duration) -> Result<SigningContext, ProvenanceGenError> {
+    let config = setup_signing_context(deadline, SIGN_RETRY_OPTS, || {
+        SigningConfig::from_tuf(TufConfig::production())
+    })
+    .await?;
+    let services = signing_services(&config)
+        .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
+    Ok(SigningContext::new(services))
+}
+
+/// Selects the services from the TUF signing configuration, with Rekor pinned
+/// to API v1. npm's own client writes Rekor v1 entries only, so the pin keeps
+/// a Rekor v2 endpoint added to the configuration from changing the bundle the
+/// npm registry receives.
+#[cfg(not(target_family = "wasm"))]
+pub(super) fn signing_services(
+    config: &SigningConfig,
+) -> Result<SigningServices, sigstore_sign::Error> {
+    SigningServices::from_signing_config_with_rekor_version(config, Some(RekorApiVersion::V1))
 }
 
 #[cfg(target_family = "wasm")]

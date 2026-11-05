@@ -3,7 +3,7 @@ use std::{cell::Cell, time::Duration};
 use super::{
     ProvenanceGenError, SignProvenance, SignedProvenance, build_statement, fetch_sigstore_token,
     generate_provenance, github_statement, gitlab_statement, npm_purl,
-    sign::{setup_signing_context, sign_with_retry, with_sign_deadline},
+    sign::{setup_signing_context, sign_with_retry, signing_services, with_sign_deadline},
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -546,4 +546,36 @@ async fn fetch_sigstore_token_rejects_unsupported_provider() {
         .await
         .unwrap_err();
     assert!(matches!(err, ProvenanceGenError::UnsupportedProvider));
+}
+
+#[test]
+fn signing_services_keep_rekor_v1_when_the_config_lists_rekor_v2() {
+    let endpoint = |url: &str, major_api_version: u32| {
+        json!({
+            "url": url,
+            "majorApiVersion": major_api_version,
+            "validFor": { "start": "2021-01-01T00:00:00Z" },
+        })
+    };
+    let config = json!({
+        "mediaType": "application/vnd.dev.sigstore.signingconfig.v0.2+json",
+        "caUrls": [endpoint("https://fulcio.example", 1)],
+        "rekorTlogUrls": [
+            endpoint("https://rekor-v1.example", 1),
+            endpoint("https://rekor-v2.example", 2),
+        ],
+        "tsaUrls": [endpoint("https://tsa.example/api/v1/timestamp", 1)],
+        "rekorTlogConfig": { "selector": "ANY" },
+        "tsaConfig": { "selector": "ANY" },
+    });
+    let config = sigstore_sign::trust_root::SigningConfig::from_json(&config.to_string())
+        .expect("valid signing config");
+    let unpinned = sigstore_sign::SigningServices::from_signing_config(&config)
+        .expect("services from the config");
+    assert_eq!(unpinned.rekor_url(), "https://rekor-v2.example");
+
+    let services = signing_services(&config).expect("services from the config");
+
+    assert_eq!(services.rekor_url(), "https://rekor-v1.example");
+    assert_eq!(services.rekor_api_version(), sigstore_sign::rekor::RekorApiVersion::V1);
 }
