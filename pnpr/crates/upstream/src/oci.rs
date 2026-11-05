@@ -69,9 +69,10 @@ impl Upstream {
                 let challenge = self.oci_challenge(&response)?;
                 drop(response);
                 drop(guard);
-                bearer = Some(self.oci_token(&base, repository, challenge).await?);
-                negotiated = true;
                 budget = budget.saturating_sub(hop_started.elapsed());
+                let token = self.oci_token(&base, repository, challenge, &mut budget).await?;
+                bearer = Some(token);
+                negotiated = true;
                 continue;
             }
             if response.status().is_redirection() {
@@ -164,11 +165,14 @@ impl Upstream {
         Ok(target)
     }
 
+    /// Fetch a pull token, bounded by what is left of `budget`, and spend the
+    /// time it took after taking its permit.
     async fn oci_token(
         &self,
         base: &Url,
         repository: &str,
         challenge: Challenge,
+        budget: &mut Duration,
     ) -> Result<String> {
         let mut realm =
             Url::parse(&challenge.realm).map_err(|_| self.oci_error("invalid OCI token realm"))?;
@@ -185,10 +189,11 @@ impl Upstream {
             UNPRIORITIZED,
         )
         .await;
+        let started = guard.acquired_at();
         let headers = self.oci_token_headers(base, &realm);
         let response = guard
             .get(realm.clone())
-            .timeout(self.http.timeout)
+            .timeout(*budget)
             .headers(headers)
             .send()
             .await
@@ -198,6 +203,7 @@ impl Upstream {
         }
         let body = read_limited_body(response, 64 * 1024).await
             .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;
+        *budget = budget.saturating_sub(started.elapsed());
         if body.truncated {
             return Err(self.oci_error("OCI token response is too large"));
         }
