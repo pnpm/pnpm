@@ -7250,7 +7250,6 @@ dependencies = [
  "indexmap 2.14.2",
  "node-semver",
  "pnpr-config",
- "pnpr-error",
  "pnpr-package-name",
  "pnpr-policy",
  "pnpr-registry",

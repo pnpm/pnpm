@@ -18,7 +18,6 @@ flate2 = { workspace = true }
 indexmap = { workspace = true }
 node-semver = { workspace = true }
 pnpr-config = { workspace = true }
-pnpr-error = { workspace = true }
 pnpr-package-name = { workspace = true }
 pnpr-policy = { workspace = true }
 pnpr-registry = { workspace = true }

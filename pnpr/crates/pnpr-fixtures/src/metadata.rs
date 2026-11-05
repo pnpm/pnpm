@@ -211,19 +211,27 @@ pub fn write_hosted_file(
 ) {
     let store = open(storage).for_hosted(org, ecosystem);
     let name = canonical(name, ecosystem);
-    run(async move {
-        let stored = async {
-            let slot = store.reserve_hosted_blob(&name, file).await?.for_version(version);
-            tokio::fs::write(&slot.tmp_path, bytes).await?;
-            let (id, size) = store.identify_blob_slot(&slot).await?;
-            let rows = store.blob_rows(vec![id.clone()]).await?;
-            let row = rows.get(&id);
-            let promoted = store.promote_blob_slot(slot, (id, size), row).await?;
-            store.map_hosted_artifact(promoted.artifact).await
-        };
-        stored.await.unwrap_or_else(|error: pnpr_error::RegistryError| {
-            panic!("store {file} of {}: {error}", name.as_str())
-        });
+    let fail = |error: &dyn std::fmt::Display| -> ! {
+        panic!("store {file} of {}: {error}", name.as_str())
+    };
+    run(async {
+        let slot = store
+            .reserve_hosted_blob(&name, file)
+            .await
+            .unwrap_or_else(|error| fail(&error))
+            .for_version(version);
+        tokio::fs::write(&slot.tmp_path, bytes).await.unwrap_or_else(|error| fail(&error));
+        let (id, size) = store.identify_blob_slot(&slot).await.unwrap_or_else(|error| fail(&error));
+        let rows = store
+            .blob_rows(vec![id.clone()])
+            .await
+            .unwrap_or_else(|error| fail(&error));
+        let row = rows.get(&id).cloned();
+        let promoted = store
+            .promote_blob_slot(slot, (id, size), row.as_ref())
+            .await
+            .unwrap_or_else(|error| fail(&error));
+        store.map_hosted_artifact(promoted.artifact).await.unwrap_or_else(|error| fail(&error));
     });
 }
 
