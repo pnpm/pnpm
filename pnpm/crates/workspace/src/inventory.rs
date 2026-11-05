@@ -173,10 +173,21 @@ fn ignored_paths_under(
     canonical_root: &Path,
     ignored_directories: &[PathBuf],
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceInventoryError> {
+    ignored_paths_under_with(workspace_root, canonical_root, ignored_directories, |path| {
+        std::fs::canonicalize(path)
+    })
+}
+
+fn ignored_paths_under_with(
+    workspace_root: &Path,
+    canonical_root: &Path,
+    ignored_directories: &[PathBuf],
+    mut canonicalize: impl FnMut(&Path) -> io::Result<PathBuf>,
+) -> Result<BTreeSet<PathBuf>, FindWorkspaceInventoryError> {
     let mut paths = BTreeSet::new();
     for path in ignored_directories {
         let path = workspace_root.join(path);
-        let canonical = match std::fs::canonicalize(&path) {
+        let canonical = match canonicalize(&path) {
             Ok(path) => path,
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(source) => {
