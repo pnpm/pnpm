@@ -21,7 +21,7 @@ use pnpm_reporter::Reporter;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha512};
 #[cfg(not(target_family = "wasm"))]
-use sigstore_sign::{SigningContext, oidc::IdentityToken};
+use sigstore_sign::{SigningContext, oidc::IdentityToken, trust_root::SigstoreInstance};
 
 use crate::{
     capabilities::{Clock, EnvVar, Host, OidcFetch, OidcFetchError},
@@ -148,7 +148,8 @@ impl SignProvenance for Host {
     ) -> Result<SignedProvenance, ProvenanceGenError> {
         let token = IdentityToken::from_jwt(jwt)
             .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
-        let context = SigningContext::production();
+        let context = SigningContext::from_embedded(SigstoreInstance::PublicGood)
+            .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
         let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
         sign_with_retry(SIGN_RETRY_OPTS, || {
             with_sign_deadline(deadline, async {
@@ -158,7 +159,7 @@ impl SignProvenance for Host {
                     .await
                     .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
                 let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
-                Ok(SignedProvenance { media_type: bundle.media_type, data })
+                Ok(SignedProvenance { media_type: bundle.media_type.as_str().to_owned(), data })
             })
         })
         .await
