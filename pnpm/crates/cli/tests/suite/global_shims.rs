@@ -4,7 +4,6 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pipe_trait::Pipe;
 use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -212,6 +211,8 @@ fn a_shim_inside_a_dispatch_preparation_runs_the_global_target() {
 #[cfg(unix)]
 #[test]
 fn a_runtime_install_does_not_dispatch_its_own_shim_again() {
+    use pipe_trait::Pipe;
+
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
     let version = "24.0.0-rc.4";
