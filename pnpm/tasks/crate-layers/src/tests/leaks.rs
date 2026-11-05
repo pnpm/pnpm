@@ -42,6 +42,7 @@ fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
         pub trait Bounded { type Items: Iterator<Item = dep::BoundItem>; fn last(&self) -> dep::Last; }
         pub type Api = Wrapper<{ N }, dep::ConstArg>;
         pub const EMPTY: Option<Box<dyn Iterator<Item = dep::AssocItem>>> = dep::empty_value();
+        pub trait ArrayBound { type Items: Bound<Item = [u8; 1], Other = dep::AfterArray>; }
         pub trait Shifted { const MASK: usize = 1 << 3; const LIMIT: usize = dep::shifted_default(); fn wrapped() -> outer::Wrapper::<dep::Turbofish>; }
     "#;
     assert_eq!(
@@ -69,6 +70,7 @@ fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
             "dep::Last",
             "dep::ConstArg",
             "dep::AssocItem",
+            "dep::AfterArray",
             "dep::Turbofish",
         ],
     );

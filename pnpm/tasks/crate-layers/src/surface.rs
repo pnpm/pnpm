@@ -286,15 +286,15 @@ struct TraitFilter {
 impl TraitFilter {
     /// Whether the token at `pos` is part of a signature: not inside a
     /// provided method's body, and not in an item's default from its `=` to
-    /// its `;`. An `=` inside brackets, as in `Iterator<Item = T>`, is part of
-    /// a bound.
+    /// its `;`. An `=` or `;` inside brackets, as in `Iterator<Item = T>` or
+    /// `[u8; 1]`, is part of a type.
     fn keeps(&mut self, tokens: &[Token], pos: usize) -> bool {
         let in_signature = self.braces == 1 && !self.in_default;
         match tokens[pos] {
             Token::Punct('{') if self.nesting.is_flat() => self.braces += 1,
             Token::Punct('}') if self.nesting.is_flat() => self.braces -= 1,
             Token::Punct('=') if in_signature && self.nesting.is_flat() => self.in_default = true,
-            Token::Punct(';') if self.braces == 1 => {
+            Token::Punct(';') if self.ends_item() => {
                 self.in_default = false;
                 self.nesting = Nesting::default();
             }
@@ -302,6 +302,12 @@ impl TraitFilter {
             _ => {}
         }
         self.braces <= 1 && !self.in_default && !matches!(tokens[pos], Token::Punct('{' | '}'))
+    }
+
+    /// Whether a `;` here ends an item of the trait body. Inside a default
+    /// value brackets are not tracked, so any `;` at the item level ends it.
+    const fn ends_item(&self) -> bool {
+        self.braces == 1 && (self.in_default || self.nesting.is_flat())
     }
 }
 
