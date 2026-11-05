@@ -38,6 +38,7 @@ pub(super) struct EffectiveResolverSettings {
     pub(super) dedupe_peers: bool,
     pub(super) exclude_links_from_lockfile: bool,
     pub(super) add_missing_peer_types: bool,
+    pub(super) project_scoped_optional_peers: bool,
 }
 
 impl EffectiveResolverSettings {
@@ -71,6 +72,11 @@ impl EffectiveResolverSettings {
             add_missing_peer_types: request.add_missing_peer_types
                 .or_else(|| lockfile_settings.and_then(|settings| settings.add_missing_peer_types))
                 .unwrap_or(DEFAULTS.add_missing_peer_types),
+            project_scoped_optional_peers: request.project_scoped_optional_peers
+                .or_else(|| {
+                    lockfile_settings.and_then(|settings| settings.project_scoped_optional_peers)
+                })
+                .unwrap_or(DEFAULTS.project_scoped_optional_peers),
         }
     }
 }
@@ -134,6 +140,7 @@ pub(super) fn intern_config(
     config.dedupe_peers = resolver_settings.dedupe_peers;
     config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
     config.add_missing_peer_types = resolver_settings.add_missing_peer_types;
+    config.project_scoped_optional_peers = resolver_settings.project_scoped_optional_peers;
     let config: &'static PacquetConfig = config.leak();
     configs.insert(key, config);
     Some(config)

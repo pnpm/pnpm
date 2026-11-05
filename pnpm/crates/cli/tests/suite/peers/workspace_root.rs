@@ -560,20 +560,3 @@ fn turning_on_project_scoped_optional_peers_re_resolves_the_lockfile() {
         lock()["settings"],
     );
 }
-
-#[test]
-fn project_scoped_optional_peers_reject_delegated_resolution() {
-    use crate::_utils::{ManifestDeps, WorkspaceFixture};
-
-    let fixture = WorkspaceFixture::new();
-    fixture.append_workspace_yaml("projectScopedOptionalPeers: true\n");
-    fixture.write_root_manifest("root", ManifestDeps::default());
-    let output = run_peer_fixture(
-        &fixture,
-        None,
-        &["install", "--lockfile-only", "--pnpr-server", "http://127.0.0.1:1"],
-    );
-    assert!(!output.status.success(), "{output:?}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_PROJECT_SCOPED_OPTIONAL_PEERS_WITH_PNPR_SERVER"), "{stderr}");
-}

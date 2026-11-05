@@ -724,6 +724,7 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
 
 mod batch_variants;
 mod hosted;
+mod optional_peers;
 mod publish_retry;
 mod supported_architectures_variants;
 mod workspace;

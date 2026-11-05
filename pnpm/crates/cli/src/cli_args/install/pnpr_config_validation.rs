@@ -48,13 +48,6 @@ pub(super) struct ResolutionSettingsWithPnpr;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
-    "projectScopedOptionalPeers requires local dependency resolution. Remove pnprServer or set projectScopedOptionalPeers to false."
-)]
-#[diagnostic(code(ERR_PNPM_PROJECT_SCOPED_OPTIONAL_PEERS_WITH_PNPR_SERVER))]
-pub(super) struct ProjectScopedOptionalPeersWithPnpr;
-
-#[derive(Debug, Display, Error, Diagnostic)]
-#[display(
     "Pinning tar hashes in the lockfile requires local dependency resolution. Remove pnprServer or remove lockfile.integrityTarget."
 )]
 #[diagnostic(code(ERR_PNPM_INTEGRITY_TARGET_WITH_PNPR_SERVER))]
@@ -72,9 +65,6 @@ pub(super) fn validate_pnpr_config(
     }
     if config.lockfile_integrity_target != pnpm_lockfile::IntegrityTarget::Resource && !frozen {
         return Err(IntegrityTargetWithPnpr.into());
-    }
-    if config.project_scoped_optional_peers_take_effect() && !frozen {
-        return Err(ProjectScopedOptionalPeersWithPnpr.into());
     }
     if config.frozen_store {
         return Err(FrozenStoreIncompatibleWithPnpr.into());

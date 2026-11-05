@@ -119,8 +119,6 @@ This setting has no effect when `dedupePeerDependents` is `false`, because optio
 
 Changing this setting changes the lockfile. pnpm records it in the lockfile's `settings` while it takes effect, so the next install resolves the lockfile again.
 
-This setting needs local dependency resolution, so an install that is not frozen fails when `pnprServer` is set.
-
 ### dedupePeers
 
 * Default: **false**
