@@ -44,6 +44,9 @@ pub(crate) fn resolution_settings_from_config(config: &Config) -> ResolutionSett
                 config.link_workspace_packages,
             ),
         ),
+        project_scoped_optional_peers: (config.dedupe_peer_dependents
+            && config.project_scoped_optional_peers)
+            .then_some(true),
     }
 }
 

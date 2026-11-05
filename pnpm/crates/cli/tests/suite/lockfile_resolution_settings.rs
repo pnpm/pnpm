@@ -76,6 +76,7 @@ fn the_lockfile_records_resolution_settings_only_when_asked() {
             dedupe_injected_deps: Some(true),
             dedupe_peer_dependents: Some(true),
             link_workspace_packages: Some(Value::Bool(false)),
+            project_scoped_optional_peers: None,
         },
     );
     drop((root, mock_instance));
@@ -118,6 +119,36 @@ fn a_frozen_install_rejects_a_changed_recorded_setting() {
     let combined = format!("{stdout}{stderr}");
     assert!(combined.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "{combined}");
     assert!(combined.contains("settings.dedupePeerDependents"), "{combined}");
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_frozen_install_rejects_turning_on_project_scoped_optional_peers() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_injected_workspace(&workspace, RECORDING);
+    install(&workspace, &["install"]);
+
+    let scoped = format!("{RECORDING}projectScopedOptionalPeers: true\n");
+    write_injected_workspace(&workspace, &scoped);
+    let output = pnpm_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "{output:?}");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(combined.contains("settings.projectScopedOptionalPeers"), "{combined}");
+
+    install(&workspace, &["install"]);
+    assert_eq!(recorded(&workspace).project_scoped_optional_peers, Some(true));
+    write_injected_workspace(&workspace, &format!("{scoped}dedupePeerDependents: false\n"));
+    install(&workspace, &["install"]);
+    assert_eq!(recorded(&workspace).project_scoped_optional_peers, None);
     drop((root, mock_instance));
 }
 

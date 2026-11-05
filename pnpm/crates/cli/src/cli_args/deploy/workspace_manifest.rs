@@ -209,6 +209,9 @@ impl DeployWorkspaceSettings {
             resolution.link_workspace_packages =
                 Some(Value::Bool(self.lockfile.link_workspace_packages));
         }
+        // Deploy turns dedupePeerDependents off, which leaves this setting
+        // without effect.
+        resolution.project_scoped_optional_peers = None;
     }
 
     pub(super) fn apply_to_config(&self, config: &mut Config, deploy_dir: &Path) {
