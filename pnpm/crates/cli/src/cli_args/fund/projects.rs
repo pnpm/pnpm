@@ -8,7 +8,8 @@ use crate::cli_args::{
             importer_root_ids,
         },
         get_tree::MaxDepth,
-        graph::{BuildGraphOptions, build_dependency_graph},
+        graph::{BuildGraphOptions, DependencyGraph, build_dependency_graph},
+        pkg_info::PkgInfoEnv,
     },
     listed_projects::listed_projects,
 };
@@ -101,16 +102,27 @@ fn load_hierarchies(
         show_deduped_search_matches: false,
         modules_dir_opt: Some(config.modules_dir.as_path()),
     };
-    // One call per project: a call elides the subtrees an earlier project
-    // in the same call already listed, and each report needs them all.
+    build_unelided_trees(&state, &env, &graph, project_dirs, &options)
+}
+
+/// One tree per project, each with every subtree expanded. A single
+/// [`build_dependencies_tree`] call elides the subtrees an earlier project
+/// in it already listed, and each funding report needs them all.
+fn build_unelided_trees(
+    state: &LoadedState,
+    env: &PkgInfoEnv<'_>,
+    graph: &DependencyGraph,
+    project_dirs: &[PathBuf],
+    options: &BuildTreeOptions<'_>,
+) -> miette::Result<Vec<(PathBuf, DependenciesHierarchy)>> {
     let mut hierarchies = Vec::with_capacity(project_dirs.len());
     for project_dir in project_dirs {
         hierarchies.extend(build_dependencies_tree(
-            &state,
-            &env,
-            &graph,
+            state,
+            env,
+            graph,
             std::slice::from_ref(project_dir),
-            &options,
+            options,
         )?);
     }
     Ok(hierarchies)
