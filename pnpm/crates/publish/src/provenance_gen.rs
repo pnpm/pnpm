@@ -21,7 +21,7 @@ use pnpm_reporter::Reporter;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha512};
 #[cfg(not(target_family = "wasm"))]
-use sigstore_sign::{SigningContext, oidc::IdentityToken, trust_root::SigstoreInstance};
+use sigstore_sign::{SigningContext, oidc::IdentityToken};
 
 use crate::{
     capabilities::{Clock, EnvVar, Host, OidcFetch, OidcFetchError},
@@ -148,9 +148,9 @@ impl SignProvenance for Host {
     ) -> Result<SignedProvenance, ProvenanceGenError> {
         let token = IdentityToken::from_jwt(jwt)
             .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
-        let context = SigningContext::from_embedded(SigstoreInstance::PublicGood)
-            .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
         let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
+        let context =
+            setup_signing_context(deadline, SIGN_RETRY_OPTS, SigningContext::production).await?;
         sign_with_retry(SIGN_RETRY_OPTS, || {
             with_sign_deadline(deadline, async {
                 let bundle = context
@@ -201,12 +201,12 @@ const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
 const DEFAULT_SIGN_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[cfg(not(target_family = "wasm"))]
-async fn with_sign_deadline<Fut>(
+async fn with_sign_deadline<T, Fut>(
     deadline: Duration,
     attempt: Fut,
-) -> Result<SignedProvenance, ProvenanceGenError>
+) -> Result<T, ProvenanceGenError>
 where
-    Fut: Future<Output = Result<SignedProvenance, ProvenanceGenError>>,
+    Fut: Future<Output = Result<T, ProvenanceGenError>>,
 {
     match tokio::time::timeout(deadline, attempt).await {
         Ok(result) => result,
@@ -220,12 +220,31 @@ where
 }
 
 #[cfg(not(target_family = "wasm"))]
-async fn sign_with_retry<Fut>(
+async fn setup_signing_context<T, E, Fut>(
+    deadline: Duration,
+    retry_opts: RetryOpts,
+    mut setup: impl FnMut() -> Fut,
+) -> Result<T, ProvenanceGenError>
+where
+    E: std::fmt::Display,
+    Fut: Future<Output = Result<T, E>>,
+{
+    sign_with_retry(retry_opts, || {
+        let setup = setup();
+        with_sign_deadline(deadline, async move {
+            setup.await.map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })
+        })
+    })
+    .await
+}
+
+#[cfg(not(target_family = "wasm"))]
+async fn sign_with_retry<T, Fut>(
     retry_opts: RetryOpts,
     mut attempt_fn: impl FnMut() -> Fut,
-) -> Result<SignedProvenance, ProvenanceGenError>
+) -> Result<T, ProvenanceGenError>
 where
-    Fut: Future<Output = Result<SignedProvenance, ProvenanceGenError>>,
+    Fut: Future<Output = Result<T, ProvenanceGenError>>,
 {
     let mut attempt = 0;
     loop {
