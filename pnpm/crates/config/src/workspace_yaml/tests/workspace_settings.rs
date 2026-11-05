@@ -94,7 +94,7 @@ namedRegistries:
         .iter()
         .map(|warning| {
             warning
-                .strip_prefix("Ignored \"")
+                .strip_prefix(r#"Ignored ""#)
                 .and_then(|rest| rest.split_once('"'))
                 .map(|(setting, _)| setting)
                 .expect("an ignored-setting warning")

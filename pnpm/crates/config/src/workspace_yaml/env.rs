@@ -41,24 +41,35 @@ impl WorkspaceSettings {
         &mut self,
     ) -> Result<Vec<String>, LoadWorkspaceYamlError> {
         self.substitute_env_scalars::<Sys>();
-
-        if let Some((name, _)) = self.named_registries
-            .iter()
-            .flatten()
-            .find(|(_, url)| has_env_placeholder(url))
-        {
-            return Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
-                setting: format!("namedRegistries['{name}']"),
-                file: WORKSPACE_MANIFEST_FILENAME.to_string(),
-            });
-        }
+        self.refuse_unexpanded_named_registries()?;
         let mut dropped = match self.registries.as_mut() {
             Some(registries) => {
                 registries::drop_env_placeholder_entries(registries, has_env_placeholder)?
             }
             None => Vec::new(),
         };
+        self.drop_unexpanded_request_scalars(&mut dropped);
+        Ok(dropped
+            .iter()
+            .map(|setting| ignored_setting_warning(setting))
+            .collect())
+    }
 
+    fn refuse_unexpanded_named_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
+        match self.named_registries
+            .iter()
+            .flatten()
+            .find(|(_, url)| has_env_placeholder(url))
+        {
+            Some((name, _)) => Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
+                setting: format!("namedRegistries['{name}']"),
+                file: WORKSPACE_MANIFEST_FILENAME.to_string(),
+            }),
+            None => Ok(()),
+        }
+    }
+
+    fn drop_unexpanded_request_scalars(&mut self, dropped: &mut Vec<String>) {
         for (setting, scalar) in [
             ("registry", &mut self.registry),
             ("pnprServer", &mut self.pnpr_server),
@@ -83,10 +94,6 @@ impl WorkspaceSettings {
                 dropped.push(setting.to_string());
             }
         }
-        Ok(dropped
-            .iter()
-            .map(|setting| ignored_setting_warning(setting))
-            .collect())
     }
 
     /// Rewrite a leading `~/` in `storeDir`, and in the directories of
@@ -142,7 +149,7 @@ impl WorkspaceSettings {
 
 fn ignored_setting_warning(setting: &str) -> String {
     format!(
-        r#"Ignored "{setting}" in {WORKSPACE_MANIFEST_FILENAME}: environment variables are not expanded in the registry, proxy, and user agent settings of a file committed to the repository. Write the value literally, or move the setting to the global config.yaml."#
+        r#"Ignored "{setting}" in {WORKSPACE_MANIFEST_FILENAME}: environment variables are not expanded in the registry, proxy, and user agent settings of a file committed to the repository. Write the value literally, or move the setting to the global config.yaml."#,
     )
 }
 
