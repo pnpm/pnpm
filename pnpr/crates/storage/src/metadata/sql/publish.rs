@@ -199,8 +199,8 @@ impl<'request> Reads<'request> {
             .iter()
             .map(|_| Ok(!next(&mut results)?.is_empty()))
             .collect::<Result<_>>()?;
-        if self.fence.is_some() {
-            FenceRead::check(next(&mut results)?)?;
+        if let Some(fence) = &self.fence {
+            fence.check(next(&mut results)?)?;
         }
         Ok(Answer::Read(Read { name_taken, stored, noted }))
     }

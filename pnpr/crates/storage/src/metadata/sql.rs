@@ -30,6 +30,7 @@
 pub(crate) mod adapter;
 
 pub use cache::RenderStats;
+pub use reclaims::new_reclaim_owner;
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
 
@@ -135,6 +136,10 @@ impl SqlMetadata {
     /// The version of the schema this pnpr creates and reads. A database
     /// that holds another one is refused.
     pub const SCHEMA_VERSION: &'static str = schema::SCHEMA_VERSION;
+
+    /// The statements that create the schema, so a cache of databases can
+    /// tell a layout that changed under one version apart.
+    pub const SCHEMA_TABLES: &'static str = schema::TABLES;
 
     /// Open the `SQLite` database at `path`, creating it and its directory if
     /// needed.

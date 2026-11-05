@@ -18,7 +18,7 @@ pub use publication::{
 };
 pub use reclaims::{ArchiveFence, ArchiveRef, PublishBase, ReclaimTarget};
 pub(crate) use sql::PackageMetadata;
-pub use sql::{RenderStats, SqlMetadata, TagHistoryEntry};
+pub use sql::{RenderStats, SqlMetadata, TagHistoryEntry, new_reclaim_owner};
 
 mod notes;
 mod publication;

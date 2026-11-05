@@ -14,6 +14,7 @@ use pnpr_package_name::Ecosystem;
 use serde_json::Value;
 
 const ARTIFACT: &str = "pkg-1.0.0.tgz";
+const OWNER: &str = "reclaim-a";
 
 fn archive(name: &str, artifact: &str) -> ArchiveRef {
     ArchiveRef { ecosystem: Ecosystem::Npm, name: name.to_string(), artifact: artifact.to_string() }
@@ -81,7 +82,7 @@ async fn a_commit_before_the_mark_keeps_its_archive(db: Db) {
 
     let marked = sweeper
         .sql_metadata()
-        .mark_reclaims("acme", vec![target("pkg", expected)])
+        .mark_reclaims("acme", OWNER, vec![target("pkg", expected)])
         .await
         .unwrap();
     assert!(marked.is_empty(), "{marked:?}");
@@ -106,7 +107,7 @@ async fn a_commit_after_its_archive_was_reclaimed_is_refused(db: Db) {
     let (expected, _) = read_base(&sweeper, "pkg").await;
     let database = sweeper.sql_metadata();
     let marked = database
-        .mark_reclaims("acme", vec![target("pkg", expected)])
+        .mark_reclaims("acme", OWNER, vec![target("pkg", expected)])
         .await
         .unwrap();
     assert_eq!(marked, vec![archive("pkg", ARTIFACT)]);
@@ -114,7 +115,7 @@ async fn a_commit_after_its_archive_was_reclaimed_is_refused(db: Db) {
     let err = commit(&publisher, "pkg", &document, base, token).await.unwrap_err();
     assert!(matches!(err, RegistryError::ArchiveReclaimed { .. }), "{err:?}");
 
-    database.finish_reclaims("acme", marked).await.unwrap();
+    database.finish_reclaims("acme", OWNER, marked).await.unwrap();
     assert!(
         database
             .pending_reclaims("acme")
@@ -140,10 +141,10 @@ async fn a_publish_after_the_reclaim_finished_commits(db: Db) {
     let (sweeper, publisher) = (storage(&db), storage(&db));
     let database = sweeper.sql_metadata();
     let marked = database
-        .mark_reclaims("acme", vec![target("pkg", None)])
+        .mark_reclaims("acme", OWNER, vec![target("pkg", None)])
         .await
         .unwrap();
-    database.finish_reclaims("acme", marked).await.unwrap();
+    database.finish_reclaims("acme", OWNER, marked).await.unwrap();
 
     let (base, token) = read_base(&publisher, "pkg").await;
     commit(&publisher, "pkg", &packument("pkg", &["1.0.0"]), base, token).await.unwrap();
@@ -161,7 +162,7 @@ async fn a_reclaim_holds_only_while_the_package_is_as_it_was_read(db: Db) {
     let (base, token) = read_base(&publisher, "pkg").await;
     commit(&publisher, "pkg", &packument("pkg", &["0.9.0"]), base, token).await.unwrap();
     let marked = database
-        .mark_reclaims("acme", vec![target("pkg", None)])
+        .mark_reclaims("acme", OWNER, vec![target("pkg", None)])
         .await
         .unwrap();
     assert!(marked.is_empty(), "{marked:?}");
@@ -169,13 +170,108 @@ async fn a_reclaim_holds_only_while_the_package_is_as_it_was_read(db: Db) {
     let (expected, _) = read_base(&sweeper, "pkg").await;
     assert!(expected.is_some());
     let marked = database
-        .mark_reclaims("acme", vec![target("pkg", expected)])
+        .mark_reclaims("acme", OWNER, vec![target("pkg", expected)])
         .await
         .unwrap();
     assert_eq!(marked, vec![archive("pkg", ARTIFACT)]);
 }
 
+/// An archive one reclaim marked is not another's to mark, and another
+/// reclaim takes it over only once its lease is out: the first reclaim then
+/// finds it is no longer its own, so it neither removes nor finishes it.
+async fn a_marked_archive_belongs_to_one_reclaim_at_a_time(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    let marked = database
+        .mark_reclaims("acme", OWNER, vec![target("pkg", None)])
+        .await
+        .unwrap();
+    assert_eq!(marked, vec![archive("pkg", ARTIFACT)]);
+    let other = "reclaim-b";
+    let marked = database
+        .mark_reclaims("acme", other, vec![target("pkg", None)])
+        .await
+        .unwrap();
+    assert!(marked.is_empty(), "{marked:?}");
+
+    let lease = std::time::Duration::from_hours(1);
+    let claimed = database.claim_stale_reclaims("acme", other, lease, |_| true).await.unwrap();
+    assert!(claimed.is_empty(), "{claimed:?}");
+    let claimed = database
+        .claim_stale_reclaims("acme", other, std::time::Duration::ZERO, |_| true)
+        .await
+        .unwrap();
+    assert_eq!(claimed, vec![archive("pkg", ARTIFACT)]);
+
+    let owned = |owner: &'static str| {
+        database.owned_reclaims("acme", owner, vec![archive("pkg", ARTIFACT)])
+    };
+    assert!(owned(OWNER).await.unwrap().is_empty());
+    assert_eq!(owned(other).await.unwrap(), vec![archive("pkg", ARTIFACT)]);
+    database
+        .finish_reclaims("acme", OWNER, vec![archive("pkg", ARTIFACT)])
+        .await
+        .unwrap();
+    assert_eq!(database.pending_reclaims("acme").await.unwrap(), vec![archive("pkg", ARTIFACT)]);
+    database
+        .finish_reclaims("acme", other, vec![archive("pkg", ARTIFACT)])
+        .await
+        .unwrap();
+    assert!(
+        database
+            .pending_reclaims("acme")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+/// Dropping the row of a reclaim finished a day ago keeps its generation as
+/// the catalog's horizon: a publish that read an older generation is still
+/// refused, however long it took.
+async fn a_dropped_reclaim_still_fences_older_publishes(db: Db) {
+    let (sweeper, publisher) = (storage(&db), storage(&db));
+    let (base, token) = read_base(&publisher, "pkg").await;
+    let database = sweeper.sql_metadata();
+    let marked = database
+        .mark_reclaims("acme", OWNER, vec![target("pkg", None)])
+        .await
+        .unwrap();
+    database.finish_reclaims("acme", OWNER, marked).await.unwrap();
+    execute(&db, "UPDATE archive_reclaims SET done_at = done_at - 2 * 24 * 60 * 60").await;
+    // Any later reclaim step drops the old row.
+    database
+        .mark_reclaims("acme", OWNER, vec![target("other", None)])
+        .await
+        .unwrap();
+    assert_eq!(database.pending_reclaims("acme").await.unwrap(), vec![archive("other", ARTIFACT)]);
+
+    let err = commit(&publisher, "pkg", &packument("pkg", &["1.0.0"]), base, token)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, RegistryError::ArchiveReclaimed { .. }), "{err:?}");
+    let (base, token) = read_base(&publisher, "pkg").await;
+    commit(&publisher, "pkg", &packument("pkg", &["1.0.0"]), base, token).await.unwrap();
+}
+
+/// Run `statement` on the database directly, as an operator's client would.
+async fn execute(db: &Db, statement: &'static str) {
+    let adapter = db.adapter();
+    tokio::task::spawn_blocking(move || {
+        adapter.write(&mut |connection| {
+            let transaction = crate::metadata::sql::batch::WriteTransaction::begin(connection)?;
+            transaction.execute(statement, params![])?;
+            transaction.commit()
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap();
+}
+
 conformance! {
+    a_marked_archive_belongs_to_one_reclaim_at_a_time,
+    a_dropped_reclaim_still_fences_older_publishes,
     a_commit_before_the_mark_keeps_its_archive,
     a_commit_after_its_archive_was_reclaimed_is_refused,
     a_publish_after_the_reclaim_finished_commits,

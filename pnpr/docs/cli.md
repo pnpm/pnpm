@@ -206,9 +206,11 @@ The metadata database fences each removal. `gc` first marks the archives in a
 transaction that holds only while their package is unchanged since it found them
 unreferenced, then removes them, then records that they are gone. A publish
 whose commit depends on a marked archive, or on one removed after the publish
-read its package, is refused with `409` and can be retried. `gc` also finishes
-removals that an interrupted run or an interrupted [blob
-`DELETE`](container-images.md#reclaiming-space) left marked.
+read its package, is refused with `409` and can be retried. A marked archive
+belongs to the run that marked it. Another run, or a publish refused over it,
+finishes the removal only once the mark is an hour old, as an interrupted run
+or an interrupted [blob `DELETE`](container-images.md#reclaiming-space) leaves
+it.
 
 | Flag | Description |
 | --- | --- |

@@ -35,6 +35,7 @@ use measurements::{
 
 mod diagnostics;
 
+mod mock_metadata;
 mod servers;
 
 mod build;

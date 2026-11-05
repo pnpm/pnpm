@@ -64,8 +64,8 @@ pub(super) struct Promoted {
 
 impl Promoted {
     /// Clean up after the commit was refused with `err`: finish a reclaim
-    /// that marked an archive the commit depends on and stopped before it
-    /// finished, so a retry writes the archive afresh instead of meeting the
+    /// that marked an archive the commit depends on and stopped, its lease
+    /// long expired, so a retry writes the archive afresh instead of meeting the
     /// same mark until `pnpr gc` runs, and reclaim what this publish wrote.
     pub(super) async fn clean_up(&self, state: &AppState, catalog: &str, err: &RegistryError) {
         if matches!(err, RegistryError::ArchiveReclaimed { .. })
@@ -77,15 +77,14 @@ impl Promoted {
     }
 
     async fn finish_pending(&self, state: &AppState, catalog: &str) -> Result<(), RegistryError> {
-        let storage = &state.inner.storage;
-        let pending: Vec<ArchiveRef> = storage
-            .sql_metadata()
-            .pending_reclaims(catalog)
-            .await?
-            .into_iter()
-            .filter(|archive| self.fence.archives.contains(archive))
-            .collect();
-        crate::archive_gc::reclaim::finish(storage, catalog, pending).await?;
+        let archives = self.fence.archives.clone();
+        crate::archive_gc::reclaim::finish_stale(
+            &state.inner.storage,
+            catalog,
+            crate::archive_gc::reclaim::RECLAIM_LEASE,
+            move |archive| archives.contains(archive),
+        )
+        .await?;
         Ok(())
     }
 

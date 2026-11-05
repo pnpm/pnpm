@@ -7,14 +7,23 @@ use crate::Result;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     Storage,
-    metadata::{ArchiveRef, ReclaimTarget},
+    metadata::{ArchiveRef, ReclaimTarget, new_reclaim_owner},
 };
+use std::time::Duration;
+
+/// How long a reclaim may hold its marks before another reclaim takes them
+/// over as left behind by one that stopped. A reclaim checks that its marks
+/// are still its own right before it removes them, so only one that stalls
+/// this long between that check and a removal could remove an archive
+/// another reclaim already finished.
+pub(crate) const RECLAIM_LEASE: Duration = Duration::from_hours(1);
 
 /// Mark the archives of each target whose package is still as it was read,
 /// remove them from the hosted store, and record them gone. Returns the
-/// archives removed. One whose removal failed stays marked, so no commit
-/// depends on it until a later reclaim finishes it, and the error is
-/// returned once the rest are recorded.
+/// archives removed. An archive another reclaim holds is left to it. One
+/// whose removal failed stays marked, so no commit depends on it until a
+/// later reclaim takes it over, and the error is returned once the rest are
+/// recorded.
 pub(crate) async fn reclaim(
     storage: &Storage,
     catalog: &str,
@@ -27,16 +36,38 @@ pub(crate) async fn reclaim(
     if targets.is_empty() {
         return Ok(Vec::new());
     }
-    let marked = storage.sql_metadata().mark_reclaims(catalog, targets).await?;
-    finish(storage, catalog, marked).await
+    let owner = new_reclaim_owner();
+    let marked = storage.sql_metadata().mark_reclaims(catalog, &owner, targets).await?;
+    remove_owned(storage, catalog, &owner, marked).await
 }
 
-/// Remove the marked `archives` and record the ones removed as gone.
-pub(crate) async fn finish(
+/// Take over the marks of `catalog` that `filter` keeps and that a reclaim
+/// left behind longer than `lease` ago, and finish them.
+pub(crate) async fn finish_stale(
     storage: &Storage,
     catalog: &str,
+    lease: Duration,
+    filter: impl Fn(&ArchiveRef) -> bool + Send + 'static,
+) -> Result<Vec<ArchiveRef>> {
+    let owner = new_reclaim_owner();
+    let database = storage.sql_metadata();
+    let claimed = database.claim_stale_reclaims(catalog, &owner, lease, filter).await?;
+    remove_owned(storage, catalog, &owner, claimed).await
+}
+
+/// Remove the `archives` `owner` marked, those still its own, and record
+/// the ones removed as gone.
+async fn remove_owned(
+    storage: &Storage,
+    catalog: &str,
+    owner: &str,
     archives: Vec<ArchiveRef>,
 ) -> Result<Vec<ArchiveRef>> {
+    if archives.is_empty() {
+        return Ok(archives);
+    }
+    let database = storage.sql_metadata();
+    let archives = database.owned_reclaims(catalog, owner, archives).await?;
     let mut removed = Vec::with_capacity(archives.len());
     let mut failure = None;
     for archive in archives {
@@ -55,7 +86,7 @@ pub(crate) async fn finish(
             }
         }
     }
-    storage.sql_metadata().finish_reclaims(catalog, removed.clone()).await?;
+    database.finish_reclaims(catalog, owner, removed.clone()).await?;
     failure.map_or(Ok(removed), Err)
 }
 

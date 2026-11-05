@@ -37,16 +37,6 @@ impl WorkEnv {
         }
     }
 }
-/// The metadata database a revision's mock reads, in its bench dir. The
-/// fixture build's database carries this checkout's metadata schema, which
-/// the `pnpr` of another revision may refuse, so every revision's mock gets a
-/// database of its own and serves what it proxies from the shared cache.
-const REVISION_MOCK_METADATA: &str = "revision-mock-metadata.sqlite";
-
-/// The metadata database of a cold mock's warm origin, apart from the warm
-/// mock's so the two processes never share one `SQLite` file.
-const COLD_ORIGIN_METADATA: &str = "cold-origin-metadata.sqlite";
-
 impl WorkEnv {
     /// Spawn the tarball-serving mock for every planned revision (see
     /// [`Self::plan_revision_mocks`]), each running that revision's `pnpr`
@@ -122,12 +112,13 @@ impl WorkEnv {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            let metadata = bench_dir.join(REVISION_MOCK_METADATA);
+            let metadata =
+                self.revision_mock_metadata(bench_dir, super::mock_metadata::REVISION_MOCK);
             let command = pnpm_registry_mock::pnpr_command_with_metadata(
                 binary,
                 mock_port,
                 Some(public_url),
-                Some(&metadata),
+                metadata.as_deref(),
             );
             (command, None)
         }
@@ -161,7 +152,7 @@ impl WorkEnv {
             binary,
             origin_port,
             public_origin.as_deref(),
-            Some(&bench_dir.join(COLD_ORIGIN_METADATA)),
+            self.revision_mock_metadata(bench_dir, super::mock_metadata::COLD_ORIGIN).as_deref(),
         );
         self.apply_serve_timing(&mut command);
         let process = command

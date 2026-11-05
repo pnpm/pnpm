@@ -284,19 +284,31 @@ CREATE TABLE IF NOT EXISTS note_history (
 
 -- Archives being removed, or removed, while no package references them. A
 -- row with no `done_generation` is pending: its archive may be on its way
--- out, so no commit may depend on it. Once the archive is gone the row
--- records the catalog generation that saw it go, and a commit staged before
--- that generation is refused, since what it promoted may be what went.
--- `done_at` is in seconds since the Unix epoch, so old rows can be dropped.
+-- out, so no commit may depend on it, and only the reclaim named `owner`,
+-- which marked it at `marked_at`, removes it. Once the archive is gone the
+-- row records the catalog generation that saw it go, and a commit staged
+-- before that generation is refused, since what it promoted may be what
+-- went. Times are in seconds since the Unix epoch.
 CREATE TABLE IF NOT EXISTS archive_reclaims (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     artifact TEXT NOT NULL,
+    owner TEXT,
+    marked_at INTEGER,
     done_generation INTEGER,
     done_at INTEGER,
     PRIMARY KEY (catalog, ecosystem, name, artifact)
 ) STRICT, WITHOUT ROWID;
+
+-- The newest `done_generation` of the finished reclaims of each catalog
+-- whose rows were dropped. A commit that read an older generation is
+-- refused, since a reclaim it can no longer see may have removed what it
+-- promoted.
+CREATE TABLE IF NOT EXISTS reclaim_horizons (
+    catalog TEXT NOT NULL PRIMARY KEY,
+    generation INTEGER NOT NULL
+) STRICT;
 ";
 
 /// What a database holds where pnpr expects its metadata.

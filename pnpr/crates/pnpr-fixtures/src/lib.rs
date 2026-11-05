@@ -232,6 +232,7 @@ fn fixture_fingerprint(root: &Path) -> String {
     // schema, must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
     hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_VERSION.as_bytes());
+    hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_TABLES.as_bytes());
     hasher.update([0]);
     hasher.update(
         local_blob_path(Path::new(""), "", Ecosystem::Npm, "@scope/name", "name-1.0.0.tgz")

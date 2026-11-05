@@ -128,7 +128,9 @@ impl PackageMetadata {
         let (view, catalog_generation) = self.database.read(
             self.catalog.clone(),
             Freshness::Current,
-            move |connection, cache| render::read_view_with_catalog(connection, cache, &key, true),
+            move |connection, cache| {
+                render::read_view_with(connection, cache, &key, render::CatalogRead::Include)
+            },
         )
         .await?;
         let stored = view.map(|view| HostedDocumentForUpdate {

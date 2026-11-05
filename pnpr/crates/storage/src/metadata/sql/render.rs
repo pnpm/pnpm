@@ -29,16 +29,25 @@ pub(super) fn read_view(
     cache: &RenderCache,
     key: &PackageKey,
 ) -> Result<Option<PackageView>> {
-    Ok(read_view_with_catalog(snapshot, cache, key, false)?.0)
+    Ok(read_view_with(snapshot, cache, key, CatalogRead::Skip)?.0)
 }
 
-/// [`read_view`], and with `catalog` the catalog's generation, read in the
-/// same round trip; `0` without it.
-pub(super) fn read_view_with_catalog(
+/// Whether a view read also reads its catalog's generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CatalogRead {
+    Skip,
+    /// In the same round trip as the view: what a publish fences the
+    /// archives it promotes next with.
+    Include,
+}
+
+/// [`read_view`], and the catalog's generation when `catalog` includes it;
+/// `0` when it skips it.
+pub(super) fn read_view_with(
     snapshot: &dyn Connection,
     cache: &RenderCache,
     key: &PackageKey,
-    catalog: bool,
+    catalog: CatalogRead,
 ) -> Result<(Option<PackageView>, u64)> {
     let view_key = ViewKey { package: key.clone(), representation: Representation::Full };
     // The rows a view is rendered from are read with the package's own row,
@@ -47,7 +56,7 @@ pub(super) fn read_view_with_catalog(
     let cached = cache.view_generation(&view_key);
     let unless = cached.map_or(NO_GENERATION, to_column);
     let mut reads = Vec::new();
-    if catalog {
+    if catalog == CatalogRead::Include {
         reads.push(query!("SELECT generation FROM catalogs WHERE catalog = ?1", &key.catalog));
     }
     reads.push(package_row_query(key));
@@ -56,8 +65,11 @@ pub(super) fn read_view_with_catalog(
         reads.extend([tags_query(key, &unless), version_entries_query(key, &unless)]);
     }
     let mut results = snapshot.query_all(&reads)?.into_iter();
-    let catalog_generation =
-        if catalog { generation_from(results.next().unwrap_or_default())? } else { 0 };
+    let catalog_generation = if catalog == CatalogRead::Include {
+        generation_from(results.next().unwrap_or_default())?
+    } else {
+        0
+    };
     let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
         return Ok((None, catalog_generation));
     };

@@ -21,8 +21,13 @@ async fn collect_in(
     min_age: Duration,
     dry_run: bool,
 ) -> Result<(usize, u64), RegistryError> {
-    let collection =
-        Collection { storage, catalog, ecosystem: Ecosystem::Oci, manifest_limit: MANIFEST_LIMIT };
+    let collection = Collection {
+        storage,
+        catalog,
+        ecosystem: Ecosystem::Oci,
+        manifest_limit: MANIFEST_LIMIT,
+        stale_after: Duration::ZERO,
+    };
     if !dry_run {
         collection.finish_pending().await?;
     }
@@ -336,9 +341,10 @@ async fn collection_finishes_an_interrupted_reclaim() {
         artifacts: vec![digest.blob_filename()],
     };
     let database = storage.sql_metadata();
+    let owner = pnpr_storage::metadata::new_reclaim_owner();
     assert_eq!(
         database
-            .mark_reclaims("", vec![target])
+            .mark_reclaims("", &owner, vec![target])
             .await
             .unwrap()
             .len(),

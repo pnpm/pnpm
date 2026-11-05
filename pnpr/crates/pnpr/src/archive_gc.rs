@@ -64,7 +64,13 @@ pub async fn collect_archives(config: &Config, options: &GcOptions) -> Result<Gc
     let mut report = GcReport::default();
     for (org, ecosystem) in registries {
         let view = storage.for_hosted(&org, ecosystem);
-        let collection = Collection { storage: &view, catalog: &org, ecosystem, manifest_limit };
+        let collection = Collection {
+            storage: &view,
+            catalog: &org,
+            ecosystem,
+            manifest_limit,
+            stale_after: reclaim::RECLAIM_LEASE,
+        };
         report.add(collection.run(options).await?);
     }
     Ok(report)
@@ -105,6 +111,9 @@ pub(crate) struct Collection<'storage> {
     pub(crate) catalog: &'storage str,
     pub(crate) ecosystem: Ecosystem,
     pub(crate) manifest_limit: usize,
+    /// How old a mark must be before the collection takes it over as left
+    /// behind by a reclaim that stopped.
+    pub(crate) stale_after: Duration,
 }
 
 impl Collection<'_> {
@@ -124,16 +133,15 @@ impl Collection<'_> {
     }
 
     /// Finish the reclaims of this namespace that stopped after marking
-    /// their archives, which no commit can depend on until they finish.
+    /// their archives longer than `stale_after` ago, which no commit can
+    /// depend on until they finish.
     pub(crate) async fn finish_pending(&self) -> Result<()> {
-        let pending: Vec<_> = self.storage
-            .sql_metadata()
-            .pending_reclaims(self.catalog)
-            .await?
-            .into_iter()
-            .filter(|archive| archive.ecosystem == self.ecosystem)
-            .collect();
-        for archive in reclaim::finish(self.storage, self.catalog, pending).await? {
+        let ecosystem = self.ecosystem;
+        let finished =
+            reclaim::finish_stale(self.storage, self.catalog, self.stale_after, move |archive| {
+                archive.ecosystem == ecosystem
+            });
+        for archive in finished.await? {
             tracing::info!(
                 package = %archive.name,
                 artifact = %archive.artifact,
