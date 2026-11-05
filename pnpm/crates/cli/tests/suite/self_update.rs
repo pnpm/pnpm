@@ -288,6 +288,22 @@ fn self_update_keeps_a_wildcard_engines_pnpm_range() {
 }
 
 #[test]
+fn self_update_keeps_a_partial_engines_pnpm_range_that_accepts_the_new_version() {
+    let mut project = PinnedProject::with_manifest(
+        r#"{"packageManager":"pnpm@0.1.0","engines":{"pnpm":"1.0"}}"#,
+        OLDER_PNPM,
+    );
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(
+        project.manifest_text(),
+        format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}","engines":{{"pnpm":"1.0"}}}}"#),
+    );
+}
+
+#[test]
 fn self_update_keeps_engines_without_a_pnpm_range() {
     let mut project = PinnedProject::with_manifest(
         r#"{"packageManager":"pnpm@0.1.0","engines":{"node":">=18"}}"#,

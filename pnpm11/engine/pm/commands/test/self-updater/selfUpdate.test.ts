@@ -1222,6 +1222,31 @@ test('should keep a * engines.pnpm range', async () => {
   expect(pkgJson.engines.pnpm).toBe('*')
 })
 
+test('should keep a partial engines.pnpm range that accepts the new version', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+    engines: { pnpm: '8' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '8.5.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('8')
+})
+
 test('should update engines.pnpm range when the packageManager field is already current', async () => {
   const opts = prepare()
   const pkgJsonPath = path.join(opts.dir, 'package.json')

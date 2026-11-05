@@ -4,12 +4,15 @@ import semver from 'semver'
 
 /**
  * Rewrites `engines.pnpm` with the same rule as the devEngines pin
- * (see updateVersionConstraint), keeping a `*` range as is.
+ * (see updateVersionConstraint), keeping a range such as `*` or `12.2`
+ * that accepts the target as is.
  * Returns whether the manifest changed.
  */
 export function pinPnpmInEngines (manifest: ProjectManifest, targetVersion: string): boolean {
   const engines = manifest.engines
-  if (engines?.pnpm == null || engines.pnpm === '*') return false
+  if (engines?.pnpm == null) return false
+  const namesFullVersion = semver.valid(engines.pnpm.replace(/^[\^~=]+/, '')) != null
+  if (!namesFullVersion && semver.satisfies(targetVersion, engines.pnpm, { includePrerelease: true })) return false
   const updated = updateVersionConstraint(engines.pnpm, targetVersion)
   if (updated === engines.pnpm) return false
   engines.pnpm = updated

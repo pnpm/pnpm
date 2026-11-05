@@ -257,18 +257,20 @@ fn write_dev_engines_pin(
 
 /// Rewrite the manifest's `engines.pnpm` range the way
 /// [`update_version_constraint`] rewrites the `devEngines` pin, keeping a
-/// `*` range as is, and report whether that changed the manifest.
+/// range such as `*` or `12.2` that accepts the target as is, and report
+/// whether that changed the manifest.
 fn write_engines_pnpm(manifest: &mut Value, target_version: &str) -> bool {
     let Some(engines) = manifest.get_mut("engines") else {
         return false;
     };
-    let Some(current) = engines
-        .get("pnpm")
-        .and_then(Value::as_str)
-        .filter(|range| *range != "*")
-    else {
+    let Some(current) = engines.get("pnpm").and_then(Value::as_str) else {
         return false;
     };
+    let names_full_version =
+        node_semver::Version::parse(current.trim_start_matches(['^', '~', '='])).is_ok();
+    if !names_full_version && version_satisfies(target_version, current) {
+        return false;
+    }
     let updated = update_version_constraint(Some(current), target_version);
     insert_string_if_changed(engines, "pnpm", &updated)
 }
