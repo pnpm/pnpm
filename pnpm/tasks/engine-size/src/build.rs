@@ -7,6 +7,16 @@ use std::{
 const PROBE_PACKAGE: &str = "pnpm-engine-size-probe";
 const PROBE_BIN: &str = "engine-size-probe";
 
+/// Where [`build_probe`] builds the probe and puts its copies.
+pub struct BuildSite<'a> {
+    /// Absolute, so cargo and this tool resolve it the same way.
+    pub target_dir: &'a Path,
+    /// The target triple, passed to cargo explicitly so a configured
+    /// `build.target` cannot move the output directory.
+    pub target: &'a str,
+    pub out_dir: &'a Path,
+}
+
 /// The probe as built, and a copy with its symbols stripped.
 pub struct ProbeBinaries {
     pub unstripped: PathBuf,
@@ -17,13 +27,18 @@ pub struct ProbeBinaries {
 ///
 /// The build keeps the symbols, which the attribution reads. The stripped
 /// size is measured on a copy run through `strip_program`.
-pub fn build_probe(args: &CliArgs, lto: Lto, out_dir: &Path) -> Result<ProbeBinaries, String> {
-    let target_dir = args.target_dir();
+pub fn build_probe(
+    args: &CliArgs,
+    lto: Lto,
+    site: &BuildSite<'_>,
+) -> Result<ProbeBinaries, String> {
+    let BuildSite { target_dir, target, out_dir } = *site;
     eprintln!("info: building {PROBE_BIN} with lto = {}", lto.as_str());
     let status = cargo()
         .current_dir(workspace_root())
-        .args(["build", "--locked", "--release", "--package", PROBE_PACKAGE, "--target-dir"])
-        .arg(&target_dir)
+        .args(["build", "--locked", "--release", "--package", PROBE_PACKAGE, "--target", target])
+        .arg("--target-dir")
+        .arg(target_dir)
         .env("CARGO_PROFILE_RELEASE_LTO", lto.as_str())
         .env("CARGO_PROFILE_RELEASE_STRIP", "false")
         .env("CARGO_PROFILE_RELEASE_DEBUG", "false")
@@ -33,6 +48,7 @@ pub fn build_probe(args: &CliArgs, lto: Lto, out_dir: &Path) -> Result<ProbeBina
         return Err(format!("cargo build failed: {status}"));
     }
     let built = target_dir
+        .join(target)
         .join("release")
         .join(executable_name(PROBE_BIN));
     let unstripped = out_dir.join(executable_name(&format!("{PROBE_BIN}-{}", lto.as_str())));

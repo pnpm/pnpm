@@ -21,8 +21,8 @@ pub struct CliArgs {
     pub fixture: Option<PathBuf>,
 
     /// Number of installs timed per scenario.
-    #[clap(long, default_value_t = 3)]
-    pub runs: usize,
+    #[clap(long, default_value_t = 3, value_parser = clap::value_parser!(u16).range(1..))]
+    pub runs: u16,
 
     /// Number of crates and functions listed in the attribution tables.
     #[clap(long, default_value_t = 20)]
@@ -43,10 +43,14 @@ pub struct CliArgs {
 }
 
 impl CliArgs {
-    pub fn target_dir(&self) -> PathBuf {
-        self.target_dir
+    /// The target directory as an absolute path, so cargo, which runs in
+    /// the workspace root, and this tool resolve it to the same place.
+    pub fn target_dir(&self) -> Result<PathBuf, String> {
+        let target_dir = self.target_dir
             .clone()
-            .unwrap_or_else(|| workspace_root().join("target").join("engine-size"))
+            .unwrap_or_else(|| workspace_root().join("target").join("engine-size"));
+        std::path::absolute(&target_dir)
+            .map_err(|error| format!("resolve {}: {error}", target_dir.display()))
     }
 
     pub fn fixture(&self) -> PathBuf {

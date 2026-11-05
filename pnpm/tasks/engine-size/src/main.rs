@@ -31,13 +31,16 @@ fn main() -> ExitCode {
 }
 
 fn run(args: &CliArgs) -> Result<(), String> {
-    let out_dir = args.target_dir().join("engine-size-report");
+    let target_dir = args.target_dir()?;
+    let target = build::host_target()?;
+    let out_dir = target_dir.join("engine-size-report");
     fs::create_dir_all(&out_dir).map_err(|error| format!("create {}: {error}", out_dir.display()))?;
+    let site = build::BuildSite { target_dir: &target_dir, target: &target, out_dir: &out_dir };
     let measurements = args.lto
         .iter()
-        .map(|&lto| measure(args, lto, &out_dir))
+        .map(|&lto| measure(args, lto, &site))
         .collect::<Result<Vec<_>, _>>()?;
-    let report = Report { target: build::host_target()?, measurements };
+    let report = Report { target, measurements };
     if let Some(path) = &args.json {
         let json = serde_json::to_string_pretty(&report).map_err(|error| error.to_string())?;
         fs::write(path, json).map_err(|error| format!("write {}: {error}", path.display()))?;
@@ -49,9 +52,9 @@ fn run(args: &CliArgs) -> Result<(), String> {
 fn measure(
     args: &CliArgs,
     lto: cli_args::Lto,
-    out_dir: &std::path::Path,
+    site: &build::BuildSite<'_>,
 ) -> Result<Measurement, String> {
-    let binaries = build::build_probe(args, lto, out_dir)?;
+    let binaries = build::build_probe(args, lto, site)?;
     let unstripped = read(&binaries.unstripped)?;
     let stripped = read(&binaries.stripped)?;
     let install = match &args.registry {
