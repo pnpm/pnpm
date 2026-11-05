@@ -247,6 +247,7 @@ pnpm-engine-pm-yarn-resolver = 6
 pnpm-engine-runtime-bun-resolver = 8
 pnpm-engine-runtime-deno-resolver = 7
 pnpm-engine-runtime-node-resolver = 7
+pnpm-engine-size-probe = 7
 pnpm-env-installer = 16
 pnpm-executor = 5
 pnpm-exportable-manifest = 5
