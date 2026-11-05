@@ -22,12 +22,12 @@ pub enum Stop {
 }
 
 impl Stop {
-    /// Whether `<` and `>` count as brackets. They must where a `,` or `(`
-    /// inside generics would end the scan early. Elsewhere they are left
-    /// out, so a comparison or shift in a value, as in `1 << 3`, cannot
-    /// hide the item's end.
+    /// Whether `<` and `>` count as brackets. They do while reading a type,
+    /// so a `{`, `=`, or `,` inside generics, as in `Wrapper<{ N }>` or
+    /// `Iterator<Item = T>`, does not end the scan. A whole item's scan reads
+    /// its value too, where `1 << 3` is a shift, so it leaves them out.
     const fn tracks_angles(self) -> bool {
-        matches!(self, Self::Body | Self::FieldEnd | Self::Extent)
+        !matches!(self, Self::ItemEnd)
     }
 
     const fn ends_at(self, punct: char) -> bool {
