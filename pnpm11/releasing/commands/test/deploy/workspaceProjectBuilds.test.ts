@@ -146,3 +146,11 @@ test('approveLegacyWorkspaceProjectBuilds approves a workspace project relative 
   expect(approveLegacyWorkspaceProjectBuilds({ denied: false }, { allProjects: projects, lockfileDir: workspaceDir }))
     .toStrictEqual({ denied: false, 'lib@file:lib': true })
 })
+
+test('approveLegacyWorkspaceProjectBuilds keeps a denial of either root path of a project', () => {
+  const realDir = path.join(workspaceDir, 'real/lib')
+  const projects = [{ ...allProjects[0], rootDirRealPath: realDir as ProjectRootDirRealPath }]
+
+  expect(approveLegacyWorkspaceProjectBuilds({ 'lib@file:real/lib': false }, { allProjects: projects, lockfileDir: workspaceDir }))
+    .toStrictEqual({ 'lib@file:real/lib': false })
+})

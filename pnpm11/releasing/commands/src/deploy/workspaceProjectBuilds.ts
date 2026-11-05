@@ -72,8 +72,11 @@ export function approveLegacyWorkspaceProjectBuilds (
     lockfileDir: string
   }
 ): AllowBuilds | undefined {
-  const keys = opts.allProjects.flatMap(project => sourceProjectKeys(project, opts.lockfileDir))
-  return approve(allowBuilds, Array.from(new Set(keys), key => ({ key, sourceKeys: [] })))
+  const keys = opts.allProjects.flatMap(project => {
+    const sourceKeys = sourceProjectKeys(project, opts.lockfileDir)
+    return sourceKeys.map(key => ({ key, sourceKeys }))
+  })
+  return approve(allowBuilds, keys)
 }
 
 /** A key to approve, and the source workspace keys of the same project, a denial of which also applies to it. */
