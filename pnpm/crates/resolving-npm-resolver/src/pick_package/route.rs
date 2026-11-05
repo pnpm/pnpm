@@ -149,10 +149,11 @@ impl CacheHitCheck {
         {
             return CacheHitCheck::Serve;
         }
-        if written_at
-            .zip(inputs.written_after())
-            .is_some_and(|(mtime, cutoff)| mtime >= cutoff)
-        {
+        if written_at.is_some_and(|mtime| {
+            inputs
+                .written_after()
+                .is_some_and(|cutoff| mtime >= cutoff)
+        }) {
             return CacheHitCheck::Serve;
         }
         if inputs.range_pick_is_stable() {
