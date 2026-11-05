@@ -10,8 +10,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// The files of a fixture copied into each install's project directory.
-const FIXTURE_FILES: [&str; 3] = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"];
+/// Directories of a fixture that hold install output, not install input.
+const SKIPPED_DIRS: [&str; 4] = ["node_modules", "store-dir", "cache-dir", ".git"];
 
 #[derive(Debug, Serialize)]
 pub struct InstallTimings {
@@ -29,7 +29,8 @@ pub fn measure(probe: &Path, registry: &str, args: &CliArgs) -> Result<InstallTi
     for _ in 0..args.runs {
         let project = tempfile::tempdir().map_err(|error| format!("create a temp dir: {error}"))?;
         prepare_project(&fixture, project.path())?;
-        let env = benchmark_env(project.path(), registry);
+        let inherited = std::env::vars_os().map(|(name, _)| name);
+        let env = benchmark_env(project.path(), registry, inherited);
         cold.push(install(probe, project.path(), &env)?);
         remove_dir(&project.path().join("node_modules"))?;
         warm.push(install(probe, project.path(), &env)?);
@@ -37,40 +38,77 @@ pub fn measure(probe: &Path, registry: &str, args: &CliArgs) -> Result<InstallTi
     Ok(InstallTimings { cold_store_ms: median(cold), warm_store_ms: median(warm) })
 }
 
-/// Copy the fixture's files into `project` unchanged.
+/// Copy the fixture into `project` unchanged, with its local inputs
+/// such as `file:` dependencies and patches, leaving out [`SKIPPED_DIRS`].
 fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
-    for file in FIXTURE_FILES {
-        let from = fixture.join(file);
-        if from.exists() {
-            fs::copy(&from, project.join(file))
-                .map_err(|error| format!("copy {}: {error}", from.display()))?;
-        }
+    let entries = walkdir::WalkDir::new(fixture)
+        .into_iter()
+        .filter_entry(|entry| {
+            !SKIPPED_DIRS
+                .iter()
+                .any(|dir| entry.file_name() == *dir)
+        });
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("read {}: {error}", fixture.display()))?;
+        let relative = entry
+            .path()
+            .strip_prefix(fixture)
+            .unwrap_or_else(|_| entry.path());
+        let to = project.join(relative);
+        let copied = if entry.file_type().is_dir() {
+            fs::create_dir_all(&to)
+        } else {
+            fs::copy(entry.path(), &to).map(drop)
+        };
+        copied.map_err(|error| format!("copy {}: {error}", entry.path().display()))?;
     }
     Ok(())
 }
 
 /// One environment change for the probe: set `name` to the value, or
 /// remove it when the value is `None`.
-pub type EnvChange = (String, Option<OsString>);
+pub type EnvChange = (OsString, Option<OsString>);
 
-/// The settings the benchmark owns, passed as `PNPM_CONFIG_*` variables,
-/// which take precedence over the fixture's files. The lowercase spelling
-/// of each is removed first, so an inherited one cannot compete. Every
-/// other variable, credentials included, is inherited unchanged.
-pub fn benchmark_env(project: &Path, registry: &str) -> Vec<EnvChange> {
+/// The probe's environment changes. Every inherited pnpm or npm setting
+/// is removed, so none can redirect the install out of `project`, except
+/// the credentials a private registry needs. The settings the benchmark
+/// owns are then set as `PNPM_CONFIG_*` variables, which take precedence
+/// over the fixture's files.
+pub fn benchmark_env(
+    project: &Path,
+    registry: &str,
+    inherited: impl IntoIterator<Item = OsString>,
+) -> Vec<EnvChange> {
     let settings: [(&str, OsString); 4] = [
-        ("REGISTRY", registry.into()),
-        ("STORE_DIR", project.join("store-dir").into_os_string()),
-        ("CACHE_DIR", project.join("cache-dir").into_os_string()),
-        ("IGNORE_SCRIPTS", "true".into()),
+        ("PNPM_CONFIG_REGISTRY", registry.into()),
+        ("PNPM_CONFIG_STORE_DIR", project.join("store-dir").into_os_string()),
+        ("PNPM_CONFIG_CACHE_DIR", project.join("cache-dir").into_os_string()),
+        ("PNPM_CONFIG_IGNORE_SCRIPTS", "true".into()),
     ];
-    let removals = settings
-        .iter()
-        .map(|(suffix, _)| (format!("pnpm_config_{}", suffix.to_lowercase()), None));
+    let removals = inherited
+        .into_iter()
+        .filter(|name| config_setting(name).is_some_and(|setting| !is_credential(&setting)))
+        .map(|name| (name, None));
     let assignments = settings
-        .iter()
-        .map(|(suffix, value)| (format!("PNPM_CONFIG_{suffix}"), Some(value.clone())));
+        .into_iter()
+        .map(|(name, value)| (OsString::from(name), Some(value)));
     removals.chain(assignments).collect()
+}
+
+/// The lowercased setting a `PNPM_CONFIG_*` or `NPM_CONFIG_*` variable
+/// sets, in either case.
+fn config_setting(name: &std::ffi::OsStr) -> Option<String> {
+    let name = name.to_str()?.to_ascii_lowercase();
+    ["pnpm_config_", "npm_config_"]
+        .iter()
+        .find_map(|prefix| name.strip_prefix(prefix))
+        .map(str::to_string)
+}
+
+/// URL-scoped settings (`//host/:_authToken`), top-level auth such as
+/// `_auth`, and the user config file that holds them.
+fn is_credential(setting: &str) -> bool {
+    setting.starts_with("//") || setting.starts_with('_') || setting == "userconfig"
 }
 
 fn install(probe: &Path, project: &Path, env: &[EnvChange]) -> Result<Duration, String> {

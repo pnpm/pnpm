@@ -33,7 +33,9 @@ is the host. It then reports:
 - **Install timings**, with `--registry`: the median wall-clock time of a
   frozen-lockfile install of the fixture into an empty store, and again with
   the store populated and `node_modules` removed. The fixture defaults to the
-  [integrated benchmark's](../integrated-benchmark/src/fixtures). The
+  [integrated benchmark's](../integrated-benchmark/src/fixtures). Each
+  install runs in a copy of the fixture directory. Inherited `PNPM_CONFIG_*`
+  and `NPM_CONFIG_*` settings are removed, except registry credentials. The
   registry, store, cache, and `ignoreScripts: true` are passed as
   `PNPM_CONFIG_*` variables, which override the fixture's own settings. A
   public registry makes the cold-store timing noisy.
