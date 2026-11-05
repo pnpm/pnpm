@@ -17843,8 +17843,8 @@ packages:
     resolution: {integrity: sha512-eNRKgb3z66Yp3D2CixVujOUvXLFUTij/zVnV8KRyvFdQwpz7I5DS8UfRkTeLzb64u+dkzDSdelE24izu+zSSUg==}
     engines: {node: ^14.18.0 || >=16.0.0}
 
-  table@6.9.0:
-    resolution: {integrity: sha512-9kY+CygyYM6j02t5YFHbNz2FN5QmYGv9zAjVp4lCDjlCw7amdckXlEt/bjMhUIfj4ThGRE4gCUH5+yGnNuPo5A==}
+  table@6.9.1:
+    resolution: {integrity: sha512-aFh6MRLCU6WKdrJS+v++PeuglXT6VQ9qPDFgMBBJk5PJBaFHM10kb6Gqv8ecKD6iMXi4cheXh3KMWtWO0IJWIg==}
     engines: {node: '>=10.0.0'}
 
   tagged-tag@1.0.0:
@@ -21194,7 +21194,7 @@ snapshots:
 
   '@types/table@6.3.2':
     dependencies:
-      table: 6.9.0
+      table: 6.9.1
 
   '@types/tar-stream@3.1.5':
     dependencies:
@@ -25292,7 +25292,7 @@ snapshots:
 
   render-help@2.0.0:
     dependencies:
-      table: 6.9.0
+      table: 6.9.1
 
   require-directory@2.1.1: {}
 
@@ -25771,7 +25771,7 @@ snapshots:
     dependencies:
       '@pkgr/core': 0.3.6
 
-  table@6.9.0:
+  table@6.9.1:
     dependencies:
       ajv: 8.20.0
       lodash.truncate: 4.4.2
