@@ -196,14 +196,24 @@ fn prunes_managed_paths_before_opening_without_excluding_matching_project_names(
 
 #[cfg(windows)]
 #[test]
-fn ignores_a_path_reached_through_another_drive_mapping_to_the_same_share() {
+fn ignores_mapped_aliases_without_ignoring_paths_outside_the_root() {
     let ignored = ignored_paths_under_with(
         Path::new(r"H:\repo"),
         Path::new(r"\\?\UNC\server\share\repo"),
-        &[PathBuf::from(r"J:\repo\cache")],
+        &[
+            PathBuf::from(r"J:\repo\cache"),
+            PathBuf::from(r"J:\repo-other\cache"),
+            PathBuf::from(r"K:\repo\cache"),
+        ],
         |path| match path {
             path if path == Path::new(r"J:\repo\cache") => {
                 Ok(PathBuf::from(r"\\?\UNC\server\share\repo\cache"))
+            }
+            path if path == Path::new(r"J:\repo-other\cache") => {
+                Ok(PathBuf::from(r"\\?\UNC\server\share\repo-other\cache"))
+            }
+            path if path == Path::new(r"K:\repo\cache") => {
+                Ok(PathBuf::from(r"\\?\UNC\other-server\share\repo\cache"))
             }
             path => Err(std::io::Error::other(format!("unexpected path {}", path.display()))),
         },
