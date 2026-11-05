@@ -54,15 +54,17 @@ fn ambient_pnpm_config_vars() -> impl Iterator<Item = OsString> {
 
 /// Whether `name` steers the pnpm under test: either spelling of the
 /// `pnpm_config_` / `npm_config_` prefixes, the context-aware shim kill
-/// switch, or the lifecycle event a parent `pnpm run` sets. `PNPM_HOME`
-/// is deliberately not one of them — the suites spawn the ambient pnpm
-/// for their compatibility checks.
+/// switch and preparation marker, or the lifecycle event a parent
+/// `pnpm run` sets. `PNPM_HOME` is deliberately not one of them — the
+/// suites spawn the ambient pnpm for their compatibility checks.
 fn is_pnpm_config_var(name: &str) -> bool {
     const PREFIXES: [&str; 2] = ["pnpm_config_", "npm_config_"];
     const SHIM_BYPASS: &str = "PNPM_SHIM_BYPASS";
+    const SHIM_PREPARING: &str = "PNPM_SHIM_PREPARING";
     const LIFECYCLE_EVENT: &str = "npm_lifecycle_event";
 
     name.eq_ignore_ascii_case(SHIM_BYPASS)
+        || name.eq_ignore_ascii_case(SHIM_PREPARING)
         || name.eq_ignore_ascii_case(LIFECYCLE_EVENT)
         || PREFIXES
             .iter()

@@ -4,6 +4,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pipe_trait::Pipe;
 use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -172,6 +173,71 @@ fn bypass_env_skips_the_project_bin() {
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert_eq!(stdout.trim(), "global");
+}
+
+/// A shim launched while another dispatch prepares its program, such as the
+/// `node --version` probe of a runtime install, runs the global target and
+/// passes the marker on. The dispatch that set the marker keeps it from the
+/// program it runs.
+#[cfg(unix)]
+#[test]
+fn a_shim_inside_a_dispatch_preparation_runs_the_global_target() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    write_script(&global_target, "global-[$PNPM_SHIM_PREPARING]");
+    write_script(&project.join("node_modules/tool/cli.sh"), "local-[$PNPM_SHIM_PREPARING]");
+    let command = || {
+        shim_command(&root, &project, "tool", global_target.to_str().unwrap())
+            .with_env(AUTO_TRUST_ENV, "1")
+            .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+    };
+    let stdout =
+        |output: &std::process::Output| String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    let outside = command().assert().success();
+    assert_eq!(stdout(outside.get_output()), "local-[]");
+
+    let inside = command()
+        .with_env("PNPM_SHIM_PREPARING", "1")
+        .assert()
+        .success();
+    assert_eq!(stdout(inside.get_output()), "global-[1]");
+}
+
+/// A runtime install probes `node --version` through `PATH` when the
+/// environment sets its lockfile directory, and `PATH` here finds the
+/// runtime's own shim first. That probe must reach the global `node` rather
+/// than dispatch the pin again, which would wait on the install that is
+/// waiting for it.
+#[cfg(unix)]
+#[test]
+fn a_runtime_install_does_not_dispatch_its_own_shim_again() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
+    let path = std::iter::once(root.path().join("global-bin"))
+        .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()))
+        .pipe(std::env::join_paths)
+        .unwrap();
+    let lockfile_dir = root.path().join("lockfile-dir");
+    fs::create_dir_all(&lockfile_dir).unwrap();
+    let global_runs = root.path().join("global-runs");
+    write_script(&global_target, &format!("global >> {}", global_runs.display()));
+
+    let output = shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+        .with_env("PATH", path)
+        .with_env("PNPM_CONFIG_LOCKFILE_DIR", &lockfile_dir)
+        .pipe(assert_cmd::Command::from_std)
+        .timeout(std::time::Duration::from_mins(1))
+        .output()
+        .unwrap();
+    dbg!(&output);
+    assert!(output.status.code().is_some(), "the dispatch must finish, not wait on itself");
+    assert!(global_runs.exists(), "the probe must run the global node");
 }
 
 #[cfg(unix)]
