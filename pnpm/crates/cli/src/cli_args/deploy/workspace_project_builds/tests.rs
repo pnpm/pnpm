@@ -54,7 +54,7 @@ impl Workspace {
         for (key, directory) in packages {
             writeln!(
                 yaml,
-                "  '{key}':\n    resolution: {{ type: directory, directory: {directory} }}"
+                "  '{key}':\n    resolution: {{ type: directory, directory: {directory} }}",
             )
             .expect("write to a String");
         }
