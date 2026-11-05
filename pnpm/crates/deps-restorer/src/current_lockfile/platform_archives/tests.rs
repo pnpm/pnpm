@@ -1,5 +1,7 @@
 use super::{PlatformArchivesInput, StoredArchive, platform_archives};
-use pnpm_lockfile::{HostFloors, Lockfile, PackageKey, PlatformSelector, SnapshotEntry};
+use pnpm_lockfile::{
+    HostFloors, Lockfile, PackageKey, PeerSatisfactionEdges, PlatformSelector, SnapshotEntry,
+};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
@@ -81,9 +83,13 @@ fn kept_on_darwin(platforms: &[PlatformSelector]) -> Vec<(PackageKey, StoredArch
         roots: &lockfile.importers,
         materialized: &materialized,
         linked: &linked,
+        skipped_peer_edges: &PeerSatisfactionEdges::default(),
         include_optional: true,
     };
     platform_archives(&input, platforms)
+        .into_iter()
+        .map(|kept| (kept.key, kept.archive))
+        .collect()
 }
 
 #[test]
@@ -113,4 +119,5 @@ fn a_platform_no_variant_serves_keeps_the_any_archive_and_no_variants_dependency
     );
 }
 
+mod edges;
 mod stored;

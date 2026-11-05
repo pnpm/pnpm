@@ -97,7 +97,7 @@ pub(super) struct OnDiskRuntime<'a> {
 pub(super) struct OnDiskProjects<'a> {
     pub(super) materialization_lockfile: &'a Lockfile,
     /// The whole wanted lockfile, with every variant's own snapshot.
-    pub(super) platform_lockfile: &'a Lockfile,
+    pub(super) platform_lockfile: pnpm_deps_restorer::PlatformLockfile<'a>,
     pub(super) importer_manifests: &'a std::collections::BTreeMap<String, &'a PackageManifest>,
     pub(super) project_anchor_importer_ids: &'a std::collections::HashSet<String>,
 }

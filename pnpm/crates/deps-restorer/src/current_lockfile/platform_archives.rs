@@ -12,10 +12,12 @@
 
 use super::variant_snapshots::variant_snapshot_key;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PlatformAssetResolution, PlatformSelector,
-    ProjectSnapshot, SnapshotEntry, VariationsResolution,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PeerSatisfactionEdges,
+    PlatformAssetResolution, PlatformSelector, ProjectSnapshot, SnapshotEntry,
+    VariationsResolution,
 };
-use std::collections::{HashMap, HashSet, VecDeque};
+use pnpm_package_is_installable::{WantedPlatformRef, inferred_platform, platform_is_supported};
+use std::collections::{HashMap, VecDeque};
 
 /// Which archive of a package the store keeps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -38,21 +40,38 @@ pub struct PlatformArchivesInput<'l> {
     pub materialized: &'l HashMap<PackageKey, SnapshotEntry>,
     /// The platform the install links variants for.
     pub linked: &'l PlatformSelector,
+    /// The edges the install's walks leave out, which this walk leaves out
+    /// too.
+    pub skipped_peer_edges: &'l PeerSatisfactionEdges,
     pub include_optional: bool,
 }
 
+/// An archive the store keeps, and whether only optional dependencies
+/// reach it, so a failure to fetch it is not an error.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeptArchive {
+    pub key: PackageKey,
+    pub archive: StoredArchive,
+    pub optional: bool,
+}
+
 /// Every archive `platforms` keep in the store that the install does not
-/// link, each once, in the order the walk reaches them.
+/// link, each once, in the order the walk reaches them. An archive any
+/// platform reaches through a required dependency is not optional.
 #[must_use]
 pub fn platform_archives(
     input: &PlatformArchivesInput<'_>,
     platforms: &[PlatformSelector],
-) -> Vec<(PackageKey, StoredArchive)> {
-    let mut kept = Vec::new();
-    let mut seen = HashSet::new();
+) -> Vec<KeptArchive> {
+    let mut kept: Vec<KeptArchive> = Vec::new();
+    let mut positions: HashMap<(PackageKey, StoredArchive), usize> = HashMap::new();
     for platform in platforms {
         for archive in PlatformWalk::new(input, platform).run() {
-            if seen.insert(archive.clone()) {
+            let id = (archive.key.clone(), archive.archive);
+            if let Some(&position) = positions.get(&id) {
+                kept[position].optional &= archive.optional;
+            } else {
+                positions.insert(id, kept.len());
                 kept.push(archive);
             }
         }
@@ -64,9 +83,11 @@ pub fn platform_archives(
 struct PlatformWalk<'w> {
     input: &'w PlatformArchivesInput<'w>,
     platform: &'w PlatformSelector,
-    visited: HashSet<PackageKey>,
-    queue: VecDeque<PackageKey>,
-    kept: Vec<(PackageKey, StoredArchive)>,
+    /// Each visited package, and whether only optional dependencies reached
+    /// it when it was visited.
+    visited: HashMap<PackageKey, bool>,
+    queue: VecDeque<(PackageKey, bool)>,
+    kept: Vec<KeptArchive>,
 }
 
 impl<'w> PlatformWalk<'w> {
@@ -75,38 +96,75 @@ impl<'w> PlatformWalk<'w> {
             .values()
             .flat_map(root_dependencies)
             .collect();
-        PlatformWalk { input, platform, visited: HashSet::new(), queue, kept: Vec::new() }
+        PlatformWalk { input, platform, visited: HashMap::new(), queue, kept: Vec::new() }
     }
 
-    fn run(mut self) -> Vec<(PackageKey, StoredArchive)> {
-        while let Some(key) = self.queue.pop_front() {
-            if self.visited.insert(key.clone()) {
-                self.visit(&key);
+    fn run(mut self) -> Vec<KeptArchive> {
+        while let Some((key, optional)) = self.queue.pop_front() {
+            // A package first reached through optional dependencies is
+            // visited again once a required one reaches it.
+            match self.visited.get(&key) {
+                Some(false) => continue,
+                Some(true) if optional => continue,
+                _ => {}
+            }
+            self.visited.insert(key.clone(), optional);
+            if self.runs_on_platform(&key, optional) {
+                self.visit(&key, optional);
             }
         }
         self.kept
     }
 
-    fn visit(&mut self, key: &PackageKey) {
+    fn visit(&mut self, key: &PackageKey, optional: bool) {
         let snapshot_keys = if let Some(variations) = self.variations(key) {
-            self.keep_variants(key, variations)
+            self.keep_variants(key, variations, optional)
         } else {
             if !self.input.materialized.contains_key(key) && self.has_own_archive(key) {
-                self.kept.push((key.clone(), StoredArchive::Own));
+                let archive = StoredArchive::Own;
+                self.kept.push(KeptArchive { key: key.clone(), archive, optional });
             }
             vec![key.clone()]
         };
         for snapshot_key in snapshot_keys {
-            self.follow(&snapshot_key);
+            self.follow(&snapshot_key, optional);
         }
     }
 
+    /// Whether the package of `key` runs on this platform, as the installer
+    /// decides it: by the `os`, `cpu`, and `libc` its metadata declares, and
+    /// for an optional dependency also by the platform its name states.
+    fn runs_on_platform(&self, key: &PackageKey, optional: bool) -> bool {
+        let Some(metadata) = self.metadata(key) else { return true };
+        let declared = WantedPlatformRef {
+            os: metadata.os.as_deref(),
+            cpu: metadata.cpu.as_deref(),
+            libc: metadata.libc.as_deref(),
+        };
+        let inferred =
+            optional.then(|| inferred_platform(key.name.bare.as_str(), declared)).flatten();
+        let wanted = match &inferred {
+            Some(inferred) => WantedPlatformRef {
+                os: inferred.os.as_deref(),
+                cpu: inferred.cpu.as_deref(),
+                libc: inferred.libc.as_deref(),
+            },
+            None => declared,
+        };
+        let libc = match (&self.platform.libc, self.platform.os.as_str()) {
+            (Some(libc), _) => libc.as_str(),
+            (None, "linux") => "glibc",
+            (None, _) => "unknown",
+        };
+        platform_is_supported(wanted, None, &self.platform.os, &self.platform.cpu, libc)
+    }
     /// Keep the variants this platform fetches, except the one the install
     /// links, and return the snapshots whose dependencies they install.
     fn keep_variants(
         &mut self,
         key: &PackageKey,
         variations: &'w VariationsResolution,
+        optional: bool,
     ) -> Vec<PackageKey> {
         let linked = self.input.materialized
             .contains_key(key)
@@ -121,7 +179,8 @@ impl<'w> PlatformWalk<'w> {
             if let Some(position) =
                 variations.variants.iter().position(|variant| std::ptr::eq(variant, archive))
             {
-                self.kept.push((key.clone(), StoredArchive::Variant(position)));
+                let archive = StoredArchive::Variant(position);
+                self.kept.push(KeptArchive { key: key.clone(), archive, optional });
             }
         }
         let mut snapshot_keys = Vec::new();
@@ -138,20 +197,21 @@ impl<'w> PlatformWalk<'w> {
         snapshot_keys
     }
 
-    fn follow(&mut self, snapshot_key: &PackageKey) {
+    fn follow(&mut self, snapshot_key: &PackageKey, optional: bool) {
         let Some(snapshot) = self.snapshot(snapshot_key) else { return };
-        let optional = self.input.include_optional
-            .then_some(snapshot.optional_dependencies.as_ref())
-            .flatten();
-        for (alias, dep_ref) in snapshot.dependencies
-            .iter()
-            .chain(optional)
-            .flatten()
-        {
+        let entries = self.input.skipped_peer_edges.followed_entries(
+            snapshot_key,
+            snapshot,
+            self.input.include_optional,
+        );
+        let optional_aliases = snapshot.optional_dependencies.as_ref();
+        for (alias, dep_ref) in entries {
             if dep_ref.as_link_target().is_none()
                 && let Some(child) = dep_ref.resolve(alias)
             {
-                self.queue.push_back(child);
+                let through_optional =
+                    optional || optional_aliases.is_some_and(|map| map.contains_key(alias));
+                self.queue.push_back((child, through_optional));
             }
         }
     }
@@ -175,15 +235,22 @@ impl<'w> PlatformWalk<'w> {
         }
     }
 
-    fn has_own_archive(&self, key: &PackageKey) -> bool {
+    fn metadata(&self, key: &PackageKey) -> Option<&'w PackageMetadata> {
         self.input.lockfile.packages
-            .as_ref()
-            .and_then(|packages| packages.get(&key.without_peer()))
-            .is_some_and(|metadata| {
-                matches!(
-                    metadata.resolution,
-                    LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
-                )
+            .as_ref()?
+            .get(&key.without_peer())
+    }
+
+    /// Whether the package of `key` is an archive the store keeps as
+    /// downloaded. A git repository, or a tarball a git host serves, is
+    /// prepared before it is the package, which may run its scripts, so a
+    /// package nothing installs is not prepared for the store.
+    fn has_own_archive(&self, key: &PackageKey) -> bool {
+        self.metadata(key)
+            .is_some_and(|metadata| match &metadata.resolution {
+                LockfileResolution::Registry(_) => true,
+                LockfileResolution::Tarball(tarball) => !tarball.is_git_hosted(),
+                _ => false,
             })
     }
 }
@@ -209,13 +276,20 @@ pub(crate) fn stored_archives<'a>(
     stored
 }
 
-/// The snapshot keys a project's installed dependencies resolve to.
-fn root_dependencies(importer: &ProjectSnapshot) -> impl Iterator<Item = PackageKey> + '_ {
-    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-        .into_iter()
-        .flatten()
-        .flat_map(|map| map.iter())
-        .filter_map(|(name, spec)| spec.version.resolved_key(name))
+/// The snapshot keys a project's installed dependencies resolve to, and
+/// whether each is an optional dependency.
+fn root_dependencies(importer: &ProjectSnapshot) -> impl Iterator<Item = (PackageKey, bool)> + '_ {
+    [
+        (&importer.dependencies, false),
+        (&importer.dev_dependencies, false),
+        (&importer.optional_dependencies, true),
+    ]
+    .into_iter()
+    .filter_map(|(map, optional)| Some((map.as_ref()?, optional)))
+    .flat_map(|(map, optional)| {
+        map.iter()
+            .filter_map(move |(name, spec)| Some((spec.version.resolved_key(name)?, optional)))
+    })
 }
 
 #[cfg(test)]
