@@ -5,26 +5,44 @@ use super::{reclaim_unpublished_blobs, unpublished_blobs};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::DocumentWrite;
+use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite};
 use serde_json::{Map, Value};
 
 /// Remove `version` from `name`'s packument when it still lists it, and
 /// reclaim the archives only it mapped. Reports whether it was listed. A
 /// `dist-tags` entry naming it moves to the highest version left, or goes
-/// when none is.
+/// when none is. A commit another writer lands first is read again and the
+/// removal retried, so an unrelated change to the package does not leave
+/// the version listed after the caller recorded it unpublished.
 pub(super) async fn remove_listed_version(
     storage: &pnpr_storage::Storage,
     identity: &Identity,
     name: &CanonicalPackageName,
     version: &str,
 ) -> Result<bool, RegistryError> {
+    for _ in 0..DOCUMENT_WRITE_RETRIES {
+        if let Some(listed) = try_remove_listed_version(storage, identity, name, version).await? {
+            return Ok(listed);
+        }
+    }
+    Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() })
+}
+
+/// One attempt at [`remove_listed_version`]; `None` when another writer
+/// changed the packument since it was read.
+async fn try_remove_listed_version(
+    storage: &pnpr_storage::Storage,
+    identity: &Identity,
+    name: &CanonicalPackageName,
+    version: &str,
+) -> Result<Option<bool>, RegistryError> {
     let Some(stored) = storage.read_hosted_document_for_update(name).await? else {
-        return Ok(false);
+        return Ok(Some(false));
     };
     let mut packument: Value = serde_json::from_slice(&stored.bytes)?;
-    let Some(object) = packument.as_object_mut() else { return Ok(false) };
+    let Some(object) = packument.as_object_mut() else { return Ok(Some(false)) };
     if !drop_version(object, version) {
-        return Ok(false);
+        return Ok(Some(false));
     }
     let removed = [version.to_string()];
     let unpublished = unpublished_blobs(storage, name, &removed).await;
@@ -35,11 +53,9 @@ pub(super) async fn remove_listed_version(
     {
         DocumentWrite::Written => {
             reclaim_unpublished_blobs(storage, name, unpublished).await;
-            Ok(true)
+            Ok(Some(true))
         }
-        DocumentWrite::Conflict => {
-            Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() })
-        }
+        DocumentWrite::Conflict => Ok(None),
     }
 }
 
