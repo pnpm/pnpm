@@ -395,25 +395,6 @@ pub(super) fn version_lt(left: &str, right: &str) -> bool {
     }
 }
 
-fn range_satisfies(range: &str, version: &str) -> bool {
-    let (Ok(range), Ok(parsed)) =
-        (node_semver::Range::parse(range), node_semver::Version::parse(version))
-    else {
-        return false;
-    };
-    if range.satisfies(&parsed) {
-        return true;
-    }
-    // node-semver rejects a prerelease (`1.2.3-beta.1`) even when its base
-    // version is in range; retry with the base so prerelease self-update
-    // targets aren't spuriously treated as out of range.
-    if parsed.pre_release.is_empty() {
-        return false;
-    }
-    let base = format!("{}.{}.{}", parsed.major, parsed.minor, parsed.patch);
-    matches!(node_semver::Version::parse(&base), Ok(base) if range.satisfies(&base))
-}
-
 #[cfg(test)]
 mod tests;
 

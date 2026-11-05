@@ -223,6 +223,103 @@ fn self_update_rewrites_a_dev_engines_pin_and_reports_the_declined_global_switch
 }
 
 #[test]
+fn self_update_rewrites_the_engines_pnpm_range_with_the_project_pin() {
+    let mut project = PinnedProject::with_manifest(
+        r#"{"packageManager":"pnpm@0.1.0","engines":{"pnpm":"^0.1.0"}}"#,
+        OLDER_PNPM,
+    );
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(
+        project.manifest_text(),
+        format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}","engines":{{"pnpm":"^{OLDER_PNPM}"}}}}"#),
+    );
+}
+
+#[test]
+fn self_update_rewrites_the_engines_pnpm_range_with_a_dev_engines_pin() {
+    let mut project = PinnedProject::with_manifest(
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"0.1.0"}},"engines":{"pnpm":"^0.1.0"}}"#,
+        OLDER_PNPM,
+    );
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    let manifest = project.manifest_text();
+    assert!(
+        manifest.contains(&format!(r#""engines":{{"pnpm":"^{OLDER_PNPM}"}}"#)),
+        "engines.pnpm was not rewritten: {manifest}",
+    );
+}
+
+#[test]
+fn self_update_rewrites_the_engines_pnpm_range_when_the_project_pin_is_already_current() {
+    let mut project = PinnedProject::with_manifest(
+        &format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}","engines":{{"pnpm":"^0.1.0"}}}}"#),
+        OLDER_PNPM,
+    );
+
+    let output = project.self_update();
+
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        project.manifest_text(),
+        format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}","engines":{{"pnpm":"^{OLDER_PNPM}"}}}}"#),
+    );
+}
+
+#[test]
+fn self_update_keeps_a_wildcard_engines_pnpm_range() {
+    let mut project = PinnedProject::with_manifest(
+        r#"{"packageManager":"pnpm@0.1.0","engines":{"pnpm":"*"}}"#,
+        OLDER_PNPM,
+    );
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(
+        project.manifest_text(),
+        format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}","engines":{{"pnpm":"*"}}}}"#),
+    );
+}
+
+#[test]
+fn self_update_keeps_a_partial_engines_pnpm_range_that_accepts_the_new_version() {
+    let mut project = PinnedProject::with_manifest(
+        r#"{"packageManager":"pnpm@0.1.0","engines":{"pnpm":"1.0"}}"#,
+        OLDER_PNPM,
+    );
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(
+        project.manifest_text(),
+        format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}","engines":{{"pnpm":"1.0"}}}}"#),
+    );
+}
+
+#[test]
+fn self_update_keeps_engines_without_a_pnpm_range() {
+    let mut project = PinnedProject::with_manifest(
+        r#"{"packageManager":"pnpm@0.1.0","engines":{"node":">=18"}}"#,
+        OLDER_PNPM,
+    );
+
+    let output = project.self_update();
+
+    assert_pin_updated_and_global_switch_declined(&output);
+    assert_eq!(
+        project.manifest_text(),
+        format!(r#"{{"packageManager":"pnpm@{OLDER_PNPM}","engines":{{"node":">=18"}}}}"#),
+    );
+}
+
+#[test]
 fn self_update_rewrites_the_workspace_root_pin_from_a_workspace_package() {
     let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
     let package_dir = project.run_from_workspace_package();
