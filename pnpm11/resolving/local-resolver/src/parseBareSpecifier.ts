@@ -256,10 +256,12 @@ function resolveLocalFetchSpec (
 /**
  * The path a local specifier names when the project in `projectDir` declares
  * it: the directory or tarball the resolver reads. A `link:`, `file:`, or
- * `workspace:` protocol is optional.
+ * `workspace:` protocol is optional. A rooted path without a drive, such as
+ * `/vendor` on Windows, takes the drive of `projectDir`, so the result
+ * compares equal to {@link recordedLocalPath}.
  */
 export function localSpecPath (bareSpecifier: string, projectDir: string): string {
-  return resolveNormalizedSpec(normalizeBareSpec(bareSpecifier), projectDir)
+  return path.resolve(projectDir, resolveNormalizedSpec(normalizeBareSpec(bareSpecifier), projectDir))
 }
 
 /**

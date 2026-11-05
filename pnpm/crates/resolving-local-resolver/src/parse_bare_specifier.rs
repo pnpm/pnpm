@@ -196,10 +196,13 @@ fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (Pa
 
 /// The path a local specifier names when the project in `project_dir`
 /// declares it: the directory or tarball the resolver reads. A `link:`,
-/// `file:`, or `workspace:` protocol is optional.
+/// `file:`, or `workspace:` protocol is optional. A rooted path without a
+/// drive, such as `/vendor` on Windows, takes the drive of `project_dir`, so
+/// the result compares equal to [`recorded_local_path`].
 #[must_use]
 pub fn local_spec_path(bare_specifier: &str, project_dir: &Path) -> PathBuf {
-    resolve_normalized_spec(&normalize_specifier(bare_specifier), project_dir)
+    let path = resolve_normalized_spec(&normalize_specifier(bare_specifier), project_dir);
+    lexical_normalize(&project_dir.join(path))
 }
 
 /// The path a lockfile records for a local dependency, resolved against
