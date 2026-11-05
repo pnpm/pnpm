@@ -7,10 +7,13 @@
 //!
 //! A marked archive belongs to the reclaim that marked it, named by an owner
 //! token. Another reclaim marks it only once it is finished, and takes it
-//! over only once its mark is older than the lease the caller allows, so two
-//! reclaims never remove one archive at once. Before it removes anything a
-//! reclaim checks that its marks are still its own, and it records only its
-//! own marks as finished.
+//! over only once its mark is older than the lease the caller allows.
+//! Before it removes anything a reclaim checks that its marks are still its
+//! own, and it records only its own marks as finished. The removal itself is
+//! a separate step in the hosted store: a reclaim that stalls past the lease
+//! between that check and a removal could still remove an archive another
+//! reclaim took over, which is why a reclaim stops removing well within its
+//! lease.
 
 use super::{
     PackageKey, SqlMetadata,

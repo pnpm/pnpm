@@ -9,14 +9,20 @@ use pnpr_storage::{
     Storage,
     metadata::{ArchiveRef, ReclaimTarget, new_reclaim_owner},
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// How long a reclaim may hold its marks before another reclaim takes them
-/// over as left behind by one that stopped. A reclaim checks that its marks
-/// are still its own right before it removes them, so only one that stalls
-/// this long between that check and a removal could remove an archive
-/// another reclaim already finished.
+/// over as left behind by one that stopped.
 pub(crate) const RECLAIM_LEASE: Duration = Duration::from_hours(1);
+
+/// How much of [`RECLAIM_LEASE`], measured on this process's own clock from
+/// before it marked, a reclaim spends removing. It stops removing once that
+/// is used up and leaves the rest marked for a later reclaim, so a removal
+/// never starts while another reclaim could take the mark over. Only a
+/// removal that stalls for more than the rest of the lease after it started
+/// could still land after a takeover: the hosted stores offer no conditional
+/// delete that would tie a removal to the mark.
+const REMOVAL_BUDGET: Duration = Duration::from_mins(30);
 
 /// Mark the archives of each target whose package is still as it was read,
 /// remove them from the hosted store, and record them gone. Returns the
@@ -37,8 +43,9 @@ pub(crate) async fn reclaim(
         return Ok(Vec::new());
     }
     let owner = new_reclaim_owner();
+    let started = Instant::now();
     let marked = storage.sql_metadata().mark_reclaims(catalog, &owner, targets).await?;
-    remove_owned(storage, catalog, &owner, marked).await
+    remove_owned(storage, catalog, (&owner, started), marked).await
 }
 
 /// Take over the marks of `catalog` that `filter` keeps and that a reclaim
@@ -50,17 +57,19 @@ pub(crate) async fn finish_stale(
     filter: impl Fn(&ArchiveRef) -> bool + Send + 'static,
 ) -> Result<Vec<ArchiveRef>> {
     let owner = new_reclaim_owner();
+    let started = Instant::now();
     let database = storage.sql_metadata();
     let claimed = database.claim_stale_reclaims(catalog, &owner, lease, filter).await?;
-    remove_owned(storage, catalog, &owner, claimed).await
+    remove_owned(storage, catalog, (&owner, started), claimed).await
 }
 
-/// Remove the `archives` `owner` marked, those still its own, and record
-/// the ones removed as gone.
+/// Remove the `archives` `owner` marked, those still its own, within the
+/// [`REMOVAL_BUDGET`] from `started`, before it marked them, and record the
+/// ones removed as gone.
 async fn remove_owned(
     storage: &Storage,
     catalog: &str,
-    owner: &str,
+    (owner, started): (&str, Instant),
     archives: Vec<ArchiveRef>,
 ) -> Result<Vec<ArchiveRef>> {
     if archives.is_empty() {
@@ -71,6 +80,14 @@ async fn remove_owned(
     let mut removed = Vec::with_capacity(archives.len());
     let mut failure = None;
     for archive in archives {
+        if started.elapsed() >= REMOVAL_BUDGET {
+            tracing::warn!(
+                package = %archive.name,
+                artifact = %archive.artifact,
+                "an archive reclaim ran out of time; the rest stay marked for a later one",
+            );
+            break;
+        }
         let name = CanonicalPackageName::from_stored(&archive.name, archive.ecosystem);
         let view = storage.for_hosted(catalog, archive.ecosystem);
         match view.remove_hosted_blob(&name, &archive.artifact).await {

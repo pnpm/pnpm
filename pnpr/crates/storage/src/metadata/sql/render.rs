@@ -56,8 +56,11 @@ pub(super) fn read_view_with(
     let cached = cache.view_generation(&view_key);
     let unless = cached.map_or(NO_GENERATION, to_column);
     let mut reads = Vec::new();
-    if catalog == CatalogRead::Include {
-        reads.push(query!("SELECT generation FROM catalogs WHERE catalog = ?1", &key.catalog));
+    match catalog {
+        CatalogRead::Include => {
+            reads.push(query!("SELECT generation FROM catalogs WHERE catalog = ?1", &key.catalog));
+        }
+        CatalogRead::Skip => {}
     }
     reads.push(package_row_query(key));
     let npm = key.ecosystem == Ecosystem::Npm;
@@ -65,10 +68,9 @@ pub(super) fn read_view_with(
         reads.extend([tags_query(key, &unless), version_entries_query(key, &unless)]);
     }
     let mut results = snapshot.query_all(&reads)?.into_iter();
-    let catalog_generation = if catalog == CatalogRead::Include {
-        generation_from(results.next().unwrap_or_default())?
-    } else {
-        0
+    let catalog_generation = match catalog {
+        CatalogRead::Include => generation_from(results.next().unwrap_or_default())?,
+        CatalogRead::Skip => 0,
     };
     let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
         return Ok((None, catalog_generation));
