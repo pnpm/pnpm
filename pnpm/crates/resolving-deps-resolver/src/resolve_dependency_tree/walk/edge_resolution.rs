@@ -451,7 +451,8 @@ pub(super) fn record_workspace_manifest_identity(
     let names_a_workspace_project = wanted.bare_specifier
         .as_deref()
         .is_some_and(|specifier| {
-            specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
+            specifier.starts_with("workspace:")
+                && !pnpm_workspace_spec::is_workspace_path_specifier(specifier)
         });
     if !names_a_workspace_project {
         return;

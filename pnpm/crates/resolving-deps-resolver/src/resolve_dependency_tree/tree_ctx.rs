@@ -88,7 +88,7 @@ pub fn directory_package_dir(lockfile_dir: &Path, directory: &str) -> PathBuf {
 /// from the directory of the manifest that declares it
 /// ([`declaring_manifest_dir`]) instead of the consuming importer's.
 pub(crate) fn resolves_from_declaring_manifest(spec: &str) -> bool {
-    spec.starts_with("file:") || spec.starts_with("workspace:.")
+    spec.starts_with("file:") || pnpm_workspace_spec::is_workspace_path_specifier(spec)
 }
 
 /// Point a specifier matching [`resolves_from_declaring_manifest`] at

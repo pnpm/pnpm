@@ -146,10 +146,7 @@ pub fn try_resolve_from_workspace(
     if !bare.starts_with("workspace:") {
         return Ok(None);
     }
-    // `workspace:./foo` / `workspace:../foo` are owned by the local
-    // resolver; let those fall through so the chain doesn't claim
-    // them here.
-    if bare.starts_with("workspace:.") {
+    if pnpm_workspace_spec::is_workspace_path_specifier(bare) {
         return Ok(None);
     }
 
