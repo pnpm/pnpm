@@ -46,10 +46,18 @@ fn get_drive_letter(current_dir: &Path) -> Option<char> {
 
 #[cfg(windows)]
 fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
-    let current_drive =
-        get_drive_letter(current_dir).expect("current dir is an absolute path with drive letter");
-    let home_drive =
-        get_drive_letter(home_dir).expect("home dir is an absolute path with drive letter");
+    // A cwd on a network share that no drive maps keeps the store at the root
+    // of the share, just as a cwd on another drive keeps it at that drive's root.
+    let Some(current_drive) = get_drive_letter(current_dir) else {
+        let share_root = current_dir
+            .ancestors()
+            .last()
+            .unwrap_or(current_dir);
+        return share_root.join(".pnpm-store");
+    };
+    let Some(home_drive) = get_drive_letter(home_dir) else {
+        return PathBuf::from(format!(r"{current_drive}:\.pnpm-store"));
+    };
 
     if current_drive == home_drive {
         return home_dir

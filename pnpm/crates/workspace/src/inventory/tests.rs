@@ -3,6 +3,11 @@ use pnpm_fs::symlink_dir as symlink;
 use pretty_assertions::assert_eq;
 use std::fs;
 
+#[cfg(windows)]
+use super::ignored_paths_under_with;
+#[cfg(windows)]
+use std::path::{Path, PathBuf};
+
 #[test]
 fn discovers_multiple_manifest_kinds_in_one_inventory() {
     let workspace = tempfile::tempdir().unwrap();
@@ -187,6 +192,35 @@ fn prunes_managed_paths_before_opening_without_excluding_matching_project_names(
             [project.join("pyproject.toml")],
         );
     }
+}
+
+#[cfg(windows)]
+#[test]
+fn ignores_mapped_aliases_without_ignoring_paths_outside_the_root() {
+    let ignored = ignored_paths_under_with(
+        Path::new(r"H:\repo"),
+        Path::new(r"\\?\UNC\server\share\repo"),
+        &[
+            PathBuf::from(r"J:\repo\cache"),
+            PathBuf::from(r"J:\repo-other\cache"),
+            PathBuf::from(r"K:\repo\cache"),
+        ],
+        |path| match path {
+            path if path == Path::new(r"J:\repo\cache") => {
+                Ok(PathBuf::from(r"\\?\UNC\server\share\repo\cache"))
+            }
+            path if path == Path::new(r"J:\repo-other\cache") => {
+                Ok(PathBuf::from(r"\\?\UNC\server\share\repo-other\cache"))
+            }
+            path if path == Path::new(r"K:\repo\cache") => {
+                Ok(PathBuf::from(r"\\?\UNC\other-server\share\repo\cache"))
+            }
+            path => Err(std::io::Error::other(format!("unexpected path {}", path.display()))),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(ignored, [PathBuf::from("cache")].into());
 }
 
 #[test]
