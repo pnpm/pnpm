@@ -472,7 +472,9 @@ where
         .collect()
 }
 
-fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
+/// Whether `manifest`'s `dependenciesMeta` injects the dependency `name`.
+#[must_use]
+pub fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
     manifest
         .get("dependenciesMeta")
         .and_then(Value::as_object)
@@ -480,7 +482,9 @@ fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
         .is_some_and(dependency_meta_is_injected)
 }
 
-fn dependency_meta_is_injected(meta: &Value) -> bool {
+/// Whether a `dependenciesMeta` entry sets `injected`.
+#[must_use]
+pub fn dependency_meta_is_injected(meta: &Value) -> bool {
     meta.get("injected")
         .and_then(Value::as_bool)
         .unwrap_or(false)

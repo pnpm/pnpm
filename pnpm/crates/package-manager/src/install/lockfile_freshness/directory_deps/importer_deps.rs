@@ -9,6 +9,7 @@ use super::{
     spec, spec_dirs,
 };
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_resolving_deps_resolver::{dependency_is_injected, dependency_meta_is_injected};
 
 pub(crate) fn check_directory_dependencies_freshness(
     check: &ImporterSatisfactionCheck<'_>,
@@ -31,7 +32,9 @@ pub(crate) fn check_directory_dependencies_freshness(
     Ok(())
 }
 
-fn dependency_is_injected(
+/// Whether the config, the lockfile, or the manifest injects the dependency.
+/// The lockfile's settings count too: the resolver injected under them.
+fn may_be_injected(
     check: &ImporterSatisfactionCheck<'_>,
     importer: &pnpm_lockfile::ProjectSnapshot,
     dep_name: &str,
@@ -42,23 +45,11 @@ fn dependency_is_injected(
     if check.lockfile.settings.as_ref().is_some_and(|s| s.inject_workspace_packages) {
         return true;
     }
-    if let Some(meta) = importer.dependencies_meta.as_ref()
-        && meta
-            .get(dep_name)
-            .and_then(|e| e.get("injected"))
-            .and_then(serde_json::Value::as_bool)
-            == Some(true)
-    {
-        return true;
-    }
-    check.manifest
-        .value()
-        .get("dependenciesMeta")
-        .and_then(serde_json::Value::as_object)
+    importer.dependencies_meta
+        .as_ref()
         .and_then(|meta| meta.get(dep_name))
-        .and_then(|entry| entry.get("injected"))
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
+        .is_some_and(dependency_meta_is_injected)
+        || dependency_is_injected(check.manifest.value(), dep_name)
 }
 
 fn check_importer_link_freshness(
@@ -86,8 +77,7 @@ fn should_check_directory_dep(
 ) -> bool {
     check.lockfile.packages.is_some()
         && check.lockfile.snapshots.is_some()
-        && (dependency_is_injected(check, importer, dep_name)
-            || is_declared_local_directory(specifier))
+        && (may_be_injected(check, importer, dep_name) || is_declared_local_directory(specifier))
 }
 
 fn check_single_dep_spec_directory_freshness(
