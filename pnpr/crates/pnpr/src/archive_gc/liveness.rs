@@ -45,15 +45,7 @@ impl Live {
             });
         };
         Ok(match ecosystem {
-            Ecosystem::Npm => {
-                let document: Value = serde_json::from_slice(bytes)?;
-                let versions = document
-                    .get("versions")
-                    .and_then(Value::as_object)
-                    .map(|versions| versions.keys().cloned().collect())
-                    .unwrap_or_default();
-                Self::Versions(versions)
-            }
+            Ecosystem::Npm => Self::Versions(npm_versions(bytes)?),
             Ecosystem::Cargo => {
                 let document: CrateDocument = serde_json::from_slice(bytes)?;
                 Self::Versions(
@@ -95,6 +87,16 @@ impl Live {
             Self::Blobs(blobs) => filename_digest(filename).is_some() && !blobs.contains(filename),
         }
     }
+}
+
+/// The versions an npm packument holds.
+fn npm_versions(bytes: &[u8]) -> Result<BTreeSet<String>> {
+    let document: Value = serde_json::from_slice(bytes)?;
+    Ok(document
+        .get("versions")
+        .and_then(Value::as_object)
+        .map(|versions| versions.keys().cloned().collect())
+        .unwrap_or_default())
 }
 
 /// The version an archive of `name` belongs to, by its file name, when the

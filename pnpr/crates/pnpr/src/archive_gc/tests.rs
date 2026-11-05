@@ -342,7 +342,7 @@ async fn collection_finishes_an_interrupted_reclaim() {
             .await
             .unwrap()
             .len(),
-        1
+        1,
     );
     assert_eq!(
         collect(&storage, Duration::from_hours(24), true, MANIFEST_LIMIT).await.unwrap(),
@@ -371,7 +371,7 @@ async fn collection_finishes_an_interrupted_reclaim() {
             .pending_reclaims("")
             .await
             .unwrap()
-            .is_empty()
+            .is_empty(),
     );
 }
 

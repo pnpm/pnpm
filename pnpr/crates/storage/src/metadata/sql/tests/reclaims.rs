@@ -91,7 +91,7 @@ async fn a_commit_before_the_mark_keeps_its_archive(db: Db) {
             .pending_reclaims("acme")
             .await
             .unwrap()
-            .is_empty()
+            .is_empty(),
     );
 }
 
@@ -120,7 +120,7 @@ async fn a_commit_after_its_archive_was_reclaimed_is_refused(db: Db) {
             .pending_reclaims("acme")
             .await
             .unwrap()
-            .is_empty()
+            .is_empty(),
     );
     let err = commit(&publisher, "pkg", &document, base, token).await.unwrap_err();
     assert!(matches!(err, RegistryError::ArchiveReclaimed { .. }), "{err:?}");
@@ -130,7 +130,7 @@ async fn a_commit_after_its_archive_was_reclaimed_is_refused(db: Db) {
             .read_hosted_document(&npm("pkg"))
             .await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
 }
 

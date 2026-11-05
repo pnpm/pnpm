@@ -13,7 +13,7 @@
 use pnpr_package_name::Ecosystem;
 
 /// One archive of a package in a catalog.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArchiveRef {
     pub ecosystem: Ecosystem,
     /// The canonical package name.
@@ -23,7 +23,7 @@ pub struct ArchiveRef {
 }
 
 /// What a commit depends on in the hosted store, checked as it commits.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ArchiveFence {
     /// The catalog generation the publish read before it promoted
     /// `archives`. A reclaim done after it may have removed what was

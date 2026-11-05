@@ -56,18 +56,8 @@ pub(super) fn read_view_with_catalog(
         reads.extend([tags_query(key, &unless), version_entries_query(key, &unless)]);
     }
     let mut results = snapshot.query_all(&reads)?.into_iter();
-    let catalog_generation = if catalog {
-        results
-            .next()
-            .unwrap_or_default()
-            .into_iter()
-            .next()
-            .map(|mut row| row.get(0).map(to_generation))
-            .transpose()?
-            .unwrap_or(0)
-    } else {
-        0
-    };
+    let catalog_generation =
+        if catalog { generation_from(results.next().unwrap_or_default())? } else { 0 };
     let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
         return Ok((None, catalog_generation));
     };
@@ -77,18 +67,40 @@ pub(super) fn read_view_with_catalog(
         let tags = results.next().unwrap_or_default();
         (tags, results.next().unwrap_or_default())
     });
-    let bytes = if let Some(bytes) = cache.view(&view_key, package.generation) {
-        bytes
-    } else {
-        let bytes: Arc<[u8]> = match key.ecosystem {
-            Ecosystem::Npm => assemble_packument(snapshot, cache, key, &package, listed)?.into(),
-            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => package.state.into(),
-        };
-        cache.store_view(view_key, package.generation, Arc::clone(&bytes));
-        bytes
+    let generation = key.generation(package.generation);
+    let bytes = cached_or_rendered(snapshot, cache, view_key, package, listed)?;
+    Ok((Some(PackageView { bytes, generation }), catalog_generation))
+}
+
+/// The view `view_key` names at `package`'s generation, from the cache or
+/// rendered from `package` and the `listed` tag and version rows.
+fn cached_or_rendered(
+    snapshot: &dyn Connection,
+    cache: &RenderCache,
+    view_key: ViewKey,
+    package: PackageRow,
+    listed: Option<(Vec<Row>, Vec<Row>)>,
+) -> Result<Arc<[u8]>> {
+    if let Some(bytes) = cache.view(&view_key, package.generation) {
+        return Ok(bytes);
+    }
+    let key = &view_key.package;
+    let generation = package.generation;
+    let bytes: Arc<[u8]> = match key.ecosystem {
+        Ecosystem::Npm => assemble_packument(snapshot, cache, key, &package, listed)?.into(),
+        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => package.state.into(),
     };
-    let view = PackageView { bytes, generation: key.generation(package.generation) };
-    Ok((Some(view), catalog_generation))
+    cache.store_view(view_key, generation, Arc::clone(&bytes));
+    Ok(bytes)
+}
+
+/// The generation in the first row of `rows`, `0` without one.
+fn generation_from(rows: Vec<Row>) -> Result<u64> {
+    rows.into_iter()
+        .next()
+        .map(|mut row| row.get(0).map(to_generation))
+        .transpose()
+        .map(Option::unwrap_or_default)
 }
 
 /// One version as the version list reads it, before its fragment.

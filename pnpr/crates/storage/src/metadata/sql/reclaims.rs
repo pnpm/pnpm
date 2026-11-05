@@ -158,26 +158,36 @@ fn mark(
             .next()
             .map(|mut row| row.get(0).map(to_generation))
             .transpose()?;
-        if current != target.expected {
-            continue;
-        }
-        for artifact in &target.artifacts {
-            transaction.execute(
-                "INSERT INTO archive_reclaims (catalog, ecosystem, name, artifact)
-                 VALUES (?1, ?2, ?3, ?4)
-                 ON CONFLICT (catalog, ecosystem, name, artifact)
-                 DO UPDATE SET done_generation = NULL, done_at = NULL",
-                params![catalog, target.ecosystem.as_str(), target.name, artifact],
-            )?;
-            marked.push(ArchiveRef {
-                ecosystem: target.ecosystem,
-                name: target.name.clone(),
-                artifact: artifact.clone(),
-            });
+        if current == target.expected {
+            marked.extend(mark_target(&*transaction, catalog, target)?);
         }
     }
     transaction.execute(PRUNE_DONE, params![catalog, DONE_RETENTION_SECS])?;
     transaction.commit()?;
+    Ok(marked)
+}
+
+/// Mark every archive of `target`, pending again if it was reclaimed before.
+fn mark_target(
+    transaction: &dyn Connection,
+    catalog: &str,
+    target: &ReclaimTarget,
+) -> Result<Vec<ArchiveRef>> {
+    let mut marked = Vec::with_capacity(target.artifacts.len());
+    for artifact in &target.artifacts {
+        transaction.execute(
+            "INSERT INTO archive_reclaims (catalog, ecosystem, name, artifact)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT (catalog, ecosystem, name, artifact)
+             DO UPDATE SET done_generation = NULL, done_at = NULL",
+            params![catalog, target.ecosystem.as_str(), target.name, artifact],
+        )?;
+        marked.push(ArchiveRef {
+            ecosystem: target.ecosystem,
+            name: target.name.clone(),
+            artifact: artifact.clone(),
+        });
+    }
     Ok(marked)
 }
 

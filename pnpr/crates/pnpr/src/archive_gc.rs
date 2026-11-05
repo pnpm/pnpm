@@ -20,7 +20,7 @@ use pnpr_storage::{HostedBlobFile, Storage, metadata::ReclaimTarget};
 use std::time::Duration;
 
 /// What `pnpr gc` collects, and how.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct GcOptions {
     /// The hosted registries to collect in; every hosted registry when
     /// empty.
@@ -64,21 +64,8 @@ pub async fn collect_archives(config: &Config, options: &GcOptions) -> Result<Gc
     let mut report = GcReport::default();
     for (org, ecosystem) in registries {
         let view = storage.for_hosted(&org, ecosystem);
-        if options.dry_run {
-            view.check_hosted_layout().await?;
-        } else {
-            view.ensure_hosted_layout().await?;
-        }
         let collection = Collection { storage: &view, catalog: &org, ecosystem, manifest_limit };
-        if !options.dry_run {
-            collection.finish_pending().await?;
-        }
-        let collected = if options.versions.is_empty() {
-            collection.collect(options.min_age, options.dry_run).await?
-        } else {
-            collection.collect_versions(&options.versions, options.dry_run).await?
-        };
-        report.add(collected);
+        report.add(collection.run(options).await?);
     }
     Ok(report)
 }
@@ -121,6 +108,21 @@ pub(crate) struct Collection<'storage> {
 }
 
 impl Collection<'_> {
+    /// Collect the namespace as `options` say.
+    async fn run(&self, options: &GcOptions) -> Result<GcReport> {
+        if options.dry_run {
+            self.storage.check_hosted_layout().await?;
+        } else {
+            self.storage.ensure_hosted_layout().await?;
+            self.finish_pending().await?;
+        }
+        if options.versions.is_empty() {
+            self.collect(options.min_age, options.dry_run).await
+        } else {
+            self.collect_versions(&options.versions, options.dry_run).await
+        }
+    }
+
     /// Finish the reclaims of this namespace that stopped after marking
     /// their archives, which no commit can depend on until they finish.
     pub(crate) async fn finish_pending(&self) -> Result<()> {
@@ -230,7 +232,7 @@ impl Collection<'_> {
             {
                 return Err(RegistryError::BadRequest {
                     reason: format!(
-                        "{spec} is a live version; unpublish it rather than removing its archives"
+                        "{spec} is a live version; unpublish it rather than removing its archives",
                     ),
                 });
             }

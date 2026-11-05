@@ -106,7 +106,7 @@ async fn a_manifest_whose_layer_was_reclaimed_after_it_was_checked_is_refused() 
             .read_hosted_document(&repository)
             .await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
     assert!(!has_blob(&storage, &repository, &Digest::of(&bytes)).await);
 
@@ -123,7 +123,7 @@ async fn a_manifest_whose_layer_was_reclaimed_after_it_was_checked_is_refused() 
             .read_hosted_document(&repository)
             .await
             .unwrap()
-            .is_some()
+            .is_some(),
     );
     assert!(has_blob(&storage, &repository, &layer).await);
 }
