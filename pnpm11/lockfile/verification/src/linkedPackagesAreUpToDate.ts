@@ -118,11 +118,15 @@ async function checkNestedDirectoryPackages (
       !isDeployDirectoryRef(ref, snapshot) &&
       reached.some((direct) => direct === depPath || ancestors.has(direct))
     )
-    .map(async ({ depPath, snapshot, ancestorAliases }) =>
-      await localDirectoryDepIsUpToDate(snapshot, { ...ancestorAliases, ...projectAliases })
+    // The lockfile does not record which spec declared a nested directory,
+    // so it has to be fresh under both declarations.
+    .map(async ({ depPath, snapshot, ancestorAliases }) => {
+      const parentPkgAliases = { ...ancestorAliases, ...projectAliases }
+      return await localDirectoryDepIsUpToDate(snapshot, parentPkgAliases, false) &&
+        await localDirectoryDepIsUpToDate(snapshot, parentPkgAliases, true)
         ? UP_TO_DATE
         : outdated(`The dependencies of local directory dependency "${depPath}" do not match the lockfile`)
-    ))
+    }))
   return results.find((result) => !result.upToDate) ?? UP_TO_DATE
 }
 

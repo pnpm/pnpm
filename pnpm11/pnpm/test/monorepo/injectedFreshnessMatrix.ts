@@ -63,7 +63,8 @@ describe.each(LAYOUTS)('injected package edits: %j', (layout) => {
     applyEdit(layout, edit)
     if (layout.injection === 'fileSpec' && edit === 'catalogChild') {
       // The children of a dependency declared by path keep their `catalog:`
-      // specs, which no resolver accepts.
+      // specs, which no resolver accepts, so both installs fail.
+      expect(await frozenInstallPasses()).toBe(false)
       await expect(execPnpm(['install', '--no-frozen-lockfile', ...filter])).rejects.toThrow('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
       return
     }

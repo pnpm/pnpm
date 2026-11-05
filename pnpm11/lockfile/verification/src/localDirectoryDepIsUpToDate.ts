@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { DEFAULT_REGISTRIES_BY_SCOPE } from '@pnpm/config.normalize-registries'
@@ -181,6 +182,7 @@ function markVisited (walk: DirectoryWalk, pkgSnapshot: PackageSnapshot, manifes
   const scope = Array.from(new Set([...Object.keys(manifest.peerDependencies ?? {}), ...walk.recordedPeers]))
     .filter((peer) => Boolean(walk.parentPkgAliases[peer]))
     .sort()
+    .concat(walk.declaredByPath ? ['\0path'] : [])
     .join('\0')
   let scopes = walk.visited.get(pkgSnapshot)
   if (scopes == null) {
@@ -292,7 +294,7 @@ async function childIsUpToDate (
     return child.optional && ctx.resolution?.frozenLockfile === true &&
       !pkgSnapshot.dependencies?.[child.alias]
   }
-  const currentSpec = walk.declaredByPath ? child.bareSpecifier : resolveCatalogSpec(ctx, child)
+  const currentSpec = resolvedChildSpec(ctx, child, walk)
   if (currentSpec == null) return false
   if (isLocalSpec(currentSpec)) {
     return localChildIsUpToDate(ctx, localDep, pkgSnapshot, child, currentSpec, lockfileDep, walk)
@@ -302,6 +304,17 @@ async function childIsUpToDate (
   if (isLockedToOtherSource(currentSpec, locked)) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked, ctx.resolution?.registries ?? DEFAULT_REGISTRY_CONTEXT) ??
     (ctx.resolution?.frozenLockfile === true && locked.name === getTargetPkgName(currentSpec, child.alias))
+}
+
+/**
+ * The spec the resolver resolves `child` with. `undefined` when it resolves
+ * none: a missing catalog entry, or a `catalog:` spec of a child of a package
+ * declared by path, which the resolver leaves as written and no resolver
+ * accepts.
+ */
+function resolvedChildSpec (ctx: LocalDirectoryDepContext, child: ManifestWantedDependency, walk: DirectoryWalk): string | undefined {
+  if (!walk.declaredByPath) return resolveCatalogSpec(ctx, child)
+  return parseCatalogProtocol(child.bareSpecifier) == null ? child.bareSpecifier : undefined
 }
 
 /**

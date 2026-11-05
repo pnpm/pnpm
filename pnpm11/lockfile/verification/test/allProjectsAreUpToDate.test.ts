@@ -1414,12 +1414,19 @@ describe('local file dependency', () => {
 
   test('allProjectsAreUpToDate(): leaves a catalog dependency of local file unresolved, as the resolver does', async () => {
     await writeLocalDirManifest({ dependencies: { 'is-positive': 'catalog:' } })
-    expect(await allProjectsAreUpToDate(projects, {
-      ...options,
+    const check = async (frozenLockfile: boolean) => (await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
       lockfileDir: process.cwd(),
-      catalogs: { default: { 'is-positive': '2.0.0' } },
-      wantedLockfile: { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } } },
-    })).toBeFalsy()
+      resolution: { catalogs: { default: { 'is-positive': '2.0.0' } }, frozenLockfile },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate
+    expect(await check(false)).toBe(false)
+    expect(await check(true)).toBe(false)
   })
 
   test('checkLinkedPackagesAreUpToDate(): reports a dependency of local file that became optional on a frozen install', async () => {
@@ -2903,5 +2910,10 @@ describe('local directory dependency beneath a registry package', () => {
   test('checkLinkedPackagesAreUpToDate(): leaves a directory beneath a registry package to the projects that reach it', async () => {
     await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: '2.0.0' } }))
     expect((await checkLinkedPackagesAreUpToDate(ctx(), projectDependingOn('other'))).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): reports a catalog dependency of a directory beneath a registry package', async () => {
+    await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: 'catalog:' } }))
+    const catalogs = { default: { leaf: '1.0.0' } }
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), resolution: { catalogs } }, projectDependingOn('reg'))).upToDate).toBe(false)
   })
 })

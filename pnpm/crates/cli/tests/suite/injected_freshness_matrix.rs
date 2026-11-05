@@ -334,14 +334,12 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     }
 }
 
-/// The children of a dependency declared by path keep their `catalog:` specs, which no
-/// resolver accepts. A frozen install accepts a child spec it cannot judge, so
-/// a filtered one, which leaves `lib`'s importer unchecked, passes.
+/// The children of a dependency declared by path keep their `catalog:`
+/// specs, which no resolver accepts, so both installs fail.
 fn check_unresolvable_child(scenario: &mut Scenario, filter: &[&str]) {
-    assert_eq!(
-        scenario.frozen_install_passes(filter),
-        !filter.is_empty(),
-        "{:?}, filter {filter:?}",
+    assert!(
+        !scenario.frozen_install_passes(filter),
+        "{:?}, filter {filter:?}: the frozen install passed",
         scenario.layout,
     );
     scenario.assert_install_fails(filter, "ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER");

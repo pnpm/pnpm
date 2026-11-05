@@ -7,6 +7,7 @@ use super::{
     scope::{AliasScope, Visited},
     spec::spec_satisfies_snapshot_dep,
 };
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{
     ChildCatalogs, DependencySpec, ResolveDependencyTreeError, declared_peer_dependencies,
@@ -105,6 +106,11 @@ fn child_is_fresh(
     let name = child.alias.as_str();
     if child.optional && !check.config.optional {
         return recorded_child(snapshot, name, RecordedDeps::Required).is_none();
+    }
+    // No resolver accepts the `catalog:` spec of a child of a package
+    // declared by path, so a frozen install must not keep the old one.
+    if dep.declared_by_path && parse_catalog_protocol(&child.bare_specifier).is_some() {
+        return false;
     }
     match recorded_child(snapshot, name, RecordedDeps::of(child)) {
         Some(recorded) => {

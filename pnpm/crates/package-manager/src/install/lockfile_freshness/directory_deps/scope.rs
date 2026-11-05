@@ -1,11 +1,13 @@
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use std::collections::HashSet;
 
-/// The snapshots already checked, each with the peers its ancestors supply:
-/// what a package and its descendants must record depends on that scope.
+/// The snapshots already checked, each with the peers its ancestors supply
+/// and whether a path spec declared it: what a package and its descendants
+/// must record depends on that scope, and its children's specs on the
+/// declaration.
 #[derive(Clone)]
 pub(super) struct Visited {
-    checked: HashSet<(pnpm_lockfile::PackageKey, Vec<String>)>,
+    checked: HashSet<(pnpm_lockfile::PackageKey, Vec<String>, bool)>,
     /// Every peer the lockfile records for a package, which bounds the part
     /// of a scope the descendants of a package can take.
     recorded_peers: HashSet<String>,
@@ -23,10 +25,10 @@ impl Visited {
     }
 
     /// Records the snapshot in `scope`. `false` when it was already checked
-    /// there: a cycle or a shared dependency.
+    /// there under the same declaration: a cycle or a shared dependency.
     pub(super) fn first_visit(
         &mut self,
-        pkg_key: &pnpm_lockfile::PackageKey,
+        (pkg_key, declared_by_path): (&pnpm_lockfile::PackageKey, bool),
         manifest: &PackageManifest,
         scope: &AliasScope,
     ) -> bool {
@@ -37,7 +39,7 @@ impl Visited {
             .collect();
         peers.sort_unstable();
         peers.dedup();
-        self.checked.insert((pkg_key.clone(), peers))
+        self.checked.insert((pkg_key.clone(), peers, declared_by_path))
     }
 }
 
