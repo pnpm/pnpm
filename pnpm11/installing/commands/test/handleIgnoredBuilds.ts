@@ -54,6 +54,29 @@ test('handleIgnoredBuilds adds placeholders to allowBuilds on an interactive ter
   })
 })
 
+test('handleIgnoredBuilds keeps allowBuilds entries that are not in pnpm-workspace.yaml out of it', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', { allowBuilds: { esbuild: false } })
+
+  const restoreTty = overrideTty(true)
+  try {
+    await handleIgnoredBuilds({
+      allowBuilds: { esbuild: false, 'lib@file:packages/lib': true },
+      ci: false,
+      rootProjectManifestDir: process.cwd(),
+    }, new Set(['sharp@0.34.0' as DepPath]))
+  } finally {
+    restoreTty()
+  }
+
+  expect(readYamlFileSync('pnpm-workspace.yaml')).toStrictEqual({
+    allowBuilds: {
+      esbuild: false,
+      sharp: 'set this to true or false',
+    },
+  })
+})
+
 test.each([
   { name: 'without a terminal', isTTY: false, ci: false },
   { name: 'in CI', isTTY: true, ci: true },

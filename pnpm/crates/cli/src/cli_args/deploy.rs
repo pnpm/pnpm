@@ -54,6 +54,9 @@ use target::{
     resolve_target_dir, validate_deploy_target, write_deploy_files,
 };
 use workspace_manifest::{DeployWorkspaceSettings, deploy_workspace_settings};
+use workspace_project_builds::{
+    NamedProjectRoot, approve_legacy_workspace_project_builds, approve_workspace_project_builds,
+};
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
@@ -121,6 +124,9 @@ enum DeployError {
 
 #[derive(Clone)]
 struct ProjectInfo {
+    /// The project's root as discovered. [`ProjectPathKey`] compares paths
+    /// lossily, so a check that must name this exact directory compares it.
+    root_dir: PathBuf,
     name: Option<String>,
     has_bin: bool,
     peer_dependencies: Vec<PkgName>,
@@ -135,6 +141,8 @@ struct ProjectInfo {
 struct SelectedProject {
     project: Project,
     projects_by_path: HashMap<ProjectPathKey, ProjectInfo>,
+    /// Every named workspace project, in discovery order.
+    workspace_projects: Vec<NamedProjectRoot>,
 }
 
 impl SelectedProject {
@@ -148,7 +156,7 @@ impl SelectedProject {
 }
 
 enum DeployInstallMode {
-    Legacy,
+    Legacy { workspace_projects: Vec<NamedProjectRoot>, source_lockfile_dir: PathBuf },
     Shared { workspace_config: Box<DeployWorkspaceSettings> },
 }
 
@@ -205,16 +213,17 @@ impl DeployArgs {
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<()> {
         apply_deploy_hook(deploy_dir, &selected.project.root_dir)?;
-        let legacy_source = LegacyDeploySource::load::<ReporterT>(
-            config,
-            config.lockfile_dir_for(&selected.project.root_dir),
-        );
+        let source_lockfile_dir = config.lockfile_dir_for(&selected.project.root_dir);
+        let legacy_source = LegacyDeploySource::load::<ReporterT>(config, source_lockfile_dir);
         // Boxed: the install future exceeds clippy's large-future threshold
         // (the captured `Config` is large).
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
             deploy_dir,
-            DeployInstallMode::Legacy,
+            DeployInstallMode::Legacy {
+                workspace_projects: selected.workspace_projects.clone(),
+                source_lockfile_dir: source_lockfile_dir.to_path_buf(),
+            },
             false,
             source_hooks,
             legacy_source,
@@ -322,6 +331,17 @@ fn select_project(
 ) -> miette::Result<SelectedProject> {
     let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
     let projects_by_path = index_projects(&projects);
+    let workspace_projects = projects
+        .iter()
+        .filter_map(|project| {
+            let name = project.manifest
+                .value()
+                .get("name")?
+                .as_str()?
+                .to_string();
+            Some(NamedProjectRoot { name, root_dir: project.root_dir.clone() })
+        })
+        .collect();
 
     let selected_root = {
         let selection =
@@ -337,7 +357,7 @@ fn select_project(
         .into_iter()
         .find(|project| lexical_normalize(&project.root_dir) == selected_root)
         .ok_or(DeployError::NothingToDeploy)?;
-    Ok(SelectedProject { project, projects_by_path })
+    Ok(SelectedProject { project, projects_by_path, workspace_projects })
 }
 
 /// Index the workspace projects by [`ProjectPathKey`]. When two roots compare
@@ -348,6 +368,7 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
         projects_by_path
             .entry(ProjectPathKey::new(&project.root_dir))
             .or_insert_with(|| ProjectInfo {
+                root_dir: lexical_normalize(&project.root_dir),
                 name: project.manifest
                     .value()
                     .get("name")
@@ -398,3 +419,5 @@ mod lockfile;
 mod install;
 
 mod workspace_manifest;
+
+mod workspace_project_builds;

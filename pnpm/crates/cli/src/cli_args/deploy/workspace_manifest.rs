@@ -1,6 +1,6 @@
 use super::{
-    Config, HashMap, IntoDiagnostic, Lockfile, Path, PathBuf,
-    install::configured_virtual_store_dir, relative_path,
+    Config, ConvertCtx, HashMap, IntoDiagnostic, Lockfile, Path, PathBuf,
+    approve_workspace_project_builds, install::configured_virtual_store_dir, relative_path,
 };
 use serde_json::{Map, Number, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -266,18 +266,18 @@ impl DeployWorkspaceSettings {
 pub(super) fn deploy_workspace_settings(
     lockfile: &Lockfile,
     config: &Config,
-    lockfile_dir: &Path,
-    deploy_dir: &Path,
+    ctx: &ConvertCtx<'_>,
     deploy_lockfile: &mut Lockfile,
 ) -> miette::Result<(Map<String, Value>, DeployWorkspaceSettings)> {
     let mut settings = DeployWorkspaceSettings::from_config(config);
     prune_and_relativize_patched_dependencies(
         lockfile,
         config,
-        (lockfile_dir, deploy_dir),
+        (ctx.lockfile_dir, ctx.deploy_dir),
         deploy_lockfile,
         &mut settings,
     );
+    approve_workspace_project_builds(&mut settings.allow_builds, deploy_lockfile, ctx)?;
     settings.apply_to_lockfile(deploy_lockfile);
     let workspace_manifest = settings.to_workspace_manifest()?;
     Ok((workspace_manifest, settings))

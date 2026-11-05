@@ -174,6 +174,7 @@ fn deployed_project_passes_dependency_verification() {
             "packages": ["."],
             "peersSuffixMaxLength": 42,
             "virtualStoreType": "project",
+            "allowBuilds": { workspace_project_key(&workspace, "lib"): true },
         }),
     );
     pacquet_cmd(&deploy_dir)
@@ -310,9 +311,13 @@ fn deploy_writes_dependencies_and_allow_builds_sorted_by_name() {
         .as_object()
         .unwrap()
         .keys()
-        .map(String::as_str)
+        .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(allowed_names, lib_names);
+    let expected_names = lib_names
+        .iter()
+        .flat_map(|name| [name.to_string(), workspace_project_key(&workspace, name)])
+        .collect::<Vec<_>>();
+    assert_eq!(allowed_names, expected_names);
 
     drop((root, mock_instance));
 }
@@ -804,6 +809,14 @@ fn assert_workspace_lockfile_untouched(workspace: &Path, before: &str) {
     assert_eq!(after, before, "deploy must not rewrite the workspace lockfile");
 }
 
+/// The `allowBuilds` key a shared-lockfile deploy writes for the workspace
+/// project in `packages/<dirname>`.
+fn workspace_project_key(workspace: &Path, dirname: &str) -> String {
+    let workspace = dunce::canonicalize(workspace).unwrap();
+    let url = url::Url::from_file_path(workspace.join("packages").join(dirname)).unwrap();
+    format!("{dirname}@{url}")
+}
+
 fn pacquet_cmd(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
 }
@@ -1147,3 +1160,5 @@ mod local_dependencies;
 mod self_containment;
 
 mod reproducible;
+
+mod workspace_project_builds;

@@ -403,13 +403,8 @@ fn finish_deploy_files(
     manifest: Value,
     mut deploy_lockfile: Lockfile,
 ) -> miette::Result<DeployFiles> {
-    let (workspace_manifest, workspace_config) = deploy_workspace_settings(
-        lockfile,
-        config,
-        ctx.lockfile_dir,
-        ctx.deploy_dir,
-        &mut deploy_lockfile,
-    )?;
+    let (workspace_manifest, workspace_config) =
+        deploy_workspace_settings(lockfile, config, ctx, &mut deploy_lockfile)?;
 
     Ok(DeployFiles {
         manifest,
