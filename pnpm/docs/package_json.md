@@ -37,14 +37,12 @@ You can specify the version of Node and pnpm that your software works on:
 }
 ```
 
-During local development, pnpm will always fail with an error message
-if its version does not match the one specified in the `engines` field.
-
-Unless the user has set the `engineStrict` config flag (see [settings]), this
-field is advisory only and will only produce warnings when your package is
-installed as a dependency.
-
-[settings]: ./settings/cli.md#enginestrict
+During installation, pnpm checks the project's `engines.node` and
+`engines.pnpm` fields. An incompatible engine produces an error when
+[`engineStrict`](./settings/cli.md#enginestrict) is enabled, and a warning when
+it is disabled. For dependencies, an incompatible `engines.node` field
+produces an error when `engineStrict` is enabled, and a warning when it is
+disabled.
 
 ## engines.runtime
 

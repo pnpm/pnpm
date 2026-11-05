@@ -77,6 +77,61 @@ fn engine_strict_accepts_the_active_node_version() {
 }
 
 #[test]
+fn engine_strict_rejects_an_incompatible_root_pnpm_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "pnpm": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\n")
+        .expect("write workspace settings");
+
+    let assert = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}",);
+    assert!(stderr.contains(r#"{"pnpm":">=99.0.0"}"#), "stderr: {stderr}");
+    assert!(!workspace.join("pnpm-lock.yaml").exists());
+
+    drop(root);
+}
+
+#[test]
+fn non_strict_root_engine_mismatches_warn_and_continue() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0", "pnpm": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let output = assert.get_output();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Unsupported engine for"), "stderr: {stderr}",);
+    assert!(stderr.contains(r#"{"node":">=99.0.0","pnpm":">=99.0.0"}"#), "stderr: {stderr}",);
+    assert!(workspace.join("pnpm-lock.yaml").exists());
+
+    drop(root);
+}
+
+#[test]
 fn update_config_can_enable_the_root_engine_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(

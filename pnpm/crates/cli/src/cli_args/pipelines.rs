@@ -122,11 +122,14 @@ where
     if matches!(runtime_policy, RuntimePolicy::Config(true)) {
         configuration::record_no_runtime_flag(config);
     }
-    if !config_deps::may_update_config(config, config_root) {
+    let may_update_config = config_deps::may_update_config(config, config_root);
+    if !may_update_config {
         check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
     }
     config_deps::prepare::<Reporter>(config, config_root, frozen_lockfile).await?;
-    check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+    if may_update_config {
+        check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+    }
     Ok(())
 }
 

@@ -1,7 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
-use pnpm_config::Config;
+use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
 use pnpm_package_is_installable::{Engine, InstallabilityError, WantedEngine, check_engine};
@@ -296,9 +296,6 @@ pub(crate) fn check_root_project_engine(
     config: &Config,
     use_manifest_runtime: bool,
 ) -> Result<(), InitStateError> {
-    if !config.engine_strict {
-        return Ok(());
-    }
     let project_dir = config.workspace_dir
         .as_deref()
         .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"));
@@ -307,14 +304,31 @@ pub(crate) fn check_root_project_engine(
     else {
         return Ok(());
     };
-    let Some(wanted_node) = manifest
-        .value()
-        .get("engines")
-        .and_then(|engines| engines.get("node"))
-        .and_then(serde_json::Value::as_str)
-    else {
+    let Some(engines) = manifest.value().get("engines") else {
         return Ok(());
     };
+    let wanted = WantedEngine {
+        node: engines
+            .get("node")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        pnpm: engines
+            .get("pnpm")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+    };
+    if wanted.node.is_none() && wanted.pnpm.is_none() {
+        return Ok(());
+    }
+    check_root_engine_compatibility(project_dir, config, use_manifest_runtime, wanted)
+}
+
+fn check_root_engine_compatibility(
+    project_dir: &Path,
+    config: &Config,
+    use_manifest_runtime: bool,
+    wanted: WantedEngine,
+) -> Result<(), InitStateError> {
     let configured_node = config.node_version
         .clone()
         .or_else(|| {
@@ -322,13 +336,20 @@ pub(crate) fn check_root_project_engine(
                 .then(|| node_version_from_engines_runtime(manifest.value()))
                 .flatten()
         });
-    let host = pnpm_deps_restorer::InstallabilityHost::detect_with(true, configured_node);
-    let wanted = WantedEngine { node: Some(wanted_node.to_string()), pnpm: None };
-    let current = Engine { node: host.node_version, pnpm: None };
+    let host =
+        pnpm_deps_restorer::InstallabilityHost::detect_with(config.engine_strict, configured_node);
+    let current = Engine {
+        node: host.node_version,
+        pnpm: wanted.pnpm.as_ref().map(|_| PNPM_VERSION.to_string()),
+    };
     match check_engine(&project_dir.to_string_lossy(), &wanted, &current) {
         Ok(None) => Ok(()),
-        Ok(Some(error)) => {
+        Ok(Some(error)) if config.engine_strict => {
             Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
+        }
+        Ok(Some(error)) => {
+            tracing::warn!(target: "pacquet::install", %error, "Unsupported engine");
+            Ok(())
         }
         Err(error) => Err(InitStateError::Installability(Box::new(
             InstallabilityError::InvalidNodeVersion(error),
