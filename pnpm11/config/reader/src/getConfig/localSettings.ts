@@ -182,6 +182,7 @@ function applyLoadedProjectWorkspaceManifest (
     skipSettings: forSelfUpdate
       ? new Set([...PROJECT_MANIFEST_SKIPPED_KEYS, ...SELF_UPDATE_SKIPPED_SETTINGS])
       : PROJECT_MANIFEST_SKIPPED_KEYS,
+    warnings: state.warnings,
     workspaceDir,
     workspaceManifest,
   })
@@ -196,6 +197,7 @@ async function applyGlobalPackageDirWorkspaceManifest (state: ConfigBuildState):
   addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
     configFromCliOpts: state.configFromCliOpts,
     projectManifest: pnpmConfig.rootProjectManifest,
+    warnings: state.warnings,
     workspaceDir: pnpmConfig.globalPkgDir,
     workspaceManifest,
   })

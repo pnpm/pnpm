@@ -1776,14 +1776,28 @@ test('project .npmrc does not expand env variables in registry URLs', async () =
   expect(registryWarning).toContain('https://pnpm.io/npmrc')
 })
 
-test('project .npmrc does not expand env variables in scoped registry URLs or URL-scoped keys', async () => {
+test('project .npmrc fails on an env variable in a scoped registry URL', async () => {
   prepare()
 
-  fs.writeFileSync('.npmrc', [
-    '@scope:registry=https://registry.example.com/${PNPM_TEST_TOKEN}/',
-    '//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token',
-    '',
-  ].join('\n'), 'utf8')
+  fs.writeFileSync('.npmrc', '@scope:registry=https://registry.example.com/${PNPM_TEST_TOKEN}/\n', 'utf8')
+
+  await expect(getConfig({
+    cliOptions: {},
+    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED',
+    message: expect.stringContaining('The "@scope:registry" registry URL in'),
+  })
+})
+
+test('project .npmrc does not expand env variables in URL-scoped keys', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', '//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token\n', 'utf8')
 
   const { config, warnings } = await getConfig({
     cliOptions: {},
@@ -1794,10 +1808,8 @@ test('project .npmrc does not expand env variables in scoped registry URLs or UR
     },
   })
 
-  expect(config.registriesByScope['@scope']).toBeUndefined()
   expect(Object.keys(config.authConfig).join('\n')).not.toContain('secret')
   expect(warnings).toEqual(expect.arrayContaining([
-    expect.stringContaining('Ignored project-level request destination "@scope:registry"'),
     expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
   ]))
   const urlScopedWarning = warnings.find((w) => w.includes('//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken')) ?? ''
@@ -1979,14 +1991,10 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
     noproxy: '${PNPM_TEST_TOKEN}.example.com',
     registries: {
       default: 'https://private.example.com/${PNPM_TEST_TOKEN}/',
-      '@scope': 'https://scope.example.com/${PNPM_TEST_TOKEN}/',
-    },
-    namedRegistries: {
-      work: 'https://work.example.com/${PNPM_TEST_TOKEN}/',
     },
   })
 
-  const { config } = await getConfig({
+  const { config, warnings } = await getConfig({
     cliOptions: {},
     env: { ...env, PNPM_TEST_TOKEN: 'secret' },
     packageManager: { name: 'pnpm', version: '1.0.0' },
@@ -1994,13 +2002,37 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
   })
 
   expect(config.registriesByScope.default).not.toBe('https://private.example.com/secret/')
-  expect(config.registriesByScope['@scope']).toBeUndefined()
-  expect(config.registriesByPrefix).toBeUndefined()
   expect(config.pnprServer).toBeUndefined()
   expect(config.httpsProxy).toBeUndefined()
   expect(config.httpProxy).toBeUndefined()
   expect(config.noProxy).toBeUndefined()
   expect(JSON.stringify(config)).not.toContain('secret')
+  expect(warnings).toEqual(expect.arrayContaining(
+    ['pnprServer', 'httpsProxy', 'httpProxy', 'noProxy', 'proxy', 'noproxy', "registries['default']"]
+      .map((setting) => expect.stringContaining(`Ignored "${setting}" in pnpm-workspace.yaml`))
+  ))
+})
+
+// https://github.com/pnpm/pnpm/issues/17762
+test.each([
+  ['a scope route', { registries: { '@scope': 'https://scope.example.com/${PNPM_TEST_TOKEN}/' } }, "registries['@scope']"],
+  ['a named registry', { namedRegistries: { work: 'https://work.example.com/${PNPM_TEST_TOKEN}/' } }, "namedRegistries['work']"],
+  ['a declaration with scopes', { registries: { 'https://${PNPM_TEST_TOKEN}.example.com/': { scopes: ['@scope'] } } }, "registries['https://${PNPM_TEST_TOKEN}.example.com/']"],
+  ['a declaration with a prefix', { registries: { 'https://${PNPM_TEST_TOKEN}.example.com/': { prefix: 'work' } } }, "registries['https://${PNPM_TEST_TOKEN}.example.com/']"],
+])('pnpm-workspace.yaml fails on an env variable in the URL of %s', async (_caseName, settings, setting) => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', settings)
+
+  await expect(getConfig({
+    cliOptions: {},
+    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED',
+    message: `The "${setting}" registry URL in "pnpm-workspace.yaml" contains an environment variable`,
+  })
 })
 
 // `pnpm login` turns `scope` into a `@scope:registry` route in the global

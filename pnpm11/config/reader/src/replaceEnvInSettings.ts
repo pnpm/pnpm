@@ -1,8 +1,13 @@
 import { envReplace } from '@pnpm/config.env-replace'
-import type { PnpmSettings } from '@pnpm/types'
+import { DEFAULT_REGISTRY_SCOPE, type PnpmSettings } from '@pnpm/types'
+
+import { hasEnvPlaceholder, RegistryEnvNotExpandedError } from './envPlaceholders.js'
+import { redactRegistryUrl } from './registryUrlUserinfo.js'
 
 export interface ReplaceEnvInSettingsOptions {
   expandRequestDestinationEnv: boolean
+  /** Receives a warning for each setting dropped for its placeholder. */
+  warnings: string[]
 }
 
 /**
@@ -27,7 +32,9 @@ export function replaceEnvInSettings (
 }
 
 function isGatedRequestScalar (key: string, value: string, opts: ReplaceEnvInSettingsOptions): boolean {
-  return REQUEST_SCALAR_KEYS.has(key) && !opts.expandRequestDestinationEnv && hasEnvPlaceholder(value)
+  if (!REQUEST_SCALAR_KEYS.has(key) || opts.expandRequestDestinationEnv || !hasEnvPlaceholder(value)) return false
+  opts.warnings.push(ignoredSettingWarning(key))
+  return true
 }
 
 function replaceEnvInSettingValue (key: string, value: unknown, opts: ReplaceEnvInSettingsOptions): unknown {
@@ -35,14 +42,14 @@ function replaceEnvInSettingValue (key: string, value: unknown, opts: ReplaceEnv
   if (key === 'namedRegistries' || (key === 'registries' && isScopeRouteMap(value))) {
     return opts.expandRequestDestinationEnv
       ? replaceEnvInStringValues(value)
-      : copyStringValuesWithoutEnvPlaceholders(value)
+      : copyStringValuesWithoutEnvPlaceholders(key, value, opts.warnings)
   }
   if (key === 'registries') {
     // A declaration map is keyed by registry URL rather than valued by one,
     // so the request destination is the key and the gate has to apply there.
     return opts.expandRequestDestinationEnv
       ? replaceEnvInKeys(value)
-      : copyEntriesWithoutEnvPlaceholderKeys(value)
+      : copyEntriesWithoutEnvPlaceholderKeys(value, opts.warnings)
   }
   return value
 }
@@ -71,11 +78,21 @@ function replaceEnvInStringValues (value: unknown): unknown {
   return out
 }
 
-function copyStringValuesWithoutEnvPlaceholders (value: unknown): unknown {
+/**
+ * Drops the routes whose URL carries a placeholder. Only the default registry
+ * may be dropped: every other route names packages that would otherwise
+ * resolve from the default registry.
+ */
+function copyStringValuesWithoutEnvPlaceholders (key: string, value: unknown, warnings: string[]): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
   for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof entryValue === 'string' && hasEnvPlaceholder(entryValue)) continue
+    if (typeof entryValue === 'string' && hasEnvPlaceholder(entryValue)) {
+      const setting = `${key}['${redactRegistryUrl(entryKey)}']`
+      if (key === 'namedRegistries' || entryKey !== 'default') throw new RegistryEnvNotExpandedError(setting, WORKSPACE_MANIFEST)
+      warnings.push(ignoredSettingWarning(setting))
+      continue
+    }
     out[entryKey] = entryValue
   }
   return out
@@ -90,16 +107,36 @@ function replaceEnvInKeys (value: unknown): unknown {
   return out
 }
 
-function copyEntriesWithoutEnvPlaceholderKeys (value: unknown): unknown {
+/**
+ * Drops the declarations whose URL carries a placeholder. A declaration that
+ * routes a scope or a prefix may not be dropped, for the reason
+ * {@link copyStringValuesWithoutEnvPlaceholders} gives.
+ */
+function copyEntriesWithoutEnvPlaceholderKeys (value: unknown, warnings: string[]): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
   const out: Record<string, unknown> = {}
   for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
-    if (hasEnvPlaceholder(entryKey)) continue
+    if (hasEnvPlaceholder(entryKey)) {
+      const setting = `registries['${redactRegistryUrl(entryKey)}']`
+      if (routesNonDefaultPackages(entryValue)) throw new RegistryEnvNotExpandedError(setting, WORKSPACE_MANIFEST)
+      warnings.push(ignoredSettingWarning(setting))
+      continue
+    }
     out[entryKey] = entryValue
   }
   return out
 }
 
-function hasEnvPlaceholder (value: string): boolean {
-  return /\$\{[^}]+\}/.test(value)
+function routesNonDefaultPackages (declaration: unknown): boolean {
+  if (declaration == null || typeof declaration !== 'object') return false
+  const { scopes, prefix } = declaration as { scopes?: unknown, prefix?: unknown }
+  if (prefix != null) return true
+  return Array.isArray(scopes) && scopes.some((scope) => scope !== DEFAULT_REGISTRY_SCOPE)
+}
+
+const WORKSPACE_MANIFEST = 'pnpm-workspace.yaml'
+
+function ignoredSettingWarning (setting: string): string {
+  return `Ignored "${setting}" in ${WORKSPACE_MANIFEST}: environment variables are not expanded in the registry, proxy, and user agent settings of a file committed to the repository. ` +
+    'Write the value literally, or move the setting to the global config.yaml.'
 }

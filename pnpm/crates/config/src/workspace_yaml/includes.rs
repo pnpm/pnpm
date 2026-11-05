@@ -111,7 +111,7 @@ impl WorkspaceSettings {
             })?;
         settings.validate_registries()?;
         settings.reject_repo_controlled_trust_material(path)?;
-        settings.substitute_env_untrusted::<Sys>();
+        settings.substitute_env_untrusted::<Sys>()?;
         Ok(settings)
     }
 }

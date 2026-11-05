@@ -178,6 +178,50 @@ pub fn pnpm_config_request_destinations_expand_env() {
     assert_eq!(config.registry, "https://env.example.com/npm/");
 }
 
+/// A scope route that is dropped would resolve the scope from the default
+/// registry. <https://github.com/pnpm/pnpm/issues/17762>
+#[test]
+pub fn repository_scoped_registry_with_env_placeholder_aborts_the_load() {
+    for (file_name, contents, expected_setting) in [
+        (
+            "pnpm-workspace.yaml",
+            "registries:\n  '@acme': http://localhost:${MOCK_PORT}/\n",
+            "registries['@acme']",
+        ),
+        (".npmrc", "@acme:registry=http://localhost:${MOCK_PORT}/\n", "@acme:registry"),
+    ] {
+        let project = tempdir().expect("project tempdir");
+        write_file(&project.path().join(file_name), contents);
+
+        let result = Config::default().current::<HostNoHome>(project.path());
+        eprintln!("{file_name}: {result:?}");
+        assert!(matches!(
+            result,
+            Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. })
+                if setting == expected_setting
+        ));
+    }
+}
+
+#[test]
+pub fn repository_default_registry_with_env_placeholder_warns() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "registry: http://localhost:${MOCK_PORT}/\n",
+    );
+
+    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+
+    assert_eq!(config.registry, "https://registry.npmjs.org/");
+    dbg!(&config.npmrc_warnings);
+    assert!(
+        config.npmrc_warnings
+            .iter()
+            .any(|warning| warning.starts_with(r#"Ignored "registry" in pnpm-workspace.yaml"#)),
+    );
+}
+
 /// End-to-end: malformed `pnpm_config__auth` JSON aborts the load with an
 /// error rather than silently dropping the auth.
 #[test]

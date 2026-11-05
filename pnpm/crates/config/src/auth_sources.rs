@@ -23,7 +23,7 @@ impl AuthSources {
 fn project_auth_source<Sys>(
     project_npmrc_dir: &Path,
     user_npmrc_path: Option<&Path>,
-) -> Option<NpmrcAuth>
+) -> Result<Option<NpmrcAuth>, LoadWorkspaceYamlError>
 where
     Sys: EnvVar + GetCurrentDir,
 {
@@ -40,7 +40,7 @@ where
             Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
         }
     });
-    npmrc_source::<Host>(&project_npmrc_path, |text| {
+    let mut source = npmrc_source::<Host>(&project_npmrc_path, |text| {
         let mut auth = if project_is_trusted_auth_file {
             NpmrcAuth::from_ini::<Sys>(text, project_npmrc_dir)
         } else {
@@ -48,7 +48,16 @@ where
         };
         auth.rescope_unscoped(&project_npmrc_path.display().to_string());
         auth
-    })
+    });
+    if let Some(key) =
+        source.as_mut().and_then(|auth| auth.unexpanded_scoped_registry.take())
+    {
+        return Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
+            setting: key,
+            file: project_npmrc_path.display().to_string(),
+        });
+    }
+    Ok(source)
 }
 
 fn auth_ini_source<Sys: EnvVar>(global_config_dir: Option<&Path>) -> Option<NpmrcAuth> {
@@ -210,7 +219,7 @@ impl Config {
         let project_npmrc_dir =
             workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
         let mut project_source =
-            project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref());
+            project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref())?;
         let mut auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
         let mut user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
         let mut env_scoped_source = env_scoped_auth_source::<Sys>();

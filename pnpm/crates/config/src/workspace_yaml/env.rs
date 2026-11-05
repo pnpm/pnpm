@@ -1,7 +1,8 @@
 use super::{
-    EnvVar, GetHomeDir, Path, WorkspaceSettings, has_env_placeholder, join_fragment, registries,
-    substitute_json_string, substitute_optional_inner_string, substitute_optional_string,
-    substitute_optional_string_map, substitute_registry_entries,
+    EnvVar, GetHomeDir, LoadWorkspaceYamlError, Path, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings, has_env_placeholder, join_fragment, registries, substitute_json_string,
+    substitute_optional_inner_string, substitute_optional_string, substitute_optional_string_map,
+    substitute_registry_entries,
 };
 
 impl WorkspaceSettings {
@@ -23,49 +24,69 @@ impl WorkspaceSettings {
         substitute_optional_string_map::<Sys>(&mut self.named_registries);
     }
 
-    /// Expand `${VAR}` in ordinary string settings, but drop
-    /// placeholders inside workspace-controlled request settings.
-    /// Scalar strings still have `${VAR}` expanded, while `registry`,
-    /// `registries`, `namedRegistries`, `pnprServer`, the proxies, and
-    /// `userAgent` are filtered instead: the destinations would let the
-    /// file choose the host, and `userAgent` would send that host the
-    /// variable's value as a request header.
+    /// Expand `${VAR}` in ordinary string settings, but not inside
+    /// workspace-controlled request settings: `registry`, `registries`,
+    /// `namedRegistries`, `pnprServer`, the proxies, and `userAgent`. The
+    /// destinations would let the file choose the host, and `userAgent` would
+    /// send that host the variable's value as a request header.
+    ///
+    /// A request setting with a placeholder is dropped, and the returned
+    /// warnings name each one. A registry URL that routes packages away from
+    /// the default registry fails with
+    /// [`LoadWorkspaceYamlError::RegistryEnvNotExpanded`] instead.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`](crate::settings::Config) and filtered values do not.
-    pub fn substitute_env_untrusted<Sys: EnvVar>(&mut self) {
+    pub fn substitute_env_untrusted<Sys: EnvVar>(
+        &mut self,
+    ) -> Result<Vec<String>, LoadWorkspaceYamlError> {
         self.substitute_env_scalars::<Sys>();
 
-        if self.registry.as_deref().is_some_and(has_env_placeholder) {
-            self.registry = None;
+        if let Some((name, _)) = self.named_registries
+            .iter()
+            .flatten()
+            .find(|(_, url)| has_env_placeholder(url))
+        {
+            return Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
+                setting: format!("namedRegistries['{name}']"),
+                file: WORKSPACE_MANIFEST_FILENAME.to_string(),
+            });
         }
-        if let Some(registries) = self.registries.as_mut() {
-            registries::retain_without_env_placeholders(registries, has_env_placeholder);
-        }
-        if let Some(named_registries) = self.named_registries.as_mut() {
-            named_registries.retain(|_, value| !has_env_placeholder(value));
-        }
+        let mut dropped = match self.registries.as_mut() {
+            Some(registries) => {
+                registries::drop_env_placeholder_entries(registries, has_env_placeholder)?
+            }
+            None => Vec::new(),
+        };
 
-        for scalar in [
-            &mut self.pnpr_server,
-            &mut self.https_proxy,
-            &mut self.http_proxy,
-            &mut self.proxy,
-            &mut self.user_agent,
+        for (setting, scalar) in [
+            ("registry", &mut self.registry),
+            ("pnprServer", &mut self.pnpr_server),
+            ("httpsProxy", &mut self.https_proxy),
+            ("httpProxy", &mut self.http_proxy),
+            ("proxy", &mut self.proxy),
+            ("userAgent", &mut self.user_agent),
         ] {
             if scalar.as_deref().is_some_and(has_env_placeholder) {
                 *scalar = None;
+                dropped.push(setting.to_string());
             }
         }
-        for no_proxy in [&mut self.no_proxy, &mut self.noproxy] {
+        for (setting, no_proxy) in [("noProxy", &mut self.no_proxy), ("noproxy", &mut self.noproxy)]
+        {
             if no_proxy
                 .as_ref()
                 .and_then(serde_json::Value::as_str)
                 .is_some_and(has_env_placeholder)
             {
                 *no_proxy = None;
+                dropped.push(setting.to_string());
             }
         }
+        Ok(dropped
+            .iter()
+            .map(|setting| ignored_setting_warning(setting))
+            .collect())
     }
 
     /// Rewrite a leading `~/` in `storeDir`, and in the directories of
@@ -117,6 +138,12 @@ impl WorkspaceSettings {
         }
         *script_shell = join_fragment(workspace_dir, script_shell).to_string_lossy().into_owned();
     }
+}
+
+fn ignored_setting_warning(setting: &str) -> String {
+    format!(
+        r#"Ignored "{setting}" in {WORKSPACE_MANIFEST_FILENAME}: environment variables are not expanded in the registry, proxy, and user agent settings of a file committed to the repository. Write the value literally, or move the setting to the global config.yaml."#
+    )
 }
 
 pub(super) fn expand_home_prefix<Sys: GetHomeDir>(dir: &str) -> Option<String> {

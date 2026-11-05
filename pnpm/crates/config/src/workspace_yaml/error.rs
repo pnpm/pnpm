@@ -147,6 +147,18 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     TokenHelperInProjectConfig { key: String },
+    /// A repository-controlled file routes packages to a registry whose URL
+    /// holds a `${VAR}` placeholder. pnpm does not expand it there, and
+    /// dropping the route would resolve those packages from the default
+    /// registry. `setting` is redacted before it reaches this variant.
+    #[display(r#"The "{setting}" registry URL in "{file}" contains an environment variable"#)]
+    #[diagnostic(
+        code(ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED),
+        help(
+            "pnpm does not expand environment variables in registry URLs that come from a file committed to the repository. Ignoring the URL would resolve the packages it routes from the default registry. Write the URL literally, or move the setting to the global config.yaml or the user-level .npmrc."
+        )
+    )]
+    RegistryEnvNotExpanded { setting: String, file: String },
     /// An `_auth` or `_password` credential did not decode as base64. Both
     /// exist to carry a base64-encoded value, so a value that cannot be
     /// decoded would otherwise reach the registry as a credential nobody

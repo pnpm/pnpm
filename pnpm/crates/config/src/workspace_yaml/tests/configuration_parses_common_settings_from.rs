@@ -690,7 +690,7 @@ registries:
   https://npm.example.com/: {serverType: artifactory}
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithToken>();
+    settings.substitute_env_untrusted::<EnvWithToken>().unwrap();
     let entries = settings.registries.as_ref().expect("registries present");
     assert_eq!(entries.len(), 1);
     assert!(entries.contains_key("https://npm.example.com/"));

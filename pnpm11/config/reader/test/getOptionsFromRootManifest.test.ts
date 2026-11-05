@@ -50,27 +50,35 @@ testOnWindows.each([
   expect(options.scriptShell).toBe(scriptShell)
 })
 
-test('getOptionsFromPnpmSettings() ignores env variables inside registries values', () => {
-  process.env.PNPM_TEST_TOKEN = 'secret'
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
+test('getOptionsFromPnpmSettings() fails on env variables inside scoped registries values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     registries: {
       default: 'https://registry.npmjs.org/',
       '@scope': 'https://registry.example.com/${PNPM_TEST_TOKEN}/',
     },
-  }) as any // eslint-disable-line
-  expect(options.registriesByScope).toStrictEqual({
-    default: 'https://registry.npmjs.org/',
-  })
+  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' }))
 })
 
-test('getOptionsFromPnpmSettings() ignores env variables inside namedRegistries values', () => {
-  process.env.PNPM_TEST_HOST = 'work.example.com'
+test('getOptionsFromPnpmSettings() ignores env variables inside the default registries value', () => {
+  const warnings: string[] = []
   const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      default: 'https://registry.example.com/${PNPM_TEST_TOKEN}/',
+      '@scope': 'https://registry.npmjs.org/',
+    },
+  }, { warnings }) as any // eslint-disable-line
+  expect(options.registriesByScope).toStrictEqual({
+    '@scope': 'https://registry.npmjs.org/',
+  })
+  expect(warnings).toStrictEqual([expect.stringContaining('Ignored "registries[\'default\']" in pnpm-workspace.yaml')])
+})
+
+test('getOptionsFromPnpmSettings() fails on env variables inside namedRegistries values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     namedRegistries: {
       work: 'https://${PNPM_TEST_HOST}/npm/',
     },
-  } as any) as any // eslint-disable-line
-  expect(options.registriesByPrefix).toBeUndefined()
+  } as any)).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' })) // eslint-disable-line
 })
 
 test('getOptionsFromPnpmSettings() ignores env variables inside registry setting', () => {

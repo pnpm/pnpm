@@ -72,13 +72,6 @@ ignoredBuiltDependencies: [core-js]
 /// values into outbound requests.
 #[test]
 fn ignores_env_vars_inside_workspace_request_destination_values() {
-    struct EnvWithHost;
-    impl EnvVar for EnvWithHost {
-        fn var(name: &str) -> Option<String> {
-            (name == "WORK_HOST").then(|| "internal.example.com".to_owned())
-        }
-    }
-
     let yaml = r"
 pnprServer: https://${WORK_HOST}/pnpr/
 registry: https://${WORK_HOST}/npm/
@@ -87,16 +80,40 @@ httpProxy: http://${WORK_HOST}:8081/
 noProxy: ${WORK_HOST}
 proxy: http://${WORK_HOST}:8082/
 noproxy: ${WORK_HOST}
+userAgent: agent/${WORK_HOST}
 registries:
+  default: https://${WORK_HOST}/default/
   '@safe': https://safe.example.com/npm/
-  '@work': https://${WORK_HOST}/scope/
 namedRegistries:
   literal: 'https://registry.example.com/${/npm/'
   stable: https://registry.example.com/npm/
-  work: https://${WORK_HOST}/npm/
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithHost>();
+    let warnings = settings.substitute_env_untrusted::<EnvWithWorkHost>().unwrap();
+    let ignored: Vec<&str> = warnings
+        .iter()
+        .map(|warning| {
+            warning
+                .strip_prefix("Ignored \"")
+                .and_then(|rest| rest.split_once('"'))
+                .map(|(setting, _)| setting)
+                .expect("an ignored-setting warning")
+        })
+        .collect();
+    assert_eq!(
+        ignored,
+        [
+            "registries['default']",
+            "registry",
+            "pnprServer",
+            "httpsProxy",
+            "httpProxy",
+            "proxy",
+            "userAgent",
+            "noProxy",
+            "noproxy",
+        ],
+    );
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.pnpr_server, None);
@@ -106,7 +123,6 @@ namedRegistries:
         config.registries_by_scope.get("@safe").map(String::as_str),
         Some("https://safe.example.com/npm/"),
     );
-    assert_eq!(config.registries_by_scope.get("@work"), None);
     assert_eq!(
         config.registries_by_prefix.get("stable").map(String::as_str),
         Some("https://registry.example.com/npm/"),
@@ -115,7 +131,41 @@ namedRegistries:
         config.registries_by_prefix.get("literal").map(String::as_str),
         Some("https://registry.example.com/${/npm/"),
     );
-    assert_eq!(config.registries_by_prefix.get("work"), None);
+}
+
+/// Dropping a registry URL that routes packages away from the default
+/// registry would resolve those packages from the default registry.
+/// <https://github.com/pnpm/pnpm/issues/17762>
+#[test]
+fn refuses_env_vars_inside_workspace_registry_routes() {
+    for (yaml, expected_setting) in [
+        ("registries:\n  '@work': https://${WORK_HOST}/scope/\n", "registries['@work']"),
+        ("namedRegistries:\n  work: https://${WORK_HOST}/npm/\n", "namedRegistries['work']"),
+        (
+            "registries:\n  https://${WORK_HOST}/:\n    scopes: ['@work']\n",
+            "registries['https://${WORK_HOST}/']",
+        ),
+        (
+            "registries:\n  https://${WORK_HOST}/:\n    prefix: work\n",
+            "registries['https://${WORK_HOST}/']",
+        ),
+    ] {
+        let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+        let error = settings.substitute_env_untrusted::<EnvWithWorkHost>().unwrap_err();
+        eprintln!("{yaml}=> {error}");
+        assert!(matches!(
+            &error,
+            crate::LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, file }
+                if setting == expected_setting && file == WORKSPACE_MANIFEST_FILENAME
+        ));
+    }
+}
+
+struct EnvWithWorkHost;
+impl EnvVar for EnvWithWorkHost {
+    fn var(name: &str) -> Option<String> {
+        (name == "WORK_HOST").then(|| "internal.example.com".to_owned())
+    }
 }
 
 #[test]
@@ -140,7 +190,7 @@ scriptShell: ${SHELL}
 nodeOptions: --require=${HOOK}
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithPaths>();
+    settings.substitute_env_untrusted::<EnvWithPaths>().unwrap();
 
     let base = Path::new("/workspace/root");
     let mut config = Config::new();
@@ -165,7 +215,7 @@ fn drops_a_workspace_user_agent_with_an_env_placeholder() {
 
     let yaml = "userAgent: agent/${PNPM_TEST_TOKEN}\n";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithToken>();
+    settings.substitute_env_untrusted::<EnvWithToken>().unwrap();
     assert_eq!(settings.user_agent, None);
 
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
@@ -174,7 +224,7 @@ fn drops_a_workspace_user_agent_with_an_env_placeholder() {
 
     let mut settings: WorkspaceSettings =
         serde_saphyr::from_str("userAgent: my-agent/2.0\n").unwrap();
-    settings.substitute_env_untrusted::<EnvWithToken>();
+    settings.substitute_env_untrusted::<EnvWithToken>().unwrap();
     assert_eq!(settings.user_agent.as_deref(), Some("my-agent/2.0"));
 }
 
@@ -197,7 +247,7 @@ cacheDir: 日本語/${CACHE_DIR}
 scriptShell: ./ünicode-shell
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithPaths>();
+    settings.substitute_env_untrusted::<EnvWithPaths>().unwrap();
 
     let base = Path::new("/workspace/root");
     let mut config = Config::new();

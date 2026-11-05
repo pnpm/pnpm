@@ -238,6 +238,13 @@ impl NpmrcAuth {
         }
         if !opts.expand_request_destination_env
             && has_env_placeholder(raw_value)
+            && scoped_registry_key(key).is_some()
+        {
+            self.unexpanded_scoped_registry.get_or_insert_with(|| key.to_string());
+            return false;
+        }
+        if !opts.expand_request_destination_env
+            && has_env_placeholder(raw_value)
             && is_request_destination_value_key(key)
         {
             self.warn_ignored_request_destination_env(key);

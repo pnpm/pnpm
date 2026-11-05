@@ -34,8 +34,9 @@ fn project_ini_ignores_env_placeholders_in_registry_urls() {
     assert!(!config.registry.contains("leaked"));
 }
 
+/// <https://github.com/pnpm/pnpm/issues/17762>
 #[test]
-fn project_ini_ignores_env_placeholders_in_scoped_registry_urls() {
+fn project_ini_records_env_placeholders_in_scoped_registry_urls() {
     static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
 
     let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
@@ -44,11 +45,7 @@ fn project_ini_ignores_env_placeholders_in_scoped_registry_urls() {
     );
 
     assert!(auth.routes.scoped.is_empty());
-    assert!(
-        auth.warnings
-            .iter()
-            .any(|warning| warning.contains("@scope:registry")),
-    );
+    assert_eq!(auth.unexpanded_scoped_registry.as_deref(), Some("@scope:registry"));
 }
 
 #[test]

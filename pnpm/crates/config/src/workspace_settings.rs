@@ -97,7 +97,8 @@ impl Config {
         // `virtualStoreDir` set in the global `config.yaml` still counts as
         // "explicitly set" when the workspace yaml leaves it unset.
         explicit.note(&settings);
-        settings.substitute_env_untrusted::<Sys>();
+        let ignored_settings = settings.substitute_env_untrusted::<Sys>()?;
+        self.npmrc_warnings.extend(ignored_settings);
         if for_self_update {
             settings.clear_self_update_policy();
         }
