@@ -13,7 +13,7 @@ use super::{
 };
 use crate::install::{Arc, Lockfile, PackageManifest, PathBuf};
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_resolving_deps_resolver::{ChildCatalogs, ManifestTransformHooks};
+use pnpm_resolving_deps_resolver::{ChildCatalogs, ManifestTransformHooks, directory_package_dir};
 use std::collections::{HashMap, HashSet};
 
 /// A directory dependency as the check reaches it: the directory the
@@ -165,7 +165,7 @@ pub(super) fn injected_project_manifests<'a>(
             let directory = &dependency.directory.directory;
             let declared_by_path = is_declared_by_path(&dependency.spec.specifier);
             let manifest = directory_manifests.get(directory, declared_by_path)?;
-            let dir = pnpm_fs::lexical_normalize(&inputs.lockfile_dir.join(directory));
+            let dir = directory_package_dir(inputs.lockfile_dir, directory);
             Some((declared_by_path, dir, manifest))
         })
         .collect();
@@ -265,7 +265,7 @@ impl DirectoryWalk<'_, '_> {
         visit: &Visit,
     ) -> Result<Option<(PackageManifest, bool)>, FreshnessCheckError> {
         let (directory, declared_by_path) = &visit.dep;
-        let dir = pnpm_fs::lexical_normalize(&self.inputs.lockfile_dir.join(directory));
+        let dir = directory_package_dir(self.inputs.lockfile_dir, directory);
         let injected = InjectedDirectory {
             dir: &dir,
             declared_by_path: *declared_by_path,
@@ -303,7 +303,7 @@ impl DirectoryWalk<'_, '_> {
             return Vec::new();
         };
         let (directory, declared_by_path) = &visit.dep;
-        let dir = self.inputs.lockfile_dir.join(directory);
+        let dir = directory_package_dir(self.inputs.lockfile_dir, directory);
         let catalogs = (!declared_by_path).then_some(ChildCatalogs {
             catalogs: self.inputs.catalogs,
             workspace_dir: self.inputs.config.workspace_dir.as_deref(),

@@ -10,7 +10,7 @@ use super::{
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{
     ChildCatalogs, DependencySpec, ResolveDependencyTreeError, declared_peer_dependencies,
-    local_directory_child_specs,
+    directory_package_dir, local_directory_child_specs,
 };
 use std::collections::HashSet;
 /// Compares the children the resolver walks for the package (see
@@ -78,7 +78,7 @@ fn check_child_directory_dep_freshness(
     let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution else {
         return Ok(());
     };
-    let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
+    let local_dep_dir = directory_package_dir(check.lockfile_dir, &dir_res.directory);
     let snapshot = check.lockfile.snapshots
         .as_ref()
         .and_then(|s| s.get(&pkg_key));

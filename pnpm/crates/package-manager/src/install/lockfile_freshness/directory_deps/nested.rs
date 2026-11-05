@@ -217,7 +217,8 @@ pub(crate) fn check_nested_directory_package(
     let snapshot = check.lockfile.snapshots
         .as_ref()
         .and_then(|snapshots| snapshots.get(&nested.key));
-    let dir = check.lockfile_dir.join(&nested.directory);
+    let dir =
+        pnpm_resolving_deps_resolver::directory_package_dir(check.lockfile_dir, &nested.directory);
     let mut scope = nested.ancestor_aliases.clone();
     scope.extend(
         check.lockfile.importers

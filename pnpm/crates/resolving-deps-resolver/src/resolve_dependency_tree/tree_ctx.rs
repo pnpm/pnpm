@@ -73,13 +73,15 @@ pub(crate) fn declaring_manifest_dir(
     if !result.id.as_str().starts_with("file:") {
         return None;
     }
-    let directory = Path::new(&resolution.directory);
-    let absolute = if directory.is_absolute() {
-        pnpm_fs::lexical_normalize(directory)
-    } else {
-        pnpm_fs::lexical_normalize(&lockfile_dir.join(directory))
-    };
-    Some(Arc::from(absolute))
+    Some(Arc::from(directory_package_dir(lockfile_dir, &resolution.directory)))
+}
+
+/// The directory a `file:`-shaped directory resolution records, as an
+/// absolute path: `directory` is relative to `lockfile_dir`, or absolute
+/// under `preserveAbsolutePaths`.
+#[must_use]
+pub fn directory_package_dir(lockfile_dir: &Path, directory: &str) -> PathBuf {
+    pnpm_fs::lexical_normalize(&lockfile_dir.join(directory))
 }
 
 /// Whether `spec` is a `file:` or `workspace:` path, which resolves

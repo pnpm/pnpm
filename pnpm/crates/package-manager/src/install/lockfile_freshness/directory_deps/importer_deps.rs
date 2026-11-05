@@ -9,7 +9,9 @@ use super::{
     spec, spec_dirs,
 };
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_resolving_deps_resolver::{dependency_is_injected, dependency_meta_is_injected};
+use pnpm_resolving_deps_resolver::{
+    dependency_is_injected, dependency_meta_is_injected, directory_package_dir,
+};
 
 pub(crate) fn check_directory_dependencies_freshness(
     check: &ImporterSatisfactionCheck<'_>,
@@ -132,7 +134,7 @@ fn check_directory_resolution(
             .map(|_| ())
             .ok_or_else(|| local_dependency_outdated(dep_str, rel_path));
     }
-    let local_dep_dir = check.lockfile_dir.join(rel_path);
+    let local_dep_dir = directory_package_dir(check.lockfile_dir, rel_path);
     let dep = LocalDepContext {
         name: dep_str,
         declared_by_path: is_declared_by_path(&dep_spec.specifier),
