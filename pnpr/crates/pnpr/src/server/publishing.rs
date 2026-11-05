@@ -27,7 +27,6 @@ use axum::response::{IntoResponse, Response};
 use serde_json::Value;
 use ssri::Integrity;
 
-use node_semver::Version;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
@@ -304,16 +303,11 @@ pub(super) fn check_body_versions(incoming: &Value) -> Result<(), RegistryError>
     Ok(())
 }
 
-/// Accepts only a version already in canonical form. Build metadata is
-/// compared raw: the parser stores numeric build identifiers as integers, so
-/// re-rendering `1.0.0+001` would drop leading zeros that are valid there.
+/// Whether `raw` is a version npm clients can install: strict `SemVer` 2.0,
+/// as the `semver` crate parses it for Cargo publishes, within the length and
+/// integer limits of the npm parser pnpr reads stored versions with.
 fn is_valid_semver(raw: &str) -> bool {
-    let Ok(mut version) = Version::parse(raw) else {
-        return false;
-    };
-    version.build.clear();
-    let without_build = raw.split_once('+').map_or(raw, |(core, _)| core);
-    version.to_string() == without_build
+    semver::Version::parse(raw).is_ok() && node_semver::Version::parse(raw).is_ok()
 }
 
 /// The version note at the top of a single npm publish document.
