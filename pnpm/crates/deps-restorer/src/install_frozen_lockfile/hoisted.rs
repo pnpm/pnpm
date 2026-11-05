@@ -13,6 +13,7 @@ mod replaced_locations;
 mod stale_links;
 mod workspace_links;
 
+use crate::create_virtual_store::linked_archives;
 use direct_links::link_selected_hoisted_direct_dependencies;
 use replaced_locations::forget_replaced_hoisted_locations;
 use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
@@ -142,6 +143,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     unlink_stale_direct_links(inputs)?;
     let (mut bins, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, lockfile, &walked, skipped)?;
+    record_hoisted_archives(inputs, &walked.graph);
     let changed_dirs = package_root_links::link_hoisted_package_root_links(
         lockfile,
         walked.graph.values(),
@@ -220,6 +222,10 @@ fn walk_hoisted_graph(
             }
         }
     }
+    linked_archives::import_other_hoisted_archives(
+        &mut walked.graph,
+        inputs.supported_architectures,
+    );
     for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
         if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
             skipped.insert_installability(key);
@@ -501,4 +507,9 @@ fn pkg_roots_by_key<'n>(
         }
     }
     roots
+}
+
+fn record_hoisted_archives(inputs: &HoistedLinkerInputs<'_>, graph: &crate::DependenciesGraph) {
+    let fetched = inputs.graph.cas_paths_by_pkg_id.as_ref();
+    linked_archives::record_hoisted_archives(graph, fetched, inputs.supported_architectures);
 }

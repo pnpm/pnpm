@@ -289,7 +289,7 @@ Each entry is a platform tag, the same tags a package's [`publishConfig.variants
 
 The spellings pnpm accepted before platform tags still work: `glibc` or `gnu` for the C library, other names of an architecture such as `amd64`, a `musllinux_<major>_<minor>` wheel baseline, and Rust target triples, so `x86_64-unknown-linux-gnu` is equivalent to `linux-x64`. `current` includes the platform running the install. Python resolves for the Linux, macOS, and Windows platforms of the list and reports the others.
 
-The list prepares only the named platforms. The mapping form continues to work with its existing meaning. Python uses these targets together with [`python.versions`](../python.md#pythonversions) when locking for multiple environments.
+A setting that names exactly one platform, without `current`, also decides which [platform variant](../registries.md#servertype) of a package pnpm links: that platform's, not the host's. A list names one by one entry; the mapping form names one when `os` and `cpu` each hold one value, an unset `libc` being the host's C library. The list prepares only the named platforms. The mapping form continues to work with its existing meaning. Python uses these targets together with [`python.versions`](../python.md#pythonversions) when locking for multiple environments.
 
 ### optional
 

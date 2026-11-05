@@ -143,7 +143,11 @@ fn variation_input_keys_use_the_selected_platform_integrity() {
     };
 
     let input_key = |selector: &PlatformSelector| {
-        let graph = build_deps_graph_for_platform(&snapshots, &packages, selector);
+        let platforms = crate::platform_selection::VariantPlatforms {
+            runtime: selector.clone(),
+            linked: selector.clone(),
+        };
+        let graph = build_deps_graph_for_platform(&snapshots, &packages, &platforms);
         calc_dep_state_input_key(&graph, &pkg, None)
     };
     let keys = [input_key(&linux_glibc), input_key(&linux_musl), input_key(&darwin)];
@@ -227,7 +231,11 @@ fn subgraph_with_empty_roots_is_empty() {
         (key("b", "1.0.0"), registry_metadata()),
     ]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::empty());
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::empty(), &crate::platform_selection::VariantPlatforms::host()),
+    );
     assert!(graph.is_empty(), "empty roots must produce an empty graph");
 }
 
@@ -252,7 +260,11 @@ fn subgraph_walks_forward_closure() {
         (key_d.clone(), registry_metadata()),
     ]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::once(key_a.clone()), &crate::platform_selection::VariantPlatforms::host()),
+    );
     assert!(graph.contains_key(&key_a));
     assert!(graph.contains_key(&key_b), "b is in a's closure");
     assert!(graph.contains_key(&key_c), "c is in a's closure via b");
@@ -272,7 +284,11 @@ fn subgraph_terminates_on_cycle() {
     let packages =
         HashMap::from([(key_a.clone(), registry_metadata()), (key_b.clone(), registry_metadata())]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::once(key_a.clone()), &crate::platform_selection::VariantPlatforms::host()),
+    );
     assert_eq!(graph.len(), 2);
     assert!(graph.contains_key(&key_a));
     assert!(graph.contains_key(&key_b));

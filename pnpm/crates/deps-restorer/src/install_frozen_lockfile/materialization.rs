@@ -63,6 +63,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 extra_env: &build_extra_env,
                 skipped: phase.skipped,
                 pending_bins: Some(&phase.linked.pending_bins),
+                supported_architectures: install.platform.supported_architectures,
             })
             .map_err(InstallFrozenLockfileError::BuildPhase)
         }

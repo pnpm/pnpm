@@ -13,6 +13,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.modules.included,
             self.install.context.config.peer_edge_options(),
         )
+        .linking_for(self.execution.supported_architectures)
     }
 
     fn frozen_lockfiles<'b>(
@@ -186,7 +187,7 @@ impl<'a> MaterializationWorkspace<'a> {
         let project_manifests =
             anchored_project_manifests(self.project_manifests, self.workspace_root, &anchors);
         let installer_groups = if self.requested_importer_ids.is_some() && hoisted_prior.is_some() {
-            crate::GroupSelection::all()
+            crate::GroupSelection::all().linking_as(&groups)
         } else {
             groups.clone()
         };

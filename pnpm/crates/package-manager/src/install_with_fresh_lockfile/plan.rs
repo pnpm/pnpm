@@ -37,7 +37,8 @@ impl MaterializationScope {
             built,
             install.included(),
             install.drivers.config.peer_edge_options(),
-        );
+        )
+        .linking_for(install.projects.supported_architectures);
         let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
         let empty_skipped = SkippedSnapshots::new();
         let closure = match install.projects.selected_ids {
@@ -288,7 +289,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
         .keys()
         .cloned()
         .collect();
-    let all_groups = crate::GroupSelection::all();
+    let all_groups = crate::GroupSelection::all().linking_as(scope.groups);
     let closure_groups =
         if install.projects.selected_ids.is_some() { &all_groups } else { scope.groups };
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(

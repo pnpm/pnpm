@@ -14,9 +14,9 @@ pub(crate) use local_file_deps::{
 pub use manifest_source::{DeclaredManifests, ManifestHooks, RepeatInstallManifests};
 pub(crate) use settings::{
     ResolvedImporters, catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_default_registry, recorded_extend_node_path_matches, recorded_registry_prefixes,
-    recorded_registry_routes_after_install, recorded_supported_architectures_match,
-    records_registry_keys_of,
+    linked_platform_missing, linked_platform_to_record, recorded_default_registry,
+    recorded_extend_node_path_matches, recorded_platforms_match, recorded_registry_prefixes,
+    recorded_registry_routes_after_install, records_registry_keys_of,
 };
 pub(crate) use timestamps::{
     file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
@@ -221,7 +221,10 @@ pub(crate) fn recorded_elsewhere(
 pub(crate) fn materialized_shape_matches(
     wanted: &Lockfile,
     current: &Lockfile,
-    included: IncludedDependencies,
+    (included, supported): (
+        IncludedDependencies,
+        Option<&pnpm_package_is_installable::SupportedArchitectures>,
+    ),
     config: &Config,
 ) -> bool {
     let mut skipped = crate::SkippedSnapshots::new();
@@ -239,7 +242,8 @@ pub(crate) fn materialized_shape_matches(
     current
         == &crate::filter_lockfile_for_current(
             wanted,
-            &crate::GroupSelection::classify(wanted, included, config.peer_edge_options()),
+            &crate::GroupSelection::classify(wanted, included, config.peer_edge_options())
+                .linking_for(supported),
             &skipped,
         )
 }

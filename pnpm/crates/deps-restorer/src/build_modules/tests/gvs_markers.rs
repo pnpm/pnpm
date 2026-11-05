@@ -119,6 +119,7 @@ new file mode 100644
                 importers: &importers,
                 dependency_groups: None,
                 build_scope: None,
+                variant_platforms: None,
             },
             scripts: crate::BuildScriptOptions {
                 extra_env: &HashMap::new(),

@@ -4,6 +4,7 @@
 //! a host none of them fits skips it as an optional dependency, as a
 //! platform the manifest excludes would.
 
+use crate::platform_selection::listed_link_platform;
 use pnpm_lockfile::{
     LockfileResolution, PackageMetadata, PlatformAssetTarget, PlatformSelector,
     VariationsResolution,
@@ -27,9 +28,9 @@ pub(super) fn variants_only(metadata: &PackageMetadata) -> Option<&VariationsRes
 
 /// Why `metadata`, the package `package_id`, cannot install under
 /// `options`, when it is published with variants only and the installer
-/// would find no archive for the host. The installer links the host's
-/// variant, so a platform that only `supportedArchitectures` names does not
-/// make the package installable. A variant fits as the installer selects
+/// would find no archive for the platform it links: the host's, or the one
+/// platform `supportedArchitectures` lists when it lists exactly one and
+/// omits `current`. A variant fits as the installer selects
 /// it, by its platform and by the floors and ABI the host meets; a
 /// selection the installer finds ambiguous is left for it to report.
 pub(super) fn variants_installability(
@@ -38,7 +39,11 @@ pub(super) fn variants_installability(
     options: &InstallabilityOptions<'_>,
 ) -> Option<InstallabilityError> {
     let variations = variants_only(metadata)?;
-    if !matches!(variations.select(&host_selector(options)), Ok(None)) {
+    let linked = match listed_link_platform(options.supported_architectures) {
+        Some(listed) => listed,
+        None => host_selector(options),
+    };
+    if !matches!(variations.select(&linked), Ok(None)) {
         return None;
     }
     let targets: Vec<&PlatformAssetTarget> = variations.variants

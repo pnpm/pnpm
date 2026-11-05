@@ -28,6 +28,7 @@ pub mod link_root_component_members;
 pub mod linking;
 pub mod materialization_plan;
 pub mod package_map;
+pub mod platform_selection;
 pub mod pnp;
 pub mod prune_direct_deps;
 pub mod prune_stale_modules;

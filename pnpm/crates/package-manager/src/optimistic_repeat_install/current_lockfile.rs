@@ -93,7 +93,8 @@ pub(super) fn selection_matches_wanted_lockfile(
         wanted,
         recorded_groups(state),
         check.config.peer_edge_options(),
-    );
+    )
+    .linking_for(check.layout.supported_architectures);
     let (wanted, current) =
         (closure(wanted, &recorded_groups), closure(current, &crate::GroupSelection::all()));
     wanted.importers == current.importers

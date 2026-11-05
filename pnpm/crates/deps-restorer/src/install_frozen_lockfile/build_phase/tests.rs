@@ -84,6 +84,7 @@ async fn build_generated_peer_bin_is_considered_without_lockfile_has_bin() {
         extra_env: &HashMap::new(),
         skipped: &SkippedSnapshots::default(),
         pending_bins: None,
+        supported_architectures: None,
     };
     assert_eq!(
         auto_installed_peer_bin_locations(&inputs, &importer),
@@ -162,6 +163,7 @@ async fn directory_peer_bin_is_considered_without_lockfile_has_bin() {
         extra_env: &HashMap::new(),
         skipped: &SkippedSnapshots::default(),
         pending_bins: None,
+        supported_architectures: None,
     };
     assert_eq!(
         auto_installed_peer_bin_locations(&inputs, &importer),
@@ -278,6 +280,7 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
 
         skipped: &skipped,
         pending_bins: None,
+        supported_architectures: None,
     })
     .expect("build phase succeeds");
 

@@ -1,6 +1,9 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
 pub(crate) use install_policy::recorded_extend_node_path_matches;
+pub(crate) use platforms::{
+    linked_platform_missing, linked_platform_to_record, recorded_platforms_match,
+};
 pub(crate) use recorded_values::{
     catalogs_to_json, empty_json_object, filter_null_object_values,
     link_workspace_packages_to_json, map_node_linker,
@@ -14,6 +17,7 @@ pub(crate) use registry_prefixes::{
 mod agent_skills;
 mod equivalence;
 mod install_policy;
+mod platforms;
 mod recorded_values;
 mod registry_prefixes;
 mod store_location;
@@ -23,6 +27,7 @@ use equivalence::{
     patched_dependencies_match,
 };
 use install_policy::install_policy_settings;
+use platforms::{live_linked_platform, supported_architectures_json};
 use recorded_values::map_trust_policy;
 
 use pnpm_catalogs_types::Catalogs;
@@ -31,26 +36,6 @@ use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_workspace_state::{WorkspaceState, WorkspaceStateSettings};
 use std::path::Path;
-
-/// Whether the `supportedArchitectures` recorded by the last install
-/// matches `live` (today's CLI-merged value). Read from the workspace
-/// state for the frozen path's lockfile-up-to-date early return, whose
-/// other guards (`wanted == current`, `.modules.yaml` consistency) cannot
-/// see an architecture change: the skip set it would produce differs, so
-/// the shortcut must not fire. A missing or unreadable state (`None`)
-/// reports a match only when `live` is also unset — the conservative
-/// direction is a full install.
-pub(crate) fn recorded_supported_architectures_match(
-    recorded: Option<&WorkspaceState>,
-    live: Option<&SupportedArchitectures>,
-) -> bool {
-    let recorded =
-        recorded.and_then(|state| state.settings.supported_architectures.as_ref());
-    recorded
-        == live
-            .and_then(|value| serde_json::to_value(value).ok())
-            .as_ref()
-}
 
 /// Compare today's settings against what the previous install
 /// recorded.
@@ -89,7 +74,11 @@ pub(crate) fn first_setting_drift(
     supported_architectures: Option<&SupportedArchitectures>,
     ignored_workspace_state_settings: &[&str],
 ) -> Option<&'static str> {
-    let current = current_settings(config, node_linker, included, supported_architectures);
+    let mut current = current_settings(config, node_linker, included, supported_architectures);
+    let recorded_linked = state.settings.linked_platform.as_deref();
+    current.linked_platform = recorded_linked.map(|recorded| {
+        live_linked_platform(Some(recorded), supported_architectures)
+    });
     SettingsComparison {
         recorded: &state.settings,
         live: &current,
@@ -288,6 +277,7 @@ impl SettingsComparison<'_> {
             "supportedArchitectures",
             recorded.supported_architectures != live.supported_architectures,
         );
+        return_drift_if!(self, "linkedPlatform", recorded.linked_platform != live.linked_platform);
         return_drift_if!(self, "trustPolicy", recorded.trust_policy != live.trust_policy);
         return_drift_if!(
             self,
@@ -355,9 +345,7 @@ pub(crate) fn current_settings(
         // The CLI-merged effective value (yaml plus `--cpu` / `--os` /
         // `--libc`), like `included` above: a change through either
         // channel re-evaluates the skipped optionals on the next run.
-        supported_architectures: supported_architectures.and_then(|value| {
-            serde_json::to_value(value).ok()
-        }),
+        supported_architectures: supported_architectures_json(supported_architectures),
         ..current_policy_settings(config)
     }
 }
@@ -442,3 +430,6 @@ fn recorded_overrides(config: &Config) -> Option<std::collections::BTreeMap<Stri
                 .collect()
         })
 }
+
+#[cfg(test)]
+mod tests;
