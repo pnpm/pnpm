@@ -45,19 +45,22 @@ pub fn measure(probe: &Path, registry: &str, args: &CliArgs) -> Result<InstallTi
 /// such as `file:` dependencies and patches, leaving out [`SKIPPED_DIRS`] and
 /// [`SKIPPED_ROOT_DIRS`].
 fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
-    let entries = walkdir::WalkDir::new(fixture)
+    let fixture = fixture
+        .canonicalize()
+        .map_err(|error| format!("resolve {}: {error}", fixture.display()))?;
+    let entries = walkdir::WalkDir::new(&fixture)
         .into_iter()
         .filter_entry(|entry| !is_install_output(entry));
     for entry in entries {
         let entry = entry.map_err(|error| format!("read {}: {error}", fixture.display()))?;
         let relative = entry
             .path()
-            .strip_prefix(fixture)
+            .strip_prefix(&fixture)
             .unwrap_or_else(|_| entry.path());
         let to = project.join(relative);
         let file_type = entry.file_type();
         let copied = if file_type.is_symlink() {
-            copy_symlink(entry.path(), &to)
+            copy_symlink(entry.path(), &to, &fixture)
         } else if file_type.is_dir() {
             fs::create_dir_all(&to)
         } else {
@@ -68,9 +71,18 @@ fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Recreate the link at `from` as `to`, pointing at the same target.
-fn copy_symlink(from: &Path, to: &Path) -> std::io::Result<()> {
-    let target = fs::read_link(from)?;
+/// Recreate the link at `from` as `to`. A target inside `fixture` keeps
+/// its relative spelling, so it resolves inside the copy. A target
+/// outside it is linked by its absolute path, which the copy can still
+/// reach.
+fn copy_symlink(from: &Path, to: &Path, fixture: &Path) -> std::io::Result<()> {
+    let raw_target = fs::read_link(from)?;
+    let resolved = from
+        .parent()
+        .unwrap_or(fixture)
+        .join(&raw_target)
+        .canonicalize()?;
+    let target = if resolved.starts_with(fixture) { raw_target } else { resolved };
     #[cfg(unix)]
     return std::os::unix::fs::symlink(target, to);
     #[cfg(windows)]
@@ -101,18 +113,25 @@ pub type EnvChange = (OsString, Option<OsString>);
 /// The probe's environment changes. Every inherited pnpm or npm setting
 /// is removed, so none can redirect the install out of `project`, except
 /// the ones that decide how to reach the registry. The settings the benchmark
-/// owns are then set as `PNPM_CONFIG_*` variables, which take precedence
-/// over the fixture's files.
+/// owns, including the paths the install writes to, are then set as
+/// `PNPM_CONFIG_*` variables, which take precedence over the fixture's
+/// files.
+///
+/// `lockfileDir` is left to the fixture: setting it, even to `project`,
+/// makes a frozen install fetch several times more package metadata and
+/// run many times slower.
 pub fn benchmark_env(
     project: &Path,
     registry: &str,
     inherited: impl IntoIterator<Item = OsString>,
 ) -> Vec<EnvChange> {
-    let settings: [(&str, OsString); 4] = [
+    let settings: [(&str, OsString); 6] = [
         ("PNPM_CONFIG_REGISTRY", registry.into()),
         ("PNPM_CONFIG_STORE_DIR", project.join("store-dir").into_os_string()),
         ("PNPM_CONFIG_CACHE_DIR", project.join("cache-dir").into_os_string()),
         ("PNPM_CONFIG_IGNORE_SCRIPTS", "true".into()),
+        ("PNPM_CONFIG_MODULES_DIR", project.join("node_modules").into_os_string()),
+        ("PNPM_CONFIG_VIRTUAL_STORE_DIR", project.join("node_modules/.pnpm").into_os_string()),
     ];
     let removals = inherited
         .into_iter()

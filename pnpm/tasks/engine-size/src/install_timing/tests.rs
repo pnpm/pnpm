@@ -29,6 +29,8 @@ fn benchmark_env_removes_inherited_settings_but_keeps_credentials() {
         ("PNPM_CONFIG_STORE_DIR".into(), Some(project.join("store-dir").into())),
         ("PNPM_CONFIG_CACHE_DIR".into(), Some(project.join("cache-dir").into())),
         ("PNPM_CONFIG_IGNORE_SCRIPTS".into(), Some("true".into())),
+        ("PNPM_CONFIG_MODULES_DIR".into(), Some(project.join("node_modules").into())),
+        ("PNPM_CONFIG_VIRTUAL_STORE_DIR".into(), Some(project.join("node_modules/.pnpm").into())),
     ];
     assert_eq!(env, expected);
 }
@@ -76,4 +78,18 @@ fn prepare_project_recreates_directory_symlinks() {
     std::os::unix::fs::symlink("real", fixture.path().join("link")).unwrap();
     prepare_project(fixture.path(), project.path()).unwrap();
     assert_eq!(std::fs::read_link(project.path().join("link")).unwrap(), Path::new("real"));
+}
+
+#[cfg(unix)]
+#[test]
+fn prepare_project_points_links_that_leave_the_fixture_at_their_absolute_target() {
+    let root = tempfile::tempdir().unwrap();
+    let fixture = root.path().join("fixture");
+    std::fs::create_dir(&fixture).unwrap();
+    std::fs::write(root.path().join("manifest.json"), r#"{"name":"shared"}"#).unwrap();
+    std::os::unix::fs::symlink("../manifest.json", fixture.join("package.json")).unwrap();
+    let project = tempfile::tempdir().unwrap();
+    prepare_project(&fixture, project.path()).unwrap();
+    let copied = std::fs::read_to_string(project.path().join("package.json")).unwrap();
+    assert_eq!(copied, r#"{"name":"shared"}"#);
 }
