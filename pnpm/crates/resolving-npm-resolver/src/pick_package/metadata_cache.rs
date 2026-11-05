@@ -1,15 +1,26 @@
-use super::{Arc, DashMap, Package, Semaphore};
+use super::{Arc, DashMap, DateTime, Package, Semaphore, Utc};
 
-/// A cached packument together with its registry-verification state.
+/// A cached packument together with its source.
 /// The two travel as one value so a reader can never pair a packument
-/// with the verification state of a concurrent overwrite.
+/// with the source of a concurrent overwrite.
 #[derive(Debug, Clone)]
 pub struct CachedPackument {
     pub meta: Arc<Package>,
-    /// `false` when the packument was parsed straight from the
-    /// on-disk mirror without a validating registry round-trip (see
-    /// [`PackageMetaCache::set_unverified`]).
-    pub registry_verified: bool,
+    pub source: PackumentSource,
+}
+
+/// Where a [`CachedPackument`] came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackumentSource {
+    /// Fetched from, or revalidated by, the registry (see
+    /// [`PackageMetaCache::set`]).
+    Registry,
+    /// Parsed straight from the on-disk mirror without a validating
+    /// registry round-trip (see [`PackageMetaCache::set_unverified`]).
+    Mirror {
+        /// The mirror's mtime, when the pick that read the mirror checked it.
+        written_at: Option<DateTime<Utc>>,
+    },
 }
 
 /// In-memory packument cache the orchestrator consults before any
@@ -55,10 +66,14 @@ pub trait PackageMetaCache: Send + Sync {
     /// The verified [`PackageMetaCache::set`] the fetch then performs
     /// replaces the entry, so each package revalidates at most once.
     ///
+    /// `written_at` is the mirror's mtime, when the caller read it. A mirror
+    /// written at or after the `minimumReleaseAge` cutoff holds every mature
+    /// version, so a pick from it is served without revalidation.
+    ///
     /// Required (no default) on purpose: an implementation that stored
     /// these entries as verified would silently turn a recoverable
     /// stale-mirror miss into a terminal "no matching version".
-    fn set_unverified(&self, key: String, meta: Arc<Package>);
+    fn set_unverified(&self, key: String, meta: Arc<Package>, written_at: Option<DateTime<Utc>>);
 }
 
 /// The packument-fetching state one install owns, shared across every
@@ -167,11 +182,14 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(key, CachedPackument { meta, registry_verified: true });
+        self.inner.insert(key, CachedPackument { meta, source: PackumentSource::Registry });
     }
 
-    fn set_unverified(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(key, CachedPackument { meta, registry_verified: false });
+    fn set_unverified(&self, key: String, meta: Arc<Package>, written_at: Option<DateTime<Utc>>) {
+        self.inner.insert(
+            key,
+            CachedPackument { meta, source: PackumentSource::Mirror { written_at } },
+        );
     }
 }
 
