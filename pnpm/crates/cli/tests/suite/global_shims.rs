@@ -225,19 +225,46 @@ fn a_runtime_install_does_not_dispatch_its_own_shim_again() {
     let lockfile_dir = root.path().join("lockfile-dir");
     fs::create_dir_all(&lockfile_dir).unwrap();
     let global_runs = root.path().join("global-runs");
-    write_script(&global_target, &format!("global >> {}", global_runs.display()));
+    write_script(&global_target, &format!("global >> '{}'", global_runs.display()));
+    let stderr = root.path().join("stderr");
 
-    let output = shim_command(&root, &project, "node", global_target.to_str().unwrap())
+    // A regression loops through new processes, so the shim leads a group
+    // of its own and the whole group dies at the end, not only the shim.
+    // Its output goes to files: a surviving descendant would hold a pipe
+    // open.
+    let mut command = shim_command(&root, &project, "node", global_target.to_str().unwrap())
         .with_env(AUTO_TRUST_ENV, "1")
         .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .with_env("PATH", path)
         .with_env("PNPM_CONFIG_LOCKFILE_DIR", &lockfile_dir)
-        .pipe(assert_cmd::Command::from_std)
-        .timeout(std::time::Duration::from_mins(1))
-        .output()
-        .unwrap();
-    dbg!(&output);
-    assert!(output.status.code().is_some(), "the dispatch must finish, not wait on itself");
+        .with_stdout(std::process::Stdio::null())
+        .with_stderr(fs::File::create(&stderr).unwrap().into());
+    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    let mut shim = command.spawn().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_mins(1);
+    let status = loop {
+        if let Some(status) = shim.try_wait().unwrap() {
+            break Some(status);
+        }
+        if std::time::Instant::now() >= deadline {
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let group = i32::try_from(shim.id()).unwrap();
+    // SAFETY: the group is the one this test's shim leads.
+    unsafe {
+        libc::killpg(group, libc::SIGKILL);
+    }
+    if status.is_none() {
+        shim.wait().unwrap();
+    }
+    eprintln!("{}", fs::read_to_string(&stderr).unwrap());
+
+    // Not `success()`: the leaked lockfile directory that makes the install
+    // probe `node` also sends the install outside the runtime environment,
+    // where pnpm then rejects the runtime it installed.
+    assert!(status.is_some(), "the dispatch must finish, not wait on itself");
     assert!(global_runs.exists(), "the probe must run the global node");
 }
 
