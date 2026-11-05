@@ -35,7 +35,8 @@ is the host. It then reports:
   the store populated and `node_modules` removed. The fixture defaults to the
   [integrated benchmark's](../integrated-benchmark/src/fixtures). Each
   install runs in a copy of the fixture directory. Inherited `PNPM_CONFIG_*`
-  and `NPM_CONFIG_*` settings are removed, except registry credentials. The
+  and `NPM_CONFIG_*` settings are removed, except credentials, proxy, and TLS
+  settings. The
   registry, store, cache, and `ignoreScripts: true` are passed as
   `PNPM_CONFIG_*` variables, which override the fixture's own settings. A
   public registry makes the cold-store timing noisy.

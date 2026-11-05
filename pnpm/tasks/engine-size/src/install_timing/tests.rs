@@ -14,6 +14,8 @@ fn benchmark_env_removes_inherited_settings_but_keeps_credentials() {
         "NPM_CONFIG__AUTH",
         "NPM_CONFIG_USERCONFIG",
         "PNPM_CONFIG_NPMRC_AUTH_FILE",
+        "PNPM_CONFIG_HTTPS_PROXY",
+        "npm_config_strict-ssl",
         "PATH",
     ]
     .map(OsString::from);
@@ -63,4 +65,15 @@ fn prepare_project_skips_install_output_but_keeps_nested_inputs() {
         .collect();
     copied.sort();
     assert_eq!(copied, ["package.json", "packages/store-dir/package.json", "patches/a.patch"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn prepare_project_recreates_directory_symlinks() {
+    let fixture = tempfile::tempdir().unwrap();
+    let project = tempfile::tempdir().unwrap();
+    std::fs::create_dir(fixture.path().join("real")).unwrap();
+    std::os::unix::fs::symlink("real", fixture.path().join("link")).unwrap();
+    prepare_project(fixture.path(), project.path()).unwrap();
+    assert_eq!(std::fs::read_link(project.path().join("link")).unwrap(), Path::new("real"));
 }

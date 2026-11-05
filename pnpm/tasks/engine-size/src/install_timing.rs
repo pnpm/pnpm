@@ -55,7 +55,10 @@ fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
             .strip_prefix(fixture)
             .unwrap_or_else(|_| entry.path());
         let to = project.join(relative);
-        let copied = if entry.file_type().is_dir() {
+        let file_type = entry.file_type();
+        let copied = if file_type.is_symlink() {
+            copy_symlink(entry.path(), &to)
+        } else if file_type.is_dir() {
             fs::create_dir_all(&to)
         } else {
             fs::copy(entry.path(), &to).map(drop)
@@ -63,6 +66,19 @@ fn prepare_project(fixture: &Path, project: &Path) -> Result<(), String> {
         copied.map_err(|error| format!("copy {}: {error}", entry.path().display()))?;
     }
     Ok(())
+}
+
+/// Recreate the link at `from` as `to`, pointing at the same target.
+fn copy_symlink(from: &Path, to: &Path) -> std::io::Result<()> {
+    let target = fs::read_link(from)?;
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(target, to);
+    #[cfg(windows)]
+    return if from.is_dir() {
+        std::os::windows::fs::symlink_dir(target, to)
+    } else {
+        std::os::windows::fs::symlink_file(target, to)
+    };
 }
 
 fn is_install_output(entry: &walkdir::DirEntry) -> bool {
@@ -84,7 +100,7 @@ pub type EnvChange = (OsString, Option<OsString>);
 
 /// The probe's environment changes. Every inherited pnpm or npm setting
 /// is removed, so none can redirect the install out of `project`, except
-/// the credentials a private registry needs. The settings the benchmark
+/// the ones that decide how to reach the registry. The settings the benchmark
 /// owns are then set as `PNPM_CONFIG_*` variables, which take precedence
 /// over the fixture's files.
 pub fn benchmark_env(
@@ -100,7 +116,7 @@ pub fn benchmark_env(
     ];
     let removals = inherited
         .into_iter()
-        .filter(|name| config_setting(name).is_some_and(|setting| !is_credential(&setting)))
+        .filter(|name| config_setting(name).is_some_and(|setting| !reaches_registry(&setting)))
         .map(|name| (name, None));
     let assignments = settings
         .into_iter()
@@ -118,12 +134,30 @@ fn config_setting(name: &std::ffi::OsStr) -> Option<String> {
         .map(str::to_string)
 }
 
+/// Settings that only decide how to reach the registry, which may need
+/// a proxy, a custom CA, or credentials.
+const REGISTRY_ACCESS_SETTINGS: [&str; 12] = [
+    "userconfig",
+    "npmrc_auth_file",
+    "proxy",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "noproxy",
+    "strict_ssl",
+    "ca",
+    "cafile",
+    "cert",
+    "key",
+];
+
 /// URL-scoped settings (`//host/:_authToken`), top-level auth such as
-/// `_auth`, and the files that hold them.
-fn is_credential(setting: &str) -> bool {
+/// `_auth`, and [`REGISTRY_ACCESS_SETTINGS`].
+fn reaches_registry(setting: &str) -> bool {
+    let setting = setting.replace('-', "_");
     setting.starts_with("//")
         || setting.starts_with('_')
-        || matches!(setting, "userconfig" | "npmrc_auth_file")
+        || REGISTRY_ACCESS_SETTINGS.contains(&setting.as_str())
 }
 
 fn install(probe: &Path, project: &Path, env: &[EnvChange]) -> Result<Duration, String> {
