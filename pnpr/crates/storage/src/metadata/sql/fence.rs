@@ -223,8 +223,8 @@ fn write_mapping(
 ) -> Result<()> {
     let sql = format!(
         "INSERT INTO artifact_blobs
-             (catalog, ecosystem, name, artifact, version, integrity, mapped_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, {NOW})
+             (catalog, ecosystem, name, artifact, version, integrity, mapped_at, mapping)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, {NOW}, ?7)
          ON CONFLICT DO NOTHING",
     );
     transaction.execute(
@@ -236,6 +236,7 @@ fn write_mapping(
             artifact.artifact,
             artifact.version,
             artifact.blob.id.as_str(),
+            super::mappings::new_mapping_token(),
         ],
     )
 }

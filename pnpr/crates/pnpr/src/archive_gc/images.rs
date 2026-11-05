@@ -46,11 +46,10 @@ impl Collection<'_> {
             .map(|mapping| mapping.id.clone())
             .collect();
         let rows = self.storage.blob_rows(ids).await?;
-        let artifacts = unreachable
-            .into_iter()
-            .map(|mapping| mapping.artifact)
-            .collect();
-        let unmapped = self.storage.unmap_hosted_artifacts(&repository, expected, artifacts);
+        // Each mapping is dropped only while it is still the one found here:
+        // a blob another collection unmapped and an upload mapped again since
+        // keeps its new mapping, which no repository generation tracks.
+        let unmapped = self.storage.unmap_hosted_artifacts(&repository, expected, unreachable);
         // A repository that moved on since it was read is left for a later
         // collection.
         let Some(removed) = unmapped.await? else { return Ok(GcReport::default()) };

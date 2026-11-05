@@ -354,7 +354,7 @@ async fn collection_finishes_an_interrupted_reclaim_after_the_lease() {
             "",
             Ecosystem::Oci,
             repository.as_str(),
-            (None, vec![digest.blob_filename()]),
+            (None, vec![digest.blob_filename().into()]),
         );
     let ids = unmapped.await.unwrap().unwrap();
     let marked = storage

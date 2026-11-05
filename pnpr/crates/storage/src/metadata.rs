@@ -21,7 +21,7 @@ pub use publication::{
     RecordedOutcome, ReleaseRecords,
 };
 pub(crate) use sql::PackageMetadata;
-pub use sql::{Mapping, RenderStats, SqlMetadata, TagHistoryEntry};
+pub use sql::{Mapping, RenderStats, SqlMetadata, TagHistoryEntry, Unmapping};
 pub(crate) use sql::{StagedEntry, StagedId};
 pub(crate) use staged::{StagedRecord, StagedState};
 

@@ -39,7 +39,17 @@ async fn a_stalled_delete_leaves_the_next_incarnation_served() {
     let database = storage.sql_metadata();
     let file = vec!["a-1.0.0.tgz".to_string()];
     database
-        .unmap_artifacts("", Ecosystem::Npm, "a", (None, file))
+        .unmap_artifacts(
+            "",
+            Ecosystem::Npm,
+            "a",
+            (
+                None,
+                file.into_iter()
+                    .map(Into::into)
+                    .collect(),
+            ),
+        )
         .await
         .unwrap()
         .unwrap();
@@ -165,4 +175,26 @@ async fn an_uncommitted_incarnation_is_removed_and_other_names_are_left() {
         again.artifact.blob,
         BlobRef { id: BlobId::of_bytes(Ecosystem::Npm, b"refused"), incarnation: 2 },
     );
+}
+
+/// A collector removes only the mapping it scanned. Another collector
+/// unmapped the file first and an upload mapped it again, which changes no
+/// package generation: the stale collector's removal leaves the new mapping
+/// and the file is still served.
+#[tokio::test]
+async fn a_stale_collector_leaves_a_mapping_made_since_its_scan() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("a");
+    store_file(&storage, &name, "a-1.0.0.tgz", b"bytes").await;
+    let (expected, scanned) = storage.package_mappings(&name).await.unwrap();
+
+    let first = storage.unmap_hosted_artifacts(&name, expected, scanned.clone()).await.unwrap();
+    assert!(first.is_some());
+    assert_eq!(served(&storage, &name, "a-1.0.0.tgz").await, None);
+    store_file(&storage, &name, "a-1.0.0.tgz", b"bytes").await;
+
+    let stale = storage.unmap_hosted_artifacts(&name, expected, scanned).await.unwrap();
+    assert_eq!(stale.as_deref(), Some(&[][..]));
+    assert_eq!(served(&storage, &name, "a-1.0.0.tgz").await.as_deref(), Some(&b"bytes"[..]));
 }

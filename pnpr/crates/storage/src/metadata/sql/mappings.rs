@@ -27,6 +27,42 @@ pub struct Mapping {
     pub id: BlobId,
     /// When the file was mapped.
     pub mapped_at: SystemTime,
+    /// What names this one mapping of the file, so a removal of what a scan
+    /// found never removes a mapping the file got again since.
+    pub mapping: String,
+}
+
+/// The mapping of a file to remove: any current one, or only the one a
+/// scan found.
+#[derive(Debug, Clone)]
+pub struct Unmapping {
+    pub artifact: String,
+    pub mapping: Option<String>,
+}
+
+impl From<String> for Unmapping {
+    fn from(artifact: String) -> Self {
+        Self { artifact, mapping: None }
+    }
+}
+
+impl From<Mapping> for Unmapping {
+    fn from(mapping: Mapping) -> Self {
+        Self { artifact: mapping.artifact, mapping: Some(mapping.mapping) }
+    }
+}
+
+/// A fresh token naming one mapping of a file.
+pub(super) fn new_mapping_token() -> String {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
+    bytes
+        .iter()
+        .fold(String::with_capacity(32), |mut hex, byte| {
+            use std::fmt::Write as _;
+            let _ = write!(hex, "{byte:02x}");
+            hex
+        })
 }
 
 impl SqlMetadata {
@@ -86,7 +122,7 @@ impl SqlMetadata {
         self.read(catalog.to_string(), Freshness::Current, move |connection, _| {
             let (catalog, ecosystem, name) = key.params();
             let mapped = query!(
-                "SELECT artifact, integrity, mapped_at FROM artifact_blobs
+                "SELECT artifact, integrity, mapped_at, mapping FROM artifact_blobs
                  WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 ORDER BY artifact",
                 catalog,
                 ecosystem,
@@ -107,6 +143,7 @@ impl SqlMetadata {
                         artifact: row.get(0)?,
                         id: id_from(&row.get::<String>(1)?)?,
                         mapped_at: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(seconds),
+                        mapping: row.get(3)?,
                     })
                 })
                 .collect::<Result<_>>()?;
@@ -124,17 +161,23 @@ impl SqlMetadata {
         catalog: &str,
         ecosystem: Ecosystem,
         name: &str,
-        (expected, artifacts): (Option<u64>, Vec<String>),
+        (expected, unmappings): (Option<u64>, Vec<Unmapping>),
     ) -> Result<Option<Vec<BlobId>>> {
         let key = PackageKey { catalog: catalog.to_string(), ecosystem, name: name.to_string() };
+        let pairs: Vec<(String, Option<String>)> = unmappings
+            .into_iter()
+            .map(|unmapping| (unmapping.artifact, unmapping.mapping))
+            .collect();
         self.write(move |connection| {
             let (catalog, ecosystem, name) = key.params();
-            let artifacts = json_array(&artifacts);
+            let artifacts = json_array(&pairs);
             let transaction = WriteTransaction::begin(connection)?;
             let mapped = Query::new(
                 "SELECT DISTINCT integrity FROM artifact_blobs
                  WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
-                   AND artifact IN (SELECT value FROM json_each(?4))",
+                   AND EXISTS (SELECT 1 FROM json_each(?4) WHERE json_extract(value, '$[0]') = artifact_blobs.artifact
+                                 AND (json_extract(value, '$[1]') IS NULL
+                                      OR json_extract(value, '$[1]') = artifact_blobs.mapping))",
                 params![catalog, ecosystem, name, artifacts],
             );
             let mut results = transaction
@@ -149,7 +192,9 @@ impl SqlMetadata {
             transaction.execute(
                 "DELETE FROM artifact_blobs
                  WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
-                   AND artifact IN (SELECT value FROM json_each(?4))",
+                   AND EXISTS (SELECT 1 FROM json_each(?4) WHERE json_extract(value, '$[0]') = artifact_blobs.artifact
+                                 AND (json_extract(value, '$[1]') IS NULL
+                                      OR json_extract(value, '$[1]') = artifact_blobs.mapping))",
                 params![catalog, ecosystem, name, artifacts],
             )?;
             transaction.commit()?;

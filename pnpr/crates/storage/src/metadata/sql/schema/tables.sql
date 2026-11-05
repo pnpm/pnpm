@@ -274,6 +274,7 @@ CREATE TABLE IF NOT EXISTS artifact_blobs (
     version TEXT NOT NULL,
     integrity TEXT NOT NULL,
     mapped_at INTEGER NOT NULL,
+    mapping TEXT NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, artifact)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS artifact_blobs_by_integrity

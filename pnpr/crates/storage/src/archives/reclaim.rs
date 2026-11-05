@@ -10,7 +10,7 @@
 
 use crate::{
     BlobId, Storage, StoredArchive,
-    metadata::{BlobRef, BlobRow, Uncommitted},
+    metadata::{BlobRef, BlobRow, Uncommitted, Unmapping},
     parse_blob_key,
 };
 use futures_util::TryStreamExt as _;
@@ -104,12 +104,20 @@ impl Storage {
         &self,
         name: &pnpr_package_name::CanonicalPackageName,
         expected: Option<u64>,
-        artifacts: Vec<String>,
+        artifacts: Vec<impl Into<Unmapping>>,
     ) -> Result<Option<Vec<BlobRef>>> {
         let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
-        let unmapped =
-            self.database.unmap_artifacts(catalog, ecosystem, name.as_str(), (expected, artifacts))
-                .await?;
+        let unmappings = artifacts
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let unmapped = self.database.unmap_artifacts(
+            catalog,
+            ecosystem,
+            name.as_str(),
+            (expected, unmappings),
+        )
+        .await?;
         match unmapped {
             Some(ids) => Ok(Some(self.reclaim_blobs(ids).await?)),
             None => Ok(None),

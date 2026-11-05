@@ -30,7 +30,7 @@
 pub(crate) mod adapter;
 
 pub use cache::RenderStats;
-pub use mappings::Mapping;
+pub use mappings::{Mapping, Unmapping};
 pub(crate) use staged::{StagedEntry, StagedId};
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
