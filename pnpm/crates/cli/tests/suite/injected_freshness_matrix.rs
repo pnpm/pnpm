@@ -49,6 +49,9 @@ enum Edit {
     OptionalPeer,
     ShadowedPeer,
     CatalogPeer,
+    WorkspaceChildRange,
+    FileChildPath,
+    CatalogFileChild,
 }
 
 struct Scenario {
@@ -59,7 +62,8 @@ struct Scenario {
 
 impl Scenario {
     /// `app` injects `lib`, and `lib` has a dependency and a peer from the
-    /// catalog that `app` provides.
+    /// catalog that `app` provides. `lib` also depends on the workspace
+    /// project `other` and on the directory package `lib/vendor`.
     fn new(layout: Layout) -> Self {
         let fixture = WorkspaceFixture::new();
         fixture.write_root_manifest("root", ManifestDeps::default());
@@ -68,10 +72,18 @@ impl Scenario {
         scenario.write_manifest(
             "lib",
             json!({
-                "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+                "dependencies": {
+                    "@pnpm.e2e/foo": "100.0.0",
+                    "other": "workspace:*",
+                    "vendored": "file:./vendor",
+                },
                 "peerDependencies": { "@pnpm.e2e/bar": "catalog:" },
             }),
         );
+        scenario.write_manifest("other", json!({}));
+        let vendor = scenario.workspace().join("packages/lib/vendor");
+        fs::create_dir_all(&vendor).expect("create the vendored package dir");
+        write_manifest_value(&vendor, &json!({ "name": "vendored", "version": "1.0.0" }));
         let (spec, meta) = match layout.injection {
             Injection::InjectWorkspacePackages => ("workspace:*", json!({})),
             Injection::DependenciesMeta => ("workspace:*", json!({ "lib": { "injected": true } })),
@@ -101,7 +113,8 @@ impl Scenario {
             format!(
                 "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n\
                  packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {}\n\
-                 injectWorkspacePackages: {}\ncatalog:\n  '@pnpm.e2e/bar': '{bar_catalog_entry}'\n",
+                 injectWorkspacePackages: {}\ncatalog:\n  '@pnpm.e2e/bar': '{bar_catalog_entry}'\n  \
+                 vendored: 'file:./packages/lib/vendor'\n",
                 self.fixture.registry.store_dir.display(),
                 self.fixture.registry.cache_dir.display(),
                 self.layout.shared_lockfile,
@@ -161,6 +174,11 @@ impl Scenario {
                 );
             }
             Edit::CatalogPeer => self.write_workspace_yaml("100.0.0"),
+            Edit::WorkspaceChildRange => {
+                set_dependency(&lib, "dependencies", "other", "workspace:^1.0.0");
+            }
+            Edit::FileChildPath => set_dependency(&lib, "dependencies", "vendored", "file:vendor"),
+            Edit::CatalogFileChild => set_dependency(&lib, "dependencies", "vendored", "catalog:"),
         }
     }
 
@@ -199,6 +217,20 @@ impl Scenario {
             ["install", "--no-frozen-lockfile"].iter().chain(filter),
         );
         assert_success(&output);
+    }
+
+    fn assert_install_fails(&self, filter: &[&str], code: &str) {
+        let output = self.fixture.command_at(
+            self.workspace(),
+            ["install", "--no-frozen-lockfile"].iter().chain(filter),
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && (stdout.contains(code) || stderr.contains(code)),
+            "{:?}: expected the install to fail with {code}\nstdout:\n{stdout}\nstderr:\n{stderr}",
+            self.layout,
+        );
     }
 
     /// Whether `pnpm install --frozen-lockfile` passes from a clean tree.
@@ -242,18 +274,12 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     let mut scenario = Scenario::new(layout);
     scenario.install(&[]);
     scenario.edit(edit);
+    if matches!((layout.injection, edit), (Injection::FileSpec, Edit::CatalogFileChild)) {
+        check_unresolvable_child(&mut scenario, filter);
+        return;
+    }
 
-    let frozen_passed = scenario.frozen_install_passes(filter);
-    let before = Scenario::lockfiles(scenario.workspace());
-    scenario.install(filter);
-    let after = Scenario::lockfiles(scenario.workspace());
-    assert_eq!(
-        frozen_passed,
-        before == after,
-        "{layout:?}, {edit:?}, filter {filter:?}: the frozen install passed: {frozen_passed}, \
-         but the install changed the lockfiles: {}\nbefore: {before:#?}\nafter: {after:#?}",
-        before != after,
-    );
+    let after = assert_agreement(&mut scenario, edit, filter);
 
     scenario.install(filter);
     assert_eq!(
@@ -290,7 +316,9 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
         actual, expected,
         "{layout:?}, {edit:?}, filter {filter:?}: the lockfiles differ from a resolution from scratch",
     );
+    // pnpm v11 rejects a local path in a catalog.
     if filter.is_empty()
+        && !matches!(edit, Edit::CatalogFileChild)
         && let Some(bundle) = read_v11_bundle_path()
     {
         let v11_expected = scenario.resolved_from_scratch(Some(&bundle));
@@ -299,6 +327,42 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
             "{layout:?}, {edit:?}: the v12 lockfiles differ from a v11 resolution from scratch",
         );
     }
+}
+
+/// The children of a `file:` dependency keep their `catalog:` specs, which no
+/// resolver accepts. A frozen install accepts a child spec it cannot judge, so
+/// a filtered one, which leaves `lib`'s importer unchecked, passes.
+fn check_unresolvable_child(scenario: &mut Scenario, filter: &[&str]) {
+    assert_eq!(
+        scenario.frozen_install_passes(filter),
+        !filter.is_empty(),
+        "{:?}, filter {filter:?}",
+        scenario.layout,
+    );
+    scenario.assert_install_fails(filter, "ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER");
+}
+
+/// Asserts that `pnpm install --frozen-lockfile` from a clean tree passes
+/// exactly when a non-frozen install of `filter` keeps the lockfiles, and
+/// returns the lockfiles that install wrote.
+fn assert_agreement(
+    scenario: &mut Scenario,
+    edit: Edit,
+    filter: &[&str],
+) -> BTreeMap<String, String> {
+    let layout = scenario.layout;
+    let frozen_passed = scenario.frozen_install_passes(filter);
+    let before = Scenario::lockfiles(scenario.workspace());
+    scenario.install(filter);
+    let after = Scenario::lockfiles(scenario.workspace());
+    assert_eq!(
+        frozen_passed,
+        before == after,
+        "{layout:?}, {edit:?}, filter {filter:?}: the frozen install passed: {frozen_passed}, \
+         but the install changed the lockfiles: {}\nbefore: {before:#?}\nafter: {after:#?}",
+        before != after,
+    );
+    after
 }
 
 /// The lockfile `--filter app` owns when every project has its own. A
@@ -321,6 +385,9 @@ macro_rules! matrix {
                     an_optional_peer: Edit::OptionalPeer,
                     a_shadowed_peer: Edit::ShadowedPeer,
                     a_catalog_peer: Edit::CatalogPeer,
+                    a_workspace_child_range: Edit::WorkspaceChildRange,
+                    a_file_child_path: Edit::FileChildPath,
+                    a_catalog_file_child: Edit::CatalogFileChild,
                 );
             }
         )*
@@ -387,6 +454,11 @@ fn publish_config_directory_with_built_manifest_agrees_across_layouts() {
         fs::create_dir_all(&dist_dir).unwrap();
         let mut lib_manifest = read_manifest(&lib_dir);
         lib_manifest["publishConfig"] = json!({ "directory": "dist" });
+        // `file:./vendor` would resolve from `dist`.
+        lib_manifest["dependencies"]
+            .as_object_mut()
+            .expect("lib declares dependencies")
+            .remove("vendored");
         write_manifest_value(&lib_dir, &lib_manifest);
         write_manifest_value(&dist_dir, &json!({ "name": "lib", "version": "1.0.0" }));
 
