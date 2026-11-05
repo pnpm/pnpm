@@ -358,15 +358,27 @@ fn an_unverified_cache_hit_serves_only_a_pick_a_stale_mirror_cannot_change() {
     let no_downgrade =
         PackagePickPolicy { trust_policy: Some(TrustPolicy::NoDowngrade), ..NO_POLICY };
     let base = range_pick(&NO_POLICY, None);
+    let uncacheable = headers(None, true);
+    let lowest = with_request(base, |request| request.pick_lowest_version = true);
     let cases = [
         (
             "prefer-offline",
             RouteInputs { network: NetworkPolicy::PreferCache, ..base },
             CacheHitCheck::Serve,
         ),
+        ("pick lowest", lowest, CacheHitCheck::Serve),
         (
-            "pick lowest",
-            with_request(base, |request| request.pick_lowest_version = true),
+            "pick lowest from an uncacheable mirror",
+            RouteInputs { mirror: Some(&uncacheable), ..lowest },
+            CacheHitCheck::Revalidate,
+        ),
+        (
+            "pick lowest from an uncacheable mirror, preferring offline",
+            RouteInputs {
+                network: NetworkPolicy::PreferCache,
+                mirror: Some(&uncacheable),
+                ..lowest
+            },
             CacheHitCheck::Serve,
         ),
         ("version", version_pick(&release_age, None), CacheHitCheck::Serve),

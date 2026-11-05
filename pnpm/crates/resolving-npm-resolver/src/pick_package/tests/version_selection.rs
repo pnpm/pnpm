@@ -402,6 +402,11 @@ async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
             },
         },
     };
+    // A pinned pick answers from the mirror and leaves it in memory.
+    let pinned = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
+        .await
+        .expect("pinned");
+    assert_eq!(pinned.picked_package.expect("picked").version.to_string(), "1.0.0");
     let mut opts = default_opts(&registry);
     opts.pick_lowest_version = true;
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("refetch");

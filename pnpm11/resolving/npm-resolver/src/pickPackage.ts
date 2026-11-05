@@ -204,6 +204,8 @@ function cacheHitMayServe (
   { meta, pickedPackage }: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
 ): boolean {
   const verified = !unverifiedDiskPackuments.has(meta)
+  // A lowest-version pick depends on the mirror being current, see mirrorMayAnswer.
+  if (request.opts.pickLowestVersion === true && !mirrorMayAnswer(request.ctx, meta.uncacheable)) return false
   switch (decideCacheHitCheck(request, verified, pickedPackage != null)) {
     case 'serve': return true
     case 'revalidate': return false

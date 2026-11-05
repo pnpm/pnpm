@@ -8,6 +8,7 @@ use super::{
     PickerOpts, RegistryPackageSpec, pick_from_meta, pick_from_meta_offline,
     pick_stable_cached_range_version, route::CacheHitCheck,
 };
+use crate::mirror::load_meta_headers_async;
 use std::sync::Arc;
 
 /// Shared cache-hit path. Invoked once on the optimistic pre-permit
@@ -77,7 +78,12 @@ async fn finish_cache_hit_pick<Cache: PackageMetaCache>(
     if meta.versions.corrupt_mirror_fragment_found() {
         return Ok(None);
     }
-    let inputs = state.route_inputs(ctx, spec, opts, None);
+    let headers = if opts.pick_lowest_version && matches!(source, PackumentSource::Mirror { .. }) {
+        load_meta_headers_async(state.pkg_mirror.as_deref()).await
+    } else {
+        None
+    };
+    let inputs = state.route_inputs(ctx, spec, opts, headers.as_ref());
     let serve = match CacheHitCheck::decide(&inputs, source, picked.is_some()) {
         CacheHitCheck::Serve => true,
         CacheHitCheck::StableRangePick => {

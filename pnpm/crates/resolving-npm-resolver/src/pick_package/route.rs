@@ -131,7 +131,9 @@ pub(super) enum CacheHitCheck {
 
 impl CacheHitCheck {
     /// `picked` is whether the entry produced a pick. Offline, every pick is
-    /// served: there is nothing to revalidate against.
+    /// served: there is nothing to revalidate against. `inputs.mirror` is
+    /// read only for a lowest-version pick, which an uncacheable mirror must
+    /// not answer online (see [`DiskFirst::UnlessUncacheable`]).
     pub(super) fn decide(inputs: &RouteInputs<'_>, source: PackumentSource, picked: bool) -> Self {
         let RouteInputs { network, request, .. } = *inputs;
         let PackumentSource::Mirror { written_at } = source else {
@@ -143,7 +145,7 @@ impl CacheHitCheck {
         if request.refresh_metadata && !network.prefers_reachable_cache() {
             return CacheHitCheck::Revalidate;
         }
-        if !picked {
+        if !picked || (request.pick_lowest_version && !mirror_may_answer(network, inputs.mirror)) {
             return CacheHitCheck::Revalidate;
         }
         // These picks answer the same from a stale mirror.
