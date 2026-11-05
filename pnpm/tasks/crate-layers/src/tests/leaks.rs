@@ -40,6 +40,7 @@ fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
         pub const r#unsafe: dep::RawConst = dep::raw_const_value();
         pub trait Defaults { const LIMIT: dep::Limit2 = dep::default_limit(); fn after(&self) -> dep::After; }
         pub trait Bounded { type Items: Iterator<Item = dep::BoundItem>; fn last(&self) -> dep::Last; }
+        pub trait Shifted { const MASK: usize = 1 << 3; const LIMIT: usize = dep::shifted_default(); fn wrapped() -> outer::Wrapper::<dep::Turbofish>; }
     "#;
     assert_eq!(
         exposed(source),
@@ -64,6 +65,7 @@ fn surface_reads_public_signatures_but_not_bodies_or_private_items() {
             "dep::After",
             "dep::BoundItem",
             "dep::Last",
+            "dep::Turbofish",
         ],
     );
 }
@@ -84,6 +86,7 @@ fn surface_skips_test_only_items_and_their_imports() {
         "#[cfg(test)]\n",
         "impl<A, B> Following where A: Clone, B: Copy { pub fn probe(&self) -> dep::TestImpl { todo!() } }\n",
         "#[cfg(test)] pub(crate) fn scoped(value: dep::Scoped) where u8: Copy, u16: Copy {}\n",
+        "#[cfg(test)] const MASK: usize = 1 << 3;\n",
         "pub fn last(value: dep::Last) {}\n",
     );
     let surface = surface::scan(&lexer::lex(source).tokens);
@@ -95,6 +98,26 @@ fn surface_skips_test_only_items_and_their_imports() {
         .collect::<Vec<_>>();
     assert_eq!(names, ["dep::After", "dep::Kept", "dep::Variant", "dep::Last"]);
     assert_eq!(surface.reexported, []);
+}
+
+#[test]
+fn surface_expands_a_name_through_its_first_import() {
+    let source = concat!(
+        "pub use first::Client;\n",
+        "fn helper() { use second::Client; }\n",
+        "pub fn make() -> Client { todo!() }\n",
+    );
+    let surface = surface::scan(&lexer::lex(source).tokens);
+    dbg!(&surface);
+    let clients = surface.exposed
+        .iter()
+        .filter(|path| {
+            path.last()
+                .is_some_and(|name| name == "Client")
+        })
+        .map(|path| path.join("::"))
+        .collect::<Vec<_>>();
+    assert_eq!(clients, ["first::Client"]);
 }
 
 #[test]

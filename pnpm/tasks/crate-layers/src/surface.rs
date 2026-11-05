@@ -32,14 +32,12 @@ pub fn scan(tokens: &[Token]) -> Surface {
         }
         pos = if let Some(end) = test_only_item_end(tokens, pos) {
             end
-        } else if let Some((paths, next)) = private_use(tokens, pos) {
-            imports.extend(paths);
-            next
+        } else if let Some(item) = use_item(tokens, pos) {
+            item.record(&mut surface, &mut imports)
         } else {
             scan_at(tokens, pos, &mut surface).max(pos + 1)
         };
     }
-    imports.extend(surface.reexported.iter().cloned());
     for path in &mut surface.exposed {
         expand(path, &imports);
     }
@@ -84,12 +82,37 @@ fn skip_visibility(tokens: &[Token], pos: usize) -> usize {
         .unwrap_or(pos + 1)
 }
 
-/// The paths of a `use` item without `pub` at `pos`, and the index after it.
-/// `use<'a>` in an `impl Trait + use<'a>` bound is not a `use` item.
-fn private_use(tokens: &[Token], pos: usize) -> Option<(Vec<UsePath>, usize)> {
+/// A `use` item: its paths, whether it is `pub use`, and the index after it.
+struct UseItem {
+    paths: Vec<UsePath>,
+    is_public: bool,
+    next: usize,
+}
+
+impl UseItem {
+    /// Adds the paths to the file's imports, and to its re-exports for a
+    /// `pub use`. Returns the index after the item.
+    fn record(self, surface: &mut Surface, imports: &mut Vec<UsePath>) -> usize {
+        if self.is_public {
+            surface.reexported.extend(self.paths.iter().cloned());
+        }
+        imports.extend(self.paths);
+        self.next
+    }
+}
+
+/// The `use` or `pub use` item at `pos`, if one starts there. `use<'a>` in an
+/// `impl Trait + use<'a>` bound is not a `use` item.
+fn use_item(tokens: &[Token], pos: usize) -> Option<UseItem> {
+    let is_public = is_ident(tokens.get(pos), "pub") && is_ident(tokens.get(pos + 1), "use");
+    let keyword = if is_public { pos + 1 } else { pos };
     let is_use =
-        is_ident(tokens.get(pos), "use") && tokens.get(pos + 1) != Some(&Token::Punct('<'));
-    is_use.then(|| use_tree::parse(tokens, pos + 1))
+        is_ident(tokens.get(keyword), "use") && tokens.get(keyword + 1) != Some(&Token::Punct('<'));
+    if !is_use {
+        return None;
+    }
+    let (paths, next) = use_tree::parse(tokens, keyword + 1);
+    Some(UseItem { paths, is_public, next })
 }
 
 /// The `extern crate name as alias;` at `pos`, if there is one.
@@ -117,11 +140,6 @@ fn scan_at(tokens: &[Token], pos: usize, surface: &mut Surface) -> usize {
         return collect(tokens, item, Stop::FieldEnd, surface);
     };
     match keyword.as_str() {
-        "use" => {
-            let (paths, next) = use_tree::parse(tokens, item + 1);
-            surface.reexported.extend(paths);
-            next
-        }
         "mod" | "macro_rules" | "crate" | "extern" => item + 1,
         "fn" => collect(tokens, item, Stop::Signature, surface),
         "struct" | "union" => collect(tokens, item, Stop::Body, surface),
@@ -179,7 +197,9 @@ fn boundary(tokens: &[Token], start: usize, stop: Stop) -> usize {
         if depth == 0 && (ends_at(*punct, stop) || matches!(punct, ')' | ']' | '}')) {
             return pos;
         }
-        depth = nested_depth(depth, tokens, pos);
+        if stop.tracks_angles() || !matches!(punct, '<' | '>') {
+            depth = nested_depth(depth, tokens, pos);
+        }
     }
     tokens.len()
 }
@@ -192,6 +212,16 @@ fn nested_depth(depth: usize, tokens: &[Token], pos: usize) -> usize {
         Token::Punct('>') if is_arrow(tokens, pos) => depth,
         Token::Punct(')' | ']' | '}' | '>') => depth.saturating_sub(1),
         _ => depth,
+    }
+}
+
+impl Stop {
+    /// Whether `<` and `>` count as brackets. They must where a `,` or `(`
+    /// inside generics would end the scan early. Elsewhere they are left
+    /// out, so a comparison or shift in a value, as in `1 << 3`, cannot
+    /// hide the item's end.
+    fn tracks_angles(self) -> bool {
+        matches!(self, Self::Body | Self::FieldEnd | Self::Extent)
     }
 }
 
@@ -249,21 +279,25 @@ struct TraitFilter {
 
 impl TraitFilter {
     /// Whether the token at `pos` is part of a signature: not inside a
-    /// provided method's body, and not after the `=` of an item's default.
-    /// An `=` inside brackets, as in `Iterator<Item = T>`, is part of a
-    /// bound.
+    /// provided method's body, and not in an item's default from its `=` to
+    /// its `;`. An `=` inside brackets, as in `Iterator<Item = T>`, is part of
+    /// a bound.
     fn keeps(&mut self, tokens: &[Token], pos: usize) -> bool {
+        let in_signature = self.braces == 1 && !self.in_default;
         match tokens[pos] {
             Token::Punct('{') => self.braces += 1,
             Token::Punct('}') => self.braces -= 1,
-            Token::Punct('=') if self.braces == 1 && self.brackets == 0 => self.in_default = true,
-            Token::Punct(';') if self.braces == 1 => self.in_default = false,
-            Token::Punct('(' | '[' | '<' | ')' | ']' | '>') if self.braces == 1 => {
+            Token::Punct('=') if in_signature && self.brackets == 0 => self.in_default = true,
+            Token::Punct(';') if self.braces == 1 => {
+                self.in_default = false;
+                self.brackets = 0;
+            }
+            Token::Punct('(' | '[' | '<' | ')' | ']' | '>') if in_signature => {
                 self.brackets = nested_depth(self.brackets, tokens, pos);
             }
-            _ => return self.braces <= 1 && !self.in_default,
+            _ => {}
         }
-        false
+        self.braces <= 1 && !self.in_default && !matches!(tokens[pos], Token::Punct('{' | '}'))
     }
 }
 
