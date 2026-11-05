@@ -278,7 +278,7 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
     scenario.edit(edit);
     if matches!(
         (layout.injection, edit),
-        (Injection::FileSpec | Injection::BarePath, Edit::CatalogFileChild)
+        (Injection::FileSpec | Injection::BarePath, Edit::CatalogFileChild),
     ) {
         check_unresolvable_child(&mut scenario, filter);
         return;
