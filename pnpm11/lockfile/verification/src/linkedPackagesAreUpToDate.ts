@@ -8,6 +8,7 @@ import type {
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { localSpecPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -24,7 +25,6 @@ import {
   isSubdirectory,
   isWorkspacePath,
   isWorkspaceRangeSpec,
-  resolveSpecPath,
   versionSatisfies,
 } from './dependencySpec.js'
 import {
@@ -142,11 +142,8 @@ async function checkDependency (
   if (refIsLocalDirectory(project.snapshot.specifiers[dep.depName]) || isLocalDirectoryRef(dep.lockfileRef)) {
     return checkLocalDirectoryDependency(ctx, { project, dep, localDirectoryDepIsUpToDate })
   }
-  if (dep.lockfileRef.startsWith('link:')) {
-    const specPath = getLinkSpecPath(dep.currentSpec)
-    if (specPath != null) {
-      return checkLinkTarget(project.dir, dep, specPath)
-    }
+  if (dep.lockfileRef.startsWith('link:') && namesLocalPath(dep.currentSpec)) {
+    return checkLinkTarget(project.dir, dep)
   }
   return checkWorkspaceLink(ctx, project, dep)
 }
@@ -181,25 +178,18 @@ async function checkLocalDirectoryDependency (
 }
 
 /**
- * The path a `link:`, `file:`, or `workspace:<path>` specifier points to.
+ * Whether the specifier is a `link:`, `file:`, or `workspace:<path>` one.
  */
-function getLinkSpecPath (currentSpec: string): string | undefined {
-  if (currentSpec.startsWith('link:') || currentSpec.startsWith('file:')) {
-    return currentSpec.slice(5)
-  }
-  if (currentSpec.startsWith('workspace:')) {
-    const target = currentSpec.slice(10)
-    if (isWorkspacePath(target)) return target
-  }
-  return undefined
+function namesLocalPath (currentSpec: string): boolean {
+  if (currentSpec.startsWith('link:') || currentSpec.startsWith('file:')) return true
+  return currentSpec.startsWith('workspace:') && isWorkspacePath(currentSpec.slice(10))
 }
 
 function checkLinkTarget (
   projectDir: string,
-  { depName, currentSpec, lockfileRef }: DependencyToCheck,
-  specPath: string
+  { depName, currentSpec, lockfileRef }: DependencyToCheck
 ): CheckLinkedPackagesResult {
-  return resolveSpecPath(projectDir, specPath) === resolveSpecPath(projectDir, lockfileRef.slice(5))
+  return localSpecPath(currentSpec, projectDir) === localSpecPath(lockfileRef.slice(5), projectDir)
     ? UP_TO_DATE
     : outdated(`Dependency "${depName}" is linked to "${lockfileRef}", which does not match "${currentSpec}"`)
 }

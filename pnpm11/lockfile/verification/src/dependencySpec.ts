@@ -1,4 +1,3 @@
-import os from 'node:os'
 import path from 'node:path'
 
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
@@ -48,14 +47,6 @@ export function isSubdirectory (parentDir: string, childPath: string): boolean {
     !relativePath.startsWith(`..${path.sep}`) &&
     !path.isAbsolute(relativePath)
   )
-}
-
-export function resolveSpecPath (baseDir: string, rawPath: string): string {
-  const clean = rawPath.startsWith('./') ? rawPath.slice(2) : rawPath
-  if (clean.startsWith('~/') || clean.startsWith('~\\')) {
-    return path.resolve(os.homedir(), clean.slice(2))
-  }
-  return path.resolve(baseDir, clean)
 }
 
 export function isWorkspacePath (spec: string): boolean {

@@ -3,7 +3,8 @@ use super::{
     injected_manifest::{target_manifest, workspace_path_matches_target},
 };
 use pnpm_resolving_deps_resolver::locked_child_admits;
-use std::path::{Path, PathBuf};
+use pnpm_resolving_local_resolver::local_spec_path;
+use std::path::Path;
 
 /// Where the specs of a local directory dependency resolve.
 #[derive(Clone, Copy)]
@@ -85,49 +86,31 @@ fn is_full_commit(committish: &str) -> bool {
     committish.len() == 40 && committish.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
-fn resolve_local_spec_path(base_dir: &Path, raw_path: &str) -> PathBuf {
-    let clean = raw_path.strip_prefix("./").unwrap_or(raw_path);
-    if let Some(rest) = clean
-        .strip_prefix("~/")
-        .or_else(|| clean.strip_prefix(r"~\"))
-    {
-        let home = pnpm_config::home_dir().unwrap_or_default();
-        pnpm_fs::lexical_normalize(&home.join(rest))
-    } else {
-        pnpm_fs::lexical_normalize(&base_dir.join(clean))
-    }
-}
-
 fn file_or_link_spec_satisfies(
     lockfile_dir: &Path,
     local_dep_dir: &Path,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
-    if let Some(target) = spec.strip_prefix("link:") {
+    if spec.starts_with("link:") {
         let Some(lockfile_target) = lockfile_dep.as_link_target() else {
             return Some(false);
         };
         return Some(
-            resolve_local_spec_path(local_dep_dir, target)
-                == resolve_local_spec_path(lockfile_dir, lockfile_target),
+            local_spec_path(spec, local_dep_dir) == local_spec_path(lockfile_target, lockfile_dir),
         );
     }
     let path = spec.strip_prefix("file:")?;
     if let Some(target) = lockfile_dep.as_link_target() {
-        return Some(
-            resolve_local_spec_path(local_dep_dir, path)
-                == resolve_local_spec_path(lockfile_dir, target),
-        );
+        return Some(local_spec_path(spec, local_dep_dir) == local_spec_path(target, lockfile_dir));
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
         return Some(false);
     };
     match ver_peer.version() {
-        pnpm_lockfile::VersionPart::File(recorded) => Some(
-            resolve_local_spec_path(local_dep_dir, path)
-                == resolve_local_spec_path(lockfile_dir, recorded),
-        ),
+        pnpm_lockfile::VersionPart::File(recorded) => {
+            Some(local_spec_path(spec, local_dep_dir) == local_spec_path(recorded, lockfile_dir))
+        }
         pnpm_lockfile::VersionPart::NonSemver(raw) => Some(raw == spec || raw == path),
         _ => Some(false),
     }
@@ -140,12 +123,12 @@ fn workspace_path_spec_satisfies(
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    let resolved_spec = resolve_local_spec_path(local_dep_dir, workspace_spec);
+    let resolved_spec = local_spec_path(spec, local_dep_dir);
     if let Some(target) = lockfile_dep.as_link_target() {
         return workspace_path_matches_target(
             dirs,
             &resolved_spec,
-            &resolve_local_spec_path(dirs.lockfile_dir, target),
+            &local_spec_path(target, dirs.lockfile_dir),
         );
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
@@ -155,7 +138,7 @@ fn workspace_path_spec_satisfies(
         pnpm_lockfile::VersionPart::File(recorded) => workspace_path_matches_target(
             dirs,
             &resolved_spec,
-            &resolve_local_spec_path(dirs.lockfile_dir, recorded),
+            &local_spec_path(recorded, dirs.lockfile_dir),
         ),
         pnpm_lockfile::VersionPart::NonSemver(raw) => raw == spec || raw == workspace_spec,
         _ => false,
@@ -241,9 +224,8 @@ pub(super) fn importer_link_satisfies(
     if super::is_declared_local_directory(spec) {
         return true;
     }
-    if let Some(target) = spec.strip_prefix("link:") {
-        return resolve_local_spec_path(project_dir, target)
-            == resolve_local_spec_path(project_dir, link_target);
+    if spec.starts_with("link:") {
+        return local_spec_path(spec, project_dir) == local_spec_path(link_target, project_dir);
     }
     let Some(workspace_spec) = spec.strip_prefix("workspace:") else {
         return true;
@@ -251,8 +233,8 @@ pub(super) fn importer_link_satisfies(
     if is_workspace_path(workspace_spec) {
         return workspace_path_matches_target(
             dirs,
-            &resolve_local_spec_path(project_dir, workspace_spec),
-            &resolve_local_spec_path(project_dir, link_target),
+            &local_spec_path(spec, project_dir),
+            &local_spec_path(link_target, project_dir),
         );
     }
     let (target, parsed_range_str) = parse_workspace_range(workspace_spec);

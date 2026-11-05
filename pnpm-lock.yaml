@@ -7888,6 +7888,9 @@ importers:
       '@pnpm/resolving.git-resolver':
         specifier: workspace:*
         version: link:../../resolving/git-resolver
+      '@pnpm/resolving.local-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/local-resolver
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver

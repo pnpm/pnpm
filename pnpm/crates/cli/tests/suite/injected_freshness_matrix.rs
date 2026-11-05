@@ -75,7 +75,7 @@ impl Scenario {
                 "dependencies": {
                     "@pnpm.e2e/foo": "100.0.0",
                     "other": "workspace:*",
-                    "vendored": "file:./vendor",
+                    "vendored": r"file:.\vendor",
                 },
                 "peerDependencies": { "@pnpm.e2e/bar": "catalog:" },
             }),
@@ -454,7 +454,7 @@ fn publish_config_directory_with_built_manifest_agrees_across_layouts() {
         fs::create_dir_all(&dist_dir).unwrap();
         let mut lib_manifest = read_manifest(&lib_dir);
         lib_manifest["publishConfig"] = json!({ "directory": "dist" });
-        // `file:./vendor` would resolve from `dist`.
+        // `file:.\vendor` would resolve from `dist`.
         lib_manifest["dependencies"]
             .as_object_mut()
             .expect("lib declares dependencies")

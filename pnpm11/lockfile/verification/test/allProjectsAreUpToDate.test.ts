@@ -1597,6 +1597,29 @@ describe('local file dependency', () => {
     expect(await check('other@file:local-dir')).toBeFalsy()
   })
 
+  test('allProjectsAreUpToDate(): reads a file dependency of local file the way the resolver does', async () => {
+    await mkdir('other-dir')
+    await writeFile('./other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    const check = async (spec: string) => {
+      await writeLocalDirManifest({ dependencies: { other: spec } })
+      return allProjectsAreUpToDate(projects, {
+        ...options,
+        lockfileDir: process.cwd(),
+        wantedLockfile: {
+          ...options.wantedLockfile,
+          packages: {
+            'local@file:./local-dir': { ...localDirSnapshot, dependencies: { other: 'file:other-dir' } },
+            'other@file:other-dir': { resolution: { directory: 'other-dir', type: 'directory' } },
+          } as LockfileObject['packages'],
+        },
+      })
+    }
+    expect(await check('file:..\\other-dir')).toBeTruthy()
+    expect(await check('file:/../other-dir')).toBeTruthy()
+    expect(await check('file:/other-dir')).toBeFalsy()
+  })
+
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
     await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
   }

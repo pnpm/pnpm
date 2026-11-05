@@ -16,6 +16,7 @@ import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
+import { localSpecPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -32,7 +33,6 @@ import {
   getVersionRange,
   isSubdirectory,
   isWorkspacePath,
-  resolveSpecPath,
   versionSatisfies,
 } from './dependencySpec.js'
 
@@ -397,20 +397,20 @@ async function localSpecIsUpToDate (
   if (currentSpec.startsWith('link:')) {
     return (
       lockfileDep.startsWith('link:') &&
-      resolveSpecPath(localDep.localDepDir, currentSpec.slice(5)) === resolveSpecPath(localDep.lockfileDir, lockfileDep.slice(5))
+      localSpecPath(currentSpec, localDep.localDepDir) === localSpecPath(lockfileDep.slice(5), localDep.lockfileDir)
     )
   }
   const cleanLockfileDep = removeSuffix(lockfileDep)
   const lockfilePath = getLocalPath(cleanLockfileDep)
   if (currentSpec.startsWith('file:')) {
-    return localPathMatches(localDep, currentSpec.slice(5), lockfilePath)
+    return localPathMatches(localDep, currentSpec, lockfilePath)
   }
   return workspaceDependencyIsUpToDate(localDep, { depName, currentSpec, cleanLockfileDep, lockfilePath })
 }
 
-function localPathMatches (localDep: LocalDirectoryDep, specPath: string, lockfilePath: string | null): boolean {
+function localPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfilePath: string | null): boolean {
   return lockfilePath != null &&
-    resolveSpecPath(localDep.localDepDir, specPath) === resolveSpecPath(localDep.lockfileDir, lockfilePath)
+    localSpecPath(currentSpec, localDep.localDepDir) === localSpecPath(lockfilePath, localDep.lockfileDir)
 }
 
 function hasExpectedName (cleanLockfileDep: string, { depName, currentSpec }: { depName: string, currentSpec: string }): boolean {
@@ -428,9 +428,8 @@ async function workspaceDependencyIsUpToDate (
     lockfilePath: string | null
   }
 ): Promise<boolean> {
-  const target = currentSpec.slice(10)
-  if (isWorkspacePath(target)) {
-    return localPathMatches(localDep, target, lockfilePath)
+  if (isWorkspacePath(currentSpec.slice(10))) {
+    return localPathMatches(localDep, currentSpec, lockfilePath)
   }
   const range = getVersionRange(currentSpec)
   if (lockfilePath != null) {
