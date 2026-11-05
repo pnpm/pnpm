@@ -82,9 +82,15 @@ pub(crate) fn declaring_manifest_dir(
     Some(Arc::from(absolute))
 }
 
-/// Point a `file:` or `workspace:` path specifier at the directory of
-/// the manifest that declares it ([`declaring_manifest_dir`]) instead
-/// of the consuming importer's. Every other specifier keeps the
+/// Whether `spec` is a `file:` or `workspace:` path, which resolves
+/// from the directory of the manifest that declares it
+/// ([`declaring_manifest_dir`]) instead of the consuming importer's.
+pub(crate) fn resolves_from_declaring_manifest(spec: &str) -> bool {
+    spec.starts_with("file:") || spec.starts_with("workspace:.")
+}
+
+/// Point a specifier matching [`resolves_from_declaring_manifest`] at
+/// its declaring manifest's directory. Every other specifier keeps the
 /// caller's options.
 pub(super) fn opts_relative_to_declaring_manifest<'a>(
     opts: &'a ResolveOptions,
@@ -93,11 +99,7 @@ pub(super) fn opts_relative_to_declaring_manifest<'a>(
 ) -> Cow<'a, ResolveOptions> {
     match parent_dir {
         Some(parent_dir)
-            if wanted.bare_specifier
-                .as_deref()
-                .is_some_and(|spec| {
-                    spec.starts_with("file:") || spec.starts_with("workspace:.")
-                }) =>
+            if wanted.bare_specifier.as_deref().is_some_and(resolves_from_declaring_manifest) =>
         {
             Cow::Owned(ResolveOptions {
                 project: pnpm_resolving_resolver_base::ResolverProjectOptions {
