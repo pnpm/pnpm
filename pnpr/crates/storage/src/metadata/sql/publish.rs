@@ -5,12 +5,12 @@ use super::{
     Expected, PackageKey,
     adapter::{Connection, Query, Row},
     batch::Batch,
+    blobs::{FenceCheck, FenceRead},
     commit::StoredPackage,
     notes, publications,
-    reclaims::FenceRead,
 };
 use crate::metadata::{
-    ArchiveFence, ArtifactMember, BatchDocument, Generation, PublicationCommit, PublicationRequest,
+    ArtifactMember, BatchDocument, BlobFence, Generation, PublicationCommit, PublicationRequest,
     PublishNotes, RecordedOutcome,
 };
 use pnpr_error::{RegistryError, Result};
@@ -24,9 +24,8 @@ pub(super) struct Submission<'input> {
     pub(super) artifacts: &'input [ArtifactMember],
     pub(super) notes: &'input PublishNotes,
     pub(super) request: Option<&'input PublicationRequest>,
-    /// The archives the commit depends on, and the catalog generation read
-    /// before they were promoted.
-    pub(super) fence: &'input ArchiveFence,
+    /// The files the commit maps, and the blobs it depends on.
+    pub(super) fence: &'input BlobFence,
 }
 
 /// Commit every document of `submission` under one new generation of its
@@ -54,6 +53,7 @@ pub(super) fn commit_publication(
     {
         write_member(&mut batch, document, key, stored)?;
     }
+    reads.write_fence(&batch, read.fence.as_ref())?;
     let publication = record(&batch, submission, read.name_taken, &read.noted)?;
     // The batch holds the write lock, so the catalog is at the generation
     // before the batch's until it commits.
@@ -106,7 +106,7 @@ struct Reads<'request> {
     /// The package each document writes.
     keys: Vec<PackageKey>,
     notes: &'request PublishNotes,
-    /// The check of the commit's fence, when it depends on any archive.
+    /// The check of the commit's fence, when it maps any file.
     fence: Option<FenceRead>,
 }
 
@@ -124,6 +124,8 @@ struct Read {
     stored: Vec<StoredPackage>,
     /// Whether each version note's version already has a note.
     noted: Vec<bool>,
+    /// What the fence found, when the commit has one.
+    fence: Option<FenceCheck>,
 }
 
 impl<'request> Reads<'request> {
@@ -155,6 +157,14 @@ impl<'request> Reads<'request> {
         Ok(Self { catalog, request, keys, notes, fence: FenceRead::new(fence) })
     }
 
+    /// Write what the commit's fence maps and creates, as `check` found it.
+    fn write_fence(&self, batch: &Batch<'_>, check: Option<&FenceCheck>) -> Result<()> {
+        match (&self.fence, check) {
+            (Some(fence), Some(check)) => fence.write(batch.transaction(), self.catalog, check),
+            _ => Ok(()),
+        }
+    }
+
     fn name(&self) -> Option<&'request str> {
         self.request.and_then(|request| request.name.as_deref())
     }
@@ -174,7 +184,7 @@ impl<'request> Reads<'request> {
             queries.push(notes::version_note_query(self.catalog, note));
         }
         if let Some(fence) = &self.fence {
-            queries.push(fence.query(self.catalog));
+            queries.extend(fence.queries(self.catalog));
         }
         queries
     }
@@ -199,10 +209,11 @@ impl<'request> Reads<'request> {
             .iter()
             .map(|_| Ok(!next(&mut results)?.is_empty()))
             .collect::<Result<_>>()?;
-        if let Some(fence) = &self.fence {
-            fence.check(next(&mut results)?)?;
-        }
-        Ok(Answer::Read(Read { name_taken, stored, noted }))
+        let fence = self.fence
+            .as_ref()
+            .map(|fence| fence.check(&mut results))
+            .transpose()?;
+        Ok(Answer::Read(Read { name_taken, stored, noted, fence }))
     }
 }
 

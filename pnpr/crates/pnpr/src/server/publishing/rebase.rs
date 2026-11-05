@@ -14,8 +14,7 @@ use super::{RegistryError, StagedPublish};
 use crate::server::AppState;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::metadata::{
-    ArchiveFence, ArtifactMember, BatchDocument, PublicationCommit, PublicationRequest,
-    PublishNotes,
+    ArtifactMember, BatchDocument, BlobFence, PublicationCommit, PublicationRequest, PublishNotes,
 };
 use serde_json::{Map, Value};
 
@@ -93,8 +92,8 @@ pub(super) struct Publication<'catalog> {
     pub(super) artifacts: Vec<ArtifactMember>,
     pub(super) notes: PublishNotes,
     pub(super) request: Option<PublicationRequest>,
-    /// The archives the commit depends on.
-    pub(super) fence: ArchiveFence,
+    /// The files the commit maps, and the blobs it depends on.
+    pub(super) fence: BlobFence,
 }
 
 /// Commit `documents`, and when another replica committed one of their

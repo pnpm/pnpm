@@ -4,7 +4,6 @@ use super::{
     sri_sha512, static_config,
 };
 use base64::Engine;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
 async fn publish_rejects_a_non_semver_version_key_before_storing_anything() {
@@ -149,14 +148,7 @@ async fn republishing_an_existing_version_is_rejected_with_conflict() {
     assert_eq!(second.status(), StatusCode::CONFLICT);
 
     // The originally published tarball must be untouched on disk.
-    let on_disk = std::fs::read(local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "mypkg",
-        "mypkg-1.0.0.tgz",
-    ))
-    .unwrap();
+    let on_disk = crate::storage::hosted_file(&storage, "mypkg", "mypkg-1.0.0.tgz").unwrap();
     assert_eq!(on_disk, npm_tgz("mypkg", "1.0.0", b"original-bytes"));
 }
 
@@ -506,9 +498,13 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
     stored["versions"]["1.0.0"]["dist"]["tarball"] = json!("http://localhost:4873/mypkg/-/");
     let moved = TempDir::new().unwrap();
     pnpr_storage::layout::write_local_layout_marker(moved.path()).unwrap();
-    copy_tree(
-        &local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "mypkg"),
-        &local_package_dir(moved.path(), "", pnpr_storage::Ecosystem::Npm, "mypkg"),
+    let tarball = crate::storage::hosted_file(&storage, "mypkg", "mypkg-1.0.0.tgz").unwrap();
+    pnpr_fixtures::write_hosted_file(
+        moved.path(),
+        ("", pnpr_storage::Ecosystem::Npm),
+        ("mypkg", "1.0.0"),
+        "mypkg-1.0.0.tgz",
+        &tarball,
     );
     pnpr_fixtures::write_hosted_document(
         moved.path(),
@@ -534,20 +530,6 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
             .status(),
         StatusCode::BAD_REQUEST,
     );
-}
-
-/// Copy the directory tree at `from` to `to`.
-fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
-    std::fs::create_dir_all(to).unwrap();
-    for entry in std::fs::read_dir(from).unwrap() {
-        let entry = entry.unwrap();
-        let target = to.join(entry.file_name());
-        if entry.file_type().unwrap().is_dir() {
-            copy_tree(&entry.path(), &target);
-        } else {
-            std::fs::copy(entry.path(), target).unwrap();
-        }
-    }
 }
 
 #[tokio::test]
@@ -701,14 +683,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
         .is_some(),
     );
     assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "durable-pkg",
-            "durable-pkg-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "durable-pkg", "durable-pkg-1.0.0.tgz").is_some(),
     );
     assert!(
         !storage.join(".pnpr-cache/durable-pkg").exists(),
@@ -822,14 +797,7 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
         "packument must not be written when integrity check fails",
     );
     assert!(
-        !local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "bad-pkg",
-            "bad-pkg-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "bad-pkg", "bad-pkg-1.0.0.tgz").is_none(),
         "tarball must not be written when integrity check fails",
     );
 }
@@ -966,21 +934,12 @@ async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    // The package dir may exist (the handler creates it while
-    // reserving paths) but it must hold no file: no .tgz files, no
-    // .tmp.* leftovers, no document.
-    let files: Vec<_> = walkdir::WalkDir::new(local_package_dir(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "multi-attach",
-    ))
-    .into_iter()
-    .filter_map(Result::ok)
-    .filter(|entry| entry.file_type().is_file())
-    .map(|entry| entry.path().to_path_buf())
-    .collect();
+    // Nothing of it is stored: no archive, no `.tmp.*` leftovers, no
+    // document.
+    let npm = pnpr_storage::Ecosystem::Npm;
+    let files = crate::storage::namespace_files(&storage, "", npm);
     assert!(files.is_empty(), "expected no artifacts after rejected publish, found: {files:?}");
+    assert!(pnpr_fixtures::read_hosted_document(&storage, "", npm, "multi-attach").is_none());
 }
 
 /// `anonymous-npm-registry-client`'s `distTags.add` URL-encodes the
@@ -1070,10 +1029,7 @@ async fn publish_supports_scoped_packages() {
         )
         .is_some(),
     );
-    assert!(
-        local_blob_path(&storage, "", pnpr_storage::Ecosystem::Npm, "@scope/pkg", "pkg-1.0.0.tgz")
-            .exists(),
-    );
+    assert!(crate::storage::hosted_file(&storage, "@scope/pkg", "pkg-1.0.0.tgz").is_some());
 
     // And we can read it back.
     let response = app

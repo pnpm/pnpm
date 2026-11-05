@@ -614,6 +614,21 @@ releaseRecords:
 | `logSigningKey` | The signed-note private key that signs every log's checkpoints, `PRIVATE+KEY+<name>+<key hash>+<key>`, as Go's [`note.GenerateKey`](https://pkg.go.dev/golang.org/x/mod/sumdb/note#GenerateKey) writes one. Its name starts every log's origin: `<name>/npm` for the default organization, and `<name>/npm/~<organization>` for another one. Each log's checkpoints are signed with the same Ed25519 key under the log's origin. Without a key, pnpr records log entries but publishes no logs. Use [environment variable substitution](#environment-variable-substitution) rather than writing the key into the file. |
 | `statementSigningKey` | The signed-note private key, in the same format, that signs the registry's [in-toto statements](https://github.com/in-toto/attestation) about its records in DSSE envelopes. Its `<name>+<key hash>` is each signature's `keyid`. pnpr states that it accepted each logged record under its profile. Without a key, the records' evidence lists no statements. |
 
+## `gc`
+
+How [`pnpr gc`](cli.md#gc) reclaims archives that no file of a hosted package
+maps. `lease` is how long an archive a reclaim moved to `reclaiming` and did
+not finish removing, because the run or replica that started it stopped, is
+left alone before another run removes it and records it gone. It only affects
+how soon an interrupted reclaim is finished, never which archives are removed
+or whether a publish is safe. Defaults to `1h` and must be positive. Takes an
+integer number of seconds or a duration suffix, like the other intervals.
+
+```yaml title="pnpr.yaml"
+gc:
+  lease: 1h
+```
+
 ## Security limits and protections
 
 pnpr includes built-in protections against denial-of-service and brute-force attacks:

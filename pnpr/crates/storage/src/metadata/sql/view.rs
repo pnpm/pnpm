@@ -1,9 +1,12 @@
 //! The [`PackageMetadata`] of one `(catalog, ecosystem)` namespace.
 
-use super::{Expected, PackageKey, SqlMetadata, commit, render, tags, transactions::Freshness};
+use super::{
+    Expected, PackageKey, SqlMetadata, blobs::LookupRead, commit, render, tags,
+    transactions::Freshness,
+};
 use crate::{
     DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion,
-    metadata::{PackageView, TagChange, TagUpdate},
+    metadata::{BlobLookup, PackageView, PublishBase, TagChange, TagUpdate},
 };
 use pnpr_error::Result;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
@@ -20,7 +23,16 @@ pub(crate) struct PackageMetadata {
 }
 
 impl PackageMetadata {
-    fn key(&self, name: &CanonicalPackageName) -> PackageKey {
+    /// The catalog of this namespace.
+    pub(crate) fn catalog(&self) -> &str {
+        &self.catalog
+    }
+
+    pub(crate) fn ecosystem(&self) -> Ecosystem {
+        self.ecosystem
+    }
+
+    pub(super) fn key(&self, name: &CanonicalPackageName) -> PackageKey {
         PackageKey {
             catalog: self.catalog.clone(),
             ecosystem: self.ecosystem,
@@ -116,20 +128,22 @@ impl PackageMetadata {
         }))
     }
 
-    /// [`Self::read_for_update`], with the catalog's generation read in the
-    /// same round trip: what a publish reads before it promotes the archives
-    /// it commits, so the commit can tell whether a reclaim removed one of
-    /// them since.
+    /// [`Self::read_for_update`] for a publish, with the rows `lookup` asks
+    /// for read in the same round trip: those of the blobs the publish is
+    /// about to store, and the mappings of files it references.
     pub(crate) async fn read_for_publish(
         &self,
         name: &CanonicalPackageName,
-    ) -> Result<crate::metadata::PublishBase> {
+        lookup: &BlobLookup,
+    ) -> Result<PublishBase> {
         let key = self.key(name);
-        let (view, catalog_generation) = self.database.read(
+        let read = LookupRead::new(key.clone(), lookup);
+        let (view, (blobs, artifacts)) = self.database.read(
             self.catalog.clone(),
             Freshness::Current,
             move |connection, cache| {
-                render::read_view_with(connection, cache, &key, render::CatalogRead::Include)
+                let (view, rows) = render::read_view_with(connection, cache, &key, read.queries())?;
+                Ok((view, read.answer(&mut rows.into_iter())?))
             },
         )
         .await?;
@@ -137,7 +151,7 @@ impl PackageMetadata {
             bytes: view.bytes.to_vec(),
             version: HostedDocumentVersion::Generation(view.generation.value),
         });
-        Ok(crate::metadata::PublishBase { stored, catalog_generation })
+        Ok(PublishBase { stored, blobs, artifacts })
     }
 
     /// Commit `bytes` as the package's document while the stored one is still
@@ -173,8 +187,12 @@ impl PackageMetadata {
         self.database.write(move |connection| tags::change_tag(connection, &key, &change)).await
     }
 
-    /// Remove the package's metadata. Reports whether there was any.
-    pub(crate) async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
+    /// Remove the package's metadata. Returns the blobs its files were
+    /// mapped to, `None` when there was no metadata.
+    pub(crate) async fn remove_package(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<Vec<crate::BlobId>>> {
         let key = self.key(name);
         self.database.write(move |connection| commit::remove_package(connection, &key)).await
     }

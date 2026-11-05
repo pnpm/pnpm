@@ -229,5 +229,6 @@ fn with_routing(
         },
         routing,
         release_records: pnpr_config::ReleaseRecordsConfig::default(),
+        gc: pnpr_config::GcConfig::default(),
     }
 }

@@ -143,8 +143,15 @@ pnpr -c config.yaml gc --registry images
 [`pnpr gc`](cli.md#gc) runs while the registry serves and other replicas push.
 `--registry` takes the hosted OCI registry's config name; without it, `gc`
 collects every hosted registry. `--dry-run` reports candidates without deleting
-them. `--min-age` defaults to `1d`, which preserves recent uploads so an
-interrupted push can resume; set it to zero to collect every unreferenced blob.
+them. `--min-age` defaults to `1d`, which keeps blobs uploaded more recently so
+an interrupted push can still name them in a manifest; set it to zero to
+collect every unreferenced blob.
+
+A registry stores the bytes of a blob once per org, however many repositories
+hold it: a finished upload of a layer the org already stores maps it into the
+repository without storing it again, and so does a cross-repository mount.
+Collecting a blob a repository no longer reaches unmaps it from that
+repository, and removes its bytes only when no other repository maps them.
 
 Collection keeps untagged manifests, the children of retained indexes, and their
 config and layer blobs, so removing a tag alone does not make its image
@@ -154,11 +161,12 @@ names.
 
 `DELETE /v2/<name>/blobs/<digest>` removes an unreferenced blob for a caller with
 `unpublish` permission, which the registry default denies. A blob reachable from
-any retained manifest or index is refused. The metadata database fences the
-deletion the same way it fences `gc`: a manifest push that checked the blob
-before it was deleted is refused with `409` when it commits, and a push that
-starts afterwards does not find the blob. If a deletion is interrupted, the blob
-stays marked and no manifest can depend on it until `gc` finishes the deletion.
+any retained manifest or index is refused. The deletion unmaps the blob from the
+repository, while the repository is still as the deletion found it, and the
+metadata database fences the removal of its bytes the same way it fences `gc`:
+a manifest push that read the blob before it was deleted is refused with `409`
+when it commits, and a push that starts afterwards does not find the blob. If a
+deletion is interrupted after the blob was unmapped, `gc` removes its bytes.
 
 ## Caching Docker Hub and GHCR
 

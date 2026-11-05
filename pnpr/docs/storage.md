@@ -23,34 +23,36 @@ The hosted store has the same layout on disk and in a bucket:
   layout.json                     marks the layout version
   default/<ecosystem>/            registries without an org
   orgs/<org>/<ecosystem>/         one namespace per org and ecosystem
-<namespace>/packages/<scope>/<name>/blobs/<file>
+<namespace>/archives/<shard>/<identity>.<incarnation>
 ```
 
 `<ecosystem>` is `npm`, `cargo`, `pypi`, or `oci`. A hosted registry declared
 under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems)
 without an `org` uses its own registry name as its `org`, under
-`orgs/<name>/<ecosystem>/`, for example `orgs/internal/npm/`.
+`orgs/<name>/<ecosystem>/`, for example `orgs/internal/npm/`. In an org name,
+lowercase letters, digits, `.`, `_` and `-` are kept. Every other byte is
+written as `!` and two hex digits.
 
-pnpr stores an npm scoped package under `@<scope>/<name>/` and an unscoped
-package, Cargo crate, or Python project under `@/<name>/`, so `@scope/pkg` is
-in `packages/@scope/pkg/` and `left-pad` in `packages/@/left-pad/`. It stores a
-multi-component container image name `c_1/.../c_k` under
-`@<c_1>/.../@<c_{k-1}>/<c_k>/`, and a single-component one under `@/<name>/`,
-so `acme/app/tool` is in `packages/@acme/@app/tool/` and `ubuntu` in
-`packages/@/ubuntu/`. A `.tgz`, `.sigstore` or `.crate` file is
-stored without the package's unscoped name and the `-` after it, so
-`left-pad-1.0.0.tgz` is `blobs/1.0.0.tgz`. Such a file that does not start
-with the package's name keeps its whole name behind a leading `@`. Every
-other file, such as a container image layer or a Python wheel, keeps its
-name.
+A namespace stores the bytes of an archive once, by their identity: the digest
+its ecosystem checks them by, as `<algorithm>-<hex>`. That is the `sha512` of
+npm's `dist.integrity`, and the `sha256` of an image blob's digest, a crate's
+checksum, or a Python distribution's hash. `<shard>` is the first two hex
+digits of the digest, so `sha512-ab12…` is under `archives/ab/`. A public file
+name, such as `left-pad-1.0.0.tgz`, never reaches the store: the
+[metadata](#sqlite-metadata) maps each file of a package to the identity of
+its bytes, and a download of the file reads the bytes through that mapping.
+Files with the same bytes, of one package or of several, share one stored
+archive.
 
-In every org, scope, name and file name, lowercase letters, digits, `.`,
-`_` and `-` are kept. Every other byte is written as `!` and two hex digits,
-so `@Scope/App` is stored as `@!53cope/!41pp/`.
+`<incarnation>` counts the times the bytes were stored, from `1`. Bytes a
+[reclaim](cli.md#gc) removed and a later publish stores again take the next
+incarnation, so a key is never written again once a reclaim may remove it.
 
-pnpr refuses to start on a store written by a newer pnpr, or on one in the
-layout pnpr used before `layout.json` existed. A cache in another layout is
-emptied on startup and refilled on demand.
+pnpr refuses to start on a store written by a newer pnpr, or on one in an
+earlier layout, including the one pnpr used before `layout.json` existed: move
+to a fresh storage directory or bucket prefix, wipe pnpr's metadata tables, and
+republish. A cache in another layout is emptied on startup and refilled on
+demand.
 
 ## Metadata in SQLite {#sqlite-metadata}
 
@@ -74,9 +76,8 @@ each package's metadata as a document beside its archives. pnpr does not read
 those documents. A filesystem store from then starts with empty metadata. An
 `s3:` store from then is refused at startup until `metadata.url` names a
 libSQL database, and then starts with empty metadata. Either way, republish
-its packages. Their old archives stay in the hosted store, and a publish whose
-archive has other bytes at the same key is refused as a conflict, so republish
-the original archives, or remove the old ones from the hosted store first.
+its packages into a fresh storage directory or bucket prefix: a store in an
+earlier layout is refused.
 
 With SQL metadata:
 
@@ -244,10 +245,15 @@ locking:
   mutation can be replayed against the fresh packument. A write that
   keeps losing surfaces as an HTTP `409` rather than silently discarding
   another writer's update.
-- **Tarballs**: finalizing a tarball is compare-and-swap. A byte-identical
-  object is tolerated, but an object with different bytes left by a concurrent
-  publisher of the same `name@version` is never overwritten; the losing publish
-  gets a `409` before it writes any packument.
+- **Archives**: an archive is stored under the identity of its bytes and an
+  incarnation the metadata database counts (see [Layout](#layout)), so two
+  replicas that store the same key store the same bytes, and a store needs no
+  compare-and-swap. A publish reads the row of the bytes it is about to store
+  with the package's document: when they are stored already it stores nothing,
+  and otherwise it stores the next incarnation. Its commit is refused with
+  `409` unless that incarnation is still the live one, or is the next one and
+  the commit creates it, so a publish never commits a file whose bytes a
+  [reclaim](cli.md#gc) is removing. A retry stores the bytes afresh.
 - **Shared artifacts**: envelopes and blobs up to 8 MiB use create-only
   writes, and the quota counter uses conditional updates across replicas. A
   larger blob is uploaded in parts and committed only once its bytes match its
@@ -334,18 +340,18 @@ s3:
 When publishing packages to an S3 backend, pnpr:
 
 1. **Stages locally**: Incoming blobs are staged under `<cache>/.staging/`.
-2. **Uploads the blobs**: pnpr uploads each blob to its immutable key. A key that another writer already holds with other bytes fails the publish.
+2. **Uploads the blobs**: pnpr uploads each blob whose bytes the namespace does not hold live yet under its next incarnation; bytes it holds are not uploaded again.
 3. **Commits the metadata**: pnpr commits every package of the publish to the metadata database in one transaction.
 
 ### Interruptions
 
-- **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no package references, which are never served. A publish refused at its commit removes the blobs it wrote, through the same fence as [`pnpr gc`](cli.md#gc), unless the package references them by then: another replica may have found the same bytes in place and committed them. A retry with the same bytes reuses blobs still in place; one with other bytes for the same file is refused as a conflict, until `pnpr gc --registry <name> <name>@<version>` removes the old ones.
+- **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no file maps, which are never served; [`pnpr gc`](cli.md#gc) removes them. A publish refused at its commit removes the incarnations it stored itself, unless another publish of the same bytes committed one of them in the meantime. It first records one a commit could still make live as gone, so that commit is refused rather than left pointing at nothing.
 - **Multipart uploads**: If a large upload is aborted or interrupted, S3 retains incomplete multipart upload parts until explicitly aborted or cleaned up by policy.
 
 ### Operational recommendations
 
 - **Abort incomplete multipart uploads**: Configure a lifecycle rule on your S3 bucket to abort incomplete multipart uploads after 1 to 7 days.
 - **Enable bucket versioning**: Enable S3 bucket versioning to protect against accidental object deletion or overwrite.
-- **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr gc` to remove the archives no hosted package references. Both run while the registry serves.
+- **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr gc` to remove the archives no file maps. Both run while the registry serves.
 - **Backup procedures**: Follow the guidelines in [Backup and restore](backup-and-restore.md) for snapshotting and restoring S3 package data and revision history.
 

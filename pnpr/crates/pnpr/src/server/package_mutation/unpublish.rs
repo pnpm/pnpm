@@ -161,22 +161,22 @@ pub(crate) async fn delete_tarball(
         Ok(false) => return RegistryError::NotFound.into_response(),
         Err(err) => return err.into_response(),
     }
-    // A hosted tar registry stores the version's tar in place of its `.tgz`.
-    let mut removed = false;
-    for blob in [canonical.clone(), name.tar_name_for_version(&version)] {
-        match storage.remove_blob(&name, &blob).await {
-            Ok(found) => removed |= found,
-            Err(err) => return err.into_response(),
-        }
+    // A version still listed is unpublished here, in a commit that drops its
+    // files' mappings; one a packument rewrite removed first went with its
+    // archives then. The tombstone names it before the version goes, as a
+    // rewrite's does, since a removed version is never accepted again.
+    match storage.read_hosted_document(&name).await {
+        Ok(Some(bytes)) if lists_version(&bytes, &version) => {}
+        Ok(_) => return ok_created_response(),
+        Err(err) => return err.into_response(),
     }
-    let sigstore_name = name.sigstore_name_for_version(&version);
-    let _ = storage.remove_blob(&name, &sigstore_name).await;
-
-    if removed {
-        if let Err(err) = record_tarball_tombstone(&storage, identity, &name, &version).await {
-            return err.into_response();
-        }
-        log_tarball_deleted(identity, &name, &canonical, &version, &target.source);
+    if let Err(err) = record_tarball_tombstone(&storage, identity, &name, &version).await {
+        return err.into_response();
+    }
+    match super::version_removal::remove_listed_version(&storage, identity, &name, &version).await {
+        Ok(true) => log_tarball_deleted(identity, &name, &canonical, &version, &target.source),
+        Ok(false) => {}
+        Err(err) => return err.into_response(),
     }
     ok_created_response()
 }
@@ -204,6 +204,19 @@ async fn resolve_and_authorize_unpublish(
         return Err(err.into_response());
     }
     Ok(target)
+}
+
+/// Whether the packument `bytes` lists `version`.
+fn lists_version(bytes: &[u8], version: &str) -> bool {
+    serde_json::from_slice::<Value>(bytes)
+        .ok()
+        .and_then(|packument| {
+            packument
+                .get("versions")?
+                .get(version)
+                .cloned()
+        })
+        .is_some()
 }
 
 async fn package_exists(

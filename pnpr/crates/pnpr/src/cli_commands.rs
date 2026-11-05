@@ -23,14 +23,11 @@ pub enum Command {
         /// Report reclaimable archives without removing them.
         #[arg(long)]
         dry_run: bool,
-        /// Minimum archive age to reclaim (e.g. "1d", "86400s", or bare
-        /// seconds). Named versions ignore it.
+        /// How long ago an archive must have been stored, or an image blob
+        /// uploaded, before an unfinished publish or push of it is fenced off
+        /// and it is reclaimed (e.g. "1d", "86400s", or bare seconds).
         #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
         min_age: Duration,
-        /// `<name>@<version>` whose archives to remove, such as those of a
-        /// publish refused at its commit. Needs one --registry, and refuses a
-        /// version the package still holds.
-        versions: Vec<String>,
     },
     /// Reclaim cached upstream tarballs and packuments.
     CacheGc {
@@ -142,16 +139,10 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
 }
 
 async fn run_gc_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Gc {
-        registry,
-        dry_run,
-        min_age,
-        versions,
-    } = command
-    else {
+    let Command::Gc { registry, dry_run, min_age } = command else {
         return Ok(());
     };
-    let options = crate::archive_gc::GcOptions { registries: registry, min_age, dry_run, versions };
+    let options = crate::archive_gc::GcOptions { registries: registry, min_age, dry_run };
     run_gc(config, &options).await
 }
 

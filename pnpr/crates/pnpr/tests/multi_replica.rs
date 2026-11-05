@@ -167,7 +167,7 @@ async fn a_publish_that_loses_the_race_rebases_onto_the_winner() {
     let fast = Replica::start(&store, &metadata).await;
     assert_eq!(fast.publish("raced-pkg", "1.0.0", b"one").await, StatusCode::CREATED);
 
-    objects.pause_write("1.1.0.tgz".to_string());
+    objects.pause_write(tarball_key("raced-pkg", "1.1.0", b"slow"));
     let slow_publish = slow.spawn_publish("raced-pkg", "1.1.0", b"slow");
     tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
         .await
@@ -196,7 +196,7 @@ async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
     let mut fast = Replica::start(&store, &metadata).await;
     fast.token = add_user_and_get_token(fast.app.clone(), "bob", "secret").await;
 
-    objects.pause_write("1.0.0.tgz".to_string());
+    objects.pause_write(tarball_key("claimed-pkg", "1.0.0", b"slow"));
     let slow_publish = slow.spawn_publish("claimed-pkg", "1.0.0", b"slow");
     tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
         .await
@@ -208,6 +208,13 @@ async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
     let packument = slow.packument("claimed-pkg").await;
     assert_eq!(packument["maintainers"], json!([{ "name": "bob" }]));
     assert!(packument["versions"].get("1.0.0").is_none());
+}
+
+/// The key the first incarnation of the tarball `publish_doc` builds for
+/// `name@version` from `payload` is stored under.
+fn tarball_key(name: &str, version: &str, payload: &[u8]) -> String {
+    let tarball = crate::npm::publishable_tgz(name, version, payload);
+    pnpr_storage::BlobId::of_bytes(pnpr_storage::Ecosystem::Npm, &tarball).key(1)
 }
 
 async fn assert_both_versions(replicas: &[&Replica], name: &str) {

@@ -1,37 +1,27 @@
-use super::{Collection, liveness};
+use super::{Collection, GcOptions, liveness};
 use crate::RegistryError;
 use pnpr_config::HostedStoreConfig;
 use pnpr_oci::{Digest, ImageDocument, ManifestEntry, media_type};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::{
-    HostedDocumentVersion, Storage, layout::local_blob_path, metadata::ReclaimTarget,
-};
+use pnpr_storage::{HostedDocumentVersion, Storage, layout::local_archive_path};
 use serde_json::json;
 use std::{collections::HashSet, time::Duration};
 use tempfile::TempDir;
 
+mod uncommitted;
+
 const MANIFEST_LIMIT: usize = 4 * 1024 * 1024;
 
-/// Collect the OCI namespace of `catalog` that `storage` views, finishing
-/// its interrupted reclaims first unless it is a dry run, and report how
-/// many archives and bytes went.
-async fn collect_in(
+/// Collect the namespace `storage` views, taking over reclaims stopped for
+/// `lease`, and report how many archives and bytes went.
+async fn collect_with(
     storage: &Storage,
-    catalog: &str,
-    min_age: Duration,
+    (min_age, lease): (Duration, Duration),
     dry_run: bool,
 ) -> Result<(usize, u64), RegistryError> {
-    let collection = Collection {
-        storage,
-        catalog,
-        ecosystem: Ecosystem::Oci,
-        manifest_limit: MANIFEST_LIMIT,
-        stale_after: Duration::ZERO,
-    };
-    if !dry_run {
-        collection.finish_pending().await?;
-    }
-    let report = collection.collect(min_age, dry_run).await?;
+    let collection = Collection { storage, manifest_limit: MANIFEST_LIMIT, lease };
+    let options = GcOptions { registries: Vec::new(), min_age, dry_run };
+    let report = collection.run(&options).await?;
     Ok((report.archives, report.bytes))
 }
 
@@ -41,7 +31,7 @@ async fn collect(
     dry_run: bool,
     _manifest_limit: usize,
 ) -> Result<(usize, u64), RegistryError> {
-    collect_in(storage, "", min_age, dry_run).await
+    collect_with(storage, (min_age, Duration::from_hours(1)), dry_run).await
 }
 
 async fn referenced_blobs(
@@ -56,6 +46,8 @@ async fn referenced_blobs(
 
 fn setup() -> (TempDir, Storage) {
     let temp = TempDir::new().unwrap();
+    std::fs::create_dir_all(temp.path().join("store")).unwrap();
+    pnpr_storage::layout::write_local_layout_marker(&temp.path().join("store")).unwrap();
     let storage = Storage::new(
         &HostedStoreConfig::Fs,
         temp.path().join("store"),
@@ -71,6 +63,8 @@ fn name(repository: &str) -> CanonicalPackageName {
     CanonicalPackageName::parse(repository, Ecosystem::Oci).unwrap()
 }
 
+/// Upload `bytes` as an image blob of `repository`, as a finished upload
+/// maps it.
 async fn blob(storage: &Storage, repository: &CanonicalPackageName, bytes: &[u8]) -> Digest {
     let digest = Digest::of(bytes);
     let slot = storage
@@ -78,8 +72,32 @@ async fn blob(storage: &Storage, repository: &CanonicalPackageName, bytes: &[u8]
         .await
         .unwrap();
     tokio::fs::write(&slot.tmp_path, bytes).await.unwrap();
-    storage.finalize_blob_slot(slot).await.unwrap();
+    let (id, size) = storage.identify_blob_slot(&slot).await.unwrap();
+    let rows = storage
+        .blob_rows(vec![id.clone()])
+        .await
+        .unwrap();
+    let promoted = storage
+        .promote_blob_slot(slot, (id.clone(), size), rows.get(&id))
+        .await
+        .unwrap();
+    storage.map_hosted_artifact(promoted.artifact).await.unwrap();
     digest
+}
+
+/// Where the archive of `repository`'s `digest` is stored on disk.
+async fn archive_path(
+    temp: &TempDir,
+    storage: &Storage,
+    repository: &CanonicalPackageName,
+    digest: &Digest,
+) -> std::path::PathBuf {
+    let blob = storage
+        .hosted_blob_of(repository, &digest.blob_filename())
+        .await
+        .unwrap()
+        .unwrap();
+    local_archive_path(&temp.path().join("store"), "", Ecosystem::Oci, &blob.key())
 }
 
 async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) -> (Digest, Digest) {
@@ -154,13 +172,7 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
     let repository = name("acme/app");
     let (manifest, _) = retained_image(&storage, &repository).await;
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
-    let path = local_blob_path(
-        &temp.path().join("store"),
-        "",
-        Ecosystem::Oci,
-        repository.as_str(),
-        &manifest.blob_filename(),
-    );
+    let path = archive_path(&temp, &storage, &repository, &manifest).await;
     tokio::fs::write(&path, b"corrupt").await.unwrap();
     let error = collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap_err();
     assert!(
@@ -303,6 +315,7 @@ async fn collection_streams_an_object_store_inventory() {
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
+    storage.ensure_hosted_layout().await.unwrap();
     let repository = name("acme/app");
     retained_image(&storage, &repository).await;
     blob(&storage, &name("acme/app/nested"), b"orphan").await;
@@ -323,111 +336,57 @@ async fn collection_does_not_remove_a_matching_blob_from_the_shared_cache() {
         .join(digest.blob_filename());
     tokio::fs::create_dir_all(cache.parent().unwrap()).await.unwrap();
     tokio::fs::write(&cache, b"cached").await.unwrap();
-    assert_eq!(collect_in(&hosted, "images", Duration::ZERO, false).await.unwrap(), (1, 6));
+    assert_eq!(collect(&hosted, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(), (1, 6));
     assert_eq!(tokio::fs::read(cache).await.unwrap(), b"cached");
 }
 
-/// A reclaim that stopped after marking its blob is finished by the next
-/// collection, whatever the blob's age, and no longer blocks a commit.
+/// A reclaim that stopped after it moved its blob to `reclaiming` is
+/// finished by a collection once the lease has passed, whatever the
+/// archive's age, and the bytes uploaded again take the next incarnation.
 #[tokio::test]
-async fn collection_finishes_an_interrupted_reclaim() {
+async fn collection_finishes_an_interrupted_reclaim_after_the_lease() {
     let (_temp, storage) = setup();
     let repository = name("acme/app");
     let digest = blob(&storage, &repository, b"pending deletion").await;
-    let target = ReclaimTarget {
-        ecosystem: Ecosystem::Oci,
-        name: repository.as_str().to_string(),
-        expected: None,
-        artifacts: vec![digest.blob_filename()],
-    };
-    let database = storage.sql_metadata();
-    let owner = pnpr_storage::metadata::new_reclaim_owner();
+    let unmapped = storage
+        .sql_metadata()
+        .unmap_artifacts(
+            "",
+            Ecosystem::Oci,
+            repository.as_str(),
+            (None, vec![digest.blob_filename()]),
+        );
+    let ids = unmapped.await.unwrap().unwrap();
+    let marked = storage
+        .sql_metadata()
+        .mark_reclaiming("", Ecosystem::Oci, ids)
+        .await
+        .unwrap();
+    assert_eq!(marked.len(), 1);
+    let day = Duration::from_hours(24);
+    assert_eq!(collect_with(&storage, (day, day), false).await.unwrap(), (0, 0));
     assert_eq!(
-        database
-            .mark_reclaims("", &owner, vec![target])
+        storage
+            .stored_incarnations()
             .await
             .unwrap()
             .len(),
         1,
+        "within the lease",
     );
-    assert_eq!(
-        collect(&storage, Duration::from_hours(24), true, MANIFEST_LIMIT).await.unwrap(),
-        (0, 0),
-    );
+    assert_eq!(collect_with(&storage, (day, Duration::ZERO), false).await.unwrap(), (1, 0));
     assert!(
         storage
-            .open_hosted_blob(&repository, &digest.blob_filename())
-            .await
-            .unwrap()
-            .is_some(),
-    );
-    assert_eq!(
-        collect(&storage, Duration::from_hours(24), false, MANIFEST_LIMIT).await.unwrap(),
-        (0, 0),
-    );
-    assert!(
-        storage
-            .open_hosted_blob(&repository, &digest.blob_filename())
-            .await
-            .unwrap()
-            .is_none(),
-    );
-    assert!(
-        database
-            .pending_reclaims("")
+            .stored_incarnations()
             .await
             .unwrap()
             .is_empty(),
     );
-}
-
-/// A publish refused at its commit reclaims only what its package does not
-/// reference by then: another replica may have found an archive it wrote in
-/// place and committed it.
-#[tokio::test]
-async fn a_refused_publish_keeps_what_its_package_references_by_then() {
-    let temp = TempDir::new().unwrap();
-    let root = Storage::new(
-        &HostedStoreConfig::Fs,
-        temp.path().join("store"),
-        temp.path().join("cache"),
-        &pnpr_config::MetadataBackend::Sqlite(temp.path().join("metadata.sqlite")),
-    )
-    .unwrap();
-    let storage = root.for_hosted("", Ecosystem::Npm);
-    let package = CanonicalPackageName::parse("@acme/widget", Ecosystem::Npm).unwrap();
-    for file in ["widget-1.0.0.tgz", "widget-2.0.0.tgz", "notes.txt"] {
-        let slot = storage.reserve_hosted_blob(&package, file).await.unwrap();
-        tokio::fs::write(&slot.tmp_path, file).await.unwrap();
-        storage.finalize_blob_slot(slot).await.unwrap();
-    }
-    let document = json!({
-        "name": "@acme/widget",
-        "versions": { "1.0.0": { "name": "@acme/widget", "version": "1.0.0" } },
-    });
-    storage
-        .write_hosted_document_if_current(
-            &package,
-            &serde_json::to_vec(&document).unwrap(),
-            None,
-            None,
-        )
+    blob(&storage, &repository, b"pending deletion").await;
+    let blob = storage
+        .hosted_blob_of(&repository, &digest.blob_filename())
         .await
+        .unwrap()
         .unwrap();
-
-    let written = ["widget-1.0.0.tgz", "widget-2.0.0.tgz", "notes.txt"].map(str::to_string);
-    let removed =
-        super::reclaim::reclaim_unreferenced(&root, "", &package, written.to_vec(), MANIFEST_LIMIT)
-            .await
-            .unwrap();
-    assert_eq!(
-        removed
-            .iter()
-            .map(|archive| archive.artifact.as_str())
-            .collect::<Vec<_>>(),
-        ["widget-2.0.0.tgz"],
-    );
-    let mut left = storage.hosted_package_blobs(&package).await.unwrap();
-    left.sort();
-    assert_eq!(left, ["notes.txt", "widget-1.0.0.tgz"]);
+    assert_eq!(blob.incarnation, 2);
 }

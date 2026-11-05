@@ -282,33 +282,38 @@ CREATE TABLE IF NOT EXISTS note_history (
     next TEXT
 ) STRICT;
 
--- Archives being removed, or removed, while no package references them. A
--- row with no `done_generation` is pending: its archive may be on its way
--- out, so no commit may depend on it, and only the reclaim named `owner`,
--- which marked it at `marked_at`, removes it. Once the archive is gone the
--- row records the catalog generation that saw it go, and a commit staged
--- before that generation is refused, since what it promoted may be what
--- went. Times are in seconds since the Unix epoch.
-CREATE TABLE IF NOT EXISTS archive_reclaims (
+-- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
+-- the incarnation stored under `<integrity>.<incarnation>` now, `live`,
+-- `reclaiming`, or `gone`. Never removed, so incarnations only grow and a key
+-- a reclaim may remove is never written again. `changed_at` is when `state`
+-- last changed, in seconds since the Unix epoch.
+CREATE TABLE IF NOT EXISTS blobs (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    integrity TEXT NOT NULL,
+    incarnation INTEGER NOT NULL,
+    state TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    changed_at INTEGER NOT NULL,
+    PRIMARY KEY (catalog, ecosystem, integrity)
+) STRICT, WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS blobs_by_state ON blobs (catalog, ecosystem, state);
+
+-- Each public file name of a package, mapped to the blob holding its bytes,
+-- by the commit that publishes it or an image blob's upload, and dropped
+-- with its version or package. `mapped_at` is in seconds since the epoch.
+CREATE TABLE IF NOT EXISTS artifact_blobs (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     artifact TEXT NOT NULL,
-    owner TEXT,
-    marked_at INTEGER,
-    done_generation INTEGER,
-    done_at INTEGER,
+    version TEXT NOT NULL,
+    integrity TEXT NOT NULL,
+    mapped_at INTEGER NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, artifact)
 ) STRICT, WITHOUT ROWID;
-
--- The newest `done_generation` of the finished reclaims of each catalog
--- whose rows were dropped. A commit that read an older generation is
--- refused, since a reclaim it can no longer see may have removed what it
--- promoted.
-CREATE TABLE IF NOT EXISTS reclaim_horizons (
-    catalog TEXT NOT NULL PRIMARY KEY,
-    generation INTEGER NOT NULL
-) STRICT;
+CREATE INDEX IF NOT EXISTS artifact_blobs_by_integrity
+    ON artifact_blobs (catalog, ecosystem, integrity);
 ";
 
 /// What a database holds where pnpr expects its metadata.

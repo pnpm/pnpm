@@ -20,6 +20,10 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
+use pnpr_storage::{
+    BlobId,
+    metadata::{ArtifactBlob, BlobLookup},
+};
 
 /// The per-project document a hosted registry keeps in its document slot: a
 /// crate's index entries, a Python project's file list. Read through
@@ -194,17 +198,21 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
     let storage = state.inner.storage.for_hosted(org, Document::ECOSYSTEM);
-    let base = storage.read_hosted_document_for_publish(key).await?;
+    let lookup = BlobLookup {
+        ids: vec![BlobId::of_bytes(Document::ECOSYSTEM, bytes)],
+        artifacts: Vec::new(),
+    };
+    let base = storage.read_hosted_document_for_publish(key, &lookup).await?;
     let artifact = HostedArtifact { filename, bytes, references: Vec::new() };
     stage_hosted_artifact_on(state, org, key, artifact, base, refuse, addition).await
 }
 
-/// The archive a hosted publish stages, and the archives already in the
-/// package's store it references.
+/// The archive a hosted publish stages, and the files of the package already
+/// stored that it references.
 pub(super) struct HostedArtifact<'bytes> {
     pub(super) filename: &'bytes str,
     pub(super) bytes: &'bytes [u8],
-    pub(super) references: Vec<String>,
+    pub(super) references: Vec<ArtifactBlob>,
 }
 
 /// [`stage_hosted_artifact`] on `base`, the document read for the publish
@@ -248,7 +256,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
         base: StagedBase {
             version: stored.map(|stored| stored.version),
             packument: None,
-            catalog_generation: base.catalog_generation,
+            blobs: base.blobs,
             references: artifact.references,
         },
         slots: vec![slot],

@@ -12,6 +12,10 @@ use pnpr_error::RegistryError;
 use pnpr_oci::TagEntry;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
+use pnpr_storage::{
+    BlobId,
+    metadata::{ArtifactBlob, BlobLookup, BlobRef, BlobState, MappedArtifact},
+};
 use std::collections::HashSet;
 
 pub(in crate::server) struct OciPublication {
@@ -92,10 +96,18 @@ impl OciPublication {
 
     pub(in crate::server) async fn stage(self, state: &AppState) -> Result<StagedPublish, Refusal> {
         let storage = state.inner.storage.for_hosted(&self.org, Ecosystem::Oci);
-        // Read before the referenced blobs are checked: the commit is refused
-        // if a reclaim removes one of them after this read.
-        let base = storage.read_hosted_document_for_publish(&self.key).await?;
-        let references = self.check_referenced_blobs(&storage).await?;
+        // The blobs the manifest references are read with the document, and
+        // the commit is refused if a reclaim takes one of them after this.
+        let referenced = self.referenced_digests()?;
+        let lookup = BlobLookup {
+            ids: vec![BlobId::of_bytes(Ecosystem::Oci, &self.bytes)],
+            artifacts: referenced
+                .iter()
+                .map(Digest::blob_filename)
+                .collect(),
+        };
+        let mut base = storage.read_hosted_document_for_publish(&self.key, &lookup).await?;
+        let references = self.check_referenced_blobs(&referenced, &mut base.artifacts)?;
         let addition = self.document_addition();
         let children: Vec<Digest> = if pnpr_oci::media_type::is_index(self.manifest.media_type()) {
             self.manifest
@@ -130,19 +142,16 @@ impl OciPublication {
         addition
     }
 
-    /// Every blob the manifest references must already be in this repository,
-    /// at the size the manifest declares. Returns their file names, which the
-    /// commit depends on.
-    async fn check_referenced_blobs(
-        &self,
-        storage: &pnpr_storage::Storage,
-    ) -> Result<Vec<String>, Refusal> {
-        let mut looked_up = HashSet::new();
+    /// The distinct blobs the manifest references, at most
+    /// [`MAX_MANIFEST_REFERENCES`] of them.
+    fn referenced_digests(&self) -> Result<Vec<Digest>, Refusal> {
+        let mut seen = HashSet::new();
+        let mut digests = Vec::new();
         for descriptor in self.manifest.references() {
-            if !looked_up.insert(descriptor.digest.clone()) {
+            if !seen.insert(descriptor.digest.clone()) {
                 continue;
             }
-            if looked_up.len() > MAX_MANIFEST_REFERENCES {
+            if digests.len() == MAX_MANIFEST_REFERENCES {
                 return Err(Refusal::new(
                     ErrorCode::ManifestInvalid,
                     format!(
@@ -150,31 +159,59 @@ impl OciPublication {
                     ),
                 ));
             }
-            let stored =
-                storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await?;
-            match stored {
-                Some((_, Some(size))) if size != descriptor.size => {
+            digests.push(descriptor.digest.clone());
+        }
+        Ok(digests)
+    }
+
+    /// Every blob the manifest references must already be in this repository,
+    /// live and at the size the manifest declares. Returns them with the
+    /// blobs holding their bytes, which the commit maps and depends on.
+    /// `mapped` holds what the publish read of the repository's files.
+    fn check_referenced_blobs(
+        &self,
+        referenced: &[Digest],
+        mapped: &mut Vec<MappedArtifact>,
+    ) -> Result<Vec<ArtifactBlob>, Refusal> {
+        let mut references = Vec::with_capacity(referenced.len());
+        for digest in referenced {
+            let filename = digest.blob_filename();
+            let found = mapped
+                .iter()
+                .position(|mapped| {
+                    mapped.artifact == filename && mapped.row.state == BlobState::Live
+                })
+                .map(|index| mapped.swap_remove(index));
+            let Some(found) = found else {
+                return Err(Refusal::new(
+                    ErrorCode::ManifestBlobUnknown,
+                    format!("{digest} is not in this repository"),
+                ));
+            };
+            for descriptor in self.manifest
+                .references()
+                .filter(|reference| reference.digest == *digest)
+            {
+                if descriptor.size != found.row.size {
                     return Err(Refusal::new(
                         ErrorCode::ManifestInvalid,
                         format!(
-                            "{} is {size} bytes, but the manifest declares {}",
-                            descriptor.digest, descriptor.size,
+                            "{digest} is {} bytes, but the manifest declares {}",
+                            found.row.size, descriptor.size,
                         ),
                     ));
                 }
-                Some(_) => {}
-                None => {
-                    return Err(Refusal::new(
-                        ErrorCode::ManifestBlobUnknown,
-                        format!("{} is not in this repository", descriptor.digest),
-                    ));
-                }
             }
+            references.push(ArtifactBlob {
+                ecosystem: Ecosystem::Oci,
+                name: self.key.as_str().to_string(),
+                version: String::new(),
+                artifact: filename,
+                blob: BlobRef { id: found.id, incarnation: found.row.incarnation },
+                size: found.row.size,
+            });
         }
-        Ok(looked_up
-            .iter()
-            .map(Digest::blob_filename)
-            .collect())
+        Ok(references)
     }
 }
 

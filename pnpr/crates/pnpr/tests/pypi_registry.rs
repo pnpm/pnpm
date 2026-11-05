@@ -1,7 +1,7 @@
 //! The Python package index surface: the legacy upload API, the Simple API
 //! in both renderings, file downloads, and proxying an upstream index.
 
-use crate::{ecosystem as common, storage::object_key, tokens::issue_token};
+use crate::{ecosystem as common, tokens::issue_token};
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
@@ -9,9 +9,9 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use common::{HostedSource, PUBLIC_URL, body_bytes, find_file, mixed_router_config, sha256_hex};
 use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
-use pnpr_storage::layout::{blob_segment, local_blob_path, write_local_layout_marker};
+use pnpr_storage::layout::{blob_segment, write_local_layout_marker};
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -110,8 +110,13 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
-        local_blob_path(tmp.path(), "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", filename)
-            .is_file(),
+        pnpr_fixtures::read_hosted_file(
+            tmp.path(),
+            ("python", pnpr_storage::Ecosystem::Pypi),
+            "demo-pkg",
+            filename,
+        )
+        .is_some(),
     );
 
     // PEP 691 JSON, with the file URL pointing back at this registry.
@@ -538,79 +543,6 @@ async fn anonymous_uploads_are_rejected_before_reading_the_body() {
 }
 
 #[tokio::test]
-async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_staged_bytes() {
-    use object_store::{ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
-    use pnpr::HostedStoreConfig;
-    use std::sync::Arc;
-
-    let tmp = TempDir::new().unwrap();
-    let store = Arc::new(InMemory::new());
-    let filename = "demo_pkg-1.0.0-py3-none-any.whl";
-    let object = ObjectPath::from(object_key(&local_blob_path(
-        Path::new(""),
-        "python",
-        pnpr_storage::Ecosystem::Pypi,
-        "demo-pkg",
-        filename,
-    )));
-    store
-        .put(&object, axum::body::Bytes::from_static(b"winning artifact").into())
-        .await
-        .unwrap();
-    let mut config = pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/");
-    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
-        store: Arc::<InMemory>::clone(&store),
-        prefix: String::new(),
-    };
-    let auth = AuthState::in_memory();
-    let token = issue_token(&auth, "alice").await;
-    let app = router_with_auth(config, auth);
-    let response = app
-        .clone()
-        .oneshot(upload_request(
-            Some(&token),
-            wheel_upload("demo-pkg", "1.0.0", filename, b"losing artifact"),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::CONFLICT);
-    assert_eq!(
-        store
-            .get(&object)
-            .await
-            .unwrap()
-            .bytes()
-            .await
-            .unwrap(),
-        "winning artifact",
-    );
-    assert_eq!(
-        app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await
-            .unwrap()
-            .status(),
-        StatusCode::NOT_FOUND,
-    );
-    fn staged_files(path: &Path) -> Vec<PathBuf> {
-        let mut staged = Vec::new();
-        for entry in std::fs::read_dir(path).unwrap() {
-            let path = entry.unwrap().path();
-            if path.is_dir() {
-                staged.extend(staged_files(&path));
-            } else if path
-                .file_name()
-                .is_some_and(|name| name.to_string_lossy().contains(".tmp."))
-            {
-                staged.push(path);
-            }
-        }
-        staged
-    }
-    // SQL metadata commits nothing of a publish whose archive lost its slot,
-    // so the losing bytes go on every platform.
-    assert_eq!(staged_files(tmp.path()), Vec::<PathBuf>::new());
-}
-
-#[tokio::test]
 async fn upstream_file_hosts_must_be_approved_by_the_operator() {
     use pnpr::PublicRoute;
     let mut upstream = mockito::Server::new_async().await;
@@ -674,10 +606,14 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
     let tmp = TempDir::new().unwrap();
     write_local_layout_marker(tmp.path()).unwrap();
     let orphan = "demo_pkg-1.0.0-py3-none-any.whl";
-    let orphan_blob =
-        local_blob_path(tmp.path(), "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", orphan);
-    tokio::fs::create_dir_all(orphan_blob.parent().unwrap()).await.unwrap();
-    tokio::fs::write(&orphan_blob, b"unpublished wheel").await.unwrap();
+    // Stored and mapped, but absent from the project's document.
+    pnpr_fixtures::write_hosted_file(
+        tmp.path(),
+        ("python", pnpr_storage::Ecosystem::Pypi),
+        ("demo-pkg", ""),
+        orphan,
+        b"unpublished wheel",
+    );
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
     let app =

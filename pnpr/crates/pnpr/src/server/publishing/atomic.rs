@@ -165,7 +165,7 @@ async fn commit_staged(
     {
         Ok(commit) => commit,
         Err(err) => {
-            promoted.clean_up(state, &catalog, &err).await;
+            promoted.discard(state).await;
             return Err(err);
         }
     };

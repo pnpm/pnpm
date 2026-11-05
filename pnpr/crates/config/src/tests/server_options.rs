@@ -487,3 +487,37 @@ fn release_records_read_the_statement_signing_key() {
     assert_eq!(signer.verifier_key().key_name(), "PeterNeumann+c74f20a3");
     assert!(!format!("{:?}", config.release_records).contains("AYEKFALV"));
 }
+
+#[test]
+fn gc_lease_defaults_to_an_hour() {
+    let config = Config::from_yaml_str("", Path::new("/config"), listen(), None).unwrap();
+    assert_eq!(config.gc, crate::GcConfig::default());
+    assert_eq!(config.gc.lease, std::time::Duration::from_hours(1));
+
+    let config = Config::from_yaml_str("gc: {}\n", Path::new("/config"), listen(), None).unwrap();
+    assert_eq!(config.gc.lease, crate::GcConfig::DEFAULT_LEASE);
+}
+
+#[test]
+fn gc_lease_reads_an_interval() {
+    let config =
+        Config::from_yaml_str("gc:\n  lease: 30m\n", Path::new("/config"), listen(), None).unwrap();
+    assert_eq!(config.gc.lease, std::time::Duration::from_mins(30));
+}
+
+#[test]
+fn gc_lease_must_be_positive() {
+    for yaml in ["gc:\n  lease: 0s\n", "gc:\n  lease: 0\n", "gc:\n  lease: soon\n"] {
+        let err = Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).unwrap_err();
+        assert!(
+            matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("gc.lease")),
+            "{yaml:?}: {err:?}",
+        );
+    }
+}
+
+#[test]
+fn gc_refuses_unknown_keys() {
+    let result = Config::from_yaml_str("gc:\n  leese: 1h\n", Path::new("/config"), listen(), None);
+    assert!(matches!(result, Err(RegistryError::InvalidConfig { .. })), "{result:?}");
+}

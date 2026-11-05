@@ -5,13 +5,13 @@ mod dist_tags;
 mod immutability;
 mod maintainers;
 mod unpublish;
+mod version_removal;
 
 use axum::{
     body::Body,
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use futures_util::StreamExt as _;
 use serde_json::Value;
 
 use immutability::{enforce_published_version_immutability, submitted_packument};
@@ -170,11 +170,12 @@ async fn rewrite_packument(
     {
         return err.into_response();
     }
+    let unpublished = unpublished_blobs(storage, name, &removed).await;
     let version = Some(&hosted_packument.version);
     match storage.write_hosted_document_if_current(name, &bytes, version, identity.username()).await
     {
         Ok(DocumentWrite::Written) => {
-            remove_unpublished_blobs(storage, name, &removed).await;
+            reclaim_unpublished_blobs(storage, name, unpublished).await;
             log_packument_update(identity, name, source);
             ok_created()
         }
@@ -235,35 +236,36 @@ async fn record_removed_versions_in_tombstone(
     Ok(())
 }
 
-/// Blob deletions one packument rewrite runs at once, while it holds the
-/// package lock.
-const BLOB_REMOVALS_IN_FLIGHT: usize = 16;
-
-/// A rewrite that drops versions deletes their tarballs too: a client that
-/// read the packument from a tar registry has no `dist.tarball` to send the
-/// follow-up tarball DELETE for. The versions are already unpublished, so a
-/// blob that fails to go is logged and left for `pnpr gc`.
-async fn remove_unpublished_blobs(
+/// The blobs the files of `removed_versions` are mapped to, read before the
+/// rewrite drops the versions and their mappings. A failure only warns: the
+/// blobs are then left for `pnpr gc`.
+async fn unpublished_blobs(
     storage: &pnpr_storage::Storage,
     name: &CanonicalPackageName,
     removed_versions: &[String],
+) -> Vec<pnpr_storage::BlobId> {
+    match storage.version_blobs(name, removed_versions).await {
+        Ok(ids) => ids,
+        Err(err) => {
+            tracing::warn!(package = %name.as_str(), %err, "unpublished archives left for `pnpr gc`");
+            Vec::new()
+        }
+    }
+}
+
+/// A rewrite that drops versions reclaims their archives too: a client that
+/// read the packument from a tar registry has no `dist.tarball` to send the
+/// follow-up tarball DELETE for. Bytes another file still maps stay. The
+/// versions are already unpublished, so an archive that fails to go is
+/// logged and left for `pnpr gc`.
+async fn reclaim_unpublished_blobs(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+    ids: Vec<pnpr_storage::BlobId>,
 ) {
-    let blobs = removed_versions
-        .iter()
-        .flat_map(|version| {
-            [
-                name.tarball_name_for_version(version),
-                name.tar_name_for_version(version),
-                name.sigstore_name_for_version(version),
-            ]
-        });
-    futures_util::stream::iter(blobs)
-        .for_each_concurrent(BLOB_REMOVALS_IN_FLIGHT, |blob| async move {
-            if let Err(err) = storage.remove_blob(name, &blob).await {
-                tracing::warn!(package = %name.as_str(), %blob, %err, "unpublished blob not removed");
-            }
-        })
-        .await;
+    if let Err(err) = storage.reclaim_blobs(ids).await {
+        tracing::warn!(package = %name.as_str(), %err, "unpublished archives left for `pnpr gc`");
+    }
 }
 
 fn new_tombstone_from_hosted(

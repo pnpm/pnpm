@@ -9,6 +9,9 @@
 
 pub(crate) mod sql;
 
+pub use blobs::{
+    ArtifactBlob, BlobFence, BlobLookup, BlobRef, BlobRow, BlobState, MappedArtifact, PublishBase,
+};
 pub use notes::{
     MAX_NOTE_BYTES, Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note,
 };
@@ -16,13 +19,12 @@ pub use publication::{
     ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationRequest,
     RecordedOutcome, ReleaseRecords,
 };
-pub use reclaims::{ArchiveFence, ArchiveRef, PublishBase, ReclaimTarget};
 pub(crate) use sql::PackageMetadata;
-pub use sql::{RenderStats, SqlMetadata, TagHistoryEntry, new_reclaim_owner};
+pub use sql::{Mapping, RenderStats, SqlMetadata, TagHistoryEntry};
 
+mod blobs;
 mod notes;
 mod publication;
-mod reclaims;
 
 use crate::{DocumentUpdate, DocumentWrite, Storage, wait_after_document_write_conflict};
 use pnpr_config::MetadataBackend;

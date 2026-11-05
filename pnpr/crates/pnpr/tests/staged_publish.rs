@@ -1,7 +1,7 @@
 //! Integration tests for the `-/stage` endpoints — the server half of
 //! `pnpm stage`. Static-mode (no upstream) to keep the tests hermetic.
 
-use crate::{npm, storage::object_key};
+use crate::npm;
 
 use axum::{
     body::{Body, to_bytes},
@@ -10,11 +10,10 @@ use axum::{
 use npm::{npm_tgz, npm_tgz_with, publish_doc, sha1_hex};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -118,7 +117,13 @@ async fn staged_publish_is_held_back_until_approved() {
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     assert!(
-        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "staged-pkg").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "staged-pkg"
+        )
+        .is_none(),
         "no package dir before approval",
     );
 
@@ -183,14 +188,8 @@ async fn staged_publish_is_held_back_until_approved() {
     assert_eq!(read.status(), StatusCode::OK);
     let packument = body_json(read.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
-    let on_disk = std::fs::read(local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "staged-pkg",
-        "staged-pkg-1.0.0.tgz",
-    ))
-    .expect("tarball promoted on approval");
+    let on_disk = crate::storage::hosted_file(&storage, "staged-pkg", "staged-pkg-1.0.0.tgz")
+        .expect("tarball promoted on approval");
     assert_eq!(on_disk, *tarball);
 
     let list = app
@@ -273,7 +272,13 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     assert!(
-        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "rejected-pkg").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "rejected-pkg"
+        )
+        .is_none(),
         "a rejected stage publishes nothing",
     );
 }
@@ -314,14 +319,8 @@ async fn staging_supports_scoped_packages() {
         .await
         .unwrap();
     assert_eq!(approve.status(), StatusCode::CREATED);
-    let on_disk = std::fs::read(local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "@scope/staged",
-        "staged-2.0.0.tgz",
-    ))
-    .expect("scoped tarball promoted on approval");
+    let on_disk = crate::storage::hosted_file(&storage, "@scope/staged", "staged-2.0.0.tgz")
+        .expect("scoped tarball promoted on approval");
     assert_eq!(on_disk, *tarball);
 }
 
@@ -491,11 +490,12 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
     assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
 }
 
-/// An approval whose tarball key another writer took commits nothing, and the
-/// stage stays listed for a rejection.
+/// An approval refused because another writer published the version while
+/// the stage waited commits nothing of its own, and the stage stays listed
+/// for a rejection.
 #[tokio::test]
-async fn an_approval_that_loses_its_tarball_key_leaves_the_stage_to_reject() {
-    use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
+async fn an_approval_that_loses_its_version_leaves_the_stage_to_reject() {
+    use object_store::{ObjectStore, memory::InMemory};
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
 
@@ -508,20 +508,19 @@ async fn an_approval_that_loses_its_tarball_key_leaves_the_stage_to_reject() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the losing tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    // Another writer takes the tarball key while the stage waits for approval.
-    store
-        .put(
-            &ObjectPath::from(object_key(&local_blob_path(
-                Path::new(""),
-                "",
-                pnpr_storage::Ecosystem::Npm,
-                "staged-pkg",
-                "staged-pkg-1.0.0.tgz",
-            ))),
-            axum::body::Bytes::from_static(b"the winning tarball").into(),
-        )
+    // Another writer publishes the version while the stage waits for approval.
+    let winner = publish_doc("staged-pkg", "1.0.0", b"the winning tarball");
+    let published = app
+        .clone()
+        .oneshot(request(
+            "PUT",
+            "/npm/staged-pkg",
+            Body::from(serde_json::to_vec(&winner).unwrap()),
+            Some(&token),
+        ))
         .await
         .unwrap();
+    assert_eq!(published.status(), StatusCode::CREATED);
 
     let approve = app
         .clone()
@@ -533,13 +532,20 @@ async fn an_approval_that_loses_its_tarball_key_leaves_the_stage_to_reject() {
         ))
         .await
         .unwrap();
-    assert_eq!(approve.status(), StatusCode::CONFLICT);
-    let packument = app
+    assert!(approve.status().is_client_error(), "{}", approve.status());
+    let tarball = app
         .clone()
-        .oneshot(request("GET", "/npm/staged-pkg", Body::empty(), Some(&token)))
+        .oneshot(request(
+            "GET",
+            "/npm/staged-pkg/-/staged-pkg-1.0.0.tgz",
+            Body::empty(),
+            Some(&token),
+        ))
         .await
         .unwrap();
-    assert_eq!(packument.status(), StatusCode::NOT_FOUND);
+    assert_eq!(tarball.status(), StatusCode::OK);
+    let served = body_bytes(tarball.into_body()).await;
+    assert_eq!(served, npm_tgz("staged-pkg", "1.0.0", b"the winning tarball"));
 
     let reject = app
         .clone()

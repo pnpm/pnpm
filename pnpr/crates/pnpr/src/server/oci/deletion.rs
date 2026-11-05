@@ -1,12 +1,12 @@
 use super::{Digest, ErrorCode, ImageDocument, Request, error, no_content, registry_error};
 use crate::{
-    archive_gc::{liveness::referenced_document_blobs, reclaim::reclaim},
+    archive_gc::liveness::referenced_document_blobs,
     server::{Action, RegistrySource, authorize},
 };
 use axum::{http::StatusCode, response::Response};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, metadata::ReclaimTarget};
+use pnpr_storage::{DOCUMENT_WRITE_RETRIES, metadata::BlobLookup};
 
 impl Request {
     pub(super) async fn delete_blob(&self, name: &str, digest: &Digest) -> Response {
@@ -36,8 +36,7 @@ impl Request {
         let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         let result = async {
             for _ in 0..DOCUMENT_WRITE_RETRIES {
-                let Some(response) = self.try_delete_blob(&storage, &org, &key, digest).await?
-                else {
+                let Some(response) = self.try_delete_blob(&storage, &key, digest).await? else {
                     continue;
                 };
                 if response.status().is_success() {
@@ -85,37 +84,31 @@ impl Request {
         Ok(())
     }
 
-    /// One attempt at deleting the blob through an archive reclaim, which
-    /// holds only while the repository's document is the one it was found
-    /// unreferenced in, and from then on refuses a manifest commit that
-    /// depends on it. `None` means another writer moved the document first
-    /// and the attempt should be repeated.
+    /// One attempt at deleting the blob: dropping the repository's mapping
+    /// of it, which holds only while the repository's document is the one it
+    /// was found unreferenced in, and reclaiming its bytes unless another
+    /// repository maps them. `None` means another writer moved the document
+    /// first and the attempt should be repeated.
     async fn try_delete_blob(
         &self,
         storage: &pnpr_storage::Storage,
-        catalog: &str,
         key: &CanonicalPackageName,
         digest: &Digest,
     ) -> Result<Option<Response>, RegistryError> {
-        let base = storage.read_hosted_document_for_publish(key).await?;
+        let filename = digest.blob_filename();
+        let lookup = BlobLookup { ids: Vec::new(), artifacts: vec![filename.clone()] };
+        let base = storage.read_hosted_document_for_publish(key, &lookup).await?;
         let document =
             parse_deletion_target(base.stored.as_ref().map(|stored| stored.bytes.as_slice()), key)?;
-        let filename = digest.blob_filename();
-        if storage.open_hosted_blob(key, &filename).await?.is_none() {
+        if base.artifacts.is_empty() {
             return Ok(Some(error(ErrorCode::BlobUnknown, "no such blob")));
         }
         self.ensure_blob_unreferenced(storage, key, digest, &document).await?;
-        let target = ReclaimTarget {
-            ecosystem: pnpr_registry::Ecosystem::Oci,
-            name: key.as_str().to_string(),
-            expected: base.package_generation(),
-            artifacts: vec![filename],
-        };
-        let removed = reclaim(&self.state.inner.storage, catalog, vec![target]).await?;
-        if removed.is_empty() {
-            return Ok(None);
+        let expected = base.package_generation();
+        match storage.unmap_hosted_artifacts(key, expected, vec![filename]).await? {
+            Some(_) => Ok(Some(no_content(StatusCode::ACCEPTED))),
+            None => Ok(None),
         }
-        Ok(Some(no_content(StatusCode::ACCEPTED)))
     }
 }
 

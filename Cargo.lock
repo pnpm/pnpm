@@ -7240,12 +7240,14 @@ dependencies = [
 name = "pnpr-fixtures"
 version = "0.0.1"
 dependencies = [
+ "axum 0.8.9",
  "base64 0.23.1",
  "clap",
  "flate2",
  "indexmap 2.14.2",
  "node-semver",
  "pnpr-config",
+ "pnpr-error",
  "pnpr-package-name",
  "pnpr-policy",
  "pnpr-registry",

@@ -30,18 +30,20 @@
 pub(crate) mod adapter;
 
 pub use cache::RenderStats;
-pub use reclaims::new_reclaim_owner;
+pub use mappings::Mapping;
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
 
 #[macro_use]
 mod params;
 mod batch;
+mod blobs;
 mod cache;
 mod commit;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
+mod mappings;
 mod notes;
 mod packument;
 mod publications;
@@ -56,7 +58,7 @@ mod versions;
 mod view;
 
 use super::{
-    ArchiveFence, ArtifactMember, BatchDocument, Generation, Publication, PublicationCommit,
+    ArtifactMember, BatchDocument, BlobFence, Generation, Publication, PublicationCommit,
     PublicationRequest, PublishNotes, RecordedOutcome,
 };
 use crate::{HostedDocumentVersion, transparency_log::LogId};
@@ -260,14 +262,16 @@ impl SqlMetadata {
         notes: PublishNotes,
         request: Option<PublicationRequest>,
     ) -> Result<PublicationCommit> {
-        let fence = ArchiveFence::default();
+        let fence = BlobFence::default();
         self.commit_fenced_publication(catalog, documents, artifacts, notes, request, fence).await
     }
 
-    /// [`Self::commit_publication`], refused with
-    /// [`RegistryError::ArchiveReclaimed`] when `fence` names an archive a
-    /// reclaim marked, or removed after the fence's token. The check is read
-    /// with the commit's other reads, in the same round trip.
+    /// [`Self::commit_publication`], mapping every file of `fence` to its
+    /// blob, and refused with [`RegistryError::ArchiveReclaimed`] unless
+    /// each blob's incarnation is live or is the next one, which the commit
+    /// creates (see [`crate::metadata::BlobRow`]). The check is read with the
+    /// commit's other reads, in the same round trip, and the rows are written
+    /// with the commit.
     pub async fn commit_fenced_publication(
         self: &Arc<Self>,
         catalog: &str,
@@ -275,7 +279,7 @@ impl SqlMetadata {
         artifacts: Vec<ArtifactMember>,
         notes: PublishNotes,
         request: Option<PublicationRequest>,
-        fence: ArchiveFence,
+        fence: BlobFence,
     ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
         self.write(move |connection| {

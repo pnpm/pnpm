@@ -212,19 +212,10 @@ pub enum RegistryError {
         entry: String,
     },
 
-    /// A publish transaction committed, but another writer already owned
-    /// what one of its packages tried to publish, so that package's entry
-    /// was left out of the document rather than pointed at bytes that are
-    /// not the ones it uploaded.
-    #[display("Publish transaction could not record: {packages}")]
-    #[from(skip)]
-    PublishNotRecorded {
-        #[error(not(source))]
-        packages: String,
-    },
-
-    /// A publish depended on an archive a reclaim marked, or removed after
-    /// the publish read its catalog, so the bytes it promoted may be gone.
+    /// A publish depended on an incarnation of an archive's bytes that a
+    /// reclaim is removing or removed, or that another incarnation replaced,
+    /// so the bytes it stored or found may be gone. A retry stores them
+    /// afresh.
     #[display(
         "Archive {artifact:?} of {package} was reclaimed while the publish was in flight; publish again"
     )]

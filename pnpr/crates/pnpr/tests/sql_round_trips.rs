@@ -167,22 +167,25 @@ async fn npm_operations_make_few_round_trips_to_a_libsql_primary() {
     // current document, each in one round trip, and fetches fragments the
     // cache lacks in one more, before its write: the round trip that takes
     // the write lock with every read the write compares with, and the one
-    // that sends every change with the commit.
+    // that sends every change with the commit. The rows of the blobs a
+    // publish stores are read with its document. An unpublish removes the
+    // package in its write's two round trips, then reclaims the archives
+    // nothing maps any more: two round trips move them to `reclaiming`, and
+    // one more records them gone once their keys are removed.
     let expected = vec![
         ("the first publish", 4),
         ("a publish of another version", 5),
         ("a dist-tag move", 2),
         ("a view read that renders a version", 2),
         ("a view read the cache answers", 1),
-        ("an unpublish", 3),
+        ("an unpublish", 6),
     ];
     assert_eq!(counts, expected, "\n{}", listing(&operations));
 }
 
 /// Replicas sharing a libSQL primary hold no package lock in common, so a
-/// publish refused at its commit removes the archives it wrote through the
-/// reclaim fence, which keeps one another replica found in place and
-/// committed.
+/// publish refused at its commit removes the incarnation it stored, fenced
+/// off first so that no commit still on its way can make it live.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_refused_publish_on_libsql_removes_its_archives() {
     let registry = Registry::start().await;
@@ -194,14 +197,13 @@ async fn a_refused_publish_on_libsql_removes_its_archives() {
     // commit, after its archive is in place.
     let other = json!({ "packages": [publish_doc("second", "1.0.0", b"second")] });
     assert_eq!(keyed(&registry, &other).await, StatusCode::CONFLICT);
-    let archive = pnpr_storage::layout::local_blob_path(
-        &registry.storage.path().join("registry"),
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "second",
-        "second-1.0.0.tgz",
+    let store = registry.storage.path().join("registry");
+    let npm = pnpr_storage::Ecosystem::Npm;
+    assert_eq!(
+        crate::storage::stored_archives(&store, "", npm).len(),
+        1,
+        "only the committed archive",
     );
-    assert!(!archive.exists(), "{}", archive.display());
 }
 
 /// Send `batch` as a batch publish under the idempotency key `k1`.

@@ -29,61 +29,54 @@ pub(super) fn read_view(
     cache: &RenderCache,
     key: &PackageKey,
 ) -> Result<Option<PackageView>> {
-    Ok(read_view_with(snapshot, cache, key, CatalogRead::Skip)?.0)
+    Ok(read_view_with(snapshot, cache, key, Vec::new())?.0)
 }
 
-/// Whether a view read also reads its catalog's generation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum CatalogRead {
-    Skip,
-    /// In the same round trip as the view: what a publish fences the
-    /// archives it promotes next with.
-    Include,
-}
-
-/// [`read_view`], and the catalog's generation when `catalog` includes it;
-/// `0` when it skips it.
-pub(super) fn read_view_with(
+/// [`read_view`], with `extra` read before the view in the same round trip;
+/// the rows of each are returned with it.
+pub(super) fn read_view_with<'read>(
     snapshot: &dyn Connection,
     cache: &RenderCache,
-    key: &PackageKey,
-    catalog: CatalogRead,
-) -> Result<(Option<PackageView>, u64)> {
+    key: &'read PackageKey,
+    extra: Vec<Query<'read>>,
+) -> Result<(Option<PackageView>, Vec<Vec<Row>>)> {
     let view_key = ViewKey { package: key.clone(), representation: Representation::Full };
     // The rows a view is rendered from are read with the package's own row,
     // in one round trip to a remote database, unless the package is still
     // at the generation of the view the cache holds.
     let cached = cache.view_generation(&view_key);
     let unless = cached.map_or(NO_GENERATION, to_column);
-    let mut reads = Vec::new();
-    match catalog {
-        CatalogRead::Include => {
-            reads.push(query!("SELECT generation FROM catalogs WHERE catalog = ?1", &key.catalog));
-        }
-        CatalogRead::Skip => {}
-    }
-    reads.push(package_row_query(key));
-    let npm = key.ecosystem == Ecosystem::Npm;
-    if npm {
-        reads.extend([tags_query(key, &unless), version_entries_query(key, &unless)]);
-    }
+    let extras = extra.len();
+    let reads = view_reads(key, &unless, extra);
     let mut results = snapshot.query_all(&reads)?.into_iter();
-    let catalog_generation = match catalog {
-        CatalogRead::Include => generation_from(results.next().unwrap_or_default())?,
-        CatalogRead::Skip => 0,
-    };
+    let extra_rows: Vec<Vec<Row>> = results.by_ref().take(extras).collect();
     let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
-        return Ok((None, catalog_generation));
+        return Ok((None, extra_rows));
     };
     // The rows of the tags and versions were read unless the cached view was
     // at the package's generation.
-    let listed = (npm && cached != Some(package.generation)).then(|| {
-        let tags = results.next().unwrap_or_default();
-        (tags, results.next().unwrap_or_default())
-    });
+    let listed =
+        (key.ecosystem == Ecosystem::Npm && cached != Some(package.generation)).then(|| {
+            (results.next().unwrap_or_default(), results.next().unwrap_or_default())
+        });
     let generation = key.generation(package.generation);
     let bytes = cached_or_rendered(snapshot, cache, view_key, package, listed)?;
-    Ok((Some(PackageView { bytes, generation }), catalog_generation))
+    Ok((Some(PackageView { bytes, generation }), extra_rows))
+}
+
+/// `extra`, then the reads a view of `key` is rendered from: its package
+/// row, and for npm its tags and versions unless the cached view is at
+/// generation `unless`.
+fn view_reads<'read>(
+    key: &'read PackageKey,
+    unless: &'read i64,
+    mut extra: Vec<Query<'read>>,
+) -> Vec<Query<'read>> {
+    extra.push(package_row_query(key));
+    if key.ecosystem == Ecosystem::Npm {
+        extra.extend([tags_query(key, unless), version_entries_query(key, unless)]);
+    }
+    extra
 }
 
 /// The view `view_key` names at `package`'s generation, from the cache or
@@ -106,15 +99,6 @@ fn cached_or_rendered(
     };
     cache.store_view(view_key, generation, Arc::clone(&bytes));
     Ok(bytes)
-}
-
-/// The generation in the first row of `rows`, `0` without one.
-fn generation_from(rows: Vec<Row>) -> Result<u64> {
-    rows.into_iter()
-        .next()
-        .map(|mut row| row.get(0).map(to_generation))
-        .transpose()
-        .map(Option::unwrap_or_default)
 }
 
 /// One version as the version list reads it, before its fragment.

@@ -14,7 +14,7 @@ pnpr export --out <dir> [OPTIONS]
 pnpr migrate-storage [OPTIONS]
 pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr add-user <username>
-pnpr gc [OPTIONS] [<name>@<version>...]
+pnpr gc [OPTIONS]
 pnpr cache-gc [OPTIONS]
 ```
 
@@ -172,52 +172,51 @@ not a terminal. It cannot be passed as a flag.
 
 ### gc
 
-Removes archives that no hosted package references, in every hosted registry:
-npm, PyPI, Cargo, and OCI. It is safe to run while the registry serves and other
-replicas publish.
+Removes the archives no file of a hosted package maps, in every hosted
+registry: npm, PyPI, Cargo, and OCI. It is safe to run while the registry
+serves and other replicas publish.
 
 ```sh
 # Report what would go
 pnpr gc --dry-run
 
-# Remove unreferenced archives older than a day, in one registry
+# Collect one registry
 pnpr gc --registry local
-
-# Remove the archives of a version whose publish was refused at its commit,
-# so the publisher can publish rebuilt bytes
-pnpr gc --registry local @acme/widget@1.2.3
 ```
 
-Such archives are left by a publish that stopped before its commit, an unpublish
-whose archive removal failed, or an image push that never got its manifest. A
-publish refused at its commit removes the archives it wrote itself, unless the
-package references them by then.
+A namespace stores each archive's bytes once, under an incarnation of their
+identity, and its metadata maps every published file to one (see
+[Layout](storage.md#layout)). `gc` removes:
 
-An archive goes only when its file name is one the ecosystem's publishes
-produce: for npm a version's `.tgz`, variant `.tgz`, `.tar.zst`, or `.sigstore`;
-for Cargo a `.crate`; for PyPI a wheel or sdist; for OCI a `sha256-` blob. Any
-other file stays. An npm, Cargo, or PyPI archive stays while its version or file
-is in the package's metadata. An OCI blob stays while a retained manifest
-reaches it: untagged manifests, the children of retained indexes, and their
-config and layer blobs. A repository whose retained manifest is missing or
-corrupt keeps every blob, and `gc` reports the error after collecting the rest.
+- the bytes nothing maps any more: those of unpublished versions and packages
+  whose removal did not finish reclaiming them, and image blobs no retained
+  manifest reaches;
+- incarnations no commit made live: what a publish that stopped before its
+  commit, or one refused at it, stored;
+- reclaims a run or replica started and did not finish, once the
+  [`gc.lease`](configuration.md#gc) has passed since they started.
 
-The metadata database fences each removal. `gc` first marks the archives in a
-transaction that holds only while their package is unchanged since it found them
-unreferenced, then removes them, then records that they are gone. A publish
-whose commit depends on a marked archive, or on one removed after the publish
-read its package, is refused with `409` and can be retried. A marked archive
-belongs to the run that marked it. Another run, or a publish refused over it,
-finishes the removal only once the mark is an hour old, as an interrupted run
-or an interrupted [blob `DELETE`](container-images.md#reclaiming-space) leaves
-it.
+An OCI blob stays while a retained manifest reaches it: untagged manifests,
+the children of retained indexes, and their config and layer blobs. A
+repository whose retained manifest is missing or corrupt keeps every blob, and
+`gc` reports the error after collecting the rest. A name in the store that is
+no key pnpr stores archives under is never removed.
+
+The metadata database fences every removal; no step depends on timing. A
+reclaim first moves the bytes' live incarnation to `reclaiming`, in a
+transaction that holds only while no file maps them, then removes exactly that
+incarnation's key, then records it gone. A publish that depends on that
+incarnation is refused with `409` and can be retried: the retry stores the
+bytes again as the next incarnation, under another key, so a removal that
+lands late never removes them. An incarnation a publish on its way may still
+commit is first recorded gone, which refuses that commit, and only once it was
+stored longer than `--min-age` ago.
 
 | Flag | Description |
 | --- | --- |
 | `--registry <name>` | A hosted registry to collect, by its config name. Repeat it for more. Defaults to every hosted registry. |
-| `--dry-run` | Report the archives that would be removed without removing them. |
-| `--min-age <interval>` | Keep archives younger than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so a publish or image push still in flight is not refused. `0` collects every unreferenced archive. |
-| `<name>@<version>` | Remove that version's archives whatever their age, instead of sweeping. Needs exactly one `--registry`, and refuses a version the package still holds. Not for OCI: delete an image blob by its digest. |
+| `--dry-run` | Report the archives that would be removed without removing them. The report is a snapshot taken without the fence, so it can differ from a real run: it also counts incarnations another run is still removing, which a real run leaves to that run until `gc.lease` has passed, and publishes landing meanwhile can keep archives it lists. |
+| `--min-age <interval>` | Keep an incarnation no commit made live, and an image blob no manifest reaches yet, until it is older than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so a publish or image push still in flight is not refused. `0` collects them all. |
 
 ### cache-gc
 

@@ -1,53 +1,19 @@
 //! Promoting a publish's staged archives into the hosted store before its
 //! metadata commit, and the fence the commit checks them against.
+//!
+//! Each archive is stored by the identity of its bytes: when the namespace
+//! holds those bytes live already, nothing is stored and the commit depends
+//! on that incarnation; otherwise the next incarnation is stored, and the
+//! commit creates it (see [`pnpr_storage::metadata::BlobRow`]).
 
 use super::{RegistryError, StagedPublish};
 use crate::server::AppState;
-use futures_util::StreamExt as _;
-use pnpr_package_name::CanonicalPackageName;
+use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    BlobFinalize, BlobSlot, Storage,
-    metadata::{ArchiveFence, ArchiveRef, ArtifactMember},
+    BlobId, BlobSlot, PromotedArchive, Storage,
+    metadata::{ArtifactMember, BlobFence, BlobRef, BlobRow},
 };
-use std::path::Path;
-use tokio::io::AsyncReadExt as _;
-
-/// Promote every staged archive, and fence the commit with them and the
-/// archives the staged documents reference. Every one of them was promoted,
-/// or checked present, after its package was read, so the earliest catalog
-/// generation read fences them all.
-pub(super) async fn promote_fenced(
-    state: &AppState,
-    staged: &mut [StagedPublish],
-) -> Result<Promoted, RegistryError> {
-    let token = staged
-        .iter()
-        .map(|stage| stage.base.catalog_generation)
-        .min()
-        .unwrap_or_default();
-    let references = referenced_archives(staged);
-    let mut promoted = promote_archives(state, staged).await?;
-    promoted.fence.token = token;
-    promoted.fence.archives.extend(references);
-    Ok(promoted)
-}
-
-/// The archives already in the store that staged publishes reference
-/// without promoting them.
-fn referenced_archives(staged: &[StagedPublish]) -> Vec<ArchiveRef> {
-    staged
-        .iter()
-        .flat_map(|stage| {
-            stage.base.references
-                .iter()
-                .map(|artifact| ArchiveRef {
-                    ecosystem: stage.ecosystem,
-                    name: stage.name.as_str().to_string(),
-                    artifact: artifact.clone(),
-                })
-        })
-        .collect()
-}
+use std::collections::BTreeMap;
 
 /// The archives a publish promoted before its metadata commit.
 #[derive(Default)]
@@ -55,202 +21,169 @@ pub(super) struct Promoted {
     /// The archives of other ecosystems than npm, whose publication members
     /// the metadata cannot derive.
     pub(super) artifacts: Vec<ArtifactMember>,
-    /// What the commit checks: every archive promoted, written or found in
-    /// place, and the ones the staged documents reference.
-    pub(super) fence: ArchiveFence,
-    /// The archives this publish created.
-    written: Vec<(String, pnpr_registry::Ecosystem, CanonicalPackageName, String)>,
+    /// What the commit maps and checks: every archive promoted, and the ones
+    /// the staged documents reference.
+    pub(super) fence: BlobFence,
+    /// The incarnations this publish stored, by namespace.
+    stored: Vec<((String, Ecosystem), BlobRef)>,
 }
 
-impl Promoted {
-    /// Clean up after the commit was refused with `err`: finish a reclaim
-    /// that marked an archive the commit depends on and stopped, its lease
-    /// long expired, so a retry writes the archive afresh instead of meeting the
-    /// same mark until `pnpr gc` runs, and reclaim what this publish wrote.
-    pub(super) async fn clean_up(&self, state: &AppState, catalog: &str, err: &RegistryError) {
-        if matches!(err, RegistryError::ArchiveReclaimed { .. })
-            && let Err(err) = self.finish_pending(state, catalog).await
-        {
-            tracing::warn!(%err, "a pending archive reclaim was not finished");
-        }
-        self.remove_written(state).await;
-    }
-
-    async fn finish_pending(&self, state: &AppState, catalog: &str) -> Result<(), RegistryError> {
-        let archives = self.fence.archives.clone();
-        crate::archive_gc::reclaim::finish_stale(
-            &state.inner.storage,
-            catalog,
-            crate::archive_gc::reclaim::RECLAIM_LEASE,
-            move |archive| archives.contains(archive),
-        )
-        .await?;
-        Ok(())
-    }
-
-    /// Reclaim the archives this publish created, after its commit was
-    /// refused, so no archive outlives the metadata that would have
-    /// referenced it. Another replica may have found one of them in place
-    /// with the same bytes and committed it: the reclaim leaves what the
-    /// package references, and is fenced against a commit still on its way.
-    /// What it cannot remove is left for `pnpr gc`.
-    async fn remove_written(&self, state: &AppState) {
-        let mut packages: Vec<(&str, &CanonicalPackageName, Vec<String>)> = Vec::new();
-        for (org, _, name, filename) in &self.written {
-            match packages
-                .iter_mut()
-                .find(|(held_org, held, _)| *held_org == org && *held == name)
-            {
-                Some((_, _, filenames)) => filenames.push(filename.clone()),
-                None => packages.push((org, name, vec![filename.clone()])),
-            }
-        }
-        let manifest_limit = state.inner.config.http.oci.max_manifest_bytes;
-        for (org, name, filenames) in packages {
-            let reclaimed = crate::archive_gc::reclaim::reclaim_unreferenced(
-                &state.inner.storage,
-                org,
-                name,
-                filenames,
-                manifest_limit,
-            );
-            if let Err(err) = reclaimed.await {
-                tracing::warn!(package = %name.as_str(), %err, "refused publish left its archives");
-            }
-        }
-    }
-}
-
-/// Every staged blob slot with the org, ecosystem and package it belongs to,
-/// last first, so popping them promotes in staging order.
-fn take_slots(
-    staged: &mut [StagedPublish],
-) -> Vec<((String, pnpr_registry::Ecosystem, pnpr_package_name::CanonicalPackageName), BlobSlot)> {
-    let mut slots: Vec<_> = staged
-        .iter_mut()
-        .flat_map(|stage| {
-            let owner =
-                (stage.org.clone().unwrap_or_default(), stage.ecosystem, stage.name.clone());
-            std::mem::take(&mut stage.slots)
-                .into_iter()
-                .map(move |slot| (owner.clone(), slot))
-        })
-        .collect();
-    slots.reverse();
-    slots
-}
-
-/// Promote every staged archive before the metadata commit that references
-/// it. A slot another writer holds with other bytes fails the whole publish,
-/// so the commit never records part of it, and the archives this publish
-/// already wrote are removed again.
-async fn promote_archives(
+/// Promote every staged archive, and fence the commit with them and the
+/// archives the staged documents reference. A failure discards what was
+/// stored so far and removes the staged files left.
+pub(super) async fn promote_fenced(
     state: &AppState,
     staged: &mut [StagedPublish],
 ) -> Result<Promoted, RegistryError> {
     let mut promoted = Promoted::default();
-    let mut pending = take_slots(staged);
-    while let Some(((org, ecosystem, name), slot)) = pending.pop() {
-        let filename = slot.filename().to_string();
-        let tmp_path = slot.tmp_path.clone();
-        let storage = state.inner.storage.for_hosted(&org, ecosystem);
-        match promote_one(&storage, &name, slot).await {
-            Ok(BlobFinalize::Written) => {
-                promoted.fence.archives.push(archive_ref(ecosystem, &name, &filename));
-                promoted.written.push((org, ecosystem, name.clone(), filename.clone()));
+    for index in 0..staged.len() {
+        let stage = &mut staged[index];
+        let namespace = (stage.org.clone().unwrap_or_default(), stage.ecosystem);
+        promoted.fence.artifacts.append(&mut stage.base.references);
+        let storage = state.inner.storage.for_hosted(&namespace.0, namespace.1);
+        let slots = std::mem::take(&mut stage.slots);
+        match promote_slots(&storage, slots, &stage.base.blobs).await {
+            Ok(archives) => promoted.add(&namespace, archives),
+            Err(err) => {
+                for stage in &mut staged[index..] {
+                    super::cleanup_tmp_slots(std::mem::take(&mut stage.slots)).await;
+                }
+                promoted.discard(state).await;
+                return Err(err);
             }
-            Ok(BlobFinalize::AlreadyIdentical) => {
-                promoted.fence.archives.push(archive_ref(ecosystem, &name, &filename));
-            }
-            outcome @ (Ok(BlobFinalize::Conflict) | Err(_)) => {
-                let _ = tokio::fs::remove_file(&tmp_path).await;
-                super::cleanup_tmp_slots(
-                    pending
-                        .into_iter()
-                        .map(|(_, slot)| slot)
-                        .collect(),
-                )
-                .await;
-                promoted.remove_written(state).await;
-                outcome?;
-                return Err(RegistryError::PublishNotRecorded {
-                    packages: format!("{ecosystem} {}", name.as_str()),
-                });
-            }
-        }
-        if ecosystem != pnpr_registry::Ecosystem::Npm {
-            promoted.artifacts.push(artifact_member(ecosystem, &name, filename));
         }
     }
     Ok(promoted)
 }
 
-/// Promote one staged archive, never over an archive already in place: a
-/// filesystem store would rename over it and still report it written. An
-/// archive in place with the same bytes is already identical; with other
-/// bytes it is a conflict. Either way the staged file is left for the
-/// caller. `Written` therefore always means this publish created the
-/// archive.
-async fn promote_one(
-    storage: &Storage,
-    name: &CanonicalPackageName,
-    slot: BlobSlot,
-) -> Result<BlobFinalize, RegistryError> {
-    let Some((existing, length)) = storage.open_hosted_blob(name, slot.filename()).await? else {
-        return storage.finalize_blob_slot(slot).await;
-    };
-    if !same_bytes(existing, length, &slot.tmp_path).await? {
-        return Ok(BlobFinalize::Conflict);
+impl Promoted {
+    fn add(&mut self, namespace: &(String, Ecosystem), archives: Vec<PromotedArchive>) {
+        for archive in archives {
+            if archive.stored {
+                self.stored.push((namespace.clone(), archive.artifact.blob.clone()));
+            }
+            if namespace.1 != Ecosystem::Npm {
+                let artifact = &archive.artifact;
+                self.artifacts.push(ArtifactMember {
+                    ecosystem: artifact.ecosystem,
+                    name: artifact.name.clone(),
+                    version: String::new(),
+                    artifact: artifact.artifact.clone(),
+                });
+            }
+            self.fence.artifacts.push(archive.artifact);
+        }
     }
-    let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-    Ok(BlobFinalize::AlreadyIdentical)
-}
 
-/// Bytes compared at a time, so comparing never holds a whole archive.
-const COMPARE_CHUNK: usize = 64 * 1024;
-
-/// Whether the archive `existing` streams holds the bytes of the file at
-/// `staged`, read a bounded chunk at a time.
-pub(super) async fn same_bytes(
-    existing: axum::body::Body,
-    length: Option<u64>,
-    staged: &Path,
-) -> Result<bool, RegistryError> {
-    let mut file = tokio::fs::File::open(staged).await?;
-    let staged_length = file.metadata().await?.len();
-    if length.is_some_and(|length| length != staged_length) {
-        return Ok(false);
-    }
-    let mut buffer = vec![0; COMPARE_CHUNK];
-    let mut chunks = existing.into_data_stream();
-    while let Some(chunk) = chunks.next().await {
-        let chunk = chunk.map_err(|err| RegistryError::Internal {
-            reason: format!("reading an archive: {err}"),
-        })?;
-        for part in chunk.chunks(COMPARE_CHUNK) {
-            let read = &mut buffer[..part.len()];
-            if file.read_exact(read).await.is_err() || read != part {
-                return Ok(false);
+    /// Discard the incarnations this publish stored, after its commit was
+    /// refused, so no archive outlives the commit that would have mapped
+    /// it. One another publish of the same bytes committed in the meantime
+    /// is live and stays; one a commit still on its way could make live is
+    /// fenced off first, which refuses that commit. What cannot be removed is
+    /// left for `pnpr gc`.
+    pub(super) async fn discard(&self, state: &AppState) {
+        let mut by_namespace: BTreeMap<&(String, Ecosystem), Vec<(BlobRef, bool)>> =
+            BTreeMap::new();
+        for (namespace, blob) in &self.stored {
+            by_namespace
+                .entry(namespace)
+                .or_default()
+                .push((blob.clone(), true));
+        }
+        for ((org, ecosystem), stored) in by_namespace {
+            let storage = state.inner.storage.for_hosted(org, *ecosystem);
+            if let Err(err) = storage.remove_uncommitted(stored).await {
+                tracing::warn!(%org, %err, "a refused publish left archives for `pnpr gc`");
             }
         }
     }
-    Ok(file.read(&mut buffer[..1]).await? == 0)
 }
 
-fn archive_ref(
-    ecosystem: pnpr_registry::Ecosystem,
-    name: &CanonicalPackageName,
-    artifact: &str,
-) -> ArchiveRef {
-    ArchiveRef { ecosystem, name: name.as_str().to_string(), artifact: artifact.to_string() }
+/// Promote the staged `slots` of one namespace. `known` holds the rows the
+/// publish read with its document; the rows of the rest, whose identity was
+/// known only once they were written, are read in one more round trip.
+async fn promote_slots(
+    storage: &Storage,
+    slots: Vec<BlobSlot>,
+    known: &BTreeMap<BlobId, Option<BlobRow>>,
+) -> Result<Vec<PromotedArchive>, RegistryError> {
+    let identified = identify_slots(storage, slots).await?;
+    let missing = identified
+        .iter()
+        .map(|(_, (id, _))| id)
+        .filter(|id| !known.contains_key(*id))
+        .cloned()
+        .collect();
+    let looked_up = match storage.blob_rows(missing).await {
+        Ok(rows) => rows,
+        Err(err) => {
+            super::cleanup_tmp_slots(
+                identified
+                    .into_iter()
+                    .map(|(slot, _)| slot)
+                    .collect(),
+            )
+            .await;
+            return Err(err);
+        }
+    };
+    store_identified(storage, identified, |id| {
+        known
+            .get(id)
+            .copied()
+            .flatten()
+            .or_else(|| looked_up.get(id).copied())
+    })
+    .await
 }
 
-/// A publication member for an archive whose version the metadata does not
-/// tie it to.
-fn artifact_member(
-    ecosystem: pnpr_registry::Ecosystem,
-    name: &CanonicalPackageName,
-    artifact: String,
-) -> ArtifactMember {
-    ArtifactMember { ecosystem, name: name.as_str().to_string(), version: String::new(), artifact }
+/// The identity and size of the bytes of each of `slots`. A failure removes
+/// every staged file.
+async fn identify_slots(
+    storage: &Storage,
+    slots: Vec<BlobSlot>,
+) -> Result<Vec<(BlobSlot, (BlobId, u64))>, RegistryError> {
+    let mut identified = Vec::with_capacity(slots.len());
+    let mut pending = slots.into_iter();
+    while let Some(slot) = pending.next() {
+        match storage.identify_blob_slot(&slot).await {
+            Ok(identity) => identified.push((slot, identity)),
+            Err(err) => {
+                let done = identified.into_iter().map(|(slot, _)| slot);
+                let left = std::iter::once(slot).chain(pending);
+                super::cleanup_tmp_slots(done.chain(left).collect()).await;
+                return Err(err);
+            }
+        }
+    }
+    Ok(identified)
+}
+
+/// Store each identified slot under the incarnation `row_of` its blob's row
+/// gives it. A failure removes the staged files left and discards what was
+/// stored.
+async fn store_identified(
+    storage: &Storage,
+    identified: Vec<(BlobSlot, (BlobId, u64))>,
+    row_of: impl Fn(&BlobId) -> Option<BlobRow>,
+) -> Result<Vec<PromotedArchive>, RegistryError> {
+    let mut promoted = Vec::with_capacity(identified.len());
+    let mut pending = identified.into_iter();
+    while let Some((slot, identity)) = pending.next() {
+        let row = row_of(&identity.0);
+        match storage.promote_blob_slot(slot, identity, row.as_ref()).await {
+            Ok(archive) => promoted.push(archive),
+            Err(err) => {
+                super::cleanup_tmp_slots(pending.map(|(slot, _)| slot).collect()).await;
+                let stored = promoted
+                    .into_iter()
+                    .filter(|archive| archive.stored)
+                    .map(|archive| (archive.artifact.blob, true))
+                    .collect();
+                let _ = storage.remove_uncommitted(stored).await;
+                return Err(err);
+            }
+        }
+    }
+    Ok(promoted)
 }

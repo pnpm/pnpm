@@ -1,23 +1,26 @@
-//! `pnpr gc`: reclaiming the archives no package references, in every hosted
+//! `pnpr gc`: reclaiming the archives nothing maps, in every hosted
 //! registry, while the registry keeps serving and other replicas keep
 //! publishing.
 //!
-//! Such archives are left by a publish refused at its commit whose cleanup
-//! lost a race, by an unpublish whose archive removal failed, by an image
-//! push that never got its manifest, or by a blob a client deleted halfway.
-//! Every removal goes through the metadata database's fence (see
-//! [`pnpr_storage::metadata::ArchiveFence`]), so a commit that depends on an
-//! archive being removed is refused rather than left pointing at nothing.
+//! A namespace stores each archive's bytes once, under an incarnation of
+//! their identity, and its metadata maps every published file to one (see
+//! [`pnpr_storage::metadata::BlobRow`]). A collection reclaims what no file
+//! maps: the bytes of unpublished versions and packages, image blobs no
+//! retained manifest reaches, incarnations a refused or interrupted publish
+//! stored, and reclaims that stopped before they finished. Every removal is
+//! fenced by the metadata database, never by timing, so a commit that
+//! depends on bytes being removed is refused rather than left pointing at
+//! nothing.
 
+pub(crate) mod images;
 pub(crate) mod liveness;
-pub(crate) mod reclaim;
 
 use crate::{Config, Ecosystem, RegistryError, Result};
-use futures_util::TryStreamExt as _;
-use liveness::{Live, archive_version};
-use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::{HostedBlobFile, Storage, metadata::ReclaimTarget};
-use std::{collections::HashMap, time::Duration};
+use pnpr_storage::{
+    Storage, StoredArchive,
+    metadata::{BlobRef, BlobRow, BlobState},
+};
+use std::{collections::BTreeMap, time::Duration};
 
 /// What `pnpr gc` collects, and how.
 #[derive(Debug, Default, Clone)]
@@ -25,22 +28,17 @@ pub struct GcOptions {
     /// The hosted registries to collect in; every hosted registry when
     /// empty.
     pub registries: Vec<String>,
-    /// Archives younger than this are kept, so an upload whose commit is
-    /// still coming is not refused for it. Named versions ignore it.
+    /// Archives stored, and image blobs mapped, more recently than this are
+    /// kept, so a publish or push still on its way is not refused for them.
     pub min_age: Duration,
     /// Report what would be removed without removing it.
     pub dry_run: bool,
-    /// `<name>@<version>` specs whose archives to remove regardless of age,
-    /// in the one registry `registries` names.
-    pub versions: Vec<String>,
 }
 
 /// What a collection removed, or would remove in a dry run.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct GcReport {
     pub archives: usize,
-    /// The bytes of the archives listed with their size; named versions'
-    /// archives are counted without.
     pub bytes: u64,
 }
 
@@ -53,23 +51,15 @@ impl GcReport {
 
 /// Collect unreferenced archives as `options` say.
 pub async fn collect_archives(config: &Config, options: &GcOptions) -> Result<GcReport> {
-    if !options.versions.is_empty() && options.registries.len() != 1 {
-        return Err(RegistryError::BadRequest {
-            reason: "naming versions to remove requires exactly one --registry".to_string(),
-        });
-    }
     let registries = selected_registries(config, options)?;
     let storage = Storage::from_config(&config.storage)?;
-    let manifest_limit = config.http.oci.max_manifest_bytes;
     let mut report = GcReport::default();
     for (org, ecosystem) in registries {
         let view = storage.for_hosted(&org, ecosystem);
         let collection = Collection {
             storage: &view,
-            catalog: &org,
-            ecosystem,
-            manifest_limit,
-            stale_after: reclaim::RECLAIM_LEASE,
+            manifest_limit: config.http.oci.max_manifest_bytes,
+            lease: config.gc.lease,
         };
         report.add(collection.run(options).await?);
     }
@@ -108,270 +98,149 @@ fn selected_registries(config: &Config, options: &GcOptions) -> Result<Vec<(Stri
 pub(crate) struct Collection<'storage> {
     /// The namespace's view of the hosted store.
     pub(crate) storage: &'storage Storage,
-    pub(crate) catalog: &'storage str,
-    pub(crate) ecosystem: Ecosystem,
     pub(crate) manifest_limit: usize,
-    /// How old a mark must be before the collection takes it over as left
-    /// behind by a reclaim that stopped.
-    pub(crate) stale_after: Duration,
+    /// How long an incarnation stays `reclaiming` before the collection
+    /// finishes it as left behind by a reclaim that stopped.
+    pub(crate) lease: Duration,
 }
 
 impl Collection<'_> {
-    /// Collect the namespace as `options` say.
-    async fn run(&self, options: &GcOptions) -> Result<GcReport> {
+    /// Collect the namespace as `options` say. A step that fails leaves the
+    /// rest to run; the first failure is returned.
+    pub(crate) async fn run(&self, options: &GcOptions) -> Result<GcReport> {
         if options.dry_run {
             self.storage.check_hosted_layout().await?;
-        } else {
-            self.storage.ensure_hosted_layout().await?;
-            self.finish_pending().await?;
+            return self.plan(options.min_age).await;
         }
-        if options.versions.is_empty() {
-            self.collect(options.min_age, options.dry_run).await
-        } else {
-            self.collect_versions(&options.versions, options.dry_run).await
+        self.storage.ensure_hosted_layout().await?;
+        let mut tally = Tally::default();
+        if self.storage.ecosystem() == Ecosystem::Oci {
+            let unmapped = self.unmap_unreachable_images(options.min_age).await;
+            tally.record(unmapped);
         }
-    }
-
-    /// Finish the reclaims of this namespace that stopped after marking
-    /// their archives longer than `stale_after` ago, which no commit can
-    /// depend on until they finish.
-    pub(crate) async fn finish_pending(&self) -> Result<()> {
-        let ecosystem = self.ecosystem;
-        let finished =
-            reclaim::finish_stale(self.storage, self.catalog, self.stale_after, move |archive| {
-                archive.ecosystem == ecosystem
-            });
-        for archive in finished.await? {
-            tracing::info!(
-                package = %archive.name,
-                artifact = %archive.artifact,
-                "finished an interrupted archive reclaim",
-            );
-        }
-        Ok(())
-    }
-
-    /// Reclaim every archive of the namespace older than `min_age` that its
-    /// package does not reference.
-    ///
-    /// The listing yields a package's files together, so each package is
-    /// checked once its files are all listed. One listed again later is
-    /// checked again, which finds what the first pass left. A package whose
-    /// metadata cannot be read keeps every archive, and the others are still
-    /// collected; the first such error is returned.
-    pub(crate) async fn collect(&self, min_age: Duration, dry_run: bool) -> Result<GcReport> {
-        let mut tally = Tally::new(dry_run);
-        let mut files = self.storage.hosted_blob_files();
-        let mut package: Option<(String, Vec<HostedBlobFile>)> = None;
-        while let Some(file) = files.try_next().await? {
-            if file.blob.is_none() || file.modified.elapsed().unwrap_or_default() < min_age {
-                continue;
-            }
-            if let Some((current, listed)) = &mut package
-                && *current == file.package
-            {
-                listed.push(file);
-                continue;
-            }
-            if let Some((name, listed)) = package.replace((file.package.clone(), vec![file])) {
-                self.check_package(&mut tally, &name, listed).await;
-            }
-        }
-        if let Some((name, listed)) = package {
-            self.check_package(&mut tally, &name, listed).await;
-        }
-        self.flush(&mut tally).await;
+        tally.record(self.reclaim_unmapped().await);
+        tally.record(self.finish_stale().await);
+        tally.record(self.remove_uncommitted(options.min_age).await);
         tally.finish()
     }
 
-    /// Add the archives of `package` among `listed` that it does not
-    /// reference to `tally`, reclaiming a batch once it is full.
-    async fn check_package(&self, tally: &mut Tally, package: &str, listed: Vec<HostedBlobFile>) {
-        let Ok(name) = CanonicalPackageName::parse(package, self.ecosystem) else { return };
-        match self.read_live(&name).await {
-            Ok((expected, live)) => {
-                let unreferenced = listed
-                    .into_iter()
-                    .filter_map(|file| Some((file.blob?, file.size)))
-                    .filter(|(blob, _)| live.is_unreferenced(&name, blob))
-                    .collect();
-                tally.plan(self.ecosystem, &name, expected, unreferenced);
-            }
-            Err(error) => tally.fail(package, error),
-        }
-        if tally.targets.len() >= RECLAIM_BATCH {
-            self.flush(tally).await;
-        }
+    /// Reclaim every live blob nothing maps.
+    async fn reclaim_unmapped(&self) -> Result<GcReport> {
+        let unmapped = self.storage.unmapped_blobs().await?;
+        let ids = unmapped.keys().cloned().collect();
+        let removed = self.storage.reclaim_blobs(ids).await?;
+        Ok(report_of(&removed, |blob| unmapped.get(&blob.id).map_or(0, |row| row.size)))
     }
 
-    /// Reclaim the archives of each `<name>@<version>` of `specs`, whatever
-    /// their age. Every spec is checked before any archive goes: a version
-    /// the package still holds, or one with no archive stored, is refused.
-    pub(crate) async fn collect_versions(
-        &self,
-        specs: &[String],
-        dry_run: bool,
-    ) -> Result<GcReport> {
-        if self.ecosystem == Ecosystem::Oci {
-            return Err(RegistryError::BadRequest {
-                reason: "an image blob is named by its digest, not a version; delete it through \
-                         the registry's blob DELETE route"
-                    .to_string(),
-            });
+    /// Finish the reclaims that stopped more than the lease ago.
+    async fn finish_stale(&self) -> Result<GcReport> {
+        let finished = self.storage.finish_stale_reclaims(self.lease).await?;
+        for blob in &finished {
+            tracing::info!(key = %blob.key(), "finished an interrupted archive reclaim");
         }
-        let mut tally = Tally::new(dry_run);
-        for spec in specs {
-            let (name, expected, files) = self.named_version(spec).await?;
-            tally.plan(self.ecosystem, &name, expected, files);
-        }
-        self.flush(&mut tally).await;
-        tally.finish()
+        Ok(report_of(&finished, |_| 0))
     }
 
-    /// The archives of the version `spec` names, with the package generation
-    /// they were found unreferenced at.
-    async fn named_version(
-        &self,
-        spec: &str,
-    ) -> Result<(CanonicalPackageName, Option<u64>, Vec<(String, u64)>)> {
-        let (raw, version) = parse_version_spec(spec)?;
-        let name = CanonicalPackageName::parse(raw, self.ecosystem)?;
-        let files: Vec<(String, u64)> = self.storage
-            .hosted_package_blobs(&name)
-            .await?
-            .into_iter()
-            .filter(|blob| archive_version(&name, blob).as_deref() == Some(version))
-            .map(|blob| (blob, 0))
-            .collect();
-        if files.is_empty() {
-            return Err(RegistryError::BadRequest {
-                reason: format!("no archive of {spec} is stored"),
-            });
-        }
-        let (expected, live) = self.read_live(&name).await?;
-        if files
+    /// Remove the stored incarnations no commit made live. One a publish on
+    /// its way may still commit is fenced off first, and only once it was
+    /// stored more than `min_age` ago.
+    async fn remove_uncommitted(&self, min_age: Duration) -> Result<GcReport> {
+        let stored = self.uncommitted().await?;
+        let sizes: BTreeMap<BlobRef, u64> = stored
             .iter()
-            .any(|(blob, _)| !live.is_unreferenced(&name, blob))
-        {
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "{spec} is a live version; unpublish it rather than removing its archives",
-                ),
-            });
+            .map(|(blob, file)| (blob.clone(), file.size))
+            .collect();
+        let candidates = stored
+            .into_iter()
+            .map(|(blob, file)| (blob, older_than(&file, min_age)))
+            .collect();
+        let removed = self.storage.remove_uncommitted(candidates).await?;
+        for blob in &removed {
+            tracing::info!(key = %blob.key(), "removed an archive no commit made live");
         }
-        Ok((name, expected, files))
+        Ok(report_of(&removed, |blob| {
+            sizes
+                .get(blob)
+                .copied()
+                .unwrap_or_default()
+        }))
     }
 
-    /// What `name`'s metadata keeps alive, with the package generation it
-    /// was read at.
-    async fn read_live(&self, name: &CanonicalPackageName) -> Result<(Option<u64>, Live)> {
-        let base = self.storage.read_hosted_document_for_publish(name).await?;
-        let bytes = base.stored.as_ref().map(|stored| stored.bytes.as_slice());
-        let live = Live::of(self.storage, name, bytes, self.manifest_limit).await?;
-        Ok((base.package_generation(), live))
+    /// The stored incarnations that are not the live one of their blob.
+    async fn uncommitted(&self) -> Result<Vec<(BlobRef, StoredArchive)>> {
+        let stored = self.storage.stored_incarnations().await?;
+        let ids = stored
+            .iter()
+            .map(|(blob, _)| blob.id.clone())
+            .collect();
+        let rows = self.storage.blob_rows(ids).await?;
+        Ok(stored
+            .into_iter()
+            .filter(|(blob, _)| !is_live(rows.get(&blob.id), blob.incarnation))
+            .collect())
     }
 
-    /// Reclaim the archives `tally` planned, in one reclaim: one transaction
-    /// marks them and one records them gone, however many packages they
-    /// belong to.
-    async fn flush(&self, tally: &mut Tally) {
-        let targets = std::mem::take(&mut tally.targets);
-        let sizes = std::mem::take(&mut tally.sizes);
-        if targets.is_empty() {
-            return;
-        }
-        match reclaim::reclaim(self.storage, self.catalog, targets).await {
-            Ok(removed) => {
-                for archive in removed {
-                    let size = sizes
-                        .get(&(archive.name.clone(), archive.artifact.clone()))
-                        .copied()
-                        .unwrap_or_default();
-                    tracing::info!(
-                        package = %archive.name,
-                        artifact = %archive.artifact,
-                        size,
-                        "removed an unreferenced archive",
-                    );
-                    tally.report.add(GcReport { archives: 1, bytes: size });
-                }
+    /// What a collection would remove, without changing anything: the live
+    /// blobs nothing maps, the image blobs no retained manifest reaches, and
+    /// the stored incarnations no commit made live.
+    async fn plan(&self, min_age: Duration) -> Result<GcReport> {
+        let mut unmapped = self.storage.unmapped_blobs().await?;
+        if self.storage.ecosystem() == Ecosystem::Oci {
+            for (id, row) in self.unreachable_images(min_age).await? {
+                unmapped.insert(id, row);
             }
-            Err(error) => tally.fail(self.catalog, error),
         }
+        let mut report = GcReport::default();
+        for (id, row) in &unmapped {
+            tracing::info!(key = %id.key(row.incarnation), size = row.size, "unmapped archive");
+            report.add(GcReport { archives: 1, bytes: row.size });
+        }
+        for (blob, file) in self.uncommitted().await? {
+            if older_than(&file, min_age) {
+                tracing::info!(key = %blob.key(), size = file.size, "uncommitted archive");
+                report.add(GcReport { archives: 1, bytes: file.size });
+            }
+        }
+        Ok(report)
     }
 }
 
-/// Packages whose unreferenced archives one reclaim marks and records
-/// together.
-const RECLAIM_BATCH: usize = 64;
+/// Whether `incarnation` is the live one of a blob with `row`.
+fn is_live(row: Option<&BlobRow>, incarnation: u64) -> bool {
+    row.is_some_and(|row| row.state == BlobState::Live && row.incarnation == incarnation)
+}
 
-/// What a collection removed or planned so far, and the first failure.
+/// Whether `file` was stored more than `min_age` ago.
+fn older_than(file: &StoredArchive, min_age: Duration) -> bool {
+    file.modified.elapsed().unwrap_or_default() >= min_age
+}
+
+/// The report of `removed`, each of the size `size_of` gives it.
+fn report_of(removed: &[BlobRef], size_of: impl Fn(&BlobRef) -> u64) -> GcReport {
+    GcReport { archives: removed.len(), bytes: removed.iter().map(size_of).sum() }
+}
+
+/// What a collection removed so far, and the first failure.
+#[derive(Default)]
 struct Tally {
-    dry_run: bool,
     report: GcReport,
-    /// The reclaims of the batch not yet run.
-    targets: Vec<ReclaimTarget>,
-    /// The size of each planned archive, by package and file name.
-    sizes: HashMap<(String, String), u64>,
     failure: Option<RegistryError>,
 }
 
 impl Tally {
-    fn new(dry_run: bool) -> Self {
-        Self {
-            dry_run,
-            report: GcReport::default(),
-            targets: Vec::new(),
-            sizes: HashMap::new(),
-            failure: None,
-        }
-    }
-
-    /// Plan reclaiming `files` of `name`, found unreferenced at `expected`;
-    /// a dry run only reports them.
-    fn plan(
-        &mut self,
-        ecosystem: Ecosystem,
-        name: &CanonicalPackageName,
-        expected: Option<u64>,
-        files: Vec<(String, u64)>,
-    ) {
-        if files.is_empty() {
-            return;
-        }
-        if self.dry_run {
-            for (artifact, size) in files {
-                tracing::info!(package = name.as_str(), %artifact, size, "unreferenced archive");
-                self.report.add(GcReport { archives: 1, bytes: size });
+    fn record(&mut self, step: Result<GcReport>) {
+        match step {
+            Ok(report) => self.report.add(report),
+            Err(error) => {
+                tracing::warn!(%error, "archives not collected");
+                self.failure.get_or_insert(error);
             }
-            return;
         }
-        let mut artifacts = Vec::with_capacity(files.len());
-        for (artifact, size) in files {
-            self.sizes.insert((name.as_str().to_string(), artifact.clone()), size);
-            artifacts.push(artifact);
-        }
-        let name = name.as_str().to_string();
-        self.targets.push(ReclaimTarget { ecosystem, name, expected, artifacts });
-    }
-
-    fn fail(&mut self, scope: &str, error: RegistryError) {
-        tracing::warn!(%scope, %error, "archives not collected");
-        self.failure.get_or_insert(error);
     }
 
     fn finish(self) -> Result<GcReport> {
         self.failure.map_or(Ok(self.report), Err)
     }
-}
-
-/// Split `<name>@<version>`, where the name may start with a scope's `@`.
-fn parse_version_spec(spec: &str) -> Result<(&str, &str)> {
-    spec.rsplit_once('@')
-        .filter(|(name, version)| !name.is_empty() && !version.is_empty())
-        .ok_or_else(|| RegistryError::BadRequest {
-            reason: format!("{spec:?} is not <name>@<version>"),
-        })
 }
 
 #[cfg(test)]

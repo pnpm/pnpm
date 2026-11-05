@@ -248,6 +248,7 @@ impl Config {
             features,
             routing,
             release_records: super::build_release_records_config(file.release_records.take())?,
+            gc: super::build_gc_config(file.gc.take())?,
         })
     }
 }

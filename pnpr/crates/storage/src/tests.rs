@@ -1,8 +1,8 @@
 use super::{
-    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, ErrorKind, HostedStoreConfig,
-    PackageTombstone, RegistryError, RegistryRecord, Storage, atomic_write::create_tmp_file_with,
-    fs,
+    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, HostedStoreConfig,
+    PackageTombstone, RegistryRecord, Storage, atomic_write::create_tmp_file_with, fs,
 };
+use crate::archives::testing::{served, store_file};
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
@@ -25,29 +25,6 @@ fn document_write_conflict_delay_caps_growth() {
     assert_eq!(super::document_write_conflict_delay(1).as_millis(), 10);
     assert_eq!(super::document_write_conflict_delay(6).as_millis(), 250);
     assert_eq!(super::document_write_conflict_delay(32).as_millis(), 250);
-}
-
-#[tokio::test]
-async fn hosted_blob_under_non_directory_package_path_is_an_error() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let name = pkg("foo");
-    let package_dir = crate::layout::local_package_dir(
-        &tmp.path().join("storage"),
-        "",
-        pnpr_package_name::Ecosystem::Npm,
-        "foo",
-    );
-    fs::create_dir_all(package_dir.parent().unwrap()).await.unwrap();
-    fs::write(&package_dir, b"not a directory").await.unwrap();
-
-    let Err(err) = storage.open_hosted_blob(&name, "foo-1.0.0.tgz").await else {
-        panic!("expected hosted blob open to fail");
-    };
-    match err {
-        RegistryError::Io(err) => assert_eq!(err.kind(), ErrorKind::NotADirectory),
-        other => panic!("expected I/O error, got {other:?}"),
-    }
 }
 
 #[tokio::test]
@@ -139,18 +116,18 @@ async fn nested_names_are_stored_as_siblings() {
     for name in [&parent, &child, &top, &blobs_repo] {
         storage.write_hosted_document_if_current(name, b"{}", None, None).await.unwrap();
     }
-    let slot = storage.reserve_hosted_blob(&top, "sha256-top").await.unwrap();
-    fs::write(&slot.tmp_path, b"top-layer").await.unwrap();
-    storage.finalize_blob_slot(slot).await.unwrap();
-    let slot = storage.reserve_hosted_blob(&blobs_repo, "sha256-repo").await.unwrap();
-    fs::write(&slot.tmp_path, b"repo-layer").await.unwrap();
-    storage.finalize_blob_slot(slot).await.unwrap();
+    store_file(&storage, &top, "sha256-top", b"top-layer").await;
+    store_file(&storage, &blobs_repo, "sha256-repo", b"repo-layer").await;
     assert_eq!(
         storage.hosted_package_names().await.unwrap(),
         ["acme", "acme/app", "acme/app/tool", "acme/blobs"],
     );
-    assert_eq!(storage.hosted_package_blobs(&top).await.unwrap(), ["sha256-top"]);
-    assert_eq!(storage.hosted_package_blobs(&blobs_repo).await.unwrap(), ["sha256-repo"]);
+    assert_eq!(served(&storage, &top, "sha256-top").await.as_deref(), Some(&b"top-layer"[..]));
+    assert_eq!(served(&storage, &top, "sha256-repo").await, None);
+    assert_eq!(
+        served(&storage, &blobs_repo, "sha256-repo").await.as_deref(),
+        Some(&b"repo-layer"[..]),
+    );
     storage.remove_package(&parent).await.unwrap();
     assert_eq!(
         storage.hosted_package_names().await.unwrap(),
@@ -159,23 +136,26 @@ async fn nested_names_are_stored_as_siblings() {
 }
 
 #[tokio::test]
-async fn blobs_have_one_path_each() {
+async fn each_namespace_stores_an_archive_under_its_key() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("@scope/App");
+    let mut keys = Vec::new();
     for namespace in
         [storage.clone(), storage.for_hosted("npm~internal", pnpr_package_name::Ecosystem::Npm)]
     {
-        let slot = namespace.reserve_hosted_blob(&name, "App-1.0.0.tgz").await.unwrap();
-        fs::write(&slot.tmp_path, b"tarball").await.unwrap();
-        namespace.finalize_blob_slot(slot).await.unwrap();
+        let promoted = store_file(&namespace, &name, "App-1.0.0.tgz", b"tarball").await;
+        keys.push(promoted.artifact.blob.key());
     }
-
-    for package in ["default/npm", "orgs/npm!7einternal/npm"] {
-        let package = tmp
-            .path()
-            .join(format!("storage/{package}/packages/@scope/!41pp"));
-        assert!(package.join("blobs/1.0.0.tgz").is_file(), "{}", package.display());
+    assert_eq!(keys[0], keys[1], "the same bytes have one key");
+    for org in ["", "npm~internal"] {
+        let path = crate::layout::local_archive_path(
+            &tmp.path().join("storage"),
+            org,
+            pnpr_package_name::Ecosystem::Npm,
+            &keys[0],
+        );
+        assert!(path.is_file(), "{}", path.display());
     }
 }
 
@@ -460,49 +440,6 @@ async fn subsequent_write_tombstone_replaces_maintainers_and_merges_version_bans
     assert_eq!(stored.unpublished_by.as_deref(), Some("bob"));
 }
 
-#[cfg(unix)]
-#[tokio::test]
-async fn symlinks_in_the_packages_directory_are_not_followed() {
-    use futures_util::TryStreamExt as _;
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let outside = tmp.path().join("outside");
-    fs::create_dir_all(outside.join("blobs")).await.unwrap();
-    fs::write(outside.join("document.json"), b"{}").await.unwrap();
-    fs::write(outside.join("blobs/sha256-aa"), b"keep").await.unwrap();
-    let real = storage
-        .reserve_hosted_blob(&pkg("real"), "real-1.0.0.tgz")
-        .await
-        .unwrap();
-    fs::write(&real.tmp_path, b"tarball").await.unwrap();
-    storage.finalize_blob_slot(real).await.unwrap();
-    let scopes = tmp.path().join("storage/default/npm/packages");
-    fs::create_dir_all(tmp.path().join("outside-scope/pkg")).await.unwrap();
-    fs::write(tmp.path().join("outside-scope/pkg/document.json"), b"{}").await.unwrap();
-    fs::symlink(tmp.path().join("outside-scope"), scopes.join("@linked")).await.unwrap();
-    let packages = scopes.join("@");
-    fs::symlink(&outside, packages.join("linked")).await.unwrap();
-    fs::symlink(outside.join("blobs/sha256-aa"), packages.join("real/blobs/sha256-aa"))
-        .await
-        .unwrap();
-    fs::symlink(outside.join("document.json"), packages.join("linked-doc"))
-        .await
-        .unwrap();
-    fs::create_dir_all(packages.join("other")).await.unwrap();
-    fs::symlink(outside.join("blobs"), packages.join("other/blobs")).await.unwrap();
-
-    let files: Vec<_> = storage
-        .hosted_blob_files()
-        .try_collect()
-        .await
-        .unwrap();
-    let listed: Vec<_> = files
-        .iter()
-        .map(|file| (file.package.as_str(), file.blob.as_deref()))
-        .collect();
-    assert_eq!(listed, [("real", Some("real-1.0.0.tgz"))], "{files:?}");
-}
-
 #[tokio::test]
 async fn a_blob_being_staged_is_not_listed() {
     use futures_util::TryStreamExt as _;
@@ -512,14 +449,15 @@ async fn a_blob_being_staged_is_not_listed() {
     let slot = storage.reserve_hosted_blob(&name, "left-pad-1.0.0.tgz").await.unwrap();
     fs::write(&slot.tmp_path, b"tarball").await.unwrap();
     let files: Vec<_> = storage
-        .hosted_blob_files()
+        .hosted_archives()
         .try_collect()
         .await
         .unwrap();
     assert!(files.is_empty(), "{files:?}");
-    storage.finalize_blob_slot(slot).await.unwrap();
+    let identity = storage.identify_blob_slot(&slot).await.unwrap();
+    storage.promote_blob_slot(slot, identity, None).await.unwrap();
     let files: Vec<_> = storage
-        .hosted_blob_files()
+        .hosted_archives()
         .try_collect()
         .await
         .unwrap();
@@ -611,9 +549,7 @@ async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_sto
                 .unwrap(),
             DocumentWrite::Written,
         );
-        let slot = storage.reserve_hosted_blob(&name, "sha256-deadbeef").await.unwrap();
-        fs::write(&slot.tmp_path, repo.as_bytes()).await.unwrap();
-        storage.finalize_blob_slot(slot).await.unwrap();
+        store_file(&storage, &name, "sha256-deadbeef", repo.as_bytes()).await;
     }
 
     for repo in repos {

@@ -1,5 +1,5 @@
 use super::{
-    AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LogConfig, LogFormat,
+    AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogConfig, LogFormat,
     LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PackageDocumentsFile, PathBuf,
     ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile,
     default_storage_string, null_default::deserialize_null_default, oidc,
@@ -227,6 +227,9 @@ pub(super) struct ConfigFile {
     /// pnpr-only: how the release records of hosted versions are logged.
     #[serde(default)]
     pub(super) release_records: Option<ReleaseRecordsFile>,
+    /// pnpr-only: how `pnpr gc` reclaims unreferenced archives.
+    #[serde(default)]
+    pub(super) gc: Option<GcFile>,
     /// pnpr-only browser access policy. Cross-origin access stays disabled
     /// when this block is absent or its allowlist is empty.
     #[serde(default, deserialize_with = "deserialize_null_default")]

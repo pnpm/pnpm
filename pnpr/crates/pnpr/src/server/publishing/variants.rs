@@ -108,12 +108,6 @@ pub(in super::super) fn parse_variant_attachment(
         return Some(Err(bad_request(format!("{filename:?}: {reason}"))));
     }
     let blob = variant_blob_name(name, &version, tag);
-    if !pnpr_storage::layout::blob_segment_fits(name.as_str(), &blob) {
-        return Some(Err(bad_request(format!(
-            "{filename:?}: the package's version and the variant tag are too long together to \
-             store as one file; split the variant into variants of fewer platforms",
-        ))));
-    }
     Some(Ok((blob, version, tag.to_string())))
 }
 

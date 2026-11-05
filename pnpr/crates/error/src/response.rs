@@ -53,7 +53,6 @@ impl RegistryError {
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
-            RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
             RegistryError::ArchiveReclaimed { .. } => "archive_reclaimed",
             RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
             RegistryError::StagedApprovalInFlight { .. } => "staged_approval_in_flight",
@@ -184,7 +183,6 @@ impl RegistryError {
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
-            | RegistryError::PublishNotRecorded { .. }
             | RegistryError::ArchiveReclaimed { .. }
             | RegistryError::BlobUploadConflict { .. }
             | RegistryError::DocumentWriteConflict { .. }

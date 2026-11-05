@@ -175,12 +175,12 @@ fn startup_error_report_redacts_dsn_credentials() {
 }
 
 #[test]
-fn gc_parses_registries_versions_and_maintenance_options() {
+fn gc_parses_registries_and_maintenance_options() {
     let _env = scrubbed_env();
     assert!(Args::try_parse_from(["pnpr", "oci-gc"]).is_err());
     let args = Args::try_parse_from(["pnpr", "gc"]).unwrap();
     assert!(
-        matches!(args.command, Some(super::Command::Gc { registry, dry_run: false, min_age, versions }) if registry.is_empty() && versions.is_empty() && min_age == Duration::from_hours(24)),
+        matches!(args.command, Some(super::Command::Gc { registry, dry_run: false, min_age }) if registry.is_empty() && min_age == Duration::from_hours(24)),
     );
     let args = Args::try_parse_from([
         "pnpr",
@@ -194,12 +194,12 @@ fn gc_parses_registries_versions_and_maintenance_options() {
         "--dry-run",
         "--min-age",
         "0",
-        "@scope/pkg@1.0.0",
     ])
     .unwrap();
     assert!(
-        matches!(args.command, Some(super::Command::Gc { registry, dry_run: true, min_age, versions }) if registry == ["images", "local"] && min_age.is_zero() && versions == ["@scope/pkg@1.0.0"]),
+        matches!(args.command, Some(super::Command::Gc { registry, dry_run: true, min_age }) if registry == ["images", "local"] && min_age.is_zero()),
     );
+    assert!(Args::try_parse_from(["pnpr", "gc", "@scope/pkg@1.0.0"]).is_err());
     assert!(Args::try_parse_from(["pnpr", "verify", "--prune-orphans"]).is_err());
 }
 
