@@ -67,7 +67,10 @@ impl Reach {
         let mut text = String::from("crate | layer | direct | transitive\n");
         for (name, reached) in rows {
             let layer = layers.layer_of(name).unwrap_or("no layer");
-            let direct = self.direct.get(name).map_or(0, BTreeSet::len);
+            let direct = self.direct
+                .get(name)
+                .map(BTreeSet::len)
+                .unwrap_or(0);
             let _ = writeln!(text, "{name} | {layer} | {direct} | {}", reached.len());
         }
         text

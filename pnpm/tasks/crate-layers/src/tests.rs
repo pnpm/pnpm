@@ -203,7 +203,6 @@ fn diff_marks_added_upward_edges() {
     );
 }
 
-/// `top` -> `mid` -> `base`, plus a dev-dependency `base` -> `top`.
 fn chain() -> CrateGraph {
     let mut graph = workspace("[package]\nname = \"top\"\n");
     graph.crates.insert("mid".to_owned());
@@ -219,6 +218,7 @@ fn chain() -> CrateGraph {
 #[test]
 fn counts_linked_dependencies_directly_and_transitively() {
     let reach = Reach::new(&chain());
+    dbg!(&reach);
     fn counts(sets: &BTreeMap<String, BTreeSet<String>>) -> Vec<(&str, usize)> {
         sets.iter()
             .map(|(name, set)| (name.as_str(), set.len()))
@@ -231,6 +231,7 @@ fn counts_linked_dependencies_directly_and_transitively() {
 #[test]
 fn the_direct_dependency_baseline_only_goes_down() {
     let counts = Reach::new(&chain()).direct_counts();
+    dbg!(&counts);
     let check = |entries: &[(&str, usize)]| {
         let baseline = entries
             .iter()
@@ -258,6 +259,7 @@ fn a_layer_caps_its_crates_transitive_dependencies() {
         Layers::parse(&text).unwrap()
     };
     let reach = Reach::new(&chain());
+    dbg!(&reach.transitive);
     assert_eq!(reach.check_budgets(&layers(2)), vec![]);
     assert_eq!(
         reach.check_budgets(&layers(1)),
