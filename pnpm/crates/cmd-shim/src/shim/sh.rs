@@ -264,10 +264,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=${helper_path:-/}
-# A helper comes from PATH only when the default path lacks it and PATH has it.
-# The bash 3.2 that macOS ships as sh answers `command -p -v` from PATH.
+# A helper comes from PATH only when /usr/bin and /bin lack it and PATH has it.
+# `command -p -v` cannot tell, because the bash 3.2 that macOS ships as sh
+# answers it from PATH. `[ -x ]` also fails where a sandbox denies the file.
 run_helper() {
-  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
 }
 link="$0"
 # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
@@ -426,6 +427,10 @@ pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p w
 /// resolve through. Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_HELPER_PATH_FILTER_LINE: &str = "    */node_modules/*|*/node_modules) ;;";
 
+/// The line that picks a helper from the default path only when a file there
+/// can be executed. Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+pub(super) const SH_SHIM_HELPER_DEFAULT_PATH_LINE: &str = r#"  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi"#;
+
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.
 ///
@@ -444,6 +449,7 @@ pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
         SH_SHIM_CYGPATH_LINE,
         SH_SHIM_WSLPATH_LINE,
         SH_SHIM_HELPER_PATH_FILTER_LINE,
+        SH_SHIM_HELPER_DEFAULT_PATH_LINE,
     ]
     .iter()
     .all(|pinned| {
