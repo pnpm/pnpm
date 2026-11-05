@@ -123,21 +123,24 @@ where
         configuration::record_no_runtime_flag(config);
     }
     let may_update_config = config_deps::may_update_config(config, config_root);
-    if !may_update_config {
-        check_root_project_engine::<Reporter>(
+    let has_config_dependencies = config.config_dependencies
+        .as_ref()
+        .is_some_and(|dependencies| !dependencies.is_empty());
+    if !may_update_config && !has_config_dependencies && config.engine_strict {
+        check_root_project_engine(
             manifest_path,
             config,
             runtime_policy.use_manifest(config),
+            Reporter::emit,
         )?;
     }
     config_deps::prepare::<Reporter>(config, config_root, frozen_lockfile).await?;
-    if may_update_config {
-        check_root_project_engine::<Reporter>(
-            manifest_path,
-            config,
-            runtime_policy.use_manifest(config),
-        )?;
-    }
+    check_root_project_engine(
+        manifest_path,
+        config,
+        runtime_policy.use_manifest(config),
+        Reporter::emit,
+    )?;
     Ok(())
 }
 

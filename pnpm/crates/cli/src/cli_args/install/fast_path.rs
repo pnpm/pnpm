@@ -212,6 +212,13 @@ impl InstallArgs {
             ),
         })?;
         if matches!(attempt, Attempt::BeforeConfig) {
+            crate::state::check_root_project_engine(
+                &config_root.join("package.json"),
+                config,
+                !config.skip_runtimes,
+                emit,
+            )
+            .map_err(|_| "root project engine check failed")?;
             warn_about_config(root_manifest.as_ref(), config, emit);
         }
         report_up_to_date_install(config, &up_to_date, emit);

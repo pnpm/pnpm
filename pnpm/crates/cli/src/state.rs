@@ -12,7 +12,7 @@ use pnpm_package_manager::{
 use pnpm_package_manifest::{
     PackageManifest, PackageManifestError, node_version_from_engines_runtime,
 };
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_tarball::MemCache;
 use std::{
     path::{Path, PathBuf},
@@ -292,10 +292,11 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
     manifest
 }
 
-pub(crate) fn check_root_project_engine<Output: Reporter>(
+pub(crate) fn check_root_project_engine(
     manifest_path: &Path,
     config: &Config,
     use_manifest_runtime: bool,
+    emit: fn(&LogEvent),
 ) -> Result<(), InitStateError> {
     let project_dir = config.workspace_dir
         .as_deref()
@@ -321,21 +322,23 @@ pub(crate) fn check_root_project_engine<Output: Reporter>(
     if wanted.node.is_none() && wanted.pnpm.is_none() {
         return Ok(());
     }
-    check_root_engine_compatibility::<Output>(
+    check_root_engine_compatibility(
         project_dir,
         manifest.value(),
         config,
         use_manifest_runtime,
         &wanted,
+        emit,
     )
 }
 
-fn check_root_engine_compatibility<Output: Reporter>(
+fn check_root_engine_compatibility(
     project_dir: &Path,
     manifest: &serde_json::Value,
     config: &Config,
     use_manifest_runtime: bool,
     wanted: &WantedEngine,
+    emit: fn(&LogEvent),
 ) -> Result<(), InitStateError> {
     let configured_node = config.node_version
         .clone()
@@ -354,7 +357,7 @@ fn check_root_engine_compatibility<Output: Reporter>(
             Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
         }
         Ok(Some(error)) => {
-            Output::emit(&LogEvent::Global(GlobalLog {
+            emit(&LogEvent::Global(GlobalLog {
                 level: LogLevel::Warn,
                 message: error.to_string(),
             }));
