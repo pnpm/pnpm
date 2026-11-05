@@ -12,6 +12,7 @@ use pnpm_package_manager::{
 use pnpm_package_manifest::{
     PackageManifest, PackageManifestError, node_version_from_engines_runtime,
 };
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_tarball::MemCache;
 use std::{
     path::{Path, PathBuf},
@@ -291,7 +292,7 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
     manifest
 }
 
-pub(crate) fn check_root_project_engine(
+pub(crate) fn check_root_project_engine<Output: Reporter>(
     manifest_path: &Path,
     config: &Config,
     use_manifest_runtime: bool,
@@ -320,7 +321,7 @@ pub(crate) fn check_root_project_engine(
     if wanted.node.is_none() && wanted.pnpm.is_none() {
         return Ok(());
     }
-    check_root_engine_compatibility(
+    check_root_engine_compatibility::<Output>(
         project_dir,
         manifest.value(),
         config,
@@ -329,7 +330,7 @@ pub(crate) fn check_root_project_engine(
     )
 }
 
-fn check_root_engine_compatibility(
+fn check_root_engine_compatibility<Output: Reporter>(
     project_dir: &Path,
     manifest: &serde_json::Value,
     config: &Config,
@@ -353,7 +354,10 @@ fn check_root_engine_compatibility(
             Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
         }
         Ok(Some(error)) => {
-            tracing::warn!(target: "pacquet::install", %error, "Unsupported engine");
+            Output::emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Warn,
+                message: error.to_string(),
+            }));
             Ok(())
         }
         Err(error) => Err(InitStateError::Installability(Box::new(

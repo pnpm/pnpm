@@ -124,11 +124,19 @@ where
     }
     let may_update_config = config_deps::may_update_config(config, config_root);
     if !may_update_config {
-        check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+        check_root_project_engine::<Reporter>(
+            manifest_path,
+            config,
+            runtime_policy.use_manifest(config),
+        )?;
     }
     config_deps::prepare::<Reporter>(config, config_root, frozen_lockfile).await?;
     if may_update_config {
-        check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+        check_root_project_engine::<Reporter>(
+            manifest_path,
+            config,
+            runtime_policy.use_manifest(config),
+        )?;
     }
     Ok(())
 }
