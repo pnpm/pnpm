@@ -35,7 +35,6 @@ pnpm-workspace-task-scheduler = { workspace = true }
 
 base64 = { workspace = true }
 derive_more = { workspace = true }
-dunce = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
@@ -53,6 +52,7 @@ libc = { workspace = true }
 [dev-dependencies]
 pnpm-testing-utils = { workspace = true }
 
+dunce = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 tracing-subscriber = { workspace = true }

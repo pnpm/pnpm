@@ -451,7 +451,10 @@ fn test_default_store_dir_with_unc_current_dir_does_not_panic() {
     let current_dir = Path::new(r"\\server\share\project");
     let home_dir = Path::new(r"C:\Users\user");
 
-    assert_eq!(default_store_dir_windows(home_dir, current_dir), current_dir.join(".pnpm-store"));
+    assert_eq!(
+        default_store_dir_windows(home_dir, current_dir),
+        Path::new(r"\\server\share\.pnpm-store"),
+    );
 }
 
 /// Compares the rendered string rather than the `Path`. On Windows

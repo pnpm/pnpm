@@ -46,14 +46,16 @@ fn get_drive_letter(current_dir: &Path) -> Option<char> {
 
 #[cfg(windows)]
 fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
-    let current_dir = pnpm_fs::canonicalize_preserving_mapped_drive(current_dir)
-        .unwrap_or_else(|_| current_dir.to_path_buf());
-    let home_dir = pnpm_fs::canonicalize_preserving_mapped_drive(home_dir)
-        .unwrap_or_else(|_| home_dir.to_path_buf());
-    let Some(current_drive) = get_drive_letter(&current_dir) else {
-        return current_dir.join(".pnpm-store");
+    // A cwd on a network share that no drive maps keeps the store at the root
+    // of the share, just as a cwd on another drive keeps it at that drive's root.
+    let Some(current_drive) = get_drive_letter(current_dir) else {
+        let share_root = current_dir
+            .ancestors()
+            .last()
+            .unwrap_or(current_dir);
+        return share_root.join(".pnpm-store");
     };
-    let Some(home_drive) = get_drive_letter(&home_dir) else {
+    let Some(home_drive) = get_drive_letter(home_dir) else {
         return PathBuf::from(format!(r"{current_drive}:\.pnpm-store"));
     };
 
@@ -102,6 +104,12 @@ where
     #[cfg(windows)]
     if cfg!(windows) {
         let current_dir = Sys::current_dir().expect("current directory is unavailable");
+        // A UNC cwd reached through a mapped drive picks the store by that drive.
+        let current_dir = if get_drive_letter(&current_dir).is_some() {
+            current_dir
+        } else {
+            pnpm_fs::canonicalize_preserving_mapped_drive(&current_dir).unwrap_or(current_dir)
+        };
         return default_store_dir_windows(&home_dir, &current_dir).into();
     }
 
