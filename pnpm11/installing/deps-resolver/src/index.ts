@@ -251,7 +251,7 @@ async function resolvePeersOfProjects (
   const peerResolutionOpts = {
     allPeerDepNames: resolution.allPeerDepNames,
     dependenciesTree: resolution.dependenciesTree,
-    dedupePeerDependents: opts.dedupePeerDependents,
+    dedupePeerDependents: opts.dedupePeerDependents === true,
     dedupePeers: opts.dedupePeers,
     dedupeInjectedDeps: opts.dedupeInjectedDeps,
     lockfileDir: opts.lockfileDir,
