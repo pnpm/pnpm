@@ -274,7 +274,11 @@ tokio-rustls = { version = "0.26.6", default-features = false, features = ["tls1
 url = { version = "2.5.8" }
 walkdir = { version = "2.5.0" }
 webpki-root-certs = { version = "1.0.11" }
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
 yaml_serde = { version = "0.10.7" }
 yamlpatch = { version = "1.32.0" }
 yamlpath = { version = "1.32.0" }
