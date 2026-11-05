@@ -86,6 +86,16 @@ pub fn add_files_from_dir(
     store_dir: &StoreDir,
     pkg_root: &Path,
 ) -> Result<AddedFiles, AddFilesFromDirError> {
+    add_files_from_dir_with_bundled(store_dir, pkg_root, None)
+}
+
+/// [`add_files_from_dir()`], also walking the directories of `bundled`
+/// under the top-level `node_modules`.
+pub(crate) fn add_files_from_dir_with_bundled(
+    store_dir: &StoreDir,
+    pkg_root: &Path,
+    bundled: Option<BundledPackageDirs>,
+) -> Result<AddedFiles, AddFilesFromDirError> {
     let canonical_root = dunce::canonicalize(pkg_root)
         .map_err(|source| AddFilesFromDirError::CanonicalizeRoot {
             root: pkg_root.to_path_buf(),
@@ -97,6 +107,7 @@ pub fn add_files_from_dir(
         canonical_root: canonical_root.clone(),
         visited: HashSet::from([canonical_root.clone()]),
         store_dir,
+        bundled,
     };
     walk(&mut ctx, pkg_root, "", &canonical_root)?;
     Ok(AddedFiles { files: ctx.files, has_unrecorded_symlinks: ctx.has_unrecorded_symlinks })
@@ -108,6 +119,7 @@ struct WalkCtx<'a> {
     canonical_root: PathBuf,
     visited: HashSet<PathBuf>,
     store_dir: &'a StoreDir,
+    bundled: Option<BundledPackageDirs>,
 }
 
 fn walk(
@@ -131,6 +143,10 @@ fn walk(
             format!("{relative_dir}/{name}")
         };
 
+        if !is_included_node_modules_entry(ctx, relative_dir, &relative_subpath) {
+            continue;
+        }
+
         let Some(target) = resolve_entry(
             ctx,
             &entry,
@@ -151,6 +167,60 @@ fn walk(
         }
     }
     Ok(())
+}
+
+/// The directories under a package's top-level `node_modules` that hold its
+/// bundled dependencies, with the scope directories and `node_modules` itself
+/// that lead to them.
+pub(crate) struct BundledPackageDirs(HashSet<String>);
+
+impl BundledPackageDirs {
+    /// The bundled packages that `files` (package-relative paths) have files
+    /// in, or `None` when there are none.
+    pub(crate) fn from_files<'a>(files: impl IntoIterator<Item = &'a str>) -> Option<Self> {
+        let mut dirs = HashSet::new();
+        for file in files
+            .into_iter()
+            .filter(|file| file.starts_with("node_modules/"))
+        {
+            let mut dir = Some(bundled_package_dir(file).unwrap_or(file));
+            while let Some(path) = dir
+                && dirs.insert(path.to_string())
+            {
+                dir = path.rsplit_once('/').map(|(parent, _)| parent);
+            }
+        }
+        (!dirs.is_empty()).then_some(BundledPackageDirs(dirs))
+    }
+
+    fn contains(&self, path: &str) -> bool {
+        self.0.contains(bundled_package_dir(path).unwrap_or(path))
+    }
+}
+
+/// The `node_modules/<name>` or `node_modules/@scope/<name>` prefix of
+/// `path`, or `None` when `path` does not reach that deep.
+fn bundled_package_dir(path: &str) -> Option<&str> {
+    let name = path.strip_prefix("node_modules/")?;
+    let segments = if name.starts_with('@') { 2 } else { 1 };
+    let end = name
+        .match_indices('/')
+        .nth(segments - 1)
+        .map_or(name.len(), |(index, _)| index);
+    let package_dir = &path[..("node_modules/".len() + end)];
+    (package_dir.matches('/').count() == segments).then_some(package_dir)
+}
+
+fn is_included_node_modules_entry(ctx: &WalkCtx<'_>, relative_dir: &str, path: &str) -> bool {
+    if relative_dir != "node_modules"
+        && !relative_dir.starts_with("node_modules/")
+        && path != "node_modules"
+    {
+        return true;
+    }
+    ctx.bundled
+        .as_ref()
+        .is_some_and(|bundled| bundled.contains(path))
 }
 
 /// What an entry resolves to, or `None` when it points outside the package
@@ -243,7 +313,9 @@ fn walk_subdirectory(
     name: &str,
     relative_subpath: &str,
 ) -> Result<(), AddFilesFromDirError> {
-    if ctx.visited.contains(real_dir) || (relative_dir.is_empty() && name == "node_modules") {
+    if ctx.visited.contains(real_dir)
+        || (relative_dir.is_empty() && name == "node_modules" && ctx.bundled.is_none())
+    {
         return Ok(());
     }
     ctx.visited.insert(real_dir.to_path_buf());
