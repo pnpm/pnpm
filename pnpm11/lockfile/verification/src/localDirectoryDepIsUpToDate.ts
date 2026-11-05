@@ -16,7 +16,7 @@ import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
-import { localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
+import { isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -101,11 +101,12 @@ interface DependencyOfLocalDirectoryDep {
  */
 export function createLocalDirectoryDepUpToDateChecker (
   ctx: LocalDirectoryDepContext
-): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>) => Promise<boolean> {
+): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>, declaredByPath?: boolean) => Promise<boolean> {
   const visited = new Map<PackageSnapshot, Set<string>>()
   // Collected on the first check, since most projects have no local directory dependency to check.
   let recordedPeers: string[] | undefined
-  return async (pkgSnapshot, parentPkgAliases) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+  return async (pkgSnapshot, parentPkgAliases, declaredByPath = false) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+    declaredByPath,
     parentPkgAliases,
     visited,
     recordedPeers: recordedPeers ??= recordedPeersOf(ctx.lockfilePackages),
@@ -113,6 +114,12 @@ export function createLocalDirectoryDepUpToDateChecker (
 }
 
 interface DirectoryWalk {
+  /**
+   * Whether a path spec, such as `file:../lib` or `../lib`, declared the
+   * package. The resolver leaves the `catalog:` specs of such a package's
+   * children unresolved.
+   */
+  declaredByPath: boolean
   /** The aliases of every ancestor, which supply the package's peers. */
   parentPkgAliases: Record<string, unknown>
   /** The peer scopes each snapshot was checked in. */
@@ -161,6 +168,7 @@ async function localDirectoryDepIsUpToDateRec (
     workspaceRoot: ctx.workspaceDir ?? ctx.lockfileDir,
   }
   const childWalk: DirectoryWalk = {
+    declaredByPath: walk.declaredByPath,
     parentPkgAliases: { ...walk.parentPkgAliases, ...dependencyAliasesOf(pkgSnapshot) },
     visited: walk.visited,
     recordedPeers: walk.recordedPeers,
@@ -284,7 +292,7 @@ async function childIsUpToDate (
     return child.optional && ctx.resolution?.frozenLockfile === true &&
       !pkgSnapshot.dependencies?.[child.alias]
   }
-  const currentSpec = resolveCatalogSpec(ctx, child)
+  const currentSpec = walk.declaredByPath ? child.bareSpecifier : resolveCatalogSpec(ctx, child)
   if (currentSpec == null) return false
   if (isLocalSpec(currentSpec)) {
     return localChildIsUpToDate(ctx, localDep, pkgSnapshot, child, currentSpec, lockfileDep, walk)
@@ -324,7 +332,10 @@ async function localChildIsUpToDate (
     // entry: its own dependencies cannot be validated, so it is stale.
     return currentSpec.startsWith('workspace:')
   }
-  return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, walk)
+  return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, {
+    ...walk,
+    declaredByPath: isLocalFilesystemSpecifier(child.bareSpecifier),
+  })
 }
 
 function isLocalSpec (spec: string): boolean {

@@ -1412,20 +1412,13 @@ describe('local file dependency', () => {
     })).toBeTruthy()
   })
 
-  test('allProjectsAreUpToDate(): resolves a catalog dependency of local file from the catalogs', async () => {
+  test('allProjectsAreUpToDate(): leaves a catalog dependency of local file unresolved, as the resolver does', async () => {
     await writeLocalDirManifest({ dependencies: { 'is-positive': 'catalog:' } })
-    const wantedLockfile = { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } } }
     expect(await allProjectsAreUpToDate(projects, {
       ...options,
       lockfileDir: process.cwd(),
       catalogs: { default: { 'is-positive': '2.0.0' } },
-      wantedLockfile,
-    })).toBeTruthy()
-    expect(await allProjectsAreUpToDate(projects, {
-      ...options,
-      lockfileDir: process.cwd(),
-      catalogs: { default: { 'is-positive': '3.0.0' } },
-      wantedLockfile: { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '3.0.0', version: '3.0.0' } } } },
+      wantedLockfile: { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } } },
     })).toBeFalsy()
   })
 

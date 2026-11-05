@@ -8,7 +8,7 @@ import type {
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import { localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
+import { isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -168,7 +168,7 @@ async function checkLocalDirectoryDependency (
   if (
     !ctx.skipLocalDirectoryDependencies &&
     !isDeployDirectoryRef(lockfileRef, pkgSnapshot) &&
-    !await localDirectoryDepIsUpToDate(pkgSnapshot, dependencyAliases(project.manifest))
+    !await localDirectoryDepIsUpToDate(pkgSnapshot, dependencyAliases(project.manifest), isLocalFilesystemSpecifier(currentSpec))
   ) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }
