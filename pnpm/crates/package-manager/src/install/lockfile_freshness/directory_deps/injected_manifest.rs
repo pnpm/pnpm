@@ -281,7 +281,7 @@ pub(in crate::install::lockfile_freshness) fn is_deploy_file_url(
     matches!(
         key.suffix.version(),
         pnpm_lockfile::VersionPart::File(path)
-            if !pnpm_lockfile::is_local_tarball_path(path)
+            if !pnpm_local_spec::is_tarball_filename(path)
                 && (path.starts_with("///") || (path.starts_with("//") && path != directory)),
     )
 }

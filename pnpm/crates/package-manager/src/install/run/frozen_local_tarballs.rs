@@ -213,7 +213,7 @@ fn is_local_file_tarball(resolution: &pnpm_lockfile::LockfileResolution) -> bool
         resolution,
         pnpm_lockfile::LockfileResolution::Tarball(resolution)
             if resolution.tarball.starts_with("file:")
-                && pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
+                && pnpm_local_spec::is_tarball_filename(&resolution.tarball),
     )
 }
 

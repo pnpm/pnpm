@@ -209,6 +209,142 @@ test('allProjectsAreUpToDate(): works with aliased workspace: dependencies', asy
   })).toBeTruthy()
 })
 
+test('allProjectsAreUpToDate(): a workspace: range matches a version that is not semver, as the resolver does', async () => {
+  const fooManifest = { name: 'foo', version: '1' }
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          foo: 'workspace:1',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+    {
+      id: 'foo' as ProjectId,
+      manifest: fooManifest,
+      rootDir: 'foo' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['bar' as ProjectId]: {
+          dependencies: {
+            foo: 'link:../foo',
+          },
+          specifiers: {
+            foo: 'workspace:1',
+          },
+        },
+        ['foo' as ProjectId]: {
+          specifiers: {},
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map([
+      ['foo', new Map([
+        ['1', {
+          id: 'foo' as ProjectId,
+          manifest: fooManifest,
+          rootDir: 'foo' as ProjectRootDir,
+        }],
+      ])],
+    ]),
+    lockfileDir: '',
+  })).toBeTruthy()
+})
+
+test('allProjectsAreUpToDate(): returns false if a workspace: dependency is linked to a directory without a manifest', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          foo: 'workspace:',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['bar' as ProjectId]: {
+          dependencies: {
+            foo: 'link:../foo',
+          },
+          specifiers: {
+            foo: 'workspace:',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map(),
+    lockfileDir: '',
+  })).toBeFalsy()
+})
+
+test('allProjectsAreUpToDate(): a workspace: link to a publish directory without a manifest reads the project manifest', async () => {
+  const libManifest = { name: 'lib', version: '1.2.0', publishConfig: { directory: 'dist' } }
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'app' as ProjectId,
+      manifest: {
+        dependencies: {
+          lib: 'workspace:^1.0.0',
+        },
+      },
+      rootDir: 'app' as ProjectRootDir,
+    },
+    {
+      id: 'lib' as ProjectId,
+      manifest: libManifest,
+      rootDir: 'lib' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['app' as ProjectId]: {
+          dependencies: {
+            lib: 'link:../lib/dist',
+          },
+          specifiers: {
+            lib: 'workspace:^1.0.0',
+          },
+        },
+        ['lib' as ProjectId]: {
+          publishDirectory: 'dist',
+          specifiers: {},
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map([
+      ['lib', new Map([
+        ['1.2.0', {
+          rootDir: 'lib' as ProjectRootDir,
+          manifest: libManifest,
+        }],
+      ])],
+    ]),
+    lockfileDir: '',
+  })).toBeTruthy()
+})
+
 test('allProjectsAreUpToDate(): returns false if aliased workspace: dependency version is out of date', async () => {
   expect(await allProjectsAreUpToDate([
     {
@@ -965,7 +1101,11 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           },
           lockfileVersion: LOCKFILE_VERSION,
         },
-        workspacePackages,
+        workspacePackages: new Map([
+          ...workspacePackages,
+          ['foo2', new Map([['1.0.0', { rootDir: 'foo2' as ProjectRootDir, manifest: { name: 'foo2', version: '1.0.0' } }]])],
+          ['foo3', new Map([['1.0.0', { rootDir: 'foo3' as ProjectRootDir, manifest: { name: 'foo3', version: '1.0.0' } }]])],
+        ]),
         lockfileDir: '',
       }
     )

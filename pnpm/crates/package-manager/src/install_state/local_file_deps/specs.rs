@@ -4,7 +4,7 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::VersionOverride;
-use pnpm_lockfile::is_local_tarball_path;
+use pnpm_local_spec::is_tarball_filename;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::DependencyGroup;
 
@@ -126,7 +126,7 @@ pub(crate) fn is_local_file_spec(spec: &str) -> bool {
     if spec.contains([':', '#']) {
         return false;
     }
-    is_local_tarball_path(spec)
+    is_tarball_filename(spec)
 }
 
 pub(crate) fn is_unambiguous_local_file_spec(spec: &str) -> bool {

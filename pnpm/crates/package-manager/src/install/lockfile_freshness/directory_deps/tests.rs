@@ -1135,3 +1135,91 @@ snapshots:
         "expected LocalDependencyOutdated for d, got: {error:?}",
     );
 }
+
+/// The resolver links `workspace:1` to a project whose version is the string
+/// `1`, which is no semver version, so the check accepts the link too.
+#[test]
+fn a_workspace_range_matches_a_non_semver_version_as_the_resolver_does() {
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let ws = tmp.path();
+    let dir_a = ws.join("packages/a");
+    let dir_b = ws.join("packages/b");
+    let dir_c = ws.join("packages/c");
+    for dir in [&dir_a, &dir_b, &dir_c] {
+        std::fs::create_dir_all(dir).expect("create a project dir");
+    }
+    let manifest = |dir: &std::path::Path, value: serde_json::Value| {
+        PackageManifest::from_value(dir.join("package.json"), value)
+    };
+    let manifest_a = manifest(&dir_a, serde_json::json!({ "name": "@ws/a", "version": "1" }));
+    let manifest_b = manifest(
+        &dir_b,
+        serde_json::json!({
+            "name": "@ws/b",
+            "version": "1.0.0",
+            "dependencies": { "@ws/a": "workspace:1" },
+        }),
+    );
+    let manifest_c = manifest(
+        &dir_c,
+        serde_json::json!({
+            "name": "@ws/c",
+            "version": "1.0.0",
+            "dependencies": { "@ws/b": "workspace:*" },
+        }),
+    );
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/c:
+    dependencies:
+      '@ws/b':
+        specifier: workspace:*
+        version: file:packages/b
+packages:
+  '@ws/b@file:packages/b':
+    resolution: { type: directory, directory: packages/b }
+  '@ws/a@file:packages/a':
+    resolution: { type: directory, directory: packages/a }
+snapshots:
+  '@ws/b@file:packages/b':
+    dependencies:
+      '@ws/a': file:packages/a
+  '@ws/a@file:packages/a': {}
+",
+    )
+    .expect("parse lockfile");
+    let mut config = pnpm_config::Config::new();
+    config.inject_workspace_packages = true;
+    let ignored = pnpm_matcher::create_matcher(&[]);
+    let manifests_by_dir = HashMap::from([
+        (pnpm_fs::lexical_normalize(&dir_a), &manifest_a),
+        (pnpm_fs::lexical_normalize(&dir_b), &manifest_b),
+        (pnpm_fs::lexical_normalize(&dir_c), &manifest_c),
+    ]);
+    let catalogs = std::collections::BTreeMap::new();
+    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
+        lockfile: &lockfile,
+        lockfile_dir: ws,
+        manifest: &manifest_c,
+        importer_id: "packages/c",
+        config: &config,
+        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            packages: None,
+            manifests_by_dir: &manifests_by_dir,
+            directory_manifests: crate::install::DirectoryManifests::none(),
+            catalogs: &catalogs,
+            canonical_paths: Box::leak(Box::default()),
+            registries: Box::leak(Box::default()),
+        },
+        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
+            ignored: &ignored,
+            frozen_lockfile: false,
+        },
+        parsed_overrides: None,
+    };
+    let importer_c = lockfile.importers.get("packages/c").expect("packages/c importer");
+    super::check_directory_dependencies_freshness(&check, importer_c)
+        .expect("workspace:1 is satisfied by the project at version 1");
+}

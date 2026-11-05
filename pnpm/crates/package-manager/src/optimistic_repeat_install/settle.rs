@@ -49,7 +49,17 @@ impl<'a> LinkedPackagesContext<'a> {
             std::collections::HashMap<String, &'a Path>,
         > = std::collections::HashMap::new();
         for (root_dir, manifest) in project_manifests {
-            manifests_by_dir.insert(root_dir.as_path(), *manifest);
+            manifests_by_dir.insert(std::borrow::Cow::Borrowed(root_dir.as_path()), *manifest);
+            let link_dir = pnpm_resolving_npm_resolver::resolve_workspace_package_dir(
+                root_dir,
+                manifest.value(),
+            );
+            if link_dir != *root_dir {
+                // Another project's root keeps its own manifest, whichever is indexed first.
+                manifests_by_dir
+                    .entry(std::borrow::Cow::Owned(pnpm_fs::lexical_normalize(&link_dir)))
+                    .or_insert(*manifest);
+            }
             if let (Some(name), Some(version)) = (
                 manifest_string_field(manifest, "name"),
                 manifest_string_field(manifest, "version"),
@@ -68,20 +78,23 @@ impl<'a> LinkedPackagesContext<'a> {
     }
 
     /// The version of the package manifest at `dir`, preferring the
-    /// already-loaded workspace manifests over a disk read.
+    /// already-loaded workspace manifests over a disk read. A manifest
+    /// without a version yields the empty string; `None` means `dir` has no
+    /// readable manifest.
     pub(super) fn linked_version(&self, dir: &Path) -> Option<String> {
-        if let Some(manifest) = self.manifests_by_dir.get(dir) {
-            return manifest_string_field(manifest, "version");
+        if let Some(manifest) = self.manifests_by_dir.get(pnpm_fs::lexical_normalize(dir).as_path())
+        {
+            return Some(manifest_string_field(manifest, "version").unwrap_or_default());
         }
-        pnpm_package_manifest::safe_read_package_json_from_dir(dir)
-            .ok()
-            .flatten()
-            .and_then(|value| {
-                value
-                    .get("version")
-                    .and_then(|v| v.as_str())
-                    .map(str::to_string)
-            })
+        let manifest =
+            pnpm_package_manifest::safe_read_package_json_from_dir(dir).ok().flatten()?;
+        Some(
+            manifest
+                .get("version")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string(),
+        )
     }
 }
 pub(super) fn current_lockfile_unusable_with_non_empty_wanted(

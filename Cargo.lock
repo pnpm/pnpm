@@ -5654,6 +5654,7 @@ dependencies = [
  "pnpm-deps-path",
  "pnpm-diagnostics",
  "pnpm-fs",
+ "pnpm-local-spec",
  "pnpm-package-manifest",
  "pnpm-patching-config",
  "pnpm-platform-variants",
@@ -6277,6 +6278,7 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.0",
  "miette 7.6.0",
+ "pnpm-local-spec",
  "pnpm-lockfile",
  "pretty_assertions",
 ]
