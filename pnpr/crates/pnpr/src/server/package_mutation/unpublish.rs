@@ -164,9 +164,11 @@ pub(crate) async fn delete_tarball(
     // A version still listed is unpublished here, in a commit that drops its
     // files' mappings; one a packument rewrite removed first went with its
     // archives then. The tombstone names it before the version goes, as a
-    // rewrite's does, since a removed version is never accepted again.
-    match storage.read_hosted_document(&name).await {
-        Ok(Some(bytes)) if lists_version(&bytes, &version) => {}
+    // rewrite's does, since a removed version is never accepted again. The
+    // check reads what the last commit left, not a replica that may lag
+    // behind a publish of this version on another instance.
+    match storage.read_hosted_document_for_update(&name).await {
+        Ok(Some(stored)) if lists_version(&stored.bytes, &version) => {}
         Ok(_) => return ok_created_response(),
         Err(err) => return err.into_response(),
     }
