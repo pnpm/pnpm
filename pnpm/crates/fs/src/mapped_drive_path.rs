@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-#[cfg(windows)]
+#[cfg(all(windows, test))]
 #[path = "mapped_drive_path/tests.rs"]
 mod tests;
 
@@ -88,6 +88,8 @@ fn mapped_drive_path(
     mappings: &[(char, PathBuf)],
     preferred_drive: Option<char>,
 ) -> Option<PathBuf> {
+    use std::os::windows::ffi::OsStrExt as _;
+
     let path = remove_verbatim_unc_prefix(path);
     mappings
         .iter()
