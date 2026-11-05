@@ -2919,4 +2919,24 @@ describe('local directory dependency beneath a registry package', () => {
     expect(await check('1.0.0', true)).toBe(true)
     expect(await check('2.0.0', false)).toBe(false)
   })
+  test('checkLinkedPackagesAreUpToDate(): reports a catalog dependency of a directory that a file: spec also declares beneath a registry package', async () => {
+    await mkdir('a')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { lib: 'file:../lib' } }))
+    await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: 'catalog:' } }))
+    const packages = {
+      ...lockfilePackages,
+      'reg2@1.0.0': { resolution: { integrity: 'sha512-reg2' }, version: '1.0.0', dependencies: { a: 'a@file:a' } },
+      'a@file:a': { resolution: { directory: 'a', type: 'directory' }, version: '1.0.0', dependencies: { lib: 'lib@file:lib' } },
+    } as LockfileObject['packages']
+    const project = {
+      dir: path.resolve('app'),
+      manifest: { dependencies: { reg: '1.0.0', reg2: '1.0.0' } },
+      snapshot: {
+        dependencies: { reg: '1.0.0', reg2: '1.0.0' },
+        specifiers: { reg: '1.0.0', reg2: '1.0.0' },
+      } as ProjectSnapshot,
+    }
+    const resolution = { catalogs: { default: { leaf: '1.0.0' } }, frozenLockfile: true }
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution }, project)).upToDate).toBe(false)
+  })
 })

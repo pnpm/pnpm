@@ -193,7 +193,7 @@ function markVisited (walk: DirectoryWalk, pkgSnapshot: PackageSnapshot, manifes
   const scope = Array.from(new Set([...Object.keys(manifest.peerDependencies ?? {}), ...walk.recordedPeers]))
     .filter((peer) => Boolean(walk.parentPkgAliases[peer]))
     .sort()
-    .concat(walk.declaredByPath ? ['\0path'] : [])
+    .concat(walk.declaredByPath ? ['\0path'] : [], walk.declarationAssumed ? ['\0assumed'] : [])
     .join('\0')
   let scopes = walk.visited.get(pkgSnapshot)
   if (scopes == null) {

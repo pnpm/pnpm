@@ -43,6 +43,7 @@ impl Visited {
             pkg_key: pkg_key.clone(),
             peers,
             declared_by_path: dep.declared_by_path,
+            declaration_assumed: dep.declaration_assumed,
         })
     }
 }
@@ -54,6 +55,8 @@ struct Visit {
     peers: Vec<String>,
     /// See [`super::is_declared_by_path`].
     declared_by_path: bool,
+    /// See [`super::LocalDepContext::declaration_assumed`].
+    declaration_assumed: bool,
 }
 
 /// The aliases of every ancestor of a package, which supply its peers.
