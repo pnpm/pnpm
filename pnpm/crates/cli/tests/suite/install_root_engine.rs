@@ -421,3 +421,67 @@ fn maintenance_install_commands_check_the_root_engine() {
 
     drop(root);
 }
+
+#[test]
+fn repeat_install_under_engine_strict_reports_the_unsupported_engine() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    _utils::pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = _utils::pacquet_in(&workspace)
+        .with_args(["install", "--engine-strict"])
+        .output()
+        .expect("run repeat install");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn repeat_install_with_an_external_lockfile_dir_checks_the_project_engines() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let project_dir = workspace.join("project");
+    fs::create_dir_all(&project_dir).expect("create the project dir");
+    fs::write(
+        project_dir.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-project",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    _utils::pacquet_in(&project_dir)
+        .with_args(["install", "--lockfile-dir", ".."])
+        .assert()
+        .success();
+
+    let output = _utils::pacquet_in(&project_dir)
+        .with_args(["install", "--lockfile-dir", ".."])
+        .output()
+        .expect("run repeat install");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let output = format!("{stdout}{stderr}");
+    assert!(output.contains("Unsupported engine for"), "output: {output}");
+
+    drop(root);
+}

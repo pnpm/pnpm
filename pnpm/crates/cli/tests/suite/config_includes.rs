@@ -174,7 +174,9 @@ fn config_dependency_engine_strict_is_applied_before_the_root_engine_check() {
         &workspace,
         "pnpm-workspace.yaml",
         &format!(
-            "nodeVersion: 20.0.0\nconfigDependencies:\n  '@acme/pnpm-policy':\n    integrity: 1.0.0+{integrity}\n    tarball: {}{tarball_path}\ninclude:\n  '@acme/pnpm-policy': [engineStrict]\n",
+            "storeDir: {}\ncacheDir: {}\nnodeVersion: 20.0.0\nconfigDependencies:\n  '@acme/pnpm-policy':\n    integrity: 1.0.0+{integrity}\n    tarball: {}{tarball_path}\ninclude:\n  '@acme/pnpm-policy': [engineStrict]\n",
+            root.path().join("store").display(),
+            root.path().join("cache").display(),
             server.url(),
         ),
     );
