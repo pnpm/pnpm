@@ -918,7 +918,11 @@ fn recognizes_only_unambiguous_local_specifiers() {
 fn a_rooted_spec_takes_the_drive_of_the_project() {
     let tmp = TempDir::new().expect("tempdir");
     let project = tmp.path();
-    let rooted = lexical_normalize(&project.join("/vendor"));
+    let rooted = project
+        .ancestors()
+        .last()
+        .expect("the project has a root")
+        .join("vendor");
     assert_eq!(local_spec_path("file:/vendor", project), rooted);
     assert_eq!(local_spec_path("file:/vendor", project), recorded_local_path("/vendor", project));
 }
