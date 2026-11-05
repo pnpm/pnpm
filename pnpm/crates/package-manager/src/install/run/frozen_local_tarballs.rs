@@ -45,7 +45,7 @@ async fn compute_frozen_skip_set(
         settled.mode.included,
         settled.install.context.config.peer_edge_options(),
     )
-    .linking_for(settled.install.context.config.supported_architectures.as_ref());
+    .linking_for(settled.owned.projects.supported_architectures.as_ref());
     let seed = if settled.install.context.config.force {
         pnpm_deps_restorer::SkippedSnapshots::default()
     } else {
@@ -133,9 +133,13 @@ async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
         settled.mode.included,
         settled.install.context.config.peer_edge_options(),
     )
-    .linking_for(settled.install.context.config.supported_architectures.as_ref());
+    .linking_for(settled.owned.projects.supported_architectures.as_ref());
+    // A variant with dependencies of its own is wired as its own snapshot,
+    // so the walk follows the variant the install links.
+    let selected =
+        pnpm_deps_restorer::with_selected_variant_snapshots(lockfile, &groups.walked_platform());
     let resolutions: Vec<_> = crate::collect_reachable(
-        lockfile,
+        selected.as_ref().unwrap_or(lockfile),
         &workspace_root,
         &installed_importer_ids(settled, lockfile),
         &groups,

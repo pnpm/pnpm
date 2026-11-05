@@ -383,7 +383,7 @@ fn reached_importers(
         lockfile,
         check.workspace_root,
         &selected_ids,
-        &crate::GroupSelection::all(),
+        &crate::GroupSelection::all().linking_for(check.layout.supported_architectures),
         &crate::SkippedSnapshots::new(),
     )
     .importer_ids;

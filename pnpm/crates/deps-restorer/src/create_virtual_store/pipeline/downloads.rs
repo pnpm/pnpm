@@ -76,6 +76,7 @@ impl<'a> CreateVirtualStore<'a> {
             allow_build_policy: self.ctx.allow_build_policy,
             store_index_writer: self.fetching.store_index_writer,
             importers: self.importers,
+            supported_architectures: self.selection.supported_architectures,
         }
     }
 

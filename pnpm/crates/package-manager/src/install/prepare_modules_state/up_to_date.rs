@@ -52,8 +52,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     if !workspace_bins_unchanged(context) {
         return None;
     }
-    let wanted_lockfile = context.lockfile?;
-    let current = context.current_lockfile?;
+    let (wanted_lockfile, current) = (context.lockfile?, context.current_lockfile?);
     // Past this gate `current` is the graph this install would
     // materialize, so every probe below reads it instead of the wanted
     // lockfile: a snapshot no importer reaches has no slot on disk and no
@@ -66,7 +65,8 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     // has to be retaken; the TypeScript CLI has no gate at this level at
     // all and instead forces every directory dep through materialization
     // in `lockfileToDepGraph`.
-    if !materialized_shape_matches(wanted_lockfile, current, context.tree.included, config)
+    let shape = (context.tree.included, context.repeat.supported_architectures);
+    if !materialized_shape_matches(wanted_lockfile, current, shape, config)
         || has_directory_snapshot(current)
     {
         return None;

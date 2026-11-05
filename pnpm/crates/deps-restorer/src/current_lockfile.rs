@@ -15,7 +15,10 @@
 //! actually run.
 
 pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
-pub use variant_snapshots::{has_variant_snapshots, with_selected_variant_snapshots};
+pub use variant_snapshots::{
+    has_variant_snapshots, with_every_variant_dependency, with_original_variant_snapshots,
+    with_selected_variant_snapshots,
+};
 
 mod missing_projects;
 mod reachability;
@@ -172,7 +175,11 @@ pub fn merge_filtered_wanted_lockfile(
         .collect::<Result<_, MergeFilteredWantedLockfileError>>()?;
     freshly_resolved.importers.extend(missing_project_importers);
     overlay_previous_packages(&mut freshly_resolved, previous_wanted);
-    Ok(full_closure(&freshly_resolved, workspace_root))
+    // The wanted lockfile is the same on every platform, so it keeps what
+    // any variant installs, not only the variant this host links.
+    let walked = with_every_variant_dependency(&freshly_resolved);
+    let closure = full_closure(walked.as_ref().unwrap_or(&freshly_resolved), workspace_root);
+    Ok(with_original_variant_snapshots(closure, &freshly_resolved))
 }
 
 /// Fill in the `packages` and `snapshots` entries `previous_wanted` recorded

@@ -149,3 +149,33 @@ fn a_slot_holding_another_archive_is_replaced() {
     write_slot(&layout, Some(NEW));
     assert!(!reuse.must_replace(&key()), "the linked variant's slot is kept");
 }
+
+/// Only a slot this pass imported is recorded: one the install skips, such as
+/// an installability-skipped snapshot whose old slot is still on disk, keeps
+/// no record, so the install that later imports it replaces it.
+#[test]
+fn a_slot_the_install_did_not_import_is_not_recorded() {
+    use crate::create_virtual_store::linked_archives::record_linked_archives;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let layout = layout(dir.path());
+    let packages = variations_packages();
+    write_slot(&layout, None);
+    let record = layout
+        .slot_dir(&key())
+        .join(".pnpm-linked-archive");
+    let reuse = SlotReuse {
+        packages: &packages,
+        current_packages: Some(&packages),
+        force: false,
+        layout: &layout,
+        supported_architectures: None,
+    };
+
+    record_linked_archives(&layout, (&[], &packages), None, &std::collections::HashSet::new());
+    assert!(!record.exists(), "a skipped slot is not certified");
+    assert!(reuse.must_replace(&key()), "the slot is imported once the snapshot is installed");
+
+    record_linked_archives(&layout, (&[key()], &packages), None, &std::collections::HashSet::new());
+    assert_eq!(fs::read_to_string(&record).expect("an imported slot is recorded"), NEW);
+    assert!(!reuse.must_replace(&key()));
+}

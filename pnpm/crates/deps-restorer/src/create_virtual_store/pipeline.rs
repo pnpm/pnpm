@@ -51,7 +51,7 @@ impl<'a> CreateVirtualStore<'a> {
         let retained_keys =
             retained.map(|snapshots| retained_cache_keys(&prefetch.cache_keys, snapshots));
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
-        let planned = plan.survivors.len();
+        let imported = plan.materialized_keys();
         let prefetched = run_checked(
             check,
             self.settle_prefetch(
@@ -74,7 +74,7 @@ impl<'a> CreateVirtualStore<'a> {
             check,
         )
         .await?;
-        self.settle_materialized::<Reporter>(wanted, planned, &output.fetch_failed);
+        self.settle_materialized::<Reporter>(wanted, &imported, &output.fetch_failed);
         let handoff = retained_keys.map(|cache_keys| {
             retained_handoff(
                 (prefetch.store_index, prefetch.verified_files_cache),
@@ -86,23 +86,23 @@ impl<'a> CreateVirtualStore<'a> {
         Ok((output, handoff))
     }
 
-    /// Record the archive each materialized slot of a package with platform
-    /// variants holds, and report how many snapshots this pass added.
+    /// Record the archive each slot this pass imported holds, and report how
+    /// many snapshots it added.
     fn settle_materialized<Reporter: self::Reporter>(
         &self,
         wanted: WantedEntries<'a>,
-        planned: usize,
+        imported: &[PackageKey],
         fetch_failed: &HashSet<PackageKey>,
     ) {
         if !self.is_hoisted() {
             super::linked_archives::record_linked_archives(
                 self.ctx.linker.layout,
-                (wanted.snapshots, wanted.packages),
+                (imported, wanted.packages),
                 self.selection.supported_architectures,
                 fetch_failed,
             );
         }
-        self.report_added::<Reporter>(planned.saturating_sub(fetch_failed.len()));
+        self.report_added::<Reporter>(imported.len().saturating_sub(fetch_failed.len()));
     }
 
     async fn prefetch_and_prepare_store(

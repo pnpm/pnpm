@@ -115,6 +115,8 @@ pub struct BuildPhaseInputs<'a> {
     pub extra_env: &'a HashMap<String, String>,
     pub skipped: &'a SkippedSnapshots,
     pub pending_bins: Option<&'a crate::linking::PendingBinLinks>,
+    /// The platforms the install links, with the CLI's overrides.
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -274,7 +276,7 @@ fn build_or_defer<Reporter: self::Reporter>(
     {
         crate::BuildModulesOutput::default()
     } else {
-        let variant_platforms = VariantPlatforms::of(config.supported_architectures.as_ref());
+        let variant_platforms = VariantPlatforms::of(inputs.supported_architectures);
         build_modules(inputs, patches, (shared_side_effects_publisher, &variant_platforms))
             .run_with_bin_state::<Reporter>(bin_state)
             .map_err(BuildPhaseError::BuildModules)?

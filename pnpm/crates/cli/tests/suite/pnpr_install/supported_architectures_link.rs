@@ -1,8 +1,3 @@
-//! `supportedArchitectures` listing one platform other than the host links
-//! that platform's variant of a package with platform variants, and the
-//! dependencies that variant declares, round-tripped through an in-process
-//! pnpr. Changing the setting relinks the package.
-
 use super::{
     configure_pnpr_auth, declare_pnpr_registries,
     hosted::{host_targets, start_hosted_pnpr},
@@ -169,6 +164,43 @@ fn one_listed_platform_links_its_variant_and_its_dependencies() {
     );
 
     // Changing the setting relinks the package from the same lockfile.
+    set_supported_architectures(&workspace, &["current"]);
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(linked.join("native/host").exists(), "the host's variant is linked again");
+    assert!(!linked.join("native/foreign").exists());
+    drop((root, npmrc_info));
+}
+
+/// The hoisted linker's package directory does not name the archive either,
+/// so switching the platform imports the other variant though the lockfile is
+/// unchanged.
+#[test]
+fn the_hoisted_linker_relinks_when_the_platform_changes() {
+    let (registry, token) = start_hosted_pnpr();
+    publish_cli(&registry, &token);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = consumer(&registry, &token);
+    let manifest = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&manifest).expect("read pnpm-workspace.yaml");
+    writeln!(yaml, "nodeLinker: hoisted").expect("write nodeLinker");
+    fs::write(&manifest, yaml).expect("write pnpm-workspace.yaml");
+    set_supported_architectures(&workspace, &[foreign_target()]);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let linked = workspace.join("node_modules/@acme/cli");
+    assert!(linked.join("native/foreign").exists(), "the listed platform's variant is linked");
+
     set_supported_architectures(&workspace, &["current"]);
     pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])

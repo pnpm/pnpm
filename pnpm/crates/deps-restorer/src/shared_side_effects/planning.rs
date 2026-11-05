@@ -23,7 +23,7 @@ pub(super) fn plan_eligible_roots(
     setup: &RemoteCacheSetup,
 ) -> Vec<PackageKey> {
     let roots = eligible_roots(
-        options.snapshots,
+        options.wanted.0,
         options.requires_build_by_snapshot,
         options.allow_build_policy,
         options.cached.base_cas_paths,
@@ -80,6 +80,8 @@ pub(super) struct CandidatePlan<'a> {
     pub(super) setup: &'a RemoteCacheSetup,
     pub(super) side_effects_by_snapshot: &'a SideEffectsBySnapshot,
     pub(super) store_index_keys_by_snapshot: &'a StoreIndexKeysBySnapshot,
+    pub(super) supported_architectures:
+        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 /// Group the eligible snapshots by artifact input key, dropping the
 /// ones a persisted or locally cached overlay already covers.
@@ -136,7 +138,7 @@ pub(super) struct DepStateHasher {
 }
 impl DepStateHasher {
     fn new(plan: &CandidatePlan<'_>, roots: &[PackageKey]) -> Self {
-        let platforms = VariantPlatforms::of(plan.config.supported_architectures.as_ref());
+        let platforms = VariantPlatforms::of(plan.supported_architectures);
         let graph =
             build_deps_subgraph(plan.snapshots, plan.packages, (roots.iter().cloned(), &platforms));
         Self {

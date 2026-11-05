@@ -107,3 +107,24 @@ fn variant_keys_are_split_after_the_name_and_a_named_registry() {
     assert_eq!(split("local@file:1.2.3/variants/local"), None);
     assert_eq!(split("foo@1.0.0(file:../variants/local)(z@1.0.0)"), None);
 }
+
+/// A filtered install writes the whole wanted lockfile, which is the same on
+/// every platform: it keeps each variant's snapshot and the packages only a
+/// variant depends on, whichever variant this host links.
+#[test]
+fn a_filtered_install_keeps_every_variant_in_the_wanted_lockfile() {
+    let lockfile =
+        Lockfile::parse(LOCKFILE, std::path::Path::new("pnpm-lock.yaml")).unwrap().unwrap();
+    let importers = std::collections::HashSet::from([".".to_string()]);
+
+    let merged = crate::current_lockfile::merge_filtered_wanted_lockfile(
+        None,
+        lockfile.clone(),
+        &importers,
+        &importers,
+        std::path::Path::new("/workspace"),
+    )
+    .expect("every importer is resolved");
+
+    assert_eq!(merged.snapshots, lockfile.snapshots);
+}

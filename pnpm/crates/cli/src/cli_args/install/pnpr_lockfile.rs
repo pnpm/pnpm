@@ -386,7 +386,7 @@ fn selected_prefetch_lockfile(
                 },
                 config.peer_edge_options(),
             )
-            .linking_for(config.supported_architectures.as_ref()),
+            .linking_for(link.supported_architectures.as_ref()),
             &SkippedSnapshots::new(),
         )
         .lockfile

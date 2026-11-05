@@ -221,7 +221,10 @@ pub(crate) fn recorded_elsewhere(
 pub(crate) fn materialized_shape_matches(
     wanted: &Lockfile,
     current: &Lockfile,
-    included: IncludedDependencies,
+    (included, supported): (
+        IncludedDependencies,
+        Option<&pnpm_package_is_installable::SupportedArchitectures>,
+    ),
     config: &Config,
 ) -> bool {
     let mut skipped = crate::SkippedSnapshots::new();
@@ -240,7 +243,7 @@ pub(crate) fn materialized_shape_matches(
         == &crate::filter_lockfile_for_current(
             wanted,
             &crate::GroupSelection::classify(wanted, included, config.peer_edge_options())
-                .linking_for(config.supported_architectures.as_ref()),
+                .linking_for(supported),
             &skipped,
         )
 }

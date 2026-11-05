@@ -50,12 +50,14 @@ pub struct SharedSideEffectsPublisher {
 pub(crate) struct ApplySharedSideEffectsOptions<'a> {
     pub cached: SharedSideEffectsCacheRows<'a>,
     pub config: &'a Config,
-    pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
-    pub packages: &'a HashMap<PackageKey, PackageMetadata>,
+    /// The wanted lockfile's snapshots and packages.
+    pub wanted: (&'a HashMap<PackageKey, SnapshotEntry>, &'a HashMap<PackageKey, PackageMetadata>),
     pub requires_build_by_snapshot: &'a RequiresBuildBySnapshot,
     pub allow_build_policy: &'a AllowBuildPolicy,
     pub side_effects_maps_by_snapshot: &'a mut SideEffectsMapsBySnapshot,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
+    /// The platforms the install links, with the CLI's overrides.
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
 pub(crate) struct PreparedSharedSideEffects {
@@ -104,11 +106,12 @@ pub(crate) async fn prepare_shared_side_effects(
     let groups = plan_candidate_groups(
         &CandidatePlan {
             config: options.config,
-            snapshots: options.snapshots,
-            packages: options.packages,
+            snapshots: options.wanted.0,
+            packages: options.wanted.1,
             setup: &setup,
             side_effects_by_snapshot: options.cached.by_snapshot,
             store_index_keys_by_snapshot: options.cached.store_index_keys_by_snapshot,
+            supported_architectures: options.supported_architectures,
         },
         roots,
         persisted_remote,

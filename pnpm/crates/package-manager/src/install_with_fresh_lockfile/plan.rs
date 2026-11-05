@@ -38,7 +38,7 @@ impl MaterializationScope {
             install.included(),
             install.drivers.config.peer_edge_options(),
         )
-        .linking_for(install.drivers.config.supported_architectures.as_ref());
+        .linking_for(install.projects.supported_architectures);
         let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
         let empty_skipped = SkippedSnapshots::new();
         let closure = match install.projects.selected_ids {

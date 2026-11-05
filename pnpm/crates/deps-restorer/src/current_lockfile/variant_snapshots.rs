@@ -40,6 +40,67 @@ pub fn with_selected_variant_snapshots(
     Some(lockfile)
 }
 
+/// `lockfile` with each version's snapshot carrying the dependencies of
+/// every one of its variants, and without the variants' snapshot keys, for
+/// a walk that keeps what any platform installs. `None` when the lockfile
+/// has no variant snapshot.
+#[must_use]
+pub fn with_every_variant_dependency(lockfile: &Lockfile) -> Option<Lockfile> {
+    if !has_variant_snapshots(lockfile) {
+        return None;
+    }
+    let mut lockfile = lockfile.clone();
+    for (key, entry) in take_variant_snapshots(&mut lockfile) {
+        let Some((base, _)) = split_variant_key(&key) else { continue };
+        if let Some(snapshot) = lockfile.snapshots
+            .as_mut()
+            .and_then(|map| map.get_mut(&base))
+        {
+            add_dependencies(snapshot, entry);
+        }
+    }
+    Some(lockfile)
+}
+
+/// Add to `snapshot` the dependencies `variant` declares that it lacks.
+fn add_dependencies(snapshot: &mut SnapshotEntry, variant: SnapshotEntry) {
+    for (into, from) in [
+        (&mut snapshot.dependencies, variant.dependencies),
+        (&mut snapshot.optional_dependencies, variant.optional_dependencies),
+    ] {
+        let into = into.get_or_insert_default();
+        for (alias, version) in from.into_iter().flatten() {
+            into.entry(alias).or_insert(version);
+        }
+    }
+}
+
+/// `closure` with the snapshots `original` records for each key it kept,
+/// and with every variant snapshot of a version it kept, undoing
+/// [`with_every_variant_dependency`].
+#[must_use]
+pub fn with_original_variant_snapshots(mut closure: Lockfile, original: &Lockfile) -> Lockfile {
+    let (Some(snapshots), Some(original)) =
+        (closure.snapshots.as_mut(), original.snapshots.as_ref())
+    else {
+        return closure;
+    };
+    for (key, entry) in snapshots.iter_mut() {
+        if let Some(recorded) = original.get(key) {
+            entry.clone_from(recorded);
+        }
+    }
+    let variants: Vec<_> = original
+        .iter()
+        .filter(|(key, _)| {
+            split_variant_key(key).is_some_and(|(base, _)| snapshots.contains_key(&base))
+        })
+        .map(|(key, entry)| (key.clone(), entry.clone()))
+        .collect();
+    snapshots.extend(variants);
+    closure
+}
+
 /// Remove and return the variants' own snapshots.
 fn take_variant_snapshots(lockfile: &mut Lockfile) -> Vec<(PackageKey, SnapshotEntry)> {
     let Some(snapshots) = lockfile.snapshots.as_mut() else { return Vec::new() };

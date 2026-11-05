@@ -13,7 +13,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.modules.included,
             self.install.context.config.peer_edge_options(),
         )
-        .linking_for(self.install.context.config.supported_architectures.as_ref())
+        .linking_for(self.execution.supported_architectures)
     }
 
     fn frozen_lockfiles<'b>(
