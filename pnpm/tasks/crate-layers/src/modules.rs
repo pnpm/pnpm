@@ -6,7 +6,9 @@
 
 use crate::{
     cfg,
+    graph::CrateGraph,
     lexer::{self, Token},
+    surface::{self, Surface},
     tree::Tree,
     use_tree::{self, UsePath},
 };
@@ -22,6 +24,7 @@ struct Module {
     code_lines: usize,
     imports: Vec<UsePath>,
     references: Vec<Vec<String>>,
+    surface: Surface,
 }
 
 #[derive(Debug, Default)]
@@ -35,6 +38,17 @@ pub struct CrateModules {
 pub struct TopLevelGraph {
     pub code_lines: BTreeMap<String, usize>,
     pub edges: BTreeMap<(String, String), usize>,
+}
+
+/// The modules of every workspace crate, by crate name.
+pub fn read_workspace(
+    tree: &dyn Tree,
+    graph: &CrateGraph,
+) -> Result<BTreeMap<String, CrateModules>, String> {
+    graph.dirs
+        .iter()
+        .map(|(name, dir)| Ok((name.clone(), CrateModules::read(tree, dir)?)))
+        .collect()
 }
 
 impl CrateModules {
@@ -72,11 +86,17 @@ impl CrateModules {
         }
         let module = Module {
             code_lines: lexed.code_lines,
+            surface: surface::scan(&lexed.tokens, &scan.imports),
             imports: scan.imports,
             references: scan.references,
         };
         self.modules.insert(path, module);
         Ok(())
+    }
+
+    /// The public surface of each non-test module.
+    pub fn surfaces(&self) -> impl Iterator<Item = &Surface> {
+        self.modules.values().map(|module| &module.surface)
     }
 
     pub fn top_level_graph(&self) -> TopLevelGraph {

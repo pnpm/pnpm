@@ -16,6 +16,11 @@ Checks the Rust workspace's crate dependency graph against the layers in
   depends on, directly and transitively. `--crate <name>` lists one crate's
   dependencies. `--baseline` prints a `direct_dependencies` table for the
   current state.
+- `just crate-layers leaks` lists the [leaks](#leaks): for each crate, the
+  dependencies whose items it names in its public signatures without
+  re-exporting them. `--crate <name>` lists one crate's leaked items and the
+  crates that depend on both. `--baseline` prints a `leaked_dependencies`
+  table for the current state.
 - `just crate-layers diff <rev>` prints, as Markdown, the crates and edges the
   working tree adds or removes compared to `<rev>`. CI writes it to the job
   summary of every pull request.
@@ -52,11 +57,26 @@ Each of these tables in `crate-layers.toml` records a number per crate:
 | --- | --- |
 | `module_cycles` | The modules in the crate's largest module cycle. |
 | `direct_dependencies` | The workspace crates the crate depends on through normal and build dependencies. |
+| `leaked_dependencies` | The dependencies the crate [leaks](#leaks). |
 
 A crate that is not listed accepts `0`. The check fails when a number grows,
 and also when one shrinks until its entry is lowered, so the numbers only go
 down. Raise a `direct_dependencies` entry only when the new dependency
 belongs in that crate.
+
+## Leaks
+
+A crate leaks a dependency when a public signature names one of the
+dependency's items and the crate does not re-export it with `pub use`. A
+caller that uses the signature then has to depend on that crate too. Fix a
+leak by re-exporting the item from the crate that exposes it, or by keeping
+it out of the public signature.
+
+The public signatures are those of `pub` functions, fields, enums, traits,
+type aliases, constants, and statics, outside test-only modules. The tool
+reads `pub` alone, so a `pub` item in a private module counts. It follows a
+file's own imports and the crate's `extern crate … as …` aliases, but not
+paths that reach the dependency through another module of the crate.
 
 ## Transitive budgets
 

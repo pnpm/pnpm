@@ -1,6 +1,6 @@
 use crate::{
     graph::{CrateGraph, Edge},
-    problem::Problem,
+    problem::{Metric, Problem},
 };
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -15,6 +15,8 @@ struct LayersFile {
     module_cycles: BTreeMap<String, usize>,
     #[serde(default)]
     direct_dependencies: BTreeMap<String, usize>,
+    #[serde(default)]
+    leaked_dependencies: BTreeMap<String, usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,10 +50,7 @@ pub struct Layers {
     transitive_budgets: Vec<Option<usize>>,
     rank_by_crate: BTreeMap<String, usize>,
     exceptions: Vec<Exception>,
-    /// The accepted size of each crate's largest module cycle.
-    pub module_cycles: BTreeMap<String, usize>,
-    /// The accepted number of each crate's direct workspace dependencies.
-    pub direct_dependencies: BTreeMap<String, usize>,
+    baselines: BTreeMap<Metric, BTreeMap<String, usize>>,
 }
 
 impl Layers {
@@ -79,9 +78,17 @@ impl Layers {
             transitive_budgets,
             rank_by_crate,
             exceptions: file.exception,
-            module_cycles: file.module_cycles,
-            direct_dependencies: file.direct_dependencies,
+            baselines: BTreeMap::from([
+                (Metric::ModuleCycle, file.module_cycles),
+                (Metric::DirectDependencies, file.direct_dependencies),
+                (Metric::LeakedDependencies, file.leaked_dependencies),
+            ]),
         })
+    }
+
+    /// The accepted value of each crate in the metric's table.
+    pub fn baseline(&self, metric: Metric) -> &BTreeMap<String, usize> {
+        &self.baselines[&metric]
     }
 
     pub fn layer_of(&self, name: &str) -> Option<&str> {
