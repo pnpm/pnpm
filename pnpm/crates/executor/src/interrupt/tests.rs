@@ -1,8 +1,7 @@
 use super::interrupt_count;
 
-/// A handled signal the kernel holds for pnpm counts before its handler
-/// runs. The signal is aimed at this thread with the thread blocking it,
-/// so it stays pending until the test takes it back.
+/// The signal is aimed at this thread with the thread blocking it, so it
+/// stays pending until the test takes it back.
 #[test]
 fn a_pending_signal_counts_as_an_interrupt() {
     // SAFETY: every call takes stack locals that outlive it, and the
