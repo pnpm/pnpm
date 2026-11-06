@@ -1,9 +1,10 @@
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
+import type { PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { PkgResolutionId, PreferredVersions } from '@pnpm/resolving.resolver-base'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
 
-import type { PkgAddressOrLink, ResolutionContext, ResolvedPackage, ResolvedPkgsById } from './resolutionTypes.js'
+import type { MissingPeerInfo, PkgAddressOrLink, ResolutionContext, ResolvedPackage, ResolvedPkgsById } from './resolutionTypes.js'
 
 /** The version each direct dependency alias resolved to. */
 export function getDirectDepVersions (
@@ -35,44 +36,105 @@ function getResolvedVersion (resolvedPkgsById: ResolvedPkgsById, pkgAddress: Pkg
     : resolvedPkgsById[pkgAddress.pkgId]?.version
 }
 
+/** The peers an optional peer candidate declares. */
+export type CandidatePeers = Record<string, MissingPeerInfo>
+
 /**
- * Looks up the peer ranges an optional peer candidate declares. A candidate is
+ * Looks up the peers an optional peer candidate declares. A candidate is
  * found by name and version, since a package resolved from a named registry
  * has a different ID. One seeded only from the wanted lockfile has no resolved
  * package yet, so the lockfile describes its peers instead. The name and
  * version index is built on the first miss, once per hoisting round.
  */
-export function createCandidatePeerRangesLookup (
+export function createCandidatePeersLookup (
   ctx: Pick<ResolutionContext, 'resolvedPkgsById' | 'wantedLockfile'>
-): (name: string, version: string) => Record<string, string> | undefined {
-  let byNameVersion: Map<string, Record<string, string>> | undefined
+): (name: string, version: string) => CandidatePeers | undefined {
+  let byNameVersion: Map<string, CandidatePeers> | undefined
   return (name, version) => {
     const pkgId = `${name}@${version}`
     const resolvedPackage = ctx.resolvedPkgsById[pkgId as PkgResolutionId]
-    if (resolvedPackage != null) return getPeerRanges(resolvedPackage)
-    byNameVersion ??= indexPeerRangesByNameVersion(ctx)
+    if (resolvedPackage != null) return getPeers(resolvedPackage)
+    byNameVersion ??= indexPeersByNameVersion(ctx)
     return byNameVersion.get(pkgId)
   }
 }
 
-function indexPeerRangesByNameVersion (
+function indexPeersByNameVersion (
   ctx: Pick<ResolutionContext, 'resolvedPkgsById' | 'wantedLockfile'>
-): Map<string, Record<string, string>> {
-  const byNameVersion = new Map<string, Record<string, string>>()
+): Map<string, CandidatePeers> {
+  const byNameVersion = new Map<string, CandidatePeers>()
   for (const [depPath, pkgSnapshot] of Object.entries(ctx.wantedLockfile.packages ?? {})) {
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     if (pkgName && pkgVersion) {
-      byNameVersion.set(`${pkgName}@${pkgVersion}`, pkgSnapshot.peerDependencies ?? {})
+      byNameVersion.set(`${pkgName}@${pkgVersion}`, getLockfilePeers(pkgSnapshot))
     }
   }
   for (const pkg of Object.values(ctx.resolvedPkgsById)) {
-    byNameVersion.set(`${pkg.name}@${pkg.version}`, getPeerRanges(pkg))
+    byNameVersion.set(`${pkg.name}@${pkg.version}`, getPeers(pkg))
   }
   return byNameVersion
 }
 
-function getPeerRanges (resolvedPackage: ResolvedPackage): Record<string, string> {
-  return Object.fromEntries(Object.entries(resolvedPackage.peers.taken).map(([peerName, { version: range }]) => [peerName, range]))
+function getLockfilePeers ({ peerDependencies, peerDependenciesMeta }: PackageSnapshot): CandidatePeers {
+  const peers: CandidatePeers = {}
+  for (const [peerName, range] of Object.entries(peerDependencies ?? {})) {
+    peers[peerName] = { range, optional: peerDependenciesMeta?.[peerName]?.optional === true }
+  }
+  return peers
+}
+
+function getPeers (resolvedPackage: ResolvedPackage): CandidatePeers {
+  return Object.fromEntries(Object.entries(resolvedPackage.peers.taken).map(([peerName, { version: range, optional }]) => [
+    peerName,
+    { range, optional: optional === true },
+  ]))
+}
+
+/**
+ * Whether hoisting an optional peer candidate to an importer leaves every
+ * peer it brings in satisfied. The candidate resolves its peers from
+ * `providedVersions`. Each required peer missing there is hoisted at the
+ * version `pickRequiredPeerVersion` returns, and resolves its own peers the
+ * same way.
+ */
+export function acceptsOptionalPeerCandidate (
+  { getCandidatePeers, pickRequiredPeerVersion, providedVersions }: {
+    getCandidatePeers: (name: string, version: string) => CandidatePeers | undefined
+    pickRequiredPeerVersion: (name: string, range: string) => string | undefined
+    providedVersions: Map<string, string>
+  },
+  candidate: { name: string, version: string }
+): boolean {
+  const provided = new Map(providedVersions).set(candidate.name, candidate.version)
+  const peersOfHoisted: CandidatePeers[] = []
+  const pending = [candidate]
+  while (pending.length) {
+    const { name, version } = pending.pop()!
+    const peers = getCandidatePeers(name, version)
+    if (peers == null) continue
+    peersOfHoisted.push(peers)
+    pending.push(...hoistMissingRequiredPeers(peers, { pickRequiredPeerVersion, provided }))
+  }
+  return peersOfHoisted.every((peers) => peersAcceptProvidedVersions(peers, provided))
+}
+
+/** Adds to `provided` each required peer of `peers` it misses and that is hoisted, and returns them. */
+function hoistMissingRequiredPeers (
+  peers: CandidatePeers,
+  { pickRequiredPeerVersion, provided }: {
+    pickRequiredPeerVersion: (name: string, range: string) => string | undefined
+    provided: Map<string, string>
+  }
+): Array<{ name: string, version: string }> {
+  const hoisted: Array<{ name: string, version: string }> = []
+  for (const [name, { range, optional }] of Object.entries(peers)) {
+    if (optional || provided.has(name)) continue
+    const version = pickRequiredPeerVersion(name, range)
+    if (version == null) continue
+    provided.set(name, version)
+    hoisted.push({ name, version })
+  }
+  return hoisted
 }
 
 /**
@@ -81,12 +143,11 @@ function getPeerRanges (resolvedPackage: ResolvedPackage): Record<string, string
  * of those peers at a version outside the provider's range, hoisting the
  * provider creates a peer conflict the importer never asked for.
  */
-export function peersAcceptProvidedVersions (
-  peerRanges: Record<string, string> | undefined,
+function peersAcceptProvidedVersions (
+  peers: CandidatePeers,
   providedVersions: Map<string, string>
 ): boolean {
-  if (peerRanges == null) return true
-  for (const [peerName, range] of Object.entries(peerRanges)) {
+  for (const [peerName, { range }] of Object.entries(peers)) {
     const providedVersion = providedVersions.get(peerName)
     if (providedVersion != null && !semverUtils.satisfiesWithPrereleases(providedVersion, getPeerVersionRange(range), true)) {
       return false

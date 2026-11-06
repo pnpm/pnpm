@@ -1,6 +1,7 @@
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectId } from '@pnpm/types'
+import semver from 'semver'
 
 import { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
 import type { WantedDependency } from './getWantedDependencies.js'
@@ -10,9 +11,9 @@ import { addDirectDepVersion } from './indexResolvedDependencies.js'
 import { getImporterLockedPeerVersions } from './lockedPeerVersions.js'
 import { collectMissingRequiredPeers, filterMissingPeers, mergePkgsDeps } from './missingPeers.js'
 import {
-  createCandidatePeerRangesLookup,
+  acceptsOptionalPeerCandidate,
+  createCandidatePeersLookup,
   getDirectDepVersions,
-  peersAcceptProvidedVersions,
   pickVersionsInClosure,
 } from './optionalPeerCandidates.js'
 import type {
@@ -49,7 +50,7 @@ interface PeerHoisting {
 
 type MissingOptionalPeerRanges = Record<string, string[]>
 
-type CandidatePeerRangesLookup = ReturnType<typeof createCandidatePeerRangesLookup>
+type CandidatePeersLookup = ReturnType<typeof createCandidatePeersLookup>
 
 export async function resolveRootDependencies (
   ctx: ResolutionContext,
@@ -153,6 +154,19 @@ function createImporterPeersHoister (hoisting: PeerHoisting, index: number): (mi
       ? undefined
       : (name, range) => ctx.overrideBareSpecifier!(name, range, options.prefix),
   })
+}
+
+/**
+ * The exact version a missing required peer would be hoisted to the importer
+ * at, or `undefined` when it would not be hoisted or would be resolved from a
+ * range.
+ */
+function createRequiredPeerVersionPicker (hoisting: PeerHoisting, index: number): (name: string, range: string) => string | undefined {
+  const hoistPeersToImporter = createImporterPeersHoister(hoisting, index)
+  return (name, range) => {
+    const spec = hoistPeersToImporter([[name, { range, optional: false }]])[name]
+    return spec == null ? undefined : semver.valid(spec.split(' || ')[0]) ?? undefined
+  }
 }
 
 /**
@@ -267,10 +281,10 @@ async function hoistOptionalPeersOfImporters (
   hoisting: PeerHoisting,
   allMissingOptionalPeersByImporters: MissingOptionalPeerRanges[]
 ): Promise<boolean> {
-  const getCandidatePeerRanges = createCandidatePeerRangesLookup(hoisting.ctx)
+  const getCandidatePeers = createCandidatePeersLookup(hoisting.ctx)
   const hoistOptionalForImporter = async (index: number): Promise<boolean> => hoistOptionalPeersOfImporter(hoisting, {
     allMissingOptionalPeers: allMissingOptionalPeersByImporters[index],
-    getCandidatePeerRanges,
+    getCandidatePeers,
     index,
   })
   let rootHoistedPeers = false
@@ -297,9 +311,9 @@ function refreshRootDepVersions (hoisting: PeerHoisting): void {
 
 async function hoistOptionalPeersOfImporter (
   hoisting: PeerHoisting,
-  { allMissingOptionalPeers, getCandidatePeerRanges, index }: {
+  { allMissingOptionalPeers, getCandidatePeers, index }: {
     allMissingOptionalPeers: MissingOptionalPeerRanges
-    getCandidatePeerRanges: CandidatePeerRangesLookup
+    getCandidatePeers: CandidatePeersLookup
     index: number
   }
 ): Promise<boolean> {
@@ -322,7 +336,11 @@ async function hoistOptionalPeersOfImporter (
         roots: hoisting.importerResults[index].pkgAddresses,
       }),
     hoisting.workspaceRootDeps,
-    (name, version) => peersAcceptProvidedVersions(getCandidatePeerRanges(name, version), providedPeerVersions),
+    (name, version) => acceptsOptionalPeerCandidate({
+      getCandidatePeers,
+      pickRequiredPeerVersion: createRequiredPeerVersionPicker(hoisting, index),
+      providedVersions: providedPeerVersions,
+    }, { name, version }),
     {
       lockedVersions: getLockedPeerVersionsOfImporter(hoisting, index),
       lockfileOnlyVersions: hoisting.lockfileOnlyVersions,

@@ -59,9 +59,9 @@ use crate::{
         unwrap_package_name,
     },
     resolve_peers::{
-        CandidatePeerRanges, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
-        ResolvePeersOptions, apply_hoist_missing_scope, index_missing_names,
-        peers_accept_provided_versions, resolve_peers, resolved_name_and_version,
+        CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
+        ResolvePeersOptions, accepts_optional_peer_candidate, apply_hoist_missing_scope,
+        index_missing_names, resolve_peers, resolved_name_and_version,
     },
     resolved_tree::ResolvedTree,
 };

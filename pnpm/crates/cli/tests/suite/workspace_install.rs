@@ -746,6 +746,57 @@ fn optional_peer_is_supplied_by_a_sibling_whose_peers_the_importer_accepts() {
     );
 }
 
+/// Installs `pkg-a`, which has an optional peer on a carrier whose
+/// required peer wants `@pnpm/y@^2.0.0`, next to `pkg-b`, which provides
+/// the carrier, its peer, and `@pnpm/y@2.0.0`. Returns `pkg-a`'s resolved
+/// version of the optional peer's dependent.
+fn install_optional_peer_carrier_next_to_sibling(pkg_a_y: &str) -> String {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/has-optional-y-v2-peer-user-carrier": "1.0.0",
+                "@pnpm/y": pkg_a_y,
+            },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/y-v2-peer-user-carrier": "1.0.0",
+                "@pnpm.e2e/y-v2-peer-user": "1.0.0",
+                "@pnpm/y": "2.0.0",
+            },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let version =
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-y-v2-peer-user-carrier");
+    drop((root, mock_instance));
+    version
+}
+
+/// <https://github.com/orgs/pnpm/discussions/17718>
+#[test]
+fn optional_peer_is_not_supplied_when_a_required_peer_it_brings_in_rejects_the_importers_version() {
+    assert_eq!(install_optional_peer_carrier_next_to_sibling("1.0.0"), "1.0.0");
+}
+
+#[test]
+fn optional_peer_is_supplied_when_the_required_peers_it_brings_in_accept_the_importers_versions() {
+    assert!(
+        install_optional_peer_carrier_next_to_sibling("2.0.0")
+            .starts_with("1.0.0(@pnpm.e2e/y-v2-peer-user-carrier@1.0.0"),
+    );
+}
+
 /// The provider is left only in the wanted lockfile, so the lockfile is
 /// what describes its peers.
 #[test]

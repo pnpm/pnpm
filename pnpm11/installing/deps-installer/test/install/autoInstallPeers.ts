@@ -899,6 +899,60 @@ test('an optional peer is supplied when a canonical package precedes its alias r
     .toBe('1.0.0(@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@2.0.0))')
 })
 
+function installOptionalPeerCarrierNextToSibling (projectDeps: Record<string, string>) {
+  const allProjects: Array<{ buildIndex: number, manifest: PackageManifest, rootDir: ProjectRootDir }> = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project1',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/has-optional-y-v2-peer-user-carrier': '1.0.0',
+          ...projectDeps,
+        },
+      },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/y-v2-peer-user-carrier': '1.0.0',
+          '@pnpm.e2e/y-v2-peer-user': '1.0.0',
+          '@pnpm/y': '2.0.0',
+        },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+  ]
+  return mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    autoInstallPeers: true,
+  }))
+}
+
+// https://github.com/orgs/pnpm/discussions/17718
+test('an optional peer is not supplied when a required peer it brings in rejects a version the project provides', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerCarrierNextToSibling({ '@pnpm/y': '1.0.0' })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user-carrier']?.version).toBe('1.0.0')
+  expect(Object.keys(lockfile.importers.project1.dependencies ?? {})).not.toContain('@pnpm.e2e/y-v2-peer-user')
+  expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
+})
+
+test('an optional peer is supplied when the required peers it brings in accept the versions the project provides', async () => {
+  const project = prepareEmpty()
+  await installOptionalPeerCarrierNextToSibling({ '@pnpm/y': '2.0.0' })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user-carrier']?.version)
+    .toMatch(/^1\.0\.0\(@pnpm\.e2e\/y-v2-peer-user-carrier@1\.0\.0/)
+})
+
 test('an optional peer is not supplied by a sibling workspace package whose own peers the workspace root provides at a rejected version', async () => {
   const project = prepareEmpty()
   await installOptionalPeerUserNextToSibling({ projectDeps: {}, rootDeps: { '@pnpm/y': '1.0.0' } })
