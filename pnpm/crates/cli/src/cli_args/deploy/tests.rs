@@ -351,6 +351,20 @@ fn legacy_deploy_hook_keeps_a_specifier_that_already_names_the_copy() {
     );
 }
 
+#[test]
+fn legacy_deploy_hook_rebases_workspace_paths() {
+    let (_tmp, dependencies) = deploy_copied_dependency(&json!({
+        "kept": "workspace:./copied",
+        "outside": "workspace:../lib",
+        "range": "workspace:*",
+    }));
+    dbg!(&dependencies);
+    assert_eq!(
+        dependencies,
+        json!({ "kept": "workspace:./copied", "outside": "workspace:../packages/lib", "range": "workspace:*" }),
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn legacy_deploy_hook_keeps_naming_the_copy_through_a_case_variant_project_dir() {

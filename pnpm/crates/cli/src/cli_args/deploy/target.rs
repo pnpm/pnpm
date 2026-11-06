@@ -293,15 +293,19 @@ fn rebase_local_specifier(
     project_dir: &Path,
     deploy_dir: &Path,
 ) -> Option<String> {
-    let local = LocalSpec::parse_filesystem(specifier, project_dir)?;
+    let parse = |base_dir: &Path| {
+        LocalSpec::parse_filesystem(specifier, base_dir)
+            .or_else(|| LocalSpec::parse_workspace_path(specifier, base_dir))
+    };
+    let local = parse(project_dir)?;
     let Some(inside_project) =
         copied_path_inside_project(local.absolute_path(), project_dir, deploy_dir)
     else {
         return Some(local.render(Some(deploy_dir)));
     };
     let copy = deploy_dir.join(&inside_project);
-    let names_the_copy_as_declared = LocalSpec::parse_filesystem(specifier, deploy_dir)
-        .is_some_and(|declared| same_path(declared.absolute_path(), &copy));
+    let names_the_copy_as_declared =
+        parse(deploy_dir).is_some_and(|declared| same_path(declared.absolute_path(), &copy));
     // On Windows the specifier can spell the project directory in another
     // case, and `LocalSpec::render` diffs paths case-sensitively.
     let spelled_project_dir = local
