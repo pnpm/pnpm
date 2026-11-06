@@ -750,9 +750,6 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
     drop(store_dir_keep);
 }
 
-/// A failed fetch has spent the archive's retry budget, so neither a
-/// concurrent nor a later request for the archive spends another one. Each
-/// reports the owner's error.
 #[tokio::test]
 async fn mem_cache_spends_one_retry_budget_on_a_failing_archive() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
