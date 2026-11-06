@@ -224,6 +224,52 @@ fn isolated_mutable_source_is_not_hard_linked() {
     assert_eq!(fs::read(dir.join("index.js")).unwrap(), b"1");
 }
 
+/// A build writes to the files it imports, so a registry package with an
+/// install script gets private copies even under `hardlink`.
+#[test]
+fn package_requiring_build_is_not_hard_linked_to_store() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[(
+            "a",
+            "a@1.0.0",
+            "a@1.0.0",
+            &[
+                ("package.json", br#"{"scripts":{"postinstall":"node build.js"}}"#),
+                ("index.js", b"1"),
+            ],
+        )],
+    );
+    let store_file = cas_paths[&PkgIdWithPatchHash::from("a@1.0.0")].cas_paths["index.js"].clone();
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged,
+            swap_lock: None,
+            requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
+        },
+        dir_clone_cache: None,
+        graph: &graph,
+        previous_dirs: &std::collections::BTreeSet::new(),
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+
+        link_options: &LinkBinsOptions::default(),
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+    fs::write(lockfile_dir.join("node_modules/a/index.js"), b"2").expect("build writes a file");
+
+    assert_eq!(fs::read(&store_file).unwrap(), b"1");
+}
+
 #[test]
 fn orphan_directory_is_removed() {
     let tmp = tempfile::tempdir().expect("tempdir");

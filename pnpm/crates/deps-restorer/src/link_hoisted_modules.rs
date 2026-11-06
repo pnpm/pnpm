@@ -339,9 +339,10 @@ fn import_node<Reporter: self::Reporter>(
     };
 
     let cas_paths = &*files.cas_paths;
-    // A directory dependency with install scripts is built in place, so it
-    // must not be hard-linked to its source.
-    let needs_build = files.source_is_mutable && crate::requires_build_from_cas_paths(cas_paths);
+    // A build or a patch writes to the imported files, so they must not
+    // share inodes with the store or with a directory dependency's source.
+    let needs_build =
+        node.package.patch.is_some() || crate::requires_build_from_cas_paths(cas_paths);
     let import_method = opts.import.method_for(files.source_is_mutable, needs_build);
     if files.source_is_mutable
         || !opts.dir_clone_cache.is_some_and(|cache| {

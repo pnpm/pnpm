@@ -91,9 +91,9 @@ pub fn auto_optimistic_wire_method() -> WireImportMethod {
 /// macOS keeps clone-first: APFS `clonefile` is the platform's cheap
 /// primitive.
 ///
-/// The hardlink-first order is a pnpm 12 change, shipped behind the
-/// major: the TypeScript CLI (pnpm 11) deliberately keeps clone-first,
-/// because changing what the default materializes on disk is not a
+/// The hardlink-first order on Linux is a pnpm 12 change, shipped behind
+/// the major: the TypeScript CLI (pnpm 11) deliberately keeps clone-first
+/// there, because changing what the default materializes on disk is not a
 /// point-release change. The two `Auto` implementations intentionally
 /// diverge on this until pnpm 11 is retired.
 fn next_auto_tier(tier: u8) -> u8 {
