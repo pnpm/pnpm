@@ -14,3 +14,6 @@ image = "ghcr.io/cross-rs/aarch64-linux-android@sha256:85d58ad7dd4cc97903bff4c5e
 
 [target.x86_64-linux-android]
 image = "ghcr.io/cross-rs/x86_64-linux-android@sha256:e60e4a759b4f07ac5d6f7632afc728d2a6a3ad668013ec17d9627b537acf2cdc"
+
+[target.x86_64-unknown-netbsd]
+image = "ghcr.io/cross-rs/x86_64-unknown-netbsd@sha256:fa7a1ced50a0029423d7b806782538ce496f84070fba0028b7bbd8ccdf494a9f"
