@@ -32,14 +32,12 @@ use crate::{
         error::EngineError,
         provision::engine_bin,
     },
-    slot_lock,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
 };
 use pnpm_config::Config;
-use pnpm_fs::DirLock;
 use pnpm_graph_hasher::{detect_node_major, engine_name};
 use pnpm_lockfile::{EnvLockfile, PackageKey};
 use pnpm_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
@@ -51,7 +49,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
 };
 
 /// An engine installed and ready to run.
@@ -229,8 +226,10 @@ async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
     // is within pnpm's trust domain — mirroring the guard `patch-commit`
     // applies before its own `remove_dir_all`.
     let _ = remove_dir_if_not_symlink(&tmp_install_dir);
+    // The host's platform binary is an optional dependency, which the install
+    // skips when its download fails, so only this link reports it missing.
     link_engine_bins(&slot?, package_name, package.links_native_binary)
-        .map_err(|error| with_skipped_downloads(error, &skipped_downloads))
+        .map_err(|error| skipped_downloads.explain(error))
 }
 
 /// Install the engine into a private directory of this process's own,
@@ -259,49 +258,8 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
     .await?;
     let engine =
         link_engine_bins(private_install.dir(), package.wrapper, package.links_native_binary)
-            .map_err(|error| with_skipped_downloads(error, &skipped_downloads))?;
+            .map_err(|error| skipped_downloads.explain(error))?;
     Ok(InstalledEngine { private_install: Some(private_install), ..engine })
-}
-
-/// An engine's platform binaries are optional dependencies of its wrapper, so
-/// the install skips the host's binary when its download fails and only the
-/// link that needs it fails. Name the failed downloads in that error.
-fn with_skipped_downloads(error: miette::Report, skipped: &SkippedDownloads) -> miette::Report {
-    let downloads = skipped.take();
-    if downloads.is_empty() {
-        return error;
-    }
-    error.wrap_err(downloads.join("; "))
-}
-
-/// Take the host-wide lock guarding this engine's slot, or `None` when
-/// another process holds it: the engine is then installed privately. A
-/// lock that cannot be established at all is reported and treated the
-/// same, since the private install needs none.
-fn engine_install_lock<Reporter: self::Reporter>(
-    config: &Config,
-    package_name: &str,
-    version: &str,
-) -> Option<DirLock> {
-    let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
-    let path = config.store_dir
-        .tmp()
-        .join("engine-locks")
-        .join(name);
-    match slot_lock::acquire(path.clone()) {
-        Ok(lock) => lock,
-        Err(error) => {
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!(
-                    "Could not lock the package manager engine install at {}: {error}. Installing it into a private directory instead.",
-                    path.display(),
-                ),
-                prefix: String::new(),
-            }));
-            None
-        }
-    }
 }
 
 /// Remove the private engine installs no process holds any more. The
@@ -316,44 +274,6 @@ pub(crate) fn remove_orphaned_private_engine_installs(config: &Config) -> miette
         .map_err(miette::Report::new)
         .wrap_err("remove the private package manager installs left behind")?;
     Ok(())
-}
-
-async fn package_manager_env_lock<Reporter: self::Reporter>(
-    config: &Config,
-) -> miette::Result<Option<DirLock>> {
-    let path = config.store_dir.tmp().join("engine-locks/package-manager-env.lock");
-    tokio::task::spawn_blocking(move || {
-        acquire_install_lock::<Reporter>(&path, "the package-manager environment")
-    })
-    .await
-    .into_diagnostic()
-    .wrap_err("wait for the package-manager environment lock")
-}
-
-fn acquire_install_lock<Reporter: self::Reporter>(path: &Path, subject: &str) -> Option<DirLock> {
-    /// Long enough for a cold install of the engine over a slow link,
-    /// short enough that a wedged host isn't hung on indefinitely.
-    const WAIT: Duration = Duration::from_mins(5);
-    /// Comfortably above `WAIT`, so a process still legitimately
-    /// installing never has its lock stolen by one that gave up waiting.
-    const ABANDONED_AFTER: Duration = Duration::from_mins(30);
-
-    let error = match DirLock::acquire(path.to_path_buf(), WAIT, ABANDONED_AFTER) {
-        Ok(lock) => return lock,
-        Err(error) => error,
-    };
-    // Through the reporter rather than `tracing`, which is only wired to
-    // a subscriber when `TRACE` is set and would drop this on every
-    // ordinary run.
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message: format!(
-            "Could not lock {subject} at {}: {error}. Installing without it, which is unsafe if another pnpm is installing concurrently.",
-            path.display(),
-        ),
-        prefix: String::new(),
-    }));
-    None
 }
 
 /// The project's config, retargeted at the shared engine store.
@@ -538,7 +458,10 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
 }
 
 mod linked_bins;
+
+mod locks;
 use linked_bins::{linked_engine_bins, populated_engine_slot};
+use locks::{engine_install_lock, package_manager_env_lock};
 
 #[cfg(test)]
 mod tests;

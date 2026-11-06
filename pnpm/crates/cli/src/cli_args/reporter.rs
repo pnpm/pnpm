@@ -1,3 +1,7 @@
+pub(crate) use skipped_downloads::SkippedDownloads;
+
+mod skipped_downloads;
+
 use clap::ValueEnum;
 use pnpm_config::ColorMode;
 use pnpm_default_reporter::{DefaultReporter, MaxLogLevel, SummaryScope};
@@ -360,9 +364,6 @@ pub(crate) fn configure_color(mode: ColorMode) {
         ColorMode::Never => owo_colors::set_override(false),
     }
 }
-
-mod skipped_downloads;
-pub(crate) use skipped_downloads::SkippedDownloads;
 
 #[cfg(test)]
 mod tests;

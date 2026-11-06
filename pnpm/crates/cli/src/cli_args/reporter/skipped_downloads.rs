@@ -20,14 +20,18 @@ impl SkippedDownloads {
         SkippedDownloads(())
     }
 
-    /// The downloads skipped since [`Self::capture`] or the last call, each
-    /// naming the package and the error.
-    #[expect(clippy::unused_self, reason = "only a live capture has downloads to take")]
-    pub(crate) fn take(&self) -> Vec<String> {
-        captured()
+    /// Wrap `error` with the downloads skipped since [`Self::capture`], for
+    /// a failure that a skipped optional dependency explains.
+    #[expect(clippy::unused_self, reason = "only a live capture has downloads to explain")]
+    pub(crate) fn explain(&self, error: miette::Report) -> miette::Report {
+        let downloads = captured()
             .as_mut()
             .map(std::mem::take)
-            .unwrap_or_default()
+            .unwrap_or_default();
+        if downloads.is_empty() {
+            return error;
+        }
+        error.wrap_err(downloads.join("; "))
     }
 }
 

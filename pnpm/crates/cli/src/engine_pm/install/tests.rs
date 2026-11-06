@@ -1,6 +1,5 @@
 use super::{
     link_engine_bins, linked_bins, package_dir, package_manager_engine_config, resolve_slot,
-    with_skipped_downloads,
 };
 use crate::cli_args::reporter::{CliReporter, EventFilter, SkippedDownloads};
 use pnpm_config::Config;
@@ -242,7 +241,7 @@ fn a_missing_native_binary_names_the_download_that_failed() {
     drop(quiet);
 
     let Err(error) = link_engine_bins(&slot, "@pnpm/exe", true)
-        .map_err(|error| with_skipped_downloads(error, &skipped_downloads))
+        .map_err(|error| skipped_downloads.explain(error))
     else {
         panic!("linking an engine without its native binary must fail");
     };
