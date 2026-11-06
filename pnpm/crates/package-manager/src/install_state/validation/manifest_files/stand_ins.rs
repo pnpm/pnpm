@@ -58,7 +58,7 @@ fn stand_in<'validation>(
 ) -> Option<(PackageManifest, &'validation str)> {
     let file = validation.manifest_files.get(importer_id)?;
     let digest = validation.manifests.get(importer_id)?;
-    let fields = file.fields.as_ref()?;
+    let fields = super::current_fields(file)?;
     let unchanged = path.file_name()? == file.file_name.as_str()
         && stat.matches_stat(file.mtime_ns, file.ctime_ns, file.size)
         && stat_trusted(file.mtime_ns, file.ctime_ns, validation.recorded_at_ns);

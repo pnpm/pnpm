@@ -90,6 +90,7 @@ mod injected_deps_with_dedicated_lockfiles;
 mod injected_freshness_matrix;
 mod install;
 mod install_filters;
+mod install_project_requirements;
 mod install_root_engine;
 mod install_runtimes;
 mod install_stale_importers;
