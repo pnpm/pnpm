@@ -104,7 +104,8 @@ async fn get_search(
                 .expect("search response serializes"),
         )
     };
-    let Some(text) = pnpr_search::parse_query(&query_string).map(pnpr_search::SearchText::Package)
+    let Some(text) = pnpr_search::parse_query(&query_string)
+        .map(|query| pnpr_search::SearchText::Package(query.replace('_', "-")))
     else {
         return respond(Vec::new(), 0);
     };
@@ -277,8 +278,15 @@ async fn load_upstream_index(
     path: &str,
 ) -> Result<Option<String>, RegistryError> {
     let (upstream, namespace) = upstream_for(state, identity, source, key)?;
-    let request =
-        UpstreamDocument { name: key, relative_path: path, accept: None, limit: INDEX_FILE_LIMIT };
+    // Sparse-index paths distinguish separator aliases even when claims share a key.
+    let index_name = path.rsplit('/').next().unwrap_or(path);
+    let cache_key = CanonicalPackageName::from_stored(index_name, ECOSYSTEM);
+    let request = UpstreamDocument {
+        name: &cache_key,
+        relative_path: path,
+        accept: None,
+        limit: INDEX_FILE_LIMIT,
+    };
     let bytes = load_upstream_document(state, upstream, &namespace, request, |document| {
         decode_index_text(document.bytes, path).map(String::into_bytes)
     })
