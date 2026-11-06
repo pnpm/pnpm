@@ -340,12 +340,13 @@ oci:
 ```
 
 This hint cannot force a client to split requests. Docker and Podman uploads
-may still send a whole layer in one request. For those clients, use an upload
-endpoint whose request body limit accommodates the largest layer, such as a
-separate hostname that reaches the registry through your own
-[TLS reverse proxy](tls-and-reverse-proxy.md). That endpoint must bypass the
-Worker and Cloudflare's HTTP proxy. Raising `oci.maxBlobBytes` alone cannot
-raise Cloudflare's limit.
+may still send a whole layer in one request. For those clients, host pnpr
+outside Cloudflare Containers behind your own
+[TLS reverse proxy](tls-and-reverse-proxy.md), with a request body limit that
+accommodates the largest layer. The Container in this guide is
+[only reachable through its Worker](https://developers.cloudflare.com/containers/concepts/architecture/).
+Adding a custom domain to that Worker does not bypass its limit. Raising
+`oci.maxBlobBytes` alone cannot raise Cloudflare's limit.
 
 **Container logs are in the dashboard**, under the Worker's logs.
 `wrangler tail` shows only the Worker's own events.
