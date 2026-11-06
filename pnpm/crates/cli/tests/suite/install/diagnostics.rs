@@ -24,26 +24,26 @@ fn required_engine_mismatch_warns_on_fresh_and_frozen_install() {
             eprintln!("{reporter}, frozen={frozen}:\n{combined}");
             assert!(combined.contains("Unsupported engine for"), "{combined}");
             assert!(combined.contains("incompatible-engine"), "{combined}");
-            if reporter == "--reporter=ndjson" {
-                let records = ndjson_records(output.get_output());
-                let warning = records
-                    .iter()
-                    .find(|record| record["name"] == "pnpm:install-check")
-                    .expect("install-check warning");
-                assert_eq!(warning["level"], "warn");
-                let prefix = dunce::canonicalize(&fixture.workspace).unwrap();
-                assert_eq!(warning["prefix"], prefix.display().to_string());
-                assert!(
-                    warning["message"]
-                        .as_str()
-                        .unwrap()
-                        .contains(r#"{"node":"20.0.0"}"#),
-                );
-            } else {
-                assert!(combined.contains("[WARN]"), "{combined}");
-            }
             assert!(
-                fixture.workspace.join("node_modules/incompatible-engine/package.json").exists()
+                fixture.workspace.join("node_modules/incompatible-engine/package.json").exists(),
+            );
+            if reporter != "--reporter=ndjson" {
+                assert!(combined.contains("[WARN]"), "{combined}");
+                continue;
+            }
+            let records = ndjson_records(output.get_output());
+            let warning = records
+                .iter()
+                .find(|record| record["name"] == "pnpm:install-check")
+                .expect("install-check warning");
+            assert_eq!(warning["level"], "warn");
+            let prefix = dunce::canonicalize(&fixture.workspace).unwrap();
+            assert_eq!(warning["prefix"], prefix.display().to_string());
+            assert!(
+                warning["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains(r#"{"node":"20.0.0"}"#),
             );
         }
     }

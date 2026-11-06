@@ -77,7 +77,7 @@ fn incompatible_required_engine_emits_install_check() {
             "name": "pnpm:install-check",
             "level": "warn",
             "prefix": "/proj",
-            "message": "Unsupported engine for required@1.0.0: wanted: {\"node\":\">=99\"} (current: {\"node\":\"20.10.0\"})",
+            "message": r#"Unsupported engine for required@1.0.0: wanted: {"node":">=99"} (current: {"node":"20.10.0"})"#,
         })],
     );
 }
