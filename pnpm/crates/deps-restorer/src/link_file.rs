@@ -12,7 +12,9 @@ use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicU8, Ordering},
 };
-use target_mode::{align_target_mode, desired_permissions, source_has_desired_mode};
+use target_mode::{
+    align_reflinked_target_mode, align_target_mode, desired_permissions, source_has_desired_mode,
+};
 
 /// Error type for [`link_file`].
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -351,7 +353,7 @@ impl ImportState {
             PackageImportMethod::Hardlink => {
                 hardlink_file::<Reporter, Sys>(logged, source, target_link)
             }
-            PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link)
+            PackageImportMethod::Clone => clone_file::<Sys>(source, target_link)
                 .inspect(|()| {
                     log_method_once::<Reporter>(logged, WireImportMethod::Clone);
                 })
@@ -359,7 +361,7 @@ impl ImportState {
             PackageImportMethod::CloneOrCopy => clone_or_copy_link::<Reporter, Sys>(
                 logged,
                 &self.clone_or_copy,
-                source_file,
+                source,
                 target_link,
             ),
             PackageImportMethod::Copy => copy_file(source_file, target_link)
@@ -452,9 +454,9 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
 
 /// [`FsReflink::reflink`] for the explicit `Clone` method, then
 /// alignment with the store-entry mode.
-fn clone_file<Sys: FsReflink>(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    Sys::reflink(source_file, target_link)?;
-    align_target_mode(source_file, target_link)
+fn clone_file<Sys: FsReflink>(source: &StoreFile, target_link: &Path) -> io::Result<()> {
+    Sys::reflink(&source.path, target_link)?;
+    align_reflinked_target_mode(source, target_link)
 }
 
 #[cfg(unix)]
@@ -545,7 +547,7 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
     loop {
         match state.load(Ordering::Relaxed) {
             LINK_STATE_CLONE => {
-                if clone_tier::<Reporter, Sys>(logged, source, target)? {
+                if clone_tier::<Reporter, Sys>(logged, source_file, target)? {
                     return Ok(WireImportMethod::Clone);
                 }
                 downgrade_auto_tier(state, LINK_STATE_CLONE);
@@ -571,12 +573,12 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
 /// and mask the real error behind `AlreadyExists`.
 fn clone_tier<Reporter: self::Reporter, Sys: FsReflink>(
     logged: &AtomicU8,
-    source: &Path,
+    source: &StoreFile,
     target: &Path,
 ) -> io::Result<bool> {
-    match Sys::reflink(source, target) {
+    match Sys::reflink(&source.path, target) {
         Ok(()) => {
-            align_target_mode(source, target)?;
+            align_reflinked_target_mode(source, target)?;
             log_method_once::<Reporter>(logged, WireImportMethod::Clone);
             Ok(true)
         }
@@ -625,7 +627,7 @@ fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
 fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink>(
     logged: &AtomicU8,
     state: &AtomicU8,
-    source: &Path,
+    source: &StoreFile,
     target: &Path,
 ) -> io::Result<WireImportMethod> {
     loop {
@@ -636,7 +638,7 @@ fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink>(
                 }
                 state.fetch_max(LINK_STATE_COPY, Ordering::Relaxed);
             }
-            _ => return copy_and_log::<Reporter>(logged, source, target),
+            _ => return copy_and_log::<Reporter>(logged, &source.path, target),
         }
     }
 }
