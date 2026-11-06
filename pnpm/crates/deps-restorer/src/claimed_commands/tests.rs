@@ -74,6 +74,11 @@ fn prune_keeps_the_commands_claimed_under_any_path_of_the_directory() {
         .unwrap();
 
     let bins_dir = modules_dir.join(".bin");
+    let remaining: Vec<_> = fs::read_dir(&bins_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    dbg!(&bins_dir, &remaining);
     assert!(bins_dir.join("a").exists());
     assert!(bins_dir.join("b").exists());
     assert!(!bins_dir.join("stale").exists());
