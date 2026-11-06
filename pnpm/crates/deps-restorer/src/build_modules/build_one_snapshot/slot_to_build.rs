@@ -1,5 +1,9 @@
 //! Taking a global-virtual-store slot for a build.
 
+use std::path::Path;
+
+use pnpm_lockfile::LockfileResolution;
+
 use super::{
     super::{
         BuildModulesError, NEEDS_BUILD_MARKER, PackageKey, PathBuf, is_started_build_marker,
@@ -40,6 +44,9 @@ pub(super) fn slot_to_build(
     let started = is_started_build_marker(&marker)
         .map_err(|source| BuildModulesError::ReadBuildMarker { path: marker.clone(), source })?;
     if started || (awaiting_build && !marker.is_file()) {
+        return Ok(None);
+    }
+    if built_by_an_earlier_install(context, candidate, &marker)? {
         return Ok(None);
     }
     mark_global_virtual_store_build_started(context.pkg_roots(), snapshot_key);
