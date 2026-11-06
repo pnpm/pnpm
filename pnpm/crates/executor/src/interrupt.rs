@@ -65,9 +65,59 @@ static INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
 /// from one that failed on its own after an earlier, handled interrupt.
 /// The user ended the former, so its status is not a lifecycle failure to
 /// report, and pnpm ends with it all the same (pnpm/pnpm#16579).
+///
+/// A signal the kernel has queued for pnpm but whose handler has not run
+/// yet counts as arrived. `Ctrl+C` reaches pnpm and the script together,
+/// and the kernel may hand pnpm's copy to a thread other than the one
+/// that waits for the script, so the script's exit can be read before
+/// that handler runs.
 #[must_use]
 pub fn interrupt_count() -> usize {
-    INTERRUPTS.load(Ordering::Relaxed)
+    // A handler that runs between the two reads has moved its signal from
+    // pending to counted, so the sample is retaken until it is stable.
+    loop {
+        let handled = INTERRUPTS.load(Ordering::Relaxed);
+        let pending = pending_interrupts();
+        if INTERRUPTS.load(Ordering::Relaxed) == handled {
+            return handled + pending;
+        }
+    }
+}
+
+/// How many of the signals [`install_handler`] handles are queued for pnpm
+/// and not yet handled.
+#[cfg(unix)]
+fn pending_interrupts() -> usize {
+    // `sigpending` reports only the signals the calling thread blocks, so
+    // they are blocked around the call. Restoring the mask lets this
+    // thread run the handler for any of them.
+    // SAFETY: every call takes stack locals that outlive it.
+    unsafe {
+        let mut handled: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&raw mut handled);
+        for signal in HANDLED_SIGNALS {
+            libc::sigaddset(&raw mut handled, signal);
+        }
+        let mut previous: libc::sigset_t = std::mem::zeroed();
+        if libc::pthread_sigmask(libc::SIG_BLOCK, &raw const handled, &raw mut previous) != 0 {
+            return 0;
+        }
+        let mut pending: libc::sigset_t = std::mem::zeroed();
+        let read = libc::sigpending(&raw mut pending) == 0;
+        libc::pthread_sigmask(libc::SIG_SETMASK, &raw const previous, ptr::null_mut());
+        if !read {
+            return 0;
+        }
+        HANDLED_SIGNALS
+            .into_iter()
+            .filter(|&signal| libc::sigismember(&raw const pending, signal) == 1)
+            .count()
+    }
+}
+
+#[cfg(not(unix))]
+fn pending_interrupts() -> usize {
+    0
 }
 
 /// One running child: the process to signal, negated to address the whole
@@ -305,11 +355,14 @@ pub fn exit_like(exit: ScriptExit) -> ! {
 }
 
 #[cfg(unix)]
+const HANDLED_SIGNALS: [libc::c_int; 3] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP];
+
+#[cfg(unix)]
 fn install_handler() {
     pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
-        for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+        for signal in HANDLED_SIGNALS {
             install_handler_for(signal);
         }
     });
@@ -468,6 +521,9 @@ use windows::install_handler;
 
 #[cfg(target_family = "wasm")]
 mod wasm;
+
+#[cfg(all(test, unix))]
+mod tests;
 #[cfg(target_family = "wasm")]
 use wasm::install_handler;
 
