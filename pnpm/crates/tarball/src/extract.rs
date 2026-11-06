@@ -177,12 +177,12 @@ pub(crate) fn extract_tarball_entries_with_bins(
 
 /// [`extract_tarball_entries_with_bins`], running `side` on the calling
 /// thread while the entries are written.
-pub(crate) fn extract_tarball_entries_alongside<Side: Send>(
+pub(crate) fn extract_tarball_entries_alongside<Side>(
     tar_data: &[u8],
     limits: TarLimits,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-    side: impl FnOnce() -> Side + Send,
+    side: impl FnOnce() -> Side,
 ) -> Result<(ExtractedEntries, Side), TarballError> {
     let (pending, manifest, requires_build) =
         collect_pending_tar_entries(tar_data, limits, ignore_file_pattern)?;
@@ -284,10 +284,10 @@ fn write_pending_files(
 /// [`write_pending_files`], running `side` on the calling thread while
 /// the [`cas_write_pool`] writes a large slice. The calling thread would
 /// otherwise wait idle for the pool, so `side` costs no pool capacity.
-fn write_pending_files_alongside<Side: Send>(
+fn write_pending_files_alongside<Side>(
     store_dir: &StoreDir,
     pending: &[PendingFile<'_>],
-    side: impl FnOnce() -> Side + Send,
+    side: impl FnOnce() -> Side,
 ) -> (Result<WrittenEntries, TarballError>, Side) {
     const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
     let write_all = || -> Result<WrittenEntries, TarballError> {
