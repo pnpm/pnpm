@@ -497,6 +497,3 @@ pub fn parse_upload(parts: Vec<multipart::FormPart>) -> Result<Upload, UploadErr
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod archive_tests;

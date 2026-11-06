@@ -1,5 +1,8 @@
 //! Bounded reads of distribution metadata without extracting files.
 
+#[cfg(test)]
+mod tests;
+
 use crate::DistributionKind;
 use std::io::{Cursor, Read};
 

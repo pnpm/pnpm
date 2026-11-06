@@ -1,7 +1,4 @@
-use super::{
-    DistributionKind,
-    archive::{metadata_from_sdist, metadata_from_zip},
-};
+use super::{DistributionKind, metadata_from_sdist, metadata_from_zip};
 use std::io::{Cursor, Write};
 
 fn zip_metadata(entries: &[(&str, &str)]) -> Vec<u8> {
