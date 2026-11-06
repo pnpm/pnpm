@@ -570,6 +570,57 @@ test('native deploy binds a linked workspace package peer to the version its par
   expect(deployedPeerVersion('project-3')).toBe('1.0.1')
 })
 
+test('native deploy binds the peer of a linked workspace package installed from its publish directory', async () => {
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    peerDependencies: {
+      '@pnpm.e2e/peer-a': '*',
+    },
+  }
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0', private: true } },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-3': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    { ...project2Manifest, publishConfig: { directory: 'dist' } },
+    {
+      // Puts a second resolution of the peer into the deployed graph.
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+  fs.mkdirSync('project-2/dist')
+  fs.writeFileSync('project-2/dist/package.json', JSON.stringify(project2Manifest))
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - project-1\n  - project-2\n  - project-3\n')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  expect(deployedPeerVersion('project-2')).toBe('1.0.0')
+})
+
 // project-2 lists its peer as a dev dependency too. Its injected resolution
 // matches its own importer, so the injected workspace links it into project-1.
 // The deploy binds the peer to that shared resolution, even though project-4

@@ -141,6 +141,7 @@ fn create_file_url_key_prefers_workspace_project_name() {
         ProjectPathKey::new(&project_root),
         ProjectInfo {
             root_dir: project_root.clone(),
+            linked_publish_dir: None,
             name: Some("workspace-name".to_string()),
             has_bin: false,
             peer_dependencies: Vec::new(),

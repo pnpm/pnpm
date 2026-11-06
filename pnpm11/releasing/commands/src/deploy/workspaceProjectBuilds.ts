@@ -5,19 +5,24 @@
  * which a name rule in `allowBuilds` does not approve.
  *
  * Each approval is the exact dependency path of a discovered workspace
- * project's root directory. A `file:` dependency on any other directory stays
- * unapproved. A denial in `allowBuilds` wins over the approval, whether it
- * names the project's deployed key or the key the source workspace gives it.
+ * project's root directory, or of the publish directory that dependents link
+ * it from. A publish directory qualifies only when it is a real directory
+ * inside the project root and outside `node_modules`. A `file:` dependency on
+ * any other directory stays unapproved. A denial in `allowBuilds` wins over
+ * the approval, whether it names the project's deployed key or a key the
+ * source workspace gives it.
  */
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import * as dp from '@pnpm/deps.path'
+import { isError } from '@pnpm/error'
 import type { DirectoryResolution, PackageSnapshots } from '@pnpm/lockfile.types'
 import type { DepPath } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
-import { createFileUrlDepPath, type DeployAllProjects } from './convertDeploySnapshots.js'
+import { createFileUrlDepPath, type DeployAllProjects, getLinkedPublishDir } from './convertDeploySnapshots.js'
 
 type AllowBuilds = Record<string, boolean | string>
 
@@ -101,13 +106,42 @@ function approve (allowBuilds: AllowBuilds | undefined, keys: ProjectBuildKey[])
 /** The keys an install in `lockfileDir` gives the project as an injected `file:` dependency. */
 function sourceProjectKeys (project: DeployAllProjects[number], lockfileDir: string): string[] {
   if (!project.manifest.name) return []
-  return [project.rootDir, project.rootDirRealPath]
-    .map(rootDir => `${project.manifest.name}@file:${normalizePath(path.relative(lockfileDir, rootDir))}`)
+  return projectPackageDirs(project)
+    .map(packageDir => `${project.manifest.name}@file:${normalizePath(path.relative(lockfileDir, packageDir))}`)
 }
 
 function indexProjectsByRootDir (allProjects: DeployAllProjects): Map<string, DeployAllProjects[number]> {
-  return new Map(allProjects.flatMap(project => [
-    [project.rootDir as string, project],
-    [project.rootDirRealPath as string, project],
-  ]))
+  return new Map(allProjects.flatMap(project => projectPackageDirs(project).map(packageDir => [packageDir, project])))
+}
+
+/** Every spelling of the directories a dependent may install the project from. */
+function projectPackageDirs (project: DeployAllProjects[number]): string[] {
+  const packageDirs: string[] = [project.rootDir, project.rootDirRealPath]
+  const publishDir = getLinkedPublishDir(project)
+  if (publishDir != null && isOwnPublishDir(project.rootDirRealPath, publishDir)) {
+    packageDirs.push(path.join(project.rootDir, path.relative(project.rootDirRealPath, publishDir)), publishDir)
+  }
+  return packageDirs
+}
+
+/**
+ * Whether `publishDir` is a real directory inside the project root, reached
+ * through no symlink and no `node_modules`. `node_modules` matches in any
+ * case, as a case-insensitive file system resolves every spelling to it.
+ */
+function isOwnPublishDir (rootDirRealPath: string, publishDir: string): boolean {
+  const relativePath = path.relative(rootDirRealPath, publishDir)
+  if (relativePath === '' || path.isAbsolute(relativePath)) return false
+  const segments = relativePath.split(path.sep)
+  if (segments[0] === '..' || segments.some(segment => segment.toLowerCase() === 'node_modules')) return false
+  return realPathOrUndefined(publishDir) === publishDir
+}
+
+function realPathOrUndefined (dir: string): string | undefined {
+  try {
+    return fs.realpathSync(dir)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return undefined
+    throw err
+  }
 }

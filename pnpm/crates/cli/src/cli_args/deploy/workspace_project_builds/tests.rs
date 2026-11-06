@@ -30,6 +30,7 @@ impl Workspace {
             ProjectPathKey::new(&project_root),
             ProjectInfo {
                 root_dir: project_root,
+                linked_publish_dir: None,
                 name: Some(name.to_string()),
                 has_bin: false,
                 peer_dependencies: Vec::new(),
@@ -39,6 +40,39 @@ impl Workspace {
         );
         let deploy_dir = root.join("deploy");
         Self { _tmp: tmp, root, deploy_dir, projects_by_path }
+    }
+
+    /// A workspace whose `lib` project dependents link from
+    /// `linked_publish_dir`, relative to the workspace root. The directory
+    /// is created.
+    fn with_linked_publish_dir(linked_publish_dir: &str) -> Self {
+        let mut workspace = Self::with_project("lib");
+        let linked_publish_dir = workspace.root.join(linked_publish_dir);
+        std::fs::create_dir_all(&linked_publish_dir).expect("create the publish directory");
+        let project_root = workspace.root.join("packages/lib");
+        std::fs::create_dir_all(&project_root).expect("create the project root");
+        workspace.projects_by_path
+            .get_mut(&ProjectPathKey::new(&project_root))
+            .expect("the lib project")
+            .linked_publish_dir = Some(linked_publish_dir);
+        workspace
+    }
+
+    /// Approves the deployed package installed from `relative_path`.
+    fn approve_package_at(&self, relative_path: &str) -> HashMap<String, bool> {
+        self.approve_package_at_with(&[], relative_path)
+    }
+
+    /// Approves the deployed package installed from `relative_path`, given
+    /// `allow_builds`.
+    fn approve_package_at_with(
+        &self,
+        allow_builds: &[(&str, bool)],
+        relative_path: &str,
+    ) -> HashMap<String, bool> {
+        let key = self.file_key(relative_path);
+        let lockfile = Self::lockfile(&[(&key, &format!("../{relative_path}"))]);
+        self.approve(allow_builds, &lockfile)
     }
 
     /// The key the deploy generates for the directory at `relative_path`
@@ -145,6 +179,7 @@ fn keeps_a_source_workspace_denial_of_a_legacy_workspace_project() {
     let workspace_projects = [NamedProjectRoot {
         name: "lib".to_string(),
         root_dir: workspace.root.join("packages/lib"),
+        linked_publish_dir: None,
     }];
     let mut allow_builds = approvals(&[("lib@file:packages/lib", false)]);
 
@@ -163,10 +198,15 @@ fn keeps_a_source_workspace_denial_of_a_legacy_workspace_project() {
 fn approves_a_legacy_workspace_project_relative_to_the_lockfile_dir() {
     let workspace = Workspace::with_project("lib");
     let workspace_projects = [
-        NamedProjectRoot { name: "lib".to_string(), root_dir: workspace.root.join("packages/lib") },
+        NamedProjectRoot {
+            name: "lib".to_string(),
+            root_dir: workspace.root.join("packages/lib"),
+            linked_publish_dir: None,
+        },
         NamedProjectRoot {
             name: "denied".to_string(),
             root_dir: workspace.root.join("packages/denied"),
+            linked_publish_dir: None,
         },
     ];
     let mut allow_builds = approvals(&[("denied", false)]);
@@ -194,6 +234,7 @@ fn does_not_approve_a_directory_whose_name_only_prints_like_a_project_root() {
         ProjectPathKey::new(&project_root),
         ProjectInfo {
             root_dir: project_root,
+            linked_publish_dir: None,
             name: Some("lib".to_string()),
             has_bin: false,
             peer_dependencies: Vec::new(),
@@ -206,4 +247,107 @@ fn does_not_approve_a_directory_whose_name_only_prints_like_a_project_root() {
     let lockfile = Workspace::lockfile(&[(&look_alike, "../lib\u{FFFD}")]);
 
     assert_eq!(workspace.approve(&[], &lockfile), approvals(&[]));
+}
+
+#[test]
+fn approves_the_publish_directory_of_a_workspace_project() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/dist");
+    let lib = workspace.file_key("packages/lib/dist");
+
+    assert_eq!(workspace.approve_package_at("packages/lib/dist"), approvals(&[(&lib, true)]));
+}
+
+#[test]
+fn does_not_approve_a_publish_directory_outside_the_project_root() {
+    let workspace = Workspace::with_linked_publish_dir("vendor/lib");
+
+    assert_eq!(workspace.approve_package_at("vendor/lib"), approvals(&[]));
+}
+
+#[test]
+fn does_not_approve_a_publish_directory_inside_node_modules() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/node_modules/dep");
+
+    assert_eq!(workspace.approve_package_at("packages/lib/node_modules/dep"), approvals(&[]));
+}
+
+#[test]
+fn does_not_approve_a_publish_directory_inside_node_modules_spelled_in_another_case() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/NODE_MODULES/dep");
+
+    assert_eq!(workspace.approve_package_at("packages/lib/NODE_MODULES/dep"), approvals(&[]));
+}
+
+#[test]
+fn keeps_a_source_workspace_denial_of_the_project_root_for_its_publish_directory() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/dist");
+
+    assert_eq!(
+        workspace.approve_package_at_with(&[("lib@file:packages/lib", false)], "packages/lib/dist"),
+        approvals(&[("lib@file:packages/lib", false)]),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn does_not_approve_a_publish_directory_reached_through_a_symlink() {
+    let workspace = Workspace::with_project("lib");
+    let vendor = workspace.root.join("vendor");
+    std::fs::create_dir_all(&vendor).expect("create the symlink target");
+    std::fs::create_dir_all(workspace.root.join("packages/lib")).expect("create the project root");
+    std::os::unix::fs::symlink(&vendor, workspace.root.join("packages/lib/dist"))
+        .expect("create the symlink");
+    let mut workspace = workspace;
+    let project_root = workspace.root.join("packages/lib");
+    workspace.projects_by_path
+        .get_mut(&ProjectPathKey::new(&project_root))
+        .expect("the lib project")
+        .linked_publish_dir = Some(project_root.join("dist"));
+
+    assert_eq!(workspace.approve_package_at("packages/lib/dist"), approvals(&[]));
+}
+
+#[test]
+fn approves_the_publish_directory_of_a_legacy_workspace_project() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/dist");
+    let workspace_projects = [NamedProjectRoot {
+        name: "lib".to_string(),
+        root_dir: workspace.root.join("packages/lib"),
+        linked_publish_dir: Some(workspace.root.join("packages/lib/dist")),
+    }];
+    let mut allow_builds = approvals(&[]);
+
+    approve_legacy_workspace_project_builds(
+        &mut allow_builds,
+        &workspace_projects,
+        &workspace.root,
+        &workspace.root,
+    )
+    .expect("approve legacy workspace project builds");
+
+    assert_eq!(
+        allow_builds,
+        approvals(&[("lib@file:packages/lib", true), ("lib@file:packages/lib/dist", true)]),
+    );
+}
+
+#[test]
+fn keeps_a_source_workspace_denial_of_the_publish_directory_of_a_legacy_workspace_project() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/dist");
+    let workspace_projects = [NamedProjectRoot {
+        name: "lib".to_string(),
+        root_dir: workspace.root.join("packages/lib"),
+        linked_publish_dir: Some(workspace.root.join("packages/lib/dist")),
+    }];
+    let mut allow_builds = approvals(&[("lib@file:packages/lib/dist", false)]);
+
+    approve_legacy_workspace_project_builds(
+        &mut allow_builds,
+        &workspace_projects,
+        &workspace.root,
+        &workspace.root,
+    )
+    .expect("approve legacy workspace project builds");
+
+    assert_eq!(allow_builds, approvals(&[("lib@file:packages/lib/dist", false)]));
 }
