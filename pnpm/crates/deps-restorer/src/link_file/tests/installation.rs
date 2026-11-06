@@ -706,6 +706,42 @@ fn is_call_error_rejects_capability_codes() {
         let eacces = io::Error::from_raw_os_error(libc::EACCES);
         assert!(!is_call_error(&eacces), "EACCES should allow a copy fallback");
     }
+    #[cfg(windows)]
+    {
+        let access_denied = io::Error::from_raw_os_error(
+            windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED.cast_signed(),
+        );
+        assert!(!is_call_error(&access_denied), "ERROR_ACCESS_DENIED should allow a fallback");
+    }
+}
+/// A hardlink the store file's ACL refuses falls to the next tier, as
+/// pnpm 11's `linkOrCopy` does, instead of failing the install.
+#[test]
+#[cfg(windows)]
+fn access_denied_hard_link_falls_through_the_auto_ladder() {
+    struct AccessDeniedHardLink;
+    impl super::super::FsHardLink for AccessDeniedHardLink {
+        fn hard_link(_source: &std::path::Path, _target: &std::path::Path) -> io::Result<()> {
+            Err(io::Error::from_raw_os_error(
+                windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED.cast_signed(),
+            ))
+        }
+    }
+    impl super::super::FsReflink for AccessDeniedHardLink {
+        fn reflink(source: &std::path::Path, target: &std::path::Path) -> io::Result<()> {
+            <Host as super::super::FsReflink>::reflink(source, target)
+        }
+    }
+    let state = AtomicU8::new(LINK_STATE_HARDLINK);
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "src.txt", b"no hardlinks here");
+    let dst = tmp.path().join("dst.txt");
+
+    auto_link::<SilentReporter, AccessDeniedHardLink>(&AtomicU8::new(0), &state, &src, &dst)
+        .expect("a refused hardlink falls through to a tier that works");
+
+    assert_eq!(fs::read(&dst).unwrap(), b"no hardlinks here");
+    assert_ne!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK);
 }
 #[test]
 #[cfg(unix)]

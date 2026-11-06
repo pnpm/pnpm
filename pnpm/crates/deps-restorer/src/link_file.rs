@@ -479,14 +479,19 @@ fn same_inode(_source: &Path, _target: &Path) -> bool {
     false
 }
 
-/// Unix permission errors that may deny linking while still allowing copying.
+/// Permission errors that may deny linking while still allowing copying.
 /// Android's `SELinux` policy can reject hardlinks with `EACCES`; filesystems
 /// without link support and restricted containers can return `EPERM`.
+/// On Windows, a store file's ACL can refuse a hardlink with
+/// `ERROR_ACCESS_DENIED`.
 /// The copy tier reports any remaining access error on the paths.
 fn is_link_permission_error(err: &io::Error) -> bool {
     #[cfg(unix)]
     return matches!(err.raw_os_error(), Some(libc::EPERM | libc::EACCES));
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    return err.raw_os_error()
+        == Some(windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED.cast_signed());
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = err;
         false
