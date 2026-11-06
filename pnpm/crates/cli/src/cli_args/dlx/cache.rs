@@ -8,6 +8,15 @@ use super::{
 };
 use pnpm_graph_hasher::{detect_node_major, engine_name};
 
+pub(super) fn uses_latest_tag(spec: &str) -> bool {
+    let parsed = parse_wanted_dependency(spec);
+    parsed.alias.is_some() && parsed.bare_specifier.as_deref() == Some("latest")
+}
+
+pub(super) fn cache_max_age(pkgs: &[String], configured_max_age: u64) -> u64 {
+    if pkgs.iter().any(|pkg| uses_latest_tag(pkg)) { 0 } else { configured_max_age }
+}
+
 /// Install the packages into a fresh prepare directory and point the
 /// cache link at it.
 pub(super) async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
@@ -430,7 +439,8 @@ pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<PathBuf> {
     let command_dir = command_cache_dir(config, pkgs, allow_build, supported_architectures)?;
     let cache_link = command_dir.join("pkg");
-    match get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now()) {
+    let max_age = cache_max_age(pkgs, config.dlx_cache_max_age);
+    match get_valid_cache_dir(&cache_link, max_age, SystemTime::now()) {
         Some(cached_dir) if cached_dir.join("pnpm-lock.yaml").is_file() => {
             configure_cache_install(
                 config,

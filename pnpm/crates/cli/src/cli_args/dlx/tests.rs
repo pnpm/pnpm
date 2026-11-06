@@ -1,6 +1,8 @@
 use super::{DlxArgs, DlxError, get_bin_name, scopeless};
 use crate::cli_args::dlx::{
-    cache::{create_cache_key, get_prepare_dir, get_valid_cache_dir},
+    cache::{
+        cache_max_age, create_cache_key, get_prepare_dir, get_valid_cache_dir, uses_latest_tag,
+    },
     clean::clean_expired_dlx_cache,
 };
 use clap::Parser;
@@ -244,6 +246,20 @@ fn get_valid_cache_dir_is_none_for_missing_or_plain_dir() {
         get_valid_cache_dir(&plain, 1440, SystemTime::now()).is_none(),
         "a non-symlink must not be treated as a valid cache",
     );
+}
+
+#[test]
+fn latest_tag_specs_do_not_reuse_an_aged_dlx_cache() {
+    for spec in ["pkg@latest", "@scope/pkg@latest"] {
+        assert!(uses_latest_tag(spec), "{spec} resolves through the latest tag");
+    }
+    for spec in ["pkg", "@scope/pkg", "pkg@1.2.3", "pkg@^1.2.0", "pkg@next", "@scope/pkg@2.0.0"] {
+        assert!(!uses_latest_tag(spec), "{spec} does not resolve through the latest tag");
+    }
+    assert_eq!(cache_max_age(&["pkg@latest".to_string()], 1440), 0);
+    assert_eq!(cache_max_age(&["pkg@1.2.3".to_string()], 1440), 1440);
+    assert_eq!(cache_max_age(&["pkg".to_string()], 1440), 1440);
+    assert_eq!(cache_max_age(&["pkg@latest".to_string(), "pkg@1.2.3".to_string()], 1440), 0);
 }
 
 #[cfg(unix)]

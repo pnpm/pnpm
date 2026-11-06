@@ -305,6 +305,7 @@ switching branches or downgrading dependencies.
 
 The time in minutes after which dlx cache expires.
 After executing a dlx command, pnpm keeps a cache that omits the installation step for subsequent calls to the same dlx command.
+Packages requested with `@latest` expire from this cache immediately so pnpm can check for a newer release on the next invocation.
 
 ### virtualStoreType
 
