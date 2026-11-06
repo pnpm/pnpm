@@ -1,6 +1,6 @@
 use super::{
     BTreeMap, IgnoreEntryFilter, MAX_UNTRUSTED_PREALLOC_BYTES, PackageBin, PackageFilesIndex,
-    StoreDir, TarLimits, TarballError, extract_tarball_entries_with_bins,
+    StoreDir, TarLimits, TarballError, extract_tarball_entries_alongside,
     stream_extract_gzipped_tarball_with_tar,
 };
 use ssri::Integrity;
@@ -168,13 +168,14 @@ pub(crate) fn extract_gzipped_tarball_with_tar(
     }
     match decompress_gzip(gz_data, unpacked_size) {
         Ok(tar_data) => {
-            let (files, index, bins) = extract_tarball_entries_with_bins(
+            let ((files, index, bins), tar) = extract_tarball_entries_alongside(
                 &tar_data,
                 limits,
                 store_dir,
                 ignore_file_pattern,
+                || eager_tar_integrity(gz_data, &tar_data),
             )?;
-            Ok((files, index, bins, eager_tar_integrity(gz_data, &tar_data)))
+            Ok((files, index, bins, tar))
         }
         Err(error) if is_eager_decode_limit_exceeded(&error) => {
             tracing::debug!(
