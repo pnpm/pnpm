@@ -4,6 +4,9 @@
 #[path = "auth_publish/scoped_publishing.rs"]
 mod scoped_publishing;
 
+#[path = "auth_publish/package_names.rs"]
+mod package_names;
+
 #[path = "auth_publish/publish_validation.rs"]
 mod publish_validation;
 
