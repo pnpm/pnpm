@@ -8,51 +8,83 @@
 //! while the slot carries [`crate::NEEDS_BUILD_MARKER`].
 
 use crate::VirtualStoreLayout;
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use pnpm_fs::DirLock;
 use pnpm_lockfile::PackageKey;
-use std::time::Duration;
+use std::{io, time::Duration};
 
 /// The lock directory's name inside the slot directory, next to its
 /// `node_modules`.
 const SLOT_LOCK_DIR: &str = ".pnpm-build.lock";
 
-/// How long a writer waits for another process's build of the slot
-/// before it writes unserialized.
+/// How long each acquisition attempt waits before checking the lock again.
 const WAIT: Duration = Duration::from_mins(10);
 
 /// Comfortably above how long a build can legitimately take, so a holder
 /// that cannot prove it is alive never has its lock stolen mid-build.
 const ABANDONED_AFTER: Duration = Duration::from_mins(30);
 
-/// Take the lock of `key`'s slot. `None` when the global virtual store
-/// is off, or the lock could not be taken, in which case the caller
-/// proceeds unserialized.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("Failed to lock global virtual store slot for {dep_path}: {source}")]
+#[diagnostic(code(ERR_PNPM_GVS_SLOT_LOCK))]
+pub(crate) struct GvsSlotLockError {
+    dep_path: String,
+    #[error(source)]
+    source: io::Error,
+}
+
+/// Take the lock of `key`'s slot. `None` only when the global virtual
+/// store is off. A timeout starts another wait; an acquisition error
+/// prevents the caller from mutating the shared slot.
 pub(crate) fn lock_global_virtual_store_slot(
     layout: &VirtualStoreLayout,
     key: &PackageKey,
-) -> Option<DirLock> {
+) -> Result<Option<DirLock>, GvsSlotLockError> {
     if !layout.enable_global_virtual_store() {
-        return None;
+        return Ok(None);
     }
     let path = layout.slot_dir(key).join(SLOT_LOCK_DIR);
-    match DirLock::acquire(path, WAIT, ABANDONED_AFTER) {
-        Ok(Some(lock)) => Some(lock),
-        Ok(None) => {
-            tracing::debug!(
+    acquire_until_locked(|| DirLock::acquire(path.clone(), WAIT, ABANDONED_AFTER))
+        .map(Some)
+        .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })
+}
+
+fn acquire_until_locked<T>(mut acquire: impl FnMut() -> io::Result<Option<T>>) -> io::Result<T> {
+    loop {
+        match acquire()? {
+            Some(lock) => return Ok(lock),
+            None => tracing::debug!(
                 target: "pacquet::build",
-                dep_path = %key,
-                "timed out waiting for the global virtual store slot lock",
-            );
-            None
+                "still waiting for the global virtual store slot lock",
+            ),
         }
-        Err(error) => {
-            tracing::debug!(
-                target: "pacquet::build",
-                ?error,
-                dep_path = %key,
-                "failed to take the global virtual store slot lock",
-            );
-            None
-        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::acquire_until_locked;
+    use std::{cell::Cell, io};
+
+    #[test]
+    fn a_timed_out_slot_lock_is_retried() {
+        let attempts = Cell::new(0);
+        let lock = acquire_until_locked(|| {
+            attempts.set(attempts.get() + 1);
+            Ok((attempts.get() == 2).then_some("lock"))
+        })
+        .expect("second attempt acquires the lock");
+
+        assert_eq!(lock, "lock");
+        assert_eq!(attempts.get(), 2);
+    }
+
+    #[test]
+    fn a_slot_lock_error_is_returned() {
+        let error = acquire_until_locked::<()>(|| Err(io::Error::other("denied")))
+            .expect_err("lock errors must stop slot mutation");
+
+        assert_eq!(error.kind(), io::ErrorKind::Other);
     }
 }

@@ -145,7 +145,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
         cache_key = key,
         "side-effects cache hit; skipping build",
     );
-    let Some(_slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay) else {
+    let Some(_slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay)? else {
         return Ok(true);
     };
     // The overlay carries the patched / built contents, so it has to reach
@@ -207,22 +207,23 @@ fn lock_slot_missing_overlay(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
-) -> Option<Option<pnpm_fs::DirLock>> {
+) -> Result<Option<Option<pnpm_fs::DirLock>>, BuildModulesError> {
     if global_slot_carries_overlay(context, snapshot_key, overlay) {
-        return None;
+        return Ok(None);
     }
-    let lock = context.directories.pkg_roots_by_key
-        .is_none()
-        .then(|| {
-            crate::gvs_slot_lock::lock_global_virtual_store_slot(
-                context.directories.layout,
-                snapshot_key,
-            )
-        });
+    let lock = if context.directories.pkg_roots_by_key.is_none() {
+        crate::gvs_slot_lock::lock_global_virtual_store_slot(
+            context.directories.layout,
+            snapshot_key,
+        )
+        .map_err(BuildModulesError::SlotLock)?
+    } else {
+        None
+    };
     if global_slot_carries_overlay(context, snapshot_key, overlay) {
-        return None;
+        return Ok(None);
     }
-    Some(lock.flatten())
+    Ok(Some(lock))
 }
 pub(super) fn materialize_overlay_into_slot<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
