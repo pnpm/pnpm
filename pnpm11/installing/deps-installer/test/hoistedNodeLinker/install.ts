@@ -485,6 +485,7 @@ test('an install removes a project dependency that an earlier layout left in the
       if (location === recordedCopy) locations[index] = path.normalize(legacyCopy)
     })
   }
+  modulesFile.hoistedLocations['not-a-package@1.0.0'] = ['', '.', 'project-1']
   fs.writeFileSync('vendor/.modules.yaml', JSON.stringify(modulesFile))
 
   project2Manifest = {
@@ -497,6 +498,55 @@ test('an install removes a project dependency that an earlier layout left in the
 
   expect(fs.existsSync(legacyCopy)).toBeFalsy()
   expect(loadJsonFileSync<{ version: string }>('project-2/vendor/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
+  expect(fs.existsSync('project-1/package.json')).toBeTruthy()
+  expect(fs.existsSync('project-2/package.json')).toBeTruthy()
+})
+
+test('a project dependency that is not hoisted stays in the project node_modules when modulesDir is absolute', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '0.0.0',
+    },
+  }
+  preparePackages([project1Manifest, project2Manifest])
+  const modulesDir = path.resolve('shared-modules')
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    modulesDir,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(loadJsonFileSync<{ version: string }>(path.join(modulesDir, '@pnpm.e2e/hello-world-js-bin/package.json')).version).toBe('1.0.0')
+  expect(loadJsonFileSync<{ version: string }>('project-2/node_modules/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
 })
 
 test('the orphan scan leaves alone a modules directory that is not inside its importer', async () => {

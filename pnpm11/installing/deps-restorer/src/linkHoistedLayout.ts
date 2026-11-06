@@ -13,6 +13,7 @@ import type { DependencyManifest, DepPath, HoistedDependencies, ProjectId } from
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
 import { getDirectDependencyAliases } from './directDependencyAliases.js'
 import { forgetReplacedHoistedLocations } from './forgetReplacedHoistedLocations.js'
+import { isStrictlyInside } from './importerModulesDir.js'
 import { linkHoistedModules } from './linkHoistedModules.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 import { symlinkDirectDependencies } from './symlinkDirectDependencies.js'
@@ -99,13 +100,14 @@ async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph
  * graph, plus every location `.modules.yaml` recorded. The graph is rebuilt
  * under the current settings, so only the record still names a directory an
  * older layout put elsewhere. A recorded location that leaves the lockfile
- * directory is ignored.
+ * directory, or names the directory itself, is ignored.
  */
 function previousPackageDirs ({ opts }: HeadlessContext, prevGraph: DependenciesGraph): string[] {
   const recorded = Object.values(opts.modulesFile?.hoistedLocations ?? {})
     .flat()
-    .filter((location) => !path.isAbsolute(location) && !location.split(/[/\\]/).includes('..'))
+    .filter((location) => !path.isAbsolute(location))
     .map((location) => path.join(opts.lockfileDir, location))
+    .filter((dir) => isStrictlyInside(dir, opts.lockfileDir))
   return [...Object.keys(prevGraph), ...recorded]
 }
 

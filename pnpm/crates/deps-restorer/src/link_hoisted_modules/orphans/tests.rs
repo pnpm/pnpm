@@ -21,7 +21,7 @@ fn write_package(dir: &Path) {
 
 /// Links an empty plan for the root and `packages/foo`, with the root's
 /// modules directory at `root_modules_dir`.
-fn link_empty_plan(lockfile_dir: &Path, root_modules_dir: &str) {
+fn link_empty_plan(lockfile_dir: &Path, root_modules_dir: &str, previous_dirs: &BTreeSet<PathBuf>) {
     let project_dir = lockfile_dir.join("packages/foo");
     let hierarchy = BTreeMap::from([
         (lockfile_dir.to_path_buf(), DepHierarchy::default()),
@@ -38,7 +38,7 @@ fn link_empty_plan(lockfile_dir: &Path, root_modules_dir: &str) {
         },
         dir_clone_cache: None,
         graph: &DependenciesGraph::new(),
-        previous_dirs: &BTreeSet::<PathBuf>::new(),
+        previous_dirs,
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &HashMap::new(),
         link_options: &LinkBinsOptions::default(),
@@ -58,7 +58,7 @@ fn a_modules_dir_holding_a_project_keeps_the_project() {
     write_package(&lockfile_dir.join("packages/foo"));
     write_package(&lockfile_dir.join("packages/stray"));
 
-    link_empty_plan(&lockfile_dir, "packages");
+    link_empty_plan(&lockfile_dir, "packages", &BTreeSet::new());
 
     assert!(lockfile_dir.join("packages/foo/package.json").exists());
     assert!(!lockfile_dir.join("packages/stray").exists());
@@ -74,9 +74,27 @@ fn a_modules_dir_that_is_not_inside_its_importer_is_not_scanned() {
         let stray = modules_dir.join("stray");
         write_package(&stray);
 
-        link_empty_plan(&lockfile_dir, root_modules_dir);
+        link_empty_plan(&lockfile_dir, root_modules_dir, &BTreeSet::new());
 
         eprintln!("modulesDir: {root_modules_dir}");
         assert!(stray.join("package.json").exists());
     }
+}
+
+#[test]
+fn a_previous_dir_that_is_the_workspace_or_holds_a_project_is_kept() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let lockfile_dir = tmp.path().join("repo");
+    write_package(&lockfile_dir);
+    write_package(&lockfile_dir.join("packages/foo"));
+    let previous_dirs = BTreeSet::from([
+        lockfile_dir.clone(),
+        lockfile_dir.join("packages"),
+        lockfile_dir.join("packages/foo"),
+    ]);
+
+    link_empty_plan(&lockfile_dir, "node_modules", &previous_dirs);
+
+    assert!(lockfile_dir.join("package.json").exists());
+    assert!(lockfile_dir.join("packages/foo/package.json").exists());
 }

@@ -28,7 +28,7 @@ import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
 
-import { importerModulesDir } from './importerModulesDir.js'
+import { importerModulesDir, isStrictlyInside } from './importerModulesDir.js'
 import { reportOptionalFetchFailure } from './reportOptionalFetchFailure.js'
 
 const limitLinking = pLimit(16)
@@ -104,7 +104,7 @@ export async function linkHoistedModules (
             prefix: parentDir,
           })
         }
-        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts.modulesDir), {
+        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts), {
           ...opts,
           holdBackMissingTargets: opts.holdBackMissingBins,
           nestedHeldBackBinsDirs: heldBackBinsDirs,
@@ -124,12 +124,14 @@ async function removeDirsOutsidePlan (
   { lockfileDir, modulesDir }: Pick<LinkHoistedModulesOptions, 'lockfileDir' | 'modulesDir'>
 ): Promise<void> {
   // TODO: remove nested node modules first
+  const holdsImporter = holdsAnyOf(Object.keys(hierarchy))
   const dirsToRemove = difference(previousDirs, Object.keys(graph))
+    .filter((dir) => !holdsImporter(dir))
   // A directory the previous install recorded is pnpm's to delete. One that only
   // the on-disk scan found is not: pnpm has no record of putting it there, so it
   // is quarantined instead, the way an alien package directory already is.
   const recordedDirs = new Set(dirsToRemove)
-  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, modulesDir))
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, holdsImporter, { lockfileDir, modulesDir }))
     .filter(({ dir }) => !recordedDirs.has(dir))
   statsLogger.debug({
     prefix: lockfileDir,
@@ -445,12 +447,14 @@ async function pickSideEffectsCacheKey (
  * the importer itself, a parent, or a directory outside the workspace, and pnpm
  * does not own the rest of what is there.
  */
-async function findUnplannedDirs (hierarchy: DepHierarchy, projectModulesDir: string | undefined): Promise<UnplannedDir[]> {
-  const importerDirs = Object.keys(hierarchy)
-  const holdsImporter = (dir: string) => importerDirs.some((importerDir) => importerDir === dir || isStrictlyInside(importerDir, dir))
+async function findUnplannedDirs (
+  hierarchy: DepHierarchy,
+  holdsImporter: (dir: string) => boolean,
+  opts: { lockfileDir: string, modulesDir?: string }
+): Promise<UnplannedDir[]> {
   const unplannedDirs = await Promise.all(
     Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
-      const modulesDir = importerModulesDir(projectDir, projectModulesDir)
+      const modulesDir = importerModulesDir(projectDir, opts)
       if (!isStrictlyInside(modulesDir, projectDir)) return []
       const isUnplanned = (dir: string) => plannedDeps[dir] == null && !holdsImporter(dir)
       return findUnplannedDirsIn(modulesDir, isUnplanned)
@@ -471,9 +475,8 @@ async function findUnplannedDirsIn (modulesDir: string, isUnplanned: (dir: strin
   return checked.filter((candidate) => candidate != null)
 }
 
-function isStrictlyInside (dir: string, parent: string): boolean {
-  const relative = path.relative(parent, dir)
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+function holdsAnyOf (importerDirs: string[]): (dir: string) => boolean {
+  return (dir) => importerDirs.some((importerDir) => path.resolve(importerDir) === path.resolve(dir) || isStrictlyInside(importerDir, dir))
 }
 
 /**

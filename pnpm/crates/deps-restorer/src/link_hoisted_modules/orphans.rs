@@ -23,6 +23,9 @@ struct UnplannedDir {
 
 /// Phase 1: clear every directory the new plan does not place.
 ///
+/// A previous directory that holds an importer, the root's included, is
+/// never cleared: `.modules.yaml` can record any path.
+///
 /// A directory the previous install recorded is pnpm's to delete. One
 /// that only the on-disk scan found is not — pnpm has no record of
 /// putting it there, so it is quarantined under `.ignored` instead, the
@@ -34,10 +37,12 @@ struct UnplannedDir {
 pub(super) fn remove_orphans(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<u64, LinkHoistedModulesError> {
+    let lockfile_dir = opts.modules_dirs.lockfile_dir();
     let recorded_dirs: BTreeSet<&PathBuf> = opts.previous_dirs
         .iter()
         .filter(|dir| !opts.graph.contains_key(*dir))
-        .filter(|dir| confined(dir, opts.modules_dirs.lockfile_dir()))
+        .filter(|dir| !holds_importer(opts, dir))
+        .filter(|dir| confined(dir, lockfile_dir))
         .collect();
     let unplanned_dirs = unplanned_dirs(opts, &recorded_dirs)?;
     recorded_dirs
@@ -66,11 +71,6 @@ fn unplanned_dirs(
     opts: &LinkHoistedModulesOpts<'_>,
     recorded_dirs: &BTreeSet<&PathBuf>,
 ) -> Result<BTreeSet<UnplannedDir>, LinkHoistedModulesError> {
-    let holds_importer = |dir: &Path| {
-        opts.hierarchy
-            .keys()
-            .any(|importer_dir| importer_dir.starts_with(dir))
-    };
     let mut unplanned_dirs = BTreeSet::new();
     for (importer_dir, planned_deps) in opts.hierarchy {
         let modules_dir = opts.modules_dirs.of(importer_dir);
@@ -79,7 +79,7 @@ fn unplanned_dirs(
         }
         for unplanned in find_unplanned_dirs(&modules_dir, planned_deps)? {
             if !recorded_dirs.contains(&unplanned.dir)
-                && !holds_importer(&unplanned.dir)
+                && !holds_importer(opts, &unplanned.dir)
                 && confined(&unplanned.dir, opts.modules_dirs.lockfile_dir())
             {
                 unplanned_dirs.insert(unplanned);
@@ -87,6 +87,12 @@ fn unplanned_dirs(
         }
     }
     Ok(unplanned_dirs)
+}
+
+fn holds_importer(opts: &LinkHoistedModulesOpts<'_>, dir: &Path) -> bool {
+    opts.hierarchy
+        .keys()
+        .any(|importer_dir| importer_dir.starts_with(dir))
 }
 
 fn is_strictly_inside(dir: &Path, parent: &Path) -> bool {
