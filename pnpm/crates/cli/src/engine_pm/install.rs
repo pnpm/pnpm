@@ -208,28 +208,30 @@ async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
     fs::create_dir_all(&tmp_install_dir)
         .into_diagnostic()
         .wrap_err("create the temporary package manager install directory")?;
-    let skipped_downloads = SkippedDownloads::capture();
-    let slot = Box::pin(run_install::<Reporter>(
-        config,
-        &tmp_install_dir,
-        package_name,
-        version,
-        // The engine runs on this host, whatever platforms the project installs for.
-        None,
-        Some(package.pinned),
-    ))
+    let install = async {
+        let slot = Box::pin(run_install::<Reporter>(
+            config,
+            &tmp_install_dir,
+            package_name,
+            version,
+            // The engine runs on this host, whatever platforms the project installs for.
+            None,
+            Some(package.pinned),
+        ))
+        .await
+        .and_then(|()| resolve_slot(&tmp_install_dir, package_name));
+        // The temp directory held only symlinks into the GVS, so removing it
+        // does not touch the installed engine. Refuse to recurse through a
+        // symlink at the temp path as defense-in-depth — even though the store
+        // is within pnpm's trust domain — mirroring the guard `patch-commit`
+        // applies before its own `remove_dir_all`.
+        let _ = remove_dir_if_not_symlink(&tmp_install_dir);
+        slot
+    };
+    install_then_link(install, |slot| {
+        link_engine_bins(&slot, package_name, package.links_native_binary)
+    })
     .await
-    .and_then(|()| resolve_slot(&tmp_install_dir, package_name));
-    // The temp directory held only symlinks into the GVS, so removing it
-    // does not touch the installed engine. Refuse to recurse through a
-    // symlink at the temp path as defense-in-depth — even though the store
-    // is within pnpm's trust domain — mirroring the guard `patch-commit`
-    // applies before its own `remove_dir_all`.
-    let _ = remove_dir_if_not_symlink(&tmp_install_dir);
-    // The host's platform binary is an optional dependency, which the install
-    // skips when its download fails, so only this link reports it missing.
-    link_engine_bins(&slot?, package_name, package.links_native_binary)
-        .map_err(|error| skipped_downloads.explain(error))
 }
 
 /// Install the engine into a private directory of this process's own,
@@ -245,8 +247,7 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
         .create_private_install(&format!("{}-{version}", pm.name()))
         .map_err(miette::Report::new)
         .wrap_err("create the private package manager install directory")?;
-    let skipped_downloads = SkippedDownloads::capture();
-    Box::pin(run_install::<Reporter>(
+    let install = Box::pin(run_install::<Reporter>(
         config,
         private_install.dir(),
         package.wrapper,
@@ -254,12 +255,24 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
         // The engine runs on this host, whatever platforms the project installs for.
         None,
         None,
-    ))
-    .await?;
-    let engine =
+    ));
+    let engine = install_then_link(install, |()| {
         link_engine_bins(private_install.dir(), package.wrapper, package.links_native_binary)
-            .map_err(|error| skipped_downloads.explain(error))?;
+    })
+    .await?;
     Ok(InstalledEngine { private_install: Some(private_install), ..engine })
+}
+
+/// Run an engine `install`, then `link` what it installed. The host's platform
+/// binary is an optional dependency, which the install skips when its download
+/// fails, so only the link reports it missing: its error names those downloads.
+async fn install_then_link<Installed>(
+    install: impl Future<Output = miette::Result<Installed>>,
+    link: impl FnOnce(Installed) -> miette::Result<InstalledEngine>,
+) -> miette::Result<InstalledEngine> {
+    let skipped_downloads = SkippedDownloads::capture();
+    let installed = install.await?;
+    link(installed).map_err(|error| skipped_downloads.explain(error))
 }
 
 /// Remove the private engine installs no process holds any more. The

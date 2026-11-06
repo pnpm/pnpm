@@ -1,3 +1,4 @@
+use pnpm_network::redact_and_sanitize;
 use pnpm_reporter::{
     LogEvent, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
 };
@@ -57,7 +58,9 @@ fn describe(log: &SkippedOptionalDependencyLog) -> String {
         SkippedOptionalPackage::ResolutionFailure { bare_specifier, .. } => bare_specifier.clone(),
     };
     match &log.details {
-        Some(details) => format!("{package} could not be downloaded: {details}"),
+        Some(details) => {
+            format!("{package} could not be downloaded: {}", redact_and_sanitize(details))
+        }
         None => format!("{package} could not be downloaded"),
     }
 }

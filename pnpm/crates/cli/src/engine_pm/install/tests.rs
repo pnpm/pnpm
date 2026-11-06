@@ -1,7 +1,8 @@
 use super::{
-    link_engine_bins, linked_bins, package_dir, package_manager_engine_config, resolve_slot,
+    install_then_link, link_engine_bins, linked_bins, package_dir, package_manager_engine_config,
+    resolve_slot,
 };
-use crate::cli_args::reporter::{CliReporter, EventFilter, SkippedDownloads};
+use crate::cli_args::reporter::{CliReporter, EventFilter};
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_reporter::{
@@ -216,32 +217,33 @@ fn normalized_arch<'architecture>(
 
 /// The engine install runs under [`EventFilter::All`], which hides the warning
 /// for a platform binary that failed to download.
-#[test]
-fn a_missing_native_binary_names_the_download_that_failed() {
+#[tokio::test]
+async fn a_missing_native_binary_names_the_download_that_failed() {
     let root = tempfile::TempDir::new().expect("tmp dir");
     let slot = root.path().join("slot");
     let wrapper_dir = package_dir(&slot, "@pnpm/exe");
     fs::create_dir_all(&wrapper_dir).expect("create wrapper dir");
     fs::write(wrapper_dir.join("package.json"), r#"{"name":"@pnpm/exe","version":"9.3.0"}"#)
         .expect("write manifest");
-    let skipped_downloads = SkippedDownloads::capture();
-    let quiet = EventFilter::All.apply();
-    CliReporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
-        level: LogLevel::Debug,
-        details: Some("ERR_PNPM_FETCH: Failed to fetch https://registry.test/linux-x64.tgz".into()),
-        package: SkippedOptionalPackage::Installed {
-            id: "@pnpm/linux-x64@9.3.0".to_string(),
-            name: "@pnpm/linux-x64".to_string(),
-            version: "9.3.0".to_string(),
-        },
-        parents: None,
-        prefix: slot.display().to_string(),
-        reason: SkippedOptionalReason::FetchFailure,
-    }));
-    drop(quiet);
+    let install = async {
+        let _quiet = EventFilter::All.apply();
+        CliReporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+            level: LogLevel::Debug,
+            details: Some("Failed to fetch https://user:secret@registry.test/linux-x64.tgz".into()),
+            package: SkippedOptionalPackage::Installed {
+                id: "@pnpm/linux-x64@9.3.0".to_string(),
+                name: "@pnpm/linux-x64".to_string(),
+                version: "9.3.0".to_string(),
+            },
+            parents: None,
+            prefix: slot.display().to_string(),
+            reason: SkippedOptionalReason::FetchFailure,
+        }));
+        Ok(())
+    };
 
-    let Err(error) = link_engine_bins(&slot, "@pnpm/exe", true)
-        .map_err(|error| skipped_downloads.explain(error))
+    let Err(error) =
+        install_then_link(install, |()| link_engine_bins(&slot, "@pnpm/exe", true)).await
     else {
         panic!("linking an engine without its native binary must fail");
     };
@@ -253,7 +255,7 @@ fn a_missing_native_binary_names_the_download_that_failed() {
     dbg!(&causes);
     assert_eq!(
         causes[0],
-        "@pnpm/linux-x64@9.3.0 could not be downloaded: ERR_PNPM_FETCH: Failed to fetch https://registry.test/linux-x64.tgz",
+        "@pnpm/linux-x64@9.3.0 could not be downloaded: Failed to fetch https://registry.test/linux-x64.tgz",
     );
     assert!(causes[1].contains("native binary was found"));
 }
