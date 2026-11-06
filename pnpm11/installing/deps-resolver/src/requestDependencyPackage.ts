@@ -26,8 +26,11 @@ export interface DependencyRequest {
   currentPkg: CurrentPkg
   depIsLinked: boolean
   options: ResolveDependencyOptions
-  /** Resolve the package without fetching it, even when the install fetches. */
-  skipFetch?: boolean
+  /**
+   * Resolve the package only to read its manifest. It is not fetched, and an
+   * optional one that fails to resolve is dropped without a report.
+   */
+  detached?: boolean
   wantedDependency: WantedDependency
 }
 
@@ -108,7 +111,7 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
     projectDir: (options.currentDepth > 0 && !isRelativeToDeclaringManifest(ctx, wantedDependency))
       ? ctx.lockfileDir
       : options.parentPkg.rootDir,
-    skipFetch: ctx.dryRun || request.skipFetch === true,
+    skipFetch: ctx.dryRun || request.detached === true,
     update: options.update,
     updateRequested: options.updateRequested,
     updateChecksums: options.updateChecksums,
@@ -152,7 +155,7 @@ function createFetchErrorDecorator ({ ctx, options }: DependencyRequest): OnFetc
   }
 }
 
-function handlePackageRequestFailure ({ ctx, options, wantedDependency }: DependencyRequest, err: PackageRequestError): null {
+function handlePackageRequestFailure ({ ctx, detached, options, wantedDependency }: DependencyRequest, err: PackageRequestError): null {
   const wantedDependencyDetails = {
     name: wantedDependency.alias,
     bareSpecifier: wantedDependency.bareSpecifier,
@@ -160,6 +163,7 @@ function handlePackageRequestFailure ({ ctx, options, wantedDependency }: Depend
   }
   if (wantedDependency.optional && err.code !== 'ERR_PNPM_TRUST_DOWNGRADE') {
     if (!wantedLockfileContainsSatisfyingEntry(ctx.wantedLockfile, wantedDependency, pickRegistryContext(ctx))) {
+      if (detached) return null
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: wantedDependencyDetails,

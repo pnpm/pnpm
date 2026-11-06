@@ -99,7 +99,7 @@ async function resolveEachDependency (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: ResolvedDependenciesOptions
 ): Promise<CollectedDependencies> {
-  const extendedWantedDeps = extendWantedDependencies(ctx, preferredVersions, wantedDependencies, options)
+  const extendedWantedDeps = extendWantedDependencies(ctx, { options, preferredVersions, wantedDependencies })
   // Resolve in parallel, then drain the results in input order.
   const resolvedDependencies = await Promise.all(
     extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
@@ -119,11 +119,13 @@ async function resolveEachDependency (
  */
 export async function resolveDependencyManifestOnly (
   ctx: ResolutionContext,
-  preferredVersions: PreferredVersions,
-  wantedDependency: WantedDependency & { updateDepth?: number },
-  options: ResolvedDependenciesOptions
+  { options, preferredVersions, wantedDependency }: {
+    options: ResolvedDependenciesOptions
+    preferredVersions: PreferredVersions
+    wantedDependency: WantedDependency & { updateDepth?: number }
+  }
 ): Promise<PackageManifest | null> {
-  const [extendedWantedDep] = extendWantedDependencies(ctx, preferredVersions, [wantedDependency], options)
+  const [extendedWantedDep] = extendWantedDependencies(ctx, { options, preferredVersions, wantedDependencies: [wantedDependency] })
   const plan = planDependencyUpdate(ctx, options, extendedWantedDep)
   return resolveDependencyManifest(
     extendedWantedDep.wantedDependency,
@@ -134,9 +136,11 @@ export async function resolveDependencyManifestOnly (
 
 function extendWantedDependencies (
   ctx: ResolutionContext,
-  preferredVersions: PreferredVersions,
-  wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
-  options: ResolvedDependenciesOptions
+  { options, preferredVersions, wantedDependencies }: {
+    options: ResolvedDependenciesOptions
+    preferredVersions: PreferredVersions
+    wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
+  }
 ): ExtendedWantedDependency[] {
   return getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     currentDepth: options.currentDepth,

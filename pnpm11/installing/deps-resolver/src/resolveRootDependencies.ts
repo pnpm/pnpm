@@ -13,12 +13,13 @@ import {
   acceptsOptionalPeerCandidate,
   type CandidatePeers,
   createCandidatePeersLookup,
-  createRangePeerResolutions,
+  createDetachedPeerResolutions,
+  type DetachedPeerResolutions,
   getDirectDepVersions,
   getManifestPeers,
   pickHoistedVersion,
+  pickMergedPeerVersions,
   pickVersionsInClosure,
-  type RangePeerResolutions,
 } from './optionalPeerCandidates.js'
 import type {
   ImporterToResolve,
@@ -317,12 +318,12 @@ async function hoistOptionalPeersOfImporter (
   opts: OptionalPeersOfImporter
 ): Promise<boolean> {
   if (!Object.keys(opts.allMissingOptionalPeers).length || !hoisting.ctx.allPreferredVersions) return false
-  const rangePeers = createRangePeerResolutions()
-  let optionalDependencies = pickHoistableOptionalPeers(hoisting, opts, rangePeers)
+  const detachedPeers = createDetachedPeerResolutions()
+  let optionalDependencies = pickHoistableOptionalPeers(hoisting, opts, detachedPeers)
   /* eslint-disable no-await-in-loop -- each pick may meet required peers whose ranges the previous pick did not reach */
-  while (rangePeers.pending.size > 0) {
-    await resolvePendingRangePeers(hoisting, opts.index, rangePeers)
-    optionalDependencies = pickHoistableOptionalPeers(hoisting, opts, rangePeers)
+  while (detachedPeers.pending.size > 0) {
+    await resolvePendingDetachedPeers(hoisting, opts.index, detachedPeers)
+    optionalDependencies = pickHoistableOptionalPeers(hoisting, opts, detachedPeers)
   }
   /* eslint-enable no-await-in-loop */
   if (!Object.keys(optionalDependencies).length) return false
@@ -346,13 +347,13 @@ interface OptionalPeersOfImporter {
 
 /**
  * The optional peers to hoist to the importer. A candidate whose required
- * peers resolve from a range not in `rangePeers` yet is judged without them,
- * and the range is added to `rangePeers.pending`.
+ * peers have versions or peers `detachedPeers` does not know yet is judged
+ * without them, and their specifiers are added to `detachedPeers.pending`.
  */
 function pickHoistableOptionalPeers (
   hoisting: PeerHoisting,
   { allMissingOptionalPeers, getCandidatePeers, index }: OptionalPeersOfImporter,
-  rangePeers: RangePeerResolutions
+  detachedPeers: DetachedPeerResolutions
 ): Record<string, string> {
   const { ctx } = hoisting
   // A hoisted provider resolves its own peers from the importer's direct
@@ -361,9 +362,13 @@ function pickHoistableOptionalPeers (
     ...(index === hoisting.rootImporterIndex ? [] : hoisting.rootDepVersions),
     ...getDirectDepVersions(ctx.resolvedPkgsById, hoisting.importerResults[index].pkgAddresses),
   ])
-  const pickRequiredPeerVersions = createRequiredPeerVersionsPicker(hoisting, index, rangePeers)
   const getPeersOfCandidate = (name: string, version: string): CandidatePeers | undefined =>
-    getCandidatePeers(name, version) ?? rangePeers.peers.get(`${name}@${version}`)
+    detachedPeers.peers.get(`${name}@${version}`) ?? getCandidatePeers(name, version)
+  const pickRequiredPeerVersions = createRequiredPeerVersionsPicker(hoisting, {
+    detachedPeers,
+    index,
+    knowsPeers: (name, version) => getPeersOfCandidate(name, version) != null,
+  })
   return getHoistableOptionalPeers(
     allMissingOptionalPeers,
     ctx.dedupePeerDependents
@@ -387,66 +392,64 @@ function pickHoistableOptionalPeers (
   )
 }
 
-async function resolvePendingRangePeers (hoisting: PeerHoisting, index: number, rangePeers: RangePeerResolutions): Promise<void> {
-  const pending = [...rangePeers.pending]
-  rangePeers.pending.clear()
+async function resolvePendingDetachedPeers (hoisting: PeerHoisting, index: number, detachedPeers: DetachedPeerResolutions): Promise<void> {
+  const pending = [...detachedPeers.pending]
+  detachedPeers.pending.clear()
   const { preferredVersions } = hoisting.importers[index]
   const options = getHoistedDependencyOptions(hoisting, index)
-  await Promise.all(pending.map(async ([key, { name, range }]) => {
-    const [wantedDependency] = getHoistedRequiredPeers(hoisting, index, { [name]: range })
-    const manifest = await resolveDependencyManifestOnly(hoisting.ctx, preferredVersions, wantedDependency, options)
-    rangePeers.versions.set(key, manifest?.version)
+  await Promise.all(pending.map(async ([key, { name, spec }]) => {
+    const [wantedDependency] = getHoistedRequiredPeers(hoisting, index, { [name]: spec })
+    const manifest = await resolveDependencyManifestOnly(hoisting.ctx, {
+      options,
+      preferredVersions,
+      wantedDependency: { ...wantedDependency, optional: true },
+    })
+    detachedPeers.versions.set(key, manifest?.version ?? null)
     if (manifest?.version != null) {
-      rangePeers.peers.set(`${name}@${manifest.version}`, getManifestPeers(manifest))
+      detachedPeers.peers.set(`${name}@${manifest.version}`, getManifestPeers(manifest))
     }
   }))
 }
 
 /**
  * The versions the missing required peers of a wave of packages would be
- * hoisted to the importer at. A peer that would not be hoisted, or resolves
- * from a range `rangePeers` has no version for, is left out. `undefined` when
- * a peer's ranges do not merge, so the peer would stay unmet. Each pick is
+ * hoisted to the importer at. A peer that would not be hoisted, or whose
+ * version is not known yet, is left out. `undefined` when a peer would stay
+ * unmet, as its ranges do not merge or it does not resolve. Each pick is
  * cached for the round.
  */
 function createRequiredPeerVersionsPicker (
   hoisting: PeerHoisting,
-  index: number,
-  rangePeers: RangePeerResolutions
+  opts: RequiredPeerPickOptions
 ): (missingPeersOfWave: MissingPeers[]) => Map<string, string> | undefined {
-  const pickVersion = createCachedRequiredPeerVersionPicker(hoisting, index, rangePeers)
-  return (missingPeersOfWave) => {
-    const merged = mergePkgsDeps(missingPeersOfWave, hoisting.ctx)
-    if (dropsAnyPeer(missingPeersOfWave, merged)) return undefined
-    const versions = new Map<string, string>()
-    for (const [name, { range, optional }] of Object.entries(merged)) {
-      if (optional) continue
-      const version = pickVersion(name, range)
-      if (version != null) versions.set(name, version)
-    }
-    return versions
-  }
+  const pickVersion = createCachedRequiredPeerVersionPicker(hoisting, opts)
+  return (missingPeersOfWave) => pickMergedPeerVersions({
+    merged: mergePkgsDeps(missingPeersOfWave, hoisting.ctx),
+    missingPeersOfWave,
+    pickVersion,
+  })
+}
+
+interface RequiredPeerPickOptions {
+  detachedPeers: DetachedPeerResolutions
+  index: number
+  knowsPeers: (name: string, version: string) => boolean
 }
 
 function createCachedRequiredPeerVersionPicker (
   hoisting: PeerHoisting,
-  index: number,
-  rangePeers: RangePeerResolutions
-): (name: string, range: string) => string | undefined {
+  { detachedPeers, index, knowsPeers }: RequiredPeerPickOptions
+): (name: string, range: string) => string | null | undefined {
   const hoistPeersToImporter = createImporterPeersHoister(hoisting, index)
-  const picked = new Map<string, string | undefined>()
+  const picked = new Map<string, string | null | undefined>()
   return (name, range) => {
     const key = `${name}@${range}`
     if (!picked.has(key)) {
       const spec = hoistPeersToImporter([[name, { range, optional: false }]])[name]
-      picked.set(key, spec == null ? undefined : pickHoistedVersion(rangePeers, name, spec))
+      picked.set(key, spec == null ? undefined : pickHoistedVersion(detachedPeers, { knowsPeers, name, spec }))
     }
     return picked.get(key)
   }
-}
-
-function dropsAnyPeer (missingPeersOfWave: MissingPeers[], merged: MissingPeers): boolean {
-  return missingPeersOfWave.some((missingPeers) => Object.entries(missingPeers).some(([name, { optional }]) => !optional && merged[name] == null))
 }
 
 /**

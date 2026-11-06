@@ -103,35 +103,64 @@ function toCandidatePeers (peers: PeerDependencies): CandidatePeers {
 }
 
 /**
- * The required peers of optional peer candidates that would be hoisted from
- * a range, resolved without adding them to the graph.
+ * The required peers of optional peer candidates that are resolved only to
+ * read their manifests, without adding them to the graph.
  */
-export interface RangePeerResolutions {
-  /** The ranges no candidate check has resolved yet, keyed by `name@range`. */
-  pending: Map<string, { name: string, range: string }>
+export interface DetachedPeerResolutions {
+  /** The specifiers to resolve, keyed by the `name@spec` they were hoisted at. */
+  pending: Map<string, { name: string, spec: string }>
   /** The peers of each resolved package, keyed by `name@version`. */
   peers: Map<string, CandidatePeers>
-  /** The version each `name@range` resolved to. */
-  versions: Map<string, string | undefined>
+  /** The version each `name@spec` resolved to, `null` when it did not resolve. */
+  versions: Map<string, string | null>
 }
 
-export function createRangePeerResolutions (): RangePeerResolutions {
+export function createDetachedPeerResolutions (): DetachedPeerResolutions {
   return { pending: new Map(), peers: new Map(), versions: new Map() }
 }
 
 /**
- * The version a required peer hoisted at `spec` installs: `spec` itself when
- * it is exact, else the version `rangePeers` resolved it to. A range not
- * resolved yet is added to `rangePeers.pending`.
+ * The version a required peer hoisted at `spec` installs, or `null` when it
+ * does not resolve. A spec whose version or peers are unknown is added to
+ * `detached.pending`, and the pick is its exact version, if it has one.
  */
-export function pickHoistedVersion (rangePeers: RangePeerResolutions, name: string, spec: string): string | undefined {
-  const exactVersion = semver.valid(spec.split(' || ')[0])
-  if (exactVersion != null) return exactVersion
-  const key = `${name}@${spec}`
-  if (!rangePeers.versions.has(key)) {
-    rangePeers.pending.set(key, { name, range: spec })
+export function pickHoistedVersion (
+  detached: DetachedPeerResolutions,
+  { knowsPeers, name, spec }: {
+    knowsPeers: (name: string, version: string) => boolean
+    name: string
+    spec: string
   }
-  return rangePeers.versions.get(key)
+): string | null | undefined {
+  const exactVersion = semver.valid(spec.split(' || ')[0]) ?? undefined
+  if (exactVersion != null && knowsPeers(name, exactVersion)) return exactVersion
+  const key = `${name}@${spec}`
+  if (detached.versions.has(key)) return detached.versions.get(key)
+  detached.pending.set(key, { name, spec: exactVersion ?? spec })
+  return exactVersion
+}
+
+/**
+ * The versions `pickVersion` picks for the required peers in `merged`, the
+ * merge of `missingPeersOfWave`. `undefined` when a required peer would stay
+ * unmet, as the merge drops it or `pickVersion` finds it does not resolve.
+ */
+export function pickMergedPeerVersions ({ merged, missingPeersOfWave, pickVersion }: {
+  merged: CandidatePeers
+  missingPeersOfWave: CandidatePeers[]
+  pickVersion: (name: string, range: string) => string | null | undefined
+}): Map<string, string> | undefined {
+  const dropsAnyPeer = missingPeersOfWave.some((missingPeers) =>
+    Object.entries(missingPeers).some(([name, { optional }]) => !optional && merged[name] == null))
+  if (dropsAnyPeer) return undefined
+  const versions = new Map<string, string>()
+  for (const [name, { range, optional }] of Object.entries(merged)) {
+    if (optional) continue
+    const version = pickVersion(name, range)
+    if (version === null) return undefined
+    if (version != null) versions.set(name, version)
+  }
+  return versions
 }
 
 /**
@@ -139,7 +168,8 @@ export function pickHoistedVersion (rangePeers: RangePeerResolutions, name: stri
  * peer it brings in satisfied. The candidate resolves its peers from
  * `providedVersions`. The required peers missing there are hoisted together,
  * one wave at a time, at the versions `pickRequiredPeerVersions` returns,
- * and resolve their own peers the same way.
+ * and resolve their own peers the same way. A wave that rejects a version
+ * already known stops the check before the next wave is picked.
  */
 export function acceptsOptionalPeerCandidate (
   { getCandidatePeers, pickRequiredPeerVersions, providedVersions }: {
@@ -156,6 +186,7 @@ export function acceptsOptionalPeerCandidate (
   let wave = [candidate]
   while (wave.length) {
     const peersOfWave = wave.map(({ name, version }) => getCandidatePeers(name, version)).filter((peers) => peers != null)
+    if (!peersOfWave.every((peers) => peersAcceptVersions(peers, versionOf))) return false
     peersOfHoisted.push(...peersOfWave)
     const picked = pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingPeers(peers, versionOf)))
     if (picked == null) return false

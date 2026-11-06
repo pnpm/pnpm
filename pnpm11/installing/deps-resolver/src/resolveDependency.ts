@@ -84,7 +84,8 @@ export async function resolveDependency (
 /**
  * The manifest the wanted dependency resolves to, read the way
  * {@link resolveDependency} reads it. The package is neither fetched nor
- * added to the graph. `null` when an optional dependency fails to resolve.
+ * added to the graph. `null` when an optional dependency fails to resolve,
+ * which is not reported.
  */
 export async function resolveDependencyManifest (
   wantedDependency: WantedDependency,
@@ -95,8 +96,8 @@ export async function resolveDependencyManifest (
     ctx,
     currentPkg: options.currentPkg ?? {},
     depIsLinked: false,
+    detached: true,
     options,
-    skipFetch: true,
     wantedDependency,
   }
   const pkgResponse = await requestDependencyPackage(request)
