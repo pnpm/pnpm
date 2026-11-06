@@ -14,6 +14,11 @@ pnpr keeps two kinds of data:
   staging scratch. Lives under `cache` (defaults to
   `<storage>/.pnpr-cache`).
 
+Package metadata responses also use a bounded memory cache. Repeated requests
+reuse the response while the package content, tarball metadata, and registry
+URLs are unchanged. Large metadata requests leave the server available to
+handle unrelated requests.
+
 ## Layout
 
 The hosted store has the same layout on disk and in a bucket:

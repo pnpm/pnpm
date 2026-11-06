@@ -1,6 +1,7 @@
 use super::{
     AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, ServerMetrics,
     Singleflight, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace,
+    package_responses::processing::PackumentProcessing,
 };
 use indexmap::IndexMap;
 use std::sync::Arc;
@@ -23,13 +24,16 @@ pub(crate) struct AppInner {
     pub(super) osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
     pub(super) builds: BuildServices,
     pub(super) proxy: ProxyState,
+    pub(super) packuments: PackumentProcessing,
     pub(super) locks: MutationLocks,
     pub(super) identity: IdentityServices,
     pub(crate) metrics: Arc<ServerMetrics>,
 }
 
-type PackumentSingleflight =
-    Singleflight<(String, CanonicalPackageName), Result<Option<Vec<u8>>, Arc<RegistryError>>>;
+type PackumentSingleflight = Singleflight<
+    (String, CanonicalPackageName),
+    Result<Option<Arc<super::upstream_packuments::AdmittedPackument>>, Arc<RegistryError>>,
+>;
 pub(super) struct BuildServices {
     pub(super) artifacts: Option<pnpr_shared_artifacts::SharedArtifactStore>,
     pub(super) compiler_cache_uploads: tokio::sync::Semaphore,
@@ -102,6 +106,7 @@ impl AppInner {
             osv_index,
             builds,
             proxy,
+            packuments: PackumentProcessing::default(),
             locks: MutationLocks {
                 packages: StripedLocks::new(),
                 referrer_migrations: StripedLocks::new(),

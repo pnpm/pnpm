@@ -1,17 +1,17 @@
+pub(super) mod processing;
+
 use pnpr_config::PackageDocumentsConfig;
 
 use super::{
     ABBREVIATED_CONTENT_TYPE, AppState, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
-    Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
-    describe_tars, filter_osv_vulnerable_versions, header, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, streaming, tarball_basename_for_package,
-    version_route_tarball_version,
+    Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument, header,
+    streaming, tarball_basename_for_package, version_route_tarball_version,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
 /// `dist.integrity`. The version is found by matching `filename` against
 /// each version's `dist.tarball` basename rather than parsing it out of
-/// the filename, so a non-canonical name (see [`rewrite_tarball_urls`])
+/// the filename, so a non-canonical name (see [`super::rewrite_tarball_urls`])
 /// resolves to the right version, integrity, and OSV identity.
 pub(super) struct TarballDist {
     pub(super) version: String,
@@ -186,50 +186,30 @@ pub(super) fn wants_abbreviated(headers: &HeaderMap) -> bool {
         .is_some_and(|accept| accept.contains(ABBREVIATED_CONTENT_TYPE))
 }
 
-/// Parse the on-disk packument, rewrite `dist.tarball` URLs, and build the
-/// response. Honors conditional requests (`If-None-Match`, `If-Modified-Since`)
-/// with 304 Not Modified. When abbreviated MIME is requested, strip down to the
-/// npm spec's install-v1 field set and tag the response with the abbreviated
-/// content type.
-pub(super) fn packument_response(
+pub(super) async fn packument_response(
     name: &CanonicalPackageName,
-    bytes: &[u8],
+    bytes: axum::body::Bytes,
     tarball_base: &str,
     view: DistView<'_>,
     state: &AppState,
     headers: &HeaderMap,
     max_age: u64,
 ) -> Result<Response, RegistryError> {
-    let representation = Representation::requested(headers);
-    let osv_index = state.inner.osv_index.as_ref();
-    let mut doc: Value = serde_json::from_slice(bytes)?;
-    if view.hosted && representation == Representation::Full {
-        doc["_rev"] = Value::String(super::package_mutation::revisions::revision(&doc));
+    let rendered = processing::render(name, bytes, tarball_base, view, state, headers).await?;
+    if is_not_modified(headers, &rendered.etag, rendered.last_modified.as_deref()) {
+        return Ok(packument_not_modified_response(
+            &rendered.etag,
+            rendered.last_modified.clone(),
+            max_age,
+        ));
     }
-    filter_osv_vulnerable_versions(&mut doc, name, osv_index);
-    match view.revision_registry {
-        Some(source_registry) => {
-            rewrite_upstream_tarball_urls(&mut doc, name, source_registry, tarball_base);
-        }
-        None => rewrite_tarball_urls(&mut doc, name, tarball_base),
-    }
-    if let Some(table) = view.tar_integrities {
-        describe_tars(&mut doc, table, view.tar_registry);
-    }
-    let last_modified_source = packument_last_modified(&doc);
-    let documents = &state.inner.config.http.package_documents;
-    let (body, content_type) = representation.render(doc, documents)?;
-    let abbreviated = representation != Representation::Full;
-    let etag = format!(r#""{}""#, super::ecosystem::sha256_hex(&body));
-    // Per RFC 9110 Section 8.8.2, Last-Modified is omitted when the representation
-    // is dynamically generated or subject to content negotiation (such as OSV
-    // filtering or abbreviation) and can vary independently of modification time.
-    let last_modified =
-        if osv_index.is_some() || abbreviated { None } else { last_modified_source };
-    if is_not_modified(headers, &etag, last_modified.as_deref()) {
-        return Ok(packument_not_modified_response(&etag, last_modified, max_age));
-    }
-    Ok(packument_ok_response(body, content_type, &etag, last_modified, max_age))
+    Ok(packument_ok_response(
+        rendered.body.clone(),
+        rendered.content_type,
+        &rendered.etag,
+        rendered.last_modified.clone(),
+        max_age,
+    ))
 }
 
 /// The form of a package document a client asked for.
@@ -259,17 +239,18 @@ impl Representation {
         self,
         mut doc: Value,
         documents: &PackageDocumentsConfig,
+        now: chrono::DateTime<Utc>,
     ) -> Result<(Vec<u8>, &'static str), RegistryError> {
         if self == Representation::InstallV2 {
             super::publishing::variants::describe_variants(&mut doc);
-            let anchor = super::split_packuments::document_anchor(&doc).unwrap_or_else(Utc::now);
+            let anchor = super::split_packuments::document_anchor(&doc).unwrap_or(now);
             let trimmed = abbreviate_packument(&doc, anchor);
             let body = super::split_packuments::install_v2_body(&trimmed, documents)?;
             return Ok((body, super::split_packuments::INSTALL_V2_CONTENT_TYPE));
         }
         super::split_packuments::without_pnpr_facts_in(&mut doc);
         if self == Representation::Abbreviated {
-            let trimmed = abbreviate_packument(&doc, Utc::now());
+            let trimmed = abbreviate_packument(&doc, now);
             return Ok((serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE));
         }
         Ok((serde_json::to_vec(&doc)?, "application/json"))
@@ -355,7 +336,7 @@ fn packument_not_modified_response(
 }
 
 fn packument_ok_response(
-    body: Vec<u8>,
+    body: axum::body::Bytes,
     content_type: &'static str,
     etag: &str,
     last_modified: Option<String>,

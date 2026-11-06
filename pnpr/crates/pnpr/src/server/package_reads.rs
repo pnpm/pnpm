@@ -4,7 +4,8 @@ use super::{
     Action, AppState, CanonicalPackageName, ConcreteKind, DistView, Ecosystem, HeaderMap, Identity,
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
     dist_view, ensure_osv_allowed, extract_upstream_version_manifest, extract_version_manifest,
-    is_osv_vulnerable_packument_version, is_tar_registry, not_found, packument_response,
+    is_osv_vulnerable_packument_version, is_tar_registry, not_found,
+    package_responses::processing::admission::DocumentSource, packument_response,
     read_source_packument, registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
     serve_tarball_via_upstream, tar_integrities_of, tarball_response,
 };
@@ -170,11 +171,7 @@ pub(super) async fn serve_registry_packument(
     // client's lockfile drops them — persisting the resolved source path would
     // bake the registry name in and break lockfile portability.
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let tar_integrities = match tar_integrities_of(state, &resolved_source, &name).await {
-        Ok(table) => table,
-        Err(err) => return err.into_response(),
-    };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
+    let view = dist_view(state, registry, &resolved_source, None);
     match &resolved_source {
         RegistrySource::Upstream(source) => {
             // The upstream registry's per-package rules gate every served
@@ -331,26 +328,37 @@ pub(super) async fn serve_hosted_packument(
     let max_age = state.inner.config.http.packument_ttl.as_secs();
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
-    let view = state.inner.storage
-        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
-        .read_hosted_package_view(name)
-        .await;
-    match view {
-        Ok(Some(view)) => match packument_response(
+    let response = async {
+        let view = state.inner.storage
+            .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+            .read_hosted_package_view(name)
+            .await;
+        let view = match view {
+            Ok(Some(view)) => view,
+            Ok(None) => return not_found(),
+            Err(err) => return err.into_response(),
+        };
+        let table = match state.inner.storage.read_tar_integrities(name).await {
+            Ok(table) => table,
+            Err(err) => return err.into_response(),
+        };
+        let view_options = DistView { tar_integrities: Some(&table), ..view_options };
+        match packument_response(
             name,
-            &view.bytes,
+            axum::body::Bytes::from_owner(view.bytes),
             tarball_base,
             view_options,
             state,
             headers,
             max_age,
-        ) {
+        )
+        .await
+        {
             Ok(response) => super::with_generation(response, Some(&view.generation)),
             Err(err) => err.into_response(),
-        },
-        Ok(None) => not_found(),
-        Err(err) => err.into_response(),
-    }
+        }
+    };
+    state.inner.packuments.admissions.serve(DocumentSource::Stored, response).await
 }
 
 pub(super) async fn serve_hosted_tarball(

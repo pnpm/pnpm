@@ -5,6 +5,7 @@ pub use packument::{
     extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
     tarball_basename, tarball_basename_for_package, version_route_tarball_version,
 };
+pub use time::TIME_PRECISION_HORIZON_DAYS;
 
 pub use oci::oci_download_allowed;
 
