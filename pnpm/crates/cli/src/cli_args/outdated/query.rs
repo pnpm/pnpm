@@ -104,6 +104,12 @@ pub enum TargetVersion {
     WithinRange,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) enum CurrentVersionSource {
+    Lockfile,
+    DeclaredSpecifier,
+}
+
 /// A direct dependency with a newer (or deprecated) registry version.
 ///
 /// `current` is the lockfile-pinned version; `target` is the resolved
@@ -334,8 +340,13 @@ async fn collect_node_outdated_for_importer(
         &current_versions,
         &engine_deps,
         &node_query,
-        lockfile.is_none(),
-    );
+        if lockfile.is_some() {
+            CurrentVersionSource::Lockfile
+        } else {
+            CurrentVersionSource::DeclaredSpecifier
+        },
+        &run.catalogs,
+    )?;
     let fetches = candidates
         .into_iter()
         .map(|candidate| outdated_dependency(run, &node_query, workspace, candidate));

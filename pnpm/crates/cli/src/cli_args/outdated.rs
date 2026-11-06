@@ -171,7 +171,14 @@ impl OutdatedArgs {
             OutdatedFilters::validated(&self, config, &package_patterns, [manifest], false)?;
         let lockfile = loaded_lockfile(&state)?;
         let query = filters.query(self.target_version());
-        if requires_ecosystem_lockfile(project_dir(manifest), config, &query, &package_patterns)? {
+        if (self.packages.is_empty() || !package_patterns.is_empty())
+            && requires_ecosystem_lockfile(
+                project_dir(manifest),
+                config,
+                &query,
+                &package_patterns,
+            )?
+        {
             return Err(no_lockfile_error(project_dir(manifest)));
         }
         let mut outdated = Box::pin(self.collect_single_project_outdated(

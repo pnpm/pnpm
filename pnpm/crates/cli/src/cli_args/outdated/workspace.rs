@@ -270,14 +270,18 @@ impl OutdatedArgs {
             &standalone_dirs,
             true,
         )?;
-        let mut outdated = recursive_workspace_outdated(
-            &state,
-            &selection,
-            &standalone_dirs,
-            &filters.query(self.target_version()),
-            package_patterns,
-        )
-        .await?;
+        let mut outdated = if self.packages.is_empty() || !package_patterns.is_empty() {
+            recursive_workspace_outdated(
+                &state,
+                &selection,
+                &standalone_dirs,
+                &filters.query(self.target_version()),
+                package_patterns,
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
         outdated.extend(
             self.workspace_outdated_actions::<Reporter>(config, &workspace_root, &filters.include)
                 .await?,

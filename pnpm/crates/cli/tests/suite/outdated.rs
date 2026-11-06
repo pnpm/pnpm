@@ -263,6 +263,54 @@ fn outdated_reports_newer_version_without_lockfile() {
 }
 
 #[test]
+fn outdated_reports_npm_alias_without_lockfile() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "positive": "npm:{FOO}@^1.0.0" }}"#));
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run outdated without lockfile");
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(FOO), "report should use the real package name: {stdout}");
+    assert!(stdout.contains("1.0.0"), "report should show the declared range minimum: {stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_reports_catalog_dependency_without_lockfile() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(&workspace, "catalog", format!("{{ '{DEP}': '^100.0.0' }}"));
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run outdated without lockfile");
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should mention the catalog package: {stdout}");
+    assert!(stdout.contains("100.0.0"), "report should show the catalog range minimum: {stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_catalog_entry_missing_without_lockfile_is_a_catalog_error() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run outdated without lockfile");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "the run should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC"),
+        "missing catalog entry should be reported as such: {stderr}",
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
 fn recursive_outdated_reports_newer_versions_without_a_shared_lockfile() {
     let (root, workspace, anchor) = setup();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
