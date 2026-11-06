@@ -1,6 +1,55 @@
 import { expect, test } from '@jest/globals'
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 
 import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpecifier, hoistPeers } from '../lib/hoistPeers.js'
+
+test.each([
+  ['^1.0.0', '1.0.0'],
+  ['^3.0.0', '^3.0.0'],
+  ['npm:other@1.0.0', 'npm:other@1.0.0'],
+  ['workspace:*', 'workspace:*'],
+  ['work:^1.0.0', 'work:^1.0.0'],
+])('hoistPeers resolves catalog peers containing %s before choosing a provider', (specifier, expected) => {
+  for (const range of ['catalog:', 'catalog:default', 'catalog:tools']) {
+    expect(hoistPeers({
+      autoInstallPeers: true,
+      allPreferredVersions: { foo: { '1.0.0': 'version', '2.0.0': 'version' } },
+      catalogResolver: resolveFromCatalog.bind(null, { default: { foo: specifier }, tools: { foo: specifier } }),
+      workspaceRootDeps: [],
+    }, [['foo', { range }]])).toStrictEqual({ foo: expected })
+  }
+})
+
+test('hoistPeers resolves catalog peers without preferred versions', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {},
+    catalogResolver: resolveFromCatalog.bind(null, { default: { foo: '^1.0.0' } }),
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'catalog:' }]])).toStrictEqual({ foo: '^1.0.0' })
+})
+
+test.each([
+  ['^1.0.0', { foo: '1.0.0' }],
+  ['^3.0.0', {}],
+  ['npm:other@1.0.0', {}],
+])('hoistPeers does not install a new catalog provider for %s when auto-install is disabled', (specifier, expected) => {
+  expect(hoistPeers({
+    autoInstallPeers: false,
+    allPreferredVersions: { foo: { '1.0.0': 'version', '2.0.0': 'version' } },
+    catalogResolver: resolveFromCatalog.bind(null, { default: { foo: specifier } }),
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'catalog:' }]])).toStrictEqual(expected)
+})
+
+test('hoistPeers reports missing catalog entries instead of substituting a registry version', () => {
+  expect(() => hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: { foo: { '1.0.0': 'version' } },
+    catalogResolver: resolveFromCatalog.bind(null, {}),
+    workspaceRootDeps: [],
+  }, [['foo', { range: 'catalog:missing' }]])).toThrow("No catalog entry 'foo' was found for catalog 'missing'.")
+})
 
 test.each([
   ['foo', 'workspace:*'],
