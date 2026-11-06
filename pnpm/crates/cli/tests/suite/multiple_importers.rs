@@ -14,6 +14,7 @@ pub use _utils::*;
 
 use crate::_utils;
 
+use pnpm_lockfile::Lockfile;
 use serde_json::json;
 use std::{fs, path::Path};
 
@@ -174,6 +175,62 @@ fn assert_filtered_install_keeps_missing_project(filters: &[&str]) {
             .and_then(|catalogs| catalogs.get("only-3")),
     );
     assert!(!project_3.exists(), "the install must not recreate the missing project");
+}
+
+/// A filtered install resolves the dependencies of a project missing from
+/// disk, as in a sparse checkout, from its lockfile importer. A package that
+/// project depends on directly stays non-optional even though the projects
+/// on disk reach it only as an optional dependency. Issue 17791.
+#[test]
+fn filtered_install_resolves_dependencies_of_projects_missing_from_disk() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { optional: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    let project_3 = fixture.project(
+        "project-3",
+        "project-3",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+    assert_eq!(snapshot_is_optional(&fixture.wanted(), PARENT, "100.0.0"), Some(false));
+
+    fs::remove_dir_all(&project_3).expect("take project-3 off disk");
+    write_project_manifest(
+        &project_1,
+        "project-1",
+        ManifestDeps { prod: &[(FOO, "1.0.0"), (QAR, "100.0.0")], ..Default::default() },
+    );
+    fixture.run([
+        "--filter",
+        "project-1",
+        "--filter",
+        "project-2",
+        "install",
+        "--lockfile-only",
+        "--no-prefer-frozen-lockfile",
+    ]);
+
+    let wanted = fixture.wanted();
+    assert!(has_snapshot(&wanted, QAR, "100.0.0"), "the selected project must be resolved");
+    assert_eq!(snapshot_is_optional(&wanted, PARENT, "100.0.0"), Some(false));
+    assert_eq!(snapshot_is_optional(&wanted, DEP, "100.1.0"), Some(false));
+}
+
+fn snapshot_is_optional(lockfile: &Lockfile, name: &str, version: &str) -> Option<bool> {
+    let key = format!("{name}@{version}");
+    lockfile.snapshots
+        .as_ref()?
+        .iter()
+        .find(|(snapshot_key, _)| snapshot_key.to_string() == key)
+        .map(|(_, snapshot)| snapshot.optional)
 }
 
 /// TS: `current lockfile contains only installed dependencies when

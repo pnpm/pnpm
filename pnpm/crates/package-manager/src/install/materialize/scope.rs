@@ -1,6 +1,6 @@
 use super::super::{
-    Arc, BTreeMap, Config, HashSet, InstallError, Lockfile, LogEvent, LogLevel, PackageManifest,
-    Path, PathBuf, PnpmLog, RebuildOptions, Reporter, ResolutionVerifier,
+    Arc, BTreeMap, Config, DependencyGroup, HashSet, InstallError, Lockfile, LogEvent, LogLevel,
+    PackageManifest, Path, PathBuf, PnpmLog, RebuildOptions, Reporter, ResolutionVerifier,
     map_frozen_lockfile_error, record_lockfile_verified, verify_lockfile_eagerly,
 };
 
@@ -74,6 +74,45 @@ pub(super) fn importer_manifests_by_id<'a>(
             (pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
         })
         .collect()
+}
+/// Stand-in manifests for the importers `previous_wanted` records outside
+/// `real_importer_ids`, such as projects a sparse checkout leaves off disk,
+/// so their dependencies take part in peer and optional resolution the way
+/// they would with the project on disk. The lockfile records specifiers
+/// after `readPackage` ran, so a stand-in is not hooked again.
+pub(super) fn off_disk_importer_manifests(
+    previous_wanted: &Lockfile,
+    real_importer_ids: &HashSet<String>,
+    workspace_root: &Path,
+) -> Vec<(String, PackageManifest)> {
+    previous_wanted.importers
+        .iter()
+        .filter(|(importer_id, _)| !real_importer_ids.contains(*importer_id))
+        .map(|(importer_id, importer)| {
+            let manifest = PackageManifest::from_value(
+                workspace_root.join(importer_id).join("package.json"),
+                stand_in_manifest_value(importer),
+            );
+            (importer_id.clone(), manifest)
+        })
+        .collect()
+}
+fn stand_in_manifest_value(importer: &pnpm_lockfile::ProjectSnapshot) -> serde_json::Value {
+    let mut value = serde_json::Map::new();
+    for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
+        let Some(dependencies) = importer.get_map_by_group(group) else { continue };
+        let specifiers = dependencies
+            .iter()
+            .map(|(alias, dependency)| {
+                (alias.to_string(), serde_json::Value::from(dependency.specifier.clone()))
+            })
+            .collect();
+        value.insert(<&str>::from(group).to_string(), serde_json::Value::Object(specifiers));
+    }
+    if let Some(dependencies_meta) = &importer.dependencies_meta {
+        value.insert("dependenciesMeta".to_string(), dependencies_meta.clone());
+    }
+    serde_json::Value::Object(value)
 }
 pub(super) fn lockfile_specifier_manifests_by_id(
     project_manifests: Vec<(PathBuf, PackageManifest)>,

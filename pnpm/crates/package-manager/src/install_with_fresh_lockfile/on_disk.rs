@@ -98,6 +98,9 @@ pub(super) struct OnDiskProjects<'a> {
     pub(super) materialization_lockfile: &'a Lockfile,
     pub(super) importer_manifests: &'a std::collections::BTreeMap<String, &'a PackageManifest>,
     pub(super) project_anchor_importer_ids: &'a std::collections::HashSet<String>,
+    /// The importers with a project on disk; `None` when every importer has
+    /// one. The rest resolve from stand-in manifests and are never linked.
+    pub(super) real_importer_ids: Option<&'a std::collections::HashSet<String>>,
 }
 
 /// What the on-disk phases leave for the install's result.
@@ -437,6 +440,7 @@ impl OnDiskProjects<'_> {
             .filter(|(id, _)| {
                 !only_anchors || self.project_anchor_importer_ids.contains(id.as_str())
             })
+            .filter(|(id, _)| self.real_importer_ids.is_none_or(|real| real.contains(*id)))
             .map(|(id, manifest)| (workspace_root.join(id), *manifest))
             .collect()
     }

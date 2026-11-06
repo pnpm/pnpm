@@ -323,7 +323,11 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     known_requires_build,
                     known_bins,
                 },
-                projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
+                projects: scope.on_disk_projects(
+                    built_lockfile,
+                    &self.resolved.importer_manifests,
+                    self.install.projects.real_ids,
+                ),
             },
             &mut plan.skipped,
             &mut self.resources.lockfile.verification_gate,

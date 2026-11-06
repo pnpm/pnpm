@@ -123,11 +123,13 @@ impl FinalScope {
         &'l self,
         built: &'l Lockfile,
         importer_manifests: &'l BTreeMap<String, &'l PackageManifest>,
+        real_importer_ids: Option<&'l HashSet<String>>,
     ) -> super::on_disk::OnDiskProjects<'l> {
         super::on_disk::OnDiskProjects {
             materialization_lockfile: self.lockfile(built),
             importer_manifests,
             project_anchor_importer_ids: &self.project_anchor_importer_ids,
+            real_importer_ids,
         }
     }
 }

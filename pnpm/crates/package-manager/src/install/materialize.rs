@@ -5,8 +5,8 @@ mod scope;
 use scope::{
     allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
     frozen_project_anchor_ids, importer_manifests_by_id, lockfile_specifier_manifests_by_id,
-    previously_skipped, prior_unbuilt_builds, record_auto_dedupe_baseline,
-    record_fresh_lockfile_verified, settle_frozen_verification,
+    off_disk_importer_manifests, previously_skipped, prior_unbuilt_builds,
+    record_auto_dedupe_baseline, record_fresh_lockfile_verified, settle_frozen_verification,
 };
 
 use super::{
@@ -266,6 +266,19 @@ impl<'a> MaterializationInputs<'a, '_> {
         }
     }
 
+    /// See [`off_disk_importer_manifests`]. Only a selected install keeps the
+    /// importers of projects missing from disk.
+    fn off_disk_importer_manifests(&self) -> Vec<(String, PackageManifest)> {
+        match (self.workspace.requested_importer_ids, self.lockfiles.merge_wanted) {
+            (Some(_), Some(previous_wanted)) => off_disk_importer_manifests(
+                previous_wanted,
+                self.workspace.real_importer_ids,
+                self.workspace.workspace_root,
+            ),
+            _ => Vec::new(),
+        }
+    }
+
     fn fresh_execution(&self) -> crate::install_with_fresh_lockfile::FreshInstallExecution {
         crate::install_with_fresh_lockfile::FreshInstallExecution {
             locked_package_policy: if self.install.lockfile_policy.trust {
@@ -382,6 +395,16 @@ impl<'a> MaterializationInputs<'a, '_> {
         let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
+        let off_disk_manifests = self.off_disk_importer_manifests();
+        let mut importer_manifests = importer_manifests_by_id(
+            self.workspace.project_manifests,
+            self.workspace.workspace_root,
+        );
+        importer_manifests.extend(
+            off_disk_manifests
+                .iter()
+                .map(|(importer_id, manifest)| (importer_id.clone(), manifest)),
+        );
         let fresh_result = InstallWithFreshLockfile {
             inputs: self.fresh_inputs(
                 &dependency_groups,
@@ -389,10 +412,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 &prior_unbuilt,
                 &prior_skipped,
             ),
-            importer_manifests: importer_manifests_by_id(
-                self.workspace.project_manifests,
-                self.workspace.workspace_root,
-            ),
+            importer_manifests,
             owned: self.into_owned_inputs(lockfile_verification_gate),
         }
         .run::<Reporter>()
