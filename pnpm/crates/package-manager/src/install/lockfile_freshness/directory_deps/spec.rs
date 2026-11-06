@@ -1,6 +1,8 @@
 use super::{
     ProjectManifestsByDir,
-    injected_manifest::{target_manifest, workspace_path_matches_target},
+    injected_manifest::{
+        publishing_project_manifest, target_manifest, workspace_path_matches_target,
+    },
 };
 use pnpm_resolving_deps_resolver::locked_child_admits;
 use pnpm_resolving_local_resolver::{local_spec_path, recorded_local_path};
@@ -274,12 +276,16 @@ pub(super) fn importer_range_link_satisfies(
         || target_dir_satisfies(dirs, &target_dir, target.unwrap_or(dep_name), range)
 }
 
+/// An unbuilt `publishConfig.directory` is absent too, but its project is
+/// checked out, so it does not count as missing.
 fn is_missing_from_checkout(dirs: &SpecDirs<'_>, target_dir: &Path) -> bool {
-    !dirs.manifests_by_dir.contains_key(&pnpm_fs::lexical_normalize(target_dir))
+    let normalized = pnpm_fs::lexical_normalize(target_dir);
+    !dirs.manifests_by_dir.contains_key(&normalized)
         && matches!(
             std::fs::symlink_metadata(target_dir),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound,
         )
+        && publishing_project_manifest(dirs, &normalized).is_none()
 }
 
 fn linked_target_satisfies(
