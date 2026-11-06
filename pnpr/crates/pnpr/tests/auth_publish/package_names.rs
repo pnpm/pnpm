@@ -48,7 +48,7 @@ async fn publishing_rejects_invalid_new_names_before_storing_them() {
                 name,
             )
             .is_none(),
-            "{name}"
+            "{name}",
         );
     }
 }
@@ -86,7 +86,7 @@ async fn staged_and_batch_publishes_reject_invalid_new_names() {
                 pnpr_storage::Ecosystem::Npm,
                 "demo-UPPER",
             )
-            .is_none()
+            .is_none(),
         );
     }
 }
