@@ -95,7 +95,7 @@ function resolveRequiresBuild (
   bundledManifest: BundledManifest | undefined,
   filesMap: FilesMap
 ): boolean {
-  if (stored == null) return pkgRequiresBuild(bundledManifest, filesMap)
+  if (stored == null) return pkgRequiresBuild(bundledManifest ?? readManifestFromCafs(filesMap), filesMap)
   if (!stored || !storedRequiresBuildNeedsManifestCheck(bundledManifest, filesMap)) return stored
   const manifest = readManifestFromCafs(filesMap)
   return manifest == null ? stored : pkgRequiresBuild(manifest, filesMap)

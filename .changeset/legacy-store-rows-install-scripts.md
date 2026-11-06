@@ -1,4 +1,6 @@
 ---
+"@pnpm/worker": patch
+"pnpm": patch
 "pacquet": patch
 ---
 

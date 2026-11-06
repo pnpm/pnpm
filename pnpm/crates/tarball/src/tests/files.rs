@@ -257,15 +257,18 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
     drop(store_dir);
 }
 
-/// A legacy row records no `requiresBuild`. Its install script is found
-/// whether or not the row bundles the manifest.
 #[tokio::test]
 async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
-    assert_eq!(legacy_row_requires_build(true).await, Some(true));
-    assert_eq!(legacy_row_requires_build(false).await, Some(true));
+    assert_eq!(legacy_row_requires_build(ManifestInIndex::Bundled).await, Some(true));
+    assert_eq!(legacy_row_requires_build(ManifestInIndex::NotBundled).await, Some(true));
 }
 
-async fn legacy_row_requires_build(bundles_manifest: bool) -> Option<bool> {
+enum ManifestInIndex {
+    Bundled,
+    NotBundled,
+}
+
+async fn legacy_row_requires_build(manifest_in_index: ManifestInIndex) -> Option<bool> {
     let (store_dir, store_path) = tempdir_with_leaked_path();
 
     let manifest_bytes = br#"{"name":"fake","scripts":{"postinstall":"node build.js"}}"#;
@@ -292,7 +295,10 @@ async fn legacy_row_requires_build(bundles_manifest: bool) -> Option<bool> {
         },
     );
     let entry = PackageFilesIndex {
-        manifest: bundles_manifest.then(|| serde_json::from_slice(manifest_bytes).unwrap()),
+        manifest: match manifest_in_index {
+            ManifestInIndex::Bundled => Some(serde_json::from_slice(manifest_bytes).unwrap()),
+            ManifestInIndex::NotBundled => None,
+        },
         requires_build: None,
         requires_prepare: None,
         algo: "sha512".to_string(),
