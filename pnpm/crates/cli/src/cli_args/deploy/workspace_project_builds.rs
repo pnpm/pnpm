@@ -104,7 +104,7 @@ fn approve(
 }
 
 /// The keys an install in `lockfile_dir` gives the project as an injected
-/// `file:` dependency on each of `package_dirs`.
+/// `file:` dependency on each of the given package directories.
 fn injected_project_keys(name: &str, package_dirs: &[PathBuf], lockfile_dir: &Path) -> Vec<String> {
     package_dirs
         .iter()
