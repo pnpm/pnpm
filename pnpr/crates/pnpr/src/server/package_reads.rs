@@ -160,6 +160,19 @@ pub(super) async fn serve_registry_packument(
     raw_name: &str,
     tarball_base: &str,
 ) -> Response {
+    let response =
+        serve_admitted_packument(state, identity, headers, registry, raw_name, tarball_base);
+    state.inner.packuments.serve(response).await
+}
+
+async fn serve_admitted_packument(
+    state: &AppState,
+    identity: &Identity,
+    headers: &HeaderMap,
+    registry: &str,
+    raw_name: &str,
+    tarball_base: &str,
+) -> Response {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),

@@ -32,8 +32,11 @@ impl<Key: Clone + Eq + Hash, Value> BoundedCache<Key, Value> {
         self.entries.get(key).map(|entry| &entry.value)
     }
 
-    /// Insert an entry and evict oldest entries until the total weight fits `budget`.
+    /// Insert an entry no heavier than `budget`, evicting oldest entries to fit.
     pub fn insert(&mut self, key: Key, value: Value, weight: usize, budget: usize) {
+        if weight > budget {
+            return;
+        }
         self.insertions += 1;
         let entry = Entry { value, weight, insertion: self.insertions };
         if let Some(replaced) = self.entries.insert(key.clone(), entry) {

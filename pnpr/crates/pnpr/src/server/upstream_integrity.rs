@@ -66,7 +66,7 @@ impl PackumentIntegrityResolver<'_> {
     async fn complete_missing(&self, bytes: Vec<u8>) -> Result<Vec<u8>, RegistryError> {
         let name = self.name.clone();
         let osv_index = self.state.inner.osv_index.clone();
-        let (bytes, candidates) = self.state.inner.packuments.run(move || {
+        let (bytes, candidates) = self.state.inner.packuments.workers.run(move || {
             let doc: Value = serde_json::from_slice(&bytes)?;
             let candidates = missing_integrity_tarballs(&doc, &name, osv_index.as_ref());
             Ok::<_, RegistryError>((bytes, candidates))
@@ -149,7 +149,7 @@ impl PackumentIntegrityResolver<'_> {
     async fn read_cached_packument(&self) -> Result<Option<Value>, RegistryError> {
         let cached =
             self.state.inner.storage.read_upstream_document_any(self.namespace, self.name).await?;
-        self.state.inner.packuments.run(move || {
+        self.state.inner.packuments.workers.run(move || {
             cached.and_then(|bytes| serde_json::from_slice(&bytes).ok())
         })
         .await
@@ -230,7 +230,8 @@ impl PackumentIntegrityResolver<'_> {
     }
 
     async fn persist_packument(&self, doc: Value) -> Result<Vec<u8>, RegistryError> {
-        let bytes = self.state.inner.packuments.run(move || serde_json::to_vec(&doc)).await??;
+        let bytes =
+            self.state.inner.packuments.workers.run(move || serde_json::to_vec(&doc)).await??;
         self.state.inner.storage.write_upstream_document(self.namespace, self.name, &bytes).await?;
         Ok(bytes)
     }

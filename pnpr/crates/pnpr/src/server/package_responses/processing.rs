@@ -17,38 +17,82 @@ use std::{
 /// Source and rendered response bytes retained by one server instance.
 const CACHE_BUDGET: usize = 128 * 1024 * 1024;
 
+mod contexts;
+mod workers;
+use contexts::TarContexts;
+use workers::Workers;
+
+type RenderFlight = super::super::Singleflight<CacheKey, SharedRender>;
+
+/// Retains the source on failure so fingerprint collisions cannot share errors.
+#[derive(Clone)]
+struct SharedRender {
+    source: Bytes,
+    result: Result<Arc<RenderedPackument>, Arc<RegistryError>>,
+}
+
 pub(crate) struct PackumentProcessing {
-    workers: Arc<tokio::sync::Semaphore>,
+    pub(crate) workers: Workers,
+    lookups: Workers,
+    admissions: Arc<tokio::sync::Semaphore>,
     cache: Mutex<BoundedCache<CacheKey, Arc<RenderedPackument>>>,
     fingerprints: RandomState,
+    contexts: TarContexts,
+    in_flight: RenderFlight,
 }
 
 impl Default for PackumentProcessing {
     fn default() -> Self {
         let workers = std::thread::available_parallelism().map_or(1, usize::from).min(8);
         Self {
-            // Scale CPU work with the instance while bounding document expansion.
-            workers: Arc::new(tokio::sync::Semaphore::new(workers)),
+            workers: Workers::new(workers),
+            lookups: Workers::new(workers.min(2)),
+            admissions: Arc::new(tokio::sync::Semaphore::new(workers * 2)),
             cache: Mutex::new(BoundedCache::default()),
             fingerprints: RandomState::new(),
+            contexts: TarContexts::default(),
+            in_flight: RenderFlight::new(),
         }
     }
 }
 
 impl PackumentProcessing {
-    /// The permit stays with the blocking work even if its request is cancelled.
-    pub(crate) async fn run<Output, Work>(&self, work: Work) -> Result<Output, RegistryError>
-    where
-        Output: Send + 'static,
-        Work: FnOnce() -> Output + Send + 'static,
-    {
-        let workers = Arc::clone(&self.workers);
-        let permit = workers.acquire_owned().await.expect("packument workers never close");
-        Ok(tokio::task::spawn_blocking(move || {
-            let _permit = permit;
-            work()
-        })
-        .await?)
+    /// Poll the response only after admission, before it can buffer source documents.
+    pub(crate) async fn serve(
+        &self,
+        response: impl std::future::Future<Output = super::Response>,
+    ) -> super::Response {
+        let _permit = Arc::clone(&self.admissions)
+            .acquire_owned()
+            .await
+            .expect("document admission never closes");
+        response.await
+    }
+}
+
+#[derive(Clone)]
+struct RenderInput {
+    name: CanonicalPackageName,
+    bytes: Bytes,
+    tarball_base: String,
+    view: OwnedView,
+    representation: Representation,
+}
+
+#[derive(Clone)]
+struct OwnedView {
+    revision_registry: Option<String>,
+    tar_integrities: Option<Arc<std::collections::BTreeMap<String, pnpr_storage::DerivedTar>>>,
+    tar_registry: bool,
+}
+
+impl OwnedView {
+    fn view(&self) -> DistView<'_> {
+        DistView {
+            revision_registry: self.revision_registry.as_deref(),
+            tar_integrities: self.tar_integrities.as_ref(),
+            tar_registry: self.tar_registry,
+        }
     }
 }
 
@@ -76,45 +120,111 @@ pub(super) async fn render(
     state: &AppState,
     headers: &HeaderMap,
 ) -> Result<Arc<RenderedPackument>, RegistryError> {
-    let name = name.clone();
-    let tarball_base = tarball_base.to_string();
-    let revision_registry = view.revision_registry.map(str::to_string);
-    let tar_integrities = view.tar_integrities.cloned();
-    let tar_registry = view.tar_registry;
-    let representation = Representation::requested(headers);
-    let owned_state = state.clone();
-    state.inner.packuments.run(move || {
-        let view = DistView {
-            revision_registry: revision_registry.as_deref(),
-            tar_integrities: tar_integrities.as_ref(),
-            tar_registry,
-        };
-        render_cached(&name, bytes, &tarball_base, view, &owned_state, representation)
+    let input = RenderInput {
+        name: name.clone(),
+        bytes,
+        tarball_base: tarball_base.to_string(),
+        view: OwnedView {
+            revision_registry: view.revision_registry.map(str::to_string),
+            tar_integrities: view.tar_integrities.cloned(),
+            tar_registry: view.tar_registry,
+        },
+        representation: Representation::requested(headers),
+    };
+    let lookup_input = input.clone();
+    let lookup_state = state.clone();
+    let (key, cached) = state.inner.packuments.lookups.run(move || {
+        let key = input_key(&lookup_input, &lookup_state.inner.packuments)?;
+        let cached = cached_document(&key, &lookup_input.bytes, &lookup_state.inner.packuments);
+        Ok::<_, RegistryError>((key, cached))
     })
-    .await?
+    .await??;
+    if let Some(cached) = cached {
+        return Ok(cached);
+    }
+    render_shared(input, key, state).await
 }
 
-fn render_cached(
-    name: &CanonicalPackageName,
-    bytes: Bytes,
-    tarball_base: &str,
-    view: DistView<'_>,
+async fn render_shared(
+    input: RenderInput,
+    key: CacheKey,
     state: &AppState,
-    representation: Representation,
 ) -> Result<Arc<RenderedPackument>, RegistryError> {
-    let key = cache_key(name, &bytes, tarball_base, view, representation, &state.inner.packuments)?;
-    let cache = state.inner.packuments.cache.lock().expect("packument cache poisoned");
-    let now = Utc::now();
-    if let Some(rendered) = cache.get(&key)
-        && rendered.source == bytes
-        && now >= rendered.rendered_at
-        && rendered.expires.is_none_or(|expires| now <= expires)
-    {
-        return Ok(Arc::clone(rendered));
+    let leader_input = input.clone();
+    let leader_key = key.clone();
+    let shared = state.inner.packuments.in_flight.work(key.clone(), || async {
+        let source = leader_input.bytes.clone();
+        let result = render_job(leader_input, leader_key, state).await.map_err(Arc::new);
+        SharedRender { source, result }
+    })
+    .await;
+    let source = input.bytes.clone();
+    let candidate = shared.source.clone();
+    let matches = state.inner.packuments.lookups.run(move || candidate == source).await?;
+    if matches {
+        return shared.result.map_err(RegistryError::Shared);
     }
-    drop(cache);
-    let rendered =
-        Arc::new(render_document(name, bytes, tarball_base, view, state, representation, now)?);
+    render_job(input, key, state).await
+}
+
+async fn render_job(
+    input: RenderInput,
+    key: CacheKey,
+    state: &AppState,
+) -> Result<Arc<RenderedPackument>, RegistryError> {
+    let owned_state = state.clone();
+    state.inner.packuments.workers.run(move || render_miss(&input, key, &owned_state)).await?
+}
+
+fn input_key(
+    input: &RenderInput,
+    processing: &PackumentProcessing,
+) -> Result<CacheKey, RegistryError> {
+    cache_key(
+        &input.name,
+        &input.bytes,
+        &input.tarball_base,
+        input.view.view(),
+        input.representation,
+        processing,
+    )
+}
+
+fn cached_document(
+    key: &CacheKey,
+    bytes: &Bytes,
+    processing: &PackumentProcessing,
+) -> Option<Arc<RenderedPackument>> {
+    let cached = processing.cache
+        .lock()
+        .expect("packument cache poisoned")
+        .get(key)
+        .cloned();
+    let now = Utc::now();
+    cached.filter(|rendered| {
+        rendered.source == *bytes
+            && now >= rendered.rendered_at
+            && rendered.expires.is_none_or(|expires| now <= expires)
+    })
+}
+
+fn render_miss(
+    input: &RenderInput,
+    key: CacheKey,
+    state: &AppState,
+) -> Result<Arc<RenderedPackument>, RegistryError> {
+    if let Some(cached) = cached_document(&key, &input.bytes, &state.inner.packuments) {
+        return Ok(cached);
+    }
+    let rendered = Arc::new(render_document(
+        &input.name,
+        input.bytes.clone(),
+        &input.tarball_base,
+        input.view.view(),
+        state,
+        input.representation,
+        Utc::now(),
+    )?);
     let weight = rendered.source.len() + rendered.body.len() + key.context.len() + 256;
     state.inner.packuments.cache
         .lock()
@@ -131,11 +241,14 @@ fn cache_key(
     representation: Representation,
     processing: &PackumentProcessing,
 ) -> Result<CacheKey, RegistryError> {
+    let tar_context = view.tar_integrities
+        .map(|table| processing.contexts.digest(table))
+        .transpose()?;
     let context = serde_json::to_vec(&(
         name.as_str(),
         tarball_base,
         view.revision_registry,
-        view.tar_integrities.map(AsRef::as_ref),
+        tar_context.as_deref(),
         view.tar_registry,
         view.hosted,
         representation as u8,

@@ -1,7 +1,7 @@
 use super::{
-    AppState, Bytes, CACHE_BUDGET, CanonicalPackageName, DistView, HeaderMap, PackumentProcessing,
-    RenderedPackument, Representation, Utc, Value, cache_key, next_precision_change, render,
-    render_cached, render_document,
+    AppState, Bytes, CACHE_BUDGET, CanonicalPackageName, DistView, HeaderMap, OwnedView,
+    PackumentProcessing, RenderInput, RenderedPackument, Representation, Utc, Value, cache_key,
+    input_key, next_precision_change, render, render_document, render_miss, workers::Workers,
 };
 use pnpr_config::Config;
 use pnpr_fixtures::MockConfigPresets;
@@ -36,6 +36,29 @@ fn document() -> Vec<u8> {
         "versions": {"1.0.0": {"name": "example-widget", "version": "1.0.0",
             "dist": {"integrity": integrity, "tarball": "https://upstream.example/example-widget/-/example-widget-1.0.0.tgz"}}}
     })).unwrap()
+}
+
+fn render_cached(
+    name: &CanonicalPackageName,
+    bytes: Bytes,
+    tarball_base: &str,
+    view: DistView<'_>,
+    state: &AppState,
+    representation: Representation,
+) -> Result<Arc<RenderedPackument>, super::RegistryError> {
+    let input = RenderInput {
+        name: name.clone(),
+        bytes,
+        tarball_base: tarball_base.to_string(),
+        view: OwnedView {
+            revision_registry: view.revision_registry.map(str::to_string),
+            tar_integrities: view.tar_integrities.cloned(),
+            tar_registry: view.tar_registry,
+        },
+        representation,
+    };
+    let key = input_key(&input, &state.inner.packuments)?;
+    render_miss(&input, key, state)
 }
 
 #[tokio::test]
@@ -164,14 +187,14 @@ async fn large_packument_render_leaves_the_request_thread_available() {
 #[tokio::test]
 async fn cancellation_keeps_the_worker_permit_until_blocking_work_finishes() {
     let processing = Arc::new(PackumentProcessing {
-        workers: Arc::new(tokio::sync::Semaphore::new(2)),
+        workers: Workers::new(2),
         ..PackumentProcessing::default()
     });
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
     let worker = Arc::clone(&processing);
     let request = tokio::spawn(async move {
-        worker
+        worker.workers
             .run(move || {
                 started_tx.send(()).unwrap();
                 release_rx.recv().unwrap();
@@ -182,9 +205,12 @@ async fn cancellation_keeps_the_worker_permit_until_blocking_work_finishes() {
     started_rx.await.unwrap();
     request.abort();
     let _ = request.await;
-    assert_eq!(processing.workers.available_permits(), 1);
+    assert_eq!(processing.workers.available(), 1);
     release_tx.send(()).unwrap();
-    processing.run(|| ()).await.unwrap();
+    processing.workers
+        .run(|| ())
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -302,4 +328,171 @@ async fn fingerprint_collision_cannot_reuse_another_document() {
     assert!(!Arc::ptr_eq(&original, &current));
     let current: Value = serde_json::from_slice(&current.body).unwrap();
     assert_eq!(current["versions"]["1.0.0"]["deprecated"], "use another version");
+}
+
+#[tokio::test]
+async fn concurrent_misses_share_one_rendered_document() {
+    let tmp = TempDir::new().unwrap();
+    let mut state = state(&tmp);
+    Arc::get_mut(&mut state.inner).unwrap().packuments.workers = Workers::new(4);
+    let mut doc: Value = serde_json::from_slice(&document()).unwrap();
+    doc["readme"] = "x".repeat(8 * 1024 * 1024).into();
+    let bytes = Bytes::from(serde_json::to_vec(&doc).unwrap());
+    let barrier = Arc::new(tokio::sync::Barrier::new(4));
+    let mut requests = Vec::new();
+    for _ in 0..4 {
+        let state = state.clone();
+        let bytes = bytes.clone();
+        let barrier = Arc::clone(&barrier);
+        requests.push(tokio::spawn(async move {
+            barrier.wait().await;
+            let name =
+                CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm)
+                    .unwrap();
+            render(&name, bytes, "https://registry.example", view(), &state, &HeaderMap::new())
+                .await
+                .unwrap()
+        }));
+    }
+    let first = requests.remove(0).await.unwrap();
+    for request in requests {
+        let rendered = request.await.unwrap();
+        assert!(Arc::ptr_eq(&first, &rendered));
+    }
+}
+
+#[tokio::test]
+async fn warm_documents_do_not_wait_for_render_workers() {
+    let tmp = TempDir::new().unwrap();
+    let mut state = state(&tmp);
+    Arc::get_mut(&mut state.inner).unwrap().packuments.workers = Workers::new(1);
+    let name =
+        CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let headers = HeaderMap::new();
+    let first =
+        render(&name, document().into(), "https://registry.example", view(), &state, &headers)
+            .await
+            .unwrap();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let worker_state = state.clone();
+    let worker = tokio::spawn(async move {
+        worker_state.inner.packuments.workers
+            .run(move || {
+                started_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+            })
+            .await
+            .unwrap();
+    });
+    started_rx.await.unwrap();
+    let response =
+        render(&name, document().into(), "https://registry.example", view(), &state, &headers);
+    let cached = tokio::time::timeout(std::time::Duration::from_secs(5), response)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(Arc::ptr_eq(&first, &cached));
+    release_tx.send(()).unwrap();
+    worker.await.unwrap();
+}
+
+#[test]
+fn immutable_tar_snapshots_reuse_their_digest() {
+    let processing = PackumentProcessing::default();
+    let table = Arc::new(BTreeMap::new());
+    let weak = Arc::downgrade(&table);
+    let first = processing.contexts.digest(&table).unwrap();
+    let second = processing.contexts.digest(&table).unwrap();
+    assert!(Arc::ptr_eq(&first, &second));
+    let reloaded = Arc::new(table.as_ref().clone());
+    let same_contents = processing.contexts.digest(&reloaded).unwrap();
+    assert_eq!(first, same_contents);
+    let changed = Arc::new(BTreeMap::from([(
+        "example".to_string(),
+        pnpr_storage::DerivedTar::new("example-tar", None, Some(2), None),
+    )]));
+    let changed = processing.contexts.digest(&changed).unwrap();
+    assert_ne!(first, changed);
+    drop(table);
+    assert!(weak.upgrade().is_none());
+}
+
+#[tokio::test]
+async fn admission_precedes_polling_the_source_loader() {
+    use std::{future::Future, task::Poll};
+    let processing = PackumentProcessing {
+        admissions: Arc::new(tokio::sync::Semaphore::new(1)),
+        ..PackumentProcessing::default()
+    };
+    let permit = processing.admissions.acquire().await.unwrap();
+    let loaded = AtomicBool::new(false);
+    let source = async {
+        loaded.store(true, Ordering::SeqCst);
+        std::future::pending::<super::super::Response>().await
+    };
+    let mut response = Box::pin(processing.serve(source));
+    std::future::poll_fn(|context| {
+        let result = response.as_mut().poll(context);
+        assert!(result.is_pending());
+        Poll::Ready(())
+    })
+    .await;
+    assert!(!loaded.load(Ordering::SeqCst));
+    drop(permit);
+    std::future::poll_fn(|context| {
+        let result = response.as_mut().poll(context);
+        assert!(result.is_pending());
+        Poll::Ready(())
+    })
+    .await;
+    assert!(loaded.load(Ordering::SeqCst));
+    drop(response);
+    assert_eq!(processing.admissions.available_permits(), 1);
+}
+
+#[tokio::test]
+async fn an_in_flight_error_is_not_shared_with_a_different_source() {
+    use std::{future::Future, task::Poll};
+    let tmp = TempDir::new().unwrap();
+    let state = state(&tmp);
+    let input = RenderInput {
+        name: CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm)
+            .unwrap(),
+        bytes: document().into(),
+        tarball_base: "https://registry.example".to_string(),
+        view: OwnedView { revision_registry: None, tar_integrities: None, tar_registry: false },
+        representation: Representation::Full,
+    };
+    let key = input_key(&input, &state.inner.packuments).unwrap();
+    let leader_key = key.clone();
+    let leader_state = state.clone();
+    let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = tokio::sync::oneshot::channel();
+    let leader = tokio::spawn(async move {
+        leader_state.inner.packuments.in_flight.work(leader_key, || async {
+            started_tx.send(()).unwrap();
+            release_rx.await.unwrap();
+            let error = serde_json::from_slice::<Value>(b"invalid").unwrap_err();
+            super::SharedRender {
+                source: Bytes::from_static(b"invalid"),
+                result: Err(Arc::new(super::RegistryError::Json(error))),
+            }
+        })
+        .await
+    });
+    started_rx.await.unwrap();
+    let mut follower = Box::pin(super::render_shared(input, key, &state));
+    std::future::poll_fn(|context| {
+        let result = follower.as_mut().poll(context);
+        assert!(result.is_pending());
+        Poll::Ready(())
+    })
+    .await;
+    release_tx.send(()).unwrap();
+    let rendered = follower.await.unwrap();
+    let document: Value = serde_json::from_slice(&rendered.body).unwrap();
+    assert_eq!(document["name"], "example-widget");
+    let shared = leader.await.unwrap();
+    assert!(shared.result.is_err());
 }
