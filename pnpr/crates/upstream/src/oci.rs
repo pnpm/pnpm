@@ -197,12 +197,12 @@ impl Upstream {
             .headers(headers)
             .send()
             .await
-            .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;
+            .map_err(|source| self.token_request_failed(source))?;
         if !response.status().is_success() {
             return Err(self.oci_error("OCI token service refused authentication"));
         }
         let body = read_limited_body(response, 64 * 1024).await
-            .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;
+            .map_err(|source| self.token_request_failed(source))?;
         *budget = budget.saturating_sub(started.elapsed());
         if body.truncated {
             return Err(self.oci_error("OCI token response is too large"));
@@ -210,6 +210,13 @@ impl Upstream {
         let token: TokenResponse = serde_json::from_slice(&body.bytes)
             .map_err(|_| self.oci_error("invalid OCI token response"))?;
         self.cache_oci_token(repository, token)
+    }
+
+    /// A token request that failed in transport, such as running out of the
+    /// budget, counts against the breaker like any other upstream request.
+    fn token_request_failed(&self, source: reqwest::Error) -> RegistryError {
+        self.breaker.record_failure();
+        RegistryError::Upstream { url: self.base.clone(), source }
     }
 
     fn oci_token_headers(&self, base: &Url, realm: &Url) -> header::HeaderMap {

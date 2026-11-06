@@ -184,3 +184,24 @@ async fn token_negotiation_is_bounded_by_the_remaining_budget() {
     let elapsed = started.elapsed();
     assert!(elapsed < Duration::from_millis(800), "took {elapsed:?}, past the 500ms budget");
 }
+
+#[tokio::test]
+async fn a_token_timeout_counts_against_the_breaker() {
+    let base = spawn_token_registry(Duration::ZERO, Duration::from_secs(5)).await;
+    let mut config = UpstreamConfig::with_defaults(format!("{base}/"), HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(200);
+    config.requests.max_fails = 1;
+    let upstream = Upstream::new("registry", &config);
+    let first = upstream.fetch_oci("acme/app", "blobs/sha256:abc", "*/*").await;
+    assert!(
+        matches!(first, Err(pnpr_error::RegistryError::Upstream { ref source, .. }) if source.is_timeout()),
+        "got {:?}",
+        first.err(),
+    );
+    let second = upstream.fetch_oci("acme/app", "blobs/sha256:abc", "*/*").await;
+    assert!(
+        matches!(second, Err(pnpr_error::RegistryError::UpstreamUnavailable { .. })),
+        "got {:?}",
+        second.err(),
+    );
+}
