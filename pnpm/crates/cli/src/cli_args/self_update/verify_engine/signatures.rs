@@ -5,7 +5,7 @@ use super::{
 };
 use base64::Engine as _;
 use p256::{ecdsa::signature::Verifier, pkcs8::DecodePublicKey};
-use pnpm_network::normalize_registry_url;
+use pnpm_network::{normalize_registry_url, read_limited_self_delimiting_body};
 
 /// npm's public registry signing keys, generated from
 /// `.config/npm-signing-keys.json` by the meta-updater. `expires` is `None`
@@ -362,29 +362,23 @@ async fn read_bounded_body(
     display_url: &str,
 ) -> Result<Vec<u8>, String> {
     if let Some(length) = response.content_length()
-        && length > MAX_PACKUMENT_BYTES
+        && length > MAX_PACKUMENT_BYTES as u64
     {
         return Err(format!("{display_url} returned an oversized packument ({length} bytes)"));
     }
-    use futures_util::StreamExt as _;
-    let mut stream = response.bytes_stream();
-    let mut body_bytes = Vec::new();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|source| {
-            format!("{display_url}: {}", redact_and_sanitize(&source.to_string()))
-        })?;
-        if (body_bytes.len() + chunk.len()) as u64 > MAX_PACKUMENT_BYTES {
-            return Err(format!("{display_url} returned an oversized packument"));
-        }
-        body_bytes.extend_from_slice(&chunk);
+    let body = read_limited_self_delimiting_body(response, MAX_PACKUMENT_BYTES)
+        .await
+        .map_err(|source| format!("{display_url}: {}", redact_and_sanitize(&source.to_string())))?;
+    if body.truncated {
+        return Err(format!("{display_url} returned an oversized packument"));
     }
-    Ok(body_bytes)
+    Ok(body.bytes)
 }
 
 /// Upper bound on a buffered packument response. Generous relative to the
 /// pnpm / `@pnpm/exe` packuments (well under a megabyte) while still
 /// capping a runaway response.
-const MAX_PACKUMENT_BYTES: u64 = 50 * 1024 * 1024;
+const MAX_PACKUMENT_BYTES: usize = 50 * 1024 * 1024;
 
 /// Route a (possibly scoped) engine component to its registry, using the
 /// trusted package-manager bootstrap configuration.
