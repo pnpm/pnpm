@@ -114,9 +114,9 @@ fn peers_of(package: &ResolvedPackage) -> Vec<CandidatePeer> {
 }
 
 /// Picks the `(name, version)` pairs to hoist for the missing required
-/// peers each package of a wave declares.
+/// peers each package of a wave declares, or `None` when they conflict.
 pub(crate) type RequiredPeerVersionsPicker<'a> =
-    dyn Fn(&[Vec<CandidatePeer>]) -> Vec<(String, String)> + 'a;
+    dyn Fn(&[Vec<CandidatePeer>]) -> Option<Vec<(String, String)>> + 'a;
 
 /// Whether hoisting the optional peer candidate `name@version` to an
 /// importer leaves every peer it brings in satisfied. The candidate
@@ -149,7 +149,8 @@ pub(crate) fn accepts_optional_peer_candidate(
             .iter()
             .map(|peers| missing_required_peers(peers, &version_of))
             .collect();
-        wave = pick_required_peer_versions(&missing_of_wave);
+        let Some(picked) = pick_required_peer_versions(&missing_of_wave) else { return false };
+        wave = picked;
         hoisted.extend(wave.iter().cloned());
         peers_of_hoisted.extend(peers_of_wave);
     }

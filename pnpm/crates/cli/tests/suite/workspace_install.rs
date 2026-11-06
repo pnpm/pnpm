@@ -829,6 +829,36 @@ fn optional_peer_is_supplied_when_the_required_peers_it_brings_in_agree_on_a_sha
     assert!(version.starts_with("1.0.0(@pnpm.e2e/peer-wave-a@1.0.0"), "{version}");
 }
 
+#[test]
+fn optional_peer_is_not_supplied_when_the_required_peers_it_brings_in_conflict_on_a_shared_peer() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-optional-peer-wave-conflict": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/peer-wave-conflict": "1.0.0",
+                "@pnpm.e2e/peer-wave-b": "1.0.0",
+                "@pnpm.e2e/peer-wave-d": "1.0.0",
+                "@pnpm/y": "2.0.0",
+            },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let version = importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-peer-wave-conflict");
+    drop((root, mock_instance));
+    assert_eq!(version, "1.0.0");
+}
+
 /// The provider is left only in the wanted lockfile, so the lockfile is
 /// what describes its peers.
 #[test]

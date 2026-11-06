@@ -100,8 +100,8 @@ function getPeers (resolvedPackage: ResolvedPackage): CandidatePeers {
 export function acceptsOptionalPeerCandidate (
   { getCandidatePeers, pickRequiredPeerVersions, providedVersions }: {
     getCandidatePeers: (name: string, version: string) => CandidatePeers | undefined
-    /** Picks the versions to hoist for the missing required peers that each package of a wave declares. */
-    pickRequiredPeerVersions: (missingPeersOfWave: CandidatePeers[]) => Map<string, string>
+    /** Picks the versions to hoist for the missing required peers that each package of a wave declares, or `undefined` when they conflict. */
+    pickRequiredPeerVersions: (missingPeersOfWave: CandidatePeers[]) => Map<string, string> | undefined
     providedVersions: Map<string, string>
   },
   candidate: { name: string, version: string }
@@ -113,8 +113,10 @@ export function acceptsOptionalPeerCandidate (
   while (wave.length) {
     const peersOfWave = wave.map(({ name, version }) => getCandidatePeers(name, version)).filter((peers) => peers != null)
     peersOfHoisted.push(...peersOfWave)
+    const picked = pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingRequiredPeers(peers, versionOf)))
+    if (picked == null) return false
     wave = []
-    for (const [name, version] of pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingRequiredPeers(peers, versionOf)))) {
+    for (const [name, version] of picked) {
       hoisted.set(name, version)
       wave.push({ name, version })
     }

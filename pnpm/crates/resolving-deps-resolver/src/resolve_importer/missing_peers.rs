@@ -181,6 +181,25 @@ pub(super) fn distinct_wanted_ranges(entries: &[MissingPeer]) -> Vec<String> {
     ordered
 }
 
+/// The range a peer that only required entries declare hoists at, merged
+/// the way [`classify_missing_peer`] merges it, or `None` when the ranges do
+/// not merge.
+pub(super) fn merge_required_peer_ranges(
+    ranges: &[&str],
+    auto_install_peers_from_highest_match: bool,
+) -> Option<String> {
+    if !ranges
+        .iter()
+        .any(|range| range.starts_with("workspace:"))
+    {
+        return merge_ranges(ranges, auto_install_peers_from_highest_match);
+    }
+    match merge_workspace_peer_ranges(ranges, auto_install_peers_from_highest_match) {
+        MissingPeerKind::Required(range) => Some(range),
+        MissingPeerKind::Optional(_) | MissingPeerKind::Unhoistable => None,
+    }
+}
+
 /// Combine multiple consumers' wanted ranges into a single specifier,
 /// the upstream `mergePkgsDeps` policy: a single (or single unique)
 /// range passes through unchanged, distinct compatible ranges reduce to

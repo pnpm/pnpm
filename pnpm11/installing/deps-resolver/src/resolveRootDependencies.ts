@@ -350,12 +350,27 @@ async function hoistOptionalPeersOfImporter (
 /**
  * The exact versions the missing required peers of a wave of packages would
  * be hoisted to the importer at. A peer that would not be hoisted, or would
- * be resolved from a range, is left out. Each pick is cached for the round.
+ * be resolved from a range, is left out. `undefined` when a peer's ranges do
+ * not merge, so the peer would stay unmet. Each pick is cached for the round.
  */
-function createRequiredPeerVersionsPicker (hoisting: PeerHoisting, index: number): (missingPeersOfWave: MissingPeers[]) => Map<string, string> {
+function createRequiredPeerVersionsPicker (hoisting: PeerHoisting, index: number): (missingPeersOfWave: MissingPeers[]) => Map<string, string> | undefined {
+  const pickVersion = createCachedRequiredPeerVersionPicker(hoisting, index)
+  return (missingPeersOfWave) => {
+    const merged = mergePkgsDeps(missingPeersOfWave, hoisting.ctx)
+    if (dropsAnyPeer(missingPeersOfWave, merged)) return undefined
+    const versions = new Map<string, string>()
+    for (const [name, { range }] of Object.entries(merged)) {
+      const version = pickVersion(name, range)
+      if (version != null) versions.set(name, version)
+    }
+    return versions
+  }
+}
+
+function createCachedRequiredPeerVersionPicker (hoisting: PeerHoisting, index: number): (name: string, range: string) => string | undefined {
   const hoistPeersToImporter = createImporterPeersHoister(hoisting, index)
   const picked = new Map<string, string | undefined>()
-  const pickVersion = (name: string, range: string): string | undefined => {
+  return (name, range) => {
     const key = `${name}@${range}`
     if (!picked.has(key)) {
       const spec = hoistPeersToImporter([[name, { range, optional: false }]])[name]
@@ -363,14 +378,10 @@ function createRequiredPeerVersionsPicker (hoisting: PeerHoisting, index: number
     }
     return picked.get(key)
   }
-  return (missingPeersOfWave) => {
-    const versions = new Map<string, string>()
-    for (const [name, { range }] of Object.entries(mergePkgsDeps(missingPeersOfWave, hoisting.ctx))) {
-      const version = pickVersion(name, range)
-      if (version != null) versions.set(name, version)
-    }
-    return versions
-  }
+}
+
+function dropsAnyPeer (missingPeersOfWave: MissingPeers[], merged: MissingPeers): boolean {
+  return missingPeersOfWave.some((missingPeers) => Object.keys(missingPeers).some((name) => merged[name] == null))
 }
 
 /**

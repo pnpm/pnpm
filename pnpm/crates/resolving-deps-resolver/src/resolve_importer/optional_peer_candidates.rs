@@ -3,7 +3,8 @@
 use super::{
     BTreeMap, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeerInfo,
     PreferredVersions, accepts_optional_peer_candidate,
-    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, missing_peers::merge_ranges,
+    get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
+    missing_peers::merge_required_peer_ranges,
 };
 use crate::peer_dependents_dedupe::OptionalPeerScope;
 use node_semver::Version;
@@ -34,13 +35,14 @@ impl ImporterHoistState {
 
     /// The exact versions the missing required peers of a wave of packages
     /// are hoisted at, with each name's ranges merged the way
-    /// [`Self::hoist_missing_required`] merges them. `picked` caches each
-    /// pick by name and range.
+    /// [`Self::hoist_missing_required`] merges them. `None` when a name's
+    /// ranges do not merge, so the peer would stay unmet. `picked` caches
+    /// each pick by name and range.
     fn required_peer_versions(
         &self,
         missing_of_wave: &[Vec<CandidatePeer>],
         picked: &RequiredPeerPicks,
-    ) -> Vec<(String, String)> {
+    ) -> Option<Vec<(String, String)>> {
         let mut ranges_by_name: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
         for peer in missing_of_wave.iter().flatten() {
             ranges_by_name
@@ -48,21 +50,20 @@ impl ImporterHoistState {
                 .or_default()
                 .push(&peer.range);
         }
-        ranges_by_name
-            .into_iter()
-            .filter_map(|(name, ranges)| {
-                let range =
-                    merge_ranges(&ranges, self.policy.peers.auto_install_peers_from_highest_match)?;
-                let version = picked
-                    .borrow_mut()
-                    .entry((name.to_string(), range))
-                    .or_insert_with_key(|(name, range)| {
-                        self.hoisted_required_peer_version(name, range)
-                    })
-                    .clone()?;
-                Some((name.to_string(), version))
-            })
-            .collect()
+        let mut versions = Vec::new();
+        for (name, ranges) in ranges_by_name {
+            let range = merge_required_peer_ranges(
+                &ranges,
+                self.policy.peers.auto_install_peers_from_highest_match,
+            )?;
+            let version = picked
+                .borrow_mut()
+                .entry((name.to_string(), range))
+                .or_insert_with_key(|(name, range)| self.hoisted_required_peer_version(name, range))
+                .clone();
+            versions.extend(version.map(|version| (name.to_string(), version)));
+        }
+        Some(versions)
     }
 
     /// `alias → version` a package hoisted to the importer resolves its own
