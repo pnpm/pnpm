@@ -94,7 +94,7 @@ async function _lockfileToHoistedDepGraph (
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const { tree, rootImporterId } = hoistImporters(lockfile, opts)
   const graph: DependenciesGraph = {}
-  const modulesDir = importerModulesDir(opts.lockfileDir, opts.modulesDir)
+  const modulesDir = importerModulesDir(opts.lockfileDir, opts)
   const fetchDepsOpts: FetchDepsOptions = {
     ...opts,
     lockfile,
@@ -192,7 +192,7 @@ async function addWorkspaceProjectDeps (ctx: ProjectDepsContext, rootDep: Hoiste
   const { fetchDepsOpts } = ctx
   const importerId = reference.replace('workspace:', '') as ProjectId
   const projectDir = path.join(fetchDepsOpts.lockfileDir, importerId)
-  const modulesDir = importerModulesDir(projectDir, ctx.modulesDir)
+  const modulesDir = importerModulesDir(projectDir, { lockfileDir: fetchDepsOpts.lockfileDir, modulesDir: ctx.modulesDir })
   const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
   const importer = fetchDepsOpts.lockfile.importers[importerId]
   if (importerHasDeps(importer) || rootDep.dependencies.size > 0) {

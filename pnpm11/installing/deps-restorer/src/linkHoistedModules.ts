@@ -28,7 +28,7 @@ import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
 
-import { importerModulesDir } from './importerModulesDir.js'
+import { importerModulesDir, type ImporterModulesDirOptions } from './importerModulesDir.js'
 import { reportOptionalFetchFailure } from './reportOptionalFetchFailure.js'
 
 const limitLinking = pLimit(16)
@@ -104,7 +104,7 @@ export async function linkHoistedModules (
             prefix: parentDir,
           })
         }
-        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts.modulesDir), {
+        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts), {
           ...opts,
           holdBackMissingTargets: opts.holdBackMissingBins,
           nestedHeldBackBinsDirs: heldBackBinsDirs,
@@ -132,7 +132,7 @@ async function removeDirsOutsidePlan (
   // the on-disk scan found is not: pnpm has no record of putting it there, so it
   // is quarantined instead, the way an alien package directory already is.
   const recordedDirs = new Set(dirsToRemove)
-  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, modulesDir))
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, { lockfileDir, modulesDir }))
     .filter(({ dir }) => !recordedDirs.has(dir))
   statsLogger.debug({
     prefix: lockfileDir,
@@ -444,10 +444,10 @@ async function pickSideEffectsCacheKey (
  * Symlinks are skipped: that is how workspace packages and `link:` dependencies
  * are attached, and they are absent from the graph by design.
  */
-async function findUnplannedDirs (hierarchy: DepHierarchy, projectModulesDir: string | undefined): Promise<UnplannedDir[]> {
+async function findUnplannedDirs (hierarchy: DepHierarchy, opts: ImporterModulesDirOptions): Promise<UnplannedDir[]> {
   const unplannedDirs = await Promise.all(
     Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
-      const modulesDir = importerModulesDir(projectDir, projectModulesDir)
+      const modulesDir = importerModulesDir(projectDir, opts)
       const pkgNames = await readModulesDir(modulesDir)
       if (pkgNames == null) return []
       const plannedDirs = new Set(Object.keys(plannedDeps))
