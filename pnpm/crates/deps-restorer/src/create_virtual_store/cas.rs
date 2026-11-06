@@ -63,6 +63,8 @@ impl CreateVirtualStore<'_> {
         materialized.snapshot_selection.loaded = Some(selected.keys().cloned().collect());
         materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
         materialized.cas_paths_by_snapshot = fetched.cas_paths_by_snapshot;
+        materialized.side_effects.maps.extend(fetched.side_effects.maps);
+        materialized.side_effects.diffs.extend(fetched.side_effects.diffs);
         materialized.package_manifests.extend(fetched.package_manifests);
         materialized.package_bins.extend(fetched.package_bins);
         materialized.fetch_failed.extend(fetched.fetch_failed);
