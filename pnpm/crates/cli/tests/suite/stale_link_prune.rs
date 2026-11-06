@@ -122,15 +122,19 @@ fn a_removed_link_dependency_is_reported() {
     }
 }
 
-#[test]
-fn a_removed_link_dependency_with_a_malformed_manifest_is_unlinked() {
+/// With a bin, the link leaves a real `.bin`, so the removal reads the
+/// manifest to remove its bins.
+fn remove_a_link_dependency_with_a_malformed_manifest(with_bin: bool) {
     let observed = under_each_linker(|pacquet, workspace| {
-        write_json(
-            &workspace.join("lib/package.json"),
-            &json!({ "name": "lib", "version": "1.0.0" }),
-        );
+        let mut manifest = json!({ "name": "lib", "version": "1.0.0" });
+        if with_bin {
+            manifest["bin"] = json!("cli.js");
+        }
+        write_json(&workspace.join("lib/package.json"), &manifest);
+        fs::write(workspace.join("lib/cli.js"), "#!/usr/bin/env node\n").expect("write the bin");
         write_root_manifest(workspace, &json!({ "lib": "link:lib" }));
         install(pacquet);
+        let has_bins_dir = workspace.join("node_modules/.bin").is_dir();
         fs::write(workspace.join("lib/package.json"), "{").expect("break the manifest");
 
         write_root_manifest(workspace, &json!({}));
@@ -139,13 +143,24 @@ fn a_removed_link_dependency_with_a_malformed_manifest_is_unlinked() {
             .into_iter()
             .map(|(_, alias, version)| (alias, version))
             .collect();
-        (fs::symlink_metadata(workspace.join("node_modules/lib")).is_ok(), removed)
+        (has_bins_dir, fs::symlink_metadata(workspace.join("node_modules/lib")).is_ok(), removed)
     });
-    dbg!(&observed);
-    for (linker, (present_after, removed)) in observed {
+    dbg!(with_bin, &observed);
+    for (linker, (has_bins_dir, present_after, removed)) in observed {
+        assert_eq!(has_bins_dir, with_bin, "nodeLinker: {linker}");
         assert!(!present_after, "nodeLinker: {linker}");
         assert_eq!(removed, [("lib".to_owned(), Value::Null)], "nodeLinker: {linker}");
     }
+}
+
+#[test]
+fn a_removed_link_dependency_with_a_malformed_manifest_is_unlinked() {
+    remove_a_link_dependency_with_a_malformed_manifest(false);
+}
+
+#[test]
+fn a_removed_link_dependency_with_bins_and_a_malformed_manifest_is_unlinked() {
+    remove_a_link_dependency_with_a_malformed_manifest(true);
 }
 
 /// The root names `packages/shared` as `link:packages/shared`, the project

@@ -1726,6 +1726,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
