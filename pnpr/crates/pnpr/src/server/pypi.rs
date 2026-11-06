@@ -37,7 +37,7 @@ use super::{
 use axum::{
     Router,
     body::{Body, Bytes},
-    extract::{Path, Request, State},
+    extract::{DefaultBodyLimit, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, post, put},
@@ -72,7 +72,9 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"), get(get_file))
             .route(
                 &format!("{base}/{FILES_PATH}/{{project}}/{{filename}}/yank"),
-                put(management::yank).delete(management::unyank),
+                put(management::yank)
+                    .delete(management::unyank)
+                    .layer(DefaultBodyLimit::max(management::MAX_YANK_BODY_BYTES)),
             )
             .route(
                 &format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"),

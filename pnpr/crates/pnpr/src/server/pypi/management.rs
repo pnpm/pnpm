@@ -8,6 +8,9 @@ use axum::{Json, response::IntoResponse};
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate};
 use serde::Deserialize;
 
+pub(super) const MAX_YANK_BODY_BYTES: usize = 8 * 1024;
+const MAX_YANK_REASON_BYTES: usize = 1024;
+
 #[derive(Deserialize)]
 pub(super) struct YankRequest {
     reason: Option<String>,
@@ -20,6 +23,15 @@ pub(super) async fn yank(
     Path(params): Path<HashMap<String, String>>,
     Json(request): Json<YankRequest>,
 ) -> Response {
+    if request.reason
+        .as_ref()
+        .is_some_and(|reason| reason.len() > MAX_YANK_REASON_BYTES)
+    {
+        return private_no_cache(
+            super::bad_request(format!("yank reason exceeds {MAX_YANK_REASON_BYTES} bytes"))
+                .into_response(),
+        );
+    }
     change_file(
         &state,
         &identity,
@@ -27,6 +39,7 @@ pub(super) async fn yank(
         &params,
         Some(
             request.reason
+                .filter(|reason| !reason.is_empty())
                 .map(Yanked::Reason)
                 .unwrap_or(Yanked::Flag(true)),
         ),
@@ -122,11 +135,12 @@ fn update_document(
     else {
         return Ok(None);
     };
-    match yanked {
-        Some(yanked) => document.files[index].yanked = yanked.clone(),
-        None => {
-            document.files.remove(index);
-        }
+    if let Some(yanked) = yanked {
+        document.files[index].yanked = yanked.clone();
+    } else {
+        document.files.remove(index);
+        document.deleted_files.insert(filename.to_string());
+        document.format_version = pnpr_pypi::PROJECT_DOCUMENT_FORMAT_VERSION;
     }
     Ok(Some(document.to_bytes()))
 }

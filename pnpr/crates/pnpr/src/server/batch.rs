@@ -390,7 +390,7 @@ async fn validate_entry(
                 verify_crate_archive(target, entry.metadata, archive.into()).await?,
             ))
         }
-        Ecosystem::Pypi => validate_pypi_entry(state, identity, package),
+        Ecosystem::Pypi => validate_pypi_entry(state, identity, package).await,
         Ecosystem::Oci => {
             let entry: OciEntry =
                 serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
@@ -470,7 +470,7 @@ async fn validate_npm_entry(
     Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
 }
 
-fn validate_pypi_entry(
+async fn validate_pypi_entry(
     state: &AppState,
     identity: &Identity,
     package: Value,
@@ -487,5 +487,5 @@ fn validate_pypi_entry(
     };
     let target = authorize_upload(state, identity, None, &upload)?;
     upload.content = decode_base64(&entry.content, "content")?;
-    Ok(ValidatedEntry::Pypi(verify_upload(target, upload)?))
+    Ok(ValidatedEntry::Pypi(verify_upload(target, upload).await?))
 }

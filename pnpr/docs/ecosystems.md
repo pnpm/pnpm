@@ -184,14 +184,14 @@ source distribution must name the same project and version as the filename
 and upload form.
 
 Publishers can yank a file with `PUT /pypi/files/<project>/<filename>/yank`
-and a JSON body such as `{"reason":"Broken release"}`. An empty object yanks
-without a reason. `DELETE` on the same URL unyanks it. Yanked files remain
+and a JSON body such as `{"reason":"Broken release"}`. A JSON body is required. An empty object yanks
+without a reason. Reasons may contain up to 1024 UTF-8 bytes. `DELETE` on the same URL unyanks it. Yanked files remain
 downloadable, and the Simple API reports their yank status to installers.
 
 Administrators listed in `auth.admins` can remove a file with
 `DELETE /pypi/files/<project>/<filename>`. This removes its Simple API entry
 and makes downloads return 404. Stored archive bytes are retained. These routes
-also work under a named registry's base URL.
+also work under a named registry's base URL. Deleted filenames cannot be uploaded again.
 
 ## Proxying crates.io and PyPI
 

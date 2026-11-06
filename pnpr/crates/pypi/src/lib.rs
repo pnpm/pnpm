@@ -18,7 +18,11 @@ use pep440_rs::Version;
 use pnpr_package_name::canonicalize_python_name;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, fmt::Write as _, str::FromStr};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+    str::FromStr,
+};
 
 /// The URL segment under a registry endpoint where the Simple API lives:
 /// `/~<name>/simple/`, `/~<name>/simple/<project>/`.
@@ -119,7 +123,7 @@ impl ProjectFile {
     }
 }
 
-pub const PROJECT_DOCUMENT_FORMAT_VERSION: u32 = 1;
+pub const PROJECT_DOCUMENT_FORMAT_VERSION: u32 = 2;
 
 const fn default_format_version() -> u32 {
     PROJECT_DOCUMENT_FORMAT_VERSION
@@ -135,6 +139,9 @@ pub struct ProjectDocument {
     pub name: String,
     #[serde(default)]
     pub files: Vec<ProjectFile>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    /// Filenames permanently reserved after an administrator deletes them.
+    pub deleted_files: BTreeSet<String>,
 }
 
 impl ProjectDocument {
@@ -144,6 +151,7 @@ impl ProjectDocument {
             format_version: PROJECT_DOCUMENT_FORMAT_VERSION,
             name: name.to_string(),
             files: Vec::new(),
+            deleted_files: BTreeSet::new(),
         }
     }
 

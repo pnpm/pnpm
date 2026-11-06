@@ -122,6 +122,39 @@ async fn publishers_yank_and_admins_delete_files() {
     );
     assert_eq!(
         app.clone()
+            .oneshot(management_request("PUT", &yank, Some(&publisher), r#"{"reason":""}"#))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::OK,
+    );
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/demo-pkg/", Some(JSON)))
+        .await
+        .unwrap();
+    let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(page["files"][0]["yanked"], true);
+    let oversized = json!({"reason": "x".repeat(1025)}).to_string();
+    assert_eq!(
+        app.clone()
+            .oneshot(management_request("PUT", &yank, Some(&publisher), &oversized))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
+    let oversized_body = json!({"reason": "x".repeat(8192)}).to_string();
+    assert_eq!(
+        app.clone()
+            .oneshot(management_request("PUT", &yank, Some(&publisher), &oversized_body))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::PAYLOAD_TOO_LARGE,
+    );
+    assert_eq!(
+        app.clone()
             .oneshot(management_request("DELETE", &yank, Some(&publisher), ""))
             .await
             .unwrap()
@@ -174,6 +207,37 @@ async fn publishers_yank_and_admins_delete_files() {
         .unwrap();
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["files"], json!([]));
+    let corrected = common::python_wheel_with_metadata(
+        "demo-pkg",
+        "1.0.0",
+        "Name: demo-pkg\nVersion: 1.0.0\nSummary: corrected\n",
+    );
+    assert_ne!(corrected, content);
+    let response = app
+        .clone()
+        .oneshot(upload_request(
+            Some(&publisher),
+            wheel_upload("demo-pkg", "1.0.0", filename, &corrected),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        app.clone()
+            .oneshot(get(&file, None))
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::NOT_FOUND,
+    );
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/demo-pkg/", Some(JSON)))
+        .await
+        .unwrap();
+    let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(page["files"], json!([]));
+
     assert_eq!(
         app.oneshot(management_request("PUT", &yank, Some(&publisher), "{}"))
             .await

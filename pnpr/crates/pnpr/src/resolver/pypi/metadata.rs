@@ -86,5 +86,5 @@ pub(super) fn verify_digest(
 /// The `METADATA` inside a wheel, for an index that publishes no metadata
 /// file of its own.
 pub(super) fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<Vec<u8>, String> {
-    pnpr_pypi::archive::metadata_from_zip(wheel, filename, true)
+    pnpr_pypi::archive::metadata_from_zip(wheel, filename, pnpr_pypi::DistributionKind::Wheel)
 }
