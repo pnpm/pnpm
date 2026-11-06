@@ -271,7 +271,7 @@ export function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnv
     pnpm_config_minimum_release_age: '0',
     pnpm_config_registry: fallback('registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`),
     pnpm_config_silent: 'true',
-    pnpm_config_store_dir: opts?.storeDir ?? fallback('storeDir', '../store'),
+    pnpm_config_store_dir: opts?.storeDir ?? fallback('storeDir', path.resolve('../store')),
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     pnpm_config_verify_store_integrity: 'true',
