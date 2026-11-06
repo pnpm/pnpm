@@ -2,7 +2,7 @@
 //! projects a sparse checkout leaves off disk.
 
 use super::super::{DependencyGroup, HashSet, Lockfile, PackageManifest, Path};
-use pnpm_lockfile::{ImporterDepVersion, ProjectSnapshot};
+use pnpm_lockfile::{ImporterDepVersion, ProjectSnapshot, ResolvedDependencySpec};
 use serde_json::{Map, Value};
 
 /// A manifest for every importer `lockfile` records outside
@@ -11,8 +11,9 @@ use serde_json::{Map, Value};
 /// The resolver resolves these alongside the projects on disk, so their
 /// dependencies take part in peer resolution and in the `optional` flags the
 /// lockfile records, as they do when the projects are on disk. A dependency
-/// recorded as a `link:` or `file:` directory is left out: its target is
-/// relative to a directory that is not on disk.
+/// recorded as `link:` or `file:`, or declared with a local path specifier,
+/// is left out: its target can be relative to a directory that is not on
+/// disk.
 pub(super) fn missing_project_manifests(
     lockfile: &Lockfile,
     real_importer_ids: &HashSet<String>,
@@ -29,6 +30,11 @@ pub(super) fn missing_project_manifests(
         .collect()
 }
 
+fn is_local_dependency(dependency: &ResolvedDependencySpec) -> bool {
+    matches!(dependency.version, ImporterDepVersion::Link(_) | ImporterDepVersion::File(_))
+        || pnpm_local_spec::is_local_filesystem_specifier(&dependency.specifier)
+}
+
 fn declared_dependencies(importer: &ProjectSnapshot) -> Map<String, Value> {
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
         .into_iter()
@@ -36,12 +42,7 @@ fn declared_dependencies(importer: &ProjectSnapshot) -> Map<String, Value> {
             let specifiers: Map<String, Value> = importer
                 .get_map_by_group(group)?
                 .iter()
-                .filter(|(_, dependency)| {
-                    !matches!(
-                        dependency.version,
-                        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_),
-                    )
-                })
+                .filter(|(_, dependency)| !is_local_dependency(dependency))
                 .map(|(alias, dependency)| {
                     (alias.to_string(), Value::String(dependency.specifier.clone()))
                 })

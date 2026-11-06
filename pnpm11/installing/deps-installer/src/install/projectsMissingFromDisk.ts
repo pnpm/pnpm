@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { PnpmContext } from '@pnpm/installing.context'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { LockfileObject, PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.types'
+import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectId,
@@ -24,8 +25,9 @@ export type ProjectMissingFromDisk = PnpmContext['projects'][string] & {
  * lockfile records but that are not on disk, such as projects a sparse
  * checkout leaves out. Each one declares the specifiers its importer records,
  * so the resolution sees its dependencies as it does when the project is on
- * disk. A dependency recorded as a `link:` or `file:` directory is left out:
- * its target is relative to a directory that is not on disk.
+ * disk. A dependency recorded as `link:` or `file:`, or declared with a local
+ * path specifier, is left out: its target can be relative to a directory that
+ * is not on disk.
  */
 export function listProjectsMissingFromDisk (ctx: PnpmContext): ProjectMissingFromDisk[] {
   const projectIds = new Set(Object.values(ctx.projects).map(({ id }) => id))
@@ -53,7 +55,7 @@ function manifestOfImporter (importer: ProjectSnapshot): ProjectManifest {
     const specifiers: Record<string, string> = {}
     for (const [alias, ref] of Object.entries(importer[field] ?? {})) {
       const specifier = importer.specifiers[alias]
-      if (specifier != null && !ref.startsWith('link:') && !ref.startsWith('file:')) {
+      if (specifier != null && !isLocalDependency(ref, specifier)) {
         specifiers[alias] = specifier
       }
     }
@@ -62,6 +64,10 @@ function manifestOfImporter (importer: ProjectSnapshot): ProjectManifest {
     }
   }
   return manifest
+}
+
+function isLocalDependency (ref: string, specifier: string): boolean {
+  return ref.startsWith('link:') || ref.startsWith('file:') || isLocalFilesystemSpecifier(specifier)
 }
 
 /**

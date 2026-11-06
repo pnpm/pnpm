@@ -982,6 +982,7 @@ test.each([
   expect(lockfile.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer']).toStrictEqual(before.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer'])
   expect(lockfile.importers!['project-3']).toStrictEqual(before.importers!['project-3'])
   for (const depPath of ['is-positive@1.0.0', 'local-pkg@file:local-pkg', 'is-negative@1.0.0']) {
+    expect(before.snapshots![depPath]).toBeDefined()
     expect(lockfile.snapshots![depPath]).toStrictEqual(before.snapshots![depPath])
   }
   expect(fs.existsSync('project-3')).toBe(false)
