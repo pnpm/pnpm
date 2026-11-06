@@ -653,23 +653,27 @@ fn rejects_package_keys_that_normalize_to_the_same_name() {
 #[test]
 fn oci_limits_are_positive_and_preserve_defaults() {
     let config = Config::from_yaml_str(
-        "oci: {maxBlobBytes: 123, maxManifestBytes: 456, bearerAuth: true}",
+        "oci: {maxBlobBytes: 123, maxManifestBytes: 456, chunkMaxBytes: 100, bearerAuth: true}",
         Path::new("/config"),
         listen(),
         None,
     )
     .unwrap();
     assert_eq!(config.http.oci.max_blob_bytes, 123);
+    assert_eq!(config.http.oci.chunk_max_bytes.unwrap().get(), 100);
     assert_eq!(config.http.oci.max_manifest_bytes, 456);
     assert!(config.http.oci.bearer_auth);
     let config = Config::from_yaml_str("{}", Path::new("/config"), listen(), None).unwrap();
     assert_eq!(config.http.oci.max_blob_bytes, 10 * 1024 * 1024 * 1024);
     assert_eq!(config.http.oci.max_manifest_bytes, 4 * 1024 * 1024);
     assert!(!config.http.oci.bearer_auth);
+    assert!(config.http.oci.chunk_max_bytes.is_none());
     for yaml in [
         "oci: {maxBlobBytes: 0}",
         "oci: {maxManifestBytes: 0}",
         "oci: {maxBlobBytes: -1}",
+        "oci: {chunkMaxBytes: 0}",
+        "oci: {chunkMaxBytes: -1}",
         "oci: {maxManifestByte: 1}",
     ] {
         assert!(

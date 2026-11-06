@@ -293,6 +293,8 @@ pub enum TarballFormat {
 pub struct OciConfig {
     pub bearer_auth: bool,
     pub max_blob_bytes: u64,
+    /// Optional upload chunk size hint in bytes; omitted by default.
+    pub chunk_max_bytes: Option<std::num::NonZeroU64>,
     pub max_manifest_bytes: usize,
 }
 
@@ -301,6 +303,7 @@ impl Default for OciConfig {
         Self {
             bearer_auth: false,
             max_blob_bytes: 10 * 1024 * 1024 * 1024,
+            chunk_max_bytes: None,
             max_manifest_bytes: 4 * 1024 * 1024,
         }
     }

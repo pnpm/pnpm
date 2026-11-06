@@ -225,7 +225,15 @@ impl Request {
         upload: &BlobUpload,
     ) -> Response {
         match upload.offset().await {
-            Ok(offset) => accepted(&self.base, key.as_str(), upload.id(), offset),
+            Ok(offset) => {
+                let mut response = accepted(&self.base, key.as_str(), upload.id(), offset);
+                if let Some(limit) = self.state.inner.config.http.oci.chunk_max_bytes {
+                    response
+                        .headers_mut()
+                        .insert("oci-chunk-max-length", super::HeaderValue::from(limit.get()));
+                }
+                response
+            }
             Err(err) => registry_error(err),
         }
     }
