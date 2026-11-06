@@ -224,27 +224,23 @@ fn isolated_mutable_source_is_not_hard_linked() {
     assert_eq!(fs::read(dir.join("index.js")).unwrap(), b"1");
 }
 
-/// A build writes to the files it imports, so a registry package with an
-/// install script gets private copies even under `hardlink`.
+/// A build writes to the files it imports, so a registry package that
+/// needs one gets private copies even under `hardlink`.
 #[test]
 fn package_requiring_build_is_not_hard_linked_to_store() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let cas_root = tmp.path().join("cas");
     let lockfile_dir = tmp.path().join("repo");
-    let (graph, hierarchy, cas_paths) = flat_layout(
+    let (graph, hierarchy, mut cas_paths) = flat_layout(
         &lockfile_dir,
         &cas_root,
-        &[(
-            "a",
-            "a@1.0.0",
-            "a@1.0.0",
-            &[
-                ("package.json", br#"{"scripts":{"postinstall":"node build.js"}}"#),
-                ("index.js", b"1"),
-            ],
-        )],
+        &[("a", "a@1.0.0", "a@1.0.0", &[("index.js", b"1")])],
     );
-    let store_file = cas_paths[&PkgIdWithPatchHash::from("a@1.0.0")].cas_paths["index.js"].clone();
+    let files = cas_paths
+        .get_mut(&PkgIdWithPatchHash::from("a@1.0.0"))
+        .expect("files");
+    files.needs_build = true;
+    let store_file = files.cas_paths["index.js"].clone();
 
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {

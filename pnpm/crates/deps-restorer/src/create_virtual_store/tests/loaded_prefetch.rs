@@ -185,7 +185,7 @@ fn row_cas_paths(file: &str) -> Arc<pnpm_fs::CasPaths> {
 }
 
 fn downloaded(cas_paths: &Arc<pnpm_fs::CasPaths>, source_is_mutable: bool) -> HoistedPackageFiles {
-    HoistedPackageFiles { cas_paths: Arc::clone(cas_paths), source_is_mutable, source_exists: true }
+    HoistedPackageFiles { source_is_mutable, ..Arc::clone(cas_paths).into() }
 }
 
 #[test]

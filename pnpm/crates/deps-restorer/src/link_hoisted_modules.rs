@@ -70,6 +70,9 @@ pub struct HoistedPackageFiles {
     /// Whether the mutable source was there to read from. See
     /// [`crate::SlotImportSource::source_exists`].
     pub source_exists: bool,
+    /// Whether a build or a patch will write to the imported files. See
+    /// [`crate::SlotImportSource::needs_build`].
+    pub needs_build: bool,
 }
 
 impl HoistedPackageFiles {
@@ -84,9 +87,15 @@ impl HoistedPackageFiles {
 }
 
 impl From<Arc<pnpm_fs::CasPaths>> for HoistedPackageFiles {
-    /// Content-addressed files, which are never mutable.
+    /// Content-addressed files, which are never mutable, of a package
+    /// nothing will write to.
     fn from(cas_paths: Arc<pnpm_fs::CasPaths>) -> Self {
-        HoistedPackageFiles { cas_paths, source_is_mutable: false, source_exists: true }
+        HoistedPackageFiles {
+            cas_paths,
+            source_is_mutable: false,
+            source_exists: true,
+            needs_build: false,
+        }
     }
 }
 
@@ -339,11 +348,7 @@ fn import_node<Reporter: self::Reporter>(
     };
 
     let cas_paths = &*files.cas_paths;
-    // A build or a patch writes to the imported files, so they must not
-    // share inodes with the store or with a directory dependency's source.
-    let needs_build =
-        node.package.patch.is_some() || crate::requires_build_from_cas_paths(cas_paths);
-    let import_method = opts.import.method_for(files.source_is_mutable, needs_build);
+    let import_method = opts.import.method_for(files.source_is_mutable, files.needs_build);
     if files.source_is_mutable
         || !opts.dir_clone_cache.is_some_and(|cache| {
             cache.try_import::<Reporter>(node, opts.import, cas_paths)
