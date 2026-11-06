@@ -1274,6 +1274,16 @@ fn outdated_reports_cargo_and_python_dependencies() {
     assert_eq!(all_report["requests"]["latest"], "2.0");
     assert_eq!(all_report["requests"]["wanted"], "1.5");
 
+    let cargo_output =
+        pacquet(&workspace, ["-r", "outdated", "pkg:cargo/foo", "--offline", "--format", "json"])
+            .output()
+            .expect("run recursive outdated for a Cargo purl");
+    assert_eq!(cargo_output.status.code(), Some(1));
+    let cargo_report: serde_json::Value =
+        serde_json::from_slice(&cargo_output.stdout).expect("parse Cargo purl outdated JSON");
+    assert_eq!(cargo_report["foo"]["current"], "1.0.0");
+    assert_eq!(cargo_report["foo"]["latest"], "2.0.0");
+
     let compat_output =
         pacquet(&workspace, ["outdated", "--compatible", "--offline", "--format", "json"])
             .output()

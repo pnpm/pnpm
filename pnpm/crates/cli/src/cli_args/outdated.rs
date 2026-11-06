@@ -14,7 +14,7 @@ use crate::{
     State,
     cli_args::{
         catalogs::configured_catalogs,
-        ecosystem_deps::{declared_ecosystem_dep_names, requires_ecosystem_lockfile},
+        ecosystem_deps::{declared_ecosystem_dep_names, is_purl, requires_ecosystem_lockfile},
         install::resolve_bool_override,
         recursive::discover_workspace_projects,
         release_notes::UpgradeNotes,
@@ -247,7 +247,7 @@ impl OutdatedArgs {
     pub(super) fn package_patterns(&self) -> Vec<String> {
         self.packages
             .iter()
-            .filter(|selector| !github_actions::is_selector(selector))
+            .filter(|selector| !github_actions::is_selector(selector) || is_purl(selector))
             .cloned()
             .collect()
     }
