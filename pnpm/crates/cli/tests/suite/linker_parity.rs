@@ -41,6 +41,24 @@ fn set(names: &[&str]) -> BTreeSet<String> {
         .collect()
 }
 
+/// A value observed before and after the change a scenario makes.
+#[derive(Debug, PartialEq, Eq)]
+struct Change<Value> {
+    before: Value,
+    after: Value,
+}
+
+/// Whether a direct dependency's entry is in `node_modules`.
+#[derive(Debug, PartialEq, Eq)]
+enum Entry {
+    Present,
+    Absent,
+}
+
+fn entry(path: &Path) -> Entry {
+    if path.exists() { Entry::Present } else { Entry::Absent }
+}
+
 fn write_json(path: &Path, value: &Value) {
     fs::create_dir_all(path.parent().expect("a parent dir")).expect("create the parent dir");
     fs::write(path, serde_json::to_string_pretty(value).expect("serialize JSON"))
@@ -95,41 +113,53 @@ fn a_direct_dependency_bin_is_linked() {
 
 #[test]
 fn the_shims_of_a_removed_dependency_are_pruned() {
-    assert_under_both_linkers(&(BTreeSet::new(), false), |linker, workspace| {
+    let expected = (
+        Change { before: set(&["t", "tt"]), after: BTreeSet::new() },
+        Change { before: Entry::Present, after: Entry::Absent },
+    );
+    assert_under_both_linkers(&expected, |linker, workspace| {
         write_workspace_yaml(workspace, linker, "");
         write_json(
             &workspace.join("package.json"),
             &json!({ "dependencies": { "@pnpm.e2e/touch-file-many-bins": "1.0.0" } }),
         );
+        let modules_dir = workspace.join("node_modules");
+        let dependency_dir = modules_dir.join("@pnpm.e2e/touch-file-many-bins");
         install(workspace, &[]);
+        let before = (commands(&modules_dir), entry(&dependency_dir));
         write_json(&workspace.join("package.json"), &json!({ "dependencies": {} }));
         install(workspace, &[]);
-        let modules_dir = workspace.join("node_modules");
-        (commands(&modules_dir), modules_dir.join("@pnpm.e2e/touch-file-many-bins").exists())
+        (
+            Change { before: before.0, after: commands(&modules_dir) },
+            Change { before: before.1, after: entry(&dependency_dir) },
+        )
     });
 }
 
 #[test]
 fn the_commands_a_replaced_dependency_no_longer_provides_are_pruned() {
-    assert_under_both_linkers(&set(&["t"]), |linker, workspace| {
+    let expected = Change { before: set(&["t", "tt"]), after: set(&["t"]) };
+    assert_under_both_linkers(&expected, |linker, workspace| {
         write_workspace_yaml(workspace, linker, "");
         write_json(
             &workspace.join("package.json"),
             &json!({ "dependencies": { "@pnpm.e2e/touch-file-many-bins": "1.0.0" } }),
         );
         install(workspace, &[]);
+        let before = commands(&workspace.join("node_modules"));
         write_json(
             &workspace.join("package.json"),
             &json!({ "dependencies": { "@pnpm.e2e/touch-file-one-bin": "1.0.0" } }),
         );
         install(workspace, &[]);
-        commands(&workspace.join("node_modules"))
+        Change { before, after: commands(&workspace.join("node_modules")) }
     });
 }
 
-/// What a command in `<modules_dir>/.bin` runs: the file a symlinked bin
-/// resolves to, or the text of a shim, which names its target.
-fn command_target(modules_dir: &Path, command: &str) -> String {
+/// The package whose file a command in `<modules_dir>/.bin` runs, out of
+/// `candidates`. A symlinked bin is resolved; a shim's text names its
+/// target.
+fn command_owner<'a>(modules_dir: &Path, command: &str, candidates: &[&'a str]) -> Option<&'a str> {
     let bin = modules_dir.join(".bin").join(command);
     let is_link = fs::symlink_metadata(&bin)
         .expect("stat the bin")
@@ -143,23 +173,28 @@ fn command_target(modules_dir: &Path, command: &str) -> String {
     } else {
         fs::read_to_string(&bin).expect("read the shim")
     };
-    target.replace('\\', "/")
+    let target = target.replace('\\', "/");
+    dbg!(&target);
+    candidates
+        .iter()
+        .find(|candidate| target.contains(&format!("{candidate}/index.js")))
+        .copied()
 }
 
 /// `@pnpm.e2e/hello-world-js-bin-parent` declares the command its own
 /// dependency also declares.
 #[test]
 fn a_direct_dependency_wins_a_command_over_its_own_dependency() {
-    assert_under_both_linkers(&true, |linker, workspace| {
+    const PARENT: &str = "hello-world-js-bin-parent";
+    const CHILD: &str = "@pnpm.e2e/hello-world-js-bin";
+    assert_under_both_linkers(&Some(PARENT), |linker, workspace| {
         write_workspace_yaml(workspace, linker, "");
         write_json(
             &workspace.join("package.json"),
             &json!({ "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" } }),
         );
         install(workspace, &[]);
-        let target = command_target(&workspace.join("node_modules"), "hello-world-js-bin");
-        dbg!(&target);
-        target.contains("hello-world-js-bin-parent/index.js")
+        command_owner(&workspace.join("node_modules"), "hello-world-js-bin", &[PARENT, CHILD])
     });
 }
 
@@ -200,7 +235,9 @@ fn the_bins_a_build_creates_are_linked() {
 
 #[test]
 fn a_file_the_user_put_in_the_bin_dir_is_kept() {
-    assert_under_both_linkers(&set(&["my-script", "t"]), |linker, workspace| {
+    let expected =
+        Change { before: set(&["my-script", "t", "tt"]), after: set(&["my-script", "t"]) };
+    assert_under_both_linkers(&expected, |linker, workspace| {
         write_workspace_yaml(workspace, linker, "");
         write_json(
             &workspace.join("package.json"),
@@ -209,20 +246,19 @@ fn a_file_the_user_put_in_the_bin_dir_is_kept() {
         install(workspace, &[]);
         fs::write(workspace.join("node_modules/.bin/my-script"), "#!/bin/sh\necho mine\n")
             .expect("write a user script");
+        let before = commands(&workspace.join("node_modules"));
         write_json(
             &workspace.join("package.json"),
             &json!({ "dependencies": { "@pnpm.e2e/touch-file-one-bin": "1.0.0" } }),
         );
         install(workspace, &[]);
-        commands(&workspace.join("node_modules"))
+        Change { before, after: commands(&workspace.join("node_modules")) }
     });
 }
 
-/// A workspace project that depends on a sibling gets the sibling's
-/// command, and loses it when the dependency is removed.
 #[test]
 fn a_workspace_sibling_bin_is_linked_and_pruned() {
-    let expected = (set(&["sibling-tool"]), BTreeSet::new());
+    let expected = Change { before: set(&["sibling-tool"]), after: BTreeSet::new() };
     assert_under_both_linkers(&expected, |linker, workspace| {
         write_workspace_yaml(workspace, linker, "packages:\n  - 'packages/*'\n");
         write_json(&workspace.join("package.json"), &json!({ "name": "root", "private": true }));
@@ -238,10 +274,10 @@ fn a_workspace_sibling_bin_is_linked_and_pruned() {
             &json!({ "name": "app", "version": "1.0.0", "dependencies": { "sibling": "workspace:*" } }),
         );
         install(workspace, &[]);
-        let linked = commands(&app.join("node_modules"));
+        let before = commands(&app.join("node_modules"));
         write_json(&app.join("package.json"), &json!({ "name": "app", "version": "1.0.0" }));
         install(workspace, &[]);
-        (linked, commands(&app.join("node_modules")))
+        Change { before, after: commands(&app.join("node_modules")) }
     });
 }
 
@@ -249,7 +285,8 @@ fn a_workspace_sibling_bin_is_linked_and_pruned() {
 /// command it stopped declaring.
 #[test]
 fn a_command_a_kept_dependency_stops_declaring_is_pruned() {
-    assert_under_both_linkers(&set(&["renamed-tool"]), |linker, workspace| {
+    let expected = Change { before: set(&["sibling-tool"]), after: set(&["renamed-tool"]) };
+    assert_under_both_linkers(&expected, |linker, workspace| {
         write_workspace_yaml(workspace, linker, "packages:\n  - 'packages/*'\n");
         write_json(&workspace.join("package.json"), &json!({ "name": "root", "private": true }));
         let sibling = workspace.join("packages/sibling");
@@ -267,8 +304,9 @@ fn a_command_a_kept_dependency_stops_declaring_is_pruned() {
             &json!({ "name": "app", "version": "1.0.0", "dependencies": { "sibling": "workspace:*" } }),
         );
         install(workspace, &[]);
+        let before = commands(&app.join("node_modules"));
         write_sibling("renamed-tool");
         install(workspace, &[]);
-        commands(&app.join("node_modules"))
+        Change { before, after: commands(&app.join("node_modules")) }
     });
 }
