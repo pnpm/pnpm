@@ -21,6 +21,9 @@ use super::{
 pub(super) enum SkippedOptionalReport {
     Emit,
     Suppress,
+    /// The edge is resolved only to read its manifest. It is dropped as an
+    /// optional edge would be, optional or not, without a report.
+    Detached,
 }
 
 pub(super) fn drop_failed_edge(
@@ -31,7 +34,7 @@ pub(super) fn drop_failed_edge(
     err: ResolveDependencyTreeError,
     report: SkippedOptionalReport,
 ) -> Result<(), ResolveDependencyTreeError> {
-    let optional = wanted.optional.unwrap_or(false);
+    let optional = wanted.optional.unwrap_or(false) || report == SkippedOptionalReport::Detached;
     let broken_parent = edge.ancestor_ids
         .last()
         .filter(|_| !optional && edge.parent_optional);
@@ -53,7 +56,7 @@ pub(super) fn drop_failed_edge(
     }
     match report {
         SkippedOptionalReport::Emit => {}
-        SkippedOptionalReport::Suppress => return Ok(()),
+        SkippedOptionalReport::Suppress | SkippedOptionalReport::Detached => return Ok(()),
     }
     if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
         log(SkippedOptionalDependency {

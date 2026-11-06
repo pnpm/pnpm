@@ -329,7 +329,7 @@ where
         spec,
         importer_id,
         parent_pkg_aliases,
-        ChangedDirectScope::OwnImporter,
+        DirectResolution::ChangedDirectPreseed,
     )
     .await?;
     Ok(resolved.and_then(|resolved| {
@@ -341,7 +341,8 @@ where
 
 /// What a direct dependency of the importer resolves to, the way
 /// [`super::super::extend_tree`] resolves it, without adding it to the tree.
-/// `None` when an optional dependency fails to resolve.
+/// `None` when it fails to resolve the way a dropped optional dependency
+/// does. The failure is not reported.
 pub(crate) async fn resolve_direct_dependency_detached<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -361,9 +362,57 @@ where
         spec,
         importer_id,
         parent_pkg_aliases,
-        ChangedDirectScope::EveryImporter,
+        DirectResolution::Detached,
     )
     .await
+}
+
+/// Why a direct dependency is resolved without being added to the tree.
+#[derive(Debug, Clone, Copy)]
+enum DirectResolution {
+    /// To pre-seed the versions of the importer's changed direct
+    /// dependencies.
+    ChangedDirectPreseed,
+    /// To read its manifest, the way [`super::super::extend_tree`] would
+    /// resolve it.
+    Detached,
+}
+
+impl DirectResolution {
+    fn changed_direct_scope(self) -> ChangedDirectScope {
+        match self {
+            DirectResolution::ChangedDirectPreseed => ChangedDirectScope::OwnImporter,
+            DirectResolution::Detached => ChangedDirectScope::EveryImporter,
+        }
+    }
+
+    async fn try_resolve_edge<Chain>(
+        self,
+        ctx: &TreeCtx,
+        resolver: &Chain,
+        wanted: &mut super::WantedDependency,
+        edge: &super::ChildEdge<'_>,
+        prior_key: Option<&PkgNameVerPeer>,
+    ) -> Result<
+        Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>,
+        super::ResolveDependencyTreeError,
+    >
+    where
+        Chain: super::Resolver + ?Sized,
+    {
+        match self {
+            DirectResolution::ChangedDirectPreseed => {
+                super::super::walk::try_resolve_edge_cached(ctx, resolver, wanted, edge, prior_key)
+                    .await
+            }
+            DirectResolution::Detached => {
+                super::super::walk::try_resolve_edge_detached(
+                    ctx, resolver, wanted, edge, prior_key,
+                )
+                .await
+            }
+        }
+    }
 }
 
 async fn resolve_direct_dependency<Chain>(
@@ -372,7 +421,7 @@ async fn resolve_direct_dependency<Chain>(
     spec: DependencySpec,
     importer_id: &str,
     parent_pkg_aliases: &Arc<super::ParentPkgAliases>,
-    scope: ChangedDirectScope,
+    purpose: DirectResolution,
 ) -> Result<
     Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>,
     super::ResolveDependencyTreeError,
@@ -383,6 +432,7 @@ where
     let mut wanted_dep = super::super::wanted_from_spec(spec);
     let reuse = super::ReuseSource::Importer { importer_id: importer_id.to_string() };
     let prior_key = reuse.prior_key(ctx, &wanted_dep);
+    let scope = purpose.changed_direct_scope();
     if ctx.workspace.reuse.subtrees
         && reuse.allows_reuse()
         && !node_depends_on_changed_direct_dep_with(ctx, prior_key.as_ref(), scope)
@@ -401,14 +451,7 @@ where
         parent_pkg_aliases,
         parent_is_workspace: false,
     };
-    super::super::walk::try_resolve_edge_cached(
-        ctx,
-        resolver,
-        &mut wanted_dep,
-        &edge,
-        prior_key.as_ref(),
-    )
-    .await
+    purpose.try_resolve_edge(ctx, resolver, &mut wanted_dep, &edge, prior_key.as_ref()).await
 }
 
 #[cfg(test)]

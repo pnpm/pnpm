@@ -20,6 +20,7 @@ pub(super) use locked_versions::node_alias;
 
 pub(super) use edge_resolution::{
     closes_cycle, node_id_for, resolve_node_seed, try_resolve_edge_cached,
+    try_resolve_edge_detached,
 };
 
 mod warm_children;

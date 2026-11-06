@@ -1,10 +1,10 @@
 //! Picks the version a missing optional peer of the importer is hoisted at.
 
 use super::{
-    BTreeMap, CandidatePeer, CandidatePeers, DependencySpec, HashMap, HashSet, ImporterHoistState,
-    MissingPeer, MissingPeerInfo, ParentPkgAliases, PreferredVersions, ResolveImporterError,
-    Resolver, accepts_optional_peer_candidate,
-    get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
+    BTreeMap, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeer,
+    MissingPeerInfo, ParentPkgAliases, PreferredVersions, ResolveImporterError, Resolver,
+    accepts_optional_peer_candidate, get_hoistable_optional_peers_with_preferred_versions,
+    hoist_peers,
     hoist_rounds::hoisted_dependency,
     missing_peers::{MissingPeerKind, classify_missing_peer},
     resolve_direct_dependency_detached,
@@ -206,14 +206,10 @@ impl ImporterHoistState {
         pending
             .into_iter()
             .map(|(key, to_resolve)| async {
-                let spec = DependencySpec {
-                    optional: true,
-                    ..hoisted_dependency(key.0.clone(), to_resolve)
-                };
                 let result = resolve_direct_dependency_detached(
                     &self.ctx,
                     resolver,
-                    spec,
+                    hoisted_dependency(key.0.clone(), to_resolve),
                     &self.importer_id,
                     &parent_pkg_aliases,
                 )
