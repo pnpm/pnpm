@@ -272,7 +272,7 @@ fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
     #[cfg(all(unix, not(target_os = "wasi")))]
     let permissions = pnpm_fs::CopyPermissions::from_mode(permissions.mode() | 0o200);
     #[cfg(target_os = "wasi")]
-    let permissions = pnpm_fs::CopyPermissions::from_mode(permissions | 0o200);
+    let permissions = pnpm_fs::CopyPermissions::from_mode(permissions.mode() | 0o200);
     pnpm_fs::copy_file_atomic_with_permissions(path, path, &permissions)
 }
 
