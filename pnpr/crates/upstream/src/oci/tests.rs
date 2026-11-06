@@ -112,7 +112,11 @@ async fn rejects_an_untrusted_token_realm_without_contacting_it() {
 /// An OCI registry that answers the anonymous blob request with a 401 after
 /// `challenge_delay`, issues a token after `token_delay`, and then serves the
 /// blob.
-async fn spawn_token_registry(challenge_delay: Duration, token_delay: Duration) -> String {
+async fn spawn_token_registry(
+    challenge_delay: Duration,
+    token_delay: Duration,
+    token_body_delay: Duration,
+) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let realm = format!("{base}/token");
@@ -126,10 +130,13 @@ async fn spawn_token_registry(challenge_delay: Duration, token_delay: Duration) 
                 let response = if request.starts_with("get /token") {
                     tokio::time::sleep(token_delay).await;
                     let body = r#"{"token":"pull","expires_in":300}"#;
-                    format!(
-                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    let headers = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                         body.len(),
-                    )
+                    );
+                    let _ = socket.write_all(headers.as_bytes()).await;
+                    tokio::time::sleep(token_body_delay).await;
+                    body.to_string()
                 } else if request.contains("authorization: bearer pull") {
                     "HTTP/1.1 200 OK\r\nContent-Length: 4\r\nConnection: close\r\n\r\nblob"
                         .to_string()
@@ -158,7 +165,8 @@ fn token_upstream(base: &str, timeout: Duration) -> Upstream {
 
 #[tokio::test]
 async fn waiting_for_the_token_permit_does_not_spend_the_blob_budget() {
-    let base = spawn_token_registry(Duration::from_millis(150), Duration::ZERO).await;
+    let base =
+        spawn_token_registry(Duration::from_millis(150), Duration::ZERO, Duration::ZERO).await;
     let upstream = token_upstream(&base, Duration::from_millis(250));
     // Queues behind the blob request for the only permit, so it holds the
     // permit while the token request waits for it.
@@ -176,7 +184,9 @@ async fn waiting_for_the_token_permit_does_not_spend_the_blob_budget() {
 
 #[tokio::test]
 async fn token_negotiation_is_bounded_by_the_remaining_budget() {
-    let base = spawn_token_registry(Duration::from_millis(400), Duration::from_secs(5)).await;
+    let base =
+        spawn_token_registry(Duration::from_millis(400), Duration::from_secs(5), Duration::ZERO)
+            .await;
     let upstream = token_upstream(&base, Duration::from_millis(500));
     let started = std::time::Instant::now();
     let result = upstream.fetch_oci("acme/app", "blobs/sha256:abc", "*/*").await;
@@ -187,7 +197,7 @@ async fn token_negotiation_is_bounded_by_the_remaining_budget() {
 
 #[tokio::test]
 async fn a_token_timeout_counts_against_the_breaker() {
-    let base = spawn_token_registry(Duration::ZERO, Duration::from_secs(5)).await;
+    let base = spawn_token_registry(Duration::ZERO, Duration::from_secs(5), Duration::ZERO).await;
     let mut config = UpstreamConfig::with_defaults(format!("{base}/"), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(200);
     config.requests.max_fails = 1;
@@ -204,4 +214,20 @@ async fn a_token_timeout_counts_against_the_breaker() {
         "got {:?}",
         second.err(),
     );
+}
+
+#[tokio::test]
+async fn token_body_timeouts_do_not_open_the_circuit() {
+    let base = spawn_token_registry(Duration::ZERO, Duration::ZERO, Duration::from_secs(5)).await;
+    let mut config = UpstreamConfig::with_defaults(format!("{base}/"), HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(200);
+    config.requests.max_fails = 1;
+    let upstream = Upstream::new("registry", &config);
+    for _ in 0..2 {
+        let result = upstream.fetch_oci("example/image", "blobs/sha256:abc", "*/*").await;
+        assert!(
+            matches!(result, Err(pnpr_error::RegistryError::Upstream { source, .. }) if source.is_timeout()),
+        );
+        assert!(upstream.ensure_available().is_ok());
+    }
 }
