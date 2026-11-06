@@ -41,7 +41,6 @@ fn set(names: &[&str]) -> BTreeSet<String> {
         .collect()
 }
 
-/// A value observed before and after the change a scenario makes.
 #[derive(Debug, PartialEq, Eq)]
 struct Change<Value> {
     before: Value,
@@ -69,7 +68,7 @@ fn write_json(path: &Path, value: &Value) {
 /// holds its `storeDir` and `cacheDir`.
 fn write_workspace_yaml(workspace: &Path, linker: &str, extra: &str) {
     let path = workspace.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&path).unwrap_or_default();
+    let yaml = fs::read_to_string(&path).expect("read the mocked registry's pnpm-workspace.yaml");
     fs::write(&path, format!("{yaml}nodeLinker: {linker}\n{extra}"))
         .expect("write pnpm-workspace.yaml");
 }
@@ -313,7 +312,7 @@ fn a_command_a_kept_dependency_stops_declaring_is_pruned() {
 
 #[test]
 fn a_dependency_bin_is_linked_into_a_custom_modules_dir() {
-    let expected = (set(&["hello-world-js-bin"]), Entry::Absent);
+    let expected = (set(&["hello-world-js-bin"]), Entry::Present, Entry::Absent);
     assert_under_both_linkers(&expected, |linker, workspace| {
         write_workspace_yaml(workspace, linker, "modulesDir: vendor\n");
         write_json(
@@ -323,6 +322,7 @@ fn a_dependency_bin_is_linked_into_a_custom_modules_dir() {
         install(workspace, &[]);
         (
             commands(&workspace.join("vendor")),
+            entry(&workspace.join("vendor/@pnpm.e2e/hello-world-js-bin")),
             entry(&workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin")),
         )
     });
