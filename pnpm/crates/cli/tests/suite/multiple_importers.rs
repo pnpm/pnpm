@@ -182,8 +182,9 @@ fn assert_filtered_install_keeps_missing_project(filters: &[&str]) {
 /// The dependencies of a project missing from disk still take part in the
 /// resolution of a filtered install, so it writes the lockfile a full
 /// checkout writes. Here the missing project supplies the optional peer a
-/// selected project resolves, and depends directly on a package another
-/// project reaches only as an optional dependency. Issue 17791.
+/// selected project resolves, depends directly on a package another project
+/// reaches only as an optional dependency, and is the only project that
+/// depends on a `file:` directory. Issue 17791.
 #[test]
 fn filtered_install_resolves_against_projects_missing_from_disk() {
     let full_checkout =
@@ -233,10 +234,23 @@ fn filtered_install_after_bump(project_3_state: ProjectThree, mode: InstallMode)
         "project-3",
         "project-3",
         ManifestDeps {
-            prod: &[(PEER_C, "1.0.1"), ("is-positive", "1.0.0"), ("project-2", "workspace:*")],
+            prod: &[
+                (PEER_C, "1.0.1"),
+                ("is-positive", "1.0.0"),
+                ("local-pkg", "file:../../local-pkg"),
+                ("project-2", "workspace:*"),
+            ],
             ..Default::default()
         },
     );
+    let local_pkg = fixture.workspace.join("local-pkg");
+    fs::create_dir(&local_pkg).expect("create local-pkg");
+    fs::write(
+        local_pkg.join("package.json"),
+        json!({ "name": "local-pkg", "version": "1.0.0", "dependencies": { "is-negative": "1.0.0" } })
+            .to_string(),
+    )
+    .expect("write local-pkg/package.json");
     fixture.run(["install", "--lockfile-only"]);
 
     if matches!(project_3_state, ProjectThree::OffDisk) {

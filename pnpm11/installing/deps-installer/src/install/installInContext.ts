@@ -166,6 +166,7 @@ function addUnselectedWorkspaceProjects (
   { opts, workspaceProjects }: { opts: InstallInContextOptions, workspaceProjects: Array<PnpmContext['projects'][string]> }
 ): ImporterToUpdate[] {
   const newProjects = [...projects]
+  const newProjectDirs = new Set(projects.map(({ rootDir }) => rootDir))
   const getWantedDepsOpts = {
     autoInstallPeers: opts.autoInstallPeers,
     includeDirect: opts.includeDirect,
@@ -173,7 +174,8 @@ function addUnselectedWorkspaceProjects (
     injectWorkspacePackages: opts.injectWorkspacePackages,
   }
   for (const project of workspaceProjects) {
-    if (newProjects.some(({ rootDir }) => rootDir === project.rootDir)) continue
+    if (newProjectDirs.has(project.rootDir)) continue
+    newProjectDirs.add(project.rootDir)
     // This code block mirrors the installCase() function in
     // mutateModules(). Consider a refactor that combines this logic to
     // deduplicate code.

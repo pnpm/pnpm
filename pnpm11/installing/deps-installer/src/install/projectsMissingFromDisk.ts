@@ -1,7 +1,8 @@
 import path from 'node:path'
 
 import type { PnpmContext } from '@pnpm/installing.context'
-import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.types'
+import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
+import type { LockfileObject, PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectId,
@@ -9,6 +10,7 @@ import {
   type ProjectRootDir,
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
+import { isSubdir } from 'is-subdir'
 import { clone } from 'ramda'
 
 import type { ImporterToUpdate } from './mutationTypes.js'
@@ -18,19 +20,19 @@ export type ProjectMissingFromDisk = PnpmContext['projects'][string] & {
 }
 
 /**
- * Stand-ins for the projects whose importers the wanted lockfile records but
- * that are not on disk, such as projects a sparse checkout leaves out. Each
- * one declares the specifiers its importer records, so the resolution sees
- * its dependencies as it does when the project is on disk. A dependency
- * recorded as a `link:` or `file:` directory is left out: its target is
- * relative to a directory that is not on disk.
+ * Stand-ins for the projects inside the workspace whose importers the wanted
+ * lockfile records but that are not on disk, such as projects a sparse
+ * checkout leaves out. Each one declares the specifiers its importer records,
+ * so the resolution sees its dependencies as it does when the project is on
+ * disk. A dependency recorded as a `link:` or `file:` directory is left out:
+ * its target is relative to a directory that is not on disk.
  */
 export function listProjectsMissingFromDisk (ctx: PnpmContext): ProjectMissingFromDisk[] {
   const projectIds = new Set(Object.values(ctx.projects).map(({ id }) => id))
   return (Object.entries(ctx.wantedLockfile.importers ?? {}) as Array<[ProjectId, ProjectSnapshot]>)
-    .filter(([id]) => !projectIds.has(id))
-    .map(([id, importer]) => {
-      const rootDir = path.join(ctx.lockfileDir, id) as ProjectRootDir
+    .map(([id, importer]) => ({ id, importer, rootDir: path.join(ctx.lockfileDir, id) as ProjectRootDir }))
+    .filter(({ id, rootDir }) => !projectIds.has(id) && isSubdir(ctx.lockfileDir, rootDir))
+    .map(({ id, importer, rootDir }) => {
       const modulesDir = path.join(rootDir, 'node_modules')
       return {
         id,
@@ -64,15 +66,24 @@ function manifestOfImporter (importer: ProjectSnapshot): ProjectManifest {
 
 /**
  * The resolution rewrites the importer of every project it resolves. A
- * project missing from disk keeps the entry the lockfile recorded.
+ * project missing from disk keeps the entry the lockfile recorded, with the
+ * packages of `previousPackages` that entry reaches. The resolution prunes
+ * the packages only the recorded entry reaches, such as `file:` dependencies,
+ * which its stand-in leaves out.
  */
 export function keepImportersOfProjectsMissingFromDisk (
   lockfile: LockfileObject,
-  projects: readonly ImporterToUpdate[]
-): void {
+  { projects, previousPackages }: { projects: readonly ImporterToUpdate[], previousPackages: PackageSnapshots | undefined }
+): LockfileObject {
+  let keepsAnImporter = false
   for (const { id, keptLockfileImporter } of projects) {
-    if (keptLockfileImporter != null) {
-      lockfile.importers[id] = keptLockfileImporter
-    }
+    if (keptLockfileImporter == null) continue
+    lockfile.importers[id] = keptLockfileImporter
+    keepsAnImporter = true
   }
+  if (!keepsAnImporter) return lockfile
+  return pruneSharedLockfile({
+    ...lockfile,
+    packages: { ...previousPackages, ...lockfile.packages },
+  })
 }

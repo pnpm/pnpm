@@ -929,10 +929,18 @@ test.each([
       dependencies: {
         '@pnpm.e2e/peer-c': '1.0.1',
         'is-positive': '1.0.0',
+        'local-pkg': 'file:../local-pkg',
         'project-2': 'workspace:*',
       },
     },
   ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+  fs.mkdirSync('local-pkg')
+  writeJsonFileSync('local-pkg/package.json', {
+    name: 'local-pkg',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+  })
   await install.handler({
     ...DEFAULT_OPTS,
     ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
@@ -973,7 +981,9 @@ test.each([
   expect(lockfile.importers!['project-1'].dependencies).toHaveProperty(['@pnpm.e2e/foo'])
   expect(lockfile.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer']).toStrictEqual(before.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer'])
   expect(lockfile.importers!['project-3']).toStrictEqual(before.importers!['project-3'])
-  expect(lockfile.snapshots!['is-positive@1.0.0']).toStrictEqual(before.snapshots!['is-positive@1.0.0'])
+  for (const depPath of ['is-positive@1.0.0', 'local-pkg@file:local-pkg', 'is-negative@1.0.0']) {
+    expect(lockfile.snapshots![depPath]).toStrictEqual(before.snapshots![depPath])
+  }
   expect(fs.existsSync('project-3')).toBe(false)
 })
 
