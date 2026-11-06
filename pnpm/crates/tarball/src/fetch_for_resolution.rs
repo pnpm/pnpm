@@ -195,7 +195,7 @@ impl FetchTarballForResolution<'_> {
             self.package.integrity,
             self.revision_addressed,
         );
-        let (cache_lock, owner_notify) = claim_cache_entry(mem_cache, mem_cache_key.clone());
+        let (cache_lock, owner_notify) = claim_cache_entry(mem_cache, mem_cache_key);
         match owner_notify {
             // A settled slot holds no hash, so it cannot say whether the pin
             // names the resource or the tar.
@@ -212,9 +212,7 @@ impl FetchTarballForResolution<'_> {
                 }
             }
             None => self.take_cached(&cache_lock).await,
-            Some(notify) => {
-                self.fetch_as_owner::<Reporter>(mem_cache, mem_cache_key, cache_lock, notify).await
-            }
+            Some(notify) => self.fetch_as_owner::<Reporter>(cache_lock, notify).await,
         }
     }
 
@@ -248,8 +246,6 @@ impl FetchTarballForResolution<'_> {
 
     async fn fetch_as_owner<Reporter: self::Reporter>(
         self,
-        mem_cache: &MemCache,
-        mem_cache_key: String,
         cache_lock: Arc<RwLock<CacheValue>>,
         notify: Arc<Notify>,
     ) -> Result<ResolvedTarball, TarballError> {
@@ -275,14 +271,7 @@ impl FetchTarballForResolution<'_> {
                 }))
             }
             Err(err) => {
-                publish_cache_failure(
-                    mem_cache,
-                    &mem_cache_key,
-                    &cache_lock,
-                    &notify,
-                    self.revision_addressed,
-                )
-                .await;
+                publish_cache_failure(&cache_lock, &notify, &err).await;
                 Err(err)
             }
         }

@@ -326,7 +326,7 @@ async fn wait_for_cas_paths(shared: &Shared, mem_cache_key: &str) -> Option<Arc<
         };
         let notify = match &*slot.read().await {
             CacheValue::Available(cached) => return Some(Arc::clone(cached)),
-            CacheValue::Failed => return None,
+            CacheValue::Failed(_) => return None,
             CacheValue::InProgress(notify) => Arc::clone(notify),
         };
         // A bounded wait rather than a bare `notified()`: the owner
