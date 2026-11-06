@@ -300,7 +300,7 @@ impl SqlMetadata {
     }
 
     /// The retained outcome of `request` in `catalog`, when an identical
-    /// request committed there and none of its publication members was removed.
+    /// request committed there and none of its npm versions was unpublished.
     pub async fn recorded_outcome(
         self: &Arc<Self>,
         catalog: &str,

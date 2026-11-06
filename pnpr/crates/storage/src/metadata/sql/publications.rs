@@ -27,8 +27,8 @@ fn retention_cutoff() -> i64 {
     now_secs() - i64::try_from(OUTCOME_RETENTION.as_secs()).unwrap_or(i64::MAX)
 }
 
-/// The retained outcome of an identical request whose publication has no
-/// subsequently removed members.
+/// The retained outcome of an identical request whose npm versions have not
+/// been unpublished.
 pub(super) fn recorded_outcome(
     connection: &dyn Connection,
     catalog: &str,
