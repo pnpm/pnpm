@@ -757,7 +757,11 @@ fn outdated_recursive_resolves_project_override_references_without_lockfile() {
         .expect("run recursive outdated without project lockfiles");
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains(DEP), "the project override reference should resolve: {stdout}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stdout.contains(DEP),
+        "the project override reference should resolve: stdout={stdout}, stderr={stderr}"
+    );
     assert!(stdout.contains("101.0.0"), "the resolved range should be checked: {stdout}");
 
     drop((root, anchor));
