@@ -755,8 +755,9 @@ fn set_ca_array_json_writes_repeated_keys_preserving_comments() {
     let doc = ini::read(&npmrc_path).unwrap();
     assert_eq!(doc.get_all("ca"), vec!["cert-1", "cert-2"]);
 
-    let runtime_config =
-        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    let runtime_config = Config { npmrc_auth_file: Some(npmrc_path), ..Config::default() }
+        .current::<Host>(tmp.path())
+        .expect("load runtime config");
     assert_eq!(runtime_config.tls.ca, vec!["cert-1", "cert-2"]);
 }
 
@@ -788,9 +789,9 @@ fn set_ca_array_json_appends_unbracketed_ca_to_file_without_existing_ca() {
     let doc = ini::read(&npmrc_path).unwrap();
     assert_eq!(doc.get_all("ca"), vec!["cert-x", "cert-y"]);
 
-    // Verify runtime config reader consumes the repeated ca= entries into tls.ca
-    let runtime_config =
-        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    let runtime_config = Config { npmrc_auth_file: Some(npmrc_path), ..Config::default() }
+        .current::<Host>(tmp.path())
+        .expect("load runtime config");
     assert_eq!(runtime_config.tls.ca, vec!["cert-x", "cert-y"]);
 }
 
@@ -821,8 +822,9 @@ fn set_ca_replaces_existing_bracketed_ca_lines() {
     let doc = ini::read(&npmrc_path).unwrap();
     assert_eq!(doc.get_all("ca"), vec!["certificate-C"]);
 
-    let runtime_config =
-        Config::default().current::<Host>(tmp.path()).expect("load runtime config");
+    let runtime_config = Config { npmrc_auth_file: Some(npmrc_path), ..Config::default() }
+        .current::<Host>(tmp.path())
+        .expect("load runtime config");
     assert_eq!(runtime_config.tls.ca, vec!["certificate-C"]);
 }
 
