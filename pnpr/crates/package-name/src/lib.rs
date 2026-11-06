@@ -119,8 +119,7 @@ pub struct CanonicalPackageName {
 
 impl CanonicalPackageName {
     /// Create a canonical name directly from an already-stored name without
-    /// re-parsing it against a specific ecosystem grammar. Used for offline
-    /// store migration and maintenance.
+    /// re-parsing it against a specific ecosystem grammar.
     #[must_use]
     pub fn from_stored(raw: &str, ecosystem: Ecosystem) -> Self {
         let basename = raw

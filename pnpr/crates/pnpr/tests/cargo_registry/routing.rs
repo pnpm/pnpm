@@ -467,7 +467,11 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
 
 #[tokio::test]
 async fn hosted_claims_cover_cargo_separator_aliases() {
-    for claim in ["demo-crate", "Demo_Crate"] {
+    for (claim, published, aliases) in [
+        ("demo-crate", "demo_crate", ["demo-crate", "demo_crate"]),
+        ("Demo_Crate", "demo_crate", ["demo-crate", "demo_crate"]),
+        ("_demo_crate", "_demo_crate", ["_demo_crate", "_demo-crate"]),
+    ] {
         let tmp = TempDir::new().unwrap();
         let auth = AuthState::in_memory();
         let token = issue_token(&auth, "publisher").await;
@@ -489,11 +493,11 @@ async fn hosted_claims_cover_cargo_separator_aliases() {
             ("cratesio", &upstream.url()),
         );
         let app = router_with_auth(config, auth);
-        for name in ["demo-crate", "demo_crate"] {
+        for name in aliases {
             let response = app
                 .clone()
                 .oneshot(
-                    Request::get(format!("/cargo/index/de/mo/{name}"))
+                    Request::get(format!("/cargo/index/{}", pnpr_cargo::sparse_index_path(name)))
                         .body(Body::empty())
                         .unwrap(),
                 )
@@ -501,21 +505,21 @@ async fn hosted_claims_cover_cargo_separator_aliases() {
                 .unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
         }
-        let archive = crate_archive("demo_crate", "0.1.0");
+        let archive = crate_archive(published, "0.1.0");
         let response = app
             .clone()
             .oneshot(publish_request(
                 Some(&token),
-                publish_body(&metadata("demo_crate", "0.1.0"), &archive),
+                publish_body(&metadata(published, "0.1.0"), &archive),
             ))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        for name in ["demo-crate", "demo_crate"] {
+        for name in aliases {
             let response = app
                 .clone()
                 .oneshot(
-                    Request::get(format!("/cargo/index/de/mo/{name}"))
+                    Request::get(format!("/cargo/index/{}", pnpr_cargo::sparse_index_path(name)))
                         .body(Body::empty())
                         .unwrap(),
                 )
@@ -524,7 +528,7 @@ async fn hosted_claims_cover_cargo_separator_aliases() {
             assert_eq!(response.status(), StatusCode::OK);
             let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
             let entry: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
-            assert_eq!(entry["name"], "demo_crate");
+            assert_eq!(entry["name"], published);
             let response = app
                 .clone()
                 .oneshot(
@@ -537,6 +541,19 @@ async fn hosted_claims_cover_cargo_separator_aliases() {
             assert_eq!(response.status(), StatusCode::OK);
             assert_eq!(body_bytes(response.into_body()).await, archive);
         }
+        let response = app
+            .oneshot(
+                Request::get("/cargo/api/v1/crates?q=demo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let result: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(result["meta"]["total"], 1);
+        assert_eq!(result["crates"][0]["name"], published);
         upstream_requests.assert_async().await;
     }
 }

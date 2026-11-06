@@ -157,9 +157,10 @@ async fn add_crates_to_page(
     names: Vec<String>,
 ) {
     for name in names {
-        let Ok(key) = CanonicalPackageName::parse(&name, ECOSYSTEM) else {
+        if !is_safe_path_segment(&name) {
             continue;
-        };
+        }
+        let key = CanonicalPackageName::from_stored(&name, ECOSYSTEM);
         if page.push_name(&name) {
             page.objects.push(search_crate(storage, &key).await);
         }
