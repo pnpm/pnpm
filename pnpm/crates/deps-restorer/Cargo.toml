@@ -14,6 +14,7 @@ repository.workspace = true
 pnpm-package-name = { workspace = true }
 pnpm-catalogs-protocol-parser = { workspace = true }
 pnpm-matcher = { workspace = true }
+pnpm-process = { path = "../process" }
 rustc-hash = { workspace = true }
 pnpm-cmd-shim = { workspace = true }
 pnpm-config = { workspace = true }
@@ -97,7 +98,6 @@ pnpm-fs = { workspace = true, features = ["test"] }
 tokio = { workspace = true, features = ["net", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

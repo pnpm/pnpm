@@ -6131,6 +6131,7 @@ dependencies = [
  "pnpm-package-name",
  "pnpm-patching",
  "pnpm-platform-variants",
+ "pnpm-process",
  "pnpm-real-hoist",
  "pnpm-registry",
  "pnpm-reporter",

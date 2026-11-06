@@ -32,10 +32,7 @@
 //!   default [`pnpm_network::ThrottledClient`], same as the rest of
 //!   the install path.
 
-#[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process as process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
 
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
