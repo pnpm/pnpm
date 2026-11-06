@@ -101,6 +101,7 @@ mod interrupt_windows;
 mod licenses;
 mod lifecycle_scripts;
 mod link;
+mod linker_parity;
 mod list;
 mod local_directory_manifest_hooks;
 mod local_directory_without_manifest;
