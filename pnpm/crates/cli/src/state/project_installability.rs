@@ -22,17 +22,16 @@ use std::{
 pub(crate) struct ProjectHost<'a> {
     config: &'a Config,
     root_dir: &'a Path,
-    use_manifest_runtime: bool,
     /// Detected for the first project that declares `engines.node`.
     node_version: OnceCell<String>,
 }
 
 impl<'a> ProjectHost<'a> {
     /// `root_dir` holds the manifest whose `engines.runtime` sets the
-    /// Node.js version when `use_manifest_runtime` and no `nodeVersion` is
+    /// Node.js version when runtimes are not skipped and no `nodeVersion` is
     /// configured.
-    pub(crate) fn new(config: &'a Config, root_dir: &'a Path, use_manifest_runtime: bool) -> Self {
-        ProjectHost { config, root_dir, use_manifest_runtime, node_version: OnceCell::new() }
+    pub(crate) fn new(config: &'a Config, root_dir: &'a Path) -> Self {
+        ProjectHost { config, root_dir, node_version: OnceCell::new() }
     }
 
     fn node_version(&self) -> &str {
@@ -48,16 +47,33 @@ impl<'a> ProjectHost<'a> {
     }
 
     fn root_runtime_node_version(&self) -> Option<String> {
-        if !self.use_manifest_runtime {
+        if self.config.skip_runtimes {
             return None;
         }
         let (_, manifest) = pnpm_workspace::try_read_project_manifest(self.root_dir).ok()??;
         node_version_from_engines_runtime(manifest.value())
     }
 
-    /// Check the project in `project_dir`. `Ok(Some(_))` holds the warning
-    /// to emit for a mismatch that does not fail.
+    /// Check the project in `project_dir`, returning the warnings to emit for
+    /// mismatches that do not fail. Its engines and its platform are checked
+    /// apart, so a platform mismatch does not hide an engine failure.
     pub(crate) fn check(
+        &self,
+        project_dir: &Path,
+        requirements: &PackageInstallabilityManifest,
+    ) -> Result<Vec<LogEvent>, InitStateError> {
+        let engines = PackageInstallabilityManifest {
+            engines: requirements.engines.clone(),
+            ..PackageInstallabilityManifest::default()
+        };
+        let platform = PackageInstallabilityManifest { engines: None, ..requirements.clone() };
+        [engines, platform]
+            .iter()
+            .filter_map(|part| self.check_part(project_dir, part).transpose())
+            .collect()
+    }
+
+    fn check_part(
         &self,
         project_dir: &Path,
         requirements: &PackageInstallabilityManifest,

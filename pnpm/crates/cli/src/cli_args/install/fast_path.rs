@@ -43,11 +43,11 @@ fn check_host_requirements(
     emit: fn(&pnpm_reporter::LogEvent),
 ) -> Result<Vec<pnpm_reporter::LogEvent>, &'static str> {
     let root_dir = crate::state::root_project_dir(manifest_path, config);
-    let project_warnings = crate::state::ProjectHost::new(config, root_dir, !config.skip_runtimes)
+    let project_warnings = crate::state::ProjectHost::new(config, root_dir)
         .check_projects(&up_to_date.host_requirements)
         .map_err(|_| "a workspace project's host requirements are not met")?;
     if matches!(attempt, Attempt::BeforeConfig) {
-        crate::state::check_root_project_engine(manifest_path, config, !config.skip_runtimes, emit)
+        crate::state::check_root_project_engine(manifest_path, config, emit)
             .map_err(|_| "root project engine check failed")?;
     }
     Ok(project_warnings)

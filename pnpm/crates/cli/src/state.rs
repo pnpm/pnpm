@@ -297,7 +297,6 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
 pub(crate) fn check_root_project_engine(
     manifest_path: &Path,
     config: &Config,
-    use_manifest_runtime: bool,
     emit: fn(&LogEvent),
 ) -> Result<(), InitStateError> {
     let project_dir = root_project_dir(manifest_path, config);
@@ -309,10 +308,10 @@ pub(crate) fn check_root_project_engine(
     let Some(requirements) = pnpm_deps_restorer::project_host_requirements(manifest.value()) else {
         return Ok(());
     };
-    let host = ProjectHost::new(config, project_dir, use_manifest_runtime);
-    if let Some(warning) = host.check(project_dir, &requirements)? {
-        emit(&warning);
-    }
+    let host = ProjectHost::new(config, project_dir);
+    host.check(project_dir, &requirements)?
+        .iter()
+        .for_each(emit);
     Ok(())
 }
 

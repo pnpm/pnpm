@@ -237,3 +237,59 @@ fn downgrade_manifest_records(workspace: &Path) {
     }
     fs::write(&state_path, state.to_string()).expect("write the state");
 }
+
+/// A project on an unsupported platform is still held to its `engines`.
+#[test]
+fn a_platform_mismatch_does_not_hide_an_engine_failure() {
+    for in_workspace in [false, true] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let requirements = serde_json::json!({
+            "os": every_os_but_this_one(),
+            "engines": { "pnpm": ">=99.0.0" },
+        });
+        if in_workspace {
+            write_workspace(&workspace, &requirements);
+        } else {
+            let mut manifest = requirements.clone();
+            manifest["name"] = "root".into();
+            fs::write(workspace.join("package.json"), manifest.to_string())
+                .expect("write package.json");
+        }
+
+        let output = pacquet
+            .with_args(["install", "--lockfile-only"])
+            .output()
+            .expect("run pnpm install");
+
+        let text = output_text(&output);
+        assert!(!output.status.success(), "in a workspace: {in_workspace}: {text}");
+        assert!(text.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "{text}");
+        drop(root);
+    }
+}
+
+#[test]
+fn engine_strict_on_a_repeat_install_rejects_a_project_on_an_unsupported_platform() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &serde_json::json!({
+            "os": every_os_but_this_one(),
+            "engines": { "node": ">=99.0.0" },
+        }),
+    );
+    _utils::pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = _utils::pacquet_in(&workspace)
+        .with_args(["install", "--engine-strict"])
+        .output()
+        .expect("run the repeat install");
+
+    let text = output_text(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "{text}");
+    drop(root);
+}

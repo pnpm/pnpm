@@ -147,7 +147,7 @@ fn check_project_requirements<Reporter: self::Reporter>(
                 .map(|requirements| (project.root_dir.clone(), requirements))
         })
         .collect();
-    let host = ProjectHost::new(cfg, &selection.workspace_root, !cfg.skip_runtimes);
+    let host = ProjectHost::new(cfg, &selection.workspace_root);
     for warning in host.check_projects(&requirements)? {
         Reporter::emit(&warning);
     }

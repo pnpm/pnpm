@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
@@ -9,6 +10,7 @@ import {
   findWorkspaceProjectsSync,
 } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
+import { temporaryDirectory } from 'tempy'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')
@@ -54,6 +56,24 @@ test('findWorkspaceProjects() outputs warnings for non-root workspace project', 
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.` }],
   ])
 })
+test('findWorkspaceProjects() fails on an engine mismatch of a project on an unsupported platform', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    os: [`!${process.platform}`],
+    engines: { node: '>=99.0.0' },
+  }))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '20.0.0',
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_ENGINE' })
+})
+
 test('findWorkspaceProjectsNoCheckSync() works synchronously', () => {
   const fixturePath = path.join(import.meta.dirname, '__fixtures__/bad-engine')
   const workspaceManifest = readWorkspaceManifestSync(fixturePath)

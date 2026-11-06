@@ -95,7 +95,6 @@ impl CoveredProjects {
         }
     }
 
-    /// The covered projects of `manifests`.
     fn of(count: Option<usize>, manifests: &[(PathBuf, &PackageManifest)]) -> Self {
         Self::new(
             count,
