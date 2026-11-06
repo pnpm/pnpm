@@ -45,6 +45,11 @@ header. Discovery refuses redirects, and configured upstream headers are sent
 only over HTTPS or loopback HTTP. Search totals count visible, deduplicated
 results and are exact across every participating source.
 
+Search includes locally hosted packages and upstreams with `search: true`. If
+no upstream opts in, a package available only upstream will not appear in search
+results. Hosted npm search results include maintainer usernames and omit the
+external package-page link.
+
 ## Browsing without a search term
 
 ```text

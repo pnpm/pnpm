@@ -83,3 +83,44 @@ fn browsing_requires_an_explicit_flag() {
     }
     assert!(parse_query("browse=false").is_none());
 }
+
+#[test]
+fn search_projects_maintainers_to_npm_usernames() {
+    use serde_json::json;
+
+    let maintainers = json!([
+        { "name": "example-owner", "email": "owner@example.com" },
+        { "username": "example-user", "name": "Display Name" },
+        { "username": null, "name": "example-fallback", "email": null },
+        { "email": "unknown@example.com" },
+        { "name": 42 },
+        null,
+    ]);
+    for packument in [
+        json!({ "maintainers": maintainers, "versions": { "1.0.0": {} } }),
+        json!({ "versions": { "1.0.0": { "maintainers": maintainers } } }),
+    ] {
+        let entry = super::build_search_entry("example-package", &packument).unwrap();
+        assert_eq!(
+            entry["package"]["maintainers"],
+            json!([
+                { "username": "example-owner", "email": "owner@example.com" },
+                { "username": "example-user" },
+                { "username": "example-fallback" },
+            ]),
+        );
+        assert!(entry["package"].get("links").is_none());
+    }
+}
+
+#[test]
+fn malformed_maintainers_do_not_produce_invalid_search_users() {
+    use serde_json::json;
+
+    for maintainers in [json!(null), json!({ "name": "example-owner" }), json!(42)] {
+        let packument = json!({ "maintainers": maintainers, "versions": { "1.0.0": {} } });
+        let entry = super::build_search_entry("@example/private-package", &packument).unwrap();
+        assert_eq!(entry["package"]["maintainers"], json!([]));
+        assert!(entry["package"].get("links").is_none());
+    }
+}
