@@ -1,12 +1,14 @@
 //! Picks the version a missing optional peer of the importer is hoisted at.
 
+use super::missing_peers::merge_ranges;
 use super::{
-    BTreeMap, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeerInfo,
+    BTreeMap, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeerInfo,
     PreferredVersions, accepts_optional_peer_candidate,
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
 };
 use crate::peer_dependents_dedupe::OptionalPeerScope;
 use node_semver::Version;
+use std::cell::RefCell;
 
 impl ImporterHoistState {
     /// The exact version [`Self::hoist_missing_required`] hoists the
@@ -26,6 +28,39 @@ impl ImporterHoistState {
             .parse::<Version>()
             .is_ok()
             .then(|| version.to_string())
+    }
+
+    /// The exact versions the missing required peers of a wave of packages
+    /// are hoisted at, with each name's ranges merged the way
+    /// [`Self::hoist_missing_required`] merges them. `picked` caches each
+    /// pick by name and range.
+    fn required_peer_versions(
+        &self,
+        missing_of_wave: &[Vec<CandidatePeer>],
+        picked: &RefCell<HashMap<(String, String), Option<String>>>,
+    ) -> Vec<(String, String)> {
+        let mut ranges_by_name: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        for peer in missing_of_wave.iter().flatten() {
+            ranges_by_name
+                .entry(&peer.name)
+                .or_default()
+                .push(&peer.range);
+        }
+        ranges_by_name
+            .into_iter()
+            .filter_map(|(name, ranges)| {
+                let range =
+                    merge_ranges(&ranges, self.policy.peers.auto_install_peers_from_highest_match)?;
+                let version = picked
+                    .borrow_mut()
+                    .entry((name.to_string(), range))
+                    .or_insert_with_key(|(name, range)| {
+                        self.hoisted_required_peer_version(name, range)
+                    })
+                    .clone()?;
+                Some((name.to_string(), version))
+            })
+            .collect()
     }
 
     /// `alias → version` a package hoisted to the importer resolves its own
@@ -59,12 +94,14 @@ impl ImporterHoistState {
         }
         let workspace = self.ctx.workspace();
         let candidate_peers = CandidatePeers::new(workspace);
-        let required_peer_version =
-            |name: &str, range: &str| self.hoisted_required_peer_version(name, range);
+        let picked = RefCell::new(HashMap::default());
+        let pick_required_peer_versions = |missing_of_wave: &[Vec<CandidatePeer>]| {
+            self.required_peer_versions(missing_of_wave, &picked)
+        };
         let accepts_candidate = |name: &str, version: &str| {
             accepts_optional_peer_candidate(
                 &candidate_peers,
-                &required_peer_version,
+                &pick_required_peer_versions,
                 &provided_peer_versions,
                 (name, version),
             )

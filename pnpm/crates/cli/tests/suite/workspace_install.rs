@@ -746,10 +746,7 @@ fn optional_peer_is_supplied_by_a_sibling_whose_peers_the_importer_accepts() {
     );
 }
 
-/// Installs `pkg-a`, which has an optional peer on a carrier whose
-/// required peer wants `@pnpm/y@^2.0.0`, next to `pkg-b`, which provides
-/// the carrier, its peer, and `@pnpm/y@2.0.0`. Returns `pkg-a`'s resolved
-/// version of the optional peer's dependent.
+/// Returns `pkg-a`'s resolved version of the optional peer's dependent.
 fn install_optional_peer_carrier_next_to_sibling(pkg_a_y: &str) -> String {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
         &serde_json::json!({
@@ -795,6 +792,41 @@ fn optional_peer_is_supplied_when_the_required_peers_it_brings_in_accept_the_imp
         install_optional_peer_carrier_next_to_sibling("2.0.0")
             .starts_with("1.0.0(@pnpm.e2e/y-v2-peer-user-carrier@1.0.0"),
     );
+}
+
+#[test]
+fn optional_peer_is_supplied_when_the_required_peers_it_brings_in_agree_on_a_shared_peer_version() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = three_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-optional-peer-wave-a": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/peer-wave-a": "1.0.0",
+                "@pnpm.e2e/peer-wave-b": "1.0.0",
+                "@pnpm.e2e/peer-wave-c": "1.0.0",
+                "@pnpm/y": "1.0.0",
+            },
+        }),
+        &serde_json::json!({
+            "name": "pkg-c",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm/y": "2.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let version = importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-peer-wave-a");
+    drop((root, mock_instance));
+    assert!(version.starts_with("1.0.0(@pnpm.e2e/peer-wave-a@1.0.0"), "{version}");
 }
 
 /// The provider is left only in the wanted lockfile, so the lockfile is

@@ -953,6 +953,44 @@ test('an optional peer is supplied when the required peers it brings in accept t
     .toMatch(/^1\.0\.0\(@pnpm\.e2e\/y-v2-peer-user-carrier@1\.0\.0/)
 })
 
+test('an optional peer is supplied when the required peers it brings in agree on a shared peer version', async () => {
+  const project = prepareEmpty()
+  const allProjects: Array<{ buildIndex: number, manifest: PackageManifest, rootDir: ProjectRootDir }> = [
+    {
+      buildIndex: 0,
+      manifest: { name: 'project1', version: '1.0.0', dependencies: { '@pnpm.e2e/has-optional-peer-wave-a': '1.0.0' } },
+      rootDir: path.resolve('project1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project2',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/peer-wave-a': '1.0.0',
+          '@pnpm.e2e/peer-wave-b': '1.0.0',
+          '@pnpm.e2e/peer-wave-c': '1.0.0',
+          '@pnpm/y': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project2') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: { name: 'project3', version: '1.0.0', dependencies: { '@pnpm/y': '2.0.0' } },
+      rootDir: path.resolve('project3') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    autoInstallPeers: true,
+  }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/has-optional-peer-wave-a']?.version)
+    .toMatch(/^1\.0\.0\(@pnpm\.e2e\/peer-wave-a@1\.0\.0/)
+})
+
 test('an optional peer is not supplied by a sibling workspace package whose own peers the workspace root provides at a rejected version', async () => {
   const project = prepareEmpty()
   await installOptionalPeerUserNextToSibling({ projectDeps: {}, rootDeps: { '@pnpm/y': '1.0.0' } })

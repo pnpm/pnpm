@@ -93,67 +93,47 @@ function getPeers (resolvedPackage: ResolvedPackage): CandidatePeers {
 /**
  * Whether hoisting an optional peer candidate to an importer leaves every
  * peer it brings in satisfied. The candidate resolves its peers from
- * `providedVersions`. Each required peer missing there is hoisted at the
- * version `pickRequiredPeerVersion` returns, and resolves its own peers the
- * same way.
+ * `providedVersions`. The required peers missing there are hoisted together,
+ * one wave at a time, at the versions `pickRequiredPeerVersions` returns,
+ * and resolve their own peers the same way.
  */
 export function acceptsOptionalPeerCandidate (
-  { getCandidatePeers, pickRequiredPeerVersion, providedVersions }: {
+  { getCandidatePeers, pickRequiredPeerVersions, providedVersions }: {
     getCandidatePeers: (name: string, version: string) => CandidatePeers | undefined
-    pickRequiredPeerVersion: (name: string, range: string) => string | undefined
+    /** Picks the versions to hoist for the missing required peers that each package of a wave declares. */
+    pickRequiredPeerVersions: (missingPeersOfWave: CandidatePeers[]) => Map<string, string>
     providedVersions: Map<string, string>
   },
   candidate: { name: string, version: string }
 ): boolean {
-  const provided = new Map(providedVersions).set(candidate.name, candidate.version)
+  const hoisted = new Map([[candidate.name, candidate.version]])
+  const versionOf = (name: string): string | undefined => hoisted.get(name) ?? providedVersions.get(name)
   const peersOfHoisted: CandidatePeers[] = []
-  const pending = [candidate]
-  while (pending.length) {
-    const { name, version } = pending.pop()!
-    const peers = getCandidatePeers(name, version)
-    if (peers == null) continue
-    peersOfHoisted.push(peers)
-    pending.push(...hoistMissingRequiredPeers(peers, { pickRequiredPeerVersion, provided }))
-  }
-  return peersOfHoisted.every((peers) => peersAcceptProvidedVersions(peers, provided))
-}
-
-/** Adds to `provided` each required peer of `peers` it misses and that is hoisted, and returns them. */
-function hoistMissingRequiredPeers (
-  peers: CandidatePeers,
-  { pickRequiredPeerVersion, provided }: {
-    pickRequiredPeerVersion: (name: string, range: string) => string | undefined
-    provided: Map<string, string>
-  }
-): Array<{ name: string, version: string }> {
-  const hoisted: Array<{ name: string, version: string }> = []
-  for (const [name, { range, optional }] of Object.entries(peers)) {
-    if (optional || provided.has(name)) continue
-    const version = pickRequiredPeerVersion(name, range)
-    if (version == null) continue
-    provided.set(name, version)
-    hoisted.push({ name, version })
-  }
-  return hoisted
-}
-
-/**
- * An optional peer provider taken from elsewhere in the graph resolves its own
- * peers from the importer it is hoisted to. When the importer already has one
- * of those peers at a version outside the provider's range, hoisting the
- * provider creates a peer conflict the importer never asked for.
- */
-function peersAcceptProvidedVersions (
-  peers: CandidatePeers,
-  providedVersions: Map<string, string>
-): boolean {
-  for (const [peerName, { range }] of Object.entries(peers)) {
-    const providedVersion = providedVersions.get(peerName)
-    if (providedVersion != null && !semverUtils.satisfiesWithPrereleases(providedVersion, getPeerVersionRange(range), true)) {
-      return false
+  let wave = [candidate]
+  while (wave.length) {
+    const peersOfWave = wave.map(({ name, version }) => getCandidatePeers(name, version)).filter((peers) => peers != null)
+    peersOfHoisted.push(...peersOfWave)
+    wave = []
+    for (const [name, version] of pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingRequiredPeers(peers, versionOf)))) {
+      hoisted.set(name, version)
+      wave.push({ name, version })
     }
   }
-  return true
+  return peersOfHoisted.every((peers) => peersAcceptVersions(peers, versionOf))
+}
+
+function pickMissingRequiredPeers (peers: CandidatePeers, versionOf: (name: string) => string | undefined): CandidatePeers {
+  return Object.fromEntries(Object.entries(peers).filter(([name, { optional }]) => !optional && versionOf(name) == null))
+}
+
+function peersAcceptVersions (
+  peers: CandidatePeers,
+  versionOf: (name: string) => string | undefined
+): boolean {
+  return Object.entries(peers).every(([peerName, { range }]) => {
+    const version = versionOf(peerName)
+    return version == null || semverUtils.satisfiesWithPrereleases(version, getPeerVersionRange(range), true)
+  })
 }
 
 /**

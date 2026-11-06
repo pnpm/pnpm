@@ -60,7 +60,7 @@ use crate::{
         unwrap_package_name,
     },
     resolve_peers::{
-        CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
+        CandidatePeer, CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
         ResolvePeersOptions, accepts_optional_peer_candidate, apply_hoist_missing_scope,
         index_missing_names, resolve_peers, resolved_name_and_version,
     },

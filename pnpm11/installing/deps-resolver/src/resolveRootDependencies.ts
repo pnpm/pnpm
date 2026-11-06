@@ -157,19 +157,6 @@ function createImporterPeersHoister (hoisting: PeerHoisting, index: number): (mi
 }
 
 /**
- * The exact version a missing required peer would be hoisted to the importer
- * at, or `undefined` when it would not be hoisted or would be resolved from a
- * range.
- */
-function createRequiredPeerVersionPicker (hoisting: PeerHoisting, index: number): (name: string, range: string) => string | undefined {
-  const hoistPeersToImporter = createImporterPeersHoister(hoisting, index)
-  return (name, range) => {
-    const spec = hoistPeersToImporter([[name, { range, optional: false }]])[name]
-    return spec == null ? undefined : semver.valid(spec.split(' || ')[0]) ?? undefined
-  }
-}
-
-/**
  * Collects the peers that the importer's dependencies miss. Records the
  * missing optional peers in `allMissingOptionalPeers` and returns the missing
  * required ones.
@@ -325,6 +312,7 @@ async function hoistOptionalPeersOfImporter (
     ...(index === hoisting.rootImporterIndex ? [] : hoisting.rootDepVersions),
     ...getDirectDepVersions(ctx.resolvedPkgsById, hoisting.importerResults[index].pkgAddresses),
   ])
+  const pickRequiredPeerVersions = createRequiredPeerVersionsPicker(hoisting, index)
   const optionalDependencies = getHoistableOptionalPeers(
     allMissingOptionalPeers,
     ctx.dedupePeerDependents
@@ -338,7 +326,7 @@ async function hoistOptionalPeersOfImporter (
     hoisting.workspaceRootDeps,
     (name, version) => acceptsOptionalPeerCandidate({
       getCandidatePeers,
-      pickRequiredPeerVersion: createRequiredPeerVersionPicker(hoisting, index),
+      pickRequiredPeerVersions,
       providedVersions: providedPeerVersions,
     }, { name, version }),
     {
@@ -357,6 +345,32 @@ async function hoistOptionalPeersOfImporter (
   }
   await resolveHoistedDependencies(hoisting, index, getNonDevWantedDependencies({ optionalDependencies }))
   return true
+}
+
+/**
+ * The exact versions the missing required peers of a wave of packages would
+ * be hoisted to the importer at. A peer that would not be hoisted, or would
+ * be resolved from a range, is left out. Each pick is cached for the round.
+ */
+function createRequiredPeerVersionsPicker (hoisting: PeerHoisting, index: number): (missingPeersOfWave: MissingPeers[]) => Map<string, string> {
+  const hoistPeersToImporter = createImporterPeersHoister(hoisting, index)
+  const picked = new Map<string, string | undefined>()
+  const pickVersion = (name: string, range: string): string | undefined => {
+    const key = `${name}@${range}`
+    if (!picked.has(key)) {
+      const spec = hoistPeersToImporter([[name, { range, optional: false }]])[name]
+      picked.set(key, spec == null ? undefined : semver.valid(spec.split(' || ')[0]) ?? undefined)
+    }
+    return picked.get(key)
+  }
+  return (missingPeersOfWave) => {
+    const versions = new Map<string, string>()
+    for (const [name, { range }] of Object.entries(mergePkgsDeps(missingPeersOfWave, hoisting.ctx))) {
+      const version = pickVersion(name, range)
+      if (version != null) versions.set(name, version)
+    }
+    return versions
+  }
 }
 
 /**

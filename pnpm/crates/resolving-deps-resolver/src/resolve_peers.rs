@@ -37,7 +37,7 @@ pub(crate) use context::{SharedChain, satisfies_with_prereleases, split_peer_suf
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 pub(crate) use finalize::merge_additional_edges;
 pub(crate) use provider_peers::{
-    CandidatePeers, accepts_optional_peer_candidate, resolved_name_and_version,
+    CandidatePeer, CandidatePeers, accepts_optional_peer_candidate, resolved_name_and_version,
 };
 pub(crate) use walker::{MissingNames, index_missing_names};
 

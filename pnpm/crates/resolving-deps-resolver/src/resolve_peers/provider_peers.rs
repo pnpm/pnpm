@@ -115,57 +115,68 @@ fn peers_of(package: &ResolvedPackage) -> Vec<CandidatePeer> {
 
 /// Whether hoisting the optional peer candidate `name@version` to an
 /// importer leaves every peer it brings in satisfied. The candidate
-/// resolves its peers from `provided_versions`. Each required peer missing
-/// there is hoisted at the version `required_peer_version` returns, and
-/// resolves its own peers the same way.
+/// resolves its peers from `provided_versions`. The required peers missing
+/// there are hoisted together, one wave at a time, at the `(name, version)`
+/// pairs `pick_required_peer_versions` returns for the missing required
+/// peers each package of the wave declares. They resolve their own peers
+/// the same way.
 pub(crate) fn accepts_optional_peer_candidate(
     candidate_peers: &CandidatePeers<'_>,
-    required_peer_version: &dyn Fn(&str, &str) -> Option<String>,
+    pick_required_peer_versions: &dyn Fn(&[Vec<CandidatePeer>]) -> Vec<(String, String)>,
     provided_versions: &HashMap<String, String>,
     (name, version): (&str, &str),
 ) -> bool {
-    let mut provided = provided_versions.clone();
-    provided.insert(name.to_string(), version.to_string());
+    let mut hoisted = HashMap::default();
+    hoisted.insert(name.to_string(), version.to_string());
     let mut peers_of_hoisted = Vec::new();
-    let mut pending = vec![(name.to_string(), version.to_string())];
-    while let Some((name, version)) = pending.pop() {
-        let Some(peers) = candidate_peers.get(&name, &version) else { continue };
-        pending.extend(hoist_missing_required_peers(&peers, required_peer_version, &mut provided));
-        peers_of_hoisted.push(peers);
+    let mut wave = vec![(name.to_string(), version.to_string())];
+    while !wave.is_empty() {
+        let peers_of_wave: Vec<Vec<CandidatePeer>> = wave
+            .iter()
+            .filter_map(|(name, version)| candidate_peers.get(name, version))
+            .collect();
+        let version_of = |name: &str| {
+            hoisted
+                .get(name)
+                .or_else(|| provided_versions.get(name))
+        };
+        let missing_of_wave: Vec<Vec<CandidatePeer>> = peers_of_wave
+            .iter()
+            .map(|peers| missing_required_peers(peers, &version_of))
+            .collect();
+        wave = pick_required_peer_versions(&missing_of_wave);
+        hoisted.extend(wave.iter().cloned());
+        peers_of_hoisted.extend(peers_of_wave);
     }
-    peers_of_hoisted.iter().all(|peers| peers_accept_provided_versions(peers, &provided))
+    let version_of = |name: &str| {
+        hoisted
+            .get(name)
+            .or_else(|| provided_versions.get(name))
+    };
+    peers_of_hoisted.iter().all(|peers| peers_accept_versions(peers, &version_of))
 }
 
-/// Adds to `provided` each required peer of `peers` it misses and that is
-/// hoisted, and returns them as `(name, version)`.
-fn hoist_missing_required_peers(
+fn missing_required_peers<'a>(
     peers: &[CandidatePeer],
-    required_peer_version: &dyn Fn(&str, &str) -> Option<String>,
-    provided: &mut HashMap<String, String>,
-) -> Vec<(String, String)> {
-    let mut hoisted = Vec::new();
-    for peer in peers {
-        if peer.optional || provided.contains_key(&peer.name) {
-            continue;
-        }
-        let Some(version) = required_peer_version(&peer.name, &peer.range) else { continue };
-        provided.insert(peer.name.clone(), version.clone());
-        hoisted.push((peer.name.clone(), version));
-    }
-    hoisted
+    version_of: &dyn Fn(&str) -> Option<&'a String>,
+) -> Vec<CandidatePeer> {
+    peers
+        .iter()
+        .filter(|peer| !peer.optional && version_of(&peer.name).is_none())
+        .cloned()
+        .collect()
 }
 
-/// Whether each of `peers` accepts the version that `provided_versions`
-/// maps it to. A peer with no entry passes.
-fn peers_accept_provided_versions(
+/// Whether each of `peers` accepts the version that `version_of` maps it
+/// to. A peer with no version passes.
+fn peers_accept_versions<'a>(
     peers: &[CandidatePeer],
-    provided_versions: &HashMap<String, String>,
+    version_of: &dyn Fn(&str) -> Option<&'a String>,
 ) -> bool {
     peers
         .iter()
         .all(|peer| {
-            provided_versions
-                .get(&peer.name)
+            version_of(&peer.name)
                 .is_none_or(|version| {
                     context::satisfies_with_prereleases(
                         version,

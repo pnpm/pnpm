@@ -986,8 +986,6 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
     );
 }
 
-/// `needs-carrier` has an optional peer `carrier`, `carrier` has a peer
-/// `user`, and `user` has a peer `y@^2.0.0`.
 fn optional_peer_carrier_table()
 -> HashMap<(String, String), pnpm_resolving_resolver_base::ResolveResult> {
     let mut table = HashMap::default();
@@ -1017,8 +1015,7 @@ fn optional_peer_carrier_table()
     table
 }
 
-/// `pkg-b` depends on `carrier`, `user`, and `y@2.0.0`. Returns how
-/// `pkg-a`'s `needs-carrier` resolved next to `y@{pkg_a_y}`.
+/// Returns how `pkg-a`'s `needs-carrier` resolved.
 async fn resolve_needs_carrier_of_pkg_a(pkg_a_y: &str) -> String {
     let resolver = RecordingResolver {
         table: optional_peer_carrier_table(),
