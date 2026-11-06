@@ -960,5 +960,5 @@ fn install_already_up_to_date_bails_before_walking_projects_when_workspace_state
         node_linker: pnpm_config::NodeLinker::Isolated,
         supported_architectures: None,
     });
-    assert_eq!(result, Err("no workspace state on disk"));
+    assert_eq!(result.unwrap_err(), "no workspace state on disk");
 }

@@ -45,6 +45,9 @@ With [`engineStrict`](./settings/cli.md#enginestrict) enabled, an incompatible
 dependencies are exempt. With it disabled, an incompatible `engines.node` in
 the project prints a warning.
 
+In a workspace, these checks apply to every workspace project. A project whose
+`os`, `cpu`, or `libc` excludes the current platform prints a warning.
+
 ## engines.runtime
 
 Specifies the Node.js runtime required by a dependency. When declared, pnpm will automatically install the specified Node.js version.

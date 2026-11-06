@@ -7,9 +7,12 @@ use super::{
     nested_workspace_manifests::report_nested_workspace_manifests, precomputed_workspace_cycles,
     project_dependencies, sequence_project_dependencies,
 };
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, RecursiveSelection, UnmatchedFilters, discover_workspace_projects,
-    select_recursive_projects_deferring_no_match,
+use crate::{
+    cli_args::recursive::{
+        AutoExcludeRoot, RecursiveSelection, UnmatchedFilters, discover_workspace_projects,
+        select_recursive_projects_deferring_no_match,
+    },
+    state::ProjectHost,
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
@@ -92,6 +95,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
         return Ok(InstallFamily { plan: InstallFamilyPlan::Single, scope: None, unmatched: None });
     };
     let NarrowedWorkspace { selection, unmatched, root_selector } = narrowed;
+    check_project_requirements::<Reporter>(cfg, &selection)?;
     // Only an install another ecosystem takes part in reads the scope. The
     // npm install reads the selection itself, so it pays nothing for this.
     let scope = crate::ecosystem_install::is_enabled(cfg)
@@ -128,6 +132,26 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
         InstallFamilyPlan::PerProject(Box::new(DedicatedProjects::new(cfg, selection)))
     };
     Ok(InstallFamily { plan, scope, unmatched })
+}
+
+/// Check what every workspace project, selected or not, requires of the
+/// host, per [`ProjectHost`].
+fn check_project_requirements<Reporter: self::Reporter>(
+    cfg: &Config,
+    selection: &InstallFamilySelection,
+) -> miette::Result<()> {
+    let requirements: Vec<_> = selection.projects
+        .iter()
+        .filter_map(|project| {
+            pnpm_deps_restorer::project_host_requirements(project.manifest.value())
+                .map(|requirements| (project.root_dir.clone(), requirements))
+        })
+        .collect();
+    let host = ProjectHost::new(cfg, &selection.workspace_root);
+    for warning in host.check_projects(&requirements)? {
+        Reporter::emit(&warning);
+    }
+    Ok(())
 }
 
 pub(crate) fn select_workspace_projects(

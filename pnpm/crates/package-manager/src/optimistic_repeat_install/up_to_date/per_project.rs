@@ -3,8 +3,8 @@
 //! workspace state, with the configuration anchored to it.
 
 use super::{
-    Catalogs, Config, FastPathContext, FastPathProjects, Path, PathBuf, UpToDateFastPathCheck,
-    UpToDateWorkspace, WorkspaceState, check_fast_path_repeat_install,
+    Catalogs, Config, CoveredProjects, FastPathContext, FastPathProjects, Path, PathBuf,
+    UpToDateFastPathCheck, UpToDateWorkspace, WorkspaceState, check_fast_path_repeat_install,
     configured_or_discovered_workspace_dir, fast_path_workspace_context, lazy_wanted_lockfile,
     load_fast_path_state, register_fast_path_workspace,
 };
@@ -59,7 +59,10 @@ pub fn install_already_up_to_date_per_project(
         .try_for_each(|(project, record)| {
             register_fast_path_workspace(&record.config, &project.root_dir)
         })?;
-    Ok(UpToDateWorkspace { root: workspace_root.clone(), project_count: Some(projects.len()) })
+    let manifests = projects
+        .iter()
+        .map(|project| (project.root_dir.as_path(), &project.manifest));
+    Ok(CoveredProjects::new(Some(projects.len()), manifests).into_workspace(workspace_root.clone()))
 }
 
 /// The configuration that keeps the per-project fast path off.

@@ -31,6 +31,7 @@ use pnpm_config::{Config, NodeLinker};
 use pnpm_executor::PROJECT_LIFECYCLE_STAGES;
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_is_installable::PackageInstallabilityManifest;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace_state::{WorkspaceState, load_workspace_state};
 use std::path::{Path, PathBuf};
@@ -48,7 +49,7 @@ pub struct UpToDateFastPathCheck<'a> {
 }
 
 /// What an up-to-date install reports about the workspace it covered.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct UpToDateWorkspace {
     /// The workspace root — the reporter `prefix` for the "Already up to
     /// date" emission.
@@ -57,6 +58,51 @@ pub struct UpToDateWorkspace {
     /// `pnpm-workspace.yaml`. Feeds the `pnpm:scope` report, which the
     /// full install path derives from the same walk.
     pub project_count: Option<usize>,
+    /// What each covered project requires of the host, per
+    /// [`pnpm_deps_restorer::project_host_requirements`], by project
+    /// directory. A project that requires nothing is left out.
+    pub host_requirements: Vec<(PathBuf, PackageInstallabilityManifest)>,
+}
+
+/// The projects a check found up to date.
+struct CoveredProjects {
+    /// See [`UpToDateWorkspace::project_count`].
+    count: Option<usize>,
+    /// See [`UpToDateWorkspace::host_requirements`].
+    host_requirements: Vec<(PathBuf, PackageInstallabilityManifest)>,
+}
+
+impl CoveredProjects {
+    fn new<'a>(
+        count: Option<usize>,
+        manifests: impl IntoIterator<Item = (&'a Path, &'a PackageManifest)>,
+    ) -> Self {
+        let host_requirements = manifests
+            .into_iter()
+            .filter_map(|(root_dir, manifest)| {
+                pnpm_deps_restorer::project_host_requirements(manifest.value())
+                    .map(|requirements| (root_dir.to_path_buf(), requirements))
+            })
+            .collect();
+        CoveredProjects { count, host_requirements }
+    }
+
+    fn into_workspace(self, root: PathBuf) -> UpToDateWorkspace {
+        UpToDateWorkspace {
+            root,
+            project_count: self.count,
+            host_requirements: self.host_requirements,
+        }
+    }
+
+    fn of(count: Option<usize>, manifests: &[(PathBuf, &PackageManifest)]) -> Self {
+        Self::new(
+            count,
+            manifests
+                .iter()
+                .map(|(root_dir, manifest)| (root_dir.as_path(), *manifest)),
+        )
+    }
 }
 
 /// [`crate::check_optimistic_repeat_install`] inputs, callable from a
@@ -126,8 +172,8 @@ fn already_up_to_date(
         lockfile: &lockfile,
         catalogs: &catalogs,
     };
-    let project_count = match stand_ins::check_from_records(check, &context, &state) {
-        stand_ins::RecordsCheck::UpToDate(project_count) => Some(project_count),
+    let covered = match stand_ins::check_from_records(check, &context, &state) {
+        stand_ins::RecordsCheck::UpToDate(covered) => covered,
         stand_ins::RecordsCheck::Undecided(listed) => match decide {
             Decide::FromRecordsOrFiles => {
                 from_files::check_from_files(check, &context, &state, listed)?
@@ -136,7 +182,7 @@ fn already_up_to_date(
         },
     };
     register_fast_path_workspace(check.config, &lockfile_root)?;
-    Ok(UpToDateWorkspace { root: state_root.to_path_buf(), project_count })
+    Ok(covered.into_workspace(state_root.to_path_buf()))
 }
 
 fn load_fast_path_state(
