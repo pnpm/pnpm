@@ -75,8 +75,15 @@ impl Refusal {
     }
 
     pub(in super::super) fn respond(self) -> Response {
-        let status = self.original.map_or(self.status, |err| err.into_response().status());
-        respond(status, self.code, self.message)
+        let mut response = respond(self.status, self.code, self.message);
+        if let Some(err) = self.original {
+            let original = err.into_response();
+            *response.status_mut() = original.status();
+            if let Some(retry_after) = original.headers().get(header::RETRY_AFTER) {
+                response.headers_mut().insert(header::RETRY_AFTER, retry_after.clone());
+            }
+        }
+        response
     }
 }
 

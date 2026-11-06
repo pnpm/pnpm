@@ -242,7 +242,7 @@ impl Upstream {
             .bytes()
             .await
             .map_err(|source| {
-                self.breaker.record_failure();
+                self.record_body_failure(&source);
                 RegistryError::Upstream { url: url.clone(), source }
             })?;
         self.breaker.record_success();
@@ -342,7 +342,7 @@ impl Upstream {
         let final_url = response.url().to_string();
         let body = read_limited_body(response, limit).await
             .map_err(|err| {
-                self.breaker.record_failure();
+                self.record_body_failure(&err);
                 RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
             })?;
         if body.truncated {
@@ -424,7 +424,10 @@ impl Upstream {
         if self.breaker.try_acquire() {
             return Ok(());
         }
-        Err(RegistryError::UpstreamUnavailable { upstream: self.name.clone() })
+        Err(RegistryError::UpstreamUnavailable {
+            upstream: self.name.clone(),
+            retry_after: self.breaker.retry_after(),
+        })
     }
 }
 

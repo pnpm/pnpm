@@ -194,7 +194,10 @@ fn is_transient_upstream_error_only_for_availability_failures() {
     }
 
     // An open circuit is an availability failure too.
-    let circuit_open = RegistryError::UpstreamUnavailable { upstream: "npmjs".to_string() };
+    let circuit_open = RegistryError::UpstreamUnavailable {
+        upstream: "npmjs".to_string(),
+        retry_after: std::time::Duration::from_secs(30),
+    };
     assert!(circuit_open.is_transient_upstream_error());
 
     // Every 4xx is an authoritative response about this request — including
@@ -238,4 +241,19 @@ fn upstream_body_errors_preserve_gateway_status_and_log_kind() {
         assert_eq!(error.log_kind(), "upstream");
         assert!(error.is_transient_upstream_error());
     }
+}
+
+#[test]
+fn circuit_open_response_names_upstream_and_rounds_retry_after_up() {
+    use axum::response::IntoResponse;
+    let error = RegistryError::UpstreamUnavailable {
+        upstream: "example-upstream".to_string(),
+        retry_after: std::time::Duration::from_millis(1250),
+    };
+    assert!(error.public_message().contains("example-upstream"));
+    let shared = RegistryError::Shared(std::sync::Arc::new(error));
+    assert!(shared.public_message().contains("example-upstream"));
+    let response = shared.into_response();
+    assert_eq!(response.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.headers()["retry-after"], "2");
 }
