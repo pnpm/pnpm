@@ -17,6 +17,7 @@ pub(crate) use pnpm_ffi_webcontainer::fs::{
     current_umask, path_mode, secure_directory, set_file_mode, user_id,
 };
 
+use pnpm_ffi_fs::FileMode;
 use std::{io, path::Path};
 
 pub(crate) use pnpm_ffi_fs::file_identity;
@@ -26,21 +27,21 @@ pub(crate) use pnpm_ffi_webcontainer::fs::open_lock;
 pub fn create_inheriting_mode(
     parent: &Path,
     path: &Path,
-    requested: Option<u32>,
+    requested: Option<FileMode>,
 ) -> io::Result<std::fs::File> {
-    if requested.is_some_and(|mode| mode.trailing_zeros() >= 6) {
-        return create_new(path, requested.unwrap_or(0o600));
+    if requested.is_some_and(|mode| mode.mode().trailing_zeros() >= 6) {
+        return create_new(path, requested.map_or(0o600, FileMode::mode));
     }
     let parent_mode = match path_mode(parent) {
         Ok(mode) if mode & libc::S_IFMT == libc::S_IFDIR => mode,
-        _ => return create_new(path, requested.unwrap_or(0o666)),
+        _ => return create_new(path, requested.map_or(0o666, FileMode::mode)),
     };
     let mode = crate::file_mode::inherited_file_mode(
-        parent_mode,
+        FileMode::from_mode(parent_mode),
         requested.is_some_and(crate::file_mode::is_executable),
     );
-    let file = create_new(path, mode)?;
-    grant_file_mode(&file, mode)?;
+    let file = create_new(path, mode.mode())?;
+    grant_file_mode(&file, mode.mode())?;
     Ok(file)
 }
 

@@ -6,7 +6,7 @@ use super::{
     ModeDroppingClone, STORE_ENTRY, write_source,
 };
 #[cfg(unix)]
-use pnpm_fs::StoreFile;
+use pnpm_fs::{FileMode, StoreFile};
 #[cfg(unix)]
 use pnpm_reporter::SilentReporter;
 #[cfg(unix)]
@@ -97,12 +97,12 @@ fn clone_or_copy_respects_cached_copy_state() {
 #[test]
 #[cfg(unix)]
 fn clone_tier_aligns_only_when_the_source_mode_is_unknown_or_undesired() {
-    use std::os::unix::fs::PermissionsExt;
-
     let tmp = tempdir().unwrap();
     let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let stale = FileMode::from_mode(desired.mode() ^ 0o004);
+    let reflinked = FileMode::from_mode(0o400);
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n").path;
-    fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
+    fs::set_permissions(&src, desired.into()).unwrap();
     let target_mode = |source: StoreFile, name: &str| {
         let dst = tmp.path().join(name);
         auto_link::<SilentReporter, ModeDroppingClone>(
@@ -112,14 +112,10 @@ fn clone_tier_aligns_only_when_the_source_mode_is_unknown_or_undesired() {
             &dst,
         )
         .expect("reflink should succeed");
-        fs::metadata(&dst)
-            .unwrap()
-            .permissions()
-            .mode()
-            & 0o777
+        FileMode::from_permissions(&fs::metadata(&dst).unwrap().permissions())
     };
 
-    assert_eq!(target_mode(StoreFile::with_mode(src.clone(), Some(desired)), "known"), 0o400);
+    assert_eq!(target_mode(StoreFile::with_mode(src.clone(), Some(desired)), "known"), reflinked);
     assert_eq!(target_mode(StoreFile::new(src.clone()), "unknown"), desired);
-    assert_eq!(target_mode(StoreFile::with_mode(src, Some(desired ^ 0o004)), "stale"), desired);
+    assert_eq!(target_mode(StoreFile::with_mode(src, Some(stale)), "stale"), desired);
 }

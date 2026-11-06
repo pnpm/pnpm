@@ -1,5 +1,6 @@
 //! A file's permission bits, told apart from the file type a mode carries.
 
+#[cfg(unix)]
 use std::{fs::Permissions, os::unix::fs::PermissionsExt as _};
 
 /// The bits a mode holds below its file type: a permission triple for each
@@ -28,6 +29,7 @@ impl FileMode {
     ///
     /// Named rather than a [`From`] impl because the file type is lost: a
     /// [`Permissions`] built back from the result does not carry it.
+    #[cfg(unix)]
     #[must_use]
     pub fn from_permissions(permissions: &Permissions) -> Self {
         Self::from_mode(permissions.mode())
@@ -44,6 +46,7 @@ impl FileMode {
     ///
     /// Infallible because the value is at most [`PERMISSION_BITS`], which
     /// every platform's `mode_t` represents.
+    #[cfg(unix)]
     pub(crate) const fn narrow(self) -> libc::mode_t {
         // Narrowing cannot lose a bit: the mask above bounds the value well
         // inside the `u16` that macOS uses.
@@ -51,11 +54,12 @@ impl FileMode {
     }
 }
 
+#[cfg(unix)]
 impl From<FileMode> for Permissions {
     fn from(mode: FileMode) -> Self {
         Permissions::from_mode(mode.mode())
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests;

@@ -129,7 +129,7 @@ fn store_zip_entry(
         package_url,
         entry_path,
         store_dir,
-        file_mode::is_executable(file_mode),
+        file_mode::is_executable(pnpm_fs::FileMode::from_mode(file_mode)),
     )?;
     let info = written.index_entry(file_mode, checked_now());
     Ok((written.file, info))

@@ -7,6 +7,8 @@ use tempfile::tempdir;
 
 #[cfg(unix)]
 use super::{EMFILE, ENFILE, ensure_cas_file, retry_on_fd_pressure};
+#[cfg(unix)]
+use pnpm_ffi_fs::FileMode;
 
 #[test]
 fn writes_a_new_file() {
@@ -190,7 +192,8 @@ fn unix_mode_is_applied_on_new_files() {
     let tmp = tempdir().unwrap();
     let path = tmp.path().join("exec.sh");
 
-    ensure_file(&path, b"#!/bin/sh\n", Some(0o755)).expect("mode-honouring write");
+    ensure_file(&path, b"#!/bin/sh\n", Some(FileMode::from_mode(0o755)))
+        .expect("mode-honouring write");
 
     let mode = fs::metadata(&path)
         .unwrap()
@@ -435,7 +438,7 @@ fn new_files_in_a_group_writable_directory_keep_group_write() {
     assert_eq!(meta.gid(), parent_gid);
 
     let exec = tmp.path().join("exec.sh");
-    ensure_file(&exec, b"#!/bin/sh\n", Some(0o755)).unwrap();
+    ensure_file(&exec, b"#!/bin/sh\n", Some(FileMode::from_mode(0o755))).unwrap();
     assert_eq!(
         fs::metadata(&exec)
             .unwrap()
@@ -459,7 +462,7 @@ fn existing_file_keeps_its_mode_owner_and_inode() {
     let before = fs::metadata(&path).unwrap();
 
     ensure_file(&path, b"same", None).unwrap();
-    ensure_cas_file(&path, b"same", Some(0o755)).unwrap();
+    ensure_cas_file(&path, b"same", Some(FileMode::from_mode(0o755))).unwrap();
 
     let after = fs::metadata(&path).unwrap();
     assert_eq!(after.uid(), before.uid());
@@ -476,7 +479,7 @@ fn private_mode_is_not_widened_in_a_group_writable_directory() {
     let tmp = tempdir().unwrap();
     fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
     let path = tmp.path().join("secret");
-    ensure_file(&path, b"x", Some(0o600)).unwrap();
+    ensure_file(&path, b"x", Some(FileMode::from_mode(0o600))).unwrap();
     assert_eq!(
         fs::metadata(&path)
             .unwrap()

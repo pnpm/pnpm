@@ -36,7 +36,7 @@ fn check_manifest_write(directory: &Path) {
         serde_json::json!({"name": "wasm-probe"}),
     );
     manifest.save().unwrap();
-    pnpm_fs::file_mode::set_path_permissions(&path, 0o600).unwrap();
+    pnpm_fs::file_mode::set_path_permissions(&path, pnpm_fs::FileMode::from_mode(0o600)).unwrap();
     manifest.value_mut()["version"] = serde_json::json!("1.0.0");
     manifest.save().unwrap();
     assert_eq!(pnpm_fs::copy_permissions(&path).unwrap().mode() & 0o777, 0o600);

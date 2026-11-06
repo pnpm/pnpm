@@ -84,7 +84,7 @@ impl CopyPermissions {
         }
         #[cfg(target_os = "wasi")]
         {
-            crate::file_mode::set_path_permissions(path, self.0)
+            crate::file_mode::set_path_permissions(path, crate::FileMode::from_mode(self.0))
         }
     }
 }

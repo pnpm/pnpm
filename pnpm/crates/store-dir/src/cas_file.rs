@@ -2,7 +2,7 @@ use crate::{CafsFileInfo, FileHash, StoreDir};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_fs::{
-    EnsureFileError, StoreFile, TempFile, cas_write_lock, create_exclusive_temp_file,
+    EnsureFileError, FileMode, StoreFile, TempFile, cas_write_lock, create_exclusive_temp_file,
     ensure_cas_file, ensure_parent_dir,
     file_mode::{EXEC_MODE, is_executable},
     overwrite_file_in_place, rename_with_retry,
@@ -58,7 +58,7 @@ impl StoreDir {
         // Same executable-bit rule the write side uses
         // (`pnpm_fs::file_mode::is_executable`), so a blob written as
         // `-exec` is read back as `-exec` and vice versa.
-        let suffix = if is_executable(mode) { "-exec" } else { "" };
+        let suffix = if is_executable(FileMode::from_mode(mode)) { "-exec" } else { "" };
         Some(self.file_path_by_hex_str(hex, suffix))
     }
 }
@@ -210,10 +210,10 @@ fn write_cas_error(error: EnsureFileError) -> WriteCasFileFromReaderError {
 /// `tmp_mode` when it renamed the temp file into place.
 fn commit_streamed_temp_file(
     tmp_path: &Path,
-    tmp_mode: Option<u32>,
+    tmp_mode: Option<FileMode>,
     file_path: &Path,
     size: u64,
-) -> Result<Option<u32>, WriteCasFileFromReaderError> {
+) -> Result<Option<FileMode>, WriteCasFileFromReaderError> {
     // Serialize with buffer-based writers ([`ensure_cas_file`]) and
     // verifiers of the same path, per [`cas_write_lock`]'s
     // coordination contract.
