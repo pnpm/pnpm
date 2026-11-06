@@ -1,7 +1,9 @@
 //! Links a previous install wrote that this one no longer wants, removed
 //! before the linker writes the tree.
 
-use super::{HoistedLinkerError, HoistedLinkerInputs};
+use super::{HoistedLinkerError, HoistedLinkerInputs, workspace_links::ALL_DEPENDENCY_GROUPS};
+use crate::SkippedSnapshots;
+use pnpm_reporter::SilentReporter;
 
 /// Runs before the linker writes the tree, so no package is imported at
 /// a path that is still a project's link.
@@ -26,13 +28,18 @@ pub(super) fn unlink_prior_workspace_hoists(
 /// removed `link:` dependency is not imported through the old link.
 pub(super) fn unlink_stale_direct_links(
     inputs: &HoistedLinkerInputs<'_>,
+    skipped: &SkippedSnapshots,
 ) -> Result<(), HoistedLinkerError> {
     let Some(current_lockfile) = inputs.prior.current_lockfile else { return Ok(()) };
-    crate::prune_stale_modules::prune_stale_hoisted_direct_links(
-        inputs.projects.symlink_workspace_root,
-        inputs.config.modules_dir_name(),
-        inputs.graph.lockfile,
+    crate::prune_stale_modules::StaleDirectDepLinks {
+        workspace_root: inputs.projects.symlink_workspace_root,
+        modules_dir_name: inputs.config.modules_dir_name(),
+        wanted_lockfile: inputs.graph.lockfile,
         current_lockfile,
-    )
+        linked: crate::LinkedDirectDeps { included_groups: &ALL_DEPENDENCY_GROUPS, skipped },
+        dedupe_direct_deps: inputs.config.dedupe_direct_deps,
+    }
+    // `report_direct_dependency_changes` reports this linker's removals.
+    .unlink::<SilentReporter>()
     .map_err(HoistedLinkerError::PruneStaleLinks)
 }

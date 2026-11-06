@@ -142,7 +142,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let walked = walk_hoisted_graph(inputs, lockfile, skipped)?;
     forget_replaced_hoisted_locations(inputs, &walked)?;
     unlink_prior_workspace_hoists(inputs)?;
-    unlink_stale_direct_links(inputs)?;
+    unlink_stale_direct_links(inputs, skipped)?;
     let (mut bins, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, lockfile, &walked, skipped)?;
     record_hoisted_archives(inputs, &walked.graph);
