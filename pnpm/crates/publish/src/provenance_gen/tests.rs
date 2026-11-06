@@ -2,8 +2,8 @@ use std::{cell::Cell, time::Duration};
 
 use super::{
     ProvenanceGenError, SignProvenance, SignedProvenance, build_statement, fetch_sigstore_token,
-    generate_provenance, github_statement, gitlab_statement, npm_purl, sign_with_retry,
-    with_sign_deadline,
+    generate_provenance, github_statement, gitlab_statement, npm_purl,
+    sign::{setup_signing_context, sign_with_retry, signing_services, with_sign_deadline},
 };
 use crate::{
     capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -349,7 +349,9 @@ async fn generate_provenance_builds_the_signed_attachment() {
 
     assert_eq!(attachment.bundle_name, "@scope/pkg-1.2.3.sigstore");
     assert_eq!(attachment.content_type, "application/vnd.dev.sigstore.bundle.v0.3+json");
-    assert_eq!(attachment.data, r#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#);
+    let bundle: serde_json::Value =
+        serde_json::from_str(&attachment.data).expect("the attachment contains a Sigstore bundle");
+    assert_eq!(bundle["mediaType"], attachment.content_type);
 }
 
 /// The configured `fetch-timeout` (milliseconds) reaches the signer as its
@@ -439,7 +441,8 @@ const INSTANT_RETRIES: pnpm_network::RetryOpts = pnpm_network::RetryOpts {
 
 #[tokio::test]
 async fn with_sign_deadline_times_out_a_hung_attempt() {
-    let err = with_sign_deadline(Duration::ZERO, std::future::pending()).await
+    let err = with_sign_deadline(Duration::ZERO, std::future::pending::<Result<(), _>>())
+        .await
         .expect_err("a hung exchange hits the deadline");
     assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
 }
@@ -476,9 +479,41 @@ async fn sign_with_retry_recovers_from_transient_failures() {
 }
 
 #[tokio::test]
+async fn setup_signing_context_retries_transient_failures() {
+    let attempts = Cell::new(0u32);
+    let context = setup_signing_context(Duration::from_secs(5), INSTANT_RETRIES, || {
+        let attempt = attempts.get();
+        attempts.set(attempt + 1);
+        async move {
+            if attempt == 0 {
+                return Err("TUF unavailable".to_owned());
+            }
+            Ok("context")
+        }
+    })
+    .await
+    .expect("context setup retries after a transient failure");
+    assert_eq!(context, "context");
+    assert_eq!(attempts.get(), 2);
+}
+
+#[tokio::test]
+async fn setup_signing_context_times_out_each_attempt() {
+    let attempts = Cell::new(0u32);
+    let err = setup_signing_context(Duration::ZERO, INSTANT_RETRIES, || {
+        attempts.set(attempts.get() + 1);
+        std::future::pending::<Result<(), String>>()
+    })
+    .await
+    .expect_err("a hung context setup hits its deadline");
+    assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
+    assert_eq!(attempts.get(), INSTANT_RETRIES.retries + 1);
+}
+
+#[tokio::test]
 async fn sign_with_retry_surfaces_the_final_failure_once_retries_are_exhausted() {
     let attempts = Cell::new(0u32);
-    let err = sign_with_retry(INSTANT_RETRIES, || {
+    let err = sign_with_retry::<SignedProvenance, _>(INSTANT_RETRIES, || {
         attempts.set(attempts.get() + 1);
         async { Err(ProvenanceGenError::Sign { source: "Failed to get timestamp".to_owned() }) }
     })
@@ -511,4 +546,36 @@ async fn fetch_sigstore_token_rejects_unsupported_provider() {
         .await
         .unwrap_err();
     assert!(matches!(err, ProvenanceGenError::UnsupportedProvider));
+}
+
+#[test]
+fn signing_services_keep_rekor_v1_when_the_config_lists_rekor_v2() {
+    let endpoint = |url: &str, major_api_version: u32| {
+        json!({
+            "url": url,
+            "majorApiVersion": major_api_version,
+            "validFor": { "start": "2021-01-01T00:00:00Z" },
+        })
+    };
+    let config = json!({
+        "mediaType": "application/vnd.dev.sigstore.signingconfig.v0.2+json",
+        "caUrls": [endpoint("https://fulcio.example", 1)],
+        "rekorTlogUrls": [
+            endpoint("https://rekor-v1.example", 1),
+            endpoint("https://rekor-v2.example", 2),
+        ],
+        "tsaUrls": [endpoint("https://tsa.example/api/v1/timestamp", 1)],
+        "rekorTlogConfig": { "selector": "ANY" },
+        "tsaConfig": { "selector": "ANY" },
+    });
+    let config = sigstore_sign::trust_root::SigningConfig::from_json(&config.to_string())
+        .expect("valid signing config");
+    let unpinned = sigstore_sign::SigningServices::from_signing_config(&config)
+        .expect("services from the config");
+    assert_eq!(unpinned.rekor_url(), "https://rekor-v2.example");
+
+    let services = signing_services(&config).expect("services from the config");
+
+    assert_eq!(services.rekor_url(), "https://rekor-v1.example");
+    assert_eq!(services.rekor_api_version(), sigstore_sign::rekor::RekorApiVersion::V1);
 }

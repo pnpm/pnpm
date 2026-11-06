@@ -1204,6 +1204,8 @@ fn peer_variants_with_distinct_peers_are_nested_for_node_resolution() {
 #[cfg(unix)]
 mod local_symlinks;
 
+mod modules_dir;
+
 mod repeat_install;
 
 mod scripts;

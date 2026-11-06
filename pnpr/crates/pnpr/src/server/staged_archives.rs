@@ -266,10 +266,10 @@ async fn reserve_within_limits(
     key: &StagedArchiveKey<'_>,
     size: u64,
 ) -> Result<bool, RegistryError> {
-    // The listing alone bounds the records the check below reads. It counts
-    // expired records too, which the check does not, so it allows twice the
-    // limit; the archive's own record, renewed or reserved again, is no new
-    // one.
+    // A first, cheap refusal of a principal far over its limit, counting the
+    // archives it holds. It allows twice the limit: the archive's own
+    // record, renewed or reserved again, is no new one, and the check below
+    // is the exact one.
     let listed = storage.staged_archive_count(key.principal).await?;
     if listed >= 2 * MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
         return Err(over_limit(&format!("{MAX_STAGED_ARCHIVES_PER_PRINCIPAL} archives")));

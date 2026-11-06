@@ -436,7 +436,7 @@ test('max-age=0 metadata is reused within one install but not from the disk mirr
     registriesByScope,
   }
   const resolve = createResolveFromNpm(resolverOptions)
-  const wanted = { alias: 'is-positive', bareSpecifier: '3.1.0' }
+  const wanted = { alias: 'is-positive', bareSpecifier: '^3.0.0' }
   expect((await resolve.resolveFromNpm(wanted, {}))!.id).toBe('is-positive@3.1.0')
 
   registry

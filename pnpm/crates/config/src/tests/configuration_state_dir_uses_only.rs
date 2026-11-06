@@ -178,6 +178,80 @@ pub fn pnpm_config_request_destinations_expand_env() {
     assert_eq!(config.registry, "https://env.example.com/npm/");
 }
 
+/// A dropped registry URL would resolve its packages from another registry.
+/// <https://github.com/pnpm/pnpm/issues/17762>
+#[test]
+pub fn repository_registry_with_env_placeholder_aborts_the_load() {
+    for (file_name, contents, expected_setting) in [
+        ("pnpm-workspace.yaml", "registry: http://localhost:${MOCK_PORT}/\n", "registry"),
+        (".npmrc", "registry=http://localhost:${MOCK_PORT}/\n", "registry"),
+        (
+            "pnpm-workspace.yaml",
+            "registries:\n  '@acme': http://localhost:${MOCK_PORT}/\n",
+            "registries['@acme']",
+        ),
+        (".npmrc", "@acme:registry=http://localhost:${MOCK_PORT}/\n", "@acme:registry"),
+    ] {
+        let project = tempdir().expect("project tempdir");
+        write_file(&project.path().join(file_name), contents);
+
+        let result = Config::default().current::<HostNoHome>(project.path());
+        eprintln!("{file_name}: {result:?}");
+        assert!(matches!(
+            result,
+            Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. })
+                if setting == expected_setting
+        ));
+    }
+}
+
+/// The load that switches to the pinned pnpm leaves out what this pnpm
+/// refuses, so a newer or older pinned pnpm still gets to decide.
+#[test]
+pub fn readable_load_leaves_out_a_registry_with_env_placeholder() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "registry: http://localhost:${MOCK_PORT}/\nregistries:\n  '@acme': http://localhost:${MOCK_PORT}/\n  '@good': https://good.example/\nlockfile: false\n",
+    );
+    write_file(
+        &project.path().join(".npmrc"),
+        "registry=http://localhost:${MOCK_PORT}/\n@other:registry=http://localhost:${MOCK_PORT}/\n",
+    );
+
+    let config = Config { settings_read: crate::SettingsRead::Readable, ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
+
+    assert!(!config.lockfile);
+    assert_eq!(config.registry, "https://registry.npmjs.org/");
+    assert_eq!(config.registries_by_scope.get("@acme"), None);
+    assert_eq!(
+        config.registries_by_scope.get("@good").map(String::as_str),
+        Some("https://good.example/"),
+    );
+    assert_eq!(config.registries_by_scope.get("@other"), None);
+}
+
+#[test]
+pub fn repository_proxy_with_env_placeholder_warns() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "httpsProxy: http://localhost:${MOCK_PORT}/\n",
+    );
+
+    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
+
+    assert_eq!(config.proxy, pnpm_network::ProxyConfig::default());
+    dbg!(&config.npmrc_warnings);
+    assert!(
+        config.npmrc_warnings
+            .iter()
+            .any(|warning| warning.starts_with(r#"Ignored "httpsProxy" in pnpm-workspace.yaml"#)),
+    );
+}
+
 /// End-to-end: malformed `pnpm_config__auth` JSON aborts the load with an
 /// error rather than silently dropping the auth.
 #[test]

@@ -140,6 +140,8 @@ fn create_file_url_key_prefers_workspace_project_name() {
     projects_by_path.insert(
         ProjectPathKey::new(&project_root),
         ProjectInfo {
+            root_dir: project_root.clone(),
+            linked_publish_dir: None,
             name: Some("workspace-name".to_string()),
             has_bin: false,
             peer_dependencies: Vec::new(),
@@ -296,6 +298,7 @@ fn deploy_normalizes_registry_specifiers_and_preserves_snapshot_references() {
                 dependency_manifest: None,
             },
             projects_by_path: HashMap::new(),
+            workspace_projects: Vec::new(),
         };
         let result = create_deploy_files(
             &lockfile,

@@ -9,9 +9,17 @@
 
 pub use manifests::variant_manifests;
 pub use selection::{AmbiguousSelection, Host, HostFloors, Purpose, select};
-pub use tag::{MAX_VARIANT_TAG_BYTES, is_valid_variant_tag, variant_tag};
+pub use tag::{MAX_VARIANT_TAG_BYTES, canonical_spelling, is_valid_variant_tag, variant_tag};
 
 mod host_floors;
+
+/// The running host's versions that floors and ABIs are matched against,
+/// probed once per process. Each probe spawns a process, so a caller asks
+/// only when a platform it matches has a floor or an ABI.
+#[must_use]
+pub fn host_floors() -> HostFloors {
+    host_floors::detect()
+}
 mod manifests;
 mod selection;
 mod tag;

@@ -1,5 +1,4 @@
 use super::{DependencyGroup, Lockfile, OptimisticRepeatInstallCheck, Path, WorkspaceState};
-use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{cell::OnceCell, collections::HashSet};
 
@@ -69,45 +68,6 @@ pub(crate) fn assert_loaded_current_lockfile_records(
     }
 }
 
-/// Whether `current` already records what materializing `wanted` would
-/// produce.
-///
-/// The current lockfile keeps only what the importers reach
-/// ([`crate::filter_lockfile_for_current`]) and none of the top-level keys
-/// pnpm does not define, so a wanted lockfile carrying a snapshot no
-/// importer reaches any more, or an embedder's extension block, can never
-/// equal it. Comparing the same shape both sides is what lets such a tree
-/// settle instead of re-materializing on every run.
-///
-/// The equal case is the common one and answers without building the
-/// filtered shape at all. Under `config.skip_runtimes` the direct runtimes are
-/// left out of the shape, so a tree that still holds one does not match.
-pub(crate) fn materialized_shape_matches(
-    wanted: &Lockfile,
-    current: &Lockfile,
-    included: IncludedDependencies,
-    config: &Config,
-) -> bool {
-    let mut skipped = crate::SkippedSnapshots::new();
-    if config.skip_runtimes
-        && let Some(packages) = wanted.packages.as_ref()
-    {
-        crate::add_direct_runtime_skips(&mut skipped, &wanted.importers, packages);
-    }
-    if skipped.is_empty() && wanted == current {
-        return true;
-    }
-    // A transient skip (a failed optional fetch) prunes the current lockfile
-    // further, and its set is not known here. Such a tree falls
-    // through to materialization, which retries the fetch anyway.
-    current
-        == &crate::filter_lockfile_for_current(
-            wanted,
-            &crate::GroupSelection::classify(wanted, included, config.peer_edge_options()),
-            &skipped,
-        )
-}
-
 /// Whether `current` records exactly what `wanted` materializes for
 /// `importer_ids` in the dependency groups `state` recorded. Every group
 /// `current` records counts, so a tree that still holds a group the install
@@ -133,7 +93,8 @@ pub(super) fn selection_matches_wanted_lockfile(
         wanted,
         recorded_groups(state),
         check.config.peer_edge_options(),
-    );
+    )
+    .linking_for(check.layout.supported_architectures);
     let (wanted, current) =
         (closure(wanted, &recorded_groups), closure(current, &crate::GroupSelection::all()));
     wanted.importers == current.importers

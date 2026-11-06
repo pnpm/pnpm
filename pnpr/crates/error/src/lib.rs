@@ -17,6 +17,14 @@ pub enum RegistryError {
         source: reqwest::Error,
     },
 
+    /// The upstream sent no response head within its `timeout`.
+    #[display("Upstream request to {url} timed out before the response arrived")]
+    #[from(skip)]
+    UpstreamTimeout {
+        #[error(not(source))]
+        url: String,
+    },
+
     #[display("Upstream response body from {url} failed: {source}")]
     UpstreamBody {
         url: String,
@@ -212,15 +220,19 @@ pub enum RegistryError {
         entry: String,
     },
 
-    /// A publish transaction committed, but another writer already owned
-    /// what one of its packages tried to publish, so that package's entry
-    /// was left out of the document rather than pointed at bytes that are
-    /// not the ones it uploaded.
-    #[display("Publish transaction could not record: {packages}")]
+    /// A publish depended on an incarnation of an archive's bytes that a
+    /// reclaim is removing or removed, or that another incarnation replaced,
+    /// so the bytes it stored or found may be gone. A retry stores them
+    /// afresh.
+    #[display(
+        "Archive {artifact:?} of {package} was reclaimed while the publish was in flight; publish again"
+    )]
     #[from(skip)]
-    PublishNotRecorded {
+    ArchiveReclaimed {
         #[error(not(source))]
-        packages: String,
+        package: String,
+        #[error(not(source))]
+        artifact: String,
     },
 
     #[display("Upload {id:?} changed; query its offset before retrying")]

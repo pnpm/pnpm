@@ -1,7 +1,8 @@
-pub(crate) use runtime::{archive_filter_for, fetch_binary_resolution_to_cas};
-pub use runtime::{
-    binary_store_index_key, host_platform_selector, runtime_platform_selector, variations_platform,
+pub use crate::platform_selection::{
+    VariantPlatforms, host_platform_selector, listed_link_platform, runtime_platform_selector,
 };
+pub use runtime::binary_store_index_key;
+pub(crate) use runtime::{archive_filter_for, fetch_binary_resolution_to_cas};
 pub use tarball_resolution::{
     local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
 };
@@ -25,7 +26,6 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_directory_fetcher::DirectoryFetcherError;
 use pnpm_git_fetcher::GitFetcherError;
-use pnpm_lockfile::PlatformSelector;
 use pnpm_package_manifest::PackageBin;
 use pnpm_tarball::TarballError;
 use std::{
@@ -62,9 +62,8 @@ pub struct InstallPackageBySnapshot<'a> {
     /// Snapshots the installability pass ruled out on this host.
     pub skipped: &'a crate::SkippedSnapshots,
     pub include_optional_dependencies: bool,
-    /// Platform triple used to select a runtime archive. This is the host
-    /// triple unless `supportedArchitectures` targets another platform.
-    pub runtime_platform_selector: &'a PlatformSelector,
+    /// The platforms a `variations` resolution selects an archive for.
+    pub variant_platforms: &'a VariantPlatforms,
     /// When `true`, return the fetched CAS paths without populating the
     /// virtual-store slot ([`CreateVirtualDirBySnapshot`](crate::CreateVirtualDirBySnapshot)) — the caller
     /// links them itself in a separate parallel pass. The cold batch in
@@ -173,9 +172,14 @@ pub enum InstallPackageBySnapshotError {
     /// or whether the lockfile was generated without the host's
     /// architecture in mind.
     #[display(
-        "Package `{package_key}` is a runtime dependency, but none of its declared variants matches the selected triple ({selected_target}). Available variants: {available_targets}"
+        "No archive of `{package_key}` runs on the selected platform ({selected_target}). It is published for: {available_targets}"
     )]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT))]
+    #[diagnostic(
+        code(ERR_PNPM_PACKAGE_MANAGER_NO_MATCHING_PLATFORM_VARIANT),
+        help(
+            "Install it on one of those platforms, or depend on it as an optional dependency so a host it does not support skips it."
+        )
+    )]
     NoMatchingPlatformVariant {
         package_key: String,
         selected_target: String,

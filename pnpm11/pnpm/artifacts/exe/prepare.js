@@ -67,10 +67,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=\${helper_path:-/}
-# A helper comes from PATH only when the default path lacks it and PATH has it.
-# The bash 3.2 that macOS ships as sh answers \`command -p -v\` from PATH.
+# A helper comes from PATH only when /usr/bin and /bin lack it and PATH has it.
+# \`command -p -v\` cannot tell, because the bash 3.2 that macOS ships as sh
+# answers it from PATH. \`[ -x ]\` also fails where a sandbox denies the file.
 run_helper() {
-  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
 }
 self=$0
 # MSYS and Cygwin can launch this with a native Windows path, which has no slash

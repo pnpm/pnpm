@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.verification",
-  "version": "1100.1.15",
+  "version": "1100.1.16",
   "description": "Checks a lockfile",
   "keywords": [
     "pnpm",
@@ -46,10 +46,12 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/resolving.git-resolver": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.range-resolver": "workspace:*",
     "p-every": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",

@@ -217,7 +217,8 @@ pub(crate) fn check_nested_directory_package(
     let snapshot = check.lockfile.snapshots
         .as_ref()
         .and_then(|snapshots| snapshots.get(&nested.key));
-    let dir = check.lockfile_dir.join(&nested.directory);
+    let dir =
+        pnpm_resolving_deps_resolver::directory_package_dir(check.lockfile_dir, &nested.directory);
     let mut scope = nested.ancestor_aliases.clone();
     scope.extend(
         check.lockfile.importers
@@ -226,10 +227,11 @@ pub(crate) fn check_nested_directory_package(
             .flat_map(importer_aliases),
     );
     let visited = Visited::new(check.lockfile);
-    let check_declared = |declared_as_file| {
+    let check_declared = |declared_by_path| {
         let dep = LocalDepContext {
             name: &nested.alias,
-            declared_as_file,
+            declared_by_path,
+            declaration_assumed: true,
             rel_path: &nested.directory,
             dir: &dir,
             dirs: spec_dirs(check),
@@ -244,8 +246,8 @@ pub(crate) fn check_nested_directory_package(
         )
     };
     let declared_as_workspace = false;
-    let declared_as_file = true;
-    check_declared(declared_as_workspace).and_then(|()| check_declared(declared_as_file))
+    let declared_by_path = true;
+    check_declared(declared_as_workspace).and_then(|()| check_declared(declared_by_path))
 }
 
 fn snapshot_dependencies(

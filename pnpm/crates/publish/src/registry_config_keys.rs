@@ -86,3 +86,19 @@ fn replace_prefix(text: &str, prefix: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
+
+impl NormalizedRegistryUrl {
+    /// `path` resolved against the registry URL.
+    pub(crate) fn join(&self, path: &str) -> Result<String, url::ParseError> {
+        url::Url::parse(self.as_str())
+            .and_then(|base| base.join(path))
+            .map(|url| url.to_string())
+    }
+
+    /// The registry URL for logging, with any `user:pass@` userinfo stripped,
+    /// so credentials a user embedded in a `registry=` URL don't leak into CI
+    /// logs.
+    pub(crate) fn for_display(&self) -> String {
+        pnpm_network::redact_url_credentials(self.as_str())
+    }
+}

@@ -4,13 +4,14 @@
 use super::{
     FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_local_directory,
     package::check_single_directory_dep_freshness,
-    peers,
     scope::{AliasScope, Visited},
     spec::spec_satisfies_snapshot_dep,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{
-    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, local_directory_child_specs,
+    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, declared_peer_dependencies,
+    directory_package_dir, local_directory_child_specs,
 };
 use std::collections::HashSet;
 /// Compares the children the resolver walks for the package (see
@@ -25,7 +26,7 @@ pub(super) fn check_local_dep_children_freshness(
 ) -> Result<(), FreshnessCheckError> {
     // A `file:` dependency resolves through the local resolver, which leaves
     // its children's `catalog:` specs alone.
-    let catalogs = (!dep.declared_as_file).then_some(ChildCatalogs {
+    let catalogs = (!dep.declared_by_path).then_some(ChildCatalogs {
         catalogs: dep.catalogs,
         workspace_dir: check.config.workspace_dir.as_deref(),
         package_dir: dep.dir,
@@ -78,7 +79,7 @@ fn check_child_directory_dep_freshness(
     let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution else {
         return Ok(());
     };
-    let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
+    let local_dep_dir = directory_package_dir(check.lockfile_dir, &dir_res.directory);
     let snapshot = check.lockfile.snapshots
         .as_ref()
         .and_then(|s| s.get(&pkg_key));
@@ -107,6 +108,13 @@ fn child_is_fresh(
         return recorded_child(snapshot, name, RecordedDeps::Required).is_none();
     }
     match recorded_child(snapshot, name, RecordedDeps::of(child)) {
+        // No resolver accepts the `catalog:` spec of a child of a package
+        // declared by path, so a frozen install must not keep the old one.
+        Some(_)
+            if dep.declared_by_path && parse_catalog_protocol(&child.bare_specifier).is_some() =>
+        {
+            dep.declaration_assumed
+        }
         Some(recorded) => {
             spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, &child.bare_specifier, recorded)
                 .unwrap_or(check.optional_exclusions.frozen_lockfile)
@@ -156,15 +164,11 @@ fn check_snapshot_keys_are_children(
     local_manifest: &PackageManifest,
     (children, snapshot): (&[DependencySpec], &pnpm_lockfile::SnapshotEntry),
 ) -> Result<(), FreshnessCheckError> {
+    let peers = declared_peer_dependencies(local_manifest.value());
     let expected: HashSet<&str> = children
         .iter()
         .map(|spec| spec.alias.as_str())
-        .chain(
-            local_manifest
-                .dependencies([DependencyGroup::Peer])
-                .map(|(name, _)| name),
-        )
-        .chain(peers::optional_peer_names(local_manifest))
+        .chain(peers.keys().map(String::as_str))
         .collect();
     // An install without optional dependencies leaves the optional map alone.
     let optional =

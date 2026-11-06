@@ -11,6 +11,7 @@ import { isEmpty } from 'ramda'
 
 import { assertLockfilesEqual } from './assertLockfilesEqual.js'
 import { assertWantedLockfileUpToDate } from './assertWantedLockfileUpToDate.js'
+import { proofMissesLocalDirectory } from './findLocalFileDepsIssue.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
 import { errorMessageOf, outdatedResult } from './outdatedResult.js'
 import { patchesOrHooksAreModified } from './patchesOrHooksAreModified.js'
@@ -109,11 +110,11 @@ async function checkRecordedRootProject (
   lockfiles: RootProjectLockfiles,
   proof: ValidationProof
 ): Promise<CheckDepsStatusResult> {
-  const { rootProjectManifest, rootProjectManifestDir, workspaceState } = ctx
+  const { opts, rootProjectManifest, rootProjectManifestDir, workspaceState } = ctx
   if (proof.lockfileUnreadable) return outdatedResult('Cannot check whether dependencies are outdated', workspaceState)
   const lockfileDir = rootLockfileDir(ctx)
   const projectProof = proof.proofOf(rootProjectManifestDir, rootProjectManifest)
-  if (projectProof === 'proven') {
+  if (projectProof === 'proven' && !proofMissesLocalDirectory(opts, workspaceState)) {
     logger.debug({ msg: 'No manifest files or lockfiles were modified since the last validation. Exiting check.' })
     if (!lockfiles.currentLockfileStats) await assertNoDependenciesRequired(lockfiles.wantedLockfilePromise, lockfileDir)
     if (proof.rehashed) await recordRootProject(ctx, true)

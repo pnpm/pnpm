@@ -54,15 +54,18 @@ impl PeersArgs {
             return Ok(PeersOutcome::UnknownSubcommand);
         }
 
-        let issues = if self.global {
-            self.global_issues(config)?
+        let (issues, undeclared) = if self.global {
+            (self.global_issues(config)?, std::collections::BTreeMap::new())
         } else {
             let lockfile_dir = config.lockfile_dir_for(dir);
             let project_dirs = checked_project_dirs(config, dir, recursive)?;
             let lockfile = self.load_lockfile(&config.install_state_dir, lockfile_dir)?;
-            checked_issues(config, lockfile_dir, &project_dirs, lockfile.as_ref())?
+            let issues = checked_issues(config, lockfile_dir, &project_dirs, lockfile.as_ref())?;
+            let undeclared =
+                undeclared_warnings(config, lockfile_dir, &project_dirs, lockfile.as_ref());
+            (issues, undeclared)
         };
-        self.print_issues(&issues)
+        self.print_issues(&issues, &undeclared)
     }
 
     fn global_issues(&self, config: &Config) -> miette::Result<IssuesByProjects> {
@@ -104,21 +107,19 @@ impl PeersArgs {
         Ok(issues)
     }
 
-    fn print_issues(&self, issues: &IssuesByProjects) -> miette::Result<PeersOutcome> {
+    fn print_issues(
+        &self,
+        issues: &IssuesByProjects,
+        undeclared: &UndeclaredWarnings,
+    ) -> miette::Result<PeersOutcome> {
         let no_issues = issues
             .values()
             .all(|pi| pi.bad.is_empty() && pi.missing.is_empty());
 
         if self.json {
-            let output = serde_json::to_string_pretty(issues)
-                .into_diagnostic()
-                .wrap_err("serialize issues to JSON")?;
-            pnpm_diagnostics::println!("{output}");
-        } else if no_issues {
-            pnpm_diagnostics::println!("No peer dependency issues found");
+            print_json_issues(issues, undeclared)?;
         } else {
-            pnpm_diagnostics::println!("Issues with peer dependencies found\n");
-            pnpm_diagnostics::println!("{}", render_peer_issues(issues));
+            print_text_issues(issues, undeclared, no_issues);
         }
 
         Ok(if no_issues { PeersOutcome::NoIssues } else { PeersOutcome::IssuesFound })
@@ -197,4 +198,72 @@ fn checked_issues(
         None => IssuesByProjects::new(),
     };
     Ok(filter_peer_issues(issues, &config.peer_dependency_rules))
+}
+
+type UndeclaredWarnings =
+    std::collections::BTreeMap<String, Vec<pnpm_deps_inspection_peers::UndeclaredPeer>>;
+
+fn undeclared_warnings(
+    config: &Config,
+    lockfile_dir: &Path,
+    project_dirs: &[std::path::PathBuf],
+    lockfile: Option<&Lockfile>,
+) -> UndeclaredWarnings {
+    if config.auto_install_peers || !config.dedupe_peer_dependents {
+        return UndeclaredWarnings::new();
+    }
+    let Some(lockfile) = lockfile else { return UndeclaredWarnings::new() };
+    let mut inspector =
+        pnpm_deps_inspection_peers::UndeclaredPeerInspector::new(lockfile, lockfile_dir);
+    project_dirs
+        .iter()
+        .filter_map(|dir| {
+            let importer = pnpm_workspace::importer_id_from_root_dir(lockfile_dir, dir);
+            let peers = inspector.check(&importer, config.resolve_peers_from_workspace_root.into());
+            (!peers.is_empty()).then_some((importer, peers))
+        })
+        .collect()
+}
+
+fn print_undeclared_warnings(warnings: &UndeclaredWarnings) {
+    for (project, peers) in warnings {
+        for peer in peers {
+            pnpm_diagnostics::println!(
+                "WARN {}: required peer {}@{} of {} is resolved but is not declared by this project or provided by its dependency ancestors. Declare the peer directly if this project's scripts use it.",
+                pnpm_text_sanitize::sanitize_inline(project),
+                pnpm_text_sanitize::sanitize_inline(&peer.peer),
+                pnpm_text_sanitize::sanitize_inline(&peer.found_version),
+                pnpm_text_sanitize::sanitize_inline(&peer.package),
+            );
+        }
+    }
+}
+
+fn print_json_issues(
+    issues: &IssuesByProjects,
+    undeclared: &UndeclaredWarnings,
+) -> miette::Result<()> {
+    let mut report = serde_json::to_value(issues).into_diagnostic()?;
+    for (project, peers) in undeclared {
+        report[project]["undeclared"] = serde_json::to_value(peers).into_diagnostic()?;
+    }
+    let output = serde_json::to_string_pretty(&report)
+        .into_diagnostic()
+        .wrap_err("serialize issues to JSON")?;
+    pnpm_diagnostics::println!("{output}");
+    Ok(())
+}
+
+fn print_text_issues(issues: &IssuesByProjects, undeclared: &UndeclaredWarnings, no_issues: bool) {
+    match (no_issues, undeclared.is_empty()) {
+        (true, true) => pnpm_diagnostics::println!("No peer dependency issues found"),
+        (true, false) => pnpm_diagnostics::println!(
+            "Peer dependencies are satisfied. Declaration warnings follow.",
+        ),
+        (false, _) => {
+            pnpm_diagnostics::println!("Issues with peer dependencies found\n");
+            pnpm_diagnostics::println!("{}", render_peer_issues(issues));
+        }
+    }
+    print_undeclared_warnings(undeclared);
 }

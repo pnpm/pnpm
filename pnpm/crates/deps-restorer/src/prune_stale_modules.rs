@@ -72,44 +72,21 @@ pub struct PruneStaleModules<'a> {
 const RECORDED_GROUPS: [DependencyGroup; 3] =
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
 
-impl<'a> PruneStaleModules<'a> {
+impl PruneStaleModules<'_> {
     /// Returns the count of unique orphan *packages* (dep-paths
     /// deduped down to `name@version`, matching pnpm's
     /// `orphanPkgIds`), for the caller's single `pnpm:stats`
     /// `removed` emission. `0` when the orphan diff is skipped.
     pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
-        let modules_dir_name: &OsStr = self.config.modules_dir_name();
-        let wanted_root_deps = self.wanted_root_deps();
-
-        for (importer_id, current_snapshot) in &self.current_lockfile.importers {
-            // An importer the wanted lockfile doesn't cover was not
-            // re-materialized; leave its links alone (the partial
-            // install guard).
-            let Some(wanted_snapshot) = self.wanted_lockfile.importers.get(importer_id) else {
-                continue;
-            };
-            if validate_importer_id(importer_id).is_err() {
-                continue;
-            }
-            let importer_dir = importer_root_dir(self.workspace_root, importer_id);
-            let Some(modules_dir) =
-                confined_modules_dir(&importer_dir.join(modules_dir_name), self.workspace_root)
-            else {
-                continue;
-            };
-            let wanted_specs = self.linked.of(wanted_snapshot);
-            // Root is what the others dedupe *against*; it keeps every
-            // link the wanted lockfile still records.
-            let dedupe_against_root =
-                (importer_id != ".").then_some(wanted_root_deps.as_ref()).flatten();
-            unlink_stale_direct_deps::<Reporter>(
-                &modules_dir,
-                &importer_dir.display().to_string(),
-                current_snapshot,
-                &wanted_specs,
-                dedupe_against_root,
-            )?;
+        StaleDirectDepLinks {
+            workspace_root: self.workspace_root,
+            modules_dir_name: self.config.modules_dir_name(),
+            wanted_lockfile: self.wanted_lockfile,
+            current_lockfile: self.current_lockfile,
+            linked: self.linked,
+            dedupe_direct_deps: self.config.dedupe_direct_deps,
         }
+        .unlink::<Reporter>()?;
 
         if !self.prune_orphans {
             return Ok(0);
@@ -137,6 +114,58 @@ impl<'a> PruneStaleModules<'a> {
         )?;
         Ok(removed)
     }
+}
+
+/// The direct-dependency links a previous install wrote that the wanted
+/// lockfile no longer records at the same version, or that the workspace
+/// root now provides under `dedupeDirectDeps`. Both linkers write these
+/// links to `<importer>/<modules_dir_name>`, and both prune them here.
+pub(crate) struct StaleDirectDepLinks<'a> {
+    pub workspace_root: &'a Path,
+    pub modules_dir_name: &'a OsStr,
+    pub wanted_lockfile: &'a Lockfile,
+    pub current_lockfile: &'a Lockfile,
+    pub linked: LinkedDirectDeps<'a>,
+    pub dedupe_direct_deps: bool,
+}
+
+impl<'a> StaleDirectDepLinks<'a> {
+    /// Unlinks the stale links of every importer both lockfiles cover,
+    /// emitting a `pnpm:root` `removed` event through `Reporter` for each.
+    pub(crate) fn unlink<Reporter: self::Reporter>(&self) -> Result<(), PruneDirectDepsError> {
+        let wanted_root_deps = self.wanted_root_deps();
+        for (importer_id, current_snapshot) in &self.current_lockfile.importers {
+            // An importer the wanted lockfile doesn't cover was not
+            // re-materialized; leave its links alone (the partial
+            // install guard).
+            let Some(wanted_snapshot) = self.wanted_lockfile.importers.get(importer_id) else {
+                continue;
+            };
+            if validate_importer_id(importer_id).is_err() {
+                continue;
+            }
+            let importer_dir = importer_root_dir(self.workspace_root, importer_id);
+            let Some(modules_dir) = confined_modules_dir(
+                &importer_dir.join(self.modules_dir_name),
+                self.workspace_root,
+            ) else {
+                continue;
+            };
+            let wanted_specs = self.linked.of(wanted_snapshot);
+            // Root is what the others dedupe *against*; it keeps every
+            // link the wanted lockfile still records.
+            let dedupe_against_root =
+                (importer_id != ".").then_some(wanted_root_deps.as_ref()).flatten();
+            unlink_stale_direct_deps::<Reporter>(
+                &modules_dir,
+                &importer_dir.display().to_string(),
+                current_snapshot,
+                &wanted_specs,
+                dedupe_against_root,
+            )?;
+        }
+        Ok(())
+    }
 
     /// `dedupeDirectDeps`'s removal half. The link pass only decides
     /// which links to *create*, so a sibling's link that an earlier
@@ -145,9 +174,8 @@ impl<'a> PruneStaleModules<'a> {
     /// depend on install history rather than on the manifests. Pnpm
     /// folds the same condition into this diff.
     fn wanted_root_deps(&self) -> Option<HashMap<&'a PkgName, &'a ImporterDepVersion>> {
-        let root_snapshot = self.config.dedupe_direct_deps.then(|| {
-            self.wanted_lockfile.importers.get(".")
-        })??;
+        let root_snapshot =
+            self.dedupe_direct_deps.then(|| self.wanted_lockfile.importers.get("."))??;
         Some(
             direct_deps_of(root_snapshot, self.linked.included_groups)
                 .into_iter()
@@ -290,42 +318,6 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
                 },
             },
         }));
-    }
-    Ok(())
-}
-
-/// The hoisted linker's share of [`PruneStaleModules`]: unlink every
-/// direct-dependency link whose alias the wanted lockfile no longer
-/// records at the same version. Its orphan diff only covers the package
-/// directories it imported, so the `link:` and workspace links it wrote
-/// beside them would otherwise outlive their removal from the manifest.
-/// The link pass reports these removals, so nothing is emitted here.
-pub(crate) fn prune_stale_hoisted_direct_links(
-    workspace_root: &Path,
-    modules_dir_name: &OsStr,
-    wanted_lockfile: &Lockfile,
-    current_lockfile: &Lockfile,
-) -> Result<(), PruneDirectDepsError> {
-    for (importer_id, current_snapshot) in &current_lockfile.importers {
-        let Some(wanted_snapshot) = wanted_lockfile.importers.get(importer_id) else {
-            continue;
-        };
-        if validate_importer_id(importer_id).is_err() {
-            continue;
-        }
-        let importer_dir = importer_root_dir(workspace_root, importer_id);
-        let Some(modules_dir) =
-            confined_modules_dir(&importer_dir.join(modules_dir_name), workspace_root)
-        else {
-            continue;
-        };
-        let wanted_specs = direct_deps_of(wanted_snapshot, &RECORDED_GROUPS);
-        for (alias, current_spec, _) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
-            if is_still_wanted(alias, current_spec, &wanted_specs) {
-                continue;
-            }
-            remove_direct_dep_link(&modules_dir, &alias.to_string())?;
-        }
     }
     Ok(())
 }

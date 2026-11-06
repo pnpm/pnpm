@@ -272,6 +272,7 @@ fn options(
             dedupe_peers: None,
             exclude_links_from_lockfile: None,
             add_missing_peer_types: None,
+            project_scoped_optional_peers: None,
             resolution_mode: pnpm_config::ResolutionMode::default(),
         },
         reuse: pnpm_pnpr_client::LockfileReuseOptions {

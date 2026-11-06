@@ -2,8 +2,9 @@ use super::{
     super::{host_platform_selector, runtime_platform_selector},
     build_runtime_tarball_fixture, leaked_offline_config,
 };
-use crate::install_package_by_snapshot::runtime::{
-    runtime_platform_of, synthesize_runtime_manifest_bytes,
+use crate::{
+    install_package_by_snapshot::runtime::synthesize_runtime_manifest_bytes,
+    platform_selection::runtime_platform_of,
 };
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
@@ -296,7 +297,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        runtime_platform_selector: &host_platform_selector(),
+        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
 
         defer_link: false,
         link_concurrency_probe: None,
@@ -384,7 +385,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        runtime_platform_selector: &host_platform_selector(),
+        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
 
         defer_link: false,
         link_concurrency_probe: None,

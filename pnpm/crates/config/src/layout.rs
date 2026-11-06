@@ -94,6 +94,14 @@ impl Config {
         self.lockfile_dir.is_some() || self.shared_workspace_lockfile
     }
 
+    /// Whether [`Self::project_scoped_optional_peers`] changes a resolution.
+    /// It has no effect while [`Self::dedupe_peer_dependents`] is off,
+    /// because optional peers are then project-scoped already.
+    #[must_use]
+    pub fn project_scoped_optional_peers_take_effect(&self) -> bool {
+        self.dedupe_peer_dependents && self.project_scoped_optional_peers
+    }
+
     /// How a walk that leaves out a dependency group classifies the lockfile's
     /// optional-peer edges.
     #[must_use]

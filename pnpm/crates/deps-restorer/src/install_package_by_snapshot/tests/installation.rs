@@ -227,7 +227,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        runtime_platform_selector: &host_platform_selector(),
+        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
 
         defer_link: false,
         link_concurrency_probe: None,

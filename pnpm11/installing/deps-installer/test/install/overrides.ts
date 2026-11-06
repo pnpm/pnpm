@@ -758,6 +758,40 @@ test('a workspace path override names the workspace directory when workspace pac
   expect(fs.realpathSync('packages/deep/consumer/node_modules/target')).toBe(path.resolve('packages/target'))
 })
 
+test.each([
+  'file:./packages/target',
+  'workspace:./packages/target',
+])('a relative override path %s resolves from the workspace root for a project with its own lockfile', async (overrideSpec) => {
+  const consumer = {
+    location: 'packages/deep/consumer',
+    package: {
+      name: 'consumer',
+      dependencies: { target: '1.0.0' },
+    },
+  }
+  preparePackages([
+    { location: '.', package: { name: 'root' } },
+    consumer,
+    { location: 'packages/target', package: { name: 'target', version: '1.0.0' } },
+  ])
+  const workspaceDir = process.cwd()
+  process.chdir(consumer.location)
+
+  await mutateModulesInSingleProject({
+    manifest: consumer.package,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({
+    injectWorkspacePackages: true,
+    overrides: { target: overrideSpec },
+    workspaceDir,
+  }))
+
+  const lockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
+  expect(lockfile.importers?.['.']?.dependencies?.target?.specifier).toBe(overrideSpec.replace('./packages/target', '../../target'))
+  expect(JSON.parse(fs.readFileSync('node_modules/target/package.json', 'utf8')).name).toBe('target')
+})
+
 test('an override to a local directory is not written to the metadata cache', async () => {
   const project = prepareEmpty()
   fs.mkdirSync('local-dep')

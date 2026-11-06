@@ -395,6 +395,45 @@ fn gvs_version_segment_anchors_directory_deps() {
         "0.0.0",
     );
 }
+#[test]
+fn gvs_version_segment_strips_the_registry_name() {
+    let named: PackageKey = "is-number@npmjs:7.0.0".parse().unwrap();
+    assert_eq!(super::super::gvs_version_segment(None, &named.suffix), "7.0.0");
+
+    let scoped: PackageKey = "@acme/sdk@gh:1.2.3".parse().unwrap();
+    assert_eq!(super::super::gvs_version_segment(None, &scoped.suffix), "1.2.3");
+}
+#[test]
+fn named_registry_slots_share_the_version_dir_but_not_the_hash() {
+    let root = PathBuf::from("/tmp/store/links");
+    let config = make_config(true, PathBuf::from("/tmp/proj/node_modules/.pnpm"), root.clone());
+    let work: PackageKey = "is-number@work:7.0.0".parse().unwrap();
+    let gh: PackageKey = "is-number@gh:7.0.0".parse().unwrap();
+    let mut packages = HashMap::new();
+    packages.insert(work.clone(), registry_metadata("A"));
+    packages.insert(gh.clone(), registry_metadata("A"));
+    let snapshots: HashMap<_, _> =
+        [(work.clone(), SnapshotEntry::default()), (gh.clone(), SnapshotEntry::default())].into();
+    let layout = VirtualStoreLayout::new(
+        &config,
+        Some("linux-x64-node22"),
+        Some(&snapshots),
+        Some(&packages),
+        None,
+        None,
+    );
+
+    let version_dir = root
+        .join("@")
+        .join("is-number")
+        .join("7.0.0");
+    assert_eq!(global_virtual_store_version_dir(&root, &work, None), Some(version_dir.clone()));
+    let work_slot = layout.slot_dir(&work);
+    let gh_slot = layout.slot_dir(&gh);
+    assert_eq!(work_slot.parent(), Some(version_dir.as_path()));
+    assert_eq!(gh_slot.parent(), Some(version_dir.as_path()));
+    assert_ne!(work_slot, gh_slot, "the registry name must still reach the slot hash");
+}
 /// A `link:` dependency is materialized as a symlink out of the store,
 /// so the slot holding it belongs to whichever directory the lockfile's
 /// relative target resolves to. Two projects linking *different*

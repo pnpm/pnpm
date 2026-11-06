@@ -982,6 +982,10 @@ fn removing_a_linked_dependency_unlinks_it_under_the_hoisted_linker() {
         .success();
 
     assert!(fs::symlink_metadata(&link).is_err(), "the link should be removed");
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/@local")).is_err(),
+        "the emptied scope directory should be removed",
+    );
     assert!(local.join("package.json").exists(), "the link target should be left alone");
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
     assert!(!lockfile.contains("@local/pkg"), "the lockfile should drop the dependency");

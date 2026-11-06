@@ -192,7 +192,7 @@ async function pickFromMemoryCache (request: PickRequest): Promise<PickResult | 
     if (isMalformedMirrorFragmentError(err)) return undefined
     throw err
   }
-  if (!cacheHitMayServe(request, { meta, pickedPackage }) || !canServeCachedMeta(ctx, meta)) return undefined
+  if (!cacheHitMayServe(request, { meta, pickedPackage })) return undefined
   return {
     meta,
     pickedPackage: offlinePickedPackage ?? pickedPackage,
@@ -204,6 +204,8 @@ function cacheHitMayServe (
   { meta, pickedPackage }: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
 ): boolean {
   const verified = !unverifiedDiskPackuments.has(meta)
+  // A lowest-version pick depends on the mirror being current, see mirrorMayAnswer.
+  if (request.opts.pickLowestVersion === true && !mirrorMayAnswer(request.ctx, meta.uncacheable)) return false
   switch (decideCacheHitCheck(request, verified, pickedPackage != null)) {
     case 'serve': return true
     case 'revalidate': return false
@@ -309,7 +311,7 @@ async function pickFromUpgradedMirror (session: MirrorSession, diskMeta: Package
     if (isMalformedMirrorFragmentError(err)) return undefined
     throw err
   }
-  if (!pickedPackage || !canServeCachedMeta(request.ctx, meta)) return undefined
+  if (!pickedPackage || !mirrorMayAnswer(request.ctx, meta.uncacheable)) return undefined
   // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
   // serving this meta from memory can't bypass the release-age
   // upgrade. When the upgrade branch above already cached the
@@ -322,15 +324,11 @@ async function pickFromUpgradedMirror (session: MirrorSession, diskMeta: Package
 }
 
 async function pickExactVersionFromMirror (session: MirrorSession): Promise<PickResult | undefined> {
-  const { ctx, spec } = session.request
+  const { spec } = session.request
   const diskMeta = await loadSessionDiskMeta(session)
   // use the cached meta only if it has the required package version
   // otherwise it is likely out of date
-  if (
-    diskMeta == null ||
-    !canServeCachedMeta(ctx, diskMeta) ||
-    !hasVersionManifest(diskMeta.versions ?? {}, spec.fetchSpec)
-  ) {
+  if (diskMeta == null || !hasVersionManifest(diskMeta.versions ?? {}, spec.fetchSpec)) {
     return undefined
   }
   return pickFromMirrorAndPromote(session.request, diskMeta)
@@ -377,7 +375,7 @@ function pickStableVersionAndPromote (request: PickRequest, diskMeta: PackageMet
     preferredVersionSelectors: opts.preferredVersionSelectors,
     versionRange: spec.fetchSpec,
   })
-  if (stableVersion == null || !canServeCachedMeta(ctx, diskMeta)) return undefined
+  if (stableVersion == null) return undefined
   // Strict dominance makes the preferred tier a singleton, so the
   // highest-version picker used by the proof and the normal picker
   // agree even if pickLowestVersion reaches this code in the future.
@@ -409,7 +407,7 @@ async function pickFromMirrorWrittenAfterCutoff (
   session: MirrorSession,
   releaseAgeApplies: boolean | undefined
 ): Promise<PickResult | undefined> {
-  const { ctx, spec, pkgMirror } = session.request
+  const { spec, pkgMirror } = session.request
   const cutoff = mirrorWrittenAfter(session.request, releaseAgeApplies)
   if (cutoff == null) return undefined
   const mtime = await session.limit(async () => getFileMtime(pkgMirror))
@@ -418,7 +416,7 @@ async function pickFromMirrorWrittenAfterCutoff (
   if (diskMeta == null) return undefined
   try {
     const pickedPackage = pickMatchingVersionFast(session.request.pickerOpts, spec, diskMeta)
-    if (pickedPackage && canServeCachedMeta(ctx, diskMeta)) {
+    if (pickedPackage) {
       return { meta: diskMeta, pickedPackage }
     }
   } catch {
@@ -429,13 +427,6 @@ async function pickFromMirrorWrittenAfterCutoff (
 
 function isWrittenAtOrAfter (mtime: Date | null, cutoff: Date): boolean {
   return mtime != null && mtime >= cutoff
-}
-
-function canServeCachedMeta (
-  ctx: { offline?: boolean, preferOffline?: boolean },
-  meta: PackageMeta
-): boolean {
-  return mirrorMayAnswer(ctx, meta.uncacheable)
 }
 
 function validatePackageName (pkgName: string) {

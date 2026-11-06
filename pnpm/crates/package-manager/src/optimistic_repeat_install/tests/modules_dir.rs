@@ -1,10 +1,8 @@
 use super::{
-    super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-        settings::current_settings,
-    },
+    super::{Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install},
     backdate_validated_files, isolated_included, setup_fresh_install_with_config, write_state,
 };
+use crate::install_state::settings::current_settings;
 use indexmap::IndexMap;
 use pnpm_config::{Config, ProjectConfig};
 use pnpm_lockfile::MaybeLazyLockfile;

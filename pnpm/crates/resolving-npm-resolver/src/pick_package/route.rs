@@ -6,6 +6,7 @@
 use chrono::{DateTime, TimeDelta, Utc};
 use pnpm_resolving_resolver_base::{NetworkPolicy, TrustPolicy};
 
+use super::PackumentSource;
 use crate::{
     PackagePickPolicy, metadata_cache_policy::mirror_may_answer, mirror::MetaHeaders,
     pick_package_from_meta::RegistryPackageSpecType,
@@ -58,6 +59,16 @@ impl RouteInputs<'_> {
             && !self.policy.release_age_applies_to(self.pkg_name)
     }
 
+    /// Whether a pick from a stale mirror is the one the registry would give.
+    /// `mirror` is read only for a lowest-version pick, which an uncacheable
+    /// mirror must not answer online (see [`DiskFirst::UnlessUncacheable`]).
+    fn stale_mirror_picks_the_same(&self) -> bool {
+        let request = self.request;
+        self.network.prefers_reachable_cache()
+            || request.spec_type == RegistryPackageSpecType::Version
+            || (request.pick_lowest_version && mirror_may_answer(self.network, self.mirror))
+    }
+
     /// The `minimumReleaseAge` cutoff when a mirror written at or after it
     /// may answer the pick: such a mirror cannot be missing a mature version.
     /// The last mirror read, asked only after [`MirrorShortcuts::decide`]
@@ -81,6 +92,10 @@ pub(super) struct MirrorShortcuts {
     /// A public mirror stored without an `ETag`, while
     /// [`unvalidated_mirror_is_fresh`] holds. A private route still
     /// contacts the registry so a `401` is not hidden behind the mirror.
+    ///
+    /// The only shortcut whose pick depends on the mirror being current, so
+    /// the only one closed by [`mirror_may_answer`]. The others pick the same
+    /// version whatever was published after the mirror was written.
     pub unvalidated_mirror: bool,
 }
 
@@ -94,9 +109,6 @@ impl MirrorShortcuts {
             mirror,
             ..
         } = *inputs;
-        if !mirror_may_answer(network, mirror) {
-            return None;
-        }
         if request.refresh_metadata && !network.reads_cache_first() {
             return None;
         }
@@ -108,7 +120,10 @@ impl MirrorShortcuts {
                 && !request.include_latest_tag
                 && !request.update_checksums,
             dominant_lockfile_version: stable_range,
-            unvalidated_mirror: stable_range && public_scope && mirror_has_no_etag,
+            unvalidated_mirror: stable_range
+                && public_scope
+                && mirror_has_no_etag
+                && mirror_may_answer(network, mirror),
         })
     }
 }
@@ -125,14 +140,14 @@ pub(super) enum CacheHitCheck {
 }
 
 impl CacheHitCheck {
-    /// `registry_verified` is false for an entry parsed from the mirror
-    /// without a registry round-trip (see
-    /// [`super::PackageMetaCache::set_unverified`]). `picked` is whether the
-    /// entry produced a pick. Offline, every pick is served: there is nothing
-    /// to revalidate against.
-    pub(super) fn decide(inputs: &RouteInputs<'_>, registry_verified: bool, picked: bool) -> Self {
+    /// `picked` is whether the entry produced a pick. Offline, every pick is
+    /// served: there is nothing to revalidate against.
+    pub(super) fn decide(inputs: &RouteInputs<'_>, source: PackumentSource, picked: bool) -> Self {
         let RouteInputs { network, request, .. } = *inputs;
-        if network.forbids_registry() || registry_verified {
+        let PackumentSource::Mirror { written_at } = source else {
+            return CacheHitCheck::Serve;
+        };
+        if network.forbids_registry() {
             return CacheHitCheck::Serve;
         }
         if request.refresh_metadata && !network.prefers_reachable_cache() {
@@ -141,11 +156,14 @@ impl CacheHitCheck {
         if !picked {
             return CacheHitCheck::Revalidate;
         }
-        // These picks answer the same from a stale mirror.
-        if network.prefers_reachable_cache()
-            || request.pick_lowest_version
-            || request.spec_type == RegistryPackageSpecType::Version
-        {
+        if inputs.stale_mirror_picks_the_same() {
+            return CacheHitCheck::Serve;
+        }
+        if written_at.is_some_and(|mtime| {
+            inputs
+                .written_after()
+                .is_some_and(|cutoff| mtime >= cutoff)
+        }) {
             return CacheHitCheck::Serve;
         }
         if inputs.range_pick_is_stable() {

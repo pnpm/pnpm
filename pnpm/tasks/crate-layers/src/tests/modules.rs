@@ -1,9 +1,10 @@
 use super::MemoryTree;
 use crate::{
     cycles::{self, CycleReport},
-    layers::Problem,
     lexer::{self, Token},
     modules::CrateModules,
+    problem::{Metric, Mismatch, Problem},
+    ratchet,
     use_tree::{self, UsePath},
 };
 use pretty_assertions::assert_eq;
@@ -107,15 +108,16 @@ fn the_baseline_only_goes_down() {
             .iter()
             .map(|(name, size)| ((*name).to_owned(), *size))
             .collect();
-        cycles::check_baseline(&reports, &baseline)
+        ratchet::check(Metric::ModuleCycle, &cycles::sizes(&reports), &baseline)
+    };
+    let problem = |crate_name: &str, measured, baseline| {
+        let crate_name = crate_name.to_owned();
+        Problem::Ratchet(Mismatch { metric: Metric::ModuleCycle, crate_name, measured, baseline })
     };
     assert_eq!(check(&[("lib", 2)]), vec![]);
-    let grew = Problem::ModuleCycleGrew { crate_name: "lib".to_owned(), size: 2, baseline: 1 };
-    assert_eq!(check(&[("lib", 1)]), vec![grew]);
-    let shrank = Problem::ModuleCycleShrank { crate_name: "lib".to_owned(), size: 2, baseline: 3 };
-    assert_eq!(check(&[("lib", 3)]), vec![shrank]);
-    let removed =
-        Problem::ModuleCycleShrank { crate_name: "gone".to_owned(), size: 0, baseline: 2 };
+    assert_eq!(check(&[("lib", 1)]), vec![problem("lib", 2, 1)]);
+    assert_eq!(check(&[("lib", 3)]), vec![problem("lib", 2, 3)]);
+    let removed = problem("gone", 0, 2);
     assert_eq!(check(&[("lib", 2), ("gone", 2)]), vec![removed]);
 }
 

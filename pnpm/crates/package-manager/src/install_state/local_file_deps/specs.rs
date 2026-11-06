@@ -1,0 +1,163 @@
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_config_parse_overrides::VersionOverride;
+use pnpm_local_spec::is_tarball_filename;
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::DependencyGroup;
+
+/// Whether a `catalog:` spec dereferences (through the workspace
+/// catalogs) to a local file specifier. A misconfigured catalog entry
+/// returns `false`: it fails the full install with the proper error
+/// anyway, so the fast path only needs to not report up-to-date for a
+/// *valid* catalog entry holding a local path.
+pub(crate) fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, spec: &str) -> bool {
+    // `resolve_from_catalog` returns `Unused` for any non-`catalog:` spec, so
+    // short-circuit before allocating the owned `WantedDependency` it needs.
+    if !spec.starts_with("catalog:") {
+        return false;
+    }
+    // Only the shape of the entry decides this, and re-anchoring a
+    // relative path never changes it, so the entry is read as written.
+    match resolve_from_catalog(
+        catalogs,
+        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+        CatalogAnchor::AsWritten,
+    ) {
+        CatalogResolutionResult::Found(found) => is_local_file_spec(&found.resolution.specifier),
+        _ => false,
+    }
+}
+
+/// Whether any override maps to a local file specifier.
+pub(crate) fn has_local_file_override(overrides: &[VersionOverride]) -> bool {
+    overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier))
+}
+
+/// Whether the dependency's specifier is (or resolves through a
+/// catalog to) a local file specifier and no generic (parentless)
+/// override replaces it. Parent-scoped overrides (`parent>dep`)
+/// never suppress the bail-out: whether they apply depends on which
+/// package the dependency belongs to. Convergence overrides (`pkg@`)
+/// never suppress the bail-out: they apply only to plain semver ranges.
+pub(crate) fn is_effective_local_file_dep(
+    catalogs: &Catalogs,
+    overrides: &[VersionOverride],
+    group: DependencyGroup,
+    alias: &str,
+    spec: &str,
+) -> bool {
+    (is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec))
+        && !is_dep_replaced_by_override(overrides, group, alias, spec)
+}
+
+pub(crate) fn is_dep_replaced_by_override(
+    overrides: &[VersionOverride],
+    group: DependencyGroup,
+    alias: &str,
+    spec: &str,
+) -> bool {
+    overrides
+        .iter()
+        .any(|entry| {
+            !entry.converge
+                && entry.parent_pkg.is_none()
+                && crate::overrides::matches_target(&entry.target_pkg, Some(group), alias, spec)
+        })
+}
+
+/// Whether any `packageExtensions` entry injects a dependency with a
+/// local file specifier. Package extensions are merged into matching
+/// packages' manifests by the read-package hook during the full
+/// install, so a `file:`/local-path/tarball spec added there has the
+/// same content-change blind spot as a direct local file dependency
+/// without appearing in any project manifest. Only `dependencies` and
+/// `optionalDependencies` are scanned: peer dependencies are resolved
+/// from the graph rather than fetched, so a local spec there is never
+/// installed.
+pub(crate) fn has_local_file_package_extension(
+    config: &Config,
+    included: IncludedDependencies,
+    catalogs: &Catalogs,
+    overrides: &[VersionOverride],
+) -> bool {
+    let Some(extensions) = config.package_extensions.as_ref() else {
+        return false;
+    };
+    extensions
+        .values()
+        .any(|extension| {
+            let optional = included.optional_dependencies.then_some((
+                DependencyGroup::Optional,
+                extension.optional_dependencies.as_ref(),
+            ));
+            std::iter::once((DependencyGroup::Prod, extension.dependencies.as_ref()))
+                .chain(optional)
+                .filter_map(|(group, deps)| deps.map(|deps| (group, deps)))
+                .any(|(group, deps)| {
+                    deps.iter()
+                        .any(|(alias, spec)| {
+                            is_effective_local_file_dep(catalogs, overrides, group, alias, spec)
+                        })
+                })
+        })
+}
+
+/// Whether the specifier resolves to a local directory or tarball whose
+/// contents can change without any manifest or lockfile mtime moving:
+/// the `file:` protocol and path-prefixed specs (`./`, `../`, `~/`,
+/// absolute POSIX paths, and Windows drive paths including
+/// drive-relative ones like `c:dir`).
+///
+/// Deliberately narrower than the local resolver's bare-path matching:
+/// a bare path like `user/repo` is statically indistinguishable from a
+/// git shorthand at this layer, and matching it would disable the
+/// repeat-install fast path for every project with git dependencies.
+/// Such specs (and anything else carrying a protocol or URL) stay on
+/// the fast path. `catalog:` specs also return `false` here — callers
+/// dereference them through the workspace catalogs first, because a
+/// catalog entry may itself hold a local path.
+pub(crate) fn is_local_file_spec(spec: &str) -> bool {
+    if is_unambiguous_local_file_spec(spec) {
+        return true;
+    }
+    if spec.contains([':', '#']) {
+        return false;
+    }
+    is_tarball_filename(spec)
+}
+
+pub(crate) fn is_unambiguous_local_file_spec(spec: &str) -> bool {
+    spec.starts_with("file:") || pnpm_local_spec::is_filespec(spec)
+}
+
+/// Whether a `workspace:` specifier names a path, such as
+/// `workspace:../lib`, rather than a version range such as `workspace:^`
+/// or `workspace:~`.
+pub(crate) fn is_workspace_path_spec(spec: &str) -> bool {
+    spec.strip_prefix("workspace:").is_some_and(pnpm_local_spec::is_filespec)
+}
+
+/// Whether a specifier is, or resolves through the catalogs to, a
+/// `workspace:` path. An entry the catalogs cannot resolve counts, as in
+/// the manifest scan; the install reports it.
+pub(crate) fn is_effective_workspace_path(catalogs: &Catalogs, alias: &str, spec: &str) -> bool {
+    if !spec.starts_with("catalog:") {
+        return is_workspace_path_spec(spec);
+    }
+    match resolve_from_catalog(
+        catalogs,
+        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+        CatalogAnchor::AsWritten,
+    ) {
+        CatalogResolutionResult::Found(found) => {
+            is_workspace_path_spec(&found.resolution.specifier)
+        }
+        _ => true,
+    }
+}
+
+#[cfg(test)]
+mod tests;

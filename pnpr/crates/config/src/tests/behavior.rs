@@ -16,6 +16,65 @@ fn resolver_block_present_but_empty_defaults_to_enabled() {
 }
 
 #[test]
+fn comment_only_config_uses_default_settings() {
+    let empty = Config::from_yaml_str("", Path::new("/x"), listen(), None).unwrap();
+    let comments =
+        Config::from_yaml_str("# registry settings\n", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(comments.features.resolver.enabled, empty.features.resolver.enabled);
+    assert_eq!(comments.features.registry.enabled, empty.features.registry.enabled);
+}
+
+#[test]
+fn null_auth_and_cors_use_default_settings() {
+    let default = Config::from_yaml_str("", Path::new("/x"), listen(), None).unwrap();
+    let parsed =
+        Config::from_yaml_str("auth: null\ncors: null\n", Path::new("/x"), listen(), None).unwrap();
+
+    assert_eq!(parsed.identity.admins, default.identity.admins);
+    assert_eq!(parsed.identity.auth.oidc.len(), default.identity.auth.oidc.len());
+    assert_eq!(parsed.identity.auth.htpasswd.max_users, default.identity.auth.htpasswd.max_users);
+    assert_eq!(parsed.identity.auth.tokens.file, default.identity.auth.tokens.file);
+    assert_eq!(parsed.http.cors.allowed_origins(), default.http.cors.allowed_origins());
+}
+
+#[test]
+fn null_auth_and_cors_do_not_disable_mapping_validation() {
+    for yaml in ["auth:\n  unknown: true\n", "cors:\n  unknown: true\n"] {
+        let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+            .expect_err("unknown auth and cors fields must remain invalid");
+        assert!(matches!(error, RegistryError::InvalidConfig { .. }));
+    }
+}
+
+#[test]
+fn null_defaulted_aggregate_config_fields_use_defaults() {
+    let configs = [
+        "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  htpasswd: null\n  tokens: null\n",
+        "registries:\n  local: {type: hosted, teams: null, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, teams: null, packages: null}\n",
+        "artifacts:\n  orgs: null\n  quota: null\n",
+        "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      workloads: null\n      login:\n        users:\n          - {subject: sub, username: alice, claims: null}\n",
+    ];
+
+    for yaml in configs {
+        Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+            .unwrap_or_else(|error| panic!("failed to load {yaml:?}: {error}"));
+    }
+
+    let router_yaml = "registries:\n  router: {type: router, sources: null}\n";
+    let parsed = super::super::loading::parse_config_file(router_yaml).unwrap();
+    let super::super::config_file::RegistryGroupFile::Registry(
+        super::super::config_file::RegistryFile::Router(router),
+    ) = parsed.registries.get("router").unwrap()
+    else {
+        panic!("expected a router registry");
+    };
+    assert!(router.sources.is_empty());
+
+    Config::from_yaml_str(router_yaml, Path::new("/x"), listen(), None)
+        .expect_err("a router with no sources is invalid");
+}
+
+#[test]
 fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
     // No config file → the bundled branch. Disabling all surfaces via
     // CLI must surface a clean error, not panic on the bundled `expect`.

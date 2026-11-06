@@ -126,6 +126,28 @@ impl FsReflink for FreshClone {
     }
 }
 
+/// A reflink whose target does not carry the source's mode. No real
+/// reflink does this. It makes visible whether the clone tier aligned the
+/// target afterwards.
+#[cfg(unix)]
+struct ModeDroppingClone;
+
+#[cfg(unix)]
+impl FsHardLink for ModeDroppingClone {
+    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
+        unreachable!("the clone tier materializes the file, so no hardlink tier follows it")
+    }
+}
+
+#[cfg(unix)]
+impl FsReflink for ModeDroppingClone {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+        fs::write(target, fs::read(source)?)?;
+        fs::set_permissions(target, fs::Permissions::from_mode(0o400))
+    }
+}
+
 #[cfg(unix)]
 fn inode(path: &Path) -> u64 {
     use std::os::unix::fs::MetadataExt;

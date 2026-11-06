@@ -30,7 +30,10 @@ pub use otp_env::resolve_otp_from_env;
 pub use pnpm_git_utils::{
     get_current_branch, is_git_repo, is_remote_history_clean, is_working_tree_clean,
 };
-pub use provenance_gen::{ProvenanceAttachment, ProvenanceGenError, generate_provenance};
+pub use provenance_gen::{
+    ProvenanceAttachment, ProvenanceGenError, ProvenanceSubject, generate_provenance,
+    generate_provenance_for,
+};
 pub use publish_failure::PublishFailure;
 pub use publish_options::{
     Access, CreatePublishOptionsError, CreatePublishOptionsInput, FetchTokenAndProvenanceError,
@@ -39,8 +42,9 @@ pub use publish_options::{
     publish_config_registry, resolve_access,
 };
 pub use publish_packed_pkg::{
-    PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError, PublishPackedPkgOptions,
-    PublishRegistryOptions, publish_packed_pkg,
+    PackedPkg, PackedVariant, PublishHttpError, PublishNetwork, PublishPackedPkgError,
+    PublishPackedPkgOptions, PublishRegistryOptions, StagedReference, UploadedArchive,
+    VariantArchive, publish_packed_pkg, upload_variant_archives,
 };
 pub use publish_summary::{
     PackedPkgInfo, PublishSummary, PublishSummaryFile, create_publish_summary,

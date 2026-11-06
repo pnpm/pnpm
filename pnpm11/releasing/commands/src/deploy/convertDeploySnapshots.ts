@@ -156,7 +156,18 @@ export function createFileUrlDepPath (
   allProjects: DeployAllProjects
 ): DepPath {
   const depFileUrl = url.pathToFileURL(resolvedPath).toString()
-  const project = allProjects.find(project => project.rootDirRealPath === resolvedPath)
+  const project = allProjects.find(project => project.rootDirRealPath === resolvedPath) ??
+    allProjects.find(project => getLinkedPublishDir(project) === resolvedPath)
   const name = project?.manifest.name ?? packageName ?? path.basename(resolvedPath)
   return `${name}@${depFileUrl}${suffix ?? ''}` as DepPath
+}
+
+/**
+ * The directory dependents link the project from: its `publishConfig.directory`
+ * unless `publishConfig.linkDirectory` is false.
+ */
+export function getLinkedPublishDir (project: DeployAllProjects[number]): string | undefined {
+  const publishConfig = project.manifest.publishConfig
+  if (publishConfig?.directory == null || publishConfig.linkDirectory === false) return undefined
+  return path.join(project.rootDirRealPath, publishConfig.directory)
 }

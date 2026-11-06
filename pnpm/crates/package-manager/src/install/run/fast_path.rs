@@ -4,6 +4,7 @@ use super::super::{
     gvs_build_marker_present, gvs_build_markers_may_require_recovery,
     unapproved_recorded_ignored_builds,
 };
+use crate::install_state::RepeatInstallCheck;
 use pnpm_config::Config;
 use pnpm_store_dir::StoreOperationLock;
 use std::path::Path;
@@ -25,7 +26,7 @@ pub(super) fn lock_store(config: &Config) -> Result<StoreOperationLock, InstallE
 pub(super) struct UpToDateCheck<'a> {
     pub(super) workspace: OptimisticRepeatInstallCheck<'a>,
     /// The projects the install covers.
-    pub(super) scope: crate::optimistic_repeat_install::Scope<'a>,
+    pub(super) scope: crate::install_state::Scope<'a>,
     pub(super) mutation: crate::ProjectMutation,
     pub(super) update_seed_policy: &'a UpdateSeedPolicy,
     pub(super) frozen_lockfile: bool,
@@ -59,6 +60,7 @@ pub(super) struct UpToDateCheck<'a> {
 /// filtered install would materialize.
 pub(super) fn repeat_install_verdict(
     check: &UpToDateCheck<'_>,
+    repeat_install: RepeatInstallCheck,
 ) -> Result<RepeatInstallVerdict, InstallError> {
     if !check.resolve_only {
         register_workspace_in_store(check.workspace.config, check.workspace.workspace_root)?;
@@ -71,10 +73,7 @@ pub(super) fn repeat_install_verdict(
         return Ok(RepeatInstallVerdict::Changed);
     }
     if let OptimisticRepeatInstallDecision::Skipped { reason } =
-        crate::optimistic_repeat_install::check_optimistic_repeat_install_in(
-            &check.workspace,
-            check.scope,
-        )
+        repeat_install(&check.workspace, check.scope)
     {
         tracing::debug!(
             target: "pacquet::install",
@@ -140,7 +139,7 @@ pub(super) fn build_state_allows_short_circuit(
 
 /// `Err` names what stops the fast path: a build marker the full install has
 /// to recover, or a wanted lockfile it cannot read to look for one.
-pub(in crate::install) fn gvs_build_markers_complete(
+pub(crate) fn gvs_build_markers_complete(
     config: &Config,
     lockfile: pnpm_lockfile::MaybeLazyLockfile<'_>,
     lockfile_root: &Path,
@@ -163,9 +162,7 @@ pub(in crate::install) fn gvs_build_markers_complete(
 }
 
 /// Whether `strictDepBuilds` allows the fast path to stand.
-pub(in crate::install) fn check_strict_dep_builds_for_fast_path(
-    config: &Config,
-) -> Result<bool, InstallError> {
+pub(crate) fn check_strict_dep_builds_for_fast_path(config: &Config) -> Result<bool, InstallError> {
     if !config.strict_dep_builds {
         return Ok(true);
     }
@@ -288,8 +285,13 @@ impl super::RunExecution<'_> {
     ) -> Result<RepeatInstallVerdict, InstallError> {
         let embedder_hooks = self.owned.projects.pnpmfile_hook_override.clone();
         self.check_custom_fetcher_reuse().await?;
-        let verdict =
-            scope.repeat_install_verdict(self.install, &self.owned, &self.mode, &self.workspace)?;
+        let verdict = scope.repeat_install_verdict(
+            self.install,
+            &self.owned,
+            &self.mode,
+            &self.workspace,
+            self.options.repeat_install,
+        )?;
         let changed = match verdict {
             RepeatInstallVerdict::Changed => true,
             RepeatInstallVerdict::Unchanged | RepeatInstallVerdict::UnchangedFrozen => false,

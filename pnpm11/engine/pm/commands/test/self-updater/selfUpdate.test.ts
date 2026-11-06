@@ -1146,6 +1146,132 @@ test('should update packageManager field when a newer pnpm version is available'
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
+test('should update engines.pnpm range along with the packageManager field', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+    engines: { pnpm: '^8.0.0' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '8.5.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('^8.5.0')
+})
+
+test('should update engines.pnpm range along with devEngines.packageManager', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '^8.0.0' },
+    },
+    engines: { pnpm: '^8.0.0' },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default)).persist()
+  mockExeMetadata(opts.registriesByScope.default, '8.5.0')
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '^8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe('^8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('^8.5.0')
+})
+
+test('should keep a * engines.pnpm range', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+    engines: { pnpm: '*' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '8.5.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('*')
+})
+
+test('should keep a partial engines.pnpm range that accepts the new version', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+    engines: { pnpm: '8' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '8.5.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('8')
+})
+
+test('should update engines.pnpm range when the packageManager field is already current', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@9.0.0',
+    engines: { pnpm: '^8.0.0' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '9.0.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
+  expect(pkgJson.engines.pnpm).toBe('^9.0.0')
+})
+
 test('should not update packageManager field when current version matches latest', async () => {
   const opts = prepare()
   const pkgJsonPath = path.join(opts.dir, 'package.json')

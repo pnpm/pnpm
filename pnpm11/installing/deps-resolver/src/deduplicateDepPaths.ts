@@ -1,3 +1,4 @@
+import { computeStronglyConnectedComponents } from '@pnpm/deps.graph-sequencer'
 import type { DepPath } from '@pnpm/types'
 
 import { isCompatibleAndHasMoreDeps, nodeDepsCount } from './depPathCompatibility.js'
@@ -12,24 +13,169 @@ export function deduplicateAll<Pkg extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
   duplicates: Array<Set<DepPath>>
 ): Record<DepPath, DepPath> {
-  const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(duplicates, depGraph)
-  if (remainingDuplicates.length === duplicates.length) {
-    return depPathsMap
+  const incoming = incomingEdges(depGraph)
+  let remaining = duplicates
+  const merged: Record<DepPath, DepPath> = {}
+  while (true) {
+    const { depPathsMap, remainingDuplicates } = deduplicateRound(remaining, depGraph)
+    if (Object.keys(depPathsMap).length === 0) return merged
+    rewriteChildren(depGraph, depPathsMap, incoming)
+    for (const [collapsed, target] of Object.entries<DepPath>(merged)) {
+      merged[collapsed as DepPath] = depPathsMap[target] ?? target
+    }
+    Object.assign(merged, depPathsMap)
+    remaining = remainingDuplicates
   }
+}
+
+function deduplicateRound<Pkg extends PartialResolvedPackage> (
+  duplicates: Array<Set<DepPath>>,
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>
+): DeduplicateDepPathsResult {
+  const result = deduplicateDepPaths(duplicates, depGraph)
+  if (Object.keys(result.depPathsMap).length > 0) return result
+  const depPathsMap = collapseCycles(depGraph, duplicates)
+  return {
+    depPathsMap,
+    remainingDuplicates: result.remainingDuplicates.map(group => new Set([...group].filter(path => !depPathsMap[path]))),
+  }
+}
+
+interface CycleComponent {
+  groups: Array<Set<DepPath>>
+  dependencies: Set<number>
+  cyclic: boolean
+}
+
+// Break one pair per independent cycle, deferring parents of changed components
+// until their children have settled in the next ordinary round.
+function collapseCycles<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  duplicates: Array<Set<DepPath>>
+): Record<DepPath, DepPath> {
+  const components = cycleComponents(depGraph, duplicates)
+  const changed = components.map(() => false)
+  const replacements: Record<DepPath, DepPath> = {}
+  for (const [index, component] of components.entries()) {
+    if ([...component.dependencies].some(dependency => changed[dependency])) {
+      changed[index] = true
+      continue
+    }
+    if (!component.cyclic) continue
+    const pair = compatibleComponentPair(depGraph, component)
+    if (pair) {
+      replacements[pair[0]] = pair[1]
+      changed[index] = true
+    }
+  }
+  return replacements
+}
+
+function compatibleComponentPair<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  component: CycleComponent
+): [DepPath, DepPath] | undefined {
+  for (const group of component.groups) {
+    const pair = compatiblePair(depGraph, group)
+    if (pair) return pair
+  }
+  return undefined
+}
+
+function compatiblePair<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  group: Set<DepPath>
+): [DepPath, DepPath] | undefined {
+  const paths = [...group].sort(createDepCountSorter(depGraph))
+  while (paths.length) {
+    const largest = paths.pop()!
+    const candidate = [...paths].reverse().find(path => isCompatibleAndHasMoreDeps(depGraph, largest, path))
+    if (candidate) return [candidate, largest]
+  }
+  return undefined
+}
+
+function cycleComponents<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  duplicates: Array<Set<DepPath>>
+): CycleComponent[] {
+  const groups = duplicates.filter(group => group.size > 1).sort((left, right) => {
+    const leftId = depGraph[left.values().next().value!].pkgIdWithPatchHash
+    const rightId = depGraph[right.values().next().value!].pkgIdWithPatchHash
+    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0
+  })
+  const byId = new Map(groups.map((group, index) => [depGraph[group.values().next().value!].pkgIdWithPatchHash, index]))
+  const adjacency = groups.map(group => groupDependencies(depGraph, group, byId))
+  const analysis = computeStronglyConnectedComponents(adjacency, adjacency.map(() => false))
+  const components: CycleComponent[] = analysis.componentSize.map(size => ({ groups: [], dependencies: new Set(), cyclic: size > 1 }))
+  populateComponents({ groups, adjacency, componentOf: analysis.componentOf, components })
+  return components
+}
+
+function populateComponents ({ groups, adjacency, componentOf, components }: {
+  groups: Array<Set<DepPath>>
+  adjacency: number[][]
+  componentOf: number[]
+  components: CycleComponent[]
+}): void {
+  for (const [index, group] of groups.entries()) {
+    const component = components[componentOf[index]]
+    component.groups.push(group)
+    if (adjacency[index].includes(index)) component.cyclic = true
+    for (const child of adjacency[index]) {
+      if (componentOf[child] !== componentOf[index]) component.dependencies.add(componentOf[child])
+    }
+  }
+}
+
+function groupDependencies<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  group: Set<DepPath>,
+  byId: Map<Pkg['pkgIdWithPatchHash'], number>
+): number[] {
+  const dependencies = new Set<number>()
+  for (const variant of group) {
+    for (const child of Object.values(depGraph[variant].children)) {
+      const node = depGraph[child]
+      const index = node && byId.get(node.pkgIdWithPatchHash)
+      if (index != null) dependencies.add(index)
+    }
+  }
+  return [...dependencies].sort((left, right) => left - right)
+}
+
+type IncomingEdges = Map<DepPath, Array<[DepPath, string]>>
+
+function incomingEdges<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>
+): IncomingEdges {
+  const incoming: IncomingEdges = new Map()
   for (const node of Object.values(depGraph)) {
-    for (const [alias, childDepPath] of Object.entries<DepPath>(node.children)) {
-      if (depPathsMap[childDepPath]) {
-        node.children[alias] = depPathsMap[childDepPath]
-      }
+    for (const [alias, child] of Object.entries<DepPath>(node.children)) {
+      const edges = incoming.get(child) ?? []
+      edges.push([node.depPath, alias])
+      incoming.set(child, edges)
     }
   }
-  if (Object.keys(depPathsMap).length > 0) {
-    return {
-      ...depPathsMap,
-      ...deduplicateAll(depGraph, remainingDuplicates),
+  return incoming
+}
+
+function rewriteChildren<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  depPathsMap: Record<DepPath, DepPath>,
+  incoming: IncomingEdges
+): void {
+  for (const [collapsed, target] of Object.entries<DepPath>(depPathsMap)) {
+    const edges = incoming.get(collapsed as DepPath) ?? []
+    incoming.delete(collapsed as DepPath)
+    const targetEdges = incoming.get(target) ?? []
+    for (const edge of edges) {
+      const [parent, alias] = edge
+      depGraph[parent].children[alias] = target
+      targetEdges.push(edge)
     }
+    incoming.set(target, targetEdges)
   }
-  return depPathsMap
 }
 
 interface DeduplicateDepPathsResult {
@@ -46,9 +192,9 @@ function deduplicateDepPaths<Pkg extends PartialResolvedPackage> (
   const remainingDuplicates: Array<Set<DepPath>> = []
 
   for (const depPaths of duplicates) {
-    const unresolvedDepPaths = collapseCompatibleDepPaths(depGraph, { depPaths, depPathsMap, depCountSorter })
-    if (unresolvedDepPaths.size) {
-      remainingDuplicates.push(unresolvedDepPaths)
+    const survivingDepPaths = collapseCompatibleDepPaths(depGraph, { depPaths, depPathsMap, depCountSorter })
+    if (survivingDepPaths.size > 1) {
+      remainingDuplicates.push(survivingDepPaths)
     }
   }
   return {
@@ -75,7 +221,7 @@ function createDepCountSorter<Pkg extends PartialResolvedPackage> (
 /**
  * Maps every dep path of `depPaths` that a compatible variant with more
  * dependencies can replace into `depPathsMap`, and returns the dep paths
- * that remain unresolved.
+ * that survive the round.
  */
 function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
@@ -85,7 +231,7 @@ function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
     depCountSorter: DepPathSorter
   }
 ): Set<DepPath> {
-  const unresolvedDepPaths = new Set(opts.depPaths.values())
+  const survivingDepPaths = new Set(opts.depPaths.values())
   let currentDepPaths = [...opts.depPaths].sort(opts.depCountSorter)
 
   while (currentDepPaths.length) {
@@ -93,10 +239,13 @@ function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
     const nextDepPaths = []
     while (currentDepPaths.length) {
       const depPath2 = currentDepPaths.pop()!
-      if (isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2)) {
+      // Child variants must agree before a parent can collapse into its sibling.
+      const sameChildren = Object.entries(depGraph[depPath2].children).every(
+        ([alias, child]) => depGraph[depPath1].children[alias] === child
+      )
+      if (sameChildren && isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2)) {
         opts.depPathsMap[depPath2] = depPath1
-        unresolvedDepPaths.delete(depPath1)
-        unresolvedDepPaths.delete(depPath2)
+        survivingDepPaths.delete(depPath2)
       } else {
         nextDepPaths.push(depPath2)
       }
@@ -104,5 +253,5 @@ function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
     nextDepPaths.push(...currentDepPaths)
     currentDepPaths = nextDepPaths.sort(opts.depCountSorter)
   }
-  return unresolvedDepPaths
+  return survivingDepPaths
 }

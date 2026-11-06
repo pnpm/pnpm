@@ -1,7 +1,8 @@
 use super::{
-    Arc, ComparablePeerRange, DepPath, HashMap, MissingPeer, MissingPeerInfo, NodeId, ParentChain,
-    ParentPkgInfo, ParentRefs, PeerDep, PeerDependencyIssue, PeerId, PeerWalkMode, ResolvedPackage,
-    SharedChain, Walker, link_node_id_as_dep_path, link_path_to_peer_version, peer_id_pair,
+    Arc, ComparablePeerRange, DepPath, HashMap, MissingPeer, MissingPeerInfo, NodeId,
+    NodePeersContext, ParentChain, ParentPkgInfo, PeerDep, PeerDependencyIssue, PeerId,
+    PeerWalkMode, ResolvedPackage, SharedChain, Walker, link_node_id_as_dep_path,
+    link_path_to_peer_version, peer_id_pair,
 };
 
 use crate::peer_provider::{PeerScope, ProviderPick, provider_for};
@@ -50,17 +51,11 @@ impl Walker<'_> {
         }
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "internal walker helper threading per-node context, mirrors the resolve_node parameter set"
-    )]
     pub(super) fn resolve_one_peer(
         &mut self,
         peer_name: &str,
         peer_dep: &PeerDep,
-        parent_refs: &ParentRefs,
-        chain: &SharedChain<Arc<str>>,
-        ancestor_pkg_ids: &SharedChain<Arc<str>>,
+        context: &NodePeersContext<'_>,
         resolved: &mut HashMap<String, NodeId>,
         missing: &mut HashMap<String, MissingPeerInfo>,
     ) {
@@ -71,27 +66,29 @@ impl Walker<'_> {
         let optional = peer_dep.optional;
 
         let scope = PeerScope {
-            inherited: parent_refs.get(peer_name),
+            inherited: context.parent_refs.get(peer_name),
             inherited_must_win: || false,
             locked: None,
         };
         match provider_for(peer_dep, scope) {
             ProviderPick::Missing => {
-                missing.insert(
-                    peer_name.to_string(),
-                    MissingPeerInfo { range: raw_range.to_string(), optional },
-                );
-                self.record_missing_peer_if_needed(
-                    peer_name,
-                    peer_dep,
-                    chain,
-                    ancestor_pkg_ids,
-                    &comparable_range,
-                );
+                let info = MissingPeerInfo {
+                    range: raw_range.to_string(),
+                    declaring_pkg_id: Arc::clone(&context.pkg.id),
+                    optional,
+                };
+                self.record_missing_peer_if_needed(peer_name, &info, context, &comparable_range);
+                missing.insert(peer_name.to_string(), info);
             }
             ProviderPick::Inherited(parent) | ProviderPick::Locked(parent) => {
                 if !comparable_range.satisfies(&parent.version) {
-                    self.record_bad_peer(peer_name, &comparable_range, parent, optional, chain);
+                    self.record_bad_peer(
+                        peer_name,
+                        &comparable_range,
+                        parent,
+                        optional,
+                        context.chain_names,
+                    );
                 }
                 if let Some(parent_node_id) = parent.node_id.as_ref() {
                     resolved.insert(peer_name.to_string(), parent_node_id.clone());
@@ -129,24 +126,45 @@ impl Walker<'_> {
     pub(super) fn record_missing_peer_if_needed(
         &mut self,
         peer_name: &str,
-        peer_dep: &PeerDep,
-        chain: &SharedChain<Arc<str>>,
-        ancestor_pkg_ids: &SharedChain<Arc<str>>,
+        info: &MissingPeerInfo,
+        context: &NodePeersContext<'_>,
         comparable_range: &ComparablePeerRange,
     ) {
-        let optional = peer_dep.optional;
-        if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
+        if !self.missing_issue_suppressed(context.ancestor_pkg_ids, peer_name) {
             self.record_missing_issue(
                 peer_name,
                 MissingPeer {
                     wanted_range: comparable_range.text.clone(),
-                    raw_range: peer_dep.version.clone(),
-                    optional,
-                    parents: self.issue_parents(chain),
+                    raw_range: self.hoist_peer_specifier(info),
+                    optional: info.optional,
+                    parents: self.issue_parents(context.chain_names),
                 },
-                ancestor_pkg_ids,
+                context.ancestor_pkg_ids,
             );
         }
+    }
+
+    pub(in super::super) fn hoist_peer_specifier(&self, info: &MissingPeerInfo) -> String {
+        if !crate::resolve_dependency_tree::resolves_from_declaring_manifest(&info.range) {
+            return info.range.clone();
+        }
+        let (Some(project_dir), Some(lockfile_dir)) =
+            (self.opts.project_dir.as_deref(), self.opts.links.lockfile_dir.as_deref())
+        else {
+            return info.range.clone();
+        };
+        let result = self.tree.packages[&info.declaring_pkg_id].result();
+        let Some(declaring_dir) =
+            crate::resolve_dependency_tree::declaring_manifest_dir(lockfile_dir, result)
+        else {
+            return info.range.clone();
+        };
+        pnpm_local_spec::LocalSpec::parse(&info.range, &declaring_dir)
+            .or_else(|| {
+                pnpm_local_spec::LocalSpec::parse_workspace_path(&info.range, &declaring_dir)
+            })
+            .expect("file: or workspace: path checked above")
+            .render(Some(project_dir))
     }
 
     /// Build the [`PeerId`] contribution for one resolved peer.
@@ -217,7 +235,7 @@ impl Walker<'_> {
         }
     }
 
-    pub(super) fn owned_package(&mut self, pkg_id: &Arc<str>) -> Arc<ResolvedPackage> {
+    pub(in super::super) fn owned_package(&mut self, pkg_id: &Arc<str>) -> Arc<ResolvedPackage> {
         if let Some(pkg) = self.providers.packages_by_id.get(pkg_id) {
             return Arc::clone(pkg);
         }

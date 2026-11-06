@@ -290,6 +290,13 @@ upload reserves its size before its bytes arrive, so uploads running in
 parallel count against those limits together, and an upload that stopped
 gives its reservation back after an hour.
 
+The bytes stay in the hosted store and their records in the
+[metadata database](storage.md#sqlite-metadata). A sweep records an expired
+archive as taken, in a transaction that holds only while no upload renewed it
+since, before it removes the bytes. An upload of the same bytes afterwards
+stores them anew under another key, so a renewal that races the sweep keeps
+its archive on every storage backend.
+
 An npm publish document, in a batch or on its own, references a staged archive
 by putting its `integrity` in the attachment in place of `data`:
 

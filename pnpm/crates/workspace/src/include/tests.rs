@@ -87,6 +87,24 @@ fn unreferenced_files_are_not_loaded() {
 }
 
 #[test]
+fn comment_only_local_sources_are_loaded_as_empty_settings() {
+    let dir = workspace(&[
+        ("pnpm-workspace.yaml", "include:\n  ./catalog.yaml: [catalog]\n"),
+        ("catalog.yaml", "# no catalog settings yet\n"),
+    ]);
+    let expected: yaml_serde::Value = yaml_serde::from_str("{}").expect("parse expected");
+    assert_eq!(merged(dir.path()), expected);
+}
+
+#[test]
+fn comment_only_root_is_loaded() {
+    let dir = workspace(&[("pnpm-workspace.yaml", "# workspace settings\n")]);
+    let document = load(dir.path()).expect("load");
+    assert!(document.includes.is_none());
+    assert_eq!(document.text, "# workspace settings\n");
+}
+
+#[test]
 fn named_catalogs_from_several_sources_are_merged() {
     let dir = workspace(&[
         (

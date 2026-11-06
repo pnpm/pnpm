@@ -1,4 +1,4 @@
-use super::{current_disposition, interrupt_of};
+use super::{current_disposition, interrupt_of, signal_number};
 use crate::Interrupt;
 
 /// Pins that the three interrupts map to the signal numbers the slot table
@@ -11,7 +11,7 @@ fn every_interrupt_maps_to_its_signal_and_back() {
         (Interrupt::Hangup, libc::SIGHUP),
     ] {
         assert_eq!(interrupt_of(number), Some(interrupt));
-        assert_eq!(super::slot(interrupt).number, number);
+        assert_eq!(signal_number(interrupt), number);
     }
 }
 

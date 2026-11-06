@@ -9,6 +9,10 @@
 
 pub(crate) mod sql;
 
+pub use blobs::{
+    ArtifactBlob, BlobFence, BlobLookup, BlobRef, BlobRow, BlobState, MappedArtifact, PublishBase,
+    PublishIncarnation, Uncommitted,
+};
 pub use notes::{
     MAX_NOTE_BYTES, Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note,
 };
@@ -17,10 +21,14 @@ pub use publication::{
     RecordedOutcome, ReleaseRecords,
 };
 pub(crate) use sql::PackageMetadata;
-pub use sql::{RenderStats, SqlMetadata, TagHistoryEntry};
+pub use sql::{Mapping, RenderStats, SqlMetadata, TagHistoryEntry, Unmapping};
+pub(crate) use sql::{StagedEntry, StagedId};
+pub(crate) use staged::{StagedRecord, StagedState};
 
+mod blobs;
 mod notes;
 mod publication;
+mod staged;
 
 use crate::{DocumentUpdate, DocumentWrite, Storage, wait_after_document_write_conflict};
 use pnpr_config::MetadataBackend;

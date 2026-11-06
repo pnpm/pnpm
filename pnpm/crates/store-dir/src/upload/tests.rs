@@ -224,6 +224,100 @@ async fn check_unrecordable_symlink_output(with_diff: bool, cached_keys: &[&str]
     }
 }
 
+#[tokio::test]
+async fn upload_caches_changes_to_indexed_bundled_dependencies() {
+    for base_row_committed in [true, false] {
+        check_bundled_dependency_upload(base_row_committed).await;
+    }
+}
+
+async fn check_bundled_dependency_upload(base_row_committed: bool) {
+    let store_root = tempdir().expect("create store root");
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    store_dir.init().expect("init store dir");
+    let pkg_dir = tempdir().expect("create package dir");
+    for (path, content) in [
+        ("node_modules/abbrev/package.json", "patched"),
+        ("node_modules/abbrev/helper.js", "added by patch"),
+        ("node_modules/@scope/bundled/index.js", "pristine"),
+        ("node_modules/unbundled/index.js", "ignored"),
+    ] {
+        let path = pkg_dir.path().join(path);
+        fs::create_dir_all(path.parent().expect("parent dir")).expect("create dependency dir");
+        fs::write(path, content).expect("write dependency file");
+    }
+    let patched = store_dir.write_cas_file(b"pristine", false).expect("write pristine file");
+    let scoped = store_dir.write_cas_file(b"pristine", false).expect("write scoped file");
+    let index_key = "bundled-dependency-side-effects-pkg";
+    let base_index = PackageFilesIndex {
+        manifest: None,
+        requires_build: Some(true),
+        requires_prepare: None,
+        algo: HASH_ALGORITHM.to_string(),
+        files: map(&[
+            ("node_modules/abbrev/package.json", patched.index_entry(0o644, None)),
+            ("node_modules/@scope/bundled/index.js", scoped.index_entry(0o644, None)),
+        ]),
+        side_effects: None,
+        remote_side_effects_quarantine: None,
+        tar_integrity: None,
+    };
+    if base_row_committed {
+        StoreIndex::open(store_dir.root())
+            .expect("open store index")
+            .set(index_key, &base_index)
+            .expect("write base package index");
+    }
+    let (writer, task) = StoreIndexWriter::spawn(&store_dir);
+    if !base_row_committed {
+        writer.queue(index_key.to_string(), base_index);
+    }
+
+    let diff = upload_with_diff(&store_dir, pkg_dir.path(), index_key, "test-engine", &writer)
+        .expect("upload side effects")
+        .expect("base index entry");
+
+    let mut added: Vec<_> = diff.added
+        .expect("bundled changes recorded")
+        .into_keys()
+        .collect();
+    added.sort();
+    assert_eq!(
+        (added, diff.deleted),
+        (
+            vec![
+                "node_modules/abbrev/helper.js".to_string(),
+                "node_modules/abbrev/package.json".to_string(),
+            ],
+            None,
+        ),
+        "base row committed: {base_row_committed}",
+    );
+    drop(writer);
+    task.await.expect("join store index writer").expect("flush side effects");
+}
+
+// The disabled writer drains its channel on the runtime, so the blocking
+// read needs a second worker thread.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn upload_is_skipped_when_the_bundled_paths_cannot_be_read() {
+    let store_root = tempdir().expect("create store root");
+    let store_dir = StoreDir::from(store_root.path().to_path_buf());
+    store_dir.init().expect("init store dir");
+    let pkg_dir = tempdir().expect("create package dir");
+    let bundled_file = pkg_dir.path().join("node_modules/abbrev/package.json");
+    fs::create_dir_all(bundled_file.parent().expect("parent dir")).expect("create bundled dir");
+    fs::write(&bundled_file, "patched").expect("write bundled file");
+    let (writer, task) = StoreIndexWriter::spawn_disabled();
+
+    let diff = upload_with_diff(&store_dir, pkg_dir.path(), "unreadable-row", "engine", &writer)
+        .expect("upload side effects");
+
+    assert!(diff.is_none());
+    drop(writer);
+    task.await.expect("join store index writer").expect("drain writer");
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn relative_symlink_output_is_cached_as_symlink_entry() {

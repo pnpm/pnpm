@@ -959,14 +959,14 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     let written = load_workspace_state(&dirs.project_root)
         .expect("read workspace state")
         .expect("workspace state must be written");
-    let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
-        .expect("manifest should have an mtime");
+    let manifest_mtime =
+        crate::install_state::file_mtime(manifest.path()).expect("manifest should have an mtime");
     assert_eq!(
         manifest_mtime.ns, 1_700_000_000_000_500_000,
         "the short-circuit must leave the manifest untouched",
     );
     assert!(
-        !crate::optimistic_repeat_install::modified_at_or_after(
+        !crate::install_state::modified_at_or_after(
             manifest_mtime,
             written.last_validated_timestamp,
         ),

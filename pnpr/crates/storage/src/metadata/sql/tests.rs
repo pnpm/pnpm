@@ -5,12 +5,14 @@
 
 #[macro_use]
 mod conformance;
+mod blobs;
 mod concurrency;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
 mod notes;
 mod publications;
+mod reclaims;
 mod schema;
 
 use crate::{

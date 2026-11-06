@@ -4,7 +4,7 @@ use super::{
 use crate::SymlinkDirectDependencies;
 use std::collections::{HashMap, HashSet};
 
-const ALL_DEPENDENCY_GROUPS: [super::DependencyGroup; 3] =
+pub(super) const ALL_DEPENDENCY_GROUPS: [super::DependencyGroup; 3] =
     [super::DependencyGroup::Prod, super::DependencyGroup::Dev, super::DependencyGroup::Optional];
 
 // The hoisted walker skips workspace links, which still need symlinks in each importer.

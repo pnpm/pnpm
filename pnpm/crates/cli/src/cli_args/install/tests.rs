@@ -341,6 +341,23 @@ fn pnpr_lockfile_resolved_without_add_missing_peer_types_is_rejected() {
 }
 
 #[test]
+fn pnpr_lockfile_resolved_without_project_scoped_optional_peers_is_rejected() {
+    let enabled = pnpm_config::Config {
+        project_scoped_optional_peers: true,
+        ..pnpm_config::Config::default()
+    };
+    let applied = pnpm_lockfile::LockfileSettings {
+        project_scoped_optional_peers: Some(true),
+        ..pnpm_lockfile::LockfileSettings::default()
+    };
+    let without_dedupe = pnpm_config::Config { dedupe_peer_dependents: false, ..enabled.clone() };
+
+    assert!(check_pnpr_applied_settings(&enabled, None).is_err());
+    assert!(check_pnpr_applied_settings(&enabled, Some(&applied)).is_ok());
+    assert!(check_pnpr_applied_settings(&without_dedupe, None).is_ok());
+}
+
+#[test]
 fn allow_build_flag_parses_single_and_multiple() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses default");
     assert!(parsed.args.allow_build().is_empty(), "default is empty");

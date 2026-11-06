@@ -380,7 +380,8 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
         metadata
             .remove_package(&npm("core"))
             .await
-            .unwrap(),
+            .unwrap()
+            .is_some(),
     );
     let made = round_trips(&server);
     assert_eq!(made.len(), 2, "a removal: {made:#?}");

@@ -95,6 +95,9 @@ pub fn main() -> ExitCode {
     // to change the environment and only a single-threaded process may.
     let single_threaded = pnpm_ffi_process::SingleThreaded::claim()
         .expect("the CLI claims the single-threaded witness once, at startup");
+    // Sets a variable, as the `--env-file` load below does, so it needs
+    // the witness and runs before the startup thread exists.
+    launch.mark_preparation(&single_threaded);
     // Load `--env-file` variables here, before the startup thread below
     // exists (see `env_file`). A shim launch is exempt: its arguments
     // belong to the shim target and travel there untouched.

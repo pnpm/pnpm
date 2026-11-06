@@ -105,7 +105,9 @@ pub(super) fn shared_workspace_key(
     #[cfg(not(debug_assertions))]
     let _ = opts;
     let bare_specifier = wanted.bare_specifier.as_deref()?;
-    if !bare_specifier.starts_with("workspace:") || bare_specifier.starts_with("workspace:.") {
+    if !bare_specifier.starts_with("workspace:")
+        || pnpm_workspace_spec::is_workspace_path_specifier(bare_specifier)
+    {
         return None;
     }
     #[cfg(debug_assertions)]

@@ -18,6 +18,8 @@ pub use console::{Handled, on_console_closing, on_console_event};
 pub use death::die_from;
 #[cfg(unix)]
 pub use disposition::{Handler, Replaced, carries_handler, install};
+#[cfg(unix)]
+pub use pending::pending_count;
 #[cfg(target_os = "linux")]
 pub use pinned_target::{Pin, PinnedTarget};
 #[cfg(unix)]
@@ -49,6 +51,8 @@ mod console;
 mod death;
 #[cfg(unix)]
 mod disposition;
+#[cfg(unix)]
+mod pending;
 #[cfg(target_os = "linux")]
 mod pinned_target;
 #[cfg(unix)]

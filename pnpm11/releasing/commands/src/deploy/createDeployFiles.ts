@@ -5,6 +5,7 @@ import { getAppliedPatchKeys, getLockfilePeerDependencies, groupPatchedDependenc
 import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
+  PackageSnapshot,
   PackageSnapshots,
   ProjectSnapshot,
   ResolvedDependencies,
@@ -33,6 +34,7 @@ import {
   filterDeployPackageSnapshots,
   type LinkedWorkspaceProject,
 } from './deployPackageGraph.js'
+import { approveWorkspaceProjectBuilds } from './workspaceProjectBuilds.js'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
@@ -104,8 +106,14 @@ export function createDeployFiles (opts: CreateDeployFilesOptions): DeployFiles 
     }
   }
 
-  if (opts.allowBuilds) {
-    workspaceManifest.allowBuilds = opts.allowBuilds
+  const allowBuilds = approveWorkspaceProjectBuilds(opts.allowBuilds, {
+    allProjects: opts.allProjects,
+    deployDir: opts.deployDir,
+    lockfileDir: opts.lockfileDir,
+    packageSnapshots: deployPackageSnapshots,
+  })
+  if (allowBuilds) {
+    workspaceManifest.allowBuilds = allowBuilds
   }
 
   return result
@@ -169,18 +177,53 @@ function convertWorkspaceImporters (
     }
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, opts.allProjects)
     ctx.targetPackageSnapshots[depPath] = packageSnapshot
+    const publishDirDepPath = addLinkedPublishDirSnapshot(ctx.targetPackageSnapshots, { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot })
     if (manifest?.peerDependencies == null) continue
-    linkedWorkspaceProjects.set(depPath, {
-      manifest,
-      dedupedPeerResolutions: injectedWorkspace
-        ? convertResolvedDependencies(
-          pickOwn(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
-          convertOptions
-        )
-        : undefined,
-    })
+    const linkedWorkspaceProject = createLinkedWorkspaceProject(manifest, { convertOptions, injectedWorkspace, projectSnapshot })
+    linkedWorkspaceProjects.set(depPath, linkedWorkspaceProject)
+    if (publishDirDepPath != null) linkedWorkspaceProjects.set(publishDirDepPath, linkedWorkspaceProject)
   }
   return linkedWorkspaceProjects
+}
+
+function createLinkedWorkspaceProject (
+  manifest: ProjectManifest,
+  importer: { convertOptions: ConvertOptions, injectedWorkspace: boolean, projectSnapshot: ProjectSnapshot }
+): LinkedWorkspaceProject {
+  return {
+    manifest,
+    dedupedPeerResolutions: importer.injectedWorkspace
+      ? convertResolvedDependencies(
+        pickOwn(Object.keys(manifest.peerDependencies ?? {}), importer.projectSnapshot.devDependencies ?? {}),
+        importer.convertOptions
+      )
+      : undefined,
+  }
+}
+
+/**
+ * Adds the package that the other importers link to when the project has a
+ * publish directory that workspace links use. It is the project's package,
+ * installed from the publish directory. Returns its dependency path.
+ */
+function addLinkedPublishDirSnapshot (
+  targetPackageSnapshots: PackageSnapshots,
+  importer: {
+    opts: CreateDeployFilesOptions
+    packageSnapshot: PackageSnapshot
+    projectRootDirRealPath: string
+    projectSnapshot: ProjectSnapshot
+  }
+): DepPath | undefined {
+  const { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot } = importer
+  if (projectSnapshot.publishDirectory == null || projectSnapshot.linkDirectory === false) return undefined
+  const publishDir = path.join(projectRootDirRealPath, projectSnapshot.publishDirectory)
+  const depPath = createFileUrlDepPath({ resolvedPath: publishDir }, opts.allProjects)
+  targetPackageSnapshots[depPath] = {
+    ...packageSnapshot,
+    resolution: { type: 'directory', directory: normalizePath(path.relative(opts.deployDir, publishDir)) },
+  }
+  return depPath
 }
 
 /**

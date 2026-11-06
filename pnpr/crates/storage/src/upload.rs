@@ -9,7 +9,7 @@ pub(crate) use remote::RemoteUploadStore;
 
 mod remote;
 
-use crate::{BlobFinalize, BlobSlot, Storage};
+use crate::{BlobId, BlobSlot, Storage, metadata::Uncommitted};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use std::{
@@ -207,32 +207,48 @@ impl Storage {
         }
     }
 
-    /// Promote verified bytes before closing their shared upload session.
-    /// A failed promotion leaves accepted remote chunks available for retry.
+    /// Promote verified bytes, the bytes of `id`, as the file `filename` of
+    /// `name`, before closing their shared upload session. The live
+    /// incarnation of `id` is reused, so bytes already stored are not stored
+    /// again; otherwise the next incarnation is stored and mapped. A failed
+    /// promotion leaves accepted remote chunks available for retry.
     pub async fn finalize_uploaded_blob(
         &self,
         upload: BlobUpload,
         name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<BlobFinalize> {
+        (filename, id): (&str, BlobId),
+    ) -> Result<()> {
         let remote = upload.remote.clone();
         let slot = self.stage_uploaded_blob(upload, name, filename).await?;
         let _temp = tempfile::TempPath::try_from_path(slot.tmp_path.clone())?;
         if let Some(remote) = &remote {
             remote.prepare_completion(filename).await?;
         }
-        let outcome = self.finalize_blob_slot(slot).await?;
-        if outcome != BlobFinalize::Conflict
-            && let Some(remote) = remote
+        let size = fs::metadata(&slot.tmp_path).await?.len();
+        let rows = self.blob_rows(vec![id.clone()]).await?;
+        let row = rows.get(&id);
+        let promoted = self.promote_blob_slot(slot, (id, size), row).await?;
+        if let Err(error) = self.map_hosted_artifact(promoted.artifact.clone()).await {
+            if promoted.stored {
+                let blob = promoted.artifact.blob;
+                if let Err(error) =
+                    self.remove_uncommitted(vec![Uncommitted { blob, may_fence: true }]).await
+                {
+                    tracing::warn!(%error, "an unmapped upload awaits `pnpr gc`");
+                }
+            }
+            return Err(error);
+        }
+        if let Some(remote) = remote
             && let Err(error) = remote.close().await
         {
             tracing::warn!(error = %error.log_message(), "promoted upload awaits session cleanup");
         }
-        Ok(outcome)
+        Ok(())
     }
 
     /// Move a finished upload into a hosted blob slot, ready for
-    /// [`Storage::finalize_blob_slot`].
+    /// [`Storage::promote_blob_slot`].
     ///
     /// Shared chunks remain available until their bytes have been promoted.
     async fn stage_uploaded_blob(

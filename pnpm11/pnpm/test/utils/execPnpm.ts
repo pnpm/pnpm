@@ -191,17 +191,28 @@ export function execPnpmSync (
     stdio: opts?.stdio ?? 'pipe',
     timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
   })
-  if (execResult.error) throw execResult.error
-  if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
+  // A timed-out process keeps the output it printed before it was killed,
+  // which is what shows where it stalled.
+  if (execResult.error) {
+    execResult.error.message += describeOutput(execResult)
+    throw execResult.error
+  }
+  if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}${describeOutput(execResult)}`)
   if (execResult.status !== 0 && opts?.expectSuccess) {
-    const stdout = execResult.stdout?.toString().split('\n').map(line => `\t${line}`).join('\n')
-    const stderr = execResult.stderr?.toString().split('\n').map(line => `\t${line}`).join('\n')
-    let message = `Process exits with code ${execResult.status}`
-    if (stdout.trim()) message += `\nSTDOUT:\n${stdout}`
-    if (stderr.trim()) message += `\nSTDOUT:\n${stderr}`
-    throw new Error(message)
+    throw new Error(`Process exits with code ${execResult.status}${describeOutput(execResult)}`)
   }
   return execResult as ChildProcess
+}
+
+function describeOutput (execResult: { stdout?: Buffer | string | null, stderr?: Buffer | string | null }): string {
+  let description = ''
+  for (const [label, output] of [['STDOUT', execResult.stdout], ['STDERR', execResult.stderr]] as const) {
+    const text = output?.toString() ?? ''
+    if (text) {
+      description += `\n${label}:\n${text.split('\n').map(line => `\t${line}`).join('\n')}`
+    }
+  }
+  return description
 }
 
 export function execPnpxSync (

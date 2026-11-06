@@ -72,6 +72,31 @@ fn a_readable_document_is_read_whole() {
 }
 
 #[test]
+fn comment_only_document_reads_as_default_settings() {
+    let settings = read::<SystemEnv>("# workspace settings\n").unwrap();
+    assert_eq!(settings, WorkspaceSettings::default());
+}
+
+#[test]
+fn comment_only_local_include_reads_as_default_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "include:\n  ./config.yaml: [nodeLinker]\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("config.yaml"), "# no workspace settings yet\n").unwrap();
+
+    let (_, settings) = WorkspaceSettings::find_and_read(dir.path(), SettingsRead::All)
+        .expect("read workspace config")
+        .expect("workspace config is present");
+
+    let expected =
+        WorkspaceSettings { includes: settings.includes.clone(), ..WorkspaceSettings::default() };
+    assert_eq!(settings, expected);
+}
+
+#[test]
 fn a_setting_that_fails_validation_is_left_out() {
     let settings = find_and_read(concat!(
         "pmOnFail: warn\n",

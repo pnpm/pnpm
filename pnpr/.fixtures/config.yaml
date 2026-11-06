@@ -94,6 +94,8 @@ registries:
     # pnpm's fetch retries, so one network blip fails every npm request
     # until the cooldown ends.
     maxFails: 0
+    # pnpr_fixtures::REGISTRY_MOCK_UPSTREAM_TIMEOUT says why.
+    timeout: 3m
 
   # Router combining local fixtures and upstream npm.
   main:

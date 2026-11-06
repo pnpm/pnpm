@@ -1,6 +1,4 @@
-use super::{
-    super::host_platform_selector, DUMMY_SHA512, leaked_offline_config, registry_metadata,
-};
+use super::{DUMMY_SHA512, leaked_offline_config, registry_metadata};
 use pnpm_lockfile::PackageKey;
 use pretty_assertions::assert_eq;
 
@@ -92,7 +90,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        runtime_platform_selector: &host_platform_selector(),
+        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
         // Hoisted skips slot materialization, so the test exercises
         // only the download-coordination branch and gets the CAS map
         // back directly.
@@ -192,7 +190,7 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        runtime_platform_selector: &host_platform_selector(),
+        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
 
         defer_link: false,
         link_concurrency_probe: None,

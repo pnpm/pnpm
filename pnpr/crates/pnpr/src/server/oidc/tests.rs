@@ -129,6 +129,17 @@ async fn a_workload_batch_is_scoped_to_its_packages() {
             "versions": { "1.0.0": { "name": name, "version": "1.0.0" } },
         })
     };
+    let invalid_version = send(
+        "/npm/~private/-/pnpr/v0/publish",
+        serde_json::json!({
+            "packages": [{
+                "name": "@org/other",
+                "versions": { "banana": { "name": "@org/other", "version": "banana" } },
+            }],
+        }),
+    )
+    .await;
+    assert_eq!(invalid_version.status(), StatusCode::BAD_REQUEST);
     let other = send(
         "/npm/~private/-/pnpr/v0/publish",
         serde_json::json!({ "packages": [entry("@org/other")] }),

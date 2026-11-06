@@ -35,6 +35,7 @@ mod hoist_state;
 mod local_targets;
 mod locked_peers;
 mod missing_peers;
+mod optional_peer_candidates;
 mod options;
 
 use direct_seeds::DirectSeeds;
@@ -59,9 +60,9 @@ use crate::{
         unwrap_package_name,
     },
     resolve_peers::{
-        CandidatePeerRanges, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
-        ResolvePeersOptions, apply_hoist_missing_scope, index_missing_names,
-        peers_accept_provided_versions, resolve_peers, resolved_name_and_version,
+        CandidatePeer, CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
+        ResolvePeersOptions, accepts_optional_peer_candidate, apply_hoist_missing_scope,
+        index_missing_names, resolve_peers, resolved_name_and_version,
     },
     resolved_tree::ResolvedTree,
 };

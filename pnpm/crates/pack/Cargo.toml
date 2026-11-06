@@ -21,6 +21,7 @@ pnpm-fs = { workspace = true }
 pnpm-fs-packlist = { workspace = true }
 pnpm-hooks = { workspace = true }
 pnpm-package-manifest = { workspace = true }
+pnpm-platform-variants = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-text-sanitize = { workspace = true }
 
@@ -35,6 +36,7 @@ miette = { workspace = true }
 pathdiff = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+ssri = { workspace = true }
 tar = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

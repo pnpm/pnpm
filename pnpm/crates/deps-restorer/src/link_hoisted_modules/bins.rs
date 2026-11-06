@@ -39,10 +39,9 @@ impl HoistedBinLinkOutput {
 /// when it did.
 pub(super) fn link_hierarchy_bins(
     hierarchy: &DepHierarchy,
-    parent_dir: &Path,
+    modules_dir: &Path,
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<HoistedBinLinkOutput, LinkHoistedModulesError> {
-    let modules_dir = parent_dir.join("node_modules");
     let dep_names: Vec<String> = hierarchy.0
         .keys()
         .filter_map(|child_dir| opts.graph.get(child_dir))
@@ -56,7 +55,7 @@ pub(super) fn link_hierarchy_bins(
         .map(|name| (name.as_str(), None))
         .collect::<Vec<_>>();
     let (outcome, packages) = crate::link_bins::link_named_dep_bins_with_sources(
-        &modules_dir,
+        modules_dir,
         &deps,
         opts.link_options,
         true,
@@ -64,12 +63,15 @@ pub(super) fn link_hierarchy_bins(
     .map_err(LinkHoistedModulesError::LinkBins)?;
     let mut output = HoistedBinLinkOutput::default();
     output.claimed_commands.insert(
-        pnpm_fs::lexical_normalize(&modules_dir),
+        pnpm_fs::lexical_normalize(modules_dir),
         outcome.linked_commands,
     );
-    output.sources.insert(modules_dir.clone(), packages.into());
+    output.sources.insert(modules_dir.to_path_buf(), packages.into());
     if outcome.held_back {
-        output.held_back_bins_dirs.push(HeldBackBinsDir { modules_dir, dep_names });
+        output.held_back_bins_dirs.push(HeldBackBinsDir {
+            modules_dir: modules_dir.to_path_buf(),
+            dep_names,
+        });
     }
     Ok(output)
 }

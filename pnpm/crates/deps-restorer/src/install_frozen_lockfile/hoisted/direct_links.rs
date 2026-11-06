@@ -15,8 +15,8 @@ pub(super) fn link_selected_hoisted_direct_dependencies(
     initial_sources: &crate::HoistedBinSources,
     claimed_commands: &mut HashMap<PathBuf, HashSet<String>>,
 ) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
-    let modules_dir_name = config.modules_dir_name();
-    let root_modules_dir = pnpm_fs::lexical_normalize(&config.modules_dir);
+    let modules_dirs = crate::ImporterModulesDirs::from_config(config, lockfile_dir);
+    let root_modules_dir = modules_dirs.root().to_path_buf();
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     let mut changed_dirs = HashSet::new();
     for (project_dir, _) in project_manifests {
@@ -27,11 +27,7 @@ pub(super) fn link_selected_hoisted_direct_dependencies(
         let scope = HoistedLinkScope {
             importer_id: pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir),
             root_modules_dir: &root_modules_dir,
-            modules_dir: if is_workspace_root {
-                root_modules_dir.clone()
-            } else {
-                project_dir.join(modules_dir_name)
-            },
+            modules_dir: modules_dirs.of(project_dir),
             is_workspace_root,
         };
         let (changed, linked_commands) = scope.link_direct_dependencies_claiming(

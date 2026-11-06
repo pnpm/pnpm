@@ -1,8 +1,9 @@
-use std::path::Path;
+use std::{path::Path, time::Duration};
 use tempfile::TempDir;
 
 use pnpr::{
     Config,
+    archive_gc::{GcOptions, GcReport, collect_archives},
     config_check::{check_config, format_report},
     export::{export_storage, format_export_report},
     htpasswd_import::{HtpasswdImportOptions, import_htpasswd},
@@ -10,8 +11,8 @@ use pnpr::{
     verify::{VerifyOptions, format_verify_report, verify_storage},
 };
 use pnpr_storage::{
-    Ecosystem,
-    layout::{local_blob_path, write_local_layout_marker},
+    BlobId, Ecosystem,
+    layout::{local_archive_path, write_local_layout_marker},
 };
 
 /// Commit `bytes` as the document of `name` in the default namespace of the
@@ -20,14 +21,34 @@ fn seed_document(storage: &Path, ecosystem: Ecosystem, name: &str, bytes: &[u8])
     pnpr_fixtures::write_hosted_document(storage, "", ecosystem, name, bytes);
 }
 
-/// Write `bytes` to `path` in a hosted store, creating its directories.
-fn seed_file(path: impl AsRef<Path>, bytes: impl AsRef<[u8]>) {
-    let path = path.as_ref();
+/// Store `bytes` as the file `file` of `name` in the default namespace of
+/// `ecosystem` of the hosted store at `storage`, mapped as a publish maps it.
+fn seed_archive(storage: &Path, ecosystem: Ecosystem, name: &str, file: &str, bytes: &[u8]) {
+    pnpr_fixtures::write_hosted_file(storage, ("", ecosystem), (name, ""), file, bytes);
+}
+
+/// Store `bytes` in the default npm namespace of the hosted store at
+/// `storage` the way a publish refused at its commit leaves them: under the
+/// first incarnation of their identity, with no row and nothing mapping them.
+/// Returns where they are.
+fn seed_uncommitted(storage: &Path, bytes: &[u8]) -> std::path::PathBuf {
+    let key = BlobId::of_bytes(Ecosystem::Npm, bytes).key(1);
+    let path = local_archive_path(storage, "", Ecosystem::Npm, &key);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(path, bytes).unwrap();
+    std::fs::write(&path, bytes).unwrap();
+    path
 }
 
 fn create_test_config(dir: &Path) -> (Config, tempfile::NamedTempFile) {
+    create_test_config_with(dir, "")
+}
+
+/// [`create_test_config`] that hosts npm packages in the registry `local`.
+fn create_hosting_test_config(dir: &Path) -> (Config, tempfile::NamedTempFile) {
+    create_test_config_with(dir, "registries:\n  local:\n    type: hosted\n")
+}
+
+fn create_test_config_with(dir: &Path, registries: &str) -> (Config, tempfile::NamedTempFile) {
     let storage_dir = dir.join("storage");
     let cache_dir = dir.join("cache");
     let htpasswd_file = dir.join("htpasswd");
@@ -42,7 +63,7 @@ cache: '{}'
 auth:
   htpasswd:
     file: '{}'
-",
+{registries}",
         storage_dir.display(),
         cache_dir.display(),
         htpasswd_file.display(),
@@ -135,8 +156,11 @@ async fn test_export_storage() {
         pkg,
         &serde_json::to_vec(&doc).unwrap(),
     );
-    seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
+    seed_archive(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        "demo-pkg-1.0.0.tgz",
         b"fake tarball bytes",
     );
 
@@ -173,21 +197,17 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
         pkg,
         &serde_json::to_vec(&doc).unwrap(),
     );
-    let stored_tar = local_blob_path(
-        &config.storage.hosted_dir,
-        "",
-        Ecosystem::Npm,
-        pkg,
-        "demo-pkg-1.0.0.tar.zst",
-    );
-    seed_file(stored_tar.clone(), b"zstd tar bytes");
+    let tar = "demo-pkg-1.0.0.tar.zst";
+    seed_archive(&config.storage.hosted_dir, Ecosystem::Npm, pkg, tar, b"zstd tar bytes");
 
-    let prune = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
-    let report = verify_storage(&config, &prune).await.unwrap();
+    let opts = VerifyOptions { check_hashes: true };
+    let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.blobs_checked, 1);
     assert!(report.missing_blobs.is_empty(), "{:?}", report.missing_blobs);
     assert!(report.orphaned_blobs.is_empty(), "{:?}", report.orphaned_blobs);
-    assert!(stored_tar.exists());
+    let stored_tar =
+        pnpr_fixtures::read_hosted_file(&config.storage.hosted_dir, ("", Ecosystem::Npm), pkg, tar);
+    assert_eq!(stored_tar.as_deref(), Some(b"zstd tar bytes".as_slice()));
     assert_eq!(report.corrupted_blobs.len(), 1, "{:?}", report.corrupted_blobs);
     assert!(report.corrupted_blobs[0].contains("no recorded tar integrity"));
 
@@ -198,9 +218,9 @@ async fn verify_and_export_keep_the_stored_tar_of_a_hosted_tar_registry() {
 }
 
 #[tokio::test]
-async fn test_verify_storage_health_and_orphan_prune() {
+async fn test_verify_reports_orphans_and_gc_removes_uncommitted_archives() {
     let dir = TempDir::new().unwrap();
-    let (config, _cfg_file) = create_test_config(dir.path());
+    let (config, _cfg_file) = create_hosting_test_config(dir.path());
 
     let pkg = "demo-pkg";
     write_local_layout_marker(&config.storage.hosted_dir).unwrap();
@@ -226,52 +246,59 @@ async fn test_verify_storage_health_and_orphan_prune() {
         pkg,
         &serde_json::to_vec(&doc).unwrap(),
     );
-    seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
+    seed_archive(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        "demo-pkg-1.0.0.tgz",
         tarball_bytes,
     );
 
-    // Add an orphaned blob
-    let orphan_path =
-        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "orphaned-blob.tgz");
-    std::fs::write(&orphan_path, b"unreferenced").unwrap();
+    // A file pnpr never stores, and the bytes of a publish refused at its
+    // commit.
+    let hosted = &config.storage.hosted_dir;
+    let unknown_path = local_archive_path(hosted, "", Ecosystem::Npm, "orphaned-blob.tgz");
+    std::fs::create_dir_all(unknown_path.parent().unwrap()).unwrap();
+    std::fs::write(&unknown_path, b"unreferenced").unwrap();
+    let orphan_path = seed_uncommitted(hosted, b"refused at its commit");
 
-    // 1. Verify detecting the orphan even with min_age_secs: 86400 (audit reports all orphans)
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 86400 };
+    // Verify reports the uncommitted archive, leaves the name pnpr never
+    // stored alone, and removes nothing.
+    let opts = VerifyOptions { check_hashes: true };
     let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.packages_checked, 1);
     assert_eq!(report.versions_checked, 1);
     assert_eq!(report.blobs_checked, 1);
     assert!(report.missing_blobs.is_empty());
     assert!(report.corrupted_blobs.is_empty());
-    assert_eq!(report.orphaned_blobs.len(), 1);
+    let orphan_key = orphan_path
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert_eq!(report.orphaned_blobs, [orphan_key], "{:?}", report.orphaned_blobs);
+    assert!(orphan_path.exists() && unknown_path.exists());
+
+    // An archive younger than the minimum age stays: a publish may still be
+    // on its way to commit it.
+    let mut gc = GcOptions { min_age: Duration::from_hours(24), ..GcOptions::default() };
+    assert_eq!(collect_archives(&config, &gc).await.unwrap(), GcReport::default());
     assert!(orphan_path.exists());
 
-    // 2. Prune with min_age_secs: 86400 does NOT prune freshly created orphan
-    let guard_opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 86400 };
-    let guard_report = verify_storage(&config, &guard_opts).await.unwrap();
-    assert_eq!(guard_report.orphaned_blobs.len(), 0);
+    // A dry run reports what goes.
+    gc.min_age = Duration::ZERO;
+    gc.dry_run = true;
+    assert_eq!(collect_archives(&config, &gc).await.unwrap().archives, 1);
     assert!(orphan_path.exists());
 
-    // 3. Verify with prune_orphans: true and min_age_secs: 0 prunes the orphan
-    let prune_opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
-    let prune_report = verify_storage(&config, &prune_opts).await.unwrap();
-    assert_eq!(prune_report.orphaned_blobs.len(), 1);
-    assert!(prune_report.prune_failures.is_empty());
+    // The uncommitted archive goes; the live one and the unknown file stay.
+    gc.dry_run = false;
+    assert_eq!(collect_archives(&config, &gc).await.unwrap().archives, 1);
     assert!(!orphan_path.exists());
-
-    // 4. Verify an undeclared .sigstore file is pruned when dist.attestations is absent
-    let undeclared_sigstore = local_blob_path(
-        &config.storage.hosted_dir,
-        "",
-        Ecosystem::Npm,
-        pkg,
-        "demo-pkg-1.0.0.sigstore",
-    );
-    std::fs::write(&undeclared_sigstore, b"abandoned sigstore").unwrap();
-    let sigstore_report = verify_storage(&config, &prune_opts).await.unwrap();
-    assert_eq!(sigstore_report.orphaned_blobs.len(), 1);
-    assert!(!undeclared_sigstore.exists());
+    assert!(unknown_path.exists());
+    let live =
+        pnpr_fixtures::read_hosted_file(hosted, ("", Ecosystem::Npm), pkg, "demo-pkg-1.0.0.tgz");
+    assert_eq!(live.as_deref(), Some(tarball_bytes.as_slice()));
 }
 
 #[tokio::test]
@@ -308,12 +335,15 @@ async fn test_verify_storage_corrupted_and_missing() {
         pkg,
         &serde_json::to_vec(&doc).unwrap(),
     );
-    seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "corrupt-1.0.0.tgz"),
+    seed_archive(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        "corrupt-1.0.0.tgz",
         b"some mismatched content",
     );
 
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: false, min_age_secs: 0 };
+    let opts = VerifyOptions { check_hashes: true };
     let report = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(report.missing_blobs.len(), 1);
     assert_eq!(report.corrupted_blobs.len(), 1);
@@ -348,8 +378,11 @@ async fn test_migrate_storage_dry_run() {
         pkg,
         &serde_json::to_vec(&doc).unwrap(),
     );
-    seed_file(
-        local_blob_path(&config.storage.hosted_dir, "", Ecosystem::Npm, pkg, "demo-pkg-1.0.0.tgz"),
+    seed_archive(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        "demo-pkg-1.0.0.tgz",
         b"fake tarball bytes",
     );
 
@@ -396,14 +429,11 @@ async fn test_migrate_storage_non_npm_package() {
         pkg,
         &serde_json::to_vec(&doc).unwrap(),
     );
-    seed_file(
-        local_blob_path(
-            &config.storage.hosted_dir,
-            "",
-            Ecosystem::Cargo,
-            pkg,
-            "my-crate-0.1.0.crate",
-        ),
+    seed_archive(
+        &config.storage.hosted_dir,
+        Ecosystem::Cargo,
+        pkg,
+        "my-crate-0.1.0.crate",
         b"fake crate bytes",
     );
 
@@ -456,10 +486,7 @@ async fn test_migrate_storage_from_takes_the_archives_of_another_directory() {
     let elsewhere = dir.path().join("elsewhere");
     std::fs::create_dir_all(&elsewhere).unwrap();
     write_local_layout_marker(&elsewhere).unwrap();
-    seed_file(
-        local_blob_path(&elsewhere, "", Ecosystem::Npm, "configured-a", "configured-a-1.0.0.tgz"),
-        b"tarball",
-    );
+    seed_archive(&elsewhere, Ecosystem::Npm, "configured-a", "configured-a-1.0.0.tgz", b"tarball");
 
     let options = MigrateStorageOptions {
         from: Some(elsewhere),
@@ -521,28 +548,22 @@ async fn test_verify_and_export_attestations() {
         pkg,
         &serde_json::to_vec(&doc).unwrap(),
     );
-    seed_file(
-        local_blob_path(
-            &config.storage.hosted_dir,
-            "",
-            Ecosystem::Npm,
-            pkg,
-            "signed-pkg-1.0.0.tgz",
-        ),
+    seed_archive(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        "signed-pkg-1.0.0.tgz",
         tarball_bytes,
     );
-    seed_file(
-        local_blob_path(
-            &config.storage.hosted_dir,
-            "",
-            Ecosystem::Npm,
-            pkg,
-            "signed-pkg-1.0.0.sigstore",
-        ),
+    seed_archive(
+        &config.storage.hosted_dir,
+        Ecosystem::Npm,
+        pkg,
+        "signed-pkg-1.0.0.sigstore",
         b"sigstore bundle bytes",
     );
 
-    let opts = VerifyOptions { check_hashes: true, prune_orphans: true, min_age_secs: 0 };
+    let opts = VerifyOptions { check_hashes: true };
     let rep = verify_storage(&config, &opts).await.unwrap();
     assert_eq!(rep.packages_checked, 1);
     assert_eq!(rep.missing_blobs.len(), 0);

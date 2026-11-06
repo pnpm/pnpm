@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-resolver",
-  "version": "1102.2.11",
+  "version": "1102.2.12",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -41,6 +41,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
+    "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",

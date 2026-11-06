@@ -1,6 +1,6 @@
 use super::{Error, edits, inline, scalar_aliases::byte_range, source_keys::SourceKeys};
 use serde_json::Value;
-use serde_saphyr::granit_parser::{Scanner, StrInput, Token, TokenType};
+use serde_saphyr::granit_parser::{Scanner, StrInput, TokenType};
 use std::{collections::HashMap, ops::Range};
 use yamlpath::{Document, Route};
 
@@ -12,7 +12,9 @@ pub(super) fn detach_changed(
     target: &Value,
 ) -> Result<(), Box<Error>> {
     let aliases: Vec<_> = Scanner::new(StrInput::new(document.source()))
-        .filter_map(|Token(span, token)| {
+        .map_while(Result::ok)
+        .filter_map(|token| {
+            let (span, token) = token.into_parts();
             matches!(token, TokenType::Alias(_)).then(|| byte_range(span))
         })
         .collect();

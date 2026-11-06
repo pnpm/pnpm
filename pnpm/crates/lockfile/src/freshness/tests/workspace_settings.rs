@@ -201,3 +201,41 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
         StalenessReason::InjectWorkspacePackagesChanged { lockfile: true, config: false },
     );
 }
+
+#[test]
+fn check_settings_compares_project_scoped_optional_peers() {
+    let unrecorded: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "settings:"
+        "  autoInstallPeers: true"
+        "  excludeLinksFromLockfile: false"
+    })
+    .expect("parse lockfile with settings");
+    let recorded: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "settings:"
+        "  autoInstallPeers: true"
+        "  excludeLinksFromLockfile: false"
+        "  projectScopedOptionalPeers: true"
+    })
+    .expect("parse lockfile recording projectScopedOptionalPeers");
+    let catalogs = Catalogs::new();
+    let check = |project_scoped_optional_peers| LockfileSettingsCheck {
+        project_scoped_optional_peers,
+        ..settings_check(&catalogs)
+    };
+
+    assert_eq!(check_lockfile_settings(&unrecorded, check(false)), Ok(()));
+    assert_eq!(check_lockfile_settings(&recorded, check(true)), Ok(()));
+    let err = check_lockfile_settings(&unrecorded, check(true))
+        .expect_err("turning the setting on must surface drift");
+    assert_eq!(
+        err,
+        StalenessReason::ProjectScopedOptionalPeersChanged { lockfile: false, config: true },
+    );
+    assert_eq!(err.setting_name(), Some("settings.projectScopedOptionalPeers"));
+    assert_eq!(
+        check_lockfile_settings(&recorded, check(false)),
+        Err(StalenessReason::ProjectScopedOptionalPeersChanged { lockfile: true, config: false }),
+    );
+}

@@ -556,6 +556,51 @@ fn dedupe_check_ignores_a_deprecation_the_lockfile_does_not_record() {
     drop((root, mock_instance));
 }
 
+/// The lockfile was written when the registry only reported the `sha1`
+/// shasum of a locked version, and it now reports its `sha512` integrity.
+#[test]
+fn dedupe_check_ignores_an_integrity_the_registry_now_reports_with_another_algorithm() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let recorded = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let integrity_start =
+        recorded.find("integrity: sha512-").expect("the lockfile records a sha512 integrity")
+            + "integrity: ".len();
+    let integrity_end = integrity_start
+        + recorded[integrity_start..]
+            .find([',', '}'])
+            .expect("the resolution goes on after its integrity");
+    let stale = format!(
+        "{}sha1-896/ULXBYCvzkqy0Er0z/W1+T5g={}",
+        &recorded[..integrity_start],
+        &recorded[integrity_end..],
+    );
+    fs::write(&lockfile_path, &stale).expect("write the sha1 lockfile");
+    backdate_lockfile(&lockfile_path);
+
+    assert_dedupe_check_leaves_lockfiles_untouched(&workspace, &[lockfile_path], 0);
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn dedupe_check_rejects_a_malformed_modules_manifest() {
     let CommandTempCwd {

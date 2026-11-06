@@ -373,7 +373,9 @@ has:
 `interpretation` is the profile the manifest was derived under, and `inputs`
 are the digests it was derived from: the `.tgz` as published, and its
 `package.json` and `npm-shrinkwrap.json` by their paths in the archive. Each
-platform variant in `variants` has `inputs` of its own. A registry with
+platform variant in `variants` has `inputs` of its own, and a `purl`: the
+record's with a `variant` qualifier naming its tag, with `+` written `%2B`, such
+as `pkg:npm/fast-thing@1.5.0?variant=linux-x64%2Blinux-x64-musl`. A registry with
 `tarballs: tar` serves the record with the tar's `integrity`.
 
 Revision `0` is the original artifact, also of a version without registry
@@ -447,12 +449,15 @@ a hosted registry.
 | `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires both `publish` and `unpublish`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `DELETE` | `/{name}` | Remove an entire unscoped package, used by force unpublish. Requires `unpublish`. Legacy `/{package}/-rev/{rev}` is also accepted. |
 | `DELETE` | `/@scope/{name}` | Remove an entire scoped package, used by force unpublish. Requires `unpublish`. Legacy `/@scope/{name}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/{name}@{version}` | Remove an unscoped version's tarball. Requires `unpublish`. Legacy `/{name}@{version}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/@scope/{name}@{version}` | Remove a scoped version's tarball. Requires `unpublish`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/{name}/-/{filename}` | Remove an unscoped tarball. Requires `unpublish`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/@scope/{name}/-/{filename}` | Remove a scoped tarball. Requires `unpublish`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/{name}@{version}` | Unpublish an unscoped version, and reclaim its archives that no other file shares. A version the package no longer lists is left as it is. Requires `unpublish`. Legacy `/{name}@{version}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}@{version}` | Unpublish a scoped version, as above. Requires `unpublish`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/{name}/-/{filename}` | Unpublish the unscoped version the tarball belongs to, as above. Requires `unpublish`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}/-/{filename}` | Unpublish the scoped version the tarball belongs to, as above. Requires `unpublish`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
 | `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string version, for example `"1.0.0"`. Requires `publish`. |
 | `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Requires `publish`. |
+
+Every key under `versions` and its manifest's `version` must be valid SemVer.
+pnpr rejects an invalid version with `400`.
 
 ### Platform variants
 
@@ -488,6 +493,11 @@ pnpr rejects the version when a variant:
 - is attached for a version the publish document does not describe, or
   without an `integrity`.
 
+A version published with a provenance statement (its `.sigstore` attachment) is
+rejected unless the statement names every archive of the version: the `.tgz`
+that `dist.tarball` names by the version's PURL, such as `pkg:npm/%40acme/fast@1.0.0`, and each
+variant's `.tgz` by its PURL with the `variant` qualifier, each with its SHA-512.
+
 A variant may differ from the version in its files, dependencies, bundled
 dependencies, `bin`, `main`, `exports`, and `engines`. pnpr serves a
 variant's tar at `/{name}@{version}/variants/{tag}`, and at
@@ -497,7 +507,17 @@ Only [pnpr's package document](#pnprs-package-document) and release records
 list the variants, under `variants`: each with its `tag`, structured
 `platforms`, tar `integrity`, sizes, `bins`, and a `manifest` of the fields
 that differ from the version's (`null` for a removed field). npm's documents
-do not list them, so npm clients install the version's own archive.
+do not list them, so npm clients install the version's own archive, its
+`any` archive.
+
+A version can also be published with variants only: its publish document has
+no `dist` and no `<basename>-<version>.tgz` attachment. pnpr then generates the
+archive npm's documents point to, a `package.json` that lists the union of the
+variants' `os`, `cpu`, and Linux `libc`, so npm reports an unsupported platform
+instead of installing an empty package. pnpr's package document and the release
+record describe such a version without a top-level `integrity`, by the manifest
+its variants share: their peer dependencies, and each dependency every variant
+declares with the same specifier.
 
 Publishing a version that already exists is a `409`. On the S3 backend, where
 several stateless replicas can write to one bucket, concurrent writers are

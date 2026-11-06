@@ -171,3 +171,61 @@ pub fn is_valid_variant_tag(tag: &str) -> bool {
                 byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._+-".contains(&byte)
             })
 }
+
+/// Parts other tools write in a target that a platform tag leaves out:
+/// glibc is no part, and the ABI of a toolchain is no platform field.
+const IGNORED_PARTS: &[&str] = &["gnu", "glibc", "msvc", "gnueabihf", "unknown", "pc"];
+
+/// The canonical spelling of a platform `tag` that does not parse, when one
+/// is close: the napi-rs triple `linux-x64-gnu` is `linux-x64`,
+/// `linux-arm-musleabihf` is `linux-arm-musl`, and parts written out of order
+/// are put in the vocabulary's. `None` when no spelling is found or `tag`
+/// already parses.
+#[must_use]
+pub fn canonical_spelling(tag: &str) -> Option<String> {
+    if Platform::parse_tag(tag).is_ok() {
+        return None;
+    }
+    let mut parts = tag.split('-');
+    let (os, cpu) = (parts.next()?, parts.next()?);
+    let rest: Vec<&str> = parts
+        .filter(|part| !IGNORED_PARTS.contains(part))
+        .map(|part| if part == "musleabihf" { "musl" } else { part })
+        .collect();
+    // A tag has at most five parts after `<os>-<cpu>`.
+    if rest.len() > 5 {
+        return None;
+    }
+    let mut order: Vec<usize> = (0..rest.len()).collect();
+    loop {
+        let candidate = std::iter::once(os)
+            .chain(std::iter::once(cpu))
+            .chain(order.iter().map(|index| rest[*index]))
+            .collect::<Vec<_>>()
+            .join("-");
+        if let Ok(platform) = Platform::parse_tag(&candidate) {
+            return platform.tag().ok();
+        }
+        if !next_permutation(&mut order) {
+            return None;
+        }
+    }
+}
+
+/// Rearrange `order` into its next permutation in lexicographic order, or
+/// return `false` when it is the last one.
+fn next_permutation(order: &mut [usize]) -> bool {
+    let Some(pivot) = order
+        .windows(2)
+        .rposition(|pair| pair[0] < pair[1])
+    else {
+        return false;
+    };
+    let successor = order
+        .iter()
+        .rposition(|value| *value > order[pivot])
+        .expect("a larger value follows the pivot");
+    order.swap(pivot, successor);
+    order[pivot + 1..].reverse();
+    true
+}

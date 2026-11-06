@@ -1,6 +1,6 @@
 pub use git_hosted::is_git_hosted_tarball_url;
 pub use pnpm_crypto_hash::has_complete_sha512_digest;
-pub use pnpm_platform_variants::{AmbiguousSelection, HostFloors};
+pub use pnpm_platform_variants::{AmbiguousSelection, Floor, HostFloors, NodeAbi, host_floors};
 pub use registry::{
     DeclaredRegistryPrefixes, RegistryContext, RegistryOptions, RegistryServerType,
     TarballUrlOptions, normalized_registry_key, npm_tarball_url, pick_registry_for_package,
@@ -10,7 +10,7 @@ pub use revision_url::{
     is_on_revision_tarball_route, is_revision_registry_tarball_url, revision_registry_tarball_path,
     revision_registry_tarball_url,
 };
-pub use variants::{PlatformAssetTarget, SelectedVariant, variant_registry_tarball_url};
+pub use variants::{PlatformAssetTarget, variant_registry_tarball_url};
 
 use crate::IntegrityTarget;
 use derive_more::{Display, Error, From, Into, TryInto};
@@ -232,20 +232,20 @@ pub struct PlatformAssetResolution {
 }
 
 /// For a runtime (or any platform-conditioned binary) that has more
-/// than one downloadable artifact, one per `(os, cpu, libc?)` combo.
+/// than one downloadable artifact, one per `(os, cpu, libc?)` combo, or a
+/// registry package version with platform variants.
 ///
-/// At install time, the dispatcher walks `variants` in declaration
-/// order and picks the first whose `targets[]` includes the host
-/// triple — see [`select_platform_variant`] in this module.
+/// At install time, a host gets the variant that fits it best (see
+/// [`VariationsResolution::select`]), or the variant that targets `any`
+/// when no other matches it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct VariationsResolution {
+    /// Every archive. A registry package's archive of every other host,
+    /// the one `dist.tarball` names, is the variant that targets `any`; a runtime,
+    /// and a package version without one, fail on a host no variant
+    /// matches.
     pub variants: Vec<PlatformAssetResolution>,
-    /// The archive a host no variant matches installs: a registry package's
-    /// primary archive. Absent for runtimes, which fail on such a host, and
-    /// for a package version without a primary.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fallback: Option<Box<LockfileResolution>>,
     /// The registry revision of a package's archives: each variant is at
     /// `<registry>/<name>@<version>+r<revision>/variants/<tag>`. Absent for
     /// a version that is not revision-aware, and for runtimes.

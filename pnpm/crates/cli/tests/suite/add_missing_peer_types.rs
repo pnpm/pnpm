@@ -110,3 +110,75 @@ fn a_frozen_install_rejects_a_lockfile_resolved_without_the_setting() {
     assert!(!output.status.success());
     assert!(format!("{stdout}{stderr}").contains("addMissingPeerTypes"));
 }
+
+#[test]
+fn injected_workspace_peers_pass_frozen_install() {
+    for (shared_lockfile, hook_action) in [
+        (true, "none"),
+        (false, "none"),
+        (true, "remove"),
+        (false, "remove"),
+        (true, "add"),
+        (false, "add"),
+    ] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml("injectWorkspacePackages: true\naddMissingPeerTypes: true\n");
+        if !shared_lockfile {
+            fixture.append_workspace_yaml("sharedWorkspaceLockfile: false\n");
+        }
+        fixture.write_root_manifest(
+            "root",
+            ManifestDeps { prod: &[(TYPES_PEER_A, "1.0.0")], ..ManifestDeps::default() },
+        );
+        if hook_action == "remove" {
+            fs::write(
+                fixture.workspace.join(".pnpmfile.cjs"),
+                r"
+module.exports = { hooks: { readPackage(pkg) {
+  if (pkg.name === 'library') {
+    delete pkg.peerDependencies['@types/pnpm.e2e__peer-a'];
+    if (pkg.peerDependenciesMeta) delete pkg.peerDependenciesMeta['@types/pnpm.e2e__peer-a'];
+  }
+  return pkg;
+} } };
+",
+            )
+            .expect("write pnpmfile");
+        }
+        if hook_action == "add" {
+            fs::write(
+                fixture.workspace.join(".pnpmfile.cjs"),
+                r"
+module.exports = { hooks: { readPackage(pkg) {
+  if (pkg.name === 'library') pkg.peerDependencies = { '@pnpm.e2e/peer-a': '^1.0.0' };
+  return pkg;
+} } };
+",
+            )
+            .expect("write pnpmfile");
+        }
+        let library = fixture.project(
+            "library",
+            "library",
+            ManifestDeps { dev: &[("@pnpm.e2e/peer-a", "1.0.0")], ..ManifestDeps::default() },
+        );
+        crate::_utils::write_manifest_value(
+            &library,
+            &serde_json::json!({
+                "name": "library", "version": "1.0.0",
+                "peerDependencies": if hook_action == "add" { serde_json::json!({}) } else { serde_json::json!({ "@pnpm.e2e/peer-a": "^1.0.0" }) },
+                "devDependencies": { "@pnpm.e2e/peer-a": "1.0.0" }
+            }),
+        );
+        fixture.project(
+            "consumer",
+            "consumer",
+            ManifestDeps {
+                prod: &[("library", "workspace:*"), ("@pnpm.e2e/peer-a", "1.0.1")],
+                ..ManifestDeps::default()
+            },
+        );
+        fixture.run(["install"]);
+        fixture.run(["install", "--frozen-lockfile"]);
+    }
+}

@@ -233,7 +233,7 @@ fn default_opts() -> ResolveImporterOptions {
             auto_install_peers_from_highest_match: false,
             resolve_peers_from_workspace_root: false,
             dedupe_peers: false,
-            dedupe_peer_dependents: true,
+            dedupe_peer_dependents: crate::PeerDependentsDedupe::On,
         },
         links: crate::PeerLinkOptions {
             exclude_links_from_lockfile: false,

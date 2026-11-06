@@ -192,7 +192,7 @@ jobs:
     environment: release
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-    - uses: garnet-org/action@96e9f81ec0f59f2322e8c67b43c4d4017d932ad3 # v2.4.1
+    - uses: garnet-org/action@673a06d87748bec49e4d8df22d371b2a3420aba4 # v2.5.2
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
@@ -256,7 +256,7 @@ jobs:
     steps:
       - name: Send toot to Mastodon
         id: mastodon
-        uses: cbrgm/mastodon-github-action@5939c6e084a12d79415a1e7637a6dbf6de241ab1 # v2.2.5
+        uses: cbrgm/mastodon-github-action@69546c2a09678575ded3a0ac3a28f10ca38a759d # v2.2.6
         with:
           message: |
             pnpm@${{ github.event.inputs.version }} is out!

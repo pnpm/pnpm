@@ -7,8 +7,12 @@
 )]
 
 use clap::{Parser, Subcommand};
+use dependencies::Reach;
+use graph::CrateGraph;
 use layers::Layers;
+use problem::Metric;
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -16,12 +20,18 @@ use tree::{GitRevision, Tree, WorkingTree};
 
 mod cfg;
 mod cycles;
+mod dependencies;
 mod diff;
+mod extent;
 mod graph;
 mod layers;
+mod leaks;
 mod lexer;
 mod modules;
+mod problem;
+mod ratchet;
 mod report;
+mod surface;
 mod tree;
 mod use_tree;
 
@@ -44,8 +54,10 @@ struct CliArgs {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Fail when a crate depends on a crate in a higher layer, when a crate
-    /// is in no layer, when an exception no longer matches an edge, or when a
-    /// crate's largest module cycle differs from its `module_cycles` entry.
+    /// is in no layer, when an exception no longer matches an edge, when a
+    /// crate's value differs from its entry in `module_cycles`,
+    /// `direct_dependencies`, or `leaked_dependencies`, or when a crate
+    /// reaches more crates than its layer's `max_transitive_dependencies`.
     Check,
     /// Print, as Markdown, the crates and edges the working tree adds or
     /// removes compared to a git revision.
@@ -62,6 +74,27 @@ enum Command {
         #[clap(long, conflicts_with = "crate_name")]
         baseline: bool,
     },
+    /// Print the dependencies whose items a crate names in its public
+    /// signatures without re-exporting them.
+    Leaks {
+        /// Print one crate's leaked items and the crates that depend on both.
+        #[clap(long = "crate")]
+        crate_name: Option<String>,
+        /// Print a `[leaked_dependencies]` table that accepts the current leaks.
+        #[clap(long, conflicts_with = "crate_name")]
+        baseline: bool,
+    },
+    /// Print how many workspace crates each crate depends on, directly and
+    /// transitively.
+    Dependencies {
+        /// Print one crate's direct dependencies and the crates it reaches
+        /// through them.
+        #[clap(long = "crate")]
+        crate_name: Option<String>,
+        /// Print a `[direct_dependencies]` table that accepts the current counts.
+        #[clap(long, conflicts_with = "crate_name")]
+        baseline: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -70,12 +103,13 @@ fn main() -> ExitCode {
         Command::Check => check(&args.root),
         Command::Diff { base } => diff(&args.root, base),
         Command::Modules { crate_name, baseline } => {
-            let view = match crate_name {
-                Some(name) => ModulesView::Crate(name),
-                None if *baseline => ModulesView::Baseline,
-                None => ModulesView::Summary,
-            };
-            modules(&args.root, &view)
+            modules(&args.root, &View::new(crate_name.as_deref(), *baseline))
+        }
+        Command::Leaks { crate_name, baseline } => {
+            leaks(&args.root, &View::new(crate_name.as_deref(), *baseline))
+        }
+        Command::Dependencies { crate_name, baseline } => {
+            dependencies(&args.root, &View::new(crate_name.as_deref(), *baseline))
         }
     };
     result.unwrap_or_else(|error| {
@@ -89,15 +123,15 @@ fn check(root: &Path) -> Result<ExitCode, String> {
     let layers = load_layers(&working_tree)?;
     let graph = graph::read(&working_tree)?;
     let mut problems = layers.check(&graph);
-    let reports = report::read_all(&working_tree, &graph)?;
-    let cycle_reports = reports
-        .into_iter()
-        .map(|(report, _)| report)
-        .collect::<Vec<_>>();
-    problems.extend(cycles::check_baseline(&cycle_reports, &layers.module_cycles));
+    let reach = Reach::new(&graph);
+    for (metric, measured) in measure(&working_tree, &graph, &reach)? {
+        problems.extend(ratchet::check(metric, &measured, layers.baseline(metric)));
+    }
+    problems.extend(reach.check_budgets(&layers));
     if problems.is_empty() {
         println!(
-            "Every crate dependency points to its own layer or a lower one, and no module cycle grew.",
+            "Every crate dependency points to its own layer or a lower one, no ratchet value \
+             changed, and every crate is within its layer's transitive budget.",
         );
         return Ok(ExitCode::SUCCESS);
     }
@@ -105,6 +139,21 @@ fn check(root: &Path) -> Result<ExitCode, String> {
         eprintln!("{problem}");
     }
     Ok(ExitCode::FAILURE)
+}
+
+/// Each crate's current value of every [`Metric`].
+fn measure(
+    tree: &dyn Tree,
+    graph: &CrateGraph,
+    reach: &Reach,
+) -> Result<BTreeMap<Metric, BTreeMap<String, usize>>, String> {
+    let modules = modules::read_workspace(tree, graph)?;
+    let reports = report::read_all(&modules);
+    Ok(BTreeMap::from([
+        (Metric::ModuleCycle, cycles::sizes(reports.iter().map(|(report, _)| report))),
+        (Metric::DirectDependencies, reach.direct_counts()),
+        (Metric::LeakedDependencies, leaks::counts(&leaks::find(reach, &modules))),
+    ]))
 }
 
 fn diff(root: &Path, base: &str) -> Result<ExitCode, String> {
@@ -116,26 +165,75 @@ fn diff(root: &Path, base: &str) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// What `crate-layers modules` prints.
-enum ModulesView<'name> {
+/// What `crate-layers modules`, `dependencies`, and `leaks` print.
+enum View<'name> {
     Summary,
     Baseline,
     Crate(&'name str),
 }
 
-fn modules(root: &Path, view: &ModulesView<'_>) -> Result<ExitCode, String> {
+impl<'name> View<'name> {
+    const fn new(crate_name: Option<&'name str>, baseline: bool) -> Self {
+        match crate_name {
+            Some(name) => Self::Crate(name),
+            None if baseline => Self::Baseline,
+            None => Self::Summary,
+        }
+    }
+}
+
+fn modules(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
     let working_tree = WorkingTree { root: root.to_path_buf() };
-    let reports = report::read_all(&working_tree, &graph::read(&working_tree)?)?;
+    let reports =
+        report::read_all(&modules::read_workspace(&working_tree, &graph::read(&working_tree)?)?);
     let output = match view {
-        ModulesView::Crate(name) => {
+        View::Crate(name) => {
             let (report, graph) = reports
                 .iter()
                 .find(|(report, _)| report.crate_name == *name)
                 .ok_or_else(|| format!("{name} is not a workspace crate"))?;
             report::render_crate(report, graph)
         }
-        ModulesView::Baseline => report::render_baseline(&reports),
-        ModulesView::Summary => report::render_summary(&reports),
+        View::Baseline => {
+            let sizes = cycles::sizes(reports.iter().map(|(report, _)| report));
+            ratchet::render_baseline(Metric::ModuleCycle, &sizes)
+        }
+        View::Summary => report::render_summary(&reports),
+    };
+    print!("{output}");
+    Ok(ExitCode::SUCCESS)
+}
+
+fn dependencies(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
+    let working_tree = WorkingTree { root: root.to_path_buf() };
+    let reach = Reach::new(&graph::read(&working_tree)?);
+    let output = match view {
+        View::Crate(name) => reach
+            .render_crate(name)
+            .ok_or_else(|| format!("{name} is not a workspace crate"))?,
+        View::Baseline => {
+            ratchet::render_baseline(Metric::DirectDependencies, &reach.direct_counts())
+        }
+        View::Summary => reach.render_summary(&load_layers(&working_tree)?),
+    };
+    print!("{output}");
+    Ok(ExitCode::SUCCESS)
+}
+
+fn leaks(root: &Path, view: &View<'_>) -> Result<ExitCode, String> {
+    let working_tree = WorkingTree { root: root.to_path_buf() };
+    let graph = graph::read(&working_tree)?;
+    let modules = modules::read_workspace(&working_tree, &graph)?;
+    let found = leaks::find(&Reach::new(&graph), &modules);
+    let output = match view {
+        View::Crate(name) if !modules.contains_key(*name) => {
+            return Err(format!("{name} is not a workspace crate"));
+        }
+        View::Crate(name) => leaks::render_crate(&found, name),
+        View::Baseline => {
+            ratchet::render_baseline(Metric::LeakedDependencies, &leaks::counts(&found))
+        }
+        View::Summary => leaks::render_summary(&found),
     };
     print!("{output}");
     Ok(ExitCode::SUCCESS)

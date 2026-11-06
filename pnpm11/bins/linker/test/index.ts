@@ -428,6 +428,31 @@ test('linkBins() replaces a shim whose helpers have no PATH fallback', async () 
   expect(content).not.toContain('# outdated-helper-fallback')
 })
 
+// The bash 3.2 that macOS ships as sh answers command -p -v from PATH, so a
+// shim that picks its helpers that way cannot fall back to PATH in a macOS Nix
+// build sandbox.
+test('linkBins() replaces a shim that picks its helpers with command -p -v', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const simpleFixture = testFixtures.prepare('simple-fixture')
+  const target = path.join(simpleFixture, 'node_modules', 'simple', 'index.js')
+
+  fs.mkdirSync(binTarget, { recursive: true })
+  const binLocation = path.join(binTarget, 'simple')
+  await cmdShim(target, binLocation, { createCmdFile: false, createPwshFile: false })
+  const current = fs.readFileSync(binLocation, 'utf8')
+  const defaultPathCheck = '[ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || '
+  expect(current).toContain(defaultPathCheck)
+  const outdated = current.replace(defaultPathCheck, () => 'command -p -v "$1" >/dev/null 2>&1 || ')
+  fs.writeFileSync(binLocation, `${outdated}# outdated-default-path-check\n`, 'utf8')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain(defaultPathCheck)
+  expect(content).not.toContain('# outdated-default-path-check')
+})
+
 // A shim whose relative target climbs from the lexical shim directory still
 // carries a matching target marker and hardened header.
 test('linkBins() replaces a shim whose relative target climbs from the lexical basedir', async () => {

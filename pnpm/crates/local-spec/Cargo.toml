@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-fs = { workspace = true }
+pnpm-workspace-spec = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

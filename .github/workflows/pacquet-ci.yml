@@ -141,6 +141,8 @@ jobs:
               - 'pnpm/crates/cli/tests/suite/peer_convergence.rs'
               - 'pnpm/crates/cli/tests/suite/peer_convergence/**'
               - 'pnpm/crates/cli/tests/suite/repeat_install_oracle.rs'
+              - 'pnpm/crates/cli/tests/suite/repeat_install_oracle/**'
+              - 'pnpm/crates/cli/tests/suite/repeat_install_read_set.rs'
               - 'pnpm/crates/cli/tests/suite/pnpm_compatibility.rs'
               - 'pnpm/crates/cli/tests/suite/injected_freshness_matrix.rs'
               - 'pnpm/crates/cli/tests/suite/version.rs'
@@ -258,7 +260,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: just
 
@@ -277,7 +279,7 @@ jobs:
           just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-nextest,sccache@0.17.0
 
@@ -480,8 +482,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # The peer convergence and repeat-install oracle harnesses through pnpm v11
-  # as well as v12, so a resolution, lockfile, or workspace-state change in
+  # The peer convergence and repeat-install oracle harnesses, and the
+  # repeat-install read-set test, through pnpm v11 as well as v12, so a resolution, lockfile, or workspace-state change in
   # either stack cannot make them drift apart. Both harnesses also run through
   # v12 alone in the test job above.
   convergence:
@@ -515,7 +517,7 @@ jobs:
         run: pnpm runtime set node 22 --global
 
       - name: Install just
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: just,cargo-nextest
 
@@ -535,7 +537,7 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
           PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
-            pnpm test:rust -p pnpm-cli --run-ignored all -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/) or test(/^pnpm_compatibility::/) or test(/^injected_freshness_matrix::/) or test(/^version::switches_up_to_a_newer_pnpm/) or test(/^version::v11_switches_up/)'
+            pnpm test:rust -p pnpm-cli --run-ignored all -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/) or test(/^repeat_install_read_set::/) or test(/^pnpm_compatibility::/) or test(/^injected_freshness_matrix::/) or test(/^version::switches_up_to_a_newer_pnpm/) or test(/^version::v11_switches_up/)'
 
   clippy:
     name: Rust CI / Clippy / ${{ matrix.os_label }}
@@ -735,7 +737,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
+      - uses: crate-ci/typos@4c8b7f51ca60df14e3c5ca82770dfbbe6c3dae85 # v1.52.0
         with:
           files: pnpm pnpr
 
@@ -775,7 +777,7 @@ jobs:
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-deny
 

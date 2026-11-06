@@ -1,7 +1,7 @@
 use super::{
     Config, Context, DependencyGroup, DeployError, DeployWorkspaceSettings, DirectoryResolution,
     HashMap, HashSet, LinkedWorkspaceProject, Lockfile, LockfileResolution, Map, PackageKey,
-    PackageManifest, PackageMetadata, Path, PkgName, PkgNameVerPeer, Project, ProjectInfo,
+    PackageManifest, PackageMetadata, Path, PathBuf, PkgName, PkgNameVerPeer, Project, ProjectInfo,
     ProjectPathKey, ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec,
     SelectedProject, SnapshotEntry, State, Value, bind_singleton_peers, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
@@ -205,37 +205,78 @@ fn convert_deploy_packages(
         let output_key = convert_package_key(key, ctx)?;
         packages.insert(output_key, convert_package_metadata(metadata, ctx)?);
     }
-    for importer_path in lockfile.importers.keys() {
+    for (importer_path, project_snapshot) in &lockfile.importers {
         if importer_path == project_id {
             continue;
         }
         let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
-        let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
-        let (peer_dependencies, peer_dependencies_meta) = selected
-            .project_info(&project_root)
-            .map(|project| project.peer_blocks.clone())
-            .unwrap_or_default();
-        packages.insert(
-            package_key,
-            PackageMetadata {
-                resolution: LockfileResolution::Directory(DirectoryResolution {
-                    directory: relative_path(deploy_dir, &project_root),
-                }),
-                version: None,
-                engines: None,
-                cpu: None,
-                os: None,
-                libc: None,
-                deprecated: None,
-                has_bin: selected.has_bin(&project_root),
-                prepare: None,
-                bundled_dependencies: None,
-                peer_dependencies,
-                peer_dependencies_meta,
-            },
-        );
+        for package_dir in importer_package_dirs(&project_root, project_snapshot) {
+            packages.insert(
+                create_file_url_key(&package_dir, "", &selected.projects_by_path, None)?,
+                workspace_project_package_metadata(
+                    selected,
+                    &project_root,
+                    &package_dir,
+                    deploy_dir,
+                ),
+            );
+        }
     }
     Ok(packages)
+}
+
+/// The `packages:` entry of the workspace project at `project_root`,
+/// installed from `package_dir`.
+fn workspace_project_package_metadata(
+    selected: &SelectedProject,
+    project_root: &Path,
+    package_dir: &Path,
+    deploy_dir: &Path,
+) -> PackageMetadata {
+    let (peer_dependencies, peer_dependencies_meta) = selected
+        .project_info(project_root)
+        .map(|project| project.peer_blocks.clone())
+        .unwrap_or_default();
+    PackageMetadata {
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: relative_path(deploy_dir, package_dir),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        // Unknown for a publish directory, whose own manifest declares its
+        // bins.
+        has_bin: selected.has_bin(package_dir),
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies,
+        peer_dependencies_meta,
+    }
+}
+
+/// The directories the deploy installs the project at `project_root` from:
+/// its root, and the publish directory the other importers link it from,
+/// when the lockfile records one that workspace links use.
+fn importer_package_dirs(
+    project_root: &Path,
+    project_snapshot: &ProjectSnapshot,
+) -> impl Iterator<Item = PathBuf> {
+    std::iter::once(project_root.to_path_buf())
+        .chain(importer_linked_publish_dir(project_root, project_snapshot))
+}
+
+fn importer_linked_publish_dir(
+    project_root: &Path,
+    project_snapshot: &ProjectSnapshot,
+) -> Option<PathBuf> {
+    let publish_directory = project_snapshot.publish_directory.as_deref()?;
+    if project_snapshot.link_directory == Some(false) {
+        return None;
+    }
+    Some(lexical_normalize(&project_root.join(publish_directory)))
 }
 
 /// The deployed lockfile's `snapshots` map, and the linked workspace
@@ -264,25 +305,26 @@ fn convert_deploy_snapshots(
         }
         let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
-        let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
-        if let Some(project) = selected.project_info(&project_root)
-            && !project.peer_dependencies.is_empty()
-        {
-            linked_workspace_projects.insert(
-                package_key.clone(),
-                LinkedWorkspaceProject::new(
-                    project.clone(),
-                    lockfile,
-                    project_snapshot,
-                    ctx,
-                    &bases,
-                ),
-            );
+        let snapshot = project_snapshot_to_snapshot_entry(project_snapshot, ctx, &bases)?;
+        for package_dir in importer_package_dirs(&project_root, project_snapshot) {
+            let package_key =
+                create_file_url_key(&package_dir, "", &selected.projects_by_path, None)?;
+            if let Some(project) = selected.project_info(&project_root)
+                && !project.peer_dependencies.is_empty()
+            {
+                linked_workspace_projects.insert(
+                    package_key.clone(),
+                    LinkedWorkspaceProject::new(
+                        project.clone(),
+                        lockfile,
+                        project_snapshot,
+                        ctx,
+                        &bases,
+                    ),
+                );
+            }
+            snapshots.insert(package_key, snapshot.clone());
         }
-        snapshots.insert(
-            package_key,
-            project_snapshot_to_snapshot_entry(project_snapshot, ctx, &bases)?,
-        );
     }
     Ok(DeploySnapshots { snapshots, linked_workspace_projects })
 }
@@ -403,13 +445,8 @@ fn finish_deploy_files(
     manifest: Value,
     mut deploy_lockfile: Lockfile,
 ) -> miette::Result<DeployFiles> {
-    let (workspace_manifest, workspace_config) = deploy_workspace_settings(
-        lockfile,
-        config,
-        ctx.lockfile_dir,
-        ctx.deploy_dir,
-        &mut deploy_lockfile,
-    )?;
+    let (workspace_manifest, workspace_config) =
+        deploy_workspace_settings(lockfile, config, ctx, &mut deploy_lockfile)?;
 
     Ok(DeployFiles {
         manifest,

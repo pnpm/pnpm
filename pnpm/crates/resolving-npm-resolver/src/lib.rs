@@ -60,7 +60,7 @@ pub use parse_bare_specifier::{
 pub use pick_package::{
     CachedPackument, InMemoryPackageMetaCache, MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES,
     MetadataCachePolicy, MetadataPickRequest, MetadataRequestContext, MirrorPersistError,
-    OfflineStoreView, PackageMetaCache, PackagePickPolicy, PackumentFetchLocker,
+    OfflineStoreView, PackageMetaCache, PackagePickPolicy, PackumentFetchLocker, PackumentSource,
     PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
     PickedManifestCache, PnprFormatPolicy, persist_meta_to_mirror, pick_package,
     shared_in_memory_cache, shared_packument_fetch_locker, shared_picked_manifest_cache,

@@ -10,7 +10,7 @@ This guide covers backing up authoritative package data and authentication recor
 A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
-   - **Hosted storage (`storage`)**: Contains the tarball blobs. Back this up regularly.
+   - **Hosted storage (`storage`)**: Contains the archives, stored by the identity of their bytes rather than by file name. Only the metadata database maps a package's files to them, so a copy of the store is usable only with the metadata from the same point in time. Back this up regularly.
    - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): holds the package metadata, in SQLite by default or in a libSQL database. SQLite's backup API copies the database consistently, but not at the same point in time as the hosted store, and a publish writes its archives before it commits the metadata that references them. Stop pnpr before copying a SQLite database and the hosted store, or take both copies from the same point in time, and run `pnpr verify` after a restore. Back a libSQL database up according to provider documentation.
    - **Authentication and user state**:
      - `htpasswd` file (when configured).
@@ -93,14 +93,14 @@ pnpr verify
 # Check that every packument version points to an existing blob, without comparing hashes
 pnpr verify --skip-hashes
 
-# Prune unreferenced/orphaned blobs left behind by interrupted uploads
-pnpr verify --prune-orphans
+# Remove the archives no hosted package maps, such as those of interrupted uploads
+pnpr gc
 ```
 
 `pnpr verify` checks:
 - **Missing blobs**: Tarballs referenced in a package document's version metadata that do not exist in storage.
 - **Corrupted blobs**: Tarballs whose content hashes do not match the declared `shasum` or `integrity`.
-- **Orphaned blobs**: Physical files in the store that are not referenced by any version of any hosted package document.
+- **Orphaned blobs**: Stored archives that are not the live bytes of any file of a hosted package, such as what an interrupted publish stored. `verify` only reports them; [`pnpr gc`](cli.md#gc) removes them.
 
 ## Migrating storage to S3
 
@@ -117,8 +117,9 @@ To migrate hosted packages from a local directory to an S3 bucket:
      authToken: ${PNPR_LIBSQL_TOKEN}
    ```
 
-3. Move the archives. `migrate-storage` moves archives only and refuses
-   metadata an S3 deployment cannot read:
+3. Move the archives. `migrate-storage` copies every stored archive under the
+   same key, which the metadata maps files to, and refuses metadata an S3
+   deployment cannot read:
 
    ```sh
    # Dry run: check what would be transferred

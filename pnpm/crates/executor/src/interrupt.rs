@@ -61,9 +61,35 @@ static INTERRUPTS: AtomicUsize = AtomicUsize::new(0);
 /// from one that failed on its own after an earlier, handled interrupt.
 /// The user ended the former, so its status is not a lifecycle failure to
 /// report, and pnpm ends with it all the same (pnpm/pnpm#16579).
+///
+/// A signal the kernel has queued for pnpm but whose handler has not run
+/// yet counts as arrived. `Ctrl+C` reaches pnpm and the script together,
+/// and the kernel may hand pnpm's copy to a thread other than the one
+/// that waits for the script, so the script's exit can be read before
+/// that handler runs.
 #[must_use]
 pub fn interrupt_count() -> usize {
-    INTERRUPTS.load(Ordering::Relaxed)
+    // A handler that runs between the two reads has moved its signal from
+    // pending to counted, so the sample is retaken until it is stable.
+    loop {
+        let handled = INTERRUPTS.load(Ordering::Relaxed);
+        let pending = pending_interrupts();
+        if INTERRUPTS.load(Ordering::Relaxed) == handled {
+            return handled + pending;
+        }
+    }
+}
+
+/// How many of the interrupts [`install_handler`] handles are queued for
+/// pnpm and not yet handled.
+#[cfg(unix)]
+fn pending_interrupts() -> usize {
+    pnpm_ffi_signal::pending_count(&HANDLED_INTERRUPTS)
+}
+
+#[cfg(not(unix))]
+fn pending_interrupts() -> usize {
+    0
 }
 
 /// One running child: the process to signal, negated to address the whole
@@ -250,19 +276,22 @@ pub fn exit_like(exit: ScriptExit) -> ! {
     crate::exit(exit.code().unwrap_or(1));
 }
 
+/// The interrupts pnpm handles, which are also the ones
+/// [`pending_interrupts`] counts: a queued delivery only matters where
+/// pnpm would handle it.
+#[cfg(unix)]
+const HANDLED_INTERRUPTS: [pnpm_ffi_signal::Interrupt; 3] = [
+    pnpm_ffi_signal::Interrupt::Interrupt,
+    pnpm_ffi_signal::Interrupt::Terminate,
+    pnpm_ffi_signal::Interrupt::Hangup,
+];
+
 #[cfg(unix)]
 fn install_handler() {
     pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
-        pnpm_ffi_signal::install(
-            &[
-                pnpm_ffi_signal::Interrupt::Interrupt,
-                pnpm_ffi_signal::Interrupt::Terminate,
-                pnpm_ffi_signal::Interrupt::Hangup,
-            ],
-            relay_signal,
-        );
+        pnpm_ffi_signal::install(&HANDLED_INTERRUPTS, relay_signal);
     });
 }
 
@@ -350,6 +379,9 @@ use windows::install_handler;
 
 #[cfg(target_family = "wasm")]
 mod wasm;
+
+#[cfg(all(test, unix))]
+mod tests;
 #[cfg(target_family = "wasm")]
 use wasm::install_handler;
 

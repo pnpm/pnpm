@@ -1,7 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
-use pnpm_config::Config;
+use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
 use pnpm_package_is_installable::{Engine, InstallabilityError, WantedEngine, check_engine};
@@ -12,6 +12,7 @@ use pnpm_package_manager::{
 use pnpm_package_manifest::{
     PackageManifest, PackageManifestError, node_version_from_engines_runtime,
 };
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_tarball::MemCache;
 use std::{
     path::{Path, PathBuf},
@@ -252,7 +253,7 @@ impl State {
 /// A missing manifest is never written here: command initialization
 /// precedes argument validation and serves read-only commands, so the
 /// scaffold stays in memory until a command that writes the manifest
-/// (`install`, `add`, `link`) saves it.
+/// (`add`, `link`) saves it.
 ///
 /// Inside a workspace, a missing root manifest is tolerated rather
 /// than scaffolded: pnpm installs such a workspace with no root
@@ -291,14 +292,15 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
     manifest
 }
 
+/// Check the root project's `engines.node` and `engines.pnpm`. An
+/// unsatisfied `engines.pnpm` always fails. An unsatisfied `engines.node`
+/// fails under `engineStrict` and is a warning otherwise.
 pub(crate) fn check_root_project_engine(
     manifest_path: &Path,
     config: &Config,
     use_manifest_runtime: bool,
+    emit: fn(&LogEvent),
 ) -> Result<(), InitStateError> {
-    if !config.engine_strict {
-        return Ok(());
-    }
     let project_dir = config.workspace_dir
         .as_deref()
         .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"));
@@ -307,28 +309,62 @@ pub(crate) fn check_root_project_engine(
     else {
         return Ok(());
     };
-    let Some(wanted_node) = manifest
-        .value()
-        .get("engines")
-        .and_then(|engines| engines.get("node"))
-        .and_then(serde_json::Value::as_str)
-    else {
+    let Some(engines) = manifest.value().get("engines") else {
         return Ok(());
     };
+    let wanted = WantedEngine {
+        node: engines
+            .get("node")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        pnpm: engines
+            .get("pnpm")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+    };
+    if wanted.node.is_none() && wanted.pnpm.is_none() {
+        return Ok(());
+    }
+    check_root_engine_compatibility(
+        project_dir,
+        manifest.value(),
+        config,
+        use_manifest_runtime,
+        &wanted,
+        emit,
+    )
+}
+
+fn check_root_engine_compatibility(
+    project_dir: &Path,
+    manifest: &serde_json::Value,
+    config: &Config,
+    use_manifest_runtime: bool,
+    wanted: &WantedEngine,
+    emit: fn(&LogEvent),
+) -> Result<(), InitStateError> {
     let configured_node = config.node_version
         .clone()
         .or_else(|| {
-            use_manifest_runtime
-                .then(|| node_version_from_engines_runtime(manifest.value()))
-                .flatten()
+            use_manifest_runtime.then(|| node_version_from_engines_runtime(manifest)).flatten()
         });
-    let host = pnpm_deps_restorer::InstallabilityHost::detect_with(true, configured_node);
-    let wanted = WantedEngine { node: Some(wanted_node.to_string()), pnpm: None };
-    let current = Engine { node: host.node_version, pnpm: None };
-    match check_engine(&project_dir.to_string_lossy(), &wanted, &current) {
+    let host =
+        pnpm_deps_restorer::InstallabilityHost::detect_with(config.engine_strict, configured_node);
+    let current = Engine {
+        node: host.node_version,
+        pnpm: wanted.pnpm.as_ref().map(|_| PNPM_VERSION.to_string()),
+    };
+    match check_engine(&project_dir.to_string_lossy(), wanted, &current) {
         Ok(None) => Ok(()),
-        Ok(Some(error)) => {
+        Ok(Some(error)) if config.engine_strict || error.wanted.pnpm.is_some() => {
             Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
+        }
+        Ok(Some(error)) => {
+            emit(&LogEvent::Global(GlobalLog {
+                level: LogLevel::Warn,
+                message: error.to_string(),
+            }));
+            Ok(())
         }
         Err(error) => Err(InitStateError::Installability(Box::new(
             InstallabilityError::InvalidNodeVersion(error),

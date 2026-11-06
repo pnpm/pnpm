@@ -31,14 +31,20 @@ fn registry() -> LockfileResolution {
     })
 }
 
+/// One linux-x64 variant of `resolution`, after the variant that targets
+/// `any`, of `any`, when given.
 fn variations(
     resolution: LockfileResolution,
-    fallback: Option<LockfileResolution>,
+    any: Option<LockfileResolution>,
     revision: Option<u64>,
 ) -> VariationsResolution {
+    let variant = PlatformAssetResolution { resolution, targets: targets_linux_x64() };
     VariationsResolution {
-        variants: vec![PlatformAssetResolution { resolution, targets: targets_linux_x64() }],
-        fallback: fallback.map(Box::new),
+        variants: any
+            .map(PlatformAssetResolution::any)
+            .into_iter()
+            .chain([variant])
+            .collect(),
         revision,
     }
 }
@@ -59,23 +65,23 @@ fn a_binary_variant_is_fetched_as_a_runtime_archive() {
     });
     let variations = variations(binary, None, None);
 
-    let selected = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected");
+    let selected = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected").1;
 
     assert!(matches!(selected, VariantFetch::Binary(_)));
 }
 
 /// A registry package's variant is fetched from its registry route as a
-/// variant, and a host no variant targets fetches the primary as an
-/// ordinary archive.
+/// variant, and a host no other variant targets fetches the variant that
+/// targets `any` as an ordinary archive.
 #[test]
-fn a_registry_variant_is_fetched_from_its_route_and_the_primary_as_a_fallback() {
+fn a_registry_variant_is_fetched_from_its_route_and_the_any_variant_as_an_archive() {
     let dir = tempfile::tempdir().expect("tempdir");
     let config = leaked_offline_config("https://registry.example/", dir.path());
     let key: PackageKey = "fast-thing@1.0.0".parse().expect("parse key");
     let variations = variations(registry(), Some(registry()), None);
 
     let VariantFetch::Tarball { resolution, source } =
-        variant_for_host(&variations, &key, &linux_x64(), config).expect("selected")
+        variant_for_host(&variations, &key, &linux_x64(), config).expect("selected").1
     else {
         panic!("a registry variant is a tarball");
     };
@@ -92,12 +98,12 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_primary_as_a_fallback() 
         floors: None,
     };
     let VariantFetch::Tarball { resolution, source } =
-        variant_for_host(&variations, &key, &darwin, config).expect("selected")
+        variant_for_host(&variations, &key, &darwin, config).expect("selected").1
     else {
-        panic!("the primary is a tarball");
+        panic!("the variant that targets any is a tarball");
     };
     assert_eq!(resolution, registry());
-    assert_eq!(source, ArchiveSource::Primary);
+    assert_eq!(source, ArchiveSource::Any);
 }
 
 #[test]
@@ -130,7 +136,7 @@ fn a_revision_aware_variant_is_fetched_from_its_revision_route() {
     let VariantFetch::Tarball {
         resolution: LockfileResolution::Tarball(tarball),
         ..
-    } = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected")
+    } = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected").1
     else {
         panic!("a registry variant is a tarball");
     };

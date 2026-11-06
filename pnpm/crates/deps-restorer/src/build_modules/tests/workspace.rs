@@ -80,6 +80,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

@@ -63,7 +63,8 @@ pub(super) fn project_anchor_importers(
                 wanted,
                 inputs.workspace_root,
                 requested,
-                &crate::GroupSelection::following_every_edge(inputs.groups.included),
+                &crate::GroupSelection::following_every_edge(inputs.groups.included)
+                    .linking_as(&inputs.groups),
                 inputs.install_skipped,
             )
             .importer_ids
