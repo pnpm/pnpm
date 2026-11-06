@@ -34,15 +34,15 @@ function writeManifest (dir: string, manifest: ProjectManifest): void {
 }
 
 /**
- * The distinct `project dir:alias` of the `pnpm:root` `removed` events. The
+ * The distinct `project dir:alias@version` of the `pnpm:root` `removed` events. The
  * hoisted install hands `reporter` to the headless install, which attaches it
  * a second time, so each event of that phase reaches it twice.
  */
 function removals (reporter: jest.Mock): string[] {
   return Array.from(new Set(reporter.mock.calls
-    .map(([log]) => log as { name: string, prefix: string, removed?: { name: string } })
+    .map(([log]) => log as { name: string, prefix: string, removed?: { name: string, version?: string } })
     .filter((log) => log.name === 'pnpm:root' && log.removed != null)
-    .map((log) => `${path.relative(process.cwd(), log.prefix)}:${log.removed!.name}`)))
+    .map((log) => `${path.relative(process.cwd(), log.prefix)}:${log.removed!.name}@${log.removed!.version}`)))
 }
 
 function isSymlink (linkPath: string): boolean {
@@ -53,7 +53,7 @@ test.each(LINKERS)('a removed link: dependency is reported (nodeLinker: %s)', as
   const { allProjects, importers } = prepareWorkspace({
     '': { name: 'root', dependencies: { lib: 'link:lib' } },
   })
-  writeManifest('lib', { name: 'lib' })
+  writeManifest('lib', { name: 'lib', version: '1.0.0' })
   await mutateModules(importers, testDefaults({ allProjects, nodeLinker }))
   expect(isSymlink('node_modules/lib')).toBe(true)
 
@@ -62,14 +62,14 @@ test.each(LINKERS)('a removed link: dependency is reported (nodeLinker: %s)', as
   await mutateModules(importers, testDefaults({ allProjects, nodeLinker, reporter }))
 
   expect(fs.existsSync('node_modules/lib')).toBe(false)
-  expect(removals(reporter)).toStrictEqual([':lib'])
+  expect(removals(reporter)).toStrictEqual([':lib@1.0.0'])
 })
 
 test.each(LINKERS)('a project link the root starts providing under another spelling is removed (nodeLinker: %s)', async (nodeLinker) => {
   const { allProjects, importers } = prepareWorkspace({
     '': { name: 'root' },
     'packages/app': { name: 'app', dependencies: { shared: 'link:../shared' } },
-    'packages/shared': { name: 'shared' },
+    'packages/shared': { name: 'shared', version: '1.0.0' },
   })
   await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true, nodeLinker }))
   expect(isSymlink('packages/app/node_modules/shared')).toBe(true)
@@ -80,14 +80,12 @@ test.each(LINKERS)('a project link the root starts providing under another spell
 
   expect(isSymlink('node_modules/shared')).toBe(true)
   expect(fs.lstatSync('packages/app/node_modules/shared', { throwIfNoEntry: false })).toBeUndefined()
-  expect(removals(reporter)).toStrictEqual([`${path.join('packages', 'app')}:shared`])
+  expect(removals(reporter)).toStrictEqual([`${path.join('packages', 'app')}:shared@1.0.0`])
 })
 
 // The lockfile still records the project's deduped link, so each later install
-// finds it stale again, with nothing left to unlink. Hoisted only: the isolated
-// linker reports it again (pnpm/tasks#293).
-test('a deduped link is reported once (nodeLinker: hoisted)', async () => {
-  const nodeLinker = 'hoisted'
+// finds it stale again, with nothing left to unlink.
+test.each(LINKERS)('a deduped link is reported once (nodeLinker: %s)', async (nodeLinker) => {
   const { allProjects, importers } = prepareWorkspace({
     '': { name: 'root' },
     'packages/app': { name: 'app', dependencies: { shared: 'link:../shared' } },

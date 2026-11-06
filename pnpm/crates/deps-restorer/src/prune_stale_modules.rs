@@ -18,7 +18,8 @@ use crate::{
     SkippedSnapshots,
     hoist::HoistedDependencies,
     prune_direct_deps::{
-        PruneDirectDepsError, confined_modules_dir, is_real_dir, remove_direct_dep_link,
+        PruneDirectDepsError, UnlinkedDependency, confined_modules_dir, is_real_dir,
+        remove_direct_dep_link,
     },
     symlink_direct_dependencies::{importer_root_dir, link_target_dir, validate_importer_id},
 };
@@ -85,7 +86,7 @@ impl PruneStaleModules<'_> {
             current_lockfile: self.current_lockfile,
             linked: self.linked,
             dedupe_direct_deps: self.config.dedupe_direct_deps,
-            reported: ReportedRemovals::Every,
+            reported: ReportedRemovals::DroppedOrUnlinked,
         }
         .unlink::<Reporter>()?;
 
@@ -134,7 +135,10 @@ pub(crate) struct StaleDirectDepLinks<'a> {
 /// Which removals [`StaleDirectDepLinks::unlink`] reports.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReportedRemovals {
-    Every,
+    /// Every dependency the wanted lockfile no longer records, and every
+    /// link the pass removed. A link the root provides stays in the
+    /// lockfile, so only its removal is a change to report.
+    DroppedOrUnlinked,
     /// The `link:` dependencies whose link the pass removed. The hoisted
     /// linker reports its other removals from
     /// [`crate::report_direct_dependency_changes`].
@@ -142,9 +146,9 @@ pub(crate) enum ReportedRemovals {
 }
 
 impl ReportedRemovals {
-    fn includes(self, version: &ImporterDepVersion, unlinked: bool) -> bool {
+    fn includes(self, version: &ImporterDepVersion, still_wanted: bool, unlinked: bool) -> bool {
         match self {
-            ReportedRemovals::Every => true,
+            ReportedRemovals::DroppedOrUnlinked => unlinked || !still_wanted,
             ReportedRemovals::UnlinkedLinkDependencies => {
                 unlinked && matches!(version, ImporterDepVersion::Link(_))
             }
@@ -355,7 +359,7 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
         let alias_name = alias.to_string();
         let unlinked = remove_direct_dep_link(modules_dir, &alias_name)?;
         remove_emptied_scope_dir(modules_dir, &alias_name);
-        if !reported.includes(&current_spec.version, unlinked) {
+        if !reported.includes(&current_spec.version, still_wanted, unlinked.is_some()) {
             continue;
         }
         Reporter::emit(&LogEvent::Root(RootLog {
@@ -364,7 +368,7 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
                 prefix: importer_dir.display().to_string(),
                 removed: RemovedRoot {
                     name: alias_name,
-                    version: removed_version(current_spec),
+                    version: removed_version(current_spec, unlinked),
                     dependency_type: Some(dependency_type(group)),
                 },
             },
@@ -471,12 +475,16 @@ pub(crate) fn direct_deps_of<'a>(
 }
 
 /// Peer-free version string for the `pnpm:root` `removed` payload —
-/// the same wire formatting the `added` emit uses.
-fn removed_version(spec: &ResolvedDependencySpec) -> Option<String> {
+/// the same wire formatting the `added` emit uses. A `link:` dependency
+/// has no lockfile version, so it reports its unlinked package's.
+fn removed_version(
+    spec: &ResolvedDependencySpec,
+    unlinked: Option<UnlinkedDependency>,
+) -> Option<String> {
     match &spec.version {
         ImporterDepVersion::Regular(ver) => Some(ver.version().to_string()),
         ImporterDepVersion::Alias(alias) => Some(alias.suffix.version().to_string()),
-        ImporterDepVersion::Link(target) => Some(format!("link:{target}")),
+        ImporterDepVersion::Link(_) => unlinked?.version,
         ImporterDepVersion::File(target) => Some(format!("file:{target}")),
     }
 }

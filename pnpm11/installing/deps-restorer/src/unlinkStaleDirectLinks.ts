@@ -3,9 +3,11 @@ import path from 'node:path'
 
 import { removeBinsOfDependency } from '@pnpm/bins.remover'
 import { rootLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { isProvidedByRoot } from '@pnpm/installing.linking.modules-cleaner'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 
 import type { HeadlessContext } from './context.js'
@@ -80,21 +82,33 @@ function mergeDependencies (snapshot: ProjectSnapshot | undefined): Record<strin
 }
 
 /**
- * Returns `undefined` when there was no link to remove. The version comes from
- * the manifest the bin removal reads, so it is missing when the project has no
- * `.bin`.
+ * Returns `undefined` when there was no link to remove, and otherwise the
+ * linked package's manifest version.
  */
 async function unlinkDirectLink (modulesDir: string, alias: string, binsDir: string): Promise<{ version?: string } | undefined> {
   const link = safeJoinModulesDir(modulesDir, alias)
   // A symlinked `@scope` directory would redirect the unlink outside the modules directory.
   if (alias.startsWith('@') && !await isRealDir(path.dirname(link))) return undefined
   if (!await isSymlink(link)) return undefined
+  const version = await readManifestVersion(link)
   // Unlinking through a symlinked `.bin` would delete files outside the project.
-  const uninstalledPkg = await isRealDir(binsDir)
-    ? await removeBinsOfDependency(link, { binsDir })
-    : undefined
+  if (await isRealDir(binsDir)) {
+    await removeBinsOfDependency(link, { binsDir })
+  }
   await unlinkIfSymlink(link)
-  return { version: uninstalledPkg?.version }
+  return { version }
+}
+
+/** A malformed or missing manifest leaves the version out rather than blocking the unlink. */
+async function readManifestVersion (pkgDir: string): Promise<string | undefined> {
+  try {
+    return (await safeReadPackageJsonFromDir(pkgDir))?.version
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ERR_PNPM_BAD_PACKAGE_JSON' || err.code === 'ENOTDIR')) {
+      return undefined
+    }
+    throw err
+  }
 }
 
 async function isRealDir (dir: string): Promise<boolean> {
