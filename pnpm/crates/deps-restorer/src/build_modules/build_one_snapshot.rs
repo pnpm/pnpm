@@ -17,10 +17,9 @@ use slot_to_build::slot_to_build;
 use super::{
     AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, NEEDS_BUILD_MARKER, PackageKey, Path,
     PathBuf, PkgRoots, RebuildOptions, Reporter, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, allow_build_key_from_ignored_build,
-    apply_patch_to_dir, discard_skipped_optional_dependency, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, slot_carries_overlay, RunPostinstallHooks,
-    bin_dirs_in_all_parent_dirs, run_postinstall_hooks,
+    SkippedOptionalPackage, SkippedOptionalReason, apply_patch_to_dir,
+    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
+    slot_carries_overlay,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,

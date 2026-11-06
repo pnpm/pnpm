@@ -11,8 +11,6 @@ use std::{
 
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
-#[cfg(all(unix, not(target_os = "wasi")))]
-use std::os::unix::fs::PermissionsExt;
 
 /// Opens an installed package's folder in the default text editor.
 #[derive(Debug, Args)]
@@ -272,9 +270,9 @@ fn de_hardlink_file(path: &Path, metadata: &fs::Metadata) -> io::Result<()> {
     }
     let permissions = pnpm_fs::copy_permissions(path)?;
     #[cfg(all(unix, not(target_os = "wasi")))]
-    let permissions = fs::Permissions::from_mode(permissions.mode() | 0o200);
+    let permissions = pnpm_fs::CopyPermissions::from_mode(permissions.mode() | 0o200);
     #[cfg(target_os = "wasi")]
-    let permissions = permissions | 0o200;
+    let permissions = pnpm_fs::CopyPermissions::from_mode(permissions | 0o200);
     pnpm_fs::copy_file_atomic_with_permissions(path, path, &permissions)
 }
 

@@ -16,6 +16,7 @@ fn state(dir: &Path, config: Config) -> crate::State {
         lockfile: pnpm_lockfile::LazyLockfile::disabled(),
         resolved_packages: pnpm_package_manager::ResolvedPackages::new(),
         dedicated: None,
+        discovered_workspace: None,
     }
 }
 
