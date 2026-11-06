@@ -146,7 +146,6 @@ pub enum TarballError {
     /// the fetch and failed; see [`crate::CacheValue::Failed`]. `cause` is
     /// that request's rendered error, whose URLs are already redacted.
     #[from(ignore)]
-    #[display("{cause}")]
     #[diagnostic(code(ERR_PNPM_TARBALL_SIBLING_FETCH_FAILED))]
     SiblingFetchFailed { cause: Arc<str> },
 
