@@ -31,7 +31,7 @@ fn walker_forwards_external_dependencies_to_hoister() {
             external_dependencies: externals,
             ..LockfileToHoistedDepGraphOptions::default().placement
         },
-        lockfile_dir,
+        modules_dirs: crate::ImporterModulesDirs::node_modules(&lockfile_dir),
 
         ..LockfileToHoistedDepGraphOptions::default()
     };

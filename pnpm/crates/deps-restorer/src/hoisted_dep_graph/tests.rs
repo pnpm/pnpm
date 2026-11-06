@@ -14,7 +14,6 @@ mod installation;
 
 use super::LockfileToHoistedDepGraphOptions;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use std::path::PathBuf;
 
 fn sample_resolution() -> LockfileResolution {
     DirectoryResolution { directory: "../local-pkg".to_string() }.into()
@@ -122,7 +121,7 @@ fn host_aware_opts() -> LockfileToHoistedDepGraphOptions<'static> {
             current_libc: "glibc".to_string(),
             ..LockfileToHoistedDepGraphOptions::default().installability
         },
-        lockfile_dir: PathBuf::from("/repo"),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(std::path::Path::new("/repo")),
 
         ..LockfileToHoistedDepGraphOptions::default()
     }
