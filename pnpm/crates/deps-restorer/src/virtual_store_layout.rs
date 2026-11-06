@@ -410,8 +410,8 @@ pub fn virtual_store_layout_for_lockfile(
         let lockfile_runtime_pin =
             crate::installability::find_root_runtime_node_version(&lockfile.importers);
         let runtime_pin = lockfile_runtime_pin.as_deref().or(manifest_runtime_pin);
-        crate::target_node::target_node_major(
-            crate::target_node::TargetNodeUse::Execution,
+        crate::materialization_plan::target_node_major(
+            crate::materialization_plan::TargetNodeUse::Execution,
             config.node_version.as_deref(),
             runtime_pin,
             None,

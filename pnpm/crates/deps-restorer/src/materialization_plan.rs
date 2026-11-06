@@ -22,6 +22,36 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetNodeUse {
+    Compatibility,
+    Execution,
+}
+
+#[must_use]
+pub fn target_node_version<'a>(
+    use_kind: TargetNodeUse,
+    config_node_version: Option<&'a str>,
+    runtime_pin: Option<&'a str>,
+    host_node_version: Option<&'a str>,
+) -> Option<&'a str> {
+    match use_kind {
+        TargetNodeUse::Compatibility => config_node_version.or(runtime_pin).or(host_node_version),
+        TargetNodeUse::Execution => runtime_pin.or(host_node_version),
+    }
+}
+
+#[must_use]
+pub fn target_node_major(
+    use_kind: TargetNodeUse,
+    config_node_version: Option<&str>,
+    runtime_pin: Option<&str>,
+    host_node_version: Option<&str>,
+) -> Option<u32> {
+    target_node_version(use_kind, config_node_version, runtime_pin, host_node_version)
+        .and_then(crate::install_frozen_lockfile::parse_major_from_version)
+}
+
 /// The host Node, reduced to what the phases after the installability
 /// check still need.
 #[derive(Debug, Clone)]
@@ -264,8 +294,8 @@ pub fn with_locked_runtime_node(
 ) -> Option<InstallabilityHost> {
     let host = host?.clone();
     let runtime_pin = find_root_runtime_node_version(importers);
-    let target = crate::target_node::target_node_version(
-        crate::target_node::TargetNodeUse::Compatibility,
+    let target = crate::materialization_plan::target_node_version(
+        crate::materialization_plan::TargetNodeUse::Compatibility,
         config.node_version.as_deref(),
         runtime_pin.as_deref(),
         Some(&host.node_version),
@@ -384,8 +414,8 @@ pub fn engine_name_from_runtime_pin(
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<String> {
     let runtime_pin = find_root_runtime_node_version(importers);
-    crate::target_node::target_node_major(
-        crate::target_node::TargetNodeUse::Execution,
+    crate::materialization_plan::target_node_major(
+        crate::materialization_plan::TargetNodeUse::Execution,
         None,
         runtime_pin.as_deref(),
         None,
@@ -462,3 +492,6 @@ pub fn needs_deferred_engine_probe(
                     && allow_build_policy.check(&key.without_peer().to_string()) == Some(true))
         })
 }
+
+#[cfg(test)]
+mod tests;

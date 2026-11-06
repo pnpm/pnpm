@@ -41,7 +41,6 @@ pub mod safe_join_modules_dir;
 pub mod store_init;
 pub mod symlink_direct_dependencies;
 pub mod symlink_package;
-pub mod target_node;
 pub mod validate_lockfile_paths;
 pub mod version_policy;
 pub mod virtual_store_layout;
@@ -86,6 +85,7 @@ pub use materialization_options::{
     ModuleLinkerContext, PackageImportOptions, RegistryFetchContext, SlotImportSource,
     SnapshotDependencyLinks, SnapshotFetchContext, VirtualStoreLinkOptions,
 };
+pub use materialization_plan::{TargetNodeUse, target_node_major, target_node_version};
 pub use modules_swap_lock::ModulesSwapLock;
 pub use package_map::*;
 pub use phase_options::{
@@ -100,7 +100,6 @@ pub use prune_stale_modules::*;
 pub use safe_join_modules_dir::*;
 pub use symlink_direct_dependencies::*;
 pub use symlink_package::*;
-pub use target_node::*;
 pub use validate_lockfile_paths::*;
 pub use version_policy::*;
 pub use virtual_store_layout::*;
