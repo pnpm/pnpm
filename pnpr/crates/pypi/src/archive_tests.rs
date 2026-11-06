@@ -1,4 +1,4 @@
-use super::archive::*;
+use super::archive::{metadata_from_sdist, metadata_from_zip};
 use std::io::{Cursor, Write};
 
 fn zip_metadata(entries: &[(&str, &str)]) -> Vec<u8> {
@@ -33,11 +33,11 @@ fn reads_sdist_metadata_from_zip_and_tar() {
     assert_eq!(
         metadata_from_zip(&zip_metadata(&[("demo-1.0/PKG-INFO", metadata)]), "demo-1.0.zip", false)
             .unwrap(),
-        metadata.as_bytes()
+        metadata.as_bytes(),
     );
     assert_eq!(
         metadata_from_sdist(&sdist("demo-1.0/PKG-INFO", metadata.as_bytes())).unwrap(),
-        metadata.as_bytes()
+        metadata.as_bytes(),
     );
     assert!(metadata_from_sdist(&sdist("demo-1.0/nested/PKG-INFO", metadata.as_bytes())).is_err());
     assert!(metadata_from_sdist(b"random bytes").is_err());
@@ -48,7 +48,7 @@ fn refuses_missing_duplicate_and_oversize_metadata() {
     let filename = "demo-1.0-py3-none-any.whl";
     assert!(metadata_from_zip(b"random bytes", filename, true).is_err());
     assert!(
-        metadata_from_zip(&zip_metadata(&[("METADATA", "Name: demo")]), filename, true).is_err()
+        metadata_from_zip(&zip_metadata(&[("METADATA", "Name: demo")]), filename, true).is_err(),
     );
     assert!(
         metadata_from_zip(
@@ -59,7 +59,7 @@ fn refuses_missing_duplicate_and_oversize_metadata() {
             filename,
             true
         )
-        .is_err()
+        .is_err(),
     );
     let large = "x".repeat(8 * 1024 * 1024 + 1);
     assert!(
@@ -69,7 +69,7 @@ fn refuses_missing_duplicate_and_oversize_metadata() {
             true
         )
         .unwrap_err()
-        .contains("exceeds")
+        .contains("exceeds"),
     );
 }
 
@@ -79,6 +79,6 @@ fn refuses_a_wheel_with_another_distributions_metadata_directory() {
     assert!(
         metadata_from_zip(&bytes, "demo-1.0-py3-none-any.whl", true)
             .unwrap_err()
-            .contains("does not match")
+            .contains("does not match"),
     );
 }

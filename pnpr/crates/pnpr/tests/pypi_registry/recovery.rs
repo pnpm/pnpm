@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    AuthState, Body, JSON, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, common,
+    get, header, issue_token, json, pypi_config, router_with_auth, upload_form, upload_request,
+    wheel_upload,
+};
 
 #[tokio::test]
 async fn invalid_archives_and_relabelled_wheels_are_rejected() {
@@ -32,7 +36,7 @@ async fn invalid_archives_and_relabelled_wheels_are_rejected() {
         app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await
             .unwrap()
             .status(),
-        StatusCode::NOT_FOUND
+        StatusCode::NOT_FOUND,
     );
 }
 
@@ -69,7 +73,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::OK
+        StatusCode::OK,
     );
     let file = format!("/pypi/files/demo-pkg/{filename}");
     let yank = format!("{file}/yank");
@@ -79,7 +83,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::UNAUTHORIZED
+        StatusCode::UNAUTHORIZED,
     );
     assert_eq!(
         app.clone()
@@ -92,7 +96,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::OK
+        StatusCode::OK,
     );
     let response = app
         .clone()
@@ -114,7 +118,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::OK
+        StatusCode::OK,
     );
     assert_eq!(
         app.clone()
@@ -122,7 +126,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::OK
+        StatusCode::OK,
     );
     let response = app
         .clone()
@@ -137,7 +141,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::UNAUTHORIZED
+        StatusCode::UNAUTHORIZED,
     );
     assert_eq!(
         app.clone()
@@ -145,7 +149,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::FORBIDDEN
+        StatusCode::FORBIDDEN,
     );
     assert_eq!(
         app.clone()
@@ -153,7 +157,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::OK
+        StatusCode::OK,
     );
     assert_eq!(
         app.clone()
@@ -161,7 +165,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::NOT_FOUND
+        StatusCode::NOT_FOUND,
     );
     let response = app
         .clone()
@@ -175,7 +179,7 @@ async fn publishers_yank_and_admins_delete_files() {
             .await
             .unwrap()
             .status(),
-        StatusCode::NOT_FOUND
+        StatusCode::NOT_FOUND,
     );
 }
 
@@ -215,7 +219,7 @@ async fn sdist_metadata_must_match_the_form_and_filename() {
                 .await
                 .unwrap()
                 .status(),
-            status
+            status,
         );
     }
 }

@@ -14,15 +14,16 @@ pub fn metadata_from_zip(bytes: &[u8], filename: &str, wheel: bool) -> Result<Ve
     for index in 0..archive.len() {
         let entry = archive.by_index(index).map_err(|err| err.to_string())?;
         let name = entry.name().map_err(|err| err.to_string())?;
-        if is_metadata(&name, wheel) {
-            if document.is_some() {
-                return Err(format!("multiple metadata files in {filename}"));
-            }
-            if wheel {
-                verify_wheel_directory(&name, filename)?;
-            }
-            document = Some(read_metadata(entry)?);
+        if !is_metadata(&name, wheel) {
+            continue;
         }
+        if document.is_some() {
+            return Err(format!("multiple metadata files in {filename}"));
+        }
+        if wheel {
+            verify_wheel_directory(&name, filename)?;
+        }
+        document = Some(read_metadata(entry)?);
     }
     document.ok_or_else(|| {
         format!("{filename} has no {}", if wheel { "dist-info METADATA" } else { "PKG-INFO" })
