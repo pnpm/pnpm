@@ -124,10 +124,16 @@ function projectPackageDirs (project: DeployAllProjects[number]): string[] {
   return packageDirs
 }
 
+/**
+ * Whether `publishDir` is a real directory inside the project root, reached
+ * through no symlink and no `node_modules`. `node_modules` matches in any
+ * case, as a case-insensitive file system resolves every spelling to it.
+ */
 function isOwnPublishDir (rootDirRealPath: string, publishDir: string): boolean {
   const relativePath = path.relative(rootDirRealPath, publishDir)
-  if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) return false
-  if (relativePath.split(path.sep).includes('node_modules')) return false
+  if (relativePath === '' || path.isAbsolute(relativePath)) return false
+  const segments = relativePath.split(path.sep)
+  if (segments[0] === '..' || segments.some(segment => segment.toLowerCase() === 'node_modules')) return false
   return realPathOrUndefined(publishDir) === publishDir
 }
 
@@ -135,7 +141,7 @@ function realPathOrUndefined (dir: string): string | undefined {
   try {
     return fs.realpathSync(dir)
   } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return undefined
     throw err
   }
 }

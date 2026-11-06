@@ -125,8 +125,9 @@ fn package_dirs(root_dir: &Path, linked_publish_dir: Option<&Path>) -> Vec<PathB
 }
 
 /// Whether `publish_dir` is a real directory inside `root_dir`, reached
-/// through no symlink and no `node_modules`. An unreadable path does not
-/// qualify, so the approval fails closed.
+/// through no symlink and no `node_modules`. `node_modules` matches in any
+/// case, as a case-insensitive file system resolves every spelling to it.
+/// An unreadable path does not qualify, so the approval fails closed.
 fn is_own_publish_dir(root_dir: &Path, publish_dir: &Path) -> bool {
     let Ok(relative) = publish_dir.strip_prefix(root_dir) else {
         return false;
@@ -134,7 +135,7 @@ fn is_own_publish_dir(root_dir: &Path, publish_dir: &Path) -> bool {
     if relative.as_os_str().is_empty()
         || relative
             .components()
-            .any(|component| component.as_os_str() == "node_modules")
+            .any(|component| component.as_os_str().eq_ignore_ascii_case("node_modules"))
     {
         return false;
     }

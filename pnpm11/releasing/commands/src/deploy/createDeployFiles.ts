@@ -177,25 +177,34 @@ function convertWorkspaceImporters (
     }
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, opts.allProjects)
     ctx.targetPackageSnapshots[depPath] = packageSnapshot
-    addLinkedPublishDirSnapshot(ctx.targetPackageSnapshots, { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot })
+    const publishDirDepPath = addLinkedPublishDirSnapshot(ctx.targetPackageSnapshots, { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot })
     if (manifest?.peerDependencies == null) continue
-    linkedWorkspaceProjects.set(depPath, {
-      manifest,
-      dedupedPeerResolutions: injectedWorkspace
-        ? convertResolvedDependencies(
-          pickOwn(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
-          convertOptions
-        )
-        : undefined,
-    })
+    const linkedWorkspaceProject = createLinkedWorkspaceProject(manifest, { convertOptions, injectedWorkspace, projectSnapshot })
+    linkedWorkspaceProjects.set(depPath, linkedWorkspaceProject)
+    if (publishDirDepPath != null) linkedWorkspaceProjects.set(publishDirDepPath, linkedWorkspaceProject)
   }
   return linkedWorkspaceProjects
+}
+
+function createLinkedWorkspaceProject (
+  manifest: ProjectManifest,
+  importer: { convertOptions: ConvertOptions, injectedWorkspace: boolean, projectSnapshot: ProjectSnapshot }
+): LinkedWorkspaceProject {
+  return {
+    manifest,
+    dedupedPeerResolutions: importer.injectedWorkspace
+      ? convertResolvedDependencies(
+        pickOwn(Object.keys(manifest.peerDependencies ?? {}), importer.projectSnapshot.devDependencies ?? {}),
+        importer.convertOptions
+      )
+      : undefined,
+  }
 }
 
 /**
  * Adds the package that the other importers link to when the project has a
  * publish directory that workspace links use. It is the project's package,
- * installed from the publish directory.
+ * installed from the publish directory. Returns its dependency path.
  */
 function addLinkedPublishDirSnapshot (
   targetPackageSnapshots: PackageSnapshots,
@@ -205,14 +214,16 @@ function addLinkedPublishDirSnapshot (
     projectRootDirRealPath: string
     projectSnapshot: ProjectSnapshot
   }
-): void {
+): DepPath | undefined {
   const { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot } = importer
-  if (projectSnapshot.publishDirectory == null || projectSnapshot.linkDirectory === false) return
+  if (projectSnapshot.publishDirectory == null || projectSnapshot.linkDirectory === false) return undefined
   const publishDir = path.join(projectRootDirRealPath, projectSnapshot.publishDirectory)
-  targetPackageSnapshots[createFileUrlDepPath({ resolvedPath: publishDir }, opts.allProjects)] = {
+  const depPath = createFileUrlDepPath({ resolvedPath: publishDir }, opts.allProjects)
+  targetPackageSnapshots[depPath] = {
     ...packageSnapshot,
     resolution: { type: 'directory', directory: normalizePath(path.relative(opts.deployDir, publishDir)) },
   }
+  return depPath
 }
 
 /**

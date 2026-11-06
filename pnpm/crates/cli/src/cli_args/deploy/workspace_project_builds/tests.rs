@@ -60,9 +60,19 @@ impl Workspace {
 
     /// Approves the deployed package installed from `relative_path`.
     fn approve_package_at(&self, relative_path: &str) -> HashMap<String, bool> {
+        self.approve_package_at_with(&[], relative_path)
+    }
+
+    /// Approves the deployed package installed from `relative_path`, given
+    /// `allow_builds`.
+    fn approve_package_at_with(
+        &self,
+        allow_builds: &[(&str, bool)],
+        relative_path: &str,
+    ) -> HashMap<String, bool> {
         let key = self.file_key(relative_path);
         let lockfile = Self::lockfile(&[(&key, &format!("../{relative_path}"))]);
-        self.approve(&[], &lockfile)
+        self.approve(allow_builds, &lockfile)
     }
 
     /// The key the deploy generates for the directory at `relative_path`
@@ -261,6 +271,23 @@ fn does_not_approve_a_publish_directory_inside_node_modules() {
     assert_eq!(workspace.approve_package_at("packages/lib/node_modules/dep"), approvals(&[]));
 }
 
+#[test]
+fn does_not_approve_a_publish_directory_inside_node_modules_spelled_in_another_case() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/NODE_MODULES/dep");
+
+    assert_eq!(workspace.approve_package_at("packages/lib/NODE_MODULES/dep"), approvals(&[]));
+}
+
+#[test]
+fn keeps_a_source_workspace_denial_of_the_project_root_for_its_publish_directory() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/dist");
+
+    assert_eq!(
+        workspace.approve_package_at_with(&[("lib@file:packages/lib", false)], "packages/lib/dist"),
+        approvals(&[("lib@file:packages/lib", false)]),
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn does_not_approve_a_publish_directory_reached_through_a_symlink() {
@@ -302,4 +329,25 @@ fn approves_the_publish_directory_of_a_legacy_workspace_project() {
         allow_builds,
         approvals(&[("lib@file:packages/lib", true), ("lib@file:packages/lib/dist", true)]),
     );
+}
+
+#[test]
+fn keeps_a_source_workspace_denial_of_the_publish_directory_of_a_legacy_workspace_project() {
+    let workspace = Workspace::with_linked_publish_dir("packages/lib/dist");
+    let workspace_projects = [NamedProjectRoot {
+        name: "lib".to_string(),
+        root_dir: workspace.root.join("packages/lib"),
+        linked_publish_dir: Some(workspace.root.join("packages/lib/dist")),
+    }];
+    let mut allow_builds = approvals(&[("lib@file:packages/lib/dist", false)]);
+
+    approve_legacy_workspace_project_builds(
+        &mut allow_builds,
+        &workspace_projects,
+        &workspace.root,
+        &workspace.root,
+    )
+    .expect("approve legacy workspace project builds");
+
+    assert_eq!(allow_builds, approvals(&[("lib@file:packages/lib/dist", false)]));
 }

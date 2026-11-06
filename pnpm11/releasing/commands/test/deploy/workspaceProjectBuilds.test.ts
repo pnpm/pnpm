@@ -7,7 +7,7 @@ import { install } from '@pnpm/installing.commands'
 import type { PackageSnapshots } from '@pnpm/lockfile.types'
 import { preparePackages, tempDir } from '@pnpm/prepare'
 import { deploy } from '@pnpm/releasing.commands'
-import type { DepPath, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
+import type { DepPath, ProjectManifest, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { writeYamlFile } from 'write-yaml-file'
 
@@ -20,11 +20,27 @@ import { DEFAULT_OPTS } from './utils/index.js'
 const BUILD_SCRIPT = 'node -e "require(\'fs\').writeFileSync(\'built.txt\', \'1\')"'
 
 async function prepareWorkspaceWithBuiltLib () {
+  const opts = await prepareWorkspace({ name: 'lib', version: '1.0.0', scripts: { postinstall: BUILD_SCRIPT } })
+  // The source install runs the project's build, and the deploy copies the
+  // project's files, so the output is removed to observe the deploy's build.
+  fs.rmSync('lib/built.txt')
+  return opts
+}
+
+/**
+ * Installs a workspace where `app` depends on `lib`. `libFiles` are written
+ * under `lib` before the install.
+ */
+async function prepareWorkspace (libManifest: ProjectManifest, libFiles: Record<string, string> = {}) {
   preparePackages([
     { location: '.', package: { name: 'root', version: '1.0.0', private: true } },
     { name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*' } },
-    { name: 'lib', version: '1.0.0', scripts: { postinstall: BUILD_SCRIPT } },
+    libManifest,
   ])
+  for (const [file, content] of Object.entries(libFiles)) {
+    fs.mkdirSync(path.dirname(path.join('lib', file)), { recursive: true })
+    fs.writeFileSync(path.join('lib', file), content)
+  }
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['app', 'lib'] })
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
     await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
@@ -44,9 +60,6 @@ async function prepareWorkspaceWithBuiltLib () {
     recursive: true,
     selectedProjectsGraph: allProjectsGraph,
   })
-  // The source install runs the project's build, and the deploy copies the
-  // project's files, so the output is removed to observe the deploy's build.
-  fs.rmSync('lib/built.txt')
   return { ...workspaceOpts, selectedProjectsGraph }
 }
 
@@ -67,34 +80,12 @@ test.each([
   ['node-linker=hoisted', { nodeLinker: 'hoisted' as const }],
   ['the legacy implementation', { forceLegacyDeploy: true }],
 ])('deploy with %s builds the publish directory of a workspace project', async (_, deployOpts) => {
-  preparePackages([
-    { location: '.', package: { name: 'root', version: '1.0.0', private: true } },
-    { name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*' } },
+  const opts = await prepareWorkspace(
     { name: 'lib', version: '1.0.0', publishConfig: { directory: 'dist' } },
-  ])
-  fs.mkdirSync('lib/dist')
-  fs.writeFileSync('lib/dist/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', scripts: { postinstall: BUILD_SCRIPT } }))
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['app', 'lib'] })
-  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
-    await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
-  const opts = {
-    ...DEFAULT_OPTS,
-    allProjects,
-    dir: process.cwd(),
-    lockfileDir: process.cwd(),
-    rootProjectManifestDir: process.cwd(),
-    sharedWorkspaceLockfile: true,
-    workspaceDir: process.cwd(),
-  }
-  await install.handler({
-    ...opts,
-    allProjectsGraph,
-    injectWorkspacePackages: false,
-    recursive: true,
-    selectedProjectsGraph: allProjectsGraph,
-  })
+    { 'dist/package.json': JSON.stringify({ name: 'lib', version: '1.0.0', scripts: { postinstall: BUILD_SCRIPT } }) }
+  )
 
-  await deploy.handler({ ...opts, ...deployOpts, selectedProjectsGraph }, ['deploy'])
+  await deploy.handler({ ...opts, ...deployOpts }, ['deploy'])
 
   expect(fs.existsSync('deploy/node_modules/lib/built.txt')).toBe(true)
 })
@@ -201,7 +192,7 @@ describe('the publish directory of a workspace project', () => {
     }
   }
 
-  function approvePublishDir (directory: string, packageDir: string) {
+  function approvePublishDir (directory: string, packageDir: string, allowBuilds?: Record<string, boolean>) {
     const root = fs.realpathSync(tempDir())
     const projectDir = path.join(root, 'lib')
     fs.mkdirSync(path.join(projectDir, packageDir), { recursive: true })
@@ -210,7 +201,7 @@ describe('the publish directory of a workspace project', () => {
         resolution: { type: 'directory', directory: path.relative(path.join(root, 'deploy'), path.join(projectDir, packageDir)) },
       },
     }
-    return approveWorkspaceProjectBuilds(undefined, {
+    return approveWorkspaceProjectBuilds(allowBuilds, {
       allProjects: [projectWithPublishDir(projectDir, directory)],
       deployDir: path.join(root, 'deploy'),
       lockfileDir: root,
@@ -226,8 +217,20 @@ describe('the publish directory of a workspace project', () => {
     expect(approvePublishDir('../vendor', '../vendor')).toBeUndefined()
   })
 
+  test('is approved under a name that starts with two dots', () => {
+    expect(Object.keys(approvePublishDir('..dist', '..dist') ?? {})).toHaveLength(1)
+  })
+
   test('is not approved inside node_modules', () => {
     expect(approvePublishDir('node_modules/dep', 'node_modules/dep')).toBeUndefined()
+  })
+
+  test('is not approved inside node_modules spelled in another case', () => {
+    expect(approvePublishDir('NODE_MODULES/dep', 'NODE_MODULES/dep')).toBeUndefined()
+  })
+
+  test('is not approved when the source workspace denies the project root', () => {
+    expect(approvePublishDir('dist', 'dist', { 'lib@file:lib': false })).toStrictEqual({ 'lib@file:lib': false })
   })
 
   test('is not approved through a symlink', () => {
@@ -260,5 +263,28 @@ describe('the publish directory of a workspace project', () => {
       allProjects: [projectWithPublishDir(projectDir, 'dist')],
       lockfileDir: root,
     })).toStrictEqual({ 'lib@file:lib': true, 'lib@file:lib/dist': true })
+  })
+
+  test('denied under its source workspace key blocks the project root of a legacy deploy', () => {
+    const root = fs.realpathSync(tempDir())
+    const projectDir = path.join(root, 'lib')
+    fs.mkdirSync(path.join(projectDir, 'dist'), { recursive: true })
+
+    expect(approveLegacyWorkspaceProjectBuilds({ 'lib@file:lib/dist': false }, {
+      allProjects: [projectWithPublishDir(projectDir, 'dist')],
+      lockfileDir: root,
+    })).toStrictEqual({ 'lib@file:lib/dist': false })
+  })
+
+  test('that crosses a file is not approved and does not fail the deploy', () => {
+    const root = fs.realpathSync(tempDir())
+    const projectDir = path.join(root, 'lib')
+    fs.mkdirSync(projectDir)
+    fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+
+    expect(approveLegacyWorkspaceProjectBuilds(undefined, {
+      allProjects: [projectWithPublishDir(projectDir, 'package.json/dist')],
+      lockfileDir: root,
+    })).toStrictEqual({ 'lib@file:lib': true })
   })
 })
