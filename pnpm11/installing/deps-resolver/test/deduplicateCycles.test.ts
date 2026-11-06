@@ -6,7 +6,7 @@ import type { GenericDependenciesGraphWithResolvedChildren, PartialResolvedPacka
 
 test.each([[2, false, 1], [2, true, 1], [128, false, 1], [2, false, 128]] as const)('dedupe size %s, reverse %s, components %s', (size, reverse, count) => {
   const { graph, groups } = cycleGraph(size, [1], count)
-  const replacements = deduplicateAll(graph, reverse ? groups.reverse() : groups)
+  const replacements = deduplicateAll({ depGraph: graph }, reverse ? groups.reverse() : groups)
   for (let index = 0; index < size * count; index++) {
     expect(replacements[`node-${index}@1.0.0` as DepPath]).toBe(`node-${index}@1.0.0(peer@1.0.0)`)
   }
@@ -27,7 +27,7 @@ test('a parent of a cycle waits for the cyclic variants to settle', () => {
     ancestors.add(depPath)
   }
   groups.unshift(ancestors)
-  const replacements = deduplicateAll(graph, groups)
+  const replacements = deduplicateAll({ depGraph: graph }, groups)
   const parent = replacements['ancestor@1.0.0' as DepPath] ?? 'ancestor@1.0.0' as DepPath
   const direct = replacements['node-0@1.0.0' as DepPath] ?? 'node-0@1.0.0' as DepPath
   expect(graph[parent].children.child).toBe(direct)

@@ -26,7 +26,7 @@ export function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChi
 // A pair reached twice is taken as compatible, which is what terminates
 // dependency cycles.
 export function isCompatibleAndHasMoreDeps<Pkg extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  compatibilityGraph: CompatibilityGraph<Pkg>,
   depPath1: DepPath,
   depPath2: DepPath
 ): boolean {
@@ -35,9 +35,21 @@ export function isCompatibleAndHasMoreDeps<Pkg extends PartialResolvedPackage> (
   // Breadth-first, so the shallowest incompatible pair settles the check.
   for (let cursor = 0; cursor < queue.pending.length; cursor++) {
     const [supersetDepPath, subsetDepPath] = queue.pending[cursor]
-    if (!isPairCompatible(depGraph, { supersetDepPath, subsetDepPath, queue })) return false
+    if (!isPairCompatible(compatibilityGraph, { supersetDepPath, subsetDepPath, queue })) return false
   }
   return true
+}
+
+/**
+ * `depPath → names` of the optional peers that variant leaves unbound because
+ * a project rejected their candidate. See `ProjectToResolve.rejectedOptionalPeers`.
+ */
+export type UnboundOptionalPeers = Map<DepPath, Set<string>>
+
+export interface CompatibilityGraph<Pkg extends PartialResolvedPackage> {
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>
+  /** A variant listed here never collapses into one that resolves a listed peer. */
+  unboundOptionalPeers?: UnboundOptionalPeers
 }
 
 interface DepPathPairQueue {
@@ -67,7 +79,7 @@ function createDepPathPairQueue (): DepPathPairQueue {
  * differing children that still have to be compared.
  */
 function isPairCompatible<Pkg extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  { depGraph, unboundOptionalPeers }: CompatibilityGraph<Pkg>,
   pair: { supersetDepPath: DepPath, subsetDepPath: DepPath, queue: DepPathPairQueue }
 ): boolean {
   const supersetNode = depGraph[pair.supersetDepPath]
@@ -76,7 +88,16 @@ function isPairCompatible<Pkg extends PartialResolvedPackage> (
   if (nodeDepsCount(supersetNode) < nodeDepsCount(subsetNode)) return false
 
   if (!isSupersetOf(supersetNode.resolvedPeerNames, subsetNode.resolvedPeerNames)) return false
+  if (resolvesAny(supersetNode, unboundOptionalPeers?.get(pair.subsetDepPath))) return false
   return queueDifferingChildren(depGraph, { supersetNode, subsetNode, queue: pair.queue })
+}
+
+function resolvesAny (node: GenericDependenciesGraphNodeWithResolvedChildren, peerNames: Set<string> | undefined): boolean {
+  if (peerNames == null) return false
+  for (const peerName of peerNames) {
+    if (node.resolvedPeerNames.has(peerName)) return true
+  }
+  return false
 }
 
 /**

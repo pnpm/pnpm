@@ -339,6 +339,11 @@ export type PostponedPeersResolutionFunction = (parentPkgAliases: ParentPkgAlias
 
 export interface ResolvedRootDependenciesResult {
   pkgAddressesByImporters: PkgAddressOrLink[][]
+  /**
+   * Per importer, the missing optional peers left unbound because every
+   * candidate version was rejected by `acceptsOptionalPeerCandidate`.
+   */
+  rejectedOptionalPeersByImporters: Array<Set<string>>
   time?: Record<string, string>
 }
 

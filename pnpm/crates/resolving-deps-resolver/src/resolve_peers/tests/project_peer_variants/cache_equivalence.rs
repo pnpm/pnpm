@@ -2,6 +2,7 @@ use super::{
     ResolvePeersOptions, WorkspacePeerSettings, build_projects, resolve_with_cache_oracle,
 };
 use crate::PeerDependentsDedupe;
+use rustc_hash::FxHashSet as HashSet;
 use std::{collections::BTreeMap, path::Path};
 
 const ORDERS: [[usize; 3]; 6] = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
@@ -136,6 +137,7 @@ fn full_walk_keeps_peer_cycle_handling() {
             direct: tree.direct.clone(),
             root_dir: "/repo".into(),
             modules_dir: None,
+            rejected_optional_peers: HashSet::default(),
         }];
         let result = resolve_peers_workspace(
             &mut tree,

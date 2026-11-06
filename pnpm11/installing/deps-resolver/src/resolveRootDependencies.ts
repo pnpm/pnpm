@@ -20,6 +20,7 @@ import {
   pickHoistedVersion,
   pickMergedPeerVersions,
   pickVersionsInClosure,
+  recordingRejections,
 } from './optionalPeerCandidates.js'
 import type {
   ImporterToResolve,
@@ -48,6 +49,8 @@ interface PeerHoisting {
   /** Each importer's `getImporterLockedPeerVersions`, read when its optional peers are first hoisted, keyed by importer index. */
   lockedPeerVersionsByImporter: Map<number, Map<string, Set<string>>>
   publishedBy?: Date
+  /** See `ResolvedRootDependenciesResult.rejectedOptionalPeersByImporters`. */
+  rejectedOptionalPeersByImporters: Array<Set<string>>
   /** The versions of the workspace root's direct dependencies. */
   rootDepVersions: Map<string, string>
   rootImporterIndex: number
@@ -69,19 +72,22 @@ export async function resolveRootDependencies (
     ctx.allPreferredVersions = Object.create(null) as PreferredVersions
   }
   const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
+  const rejectedOptionalPeersByImporters = importers.map(() => new Set<string>())
   if (ctx.hoistPeers) {
-    const hoisting = await startPeerHoisting(ctx, { importerResults: pkgAddressesByImportersWithoutPeers, importers, publishedBy })
-    await hoistPeersToImporters(hoisting)
+    await hoistPeersToImporters(await startPeerHoisting(ctx, {
+      importerResults: pkgAddressesByImportersWithoutPeers, importers, publishedBy, rejectedOptionalPeersByImporters,
+    }))
   }
   return {
     pkgAddressesByImporters: pkgAddressesByImportersWithoutPeers.map(({ pkgAddresses }) => pkgAddresses),
+    rejectedOptionalPeersByImporters,
     time,
   }
 }
 
 async function startPeerHoisting (
   ctx: ResolutionContext,
-  { importerResults, importers, publishedBy }: Pick<PeerHoisting, 'importerResults' | 'importers' | 'publishedBy'>
+  { importerResults, importers, publishedBy, rejectedOptionalPeersByImporters }: Pick<PeerHoisting, 'importerResults' | 'importers' | 'publishedBy' | 'rejectedOptionalPeersByImporters'>
 ): Promise<PeerHoisting> {
   const hoisting: PeerHoisting = {
     ctx,
@@ -93,6 +99,7 @@ async function startPeerHoisting (
       ? getLockfileOnlyVersions(ctx.allPreferredVersions)
       : undefined,
     publishedBy,
+    rejectedOptionalPeersByImporters,
     rootDepVersions: new Map<string, string>(),
     rootImporterIndex: -1,
     workspaceRootDeps: [],
@@ -328,6 +335,7 @@ async function hoistOptionalPeersOfImporter (
   /* eslint-enable no-await-in-loop */
   if (!Object.keys(optionalDependencies).length) return false
   for (const [name, version] of Object.entries(optionalDependencies)) {
+    hoisting.rejectedOptionalPeersByImporters[opts.index].delete(name)
     optionalDependencies[name] = getOptionalPeerSpecifier({
       name,
       version,
@@ -380,11 +388,11 @@ function pickHoistableOptionalPeers (
         roots: hoisting.importerResults[index].pkgAddresses,
       }),
     hoisting.workspaceRootDeps,
-    (name, version) => acceptsOptionalPeerCandidate({
+    recordingRejections((name, version) => acceptsOptionalPeerCandidate({
       getCandidatePeers: getPeersOfCandidate,
       pickRequiredPeerVersions,
       providedVersions: providedPeerVersions,
-    }, { name, version }),
+    }, { name, version }), hoisting.rejectedOptionalPeersByImporters[index]),
     {
       lockedVersions: getLockedPeerVersionsOfImporter(hoisting, index),
       lockfileOnlyVersions: hoisting.lockfileOnlyVersions,

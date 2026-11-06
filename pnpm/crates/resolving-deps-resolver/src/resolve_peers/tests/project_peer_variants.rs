@@ -8,6 +8,7 @@ use super::{
 };
 
 use crate::PeerDependentsDedupe;
+use rustc_hash::FxHashSet as HashSet;
 
 type ProjectDependencies<'a> = &'a [(&'a str, &'a str)];
 type PackageShape<'a> = (&'a str, &'a [(&'a str, &'a str, bool)], ProjectDependencies<'a>);
@@ -54,6 +55,7 @@ fn build_projects(
                 direct,
                 root_dir: format!("/repo/{index}").into(),
                 modules_dir: None,
+                rejected_optional_peers: HashSet::default(),
             }
         })
         .collect();

@@ -794,6 +794,88 @@ fn optional_peer_is_supplied_when_the_required_peers_it_brings_in_accept_the_imp
     );
 }
 
+/// <https://github.com/pnpm/pnpm/issues/17781>
+#[test]
+fn variant_that_left_a_rejected_optional_peer_unbound_does_not_collapse_into_a_sibling_variant() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/has-optional-y-v2-peer-user-carrier": "1.0.0",
+                "@pnpm/y": "1.0.0",
+            },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/has-optional-y-v2-peer-user-carrier": "1.0.0",
+                "@pnpm.e2e/y-v2-peer-user-carrier": "1.0.0",
+                "@pnpm.e2e/y-v2-peer-user": "1.0.0",
+                "@pnpm/y": "2.0.0",
+            },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let carrier = "@pnpm.e2e/has-optional-y-v2-peer-user-carrier";
+    let pkg_a_version = importer_version(&lockfile, "pkg-a", carrier);
+    let pkg_b_version = importer_version(&lockfile, "pkg-b", carrier);
+    drop((root, mock_instance));
+    assert_eq!(pkg_a_version, "1.0.0");
+    assert!(
+        pkg_b_version.starts_with("1.0.0(@pnpm.e2e/y-v2-peer-user-carrier@1.0.0"),
+        "{pkg_b_version}",
+    );
+}
+
+/// <https://github.com/pnpm/pnpm/issues/17781>
+#[test]
+fn injected_package_keeps_an_optional_peer_its_consumer_rejected_unbound() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = three_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/has-optional-y-v2-peer-user-carrier": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "pkg-a": "workspace:1.0.0", "@pnpm/y": "1.0.0" },
+            "dependenciesMeta": { "pkg-a": { "injected": true } },
+        }),
+        &serde_json::json!({
+            "name": "pkg-c",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/y-v2-peer-user-carrier": "1.0.0",
+                "@pnpm.e2e/y-v2-peer-user": "1.0.0",
+                "@pnpm/y": "2.0.0",
+            },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let pkg_a_carrier =
+        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/has-optional-y-v2-peer-user-carrier");
+    let pkg_b_pkg_a = importer_version(&lockfile, "pkg-b", "pkg-a");
+    drop((root, mock_instance));
+    assert!(
+        pkg_a_carrier.starts_with("1.0.0(@pnpm.e2e/y-v2-peer-user-carrier@1.0.0"),
+        "{pkg_a_carrier}",
+    );
+    assert!(pkg_b_pkg_a.starts_with("file:pkg-a"), "{pkg_b_pkg_a}");
+}
+
 #[test]
 fn optional_peer_is_supplied_when_the_required_peers_it_brings_in_agree_on_a_shared_peer_version() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } = three_project_workspace(

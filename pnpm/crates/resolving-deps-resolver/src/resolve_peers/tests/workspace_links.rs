@@ -23,6 +23,7 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
         ],
         root_dir: std::path::PathBuf::from("/repo"),
         modules_dir: None,
+        rejected_optional_peers: HashSet::default(),
     };
     let mut tree = ResolvedTree {
         direct: Vec::new(),

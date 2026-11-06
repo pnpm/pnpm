@@ -65,6 +65,8 @@ pub(super) struct ImporterHoistDependencies {
     pub(super) hoisted_peer_provider_node_ids: HashSet<crate::NodeId>,
     pub(super) parent_pkg_aliases: HashSet<String>,
     pub(super) all_missing_optional_peers: BTreeMap<String, Vec<String>>,
+    /// See [`crate::ImporterPeerInput::rejected_optional_peers`].
+    pub(super) rejected_optional_peers: HashSet<String>,
 }
 
 pub(super) struct ImporterHoistSelection {
@@ -105,6 +107,7 @@ impl super::ImporterHoistState {
                 hoisted_peer_provider_node_ids: HashSet::default(),
                 parent_pkg_aliases: seeds.parent_pkg_aliases,
                 all_missing_optional_peers: BTreeMap::new(),
+                rejected_optional_peers: HashSet::default(),
             },
             selection: ImporterHoistSelection {
                 preferred_versions: settings.all_preferred_versions,
