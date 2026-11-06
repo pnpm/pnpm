@@ -1,6 +1,31 @@
 import { expect, test } from '@jest/globals'
 
+import { hoistPeers } from '../lib/hoistPeers.js'
 import { mergePkgsDeps } from '../lib/missingPeers.js'
+
+test.each(['file:../b', 'link:../b'])(
+  'preserves merged local peer locator %s when registry versions are preferred',
+  (range) => {
+    for (const autoInstallPeersFromHighestMatch of [false, true]) {
+      const merged = mergePkgsDeps([
+        { b: { range, optional: false } },
+        { b: { range, optional: false } },
+      ], { autoInstallPeersFromHighestMatch })
+      for (const autoInstallPeers of [false, true]) {
+        expect(hoistPeers({
+          autoInstallPeers,
+          allPreferredVersions: {
+            b: {
+              '1.0.0': 'version',
+              '2.0.0': { selectorType: 'version', weight: 1000 },
+            },
+          },
+          workspaceRootDeps: [],
+        }, Object.entries(merged))).toStrictEqual(autoInstallPeers ? { b: range } : {})
+      }
+    }
+  }
+)
 
 test.each([
   ['file:../packages/b', 'file:../libs/b'],
