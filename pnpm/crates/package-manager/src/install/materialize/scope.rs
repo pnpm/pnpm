@@ -78,16 +78,20 @@ pub(super) fn importer_manifests_by_id<'a>(
 /// Stand-in manifests for the importers `previous_wanted` records outside
 /// `real_importer_ids`, such as projects a sparse checkout leaves off disk,
 /// so their dependencies take part in peer and optional resolution the way
-/// they would with the project on disk. The lockfile records specifiers
-/// after `readPackage` ran, so a stand-in is not hooked again.
+/// they would with the project on disk. Only a selected install keeps those
+/// importers, so the rest get none. The lockfile records specifiers after
+/// `readPackage` ran, so a stand-in is not hooked again.
 pub(super) fn off_disk_importer_manifests(
-    previous_wanted: &Lockfile,
+    requested_importer_ids: Option<&HashSet<String>>,
+    previous_wanted: Option<&Lockfile>,
     real_importer_ids: &HashSet<String>,
     workspace_root: &Path,
-) -> Vec<(String, PackageManifest)> {
-    previous_wanted.importers
-        .iter()
-        .filter(|(importer_id, _)| !real_importer_ids.contains(*importer_id))
+) -> BTreeMap<String, PackageManifest> {
+    let (Some(_), Some(previous_wanted)) = (requested_importer_ids, previous_wanted) else {
+        return BTreeMap::new();
+    };
+    previous_wanted
+        .importers_outside(real_importer_ids)
         .map(|(importer_id, importer)| {
             let manifest = PackageManifest::from_value(
                 workspace_root.join(importer_id).join("package.json"),

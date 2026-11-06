@@ -226,10 +226,9 @@ fn filtered_install_resolves_dependencies_of_projects_missing_from_disk() {
 
 fn snapshot_is_optional(lockfile: &Lockfile, name: &str, version: &str) -> Option<bool> {
     let key = format!("{name}@{version}");
-    lockfile.snapshots
-        .as_ref()?
-        .iter()
-        .find(|(snapshot_key, _)| snapshot_key.to_string() == key)
+    snapshot_entries(lockfile, name)
+        .into_iter()
+        .find(|(snapshot_key, _)| *snapshot_key == key)
         .map(|(_, snapshot)| snapshot.optional)
 }
 

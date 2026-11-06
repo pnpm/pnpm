@@ -73,7 +73,7 @@ mod yaml_emit;
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Package key used by the `packages:` and `snapshots:` maps.
 ///
@@ -139,6 +139,17 @@ impl Lockfile {
             .as_ref()
             .map(LockfileSettings::integrity_target)
             .unwrap_or_default()
+    }
+
+    /// The importers whose ids are not in `importer_ids`, such as those of
+    /// projects a sparse checkout leaves off disk.
+    pub fn importers_outside<'a>(
+        &'a self,
+        importer_ids: &'a HashSet<String>,
+    ) -> impl Iterator<Item = (&'a String, &'a ProjectSnapshot)> {
+        self.importers
+            .iter()
+            .filter(|(importer_id, _)| !importer_ids.contains(*importer_id))
     }
 }
 

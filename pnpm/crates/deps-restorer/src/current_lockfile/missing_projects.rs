@@ -25,9 +25,8 @@ fn missing_project_importers(
 ) -> HashMap<String, ProjectSnapshot> {
     previous_wanted
         .map(|previous| {
-            previous.importers
-                .iter()
-                .filter(|(importer_id, _)| !real_importer_ids.contains(*importer_id))
+            previous
+                .importers_outside(real_importer_ids)
                 .map(|(importer_id, importer)| (importer_id.clone(), importer.clone()))
                 .collect()
         })

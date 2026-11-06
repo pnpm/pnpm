@@ -430,24 +430,28 @@ pub(super) async fn settle_engine_name(
 }
 
 impl OnDiskProjects<'_> {
+    fn on_disk_manifests(&self) -> impl Iterator<Item = (&String, &PackageManifest)> {
+        self.importer_manifests
+            .iter()
+            .filter(|(id, _)| self.real_importer_ids.is_none_or(|real| real.contains(*id)))
+            .map(|(id, manifest)| (id, *manifest))
+    }
+
     fn project_manifests(
         &self,
         workspace_root: &Path,
         only_anchors: bool,
     ) -> Vec<(std::path::PathBuf, &PackageManifest)> {
-        self.importer_manifests
-            .iter()
+        self.on_disk_manifests()
             .filter(|(id, _)| {
                 !only_anchors || self.project_anchor_importer_ids.contains(id.as_str())
             })
-            .filter(|(id, _)| self.real_importer_ids.is_none_or(|real| real.contains(*id)))
-            .map(|(id, manifest)| (workspace_root.join(id), *manifest))
+            .map(|(id, manifest)| (workspace_root.join(id), manifest))
             .collect()
     }
 
     fn root_component_importers(&self) -> std::collections::HashSet<String> {
-        self.importer_manifests
-            .iter()
+        self.on_disk_manifests()
             .filter(|(id, _)| self.project_anchor_importer_ids.contains(id.as_str()))
             .filter(|(_, manifest)| {
                 manifest.install_config_hoisting_limits()
