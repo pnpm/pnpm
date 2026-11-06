@@ -37,6 +37,34 @@ test('a row without requiresBuild or a bundled manifest reads the install script
   expect(result.files.requiresBuild).toBe(true)
 })
 
+const testIfReadPermissionsApply = process.platform === 'win32' || process.getuid?.() === 0 ? test.skip : test
+
+testIfReadPermissionsApply('an entry that fails verification is reported without reading its package.json', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-stored-requires-build-'))
+  const dir = path.join(tmp, 'pkg')
+  fs.mkdirSync(dir)
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'broken', version: '1.0.0' }))
+  fs.writeFileSync(path.join(dir, 'index.js'), 'module.exports = 1')
+  const storeDir = path.join(tmp, 'store')
+  const storeIndex = new StoreIndex(storeDir)
+  const filesIndexFile = path.join(storeDir, 'pkg.json')
+  await addFilesFromDir({ storeDir, dir, filesIndexFile, storeIndex })
+  const { manifest: _manifest, requiresBuild: _requiresBuild, ...row } = storeIndex.get(filesIndexFile) as PackageFilesIndex
+  storeIndex.set(filesIndexFile, row)
+  const { files } = await readPkgFromCafs({ storeDir, verifyStoreIntegrity: false }, filesIndexFile)
+  fs.rmSync(files.filesMap.get('index.js')!)
+  const manifestPath = files.filesMap.get('package.json')!
+  fs.chmodSync(manifestPath, 0o000)
+
+  try {
+    const result = await readPkgFromCafs({ storeDir, verifyStoreIntegrity: true }, filesIndexFile)
+    expect(result.verified).toBe(false)
+  } finally {
+    fs.chmodSync(manifestPath, 0o644)
+    storeIndex.close()
+  }
+})
+
 async function readLegacyRowRequiresBuild (manifest: Record<string, unknown>, prefix = ''): Promise<boolean> {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-stored-requires-build-'))
   const dir = path.join(tmp, 'pkg')
