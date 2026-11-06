@@ -143,10 +143,12 @@ export async function handler (
 /**
  * dlx installs with its cache directory as the project directory, so a
  * relative `storeDir` is resolved against the directory dlx runs in first.
+ * An empty or home-relative (`~/`) value is left for the store resolver.
  */
 function withAbsoluteStoreDir (opts: DlxCommandOptions): DlxCommandOptions {
-  if (opts.storeDir == null || path.isAbsolute(opts.storeDir)) return opts
-  return { ...opts, storeDir: path.resolve(getDlxWorkingDir(opts), opts.storeDir) }
+  const storeDir = opts.storeDir
+  if (!storeDir || path.isAbsolute(storeDir) || storeDir.startsWith('~/') || storeDir.startsWith('~\\')) return opts
+  return { ...opts, storeDir: path.resolve(getDlxWorkingDir(opts), storeDir) }
 }
 
 function getDlxWorkingDir (opts: DlxCommandOptions): string {

@@ -111,7 +111,41 @@ test('dlx resolves a relative store dir against the directory it runs in, not it
 
   expect(fs.existsSync('foo')).toBeTruthy()
   expect(fs.existsSync('store/v11/links')).toBeTruthy()
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))).not.toContain('store')
+  const cacheKeyDir = path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'))
+  expect(fs.readdirSync(cacheKeyDir)).not.toContain('store')
+  expect(fs.readdirSync(path.join(cacheKeyDir, 'pkg'))).not.toContain('store')
+})
+
+test('dlx resolves a relative store dir against --dir', async () => {
+  prepareEmpty()
+  fs.mkdirSync('project')
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('home'),
+    cliOptions: { dir: path.resolve('project') },
+    storeDir: 'store',
+    cacheDir: path.resolve('cache'),
+  }, ['shx@0.3.4', 'touch', 'foo'])
+
+  expect(fs.existsSync('project/foo')).toBeTruthy()
+  expect(fs.existsSync('project/store/v11/links')).toBeTruthy()
+  expect(fs.existsSync('store')).toBeFalsy()
+})
+
+test('dlx leaves an empty store dir to the default store', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('home'),
+    storeDir: '',
+    pnpmHomeDir: path.resolve('pnpm-home'),
+    cacheDir: path.resolve('cache'),
+  }, ['shx@0.3.4', 'touch', 'foo'])
+
+  expect(fs.existsSync('foo')).toBeTruthy()
+  expect(fs.existsSync('v11')).toBeFalsy()
 })
 
 test('dlx install from git', async () => {
