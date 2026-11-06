@@ -25,9 +25,12 @@ const ORDER_LOG: &str = "../../order.txt";
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
 const FOOBAR: &str = "@pnpm.e2e/foobar";
+const HAS_OPTIONAL_PEER: &str = "@pnpm.e2e/has-optional-peer";
 const HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const NO_DEPS: &str = "@foo/no-deps";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+const PEER_C: &str = "@pnpm.e2e/peer-c";
+const PKG_WITH_GOOD_OPTIONAL: &str = "@pnpm.e2e/pkg-with-good-optional";
 const QAR: &str = "@pnpm.e2e/qar";
 
 /// TS: `dependencies of other importers are not pruned when (headless)
@@ -174,6 +177,110 @@ fn assert_filtered_install_keeps_missing_project(filters: &[&str]) {
             .and_then(|catalogs| catalogs.get("only-3")),
     );
     assert!(!project_3.exists(), "the install must not recreate the missing project");
+}
+
+/// The dependencies of a project missing from disk still take part in the
+/// resolution of a filtered install, so it writes the lockfile a full
+/// checkout writes. Here the missing project supplies the optional peer a
+/// selected project resolves, depends directly on a package another project
+/// reaches only as an optional dependency, and is the only project that
+/// depends on a `file:` directory. Issue 17791.
+#[test]
+fn filtered_install_resolves_against_projects_missing_from_disk() {
+    let full_checkout =
+        filtered_install_after_bump(ProjectThree::OnDisk, InstallMode::LockfileOnly);
+    let sparse_checkout =
+        filtered_install_after_bump(ProjectThree::OffDisk, InstallMode::LockfileOnly);
+    assert_eq!(sparse_checkout, full_checkout);
+}
+
+/// A filtered install that links `node_modules` writes the same lockfile
+/// and puts nothing in the directory of a project missing from disk.
+#[test]
+fn filtered_install_links_nothing_into_projects_missing_from_disk() {
+    let full_checkout = filtered_install_after_bump(ProjectThree::OnDisk, InstallMode::Link);
+    let sparse_checkout = filtered_install_after_bump(ProjectThree::OffDisk, InstallMode::Link);
+    assert_eq!(sparse_checkout, full_checkout);
+}
+
+#[derive(Clone, Copy)]
+enum ProjectThree {
+    OnDisk,
+    OffDisk,
+}
+
+#[derive(Clone, Copy)]
+enum InstallMode {
+    LockfileOnly,
+    Link,
+}
+
+fn filtered_install_after_bump(project_3_state: ProjectThree, mode: InstallMode) -> String {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[(HAS_OPTIONAL_PEER, "1.0.0"), (PKG_WITH_GOOD_OPTIONAL, "1.0.0")],
+            ..Default::default()
+        },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(PEER_C, "1.0.0")], ..Default::default() },
+    );
+    let project_3 = fixture.project(
+        "project-3",
+        "project-3",
+        ManifestDeps {
+            prod: &[
+                (PEER_C, "1.0.1"),
+                ("is-positive", "1.0.0"),
+                ("local-pkg", "file:../../local-pkg"),
+                ("project-2", "workspace:*"),
+            ],
+            ..Default::default()
+        },
+    );
+    let local_pkg = fixture.workspace.join("local-pkg");
+    fs::create_dir(&local_pkg).expect("create local-pkg");
+    fs::write(
+        local_pkg.join("package.json"),
+        json!({ "name": "local-pkg", "version": "1.0.0", "dependencies": { "is-negative": "1.0.0" } })
+            .to_string(),
+    )
+    .expect("write local-pkg/package.json");
+    fixture.run(["install", "--lockfile-only"]);
+
+    if matches!(project_3_state, ProjectThree::OffDisk) {
+        fs::remove_dir_all(&project_3).expect("take project-3 off disk");
+    }
+    write_project_manifest(
+        &project_1,
+        "project-1",
+        ManifestDeps {
+            prod: &[
+                (HAS_OPTIONAL_PEER, "1.0.0"),
+                (PKG_WITH_GOOD_OPTIONAL, "1.0.0"),
+                (QAR, "100.0.0"),
+            ],
+            ..Default::default()
+        },
+    );
+    let mode_args: &[&str] = match mode {
+        InstallMode::LockfileOnly => &["--lockfile-only"],
+        InstallMode::Link => &[],
+    };
+    fixture.run(
+        ["--filter", "project-1", "--filter", "project-2", "install"]
+            .into_iter()
+            .chain(mode_args.iter().copied()),
+    );
+    if matches!(project_3_state, ProjectThree::OffDisk) {
+        assert!(!project_3.exists(), "the install must not recreate the missing project");
+    }
+    fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml")
 }
 
 /// TS: `current lockfile contains only installed dependencies when

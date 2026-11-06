@@ -5,6 +5,7 @@ import type { PnpmContext } from '@pnpm/installing.context'
 import type { RangeSpecStyle, UpdateMatchingFunction, WantedDependency } from '@pnpm/installing.deps-resolver'
 import type { InstallationResultStats } from '@pnpm/installing.deps-restorer'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
+import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import type { PreferredVersions, ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import type {
@@ -167,6 +168,11 @@ export type ImporterToUpdate = {
   removePackages?: string[]
   updatePackageManifest: boolean
   wantedDependencies: WantedDependency[]
+  /**
+   * The lockfile entry of a project missing from disk. The install resolves
+   * the project's dependencies and writes this entry back unchanged.
+   */
+  keptLockfileImporter?: ProjectSnapshot
 } & DependenciesMutation
 
 export interface UpdatedProject {

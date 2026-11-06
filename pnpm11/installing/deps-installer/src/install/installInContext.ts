@@ -24,6 +24,7 @@ import type {
   InstallInContextOptions,
   MutatedProject,
 } from './mutationTypes.js'
+import { listProjectsMissingFromDisk } from './projectsMissingFromDisk.js'
 import { resolveAndLinkProjects } from './resolveAndLinkProjects.js'
 
 type RunPacquet = NonNullable<InstallInContextOptions['runPacquet']>
@@ -108,20 +109,32 @@ async function retryWithRefreshedChecksums (
 
 /**
  * The workspace projects this install does not select, when resolving has to
- * include them. `undefined` when the selected projects are the whole workspace.
+ * include them, with stand-ins for the ones missing from disk. `undefined`
+ * when the selected projects are the whole workspace.
  */
 function listWorkspaceProjectsOutsideInstall (
   projects: ImporterToUpdate[],
   ctx: PnpmContext,
   opts: InstallInContextOptions
 ): Array<PnpmContext['projects'][string]> | undefined {
+  if (isCheckOnlyInstall(opts) || !opts.enableModulesDir) return undefined
   const isPathInsideWorkspace = isSubdir.bind(null, opts.lockfileDir)
   const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
     .filter((project) => isPathInsideWorkspace(project.rootDir))
-  if (allProjectsLocatedInsideWorkspace.length > projects.length && !isCheckOnlyInstall(opts) && opts.enableModulesDir) {
-    return allProjectsLocatedInsideWorkspace
+  const projectsMissingFromDisk = keepsProjectsMissingFromDisk(opts) ? listProjectsMissingFromDisk(ctx) : []
+  if (allProjectsLocatedInsideWorkspace.length > projects.length || projectsMissingFromDisk.length > 0) {
+    return [...allProjectsLocatedInsideWorkspace, ...projectsMissingFromDisk]
   }
   return undefined
+}
+
+/**
+ * Only a workspace install lists every project on disk, so only it can tell
+ * that an importer of the lockfile belongs to a project missing from disk.
+ * One that prunes importers drops those importers instead.
+ */
+function keepsProjectsMissingFromDisk (opts: InstallInContextOptions): boolean {
+  return opts.workspaceDir != null && !opts.pruneLockfileImporters
 }
 
 async function installWithWorkspaceProjects (
@@ -153,6 +166,7 @@ function addUnselectedWorkspaceProjects (
   { opts, workspaceProjects }: { opts: InstallInContextOptions, workspaceProjects: Array<PnpmContext['projects'][string]> }
 ): ImporterToUpdate[] {
   const newProjects = [...projects]
+  const newProjectDirs = new Set(projects.map(({ rootDir }) => rootDir))
   const getWantedDepsOpts = {
     autoInstallPeers: opts.autoInstallPeers,
     includeDirect: opts.includeDirect,
@@ -160,7 +174,8 @@ function addUnselectedWorkspaceProjects (
     injectWorkspacePackages: opts.injectWorkspacePackages,
   }
   for (const project of workspaceProjects) {
-    if (newProjects.some(({ rootDir }) => rootDir === project.rootDir)) continue
+    if (newProjectDirs.has(project.rootDir)) continue
+    newProjectDirs.add(project.rootDir)
     // This code block mirrors the installCase() function in
     // mutateModules(). Consider a refactor that combines this logic to
     // deduplicate code.

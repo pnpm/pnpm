@@ -1,6 +1,7 @@
 pub(super) use scope::initial_materialization_ids;
 
 mod frozen;
+mod missing_projects;
 mod scope;
 use scope::{
     allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
@@ -10,10 +11,10 @@ use scope::{
 };
 
 use super::{
-    Arc, AtomicU8, Catalogs, DependencyGroup, HashSet, HoistedDependencies, IncludedDependencies,
-    InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile, LockfileEntries,
-    MemCache, PackageManifest, Path, PathBuf, RebuildOptions, Reporter, ResolutionVerifier,
-    ThrottledClient, build_workspace_packages_map, map_fresh_lockfile_error,
+    Arc, AtomicU8, BTreeMap, Catalogs, DependencyGroup, HashSet, HoistedDependencies,
+    IncludedDependencies, InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile,
+    LockfileEntries, MemCache, PackageManifest, Path, PathBuf, RebuildOptions, Reporter,
+    ResolutionVerifier, ThrottledClient, build_workspace_packages_map, map_fresh_lockfile_error,
     map_frozen_lockfile_error, run::InstallView,
 };
 use crate::install_with_fresh_lockfile::{FreshInputs, OwnedInputs};
@@ -366,6 +367,40 @@ impl<'a> MaterializationInputs<'a, '_> {
         )
     }
 
+    /// See [`missing_projects::missing_project_manifests`]. Only a filtered
+    /// install keeps the importers of projects missing from disk.
+    fn missing_project_manifests(&self) -> Vec<(String, PackageManifest)> {
+        match (self.workspace.requested_importer_ids, self.lockfiles.merge_wanted) {
+            (Some(_), Some(lockfile)) => missing_projects::missing_project_manifests(
+                lockfile,
+                self.workspace.real_importer_ids,
+                self.workspace.workspace_root,
+            ),
+            _ => Vec::new(),
+        }
+    }
+
+    /// The importers the fresh resolve resolves: the projects on disk and the
+    /// projects missing from disk.
+    fn importer_manifests<'m>(
+        &self,
+        missing_projects: &'m [(String, PackageManifest)],
+    ) -> BTreeMap<String, &'m PackageManifest>
+    where
+        'a: 'm,
+    {
+        let mut importer_manifests = importer_manifests_by_id(
+            self.workspace.project_manifests,
+            self.workspace.workspace_root,
+        );
+        importer_manifests.extend(
+            missing_projects
+                .iter()
+                .map(|(importer_id, manifest)| (importer_id.clone(), manifest)),
+        );
+        importer_manifests
+    }
+
     async fn fresh<Reporter: self::Reporter + 'static>(
         mut self,
     ) -> Result<MaterializationOutput, InstallError> {
@@ -382,6 +417,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
+        let missing_projects = self.missing_project_manifests();
         let fresh_result = InstallWithFreshLockfile {
             inputs: self.fresh_inputs(
                 &dependency_groups,
@@ -389,10 +425,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 &prior_unbuilt,
                 &prior_skipped,
             ),
-            importer_manifests: importer_manifests_by_id(
-                self.workspace.project_manifests,
-                self.workspace.workspace_root,
-            ),
+            importer_manifests: self.importer_manifests(&missing_projects),
             owned: self.into_owned_inputs(lockfile_verification_gate),
         }
         .run::<Reporter>()

@@ -108,7 +108,7 @@ impl MaterializationScope {
                 .collect(),
         };
         let project_anchor_importer_ids =
-            project_anchor_importer_ids(install.projects.selected_ids, is_hoisted, &materialized);
+            project_anchor_importer_ids(install.projects.real_ids, &materialized);
         FinalScope { closure, groups: self.groups.clone(), project_anchor_importer_ids }
     }
 }
@@ -446,11 +446,13 @@ pub(super) fn log_layout_phase(config: &Config, phase_start: std::time::Instant)
         "phase complete",
     );
 }
-/// The importers whose own project manifests anchor the link phase.
+/// The importers whose own project manifests anchor the link phase: the
+/// importers in `materialized` that are also in `real_importer_ids`, or all
+/// of them when it is `None`. A previous hoisted install can have
+/// materialized an importer whose project is now missing from disk.
 pub(super) fn project_anchor_importer_ids(
-    _selected_importer_ids: Option<&HashSet<String>>,
-    _is_hoisted: bool,
-    materialization_importer_ids: &HashSet<String>,
+    real_importer_ids: Option<&HashSet<String>>,
+    materialized: &HashSet<String>,
 ) -> HashSet<String> {
-    materialization_importer_ids.clone()
+    real_importer_ids.map_or_else(|| materialized.clone(), |real| materialized & real)
 }

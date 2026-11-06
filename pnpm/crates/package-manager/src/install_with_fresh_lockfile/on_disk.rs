@@ -1,8 +1,11 @@
+pub(super) use projects::OnDiskProjects;
+
+mod projects;
+
 use super::{FreshInputs, errors::InstallWithFreshLockfileError, resolver_setup};
 use crate::{CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots};
 use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, LockfileEntries};
-use pnpm_package_manifest::PackageManifest;
+use pnpm_lockfile::LockfileEntries;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_tarball::MemCache;
 use std::{
@@ -16,7 +19,7 @@ use std::{
 ///
 /// `afterAllResolved` receives the resolved lockfile object and
 /// returns the (possibly mutated) lockfile that gets written. The round-trip
-/// goes through `serde_json::Value` so hook-added keys the typed [`Lockfile`]
+/// goes through `serde_json::Value` so hook-added keys the typed [`pnpm_lockfile::Lockfile`]
 /// cannot represent survive to disk; `serde_json`'s `preserve_order` feature
 /// keeps the output byte-identical to the typed write when the hook makes no
 /// changes. A throwing hook aborts the install.
@@ -92,14 +95,6 @@ pub(super) struct OnDiskRuntime<'a> {
         Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
     pub(super) known_requires_build: Option<&'a pnpm_deps_restorer::RequiresBuildBySnapshot>,
     pub(super) known_bins: Option<&'a pnpm_deps_restorer::PackageBins>,
-}
-
-pub(super) struct OnDiskProjects<'a> {
-    pub(super) materialization_lockfile: &'a Lockfile,
-    /// The whole wanted lockfile, with every variant's own snapshot.
-    pub(super) platform_lockfile: pnpm_deps_restorer::PlatformLockfile<'a>,
-    pub(super) importer_manifests: &'a std::collections::BTreeMap<String, &'a PackageManifest>,
-    pub(super) project_anchor_importer_ids: &'a std::collections::HashSet<String>,
 }
 
 /// What the on-disk phases leave for the install's result.
@@ -207,9 +202,11 @@ impl<'a> OnDiskInputs<'a> {
         materialized: &mut CreateVirtualStoreOutput,
         skipped: &mut SkippedSnapshots,
     ) -> Result<pnpm_deps_restorer::linking::LinkPhaseOutput, InstallWithFreshLockfileError> {
-        let project_manifests = self.projects.project_manifests(self.ctx.workspace_root, true);
-        let package_map_project_manifests =
-            self.projects.project_manifests(self.ctx.workspace_root, false);
+        let project_manifests = self.projects.anchor_manifests(self.ctx.workspace_root);
+        let package_map_project_manifests = self.projects.on_disk_manifests(
+            self.ctx.workspace_root,
+            self.install.projects.real_ids,
+        );
         let root_component_importers = self.projects.root_component_importers();
 
         let linked = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
@@ -426,34 +423,6 @@ pub(super) async fn settle_engine_name(
             deferred.resolve_for_build(ignore_scripts, requires_build_by_snapshot).await
         }
         None => engine_name,
-    }
-}
-
-impl OnDiskProjects<'_> {
-    fn project_manifests(
-        &self,
-        workspace_root: &Path,
-        only_anchors: bool,
-    ) -> Vec<(std::path::PathBuf, &PackageManifest)> {
-        self.importer_manifests
-            .iter()
-            .filter(|(id, _)| {
-                !only_anchors || self.project_anchor_importer_ids.contains(id.as_str())
-            })
-            .map(|(id, manifest)| (workspace_root.join(id), *manifest))
-            .collect()
-    }
-
-    fn root_component_importers(&self) -> std::collections::HashSet<String> {
-        self.importer_manifests
-            .iter()
-            .filter(|(id, _)| self.project_anchor_importer_ids.contains(id.as_str()))
-            .filter(|(_, manifest)| {
-                manifest.install_config_hoisting_limits()
-                    == Some(pnpm_deps_restorer::HOISTING_LIMITS_WORKSPACES)
-            })
-            .map(|(id, _)| id.clone())
-            .collect()
     }
 }
 
