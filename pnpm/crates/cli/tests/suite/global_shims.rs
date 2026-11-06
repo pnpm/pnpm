@@ -456,7 +456,7 @@ fn runtime_pin_survives_inherited_setting(name: &str, value: Option<&str>) {
     let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
     let outside = root.path().join("outside");
     fs::create_dir_all(&outside).unwrap();
-    let value = value.map_or_else(|| outside.into_os_string(), std::ffi::OsString::from);
+    let value = value.map(std::ffi::OsString::from).unwrap_or_else(|| outside.into_os_string());
 
     // The mocked release's `node` prints nothing; the global and local
     // fallbacks each print their name.
