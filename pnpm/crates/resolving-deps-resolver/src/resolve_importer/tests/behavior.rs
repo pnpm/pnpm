@@ -2,6 +2,54 @@ use super::{
     DepPath, DependencyGroup, HashMap, Mutex, ResolveResult, StubResolver, assert_eq, default_opts,
     fake_manifest, fake_result, merge_ranges, resolve_importer,
 };
+use crate::{HoistPeersOptions, MissingPeerInfo, hoist_peers};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+};
+use std::{collections::BTreeMap, path::Path};
+
+#[test]
+fn merged_local_peer_locators_survive_preferred_registry_versions() {
+    let preferred = PreferredVersions::from_iter([(
+        "b".to_string(),
+        BTreeMap::from([
+            ("1.0.0".to_string(), VersionSelectorEntry::Plain(VersionSelectorType::Version)),
+            (
+                "2.0.0".to_string(),
+                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                    selector_type: VersionSelectorType::Version,
+                    weight: 1000,
+                }),
+            ),
+        ]),
+    )]);
+    for range in ["file:../b", "link:../b"] {
+        for auto_install_peers_from_highest_match in [false, true] {
+            let merged = merge_ranges(&[range, range], auto_install_peers_from_highest_match)
+                .expect("identical peer locators merge");
+            for auto_install_peers in [false, true] {
+                let opts = HoistPeersOptions {
+                    auto_install_peers,
+                    all_preferred_versions: &preferred,
+                    workspace_root_deps: &[],
+                    override_bare_specifier: None,
+                    project_dir: Path::new("/workspace"),
+                    resolved_versions: &HashMap::default(),
+                };
+                let hoisted = hoist_peers(
+                    &opts,
+                    &[("b".to_string(), MissingPeerInfo { range: merged.clone() })],
+                );
+                assert_eq!(
+                    hoisted.get("b").map(String::as_str),
+                    auto_install_peers.then_some(range),
+                    "range={range}, highest_match={auto_install_peers_from_highest_match}, auto_install={auto_install_peers}",
+                );
+                assert_eq!(hoisted.len(), usize::from(auto_install_peers));
+            }
+        }
+    }
+}
 
 #[tokio::test]
 async fn does_not_hoist_when_disabled() {

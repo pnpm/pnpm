@@ -125,6 +125,17 @@ function pickHoistedPeerSpec (
     return overridden === '-' ? undefined : overridden
   }
   if (rootBareSpecifier) return rootBareSpecifier
+  return pickMissingPeerSpec(opts, { peerName, range })
+}
+
+function pickMissingPeerSpec (
+  opts: HoistPeersOptions,
+  { peerName, range }: { peerName: string, range: string }
+): string | undefined {
+  // A registry version cannot identify the package at a local peer's path.
+  if (range.startsWith('file:') || range.startsWith('link:')) {
+    return opts.autoInstallPeers ? range : undefined
+  }
   const preferredSelectors = opts.isUpdateTarget?.(peerName)
     ? omitLockfilePins(opts.allPreferredVersions![peerName])
     : opts.allPreferredVersions![peerName]
