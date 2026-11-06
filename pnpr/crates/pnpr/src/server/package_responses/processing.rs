@@ -50,7 +50,8 @@ impl Default for PackumentProcessing {
         Self {
             workers: Workers::new(workers),
             lookups: Workers::new(workers.min(2)),
-            admissions: Admissions::new(workers * 2),
+            // Source slots cover I/O as well as CPU work.
+            admissions: Admissions::new(workers * 8),
             cache: Mutex::new(BoundedCache::default()),
             fingerprints: RandomState::new(),
             contexts: TarContexts::default(),
