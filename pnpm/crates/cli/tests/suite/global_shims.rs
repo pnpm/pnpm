@@ -297,6 +297,7 @@ fn a_runtime_install_does_not_dispatch_its_own_shim_again() {
     assert!(global_runs.exists(), "the probe must run the global node");
 }
 
+#[cfg(unix)]
 const BUN_VERSION: &str = "1.2.19";
 
 /// Serve Bun `version` the way a fresh resolution fetches it: the `bun`
@@ -446,6 +447,7 @@ fn an_inherited_symlink_false_still_links_the_runtime() {
 /// A `PNPM_CONFIG_*` variable that a parent pnpm exports reaches the
 /// dispatch. The runtime install must still land in its environment and
 /// run. `None` sets the variable to a directory outside the environment.
+#[cfg(unix)]
 fn runtime_pin_survives_inherited_setting(name: &str, value: Option<&str>) {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
