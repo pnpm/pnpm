@@ -35,6 +35,7 @@ mod hoist_state;
 mod local_targets;
 mod locked_peers;
 mod missing_peers;
+mod optional_peer_candidates;
 mod options;
 
 use direct_seeds::DirectSeeds;
