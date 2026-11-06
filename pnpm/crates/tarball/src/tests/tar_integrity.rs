@@ -1,7 +1,7 @@
 use super::{
     AuthHeaders, Integrity, SilentReporter, StoreDir, TarballError, ThrottledClient, assert_eq,
     fast_retry_opts, fetch_and_extract_with_retry, gzip_bytes,
-    tar_resources::{large_tar, serve, sha512, small_tar},
+    tar_resources::{large_tar, many_file_tar, serve, sha512, small_tar},
     tempdir_with_leaked_path,
 };
 use crate::{ArchiveIntegrity, IntegrityKind, archive_integrity::ArchiveVerification};
@@ -44,7 +44,7 @@ async fn fetch_tgz(
 
 #[tokio::test]
 async fn a_tgz_reports_the_integrity_of_its_tar() {
-    for tar in [small_tar(), large_tar()] {
+    for tar in [small_tar(), many_file_tar(), large_tar()] {
         let tgz = gzip_bytes(&tar);
         let integrity = fetch_tgz(tgz.clone(), Some(&sha512(&tgz)), IntegrityKind::Resource)
             .await
@@ -55,7 +55,7 @@ async fn a_tgz_reports_the_integrity_of_its_tar() {
 
 #[tokio::test]
 async fn a_tgz_is_checked_against_a_tar_pin() {
-    for tar in [small_tar(), large_tar()] {
+    for tar in [small_tar(), many_file_tar(), large_tar()] {
         let tgz = gzip_bytes(&tar);
         let integrity = fetch_tgz(tgz.clone(), Some(&sha512(&tar)), IntegrityKind::Tar)
             .await

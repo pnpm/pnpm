@@ -15,6 +15,21 @@ pub(super) fn small_tar() -> Vec<u8> {
     ])
 }
 
+/// A package with enough files that the eager path writes them on the
+/// CAS-write pool while it hashes the tar.
+pub(super) fn many_file_tar() -> Vec<u8> {
+    let paths: Vec<String> = (0..40)
+        .map(|index| format!("package/lib/{index}.js"))
+        .collect();
+    let mut entries: Vec<(&str, &[u8])> = vec![("package/package.json", MANIFEST)];
+    entries.extend(
+        paths
+            .iter()
+            .map(|path| (path.as_str(), path.as_bytes())),
+    );
+    tar_with_entries(&entries)
+}
+
 pub(super) fn sha512(bytes: &[u8]) -> Integrity {
     let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
     opts.input(bytes);
