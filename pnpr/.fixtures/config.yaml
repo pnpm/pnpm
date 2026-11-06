@@ -94,10 +94,7 @@ registries:
     # pnpm's fetch retries, so one network blip fails every npm request
     # until the cooldown ends.
     maxFails: 0
-    # The deadline covers the whole response, body included. Tests that switch
-    # to a pinned pnpm download its native binary, over 20 MB, through this
-    # upstream. A slow npm link would cut it at the 30s default on every
-    # retry.
+    # pnpr_fixtures::REGISTRY_MOCK_UPSTREAM_TIMEOUT says why.
     timeout: 3m
 
   # Router combining local fixtures and upstream npm.

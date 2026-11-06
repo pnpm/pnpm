@@ -4,8 +4,8 @@ pub use metadata::{
     write_hosted_document, write_packuments, write_packuments_into,
 };
 pub use presets::{
-    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, TAR_REGISTRY, proxy_config,
-    registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
+    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, REGISTRY_MOCK_UPSTREAM_TIMEOUT, TAR_REGISTRY,
+    proxy_config, registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
 };
 
 mod metadata;

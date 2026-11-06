@@ -438,3 +438,19 @@ fn mock_config_yaml_enforces_registry_mock_protections() {
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
+
+#[test]
+fn mock_config_yaml_and_proxy_preset_share_the_npm_upstream_timeout() {
+    use super::{MockConfigPresets, REGISTRY_MOCK_UPSTREAM_TIMEOUT, mock_config_path};
+    use pnpr_config::Config;
+    use std::net::SocketAddr;
+
+    let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
+    let from_yaml = Config::from_yaml(&mock_config_path(), listen, None).unwrap();
+    let preset = Config::proxy(listen, std::env::temp_dir());
+    assert_eq!(
+        from_yaml.routing.upstreams["npmjs"].requests.timeout,
+        REGISTRY_MOCK_UPSTREAM_TIMEOUT
+    );
+    assert_eq!(preset.routing.upstreams["npmjs"].requests.timeout, REGISTRY_MOCK_UPSTREAM_TIMEOUT);
+}
