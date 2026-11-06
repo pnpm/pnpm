@@ -56,6 +56,9 @@ use std::{
 /// Error from the build-modules step.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum BuildModulesError {
+    #[diagnostic(transparent)]
+    SlotLock(#[error(source)] crate::gvs_slot_lock::GvsSlotLockError),
+
     /// A completed dependency build's executable could not be relinked before its consumer ran.
     #[diagnostic(transparent)]
     BinLink(#[error(source)] crate::LinkVirtualStoreBinsError),

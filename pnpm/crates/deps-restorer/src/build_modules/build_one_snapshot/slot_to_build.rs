@@ -49,7 +49,8 @@ pub(super) fn slot_to_build(
     let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
         context.directories.layout,
         snapshot_key,
-    );
+    )
+    .map_err(BuildModulesError::SlotLock)?;
     let started = is_started_build_marker(&marker)
         .map_err(|source| BuildModulesError::ReadBuildMarker { path: marker.clone(), source })?;
     if started || (awaiting_build && !marker.is_file()) {

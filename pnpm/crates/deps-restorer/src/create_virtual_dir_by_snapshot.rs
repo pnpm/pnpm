@@ -81,6 +81,9 @@ pub enum CreateVirtualDirError {
     ImportIndexedDir(#[error(source)] ImportIndexedDirError),
 
     #[diagnostic(transparent)]
+    SlotLock(#[error(source)] crate::gvs_slot_lock::GvsSlotLockError),
+
+    #[diagnostic(transparent)]
     SymlinkPackage(#[error(source)] SymlinkPackageError),
 
     /// The snapshot's package name is not a valid npm package name, so
@@ -181,7 +184,8 @@ impl CreateVirtualDirBySnapshot<'_> {
         let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
             self.layout,
             self.dependencies.package_key,
-        );
+        )
+        .map_err(CreateVirtualDirError::SlotLock)?;
         let interrupted_build = marker.is_file();
         Ok((slot, lock, interrupted_build))
     }
