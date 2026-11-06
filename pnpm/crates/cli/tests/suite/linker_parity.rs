@@ -310,3 +310,20 @@ fn a_command_a_kept_dependency_stops_declaring_is_pruned() {
         Change { before, after: commands(&app.join("node_modules")) }
     });
 }
+
+#[test]
+fn a_dependency_bin_is_linked_into_a_custom_modules_dir() {
+    let expected = (set(&["hello-world-js-bin"]), Entry::Absent);
+    assert_under_both_linkers(&expected, |linker, workspace| {
+        write_workspace_yaml(workspace, linker, "modulesDir: vendor\n");
+        write_json(
+            &workspace.join("package.json"),
+            &json!({ "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" } }),
+        );
+        install(workspace, &[]);
+        (
+            commands(&workspace.join("vendor")),
+            entry(&workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin")),
+        )
+    });
+}
