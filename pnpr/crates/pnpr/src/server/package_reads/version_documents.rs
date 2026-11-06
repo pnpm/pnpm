@@ -56,7 +56,7 @@ async fn serve_registry_version_manifest(
         Ok(table) => table,
         Err(err) => return err.into_response(),
     };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
+    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_ref());
     let manifest = match view.revision_registry {
         Some(source_registry) => extract_upstream_version_manifest(
             &packument,
@@ -71,7 +71,7 @@ async fn serve_registry_version_manifest(
     else {
         return not_found();
     };
-    let tars = view.tar_integrities.map(|table| (table, view.tar_registry));
+    let tars = view.tar_integrities.map(|table| (table.as_ref(), view.tar_registry));
     super::super::split_packuments::version_document_response(manifest, revision, tars)
 }
 

@@ -11,6 +11,8 @@ pub mod transparency_log;
 
 pub mod upload;
 
+pub use bounded_cache::BoundedCache;
+
 pub use atomic_write::{
     remove_atomic_write_temps, unique_tmp_path, write_atomic, write_atomic_new,
 };
@@ -45,6 +47,7 @@ pub use pnpr_package_name::Ecosystem;
 
 pub use tar_integrities::DerivedTar;
 
+mod bounded_cache;
 mod tar_integrities;
 mod upstream_cache;
 

@@ -174,7 +174,7 @@ pub(super) async fn serve_registry_packument(
         Ok(table) => table,
         Err(err) => return err.into_response(),
     };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
+    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_ref());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
             // The upstream registry's per-package rules gate every served
@@ -338,13 +338,15 @@ pub(super) async fn serve_hosted_packument(
     match view {
         Ok(Some(view)) => match packument_response(
             name,
-            &view.bytes,
+            axum::body::Bytes::from_owner(view.bytes),
             tarball_base,
             view_options,
             state,
             headers,
             max_age,
-        ) {
+        )
+        .await
+        {
             Ok(response) => super::with_generation(response, Some(&view.generation)),
             Err(err) => err.into_response(),
         },
