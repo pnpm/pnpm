@@ -1,5 +1,3 @@
-#[cfg(all(unix, not(target_os = "linux")))]
-use super::narrow_mode;
 use std::{
     io,
     path::{Path, PathBuf},
@@ -124,15 +122,17 @@ fn grant_unix_dir_mode(template: &Path, descendant: &Path, extra: u32) -> io::Re
     let mut parent = open_directory_anchor(template)?;
     for component in descendant.components() {
         let std::path::Component::Normal(name) = component else { continue };
-        let opened = crate::ensure_file::retry_on_fd_pressure(|| open_directory_at(&parent, name));
-        let (child, restricted) = match opened {
+        let opened = crate::ensure_file::retry_on_fd_pressure(|| {
+            pnpm_ffi_fs::open_directory_for_traversal(&parent, name)
+        });
+        let (child, access) = match opened {
             Ok(opened) => opened,
             Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
                 return Ok(());
             }
             Err(error) => return Err(error),
         };
-        add_opened_dir_mode_bits(&parent, name, &child, restricted, extra)?;
+        add_opened_dir_mode_bits(&parent, name, &child, access, extra)?;
         parent = child;
     }
     Ok(())
@@ -143,24 +143,24 @@ fn add_opened_dir_mode_bits(
     parent: &std::fs::File,
     name: &std::ffi::OsStr,
     child: &std::fs::File,
-    restricted: bool,
+    access: pnpm_ffi_fs::DirectoryAccess,
     extra: u32,
 ) -> io::Result<()> {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::MetadataExt as _;
+    let search_only = access == pnpm_ffi_fs::DirectoryAccess::SearchOnly;
     let meta = child.metadata()?;
-    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    if restricted && meta.uid() != unsafe { libc::geteuid() } {
+    if search_only && meta.uid() != pnpm_ffi_process::effective_user_id() {
         return Ok(());
     }
-    let mode = meta.mode() & 0o7777;
-    let merged = mode | extra;
+    let mode = pnpm_ffi_fs::FileMode::from_permissions(&meta.permissions());
+    let merged = pnpm_ffi_fs::FileMode::from_mode(mode.mode() | extra);
     if merged == mode {
         return Ok(());
     }
-    let result = if restricted {
-        chmod_restricted_directory(parent, name, child, merged)
+    let result = if search_only {
+        chmod_search_only_directory(parent, name, child, merged)
     } else {
-        child.set_permissions(std::fs::Permissions::from_mode(merged))
+        child.set_permissions(merged.into())
     };
     match result {
         Err(error) if is_unchangeable(&error) => Ok(()),
@@ -187,94 +187,29 @@ fn open_directory_anchor(path: &Path) -> io::Result<std::fs::File> {
 
 #[cfg(unix)]
 fn open_restricted_directory_anchor(path: &Path) -> io::Result<std::fs::File> {
-    use std::os::fd::FromRawFd;
-    let path = path_to_cstring(path)?;
-    crate::ensure_file::retry_on_fd_pressure(|| {
-        // SAFETY: the path is NUL-terminated and no creation mode is needed.
-        let fd =
-            unsafe { libc::open(path.as_ptr(), restricted_directory_flags() & !libc::O_NOFOLLOW) };
-        if fd < 0 {
-            Err(io::Error::last_os_error())
-        } else {
-            // SAFETY: successful open transfers ownership of this descriptor.
-            Ok(unsafe { std::fs::File::from_raw_fd(fd) })
-        }
-    })
-}
-
-#[cfg(unix)]
-fn open_directory_at(
-    parent: &std::fs::File,
-    name: &std::ffi::OsStr,
-) -> io::Result<(std::fs::File, bool)> {
-    use std::os::fd::{AsRawFd, FromRawFd};
-    let name = path_to_cstring(Path::new(name))?;
-    let flags = libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
-    // SAFETY: the name is NUL-terminated and the parent descriptor stays open.
-    let mut fd = unsafe { libc::openat(parent.as_raw_fd(), name.as_ptr(), flags) };
-    let restricted = fd < 0 && io::Error::last_os_error().kind() == io::ErrorKind::PermissionDenied;
-    if restricted {
-        // SAFETY: the name and parent descriptor remain valid; no creation mode is needed.
-        fd = unsafe {
-            libc::openat(parent.as_raw_fd(), name.as_ptr(), restricted_directory_flags())
-        };
-    }
-    if fd < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    // SAFETY: successful open transfers ownership of this descriptor.
-    Ok((unsafe { std::fs::File::from_raw_fd(fd) }, restricted))
-}
-
-#[cfg(unix)]
-fn path_to_cstring(path: &Path) -> io::Result<std::ffi::CString> {
-    use std::os::unix::ffi::OsStrExt;
-    std::ffi::CString::new(path.as_os_str().as_bytes())
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
+    crate::ensure_file::retry_on_fd_pressure(|| pnpm_ffi_fs::open_search_directory(path))
 }
 
 #[cfg(target_os = "linux")]
-fn restricted_directory_flags() -> libc::c_int {
-    libc::O_PATH | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC
-}
-
-#[cfg(target_os = "macos")]
-fn restricted_directory_flags() -> libc::c_int {
-    libc::O_SEARCH | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC
-}
-
-#[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
-fn restricted_directory_flags() -> libc::c_int {
-    libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_CLOEXEC
-}
-
-#[cfg(target_os = "linux")]
-fn chmod_restricted_directory(
+fn chmod_search_only_directory(
     _parent: &std::fs::File,
     _name: &std::ffi::OsStr,
     child: &std::fs::File,
-    mode: u32,
+    mode: pnpm_ffi_fs::FileMode,
 ) -> io::Result<()> {
-    use std::os::unix::{fs::PermissionsExt, io::AsRawFd};
+    use std::os::unix::io::AsRawFd as _;
     let path = format!("/proc/self/fd/{}", child.as_raw_fd());
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+    std::fs::set_permissions(path, mode.into())
 }
 
 #[cfg(all(unix, not(target_os = "linux")))]
-fn chmod_restricted_directory(
+fn chmod_search_only_directory(
     parent: &std::fs::File,
     name: &std::ffi::OsStr,
     _child: &std::fs::File,
-    mode: u32,
+    mode: pnpm_ffi_fs::FileMode,
 ) -> io::Result<()> {
-    use std::os::fd::AsRawFd;
-    let name = path_to_cstring(Path::new(name))?;
-    let mode = narrow_mode::<libc::mode_t>(mode)?;
-    // SAFETY: name is NUL-terminated and parent stays open for the call.
-    let status = unsafe {
-        libc::fchmodat(parent.as_raw_fd(), name.as_ptr(), mode, libc::AT_SYMLINK_NOFOLLOW)
-    };
-    if status == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+    pnpm_ffi_fs::set_mode_at(parent, name, mode)
 }
 
 /// The group permission and setgid bits a new directory inherits from an

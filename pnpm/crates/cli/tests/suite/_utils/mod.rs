@@ -1,7 +1,7 @@
-pub mod console;
-#[cfg(target_os = "linux")]
-pub mod inotify;
-pub mod terminal;
+#[cfg(windows)]
+pub use pnpm_testing_utils::console;
+#[cfg(unix)]
+pub use pnpm_testing_utils::terminal;
 
 pub use pnpm_testing_utils::bin::read_v11_bundle_path;
 

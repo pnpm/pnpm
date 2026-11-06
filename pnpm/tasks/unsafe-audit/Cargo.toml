@@ -1,0 +1,23 @@
+[package]
+name = "pnpm-unsafe-audit"
+description = "Holds the workspace to the unsafe policy"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+derive_more = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+text-block-macros = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

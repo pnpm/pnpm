@@ -338,18 +338,10 @@ enum StreamFd {
 
 #[cfg(unix)]
 fn terminal_columns(stream: StreamFd) -> Option<usize> {
-    let fd = match stream {
-        StreamFd::Stdout => libc::STDOUT_FILENO,
-        StreamFd::Stderr => libc::STDERR_FILENO,
-    };
-    // SAFETY: `winsize` is plain-old-data; `ioctl` only writes into it and
-    // the return code is checked before it is read.
-    unsafe {
-        let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0).then_some(
-            ws.ws_col as usize,
-        )
-    }
+    pnpm_ffi_terminal::terminal_columns(match stream {
+        StreamFd::Stdout => pnpm_ffi_terminal::Stream::Output,
+        StreamFd::Stderr => pnpm_ffi_terminal::Stream::Error,
+    })
 }
 
 #[cfg(not(unix))]

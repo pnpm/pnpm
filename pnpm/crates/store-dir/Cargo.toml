@@ -11,6 +11,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-ffi-sqlite = { workspace = true }
+pnpm-ffi-fs = { workspace = true }
 pnpm-package-name = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-crypto-hash = { workspace = true }

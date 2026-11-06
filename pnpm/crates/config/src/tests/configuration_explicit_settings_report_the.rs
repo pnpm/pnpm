@@ -1,8 +1,8 @@
 use super::{
     Config, EnvGuard, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, HostNoHome, LinkProbe,
     NodePackageMapMode, NodePackageMapType, OsString, Path, PathBuf, assert_eq, capture_warnings,
-    config_from_workspace_yaml, env, fs, io, load_with_project_and_user, repo_on_branch,
-    safe_host_var, tempdir, write_file,
+    config_from_workspace_yaml, fs, io, load_with_project_and_user, repo_on_branch, safe_host_var,
+    tempdir, write_file,
 };
 
 /// `pnpm config get` reads the explicit-settings record, which therefore has
@@ -61,9 +61,10 @@ pub fn explicit_settings_mirror_audit_level_from_the_audit_section() {
 /// fires even with no `.npmrc` present.
 #[test]
 pub fn proxy_env_fallback_applies_through_current() {
-    // Snapshot every proxy var the cascade might read so peer tests
-    // can't observe our mutations and so the env restores cleanly.
-    let _g = EnvGuard::snapshot([
+    // Every proxy var the cascade might read is snapshotted, so peer tests
+    // cannot observe these mutations and the env restores cleanly, and then
+    // cleared, so a host-set value cannot leak in and skew the assertion.
+    const PROXY_VARS: [&str; 12] = [
         "HTTPS_PROXY",
         "https_proxy",
         "HTTP_PROXY",
@@ -76,27 +77,11 @@ pub fn proxy_env_fallback_applies_through_current() {
         "pnpm_config_workspace_dir",
         "NPM_CONFIG_WORKSPACE_DIR",
         "npm_config_workspace_dir",
-    ]);
+    ];
+    let guard = EnvGuard::snapshot(PROXY_VARS);
     let tmp = tempdir().unwrap();
-    // SAFETY: EnvGuard above serializes the test against other
-    // env-mutating tests in this process; no other thread reads
-    // these vars concurrently. The other proxy vars are removed so
-    // a host-set value can't leak in and skew the assertion.
-    unsafe {
-        env::remove_var("HTTPS_PROXY");
-        env::remove_var("https_proxy");
-        env::remove_var("HTTP_PROXY");
-        env::remove_var("http_proxy");
-        env::remove_var("PROXY");
-        env::remove_var("proxy");
-        env::remove_var("NO_PROXY");
-        env::remove_var("no_proxy");
-        env::remove_var("PNPM_CONFIG_WORKSPACE_DIR");
-        env::remove_var("pnpm_config_workspace_dir");
-        env::remove_var("NPM_CONFIG_WORKSPACE_DIR");
-        env::remove_var("npm_config_workspace_dir");
-        env::set_var("HTTPS_PROXY", "http://env.example:8080");
-    }
+    guard.remove_all(PROXY_VARS);
+    guard.set("HTTPS_PROXY", "http://env.example:8080");
     let config =
         Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
     assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://env.example:8080"));

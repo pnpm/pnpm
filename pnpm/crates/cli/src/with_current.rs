@@ -28,15 +28,22 @@ pub struct MissingWithCurrentCommand;
 /// no-op when there is no such pair. As a side effect, forces
 /// `pmOnFail=ignore` for the in-process run (and its children) via the
 /// `pnpm_config_pm_on_fail` env var.
-pub fn rewrite(argv: Vec<OsString>) -> miette::Result<Vec<OsString>> {
+///
+/// `single_threaded` is what permits that environment change, and taking
+/// it by value makes this the last one the startup path can make: the
+/// caller cannot reach for the witness again once a runtime or a pool is
+/// up.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "dropping the witness here is what ends the startup path's licence to change the environment"
+)]
+pub fn rewrite(
+    argv: Vec<OsString>,
+    single_threaded: pnpm_ffi_process::SingleThreaded,
+) -> miette::Result<Vec<OsString>> {
     let (argv, force_pm_on_fail_ignore) = plan(argv)?;
     if force_pm_on_fail_ignore {
-        // SAFETY: `rewrite` runs in `main` before the tokio runtime and
-        // rayon pool start, so the process is single-threaded and no other
-        // thread can be reading the environment concurrently.
-        unsafe {
-            std::env::set_var("pnpm_config_pm_on_fail", "ignore");
-        }
+        single_threaded.set_var("pnpm_config_pm_on_fail", "ignore");
     }
     Ok(argv)
 }

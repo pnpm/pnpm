@@ -416,8 +416,7 @@ fn default_unsafe_perm_on_windows_is_always_true() {
 #[cfg(all(unix, not(target_os = "cygwin")))]
 #[test]
 fn default_unsafe_perm_on_posix_matches_runtime_uid() {
-    // SAFETY: `libc::getuid` is documented as always-safe.
-    let uid = unsafe { libc::getuid() } as u32;
+    let uid = pnpm_ffi_process::real_user_id();
     assert_eq!(default_unsafe_perm(), is_unsafe_perm_posix(uid));
 }
 

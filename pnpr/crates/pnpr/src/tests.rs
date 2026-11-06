@@ -22,11 +22,7 @@ const ENV_VARS: [&str; 12] = [
 /// only what the test sets and never what the developer's shell exports.
 fn scrubbed_env() -> EnvGuard {
     let env = EnvGuard::snapshot(ENV_VARS);
-    for var in ENV_VARS {
-        // SAFETY: `env` holds the process-wide env-mutation lock and restores
-        // every variable in `ENV_VARS` on drop.
-        unsafe { std::env::remove_var(var) };
-    }
+    env.remove_all(ENV_VARS);
     env
 }
 

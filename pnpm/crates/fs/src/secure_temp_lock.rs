@@ -24,11 +24,7 @@ pub fn secure_user_lock_dir(name: &str) -> io::Result<PathBuf> {
 
 fn secure_lock_dir(mut directory: PathBuf, name: &str) -> io::Result<PathBuf> {
     #[cfg(unix)]
-    directory.push(format!(
-        "{name}-{}",
-        // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-        unsafe { libc::geteuid() },
-    ));
+    directory.push(format!("{name}-{}", pnpm_ffi_process::effective_user_id()));
     #[cfg(target_os = "wasi")]
     directory.push(format!("{name}-{}", crate::wasi_fs::user_id()));
     #[cfg(not(any(unix, target_os = "wasi")))]
@@ -72,8 +68,7 @@ fn xdg_runtime_dir(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
     const OWNER_WRITE_AND_SEARCH: u32 = 0o300;
     const GROUP_OR_OTHER_WRITE: u32 = 0o022;
     let path = PathBuf::from(value?);
-    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    let effective_user = unsafe { libc::geteuid() };
+    let effective_user = pnpm_ffi_process::effective_user_id();
     let usable = fs::metadata(&path)
         .is_ok_and(|metadata| {
             let mode = metadata.mode();
@@ -93,43 +88,12 @@ fn android_user_lock_root(home: Option<std::ffi::OsString>) -> PathBuf {
 
 #[cfg(windows)]
 fn user_lock_root() -> io::Result<PathBuf> {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt as _, ptr, slice};
-    use windows_sys::Win32::{
-        Foundation::S_OK,
-        System::Com::CoTaskMemFree,
-        UI::Shell::{FOLDERID_LocalAppData, KF_FLAG_DONT_VERIFY, SHGetKnownFolderPath},
-    };
-
-    let mut path = ptr::null_mut();
-    // SAFETY: `path` is a valid out pointer. The returned allocation is
-    // inspected through its terminating NUL and released with `CoTaskMemFree`.
-    let result = unsafe {
-        SHGetKnownFolderPath(
-            &FOLDERID_LocalAppData,
-            KF_FLAG_DONT_VERIFY as u32,
-            ptr::null_mut(),
-            &raw mut path,
-        )
-    };
-    if result != S_OK {
-        return Err(io::Error::other(format!(
-            "failed to resolve the local application data directory: HRESULT {result:#x}",
-        )));
-    }
-    // SAFETY: a successful call returns a valid NUL-terminated UTF-16 string.
-    let len = unsafe {
-        let mut len = 0;
-        while *path.add(len) != 0 {
-            len += 1;
-        }
-        len
-    };
-    // SAFETY: `path` points to the NUL-terminated allocation returned above,
-    // and `len` excludes the terminator.
-    let directory = unsafe { OsString::from_wide(slice::from_raw_parts(path, len)) };
-    // SAFETY: the pointer came from `SHGetKnownFolderPath` and has not been freed.
-    unsafe { CoTaskMemFree(path.cast()) };
-    Ok(PathBuf::from(directory))
+    pnpm_ffi_fs::local_app_data_directory()
+        .map_err(|result| {
+            io::Error::other(format!(
+                "failed to resolve the local application data directory: HRESULT {result:#x}",
+            ))
+        })
 }
 
 /// Open a lock file without following symlinks on Unix, then verify that the
@@ -214,8 +178,7 @@ fn secure_unix_directory(directory: &Path) -> io::Result<()> {
     use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
 
     let metadata = fs::symlink_metadata(directory)?;
-    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    let effective_user = unsafe { libc::geteuid() };
+    let effective_user = pnpm_ffi_process::effective_user_id();
     if !metadata.is_dir() || metadata.uid() != effective_user {
         return Err(io::Error::other(format!(
             "lock directory must be a real directory owned by the current user: {}",
@@ -230,8 +193,7 @@ fn validate_unix_file(file: &fs::File) -> io::Result<()> {
     use std::os::unix::fs::MetadataExt as _;
 
     let metadata = file.metadata()?;
-    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    let effective_user = unsafe { libc::geteuid() };
+    let effective_user = pnpm_ffi_process::effective_user_id();
     if !metadata.is_file() || metadata.uid() != effective_user {
         return Err(io::Error::other("lock must be a regular file owned by the current user"));
     }

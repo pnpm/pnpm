@@ -84,7 +84,7 @@ fn windows_path_len(path: &Path) -> usize {
 fn short_path(path: &Path) -> Option<PathBuf> {
     use std::path::{Component, Prefix};
 
-    let short = query_short_path(&verbatim_wide(path)?)?;
+    let short = pnpm_ffi_fs::short_path(&verbatim(path)?)?;
     let short = dunce::simplified(&short);
     let still_verbatim = match short.components().next() {
         Some(Component::Prefix(prefix)) => matches!(
@@ -98,53 +98,22 @@ fn short_path(path: &Path) -> Option<PathBuf> {
     })
 }
 
-/// `path` as a null-terminated UTF-16 verbatim path, so `GetShortPathNameW`
-/// accepts paths over `MAX_PATH`.
+/// `path` in its extended-length form, so the short-name query accepts a
+/// path over `MAX_PATH`. `None` for a path with no drive letter, which has
+/// no short form to ask for.
 #[cfg(windows)]
-fn verbatim_wide(path: &Path) -> Option<Vec<u16>> {
-    use std::{
-        ffi::OsStr,
-        os::windows::ffi::OsStrExt,
-        path::{Component, Prefix},
-    };
+fn verbatim(path: &Path) -> Option<PathBuf> {
+    use std::path::{Component, Prefix};
 
     let Some(Component::Prefix(prefix)) = path.components().next() else { return None };
-    let wide = path
-        .as_os_str()
-        .encode_wide()
-        .chain(std::iter::once(0));
     match prefix.kind() {
-        Prefix::Disk(_) => Some(
-            OsStr::new(r"\\?\")
-                .encode_wide()
-                .chain(wide)
-                .collect(),
-        ),
-        Prefix::VerbatimDisk(_) => Some(wide.collect()),
+        Prefix::Disk(_) => {
+            let mut verbatim = std::ffi::OsString::from(r"\\?\");
+            verbatim.push(path.as_os_str());
+            Some(verbatim.into())
+        }
+        Prefix::VerbatimDisk(_) => Some(path.to_path_buf()),
         _ => None,
-    }
-}
-
-/// `GetShortPathNameW` over a null-terminated UTF-16 path.
-#[cfg(windows)]
-fn query_short_path(verbatim: &[u16]) -> Option<PathBuf> {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt, ptr};
-    use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;
-
-    // SAFETY: the first call obtains the required UTF-16 buffer size from a
-    // null-terminated input. The second writes into that sized buffer, and its
-    // returned length is checked before constructing the path.
-    unsafe {
-        let required = GetShortPathNameW(verbatim.as_ptr(), ptr::null_mut(), 0);
-        if required == 0 {
-            return None;
-        }
-        let mut buffer = vec![0_u16; required as usize];
-        let length = GetShortPathNameW(verbatim.as_ptr(), buffer.as_mut_ptr(), required);
-        if length == 0 || length >= required {
-            return None;
-        }
-        Some(PathBuf::from(OsString::from_wide(&buffer[..length as usize])))
     }
 }
 

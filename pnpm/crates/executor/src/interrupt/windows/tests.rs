@@ -190,8 +190,6 @@ fn an_interrupt_for_a_released_entry_is_not_counted() {
 /// which nextest gives it alone, so no other test's child is registered.
 #[test]
 fn an_interrupt_while_no_command_runs_releases_the_process_tree_cleanup() {
-    use windows_sys::Win32::System::Console::CTRL_C_EVENT;
-
     let armed = || {
         crate::job_control::ARMED_JOB
             .lock()
@@ -201,10 +199,12 @@ fn an_interrupt_while_no_command_runs_releases_the_process_tree_cleanup() {
     crate::job_control::arm_process_tree_cleanup();
     assert!(armed(), "the cleanup is armed before the interrupt");
 
-    // SAFETY: the handler reads only atomics and the relay list, and with
-    // no child registered it ends nothing.
-    let handled = unsafe { super::relay_console_event(CTRL_C_EVENT) };
+    let handled = super::relay_console_event(pnpm_ffi_signal::Interrupt::Interrupt);
 
-    assert_eq!(handled, 0, "pnpm ends, as nothing waits on the interrupt");
+    assert_eq!(
+        handled,
+        pnpm_ffi_signal::Handled::No,
+        "pnpm ends, as nothing waits on the interrupt",
+    );
     assert!(!armed(), "the cleanup is released before pnpm ends");
 }

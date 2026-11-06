@@ -38,129 +38,46 @@
 use crate::process::Child;
 
 #[cfg(windows)]
-use std::sync::{Arc, Mutex, PoisonError};
+use pnpm_ffi_process::Job;
 #[cfg(windows)]
-use windows_sys::Win32::Foundation::HANDLE;
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// The armed job, until the cleanup is released. Tests read it to see whether
 /// a path released the cleanup.
 #[cfg(windows)]
-pub(crate) static ARMED_JOB: Mutex<Option<JobHandle>> = Mutex::new(None);
+pub(crate) static ARMED_JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
 
 /// The armed job that spawned children join explicitly because pacquet itself
 /// stayed out of it. `None` while pacquet is a member of its own job, so the
 /// children inherit the membership, and after the cleanup is released.
 #[cfg(windows)]
-static CHILD_JOB: Mutex<Option<JobHandle>> = Mutex::new(None);
-
-#[cfg(windows)]
-pub(crate) struct JobHandle(HANDLE);
-
-// SAFETY: a Job Object handle is a process-wide kernel handle with no
-// thread affinity, so it can be used from any thread.
-#[cfg(windows)]
-unsafe impl Send for JobHandle {}
-
-// SAFETY: as for `Send`; every call made through a shared handle is a
-// thread-safe kernel call.
-#[cfg(windows)]
-unsafe impl Sync for JobHandle {}
-
-/// Set the limit flags of `job`, reporting whether the call succeeded.
-#[cfg(windows)]
-fn set_limits(job: HANDLE, flags: u32) -> bool {
-    use std::{
-        mem::{size_of, zeroed},
-        ptr,
-    };
-    use windows_sys::Win32::System::JobObjects::{
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-        SetInformationJobObject,
-    };
-
-    // SAFETY: `job` is a valid job handle the caller owns, and the
-    // information pointer refers to a stack local that outlives the call.
-    unsafe {
-        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
-        info.BasicLimitInformation.LimitFlags = flags;
-        SetInformationJobObject(
-            job,
-            JobObjectExtendedLimitInformation,
-            ptr::addr_of!(info).cast(),
-            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-        ) != 0
-    }
-}
-
-/// A new job with the limit `flags`, or `None` if it cannot be made.
-#[cfg(windows)]
-fn create_job(flags: u32) -> Option<HANDLE> {
-    use std::ptr;
-    use windows_sys::Win32::{Foundation::CloseHandle, System::JobObjects::CreateJobObjectW};
-
-    // SAFETY: both pointer arguments are null, and the handle is checked
-    // before use and closed if the limits cannot be set.
-    unsafe {
-        let job = CreateJobObjectW(ptr::null(), ptr::null());
-        if job.is_null() {
-            return None;
-        }
-        if !set_limits(job, flags) {
-            CloseHandle(job);
-            return None;
-        }
-        Some(job)
-    }
-}
+static CHILD_JOB: Mutex<Option<Arc<Job>>> = Mutex::new(None);
 
 /// Tie every process pnpm starts from now on to pnpm, so they end with it if
-/// it is killed or crashes. [`crate::exit()`] releases them again on every
-/// exit pnpm makes on its own. A failure to arm leaves the processes untied
-/// rather than failing the command.
+/// it is killed or crashes. Every exit pnpm makes on its own releases them
+/// again, through [`crate::exit()`] or the end of `main`. A failure to arm
+/// leaves the processes untied rather than failing the command.
 #[cfg(windows)]
 pub fn arm_process_tree_cleanup() {
-    use windows_sys::Win32::{
-        Foundation::CloseHandle,
-        System::JobObjects::{JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE},
-    };
-
     let mut armed = ARMED_JOB.lock().unwrap_or_else(PoisonError::into_inner);
     if armed.is_some() {
         return;
     }
-    // Not `SILENT_BREAKAWAY_OK`: that would release every descendant and
-    // leave nothing for `KILL_ON_JOB_CLOSE` to clean up.
-    let Some(job) = create_job(JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK)
-    else {
+    let Some(job) = Job::with_tree_cleanup().map(Arc::new) else {
         return;
     };
-    if enclosing_job_releases_children() {
-        *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = Some(JobHandle(job));
-    } else if !join_job(job) {
+    if pnpm_ffi_process::enclosing_job_releases_children() {
+        *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(&job));
+    } else if !job.assign_current_process() {
         // Fails when pacquet is already inside a job that forbids nesting;
         // fall back to no tree cleanup rather than aborting the command.
-        // SAFETY: `job` is ours and nothing else holds it.
-        unsafe {
-            CloseHandle(job);
-        }
+        // Closing the job here ends nothing, since the join that would have
+        // put this process in it is what failed.
         return;
     }
-    // Deliberately do not close `job`: it must stay open until the process
-    // exits so `KILL_ON_JOB_CLOSE` fires then. Closing it now would also
-    // terminate this process when it is assigned to the job.
-    *armed = Some(JobHandle(job));
-}
-
-/// Make pacquet itself a member of `job`, reporting whether it joined.
-#[cfg(windows)]
-fn join_job(job: HANDLE) -> bool {
-    use windows_sys::Win32::System::{
-        JobObjects::AssignProcessToJobObject, Threading::GetCurrentProcess,
-    };
-
-    // SAFETY: `job` is a valid job handle the caller owns, and
-    // `GetCurrentProcess` returns a pseudo-handle that must not be closed.
-    unsafe { AssignProcessToJobObject(job, GetCurrentProcess()) != 0 }
+    // The job is deliberately held rather than dropped: it must stay open
+    // until the process exits so its kill-on-close fires then.
+    *armed = Some(job);
 }
 
 #[cfg(not(windows))]
@@ -173,89 +90,39 @@ pub fn arm_process_tree_cleanup() {}
 /// interrupt while pnpm runs no command.
 #[cfg(windows)]
 pub(crate) fn release_process_tree_cleanup() {
-    use windows_sys::Win32::{
-        Foundation::CloseHandle, System::JobObjects::JOB_OBJECT_LIMIT_BREAKAWAY_OK,
-    };
-
     // Take the locks in the order arming takes them, and hold the armed job's
     // across both, so a release that races the arming waits for it rather
     // than leaving a job armed behind it. Children stop being assigned
-    // first, so no spawn can reach the handle once it is closed.
+    // first, so no spawn can reach the job once it is closed.
     let mut armed = ARMED_JOB.lock().unwrap_or_else(PoisonError::into_inner);
     *CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner) = None;
-    let Some(JobHandle(job)) = armed.take() else {
+    let Some(job) = armed.take() else {
         return;
     };
     drop(armed);
-    // Clear the kill limit before closing the handle; if clearing fails,
-    // leave the armed handle for the operating system to close at exit.
-    // Breakaway stays allowed for the processes that remain in the job.
-    if set_limits(job, JOB_OBJECT_LIMIT_BREAKAWAY_OK) {
-        // SAFETY: `job` is the handle created by
-        // [`arm_process_tree_cleanup`], closed only here.
-        unsafe {
-            CloseHandle(job);
-        }
+    // Clear the kill limit before the handle closes. Breakaway stays allowed
+    // for the processes that remain in the job. If clearing fails, hold the
+    // job open for the operating system to close at exit instead, since
+    // closing an armed one terminates what is still in it.
+    if !job.disarm() {
+        let _armed = std::mem::ManuallyDrop::new(job);
     }
 }
 
 #[cfg(not(windows))]
 pub(crate) fn release_process_tree_cleanup() {}
 
-/// Whether pacquet is already a member of a job that lets its members'
-/// children silently break away, so that nesting our own job would pin them
-/// in it instead.
-#[cfg(windows)]
-fn enclosing_job_releases_children() -> bool {
-    use std::{
-        mem::{size_of, zeroed},
-        ptr,
-    };
-    use windows_sys::Win32::System::JobObjects::{
-        IsProcessInJob, JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JobObjectExtendedLimitInformation, QueryInformationJobObject,
-    };
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
-
-    // SAFETY: every pointer argument is null or a stack local that outlives
-    // the call. A null job handle addresses the immediate job of the calling
-    // process.
-    unsafe {
-        let mut in_job = 0;
-        if IsProcessInJob(GetCurrentProcess(), ptr::null_mut(), &raw mut in_job) == 0 || in_job == 0
-        {
-            return false;
-        }
-        let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = zeroed();
-        let queried = QueryInformationJobObject(
-            ptr::null_mut(),
-            JobObjectExtendedLimitInformation,
-            ptr::addr_of_mut!(info).cast(),
-            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            ptr::null_mut(),
-        );
-        queried != 0
-            && info.BasicLimitInformation.LimitFlags & JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK != 0
-    }
-}
-
 /// Make a freshly spawned child a member of the armed job when pacquet itself
 /// stayed out of it. Call it right after the spawn: a process the child
 /// starts before the assignment is not covered (see the module docs).
 #[cfg(windows)]
 pub(crate) fn assign_child(child: &Child) {
-    use std::os::windows::io::AsRawHandle;
-    use windows_sys::Win32::System::JobObjects::AssignProcessToJobObject;
+    use std::os::windows::io::AsHandle as _;
 
     let child_job = CHILD_JOB.lock().unwrap_or_else(PoisonError::into_inner);
     let Some(job) = child_job.as_ref() else { return };
-    // SAFETY: `job.0` is the open handle created by
-    // [`arm_process_tree_cleanup`], kept alive by the lock held across the
-    // call, and the child handle is owned by `child`. A failed assignment
-    // only leaves that child outside the tree cleanup.
-    unsafe {
-        AssignProcessToJobObject(job.0, child.as_raw_handle());
-    }
+    // A failed assignment only leaves that child outside the tree cleanup.
+    let _ = job.assign(child.as_handle());
 }
 
 #[cfg(not(windows))]
@@ -267,21 +134,7 @@ pub(crate) fn assign_child(_: &Child) {}
 /// leaves its leftovers running, as any command does.
 #[cfg(windows)]
 #[derive(Clone)]
-pub(crate) struct TaskJob(Arc<OwnedJob>);
-
-#[cfg(windows)]
-struct OwnedJob(JobHandle);
-
-#[cfg(windows)]
-impl Drop for OwnedJob {
-    fn drop(&mut self) {
-        // SAFETY: the handle was created by `TaskJob::contain` and is closed
-        // once, by the last owner.
-        unsafe {
-            windows_sys::Win32::Foundation::CloseHandle((self.0).0);
-        }
-    }
-}
+pub(crate) struct TaskJob(Arc<Job>);
 
 #[cfg(windows)]
 impl TaskJob {
@@ -289,28 +142,15 @@ impl TaskJob {
     /// [`assign_child`]. `None` when the job cannot be made, which leaves the
     /// task to [`crate::ProcessTracker`]'s fallback.
     pub(crate) fn contain(child: &Child) -> Option<Self> {
-        use std::os::windows::io::AsRawHandle;
-        use windows_sys::Win32::System::JobObjects::{
-            AssignProcessToJobObject, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
-        };
+        use std::os::windows::io::AsHandle as _;
 
-        // Breakaway must be allowed by every job of the hierarchy, or a
-        // descendant asking for it fails to start (pnpm/pnpm#16628).
-        let job = OwnedJob(JobHandle(create_job(JOB_OBJECT_LIMIT_BREAKAWAY_OK)?));
-        // SAFETY: the job handle is owned by `job`, which closes it on every
-        // path, and the child handle is owned by `child`.
-        let assigned = unsafe { AssignProcessToJobObject((job.0).0, child.as_raw_handle()) } != 0;
-        assigned.then(|| Self(Arc::new(job)))
+        let job = Job::new()?;
+        job.assign(child.as_handle())
+            .then(|| Self(Arc::new(job)))
     }
 
     /// End every process of the task.
     pub(crate) fn terminate(&self) {
-        use windows_sys::Win32::System::JobObjects::TerminateJobObject;
-
-        // SAFETY: the handle stays open for as long as `self` holds it. On a
-        // job whose processes have all exited the call is a no-op.
-        unsafe {
-            TerminateJobObject((self.0.0).0, 1);
-        }
+        self.0.terminate();
     }
 }

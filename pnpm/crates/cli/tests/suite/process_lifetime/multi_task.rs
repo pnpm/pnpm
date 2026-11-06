@@ -130,7 +130,7 @@ fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
     // Well inside the grace: the script that ignored `SIGTERM` is still
     // running, and pnpm still waits for it.
     std::thread::sleep(std::time::Duration::from_secs(1));
-    let running_in_grace = is_running(stubborn)
+    let running_in_grace = pnpm_testing_utils::process_liveness::is_running(stubborn)
         && run
             .try_wait()
             .expect("poll pnpm")
@@ -212,25 +212,11 @@ fn recursive_run_bail_ends_a_detached_grandchild_of_a_running_script() {
     drop(root);
 }
 
-/// Whether `pid` still runs. A process that has exited but that its new
-/// parent has not reaped yet has stopped running.
-#[cfg(unix)]
-fn is_running(pid: libc::pid_t) -> bool {
-    // SAFETY: signal 0 only probes the process the fixture recorded.
-    let alive = unsafe { libc::kill(pid, 0) == 0 };
-    let zombie = fs::read_to_string(format!("/proc/{pid}/stat"))
-        .is_ok_and(|stat| {
-            stat.rsplit_once(") ")
-                .is_some_and(|(_, rest)| rest.starts_with('Z'))
-        });
-    alive && !zombie
-}
-
 /// Whether `pid` stops running within `deadline`.
 #[cfg(unix)]
 fn ends_within(pid: libc::pid_t, deadline: std::time::Duration) -> bool {
     let until = std::time::Instant::now() + deadline;
-    while is_running(pid) {
+    while pnpm_testing_utils::process_liveness::is_running(pid) {
         if std::time::Instant::now() >= until {
             return false;
         }

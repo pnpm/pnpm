@@ -14,7 +14,7 @@ use std::{
     ffi::OsString,
     fs,
     io::{self, Read},
-    os::unix::process::{CommandExt, ExitStatusExt},
+    os::unix::process::ExitStatusExt,
     path::Path,
     process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc,
@@ -172,7 +172,7 @@ fn exec_ends_with_a_core_dump_signal_without_dumping_core_for_pnpm() {
         "-c",
         "ulimit -c 0; kill -s ABRT $$",
     ]);
-    enable_core_dumps(&mut command);
+    pnpm_testing_utils::spawn::enable_core_dumps(&mut command);
     let mut process = spawn_without_terminal(command);
     let status = wait_for_shutdown(&mut process);
 
@@ -430,7 +430,7 @@ fn a_nested_run_ends_after_a_termination_when_pnpm_adopts_the_orphans() {
     let mut command = pacquet
         .with_env("PATH", path)
         .with_args(["--config.verify-deps-before-run=false", "run", "nested"]);
-    adopt_orphans(&mut command);
+    pnpm_testing_utils::spawn::as_child_subreaper(&mut command);
     let mut process = spawn_without_terminal(command);
     wait_for_file(&workspace.join("started.txt"), &mut process);
     signal(&process, libc::SIGTERM);
@@ -547,10 +547,7 @@ fn killing_the_process_group_of_pnpm_kills_the_script_behind_its_shell_too() {
     let stdout_closed = closes_within(stdout, SHUTDOWN_DEADLINE);
     let stderr_closed = closes_within(stderr, SHUTDOWN_DEADLINE);
     if !stdout_closed || !stderr_closed {
-        // SAFETY: `script` is the process the test's own fixture recorded.
-        unsafe {
-            libc::kill(script, libc::SIGKILL);
-        }
+        kill_recorded(script);
     }
     assert!(stdout_closed, "the script kept pnpm's stdout pipe open after pnpm was killed");
     assert!(stderr_closed, "the script kept pnpm's stderr pipe open after pnpm was killed");
@@ -590,10 +587,7 @@ fn killing_the_process_group_of_pnpm_kills_every_script_of_a_parallel_run() {
         .filter(|&script| !ends_within(script, SHUTDOWN_DEADLINE))
         .collect();
     for &script in &survivors {
-        // SAFETY: `script` is a process the test's own fixture recorded.
-        unsafe {
-            libc::kill(script, libc::SIGKILL);
-        }
+        kill_recorded(script);
     }
     assert!(survivors.is_empty(), "no script should outlive pnpm: {survivors:?}");
 
@@ -623,10 +617,7 @@ fn a_process_the_script_left_behind_survives_the_exit_of_pnpm() {
     // by now.
     sleep(Duration::from_millis(500));
     let running = is_running(left_behind);
-    // SAFETY: `left_behind` is the process the test's own fixture recorded.
-    unsafe {
-        libc::kill(left_behind, libc::SIGKILL);
-    }
+    kill_recorded(left_behind);
     assert!(running, "pnpm's exit should not end a process the script left behind");
 
     drop(root);
@@ -803,56 +794,6 @@ fn path_with_the_tested_pnpm(pacquet: &Command, root: &Path) -> OsString {
     .expect("join PATH")
 }
 
-fn enable_core_dumps(command: &mut Command) {
-    // SAFETY: `getrlimit`, `setrlimit`, and `prctl` are async-signal-safe and
-    // use a stack local that outlives the call. Both attributes survive `exec`.
-    unsafe {
-        let mut inherited_limit: libc::rlimit = std::mem::zeroed();
-        assert_eq!(
-            libc::getrlimit(libc::RLIMIT_CORE, &raw mut inherited_limit),
-            0,
-            "getrlimit(RLIMIT_CORE) failed: {}",
-            io::Error::last_os_error(),
-        );
-        assert_ne!(
-            inherited_limit.rlim_max, 0,
-            "core-dump regression test requires a non-zero RLIMIT_CORE hard limit",
-        );
-        command.pre_exec(|| {
-            let mut limit: libc::rlimit = std::mem::zeroed();
-            if libc::getrlimit(libc::RLIMIT_CORE, &raw mut limit) != 0 {
-                return Err(io::Error::last_os_error());
-            }
-            limit.rlim_cur = limit.rlim_max;
-            if libc::setrlimit(libc::RLIMIT_CORE, &raw const limit) != 0 {
-                return Err(io::Error::last_os_error());
-            }
-            #[cfg(any(target_os = "linux", target_os = "android"))]
-            if libc::prctl(libc::PR_SET_DUMPABLE, 1, 0, 0, 0) != 0 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
-}
-
-/// Make the process that `command` starts adopt the orphans among its
-/// descendants, as a container's PID 1 does, without making the test
-/// itself their parent.
-#[cfg(target_os = "linux")]
-fn adopt_orphans(command: &mut Command) {
-    // SAFETY: `prctl` is async-signal-safe, which is all a `pre_exec` hook
-    // between `fork` and `exec` may call. The attribute survives `exec`.
-    unsafe {
-        command.pre_exec(|| {
-            if libc::prctl(libc::PR_SET_CHILD_SUBREAPER, 1) < 0 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
-}
-
 /// Send `SIGINT` to pnpm alone, which is what `kill -INT` does; a
 /// terminal would signal the whole foreground group at once.
 fn interrupt(process: &Child) {
@@ -860,22 +801,24 @@ fn interrupt(process: &Child) {
 }
 
 /// Send `signal` to pnpm alone, as `kill` does.
+///
+/// The target is the child this test spawned and has not waited for yet,
+/// so its id cannot have been recycled.
 fn signal(process: &Child, signal: libc::c_int) {
-    let pid = i32::try_from(process.id()).expect("the pid fits in a pid_t");
-    // SAFETY: `pid` is the child this test spawned and has not waited for
-    // yet, so it is not a recycled process id.
-    let signalled = unsafe { libc::kill(pid, signal) };
-    assert_eq!(signalled, 0, "the signal should reach pnpm");
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(process.id()), signal);
 }
 
 /// Send `signal` to the process group pnpm leads, as a tool that started
 /// pnpm detached does to stop it.
 fn signal_group(process: &Child, signal: libc::c_int) {
-    let pid = i32::try_from(process.id()).expect("the pid fits in a pid_t");
-    // SAFETY: `pid` leads the group of the child this test spawned and has
-    // not waited for yet, so it is not a recycled process id.
-    let signalled = unsafe { libc::kill(-pid, signal) };
-    assert_eq!(signalled, 0, "the signal should reach pnpm's process group");
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Group(process.id()), signal);
+}
+
+/// End a process a fixture script recorded, so the assertion that follows
+/// does not leave it running.
+fn kill_recorded(pid: libc::pid_t) {
+    let Ok(pid) = u32::try_from(pid) else { return };
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(pid), libc::SIGKILL);
 }
 
 /// The process id a fixture script wrote to `path`. The fixtures write it
@@ -893,15 +836,11 @@ fn read_pid(path: &Path) -> libc::pid_t {
 /// knows is gone, and so is one that has exited and only waits to be
 /// reaped; one that refuses the probe is still there.
 fn is_running(pid: libc::pid_t) -> bool {
-    // SAFETY: a signal of 0 only probes for the process.
-    if unsafe { libc::kill(pid, 0) } != 0 {
-        return match io::Error::last_os_error().raw_os_error() {
-            Some(libc::ESRCH) => false,
-            Some(libc::EPERM) => true,
-            _ => panic!("probe process {pid}: {}", io::Error::last_os_error()),
-        };
+    let Ok(pid) = u32::try_from(pid) else { return false };
+    if !pnpm_ffi_signal::target_exists(pnpm_ffi_signal::Target::Process(pid)) {
+        return false;
     }
-    !is_zombie(pid)
+    !is_zombie(libc::pid_t::try_from(pid).expect("the pid round-trips"))
 }
 
 /// Whether `pid` has exited and waits for a parent to reap it. An orphan

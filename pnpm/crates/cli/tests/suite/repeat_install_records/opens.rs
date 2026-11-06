@@ -1,24 +1,22 @@
 //! The manifest files an up-to-date command opens, counted through
-//! [`record_opens`].
+//! [`count_opens`].
 
 use super::{
     GATE_DECIDED_FROM_RECORDS, combined_output, traced_run, trust_recorded_stats,
     write_gated_workspace, write_gated_workspace_with_project_lockfiles, write_workspace,
     write_workspace_with_pnpmfile, write_workspace_with_project_lockfiles,
 };
-use crate::_utils::{inotify::record_opens, pacquet_in};
+use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    open_counter::count_opens,
+};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
-
-/// How many times `paths` are opened while `run` runs.
-fn count_opens(paths: &[PathBuf], run: impl FnOnce()) -> usize {
-    record_opens(paths, run).len()
-}
 
 /// The manifests of the projects other than the workspace root, which the
 /// command runs in and reads anyway.

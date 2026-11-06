@@ -14,13 +14,16 @@
 //! pnpm v11 too when `PNPM_V11_BUNDLE` names its bundle.
 
 use crate::{
-    _utils::{inotify::record_opens, pacquet_in, v11_in},
+    _utils::{pacquet_in, v11_in},
     repeat_install_oracle::Input,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd, read_v11_bundle_path};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd, read_v11_bundle_path},
+    open_counter::record_opens,
+};
 use pnpm_workspace_state::{Validation, WorkspaceState, load_workspace_state};
 use serde_json::{Value, json};
 use std::{

@@ -47,7 +47,7 @@ fn windows_host_triple(process_architecture: &str) -> Option<String> {
         return Some(triple);
     }
     #[cfg(windows)]
-    let architecture = windows_machine::native_architecture().unwrap_or(process_architecture);
+    let architecture = pnpm_ffi_process::native_architecture().unwrap_or(process_architecture);
     #[cfg(not(windows))]
     let architecture = process_architecture;
     let architecture = match architecture {
@@ -69,5 +69,3 @@ fn rustup_default_windows_host(triple: Option<String>) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
-#[cfg(windows)]
-mod windows_machine;
