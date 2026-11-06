@@ -17,9 +17,14 @@
 //! [`PrivateInstall`] of this process's own instead, and runs from there.
 
 use crate::{
-    cli_args::self_update::{
-        install_pnpm::{link_exe_platform_binary, package_dir, pnpm_executable_path, run_install},
-        verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+    cli_args::{
+        reporter::SkippedDownloads,
+        self_update::{
+            install_pnpm::{
+                link_exe_platform_binary, package_dir, pnpm_executable_path, run_install,
+            },
+            verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+        },
     },
     config_deps,
     engine_pm::{
@@ -27,14 +32,12 @@ use crate::{
         error::EngineError,
         provision::engine_bin,
     },
-    slot_lock,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_cmd_shim::{
     Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
 };
 use pnpm_config::Config;
-use pnpm_fs::DirLock;
 use pnpm_graph_hasher::{detect_node_major, engine_name};
 use pnpm_lockfile::{EnvLockfile, PackageKey};
 use pnpm_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
@@ -46,7 +49,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
 };
 
 /// An engine installed and ready to run.
@@ -206,24 +208,30 @@ async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
     fs::create_dir_all(&tmp_install_dir)
         .into_diagnostic()
         .wrap_err("create the temporary package manager install directory")?;
-    let slot = Box::pin(run_install::<Reporter>(
-        config,
-        &tmp_install_dir,
-        package_name,
-        version,
-        // The engine runs on this host, whatever platforms the project installs for.
-        None,
-        Some(package.pinned),
-    ))
+    let install = async {
+        let slot = Box::pin(run_install::<Reporter>(
+            config,
+            &tmp_install_dir,
+            package_name,
+            version,
+            // The engine runs on this host, whatever platforms the project installs for.
+            None,
+            Some(package.pinned),
+        ))
+        .await
+        .and_then(|()| resolve_slot(&tmp_install_dir, package_name));
+        // The temp directory held only symlinks into the GVS, so removing it
+        // does not touch the installed engine. Refuse to recurse through a
+        // symlink at the temp path as defense-in-depth — even though the store
+        // is within pnpm's trust domain — mirroring the guard `patch-commit`
+        // applies before its own `remove_dir_all`.
+        let _ = remove_dir_if_not_symlink(&tmp_install_dir);
+        slot
+    };
+    install_then_link(install, |slot| {
+        link_engine_bins(&slot, package_name, package.links_native_binary)
+    })
     .await
-    .and_then(|()| resolve_slot(&tmp_install_dir, package_name));
-    // The temp directory held only symlinks into the GVS, so removing it
-    // does not touch the installed engine. Refuse to recurse through a
-    // symlink at the temp path as defense-in-depth — even though the store
-    // is within pnpm's trust domain — mirroring the guard `patch-commit`
-    // applies before its own `remove_dir_all`.
-    let _ = remove_dir_if_not_symlink(&tmp_install_dir);
-    link_engine_bins(&slot?, package_name, package.links_native_binary)
 }
 
 /// Install the engine into a private directory of this process's own,
@@ -239,7 +247,7 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
         .create_private_install(&format!("{}-{version}", pm.name()))
         .map_err(miette::Report::new)
         .wrap_err("create the private package manager install directory")?;
-    Box::pin(run_install::<Reporter>(
+    let install = Box::pin(run_install::<Reporter>(
         config,
         private_install.dir(),
         package.wrapper,
@@ -247,41 +255,24 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
         // The engine runs on this host, whatever platforms the project installs for.
         None,
         None,
-    ))
+    ));
+    let engine = install_then_link(install, |()| {
+        link_engine_bins(private_install.dir(), package.wrapper, package.links_native_binary)
+    })
     .await?;
-    let engine =
-        link_engine_bins(private_install.dir(), package.wrapper, package.links_native_binary)?;
     Ok(InstalledEngine { private_install: Some(private_install), ..engine })
 }
 
-/// Take the host-wide lock guarding this engine's slot, or `None` when
-/// another process holds it: the engine is then installed privately. A
-/// lock that cannot be established at all is reported and treated the
-/// same, since the private install needs none.
-fn engine_install_lock<Reporter: self::Reporter>(
-    config: &Config,
-    package_name: &str,
-    version: &str,
-) -> Option<DirLock> {
-    let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
-    let path = config.store_dir
-        .tmp()
-        .join("engine-locks")
-        .join(name);
-    match slot_lock::acquire(path.clone()) {
-        Ok(lock) => lock,
-        Err(error) => {
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!(
-                    "Could not lock the package manager engine install at {}: {error}. Installing it into a private directory instead.",
-                    path.display(),
-                ),
-                prefix: String::new(),
-            }));
-            None
-        }
-    }
+/// Run an engine `install`, then `link` what it installed. The host's platform
+/// binary is an optional dependency, which the install skips when its download
+/// fails, so only the link reports it missing: its error names those downloads.
+async fn install_then_link<Installed>(
+    install: impl Future<Output = miette::Result<Installed>>,
+    link: impl FnOnce(Installed) -> miette::Result<InstalledEngine>,
+) -> miette::Result<InstalledEngine> {
+    let skipped_downloads = SkippedDownloads::capture();
+    let installed = install.await?;
+    link(installed).map_err(|error| skipped_downloads.explain(error))
 }
 
 /// Remove the private engine installs no process holds any more. The
@@ -296,44 +287,6 @@ pub(crate) fn remove_orphaned_private_engine_installs(config: &Config) -> miette
         .map_err(miette::Report::new)
         .wrap_err("remove the private package manager installs left behind")?;
     Ok(())
-}
-
-async fn package_manager_env_lock<Reporter: self::Reporter>(
-    config: &Config,
-) -> miette::Result<Option<DirLock>> {
-    let path = config.store_dir.tmp().join("engine-locks/package-manager-env.lock");
-    tokio::task::spawn_blocking(move || {
-        acquire_install_lock::<Reporter>(&path, "the package-manager environment")
-    })
-    .await
-    .into_diagnostic()
-    .wrap_err("wait for the package-manager environment lock")
-}
-
-fn acquire_install_lock<Reporter: self::Reporter>(path: &Path, subject: &str) -> Option<DirLock> {
-    /// Long enough for a cold install of the engine over a slow link,
-    /// short enough that a wedged host isn't hung on indefinitely.
-    const WAIT: Duration = Duration::from_mins(5);
-    /// Comfortably above `WAIT`, so a process still legitimately
-    /// installing never has its lock stolen by one that gave up waiting.
-    const ABANDONED_AFTER: Duration = Duration::from_mins(30);
-
-    let error = match DirLock::acquire(path.to_path_buf(), WAIT, ABANDONED_AFTER) {
-        Ok(lock) => return lock,
-        Err(error) => error,
-    };
-    // Through the reporter rather than `tracing`, which is only wired to
-    // a subscriber when `TRACE` is set and would drop this on every
-    // ordinary run.
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message: format!(
-            "Could not lock {subject} at {}: {error}. Installing without it, which is unsafe if another pnpm is installing concurrently.",
-            path.display(),
-        ),
-        prefix: String::new(),
-    }));
-    None
 }
 
 /// The project's config, retargeted at the shared engine store.
@@ -518,7 +471,10 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
 }
 
 mod linked_bins;
+
+mod locks;
 use linked_bins::{linked_engine_bins, populated_engine_slot};
+use locks::{engine_install_lock, package_manager_env_lock};
 
 #[cfg(test)]
 mod tests;
