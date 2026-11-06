@@ -36,10 +36,12 @@ async function fetchMetadata (request, origin, base, name, fetchFromRegistry) {
 
 The response must provide the cache lifetime. Preserve its cache headers when
 storing it. The cache key is synthetic; send only the original URL to the
-registry. For local invalidation after package writes, address both metadata
-variants using `metadataKey`
-with `metadataVariant(null)` and
-`metadataVariant('application/vnd.npm.install-v1+json')`.
+registry.
+
+After package writes, invalidate both metadata representations on every
+cacheable route that resolves to the changed package. Include the default
+`/npm/` route when a write arrives through a named base such as `/npm/~local/`.
+Deleting only the named-base keys leaves the default-route entries cached.
 [Cache API deletion](https://developers.cloudflare.com/workers/runtime-apis/cache/#delete)
 affects only the current data center. Other locations can serve old metadata
 until expiry unless you purge globally.
