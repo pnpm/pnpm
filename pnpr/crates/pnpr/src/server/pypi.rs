@@ -18,6 +18,7 @@
 
 pub(super) use publication::{PypiPublication, authorize_upload, verify_upload};
 
+mod management;
 mod publication;
 use publication::post_upload;
 
@@ -39,7 +40,7 @@ use axum::{
     extract::{Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post, put},
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
@@ -69,6 +70,14 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/{SIMPLE_PATH}/{{project}}"), get(get_project_page))
             .route(&format!("{base}/{SIMPLE_PATH}/{{project}}/"), get(get_project_page))
             .route(&format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"), get(get_file))
+            .route(
+                &format!("{base}/{FILES_PATH}/{{project}}/{{filename}}/yank"),
+                put(management::yank).delete(management::unyank),
+            )
+            .route(
+                &format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"),
+                delete(management::delete_file),
+            )
             .route(&format!("{base}/{UPLOAD_PATH}"), post(post_upload))
             .route(&format!("{base}/{UPLOAD_PATH}/"), post(post_upload));
     }

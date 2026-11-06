@@ -178,6 +178,21 @@ same way. Proxied files are fetched from the URL the upstream page lists,
 verified against its `sha256`, and cached. The project list at `/pypi/simple/`
 enumerates hosted projects only.
 
+Uploads must be valid wheel, `.tar.gz`, or `.zip` archives. The root
+`METADATA` in a wheel's `.dist-info` directory or the root `PKG-INFO` in a
+source distribution must name the same project and version as the filename
+and upload form.
+
+Publishers can yank a file with `PUT /pypi/files/<project>/<filename>/yank`
+and a JSON body such as `{"reason":"Broken release"}`. An empty object yanks
+without a reason. `DELETE` on the same URL unyanks it. Yanked files remain
+downloadable, and the Simple API reports their yank status to installers.
+
+Administrators listed in `auth.admins` can remove a file with
+`DELETE /pypi/files/<project>/<filename>`. This removes its Simple API entry
+and makes downloads return 404. Stored archive bytes are retained. These routes
+also work under a named registry's base URL.
+
 ## Proxying crates.io and PyPI
 
 Cargo and Python proxies restrict downloads and redirects to their configured

@@ -8,6 +8,7 @@
 //! routing: project-name normalization, the project document and its two
 //! renderings, distribution-filename parsing, and the upload form.
 
+pub mod archive;
 pub mod multipart;
 
 pub use pnpr_package_name::PythonNameError as NameError;
@@ -488,3 +489,6 @@ pub fn parse_upload(parts: Vec<multipart::FormPart>) -> Result<Upload, UploadErr
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod archive_tests;

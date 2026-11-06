@@ -31,7 +31,6 @@ use metadata::{
 
 use std::{
     collections::BTreeMap,
-    io::Cursor,
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -46,6 +45,7 @@ use pnpm_python_resolver::{
     IndexCandidate, Offered, Packages, Step, Target, WheelMetadata, candidates_from_page,
     metadata_url, parse_requirement, validate_url,
 };
+use pnpr_pypi::archive::MAX_METADATA_BYTES;
 use pnpr_route::{Footprint, url_has_inline_credentials};
 
 use crate::server::StripedLocks;
@@ -76,9 +76,6 @@ const MAX_METADATA_READS: usize = 20_000;
 
 /// Cap on a single Simple API page.
 const MAX_PAGE_BYTES: usize = 32 * 1024 * 1024;
-
-/// Cap on a single `METADATA` document.
-const MAX_METADATA_BYTES: usize = 8 * 1024 * 1024;
 
 /// Cap on a wheel read for its metadata, which only an index that
 /// publishes no metadata files forces. Well above an ordinary wheel: the

@@ -137,6 +137,7 @@ pub(in super::super) fn verify_upload(
     {
         return Err(bad_request("sha256_digest does not match the uploaded file"));
     }
+    verify_distribution_metadata(&upload)?;
     let entry = ProjectFile {
         filename: upload.filename,
         url: None,
@@ -147,6 +148,42 @@ pub(in super::super) fn verify_upload(
         upload_time: Some(now_iso()),
     };
     Ok(PypiPublication { key, org, entry, content: upload.content })
+}
+
+fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
+    let metadata = if upload.filename.ends_with(".tar.gz") {
+        pnpr_pypi::archive::metadata_from_sdist(&upload.content)
+    } else {
+        pnpr_pypi::archive::metadata_from_zip(
+            &upload.content,
+            &upload.filename,
+            upload.filetype == "bdist_wheel",
+        )
+    }
+    .map_err(bad_request)?;
+    let metadata = std::str::from_utf8(&metadata).map_err(bad_request)?;
+    for field in ["Name", "Version"] {
+        let count = metadata
+            .lines()
+            .take_while(|line| !line.is_empty())
+            .filter(|line| !line.starts_with([' ', '\t']))
+            .filter_map(|line| line.split_once(':'))
+            .filter(|(name, _)| name.trim().eq_ignore_ascii_case(field))
+            .count();
+        if count != 1 {
+            return Err(bad_request(format!(
+                "distribution metadata must carry exactly one {field} field"
+            )));
+        }
+    }
+    pnpm_python_resolver::WheelMetadata::parse_for(
+        metadata,
+        &upload.name.parse().map_err(bad_request)?,
+        &upload.version.parse().map_err(bad_request)?,
+        &upload.filename,
+    )
+    .map_err(|err| bad_request(format!("{err:#}")))?;
+    Ok(())
 }
 
 impl PypiPublication {
