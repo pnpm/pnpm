@@ -246,24 +246,24 @@ fn outdated_reports_deprecated_package() {
     drop((root, anchor));
 }
 
-/// Without a lockfile, `outdated` fails with
-/// `ERR_PNPM_OUTDATED_NO_LOCKFILE` rather than silently reporting nothing.
 #[test]
-fn outdated_without_lockfile_errors() {
+fn outdated_reports_newer_version_without_lockfile() {
     let (root, workspace, anchor) = setup();
 
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
-    assert!(!output.status.success(), "outdated without a lockfile should fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No lockfile in directory"), "stderr should explain why: {stderr}");
+    assert_eq!(output.status.code(), Some(1), "outdated deps present should exit 1");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should mention the package: {stdout}");
+    assert!(stdout.contains("100.0.0"), "report should show the declared range minimum: {stdout}");
+    assert!(stdout.contains("101.0.0"), "report should show the latest version: {stdout}");
 
     drop((root, anchor));
 }
 
 #[test]
-fn recursive_outdated_reports_the_shared_lockfile_directory() {
+fn recursive_outdated_reports_newer_versions_without_a_shared_lockfile() {
     let (root, workspace, anchor) = setup();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write workspace manifest");
@@ -282,16 +282,10 @@ fn recursive_outdated_reports_the_shared_lockfile_directory() {
         .output()
         .expect("run recursive outdated without a shared lockfile");
 
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains(r#"workspace""#),
-        "error should point to the shared lockfile directory: {stderr}",
-    );
-    assert!(
-        !stderr.contains(r#"app""#),
-        "error should not point to a project-specific lockfile: {stderr}",
-    );
+    assert_eq!(output.status.code(), Some(1), "outdated deps present should exit 1");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should mention the package: {stdout}");
+    assert!(stdout.contains("app"), "report should name the dependent: {stdout}");
 
     drop((root, anchor));
 }

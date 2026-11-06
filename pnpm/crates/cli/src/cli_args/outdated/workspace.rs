@@ -5,9 +5,8 @@ use super::{
     discover_workspace_projects, github_actions, sort_workspace_outdated,
 };
 use crate::cli_args::ecosystem_deps::{
-    EcosystemFilterKind, collect_ecosystem_outdated, declared_ecosystem_dep_names,
-    ecosystem_project_name, patterns_for_ecosystem, requires_ecosystem_lockfile,
-    select_recursive_and_standalone_projects,
+    collect_ecosystem_outdated, declared_ecosystem_dep_names, ecosystem_project_name,
+    requires_ecosystem_lockfile, select_recursive_and_standalone_projects,
 };
 
 pub(super) struct OutdatedInWorkspace {
@@ -158,7 +157,7 @@ async fn outdated_for_project(
     } else {
         (project_lockfile, Lockfile::ROOT_IMPORTER_KEY.to_string())
     };
-    ensure_project_lockfiles(inputs, project_dir, &project.manifest, lockfile)?;
+    ensure_project_lockfiles(inputs, project_dir)?;
     let project_outdated = collect_outdated_for_importer_in_run(
         &project.manifest,
         lockfile,
@@ -183,23 +182,8 @@ async fn outdated_for_project(
 fn ensure_project_lockfiles(
     inputs: &ProjectOutdatedInputs<'_>,
     project_dir: &std::path::Path,
-    manifest: &PackageManifest,
-    lockfile: Option<&Lockfile>,
 ) -> miette::Result<()> {
     let raw_packages = &inputs.run.raw_packages;
-    let node_patterns = patterns_for_ecosystem(raw_packages, EcosystemFilterKind::Node)?;
-    let checks_node = raw_packages.is_empty() || !node_patterns.is_empty();
-    let has_non_tool_dep = checks_node
-        && manifest
-            .dependencies(inputs.query.include_direct.iter().copied())
-            .any(|(name, spec)| {
-                !pnpm_tool_protocol::is_tool_specifier(spec) && inputs.query.matches_name(name)
-            });
-    if lockfile.is_none() && has_non_tool_dep {
-        let dir =
-            if inputs.config.shares_one_lockfile() { inputs.lockfile_root } else { project_dir };
-        return Err(no_lockfile_error(dir));
-    }
     if requires_ecosystem_lockfile(project_dir, inputs.config, inputs.query, raw_packages)? {
         return Err(no_lockfile_error(project_dir));
     }

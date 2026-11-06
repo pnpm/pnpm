@@ -329,8 +329,13 @@ async fn collect_node_outdated_for_importer(
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, node_query.include_direct);
     let engine_deps = declared_engine_deps(manifest, &run.config, node_query.include_direct);
-    let candidates =
-        collect_importer_candidates(manifest, &current_versions, &engine_deps, &node_query);
+    let candidates = collect_importer_candidates(
+        manifest,
+        &current_versions,
+        &engine_deps,
+        &node_query,
+        lockfile.is_none(),
+    );
     let fetches = candidates
         .into_iter()
         .map(|candidate| outdated_dependency(run, &node_query, workspace, candidate));

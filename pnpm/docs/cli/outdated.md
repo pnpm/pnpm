@@ -15,6 +15,8 @@ for Cargo crates and `pypi:<name>` for Python packages. Patterns support `*`
 wildcards, and a leading `!` excludes matching names.
 
 `pnpm outdated` exits with code 1 when any dependency is outdated.
+Without a lockfile, the `Current` column shows the lowest version allowed by
+the dependency's declared range.
 
 Examples:
 ```sh

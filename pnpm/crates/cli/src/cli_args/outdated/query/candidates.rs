@@ -19,13 +19,19 @@ pub(super) fn collect_importer_candidates<'a>(
     current_versions: &HashMap<String, Version>,
     engine_deps: &'a [DeclaredEngineDep],
     query: &OutdatedQuery<'_>,
+    use_declared_versions: bool,
 ) -> Vec<OutdatedCandidate<'a>> {
     let mut candidates = Vec::new();
     for &group in query.include_direct {
         for (alias, bare_specifier) in manifest.dependencies([group]) {
-            if let Some(candidate) =
-                direct_outdated_candidate(alias, group, bare_specifier, current_versions, query)
-            {
+            if let Some(candidate) = direct_outdated_candidate(
+                alias,
+                group,
+                bare_specifier,
+                current_versions,
+                query,
+                use_declared_versions,
+            ) {
                 candidates.push(candidate);
             }
         }
@@ -60,16 +66,19 @@ fn direct_outdated_candidate<'a>(
     bare_specifier: &'a str,
     current_versions: &HashMap<String, Version>,
     query: &OutdatedQuery<'_>,
+    use_declared_versions: bool,
 ) -> Option<OutdatedCandidate<'a>> {
     if !query.matches_name(alias) {
         return None;
     }
+    let (package_name, specifier) =
+        PackageManifest::resolve_registry_dependency(alias, bare_specifier);
     let current = current_versions
         .get(alias)
         .cloned()
         .or_else(|| {
-            pnpm_tool_protocol::is_tool_specifier(bare_specifier)
-                .then(|| min_version_of_spec(alias, bare_specifier))
+            (use_declared_versions || pnpm_tool_protocol::is_tool_specifier(bare_specifier))
+                .then(|| min_version_of_spec(package_name, specifier))
                 .flatten()
         })?;
     Some(OutdatedCandidate { alias, group, bare_specifier, current, is_engine: false })

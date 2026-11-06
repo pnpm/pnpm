@@ -14,10 +14,7 @@ use crate::{
     State,
     cli_args::{
         catalogs::configured_catalogs,
-        ecosystem_deps::{
-            EcosystemFilterKind, declared_ecosystem_dep_names, patterns_for_ecosystem,
-            requires_ecosystem_lockfile,
-        },
+        ecosystem_deps::{declared_ecosystem_dep_names, requires_ecosystem_lockfile},
         install::resolve_bool_override,
         recursive::discover_workspace_projects,
         release_notes::UpgradeNotes,
@@ -173,7 +170,8 @@ impl OutdatedArgs {
         let filters =
             OutdatedFilters::validated(&self, config, &package_patterns, [manifest], false)?;
         let lockfile = loaded_lockfile(&state)?;
-        if self.requires_lockfile(manifest, config, &filters, &package_patterns, lockfile)? {
+        let query = filters.query(self.target_version());
+        if requires_ecosystem_lockfile(project_dir(manifest), config, &query, &package_patterns)? {
             return Err(no_lockfile_error(project_dir(manifest)));
         }
         let mut outdated = Box::pin(self.collect_single_project_outdated(
@@ -300,32 +298,6 @@ impl OutdatedArgs {
                 .is_empty()
             || !declared_ecosystem_dep_names(project_dir(manifest), config, include)?.is_empty();
         Ok(has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty()))
-    }
-
-    fn requires_lockfile(
-        &self,
-        manifest: &PackageManifest,
-        config: &Config,
-        filters: &OutdatedFilters,
-        package_patterns: &[String],
-        lockfile: Option<&Lockfile>,
-    ) -> miette::Result<bool> {
-        if !self.packages.is_empty() && package_patterns.is_empty() {
-            return Ok(false);
-        }
-        let node_patterns = patterns_for_ecosystem(package_patterns, EcosystemFilterKind::Node)?;
-        let checks_node = package_patterns.is_empty() || !node_patterns.is_empty();
-        let query = filters.query(self.target_version());
-        let needs_node_lockfile = checks_node
-            && lockfile.is_none()
-            && manifest
-                .dependencies(filters.include.iter().copied())
-                .any(|(name, spec)| {
-                    !pnpm_tool_protocol::is_tool_specifier(spec) && query.matches_name(name)
-                });
-        let needs_eco_lockfile =
-            requires_ecosystem_lockfile(project_dir(manifest), config, &query, package_patterns)?;
-        Ok(needs_node_lockfile || needs_eco_lockfile)
     }
 
     pub(super) async fn outdated_actions<Reporter: self::Reporter>(
