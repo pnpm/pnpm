@@ -137,31 +137,7 @@ pub(super) fn resolve_target_path(
                 .join("node_modules")
                 .join(alias.name.to_string())
         }
-        ImporterDepVersion::Link(target) => {
-            // `link:<path>` values are relative to the importer's
-            // `rootDir` (or absolute). Resolve them here so the
-            // on-disk symlink points at the right sibling project.
-            // pacquet's lockfile snapshot already carries the
-            // raw `link:` payload, so the resolution lives at the
-            // install layer.
-            //
-            // Run the joined result through `lexical_normalize` so
-            // the dedupe pass treats `<workspace>/packages/a` and
-            // `<workspace>/packages/foo/../a` as the same target.
-            // The dedupe compares stored symlink targets via
-            // `path.relative(a, b) === ''`, which on absolute paths
-            // reduces to lexical equality *after* both arguments pass
-            // through `path.resolve` (Node normalises by default).
-            // `Path::join` does not, so we have to do it explicitly
-            // here.
-            let candidate = Path::new(target);
-            let joined = if candidate.is_absolute() {
-                candidate.to_path_buf()
-            } else {
-                project_dir.join(candidate)
-            };
-            pnpm_fs::lexical_normalize(&joined)
-        }
+        ImporterDepVersion::Link(target) => link_target_dir(project_dir, target),
         ImporterDepVersion::File(_) => {
             // Injected workspace dep that didn't dedupe back to
             // `link:` — the importer entry references a virtual-store
@@ -176,6 +152,14 @@ pub(super) fn resolve_target_path(
                 .join(name_str)
         }
     }
+}
+/// The directory a `link:<target>` dependency of the project at
+/// `project_dir` points at: `target` is relative to the project, or
+/// absolute. Normalized lexically, so the dedupe pass treats
+/// `<workspace>/packages/a` and `<workspace>/packages/b/../a` as one
+/// target, as pnpm's `path.relative` comparison does.
+pub(crate) fn link_target_dir(project_dir: &Path, target: &str) -> PathBuf {
+    pnpm_fs::lexical_normalize(&project_dir.join(target))
 }
 /// Build the `<alias → resolved-target>` map a dedupe pass needs
 /// for a single importer (always the root). Applies the same

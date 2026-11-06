@@ -199,6 +199,7 @@ mod setting_flags;
 mod side_effects_cache;
 mod side_effects_cache_exclude;
 mod stage;
+mod stale_link_prune;
 mod stale_pin_dedupe;
 mod star_tests;
 mod stars_tests;

@@ -221,7 +221,12 @@ pub fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     groups
 }
 
-pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), PruneDirectDepsError> {
+/// Removes the `<modules_dir>/<name>` link and the bin shims of its
+/// package. Returns whether there was a link to remove.
+pub fn remove_direct_dep_link(
+    modules_dir: &Path,
+    name: &str,
+) -> Result<bool, PruneDirectDepsError> {
     let link =
         safe_join_modules_dir(modules_dir, name).map_err(PruneDirectDepsError::InvalidAlias)?;
     // For a scoped alias the join passes through `@scope/`; refuse to
@@ -230,18 +235,18 @@ pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), Prun
         && parent != modules_dir
         && !is_real_dir(parent)
     {
-        return Ok(());
+        return Ok(false);
     }
     // Only a symlink (junction on Windows) can be a direct-dep entry the
     // isolated linker wrote; anything else stays untouched. The probe
     // also covers "not there at all" — nothing to remove.
     if read_symlink_dir(&link).is_err() {
-        return Ok(());
+        return Ok(false);
     }
     remove_dep_bins(modules_dir, &link)?;
     match remove_symlink_dir(&link) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(PruneDirectDepsError::RemoveLink { path: link, error }),
     }
 }

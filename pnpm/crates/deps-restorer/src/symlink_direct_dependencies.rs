@@ -1,4 +1,4 @@
-pub(crate) use resolve::fallback_version;
+pub(crate) use resolve::{fallback_version, link_target_dir};
 
 mod publish;
 use publish::remove_publish_modules_link;
