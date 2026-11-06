@@ -117,6 +117,14 @@ impl Config {
         if default_pnpm_home_dir::<Sys>().as_deref() == Some(base_dir) {
             self.apply_pnpm_home_global_shims::<Sys>(base_dir)?;
         }
+        self.resolve_workspace_override_references(base_dir)?;
+        Ok(())
+    }
+
+    fn resolve_workspace_override_references(
+        &mut self,
+        base_dir: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
         if let Some(overrides) = self.overrides.as_mut() {
             crate::override_version_references::resolve_version_references(overrides, base_dir)?;
         }
