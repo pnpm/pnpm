@@ -1,17 +1,27 @@
-use super::*;
+use super::{
+    Body, Method, RegistryError, Request, ServiceExt, StatusCode, TempDir, app_with_token, header,
+    record, signed, to_bytes,
+};
 
 #[tokio::test]
 async fn npm_authentication_errors_distinguish_missing_and_invalid_tokens() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_token(&tmp, "valid-token", record(false, &[]));
     for path in ["/-/whoami", "/~local/-/whoami", "/npm/-/whoami", "/npm/~local/-/whoami"] {
-        for token in [None, Some("invalid-token")] {
-            let request = match token {
-                Some(token) => signed(Method::GET, path, token),
-                None => Request::get(path)
+        for (request, challenge, message) in [
+            (
+                Request::get(path)
                     .body(Body::empty())
                     .unwrap(),
-            };
+                "Bearer",
+                "Authentication required",
+            ),
+            (
+                signed(Method::GET, path, "invalid-token"),
+                r#"Bearer error="invalid_token""#,
+                "Invalid authentication token",
+            ),
+        ] {
             let response = app
                 .clone()
                 .oneshot(request)
@@ -19,22 +29,16 @@ async fn npm_authentication_errors_distinguish_missing_and_invalid_tokens() {
                 .unwrap();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{path}");
             assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
-            let expected_challenge =
-                if token.is_some() { r#"Bearer error="invalid_token""# } else { "Bearer" };
-            assert_eq!(response.headers()[header::WWW_AUTHENTICATE], expected_challenge);
+            assert_eq!(response.headers()[header::WWW_AUTHENTICATE], challenge);
             let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
             let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(body["error"], body["reason"]);
-            if token.is_some() {
-                assert_eq!(body["error"], "Invalid authentication token");
-            } else {
-                assert!(
-                    body["error"]
-                        .as_str()
-                        .unwrap()
-                        .contains("Authentication required")
-                );
-            }
+            assert!(
+                body["error"]
+                    .as_str()
+                    .unwrap()
+                    .contains(message),
+            );
         }
     }
 }
@@ -91,7 +95,7 @@ async fn npm_errors_keep_status_safe_messages_and_retry_headers() {
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(),
-            json!({"error": message, "reason": message})
+            json!({"error": message, "reason": message}),
         );
     }
     let response = app
@@ -110,7 +114,7 @@ async fn npm_errors_keep_status_safe_messages_and_retry_headers() {
         body["error"]
             .as_str()
             .unwrap()
-            .contains("Cannot republish")
+            .contains("Cannot republish"),
     );
     assert_eq!(body["error"], body["reason"]);
     let response = app
