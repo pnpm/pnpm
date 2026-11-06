@@ -370,6 +370,7 @@ fn resolve_row_requires_build(
             requires_build_from_cas_paths(cas_paths)
         }
         Some(stored) => stored,
+        None if manifest.is_none() => requires_build_from_cas_paths(cas_paths),
         None => requires_build_from_files(manifest, cas_paths.keys()),
     }
 }
