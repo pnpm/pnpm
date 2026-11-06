@@ -42,7 +42,7 @@ impl ClaimedCommands {
     }
 
     /// Adds `commands` to a directory a link pass already claimed, under
-    /// the first of its [`keys`] recorded. Returns `false`, recording
+    /// the first of its keys recorded. Returns `false`, recording
     /// nothing, when no pass claimed it.
     pub fn claim_recorded(&mut self, modules_dir: &Path, commands: HashSet<String>) -> bool {
         let Some(key) = keys(modules_dir).find(|key| self.0.contains_key(key)) else {
@@ -53,7 +53,7 @@ impl ClaimedCommands {
     }
 
     /// Removes from each `<modules_dir>/.bin` the shims claimed under none
-    /// of the directory's [`keys`]. A directory named twice is pruned once.
+    /// of the directory's keys. A directory named twice is pruned once.
     pub fn prune_stale_bins<'a>(
         &self,
         modules_dirs: impl IntoIterator<Item = &'a Path>,
