@@ -41,10 +41,10 @@ fn claim_recorded_adds_only_to_a_directory_a_pass_claimed() {
 
 #[test]
 fn claim_recorded_finds_a_directory_claimed_through_another_path() {
-    let temp = tempfile::tempdir().unwrap();
-    let real_project = temp.path().join("real");
+    let (_temp, base) = symlinked_temp_dir();
+    let real_project = base.join("real");
     fs::create_dir_all(real_project.join("node_modules")).unwrap();
-    let linked_project = temp.path().join("linked");
+    let linked_project = base.join("linked");
     pnpm_fs::symlink_dir(&real_project, &linked_project).unwrap();
 
     let mut claimed = ClaimedCommands::default();
@@ -53,33 +53,79 @@ fn claim_recorded_finds_a_directory_claimed_through_another_path() {
     assert_eq!(claimed.get(&real_project.join("node_modules")), Some(&commands(&["a", "b"])));
 }
 
-#[test]
-fn prune_keeps_the_commands_claimed_under_any_path_of_the_directory() {
+/// A temp dir reached through a symlink, the way macOS reaches its temp dir
+/// through `/var`, so no path a test builds is already resolved.
+fn symlinked_temp_dir() -> (tempfile::TempDir, std::path::PathBuf) {
     let temp = tempfile::tempdir().unwrap();
-    let real_project = temp.path().join("real");
-    let modules_dir = real_project.join("node_modules");
-    for command in ["a", "b", "stale"] {
-        package(&modules_dir, command);
+    let real = temp.path().join("real-base");
+    fs::create_dir_all(&real).unwrap();
+    let base = temp.path().join("base");
+    pnpm_fs::symlink_dir(&real, &base).unwrap();
+    (temp, base)
+}
+
+fn link_package_bins(modules_dir: &Path, names: &[&str]) {
+    for command in names {
+        package(modules_dir, command);
     }
     let options = LinkBinsOptions { force: true, ..LinkBinsOptions::default() };
-    link_bins::<Host>(&modules_dir, &modules_dir.join(".bin"), &options).unwrap();
-    let linked_project = temp.path().join("linked");
-    pnpm_fs::symlink_dir(&real_project, &linked_project).unwrap();
+    link_bins::<Host>(modules_dir, &modules_dir.join(".bin"), &options).unwrap();
+}
 
-    let mut claimed = ClaimedCommands::default();
-    claimed.claim(&modules_dir, commands(&["a"]));
-    claimed.claim(&linked_project.join("node_modules"), commands(&["b"]));
-    claimed
-        .prune_stale_bins([linked_project.join("node_modules").as_path(), modules_dir.as_path()])
-        .unwrap();
-
-    let bins_dir = modules_dir.join(".bin");
-    let remaining: Vec<_> = fs::read_dir(&bins_dir)
+fn assert_bins(bins_dir: &Path, kept: &[&str], removed: &[&str]) {
+    let remaining: Vec<_> = fs::read_dir(bins_dir)
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .collect();
-    dbg!(&bins_dir, &remaining);
-    assert!(bins_dir.join("a").exists());
-    assert!(bins_dir.join("b").exists());
-    assert!(!bins_dir.join("stale").exists());
+    dbg!(bins_dir, &remaining);
+    for command in kept {
+        assert!(bins_dir.join(command).exists(), "{command} should be kept");
+    }
+    for command in removed {
+        assert!(!bins_dir.join(command).exists(), "{command} should be removed");
+    }
+}
+
+#[test]
+fn prune_keeps_the_commands_claimed_under_any_path_of_the_directory() {
+    for real_path_first in [true, false] {
+        let (_temp, base) = symlinked_temp_dir();
+        let real_project = base.join("real");
+        let modules_dir = real_project.join("node_modules");
+        link_package_bins(&modules_dir, &["a", "b", "stale"]);
+        let linked_project = base.join("linked");
+        pnpm_fs::symlink_dir(&real_project, &linked_project).unwrap();
+        let linked_modules_dir = linked_project.join("node_modules");
+
+        let mut claimed = ClaimedCommands::default();
+        claimed.claim(&modules_dir, commands(&["a"]));
+        claimed.claim(&linked_modules_dir, commands(&["b"]));
+        let targets = if real_path_first {
+            [modules_dir.as_path(), linked_modules_dir.as_path()]
+        } else {
+            [linked_modules_dir.as_path(), modules_dir.as_path()]
+        };
+        claimed.prune_stale_bins(targets).unwrap();
+
+        assert_bins(&modules_dir.join(".bin"), &["a", "b"], &["stale"]);
+    }
+}
+
+#[test]
+fn prune_keeps_the_commands_of_a_project_whose_modules_dir_links_to_another() {
+    let (_temp, base) = symlinked_temp_dir();
+    let modules_dir = base.join("a/node_modules");
+    link_package_bins(&modules_dir, &["a", "b", "stale"]);
+    fs::create_dir_all(base.join("b")).unwrap();
+    let linked_modules_dir = base.join("b/node_modules");
+    pnpm_fs::symlink_dir(&modules_dir, &linked_modules_dir).unwrap();
+
+    let mut claimed = ClaimedCommands::default();
+    claimed.claim(&modules_dir, commands(&["a"]));
+    claimed.claim(&linked_modules_dir, commands(&["b"]));
+    claimed
+        .prune_stale_bins([modules_dir.as_path()])
+        .unwrap();
+
+    assert_bins(&modules_dir.join(".bin"), &["a", "b"], &["stale"]);
 }
