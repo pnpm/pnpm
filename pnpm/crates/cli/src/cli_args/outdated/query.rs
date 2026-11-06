@@ -79,14 +79,35 @@ impl OutdatedRun {
         lockfile: Option<&Lockfile>,
     ) -> miette::Result<Cow<'a, PackageManifest>> {
         let overrides = match lockfile {
-            Some(lockfile) => lockfile.overrides.as_ref(),
-            None => self.config.overrides.as_ref(),
-        };
+            Some(lockfile) => lockfile.overrides
+                .as_ref()
+                .map(|overrides| parse_overrides_iter(overrides.iter(), &self.catalogs)),
+            None => {
+                let project_config = if self.config.applies_package_configs() {
+                    manifest
+                        .value()
+                        .get("name")
+                        .and_then(|name| name.as_str())
+                        .and_then(|name| self.config.package_configs.as_ref()?.get(name))
+                } else {
+                    None
+                };
+                let overrides = match project_config {
+                    Some(project_config) => match project_config.overrides.as_ref() {
+                        Some(overrides) if !overrides.is_empty() => Some(overrides),
+                        Some(_) => None,
+                        None => self.config.overrides.as_ref(),
+                    },
+                    None => self.config.overrides.as_ref(),
+                };
+                overrides.map(|overrides| parse_overrides_iter(overrides.iter(), &self.catalogs))
+            }
+        }
+        .transpose()
+        .map_err(miette::Report::new)?;
         let Some(overrides) = overrides else {
             return Ok(Cow::Borrowed(manifest));
         };
-        let overrides =
-            parse_overrides_iter(overrides, &self.catalogs).map_err(miette::Report::new)?;
         // Only registry specifiers are compared, so the base a `link:`
         // override resolves against does not matter here.
         let project_dir = project_dir(manifest);

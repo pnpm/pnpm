@@ -700,6 +700,37 @@ fn outdated_recursive_applies_project_overrides() {
     drop((root, anchor));
 }
 
+#[test]
+fn outdated_recursive_applies_project_overrides_without_lockfile() {
+    let (root, workspace, anchor) = setup();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\noverrides:\n  '{DEP}': 'npm:{FOO}@100.1.0'\npackageConfigs:\n  app:\n    overrides: {{}}\n",
+        ),
+    )
+    .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project manifest");
+
+    let output = pacquet(&workspace, ["outdated", "--recursive"])
+        .output()
+        .expect("run recursive outdated without project lockfiles");
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "the project override should clear the root override: {stdout}");
+
+    drop((root, anchor));
+}
+
 /// A `catalog:` dependency is checked against the specifier the catalog
 /// holds, so an npm-aliased catalog entry is reported under the real
 /// registry name instead of failing on the alias key.
