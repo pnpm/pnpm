@@ -27,6 +27,7 @@ home = { workspace = true }
 pipe-trait = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpr-fixtures = { workspace = true }
+pnpr-registry = { workspace = true }
 pnpr-package-name = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }

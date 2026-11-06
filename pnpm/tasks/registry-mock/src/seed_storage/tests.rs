@@ -1,5 +1,6 @@
 use super::{LinkOutcome, copy_into_new_file, seed_generation};
 use pnpr_fixtures::FixtureGeneration;
+use pnpr_registry::Ecosystem;
 use serde_json::Value;
 use std::{fs, path::Path};
 use tempfile::TempDir;
@@ -69,6 +70,16 @@ fn a_package_the_fixtures_dropped_is_absent_from_its_generations_directory() {
 
     let second_storage = seed_generation(&second, root.path()).expect("seed the second generation");
     assert_eq!(versions(second_storage.path(), "@e2e/kept"), ["1.0.0"]);
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            second_storage.path(),
+            "",
+            Ecosystem::Npm,
+            "@e2e/dropped",
+        )
+        .is_none(),
+        "the second generation metadata must not contain a dropped package",
+    );
 }
 
 #[test]

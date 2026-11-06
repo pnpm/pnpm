@@ -120,7 +120,7 @@ pub fn pnpr_command_with_home(
         Some(home) => (home.join("storage"), home.join("metadata.sqlite")),
         None => (seeded.path().to_path_buf(), pnpr_fixtures::metadata_path(seeded.path())),
     };
-    let config = runtime_mock_config(&database)
+    let config = runtime_mock_config(&database, &crate::runtime_config_dir())
         .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
     cmd.arg("--config")
         .arg(config)
@@ -153,19 +153,17 @@ fn command_without_pnpr_env(bin: &Path) -> Command {
     cmd
 }
 
-/// The registry-mock config with the metadata `database` named outright,
-/// written beside the build's hosted store. A `pnpr` from another revision, such as the one the integrated benchmark compares against, may
-/// not move its default database along with `--storage`, and every revision
-/// reads a named one. The config is named after the fixture build and its
-/// own contents, so no mock reads a config another checkout wrote for
-/// another build or another fixture config.
-fn runtime_mock_config(database: &Path) -> io::Result<PathBuf> {
+/// The registry-mock config with the metadata `database` named outright.
+/// Its directory holds `htpasswd`, whose path the mock config resolves
+/// relative to itself, so every revision mock reads the benchmark user that
+/// `seed_mock_publisher` writes there.
+fn runtime_mock_config(database: &Path, config_dir: &Path) -> io::Result<PathBuf> {
     let database = std::path::absolute(database)?;
     let url = format!("sqlite:{}", database.display()).replace('\'', "''");
     let yaml = format!("{}\nmetadata:\n  url: '{url}'\n", pnpr_fixtures::MOCK_CONFIG_YAML);
     let mut hasher = DefaultHasher::new();
     yaml.hash(&mut hasher);
-    let mut path = std::path::absolute(database)?.into_os_string();
+    let mut path = std::path::absolute(config_dir)?.join("mock").into_os_string();
     path.push(format!("-{:016x}.yaml", hasher.finish()));
     let path = PathBuf::from(path);
     if fs::read_to_string(&path).is_ok_and(|existing| existing == yaml) {
@@ -181,4 +179,28 @@ fn runtime_mock_config(database: &Path) -> io::Result<PathBuf> {
     fs::write(&temp, yaml)?;
     fs::rename(&temp, &path)?;
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::runtime_mock_config;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn mock_config_resolves_htpasswd_from_the_runtime_config_directory() {
+        let home = TempDir::new().expect("create runtime storage");
+        let config_dir = home.path().join(".registry-mock");
+        fs::create_dir_all(&config_dir).expect("create runtime config directory");
+        fs::write(config_dir.join("htpasswd"), "benchmark-user:hash\n")
+            .expect("write benchmark user");
+
+        let config =
+            runtime_mock_config(&home.path().join(".metadata/metadata.sqlite"), &config_dir)
+                .expect("write mock config");
+
+        assert_eq!(config.parent(), Some(config_dir.as_path()));
+        let yaml = fs::read_to_string(config).expect("read mock config");
+        assert!(yaml.contains("file: ./htpasswd"));
+    }
 }

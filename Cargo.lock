@@ -6440,6 +6440,7 @@ dependencies = [
  "pnpm-fs",
  "pnpr-fixtures",
  "pnpr-package-name",
+ "pnpr-registry",
  "reqwest",
  "serde",
  "serde_json",

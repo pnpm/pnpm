@@ -20,6 +20,7 @@ use walkdir::WalkDir;
 /// an unfinished generation.
 const GENERATION_FILE: &str = ".fixture-generation";
 const CACHE_DIR: &str = ".pnpr-cache";
+const METADATA_DIR: &str = ".metadata";
 
 /// A runtime storage directory reconciled to one fixture generation, and
 /// so safe to hand `pnpr` as `--storage`.
@@ -151,7 +152,6 @@ fn copy_metadata(src: &Path, dest: &Path) -> io::Result<()> {
 }
 
 fn seed_fixture_files(src: &Path, dest: &Path) -> io::Result<usize> {
-    let metadata = pnpr_fixtures::metadata_path(src);
     let mut seeded = 0;
     for entry in WalkDir::new(src) {
         // Propagate traversal errors instead of silently dropping
@@ -165,7 +165,7 @@ fn seed_fixture_files(src: &Path, dest: &Path) -> io::Result<usize> {
             .path()
             .strip_prefix(src)
             .expect("entry under src");
-        if rel.starts_with(CACHE_DIR) || entry.path() == metadata {
+        if rel.starts_with(CACHE_DIR) || rel.starts_with(METADATA_DIR) {
             continue;
         }
         let dest_path = dest.join(rel);
