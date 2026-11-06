@@ -51,9 +51,9 @@ const LINK_STATE_COPY: u8 = 2;
 
 /// The tier `Auto` starts at, per platform — the head of
 /// [`next_auto_tier`]'s ladder.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const AUTO_FIRST_TIER: u8 = LINK_STATE_HARDLINK;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 const AUTO_FIRST_TIER: u8 = LINK_STATE_CLONE;
 
 /// The wire method `Auto` optimistically resolves to on this platform —
@@ -83,21 +83,26 @@ pub fn auto_optimistic_wire_method() -> WireImportMethod {
 /// every ext4 and Windows install runs with, guarded by
 /// `verify-store-integrity`, not by the import tier.
 ///
+/// Windows runs the same ladder. A block clone on a Dev Drive creates
+/// the file and then sets it sparse, copies its integrity settings, sets
+/// its length and duplicates its extents, where a hardlink is one call.
+/// On Windows this also matches pnpm 11, whose `Auto` never clones there.
+///
 /// macOS keeps clone-first: APFS `clonefile` is the platform's cheap
 /// primitive.
 ///
-/// The hardlink-first order is a pnpm 12 change, shipped behind the
-/// major: the TypeScript CLI (pnpm 11) deliberately keeps clone-first,
-/// because changing what the default materializes on disk is not a
+/// The hardlink-first order on Linux is a pnpm 12 change, shipped behind
+/// the major: the TypeScript CLI (pnpm 11) deliberately keeps clone-first
+/// there, because changing what the default materializes on disk is not a
 /// point-release change. The two `Auto` implementations intentionally
 /// diverge on this until pnpm 11 is retired.
 fn next_auto_tier(tier: u8) -> u8 {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     match tier {
         LINK_STATE_HARDLINK => LINK_STATE_CLONE,
         _ => LINK_STATE_COPY,
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     match tier {
         LINK_STATE_CLONE => LINK_STATE_HARDLINK,
         _ => LINK_STATE_COPY,
@@ -474,14 +479,19 @@ fn same_inode(_source: &Path, _target: &Path) -> bool {
     false
 }
 
-/// Unix permission errors that may deny linking while still allowing copying.
+/// Permission errors that may deny linking while still allowing copying.
 /// Android's `SELinux` policy can reject hardlinks with `EACCES`; filesystems
 /// without link support and restricted containers can return `EPERM`.
+/// On Windows, a store file's ACL can refuse a hardlink with
+/// `ERROR_ACCESS_DENIED`.
 /// The copy tier reports any remaining access error on the paths.
 fn is_link_permission_error(err: &io::Error) -> bool {
     #[cfg(unix)]
     return matches!(err.raw_os_error(), Some(libc::EPERM | libc::EACCES));
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    return err.raw_os_error()
+        == Some(windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED.cast_signed());
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = err;
         false
@@ -527,7 +537,7 @@ fn copy_and_log<Reporter: self::Reporter>(
     Ok(WireImportMethod::Copy)
 }
 
-/// `Auto`'s downgrade chain — hardlink → clone → copy on Linux,
+/// `Auto`'s downgrade chain — hardlink → clone → copy on Linux and Windows,
 /// clone → hardlink → copy elsewhere (see [`next_auto_tier`] for the
 /// why) — using `state` to skip tiers that have already failed in this
 /// process. Factored out so tests can

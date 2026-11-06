@@ -8,6 +8,7 @@ import {
   type PackageFilesIndex,
   parseJsonBufferSync,
   takeVerifiedFileIntegrity,
+  type VerifyResult,
 } from '@pnpm/store.cafs'
 import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { BundledManifest, DependencyManifest } from '@pnpm/types'
@@ -34,7 +35,7 @@ export function readPkgFromStoreIndex (message: ReadPkgFromCafsMessage): object 
     ? checkPkgFilesIntegrity(storeDir, pkgFilesIndex)
     : buildFileMapsFromIndex(storeDir, pkgFilesIndex)
   const bundledManifest = pkgFilesIndex.manifest
-  const requiresBuild = resolveRequiresBuild(pkgFilesIndex.requiresBuild, bundledManifest, verifyResult.filesMap)
+  const requiresBuild = resolveRequiresBuild(pkgFilesIndex.requiresBuild, bundledManifest, verifyResult)
 
   return {
     status: 'success',
@@ -90,14 +91,20 @@ function isStoredPkgMismatch (manifest: BundledManifest | undefined, expectedPkg
     !equalOrSemverEqual(manifest.version, expectedPkg.version)
 }
 
+/**
+ * The caller refetches an unverified entry and ignores its build flag, so
+ * its `package.json` is not read: a read error would fail the install
+ * before the refetch.
+ */
 function resolveRequiresBuild (
   stored: boolean | undefined,
   bundledManifest: BundledManifest | undefined,
-  filesMap: FilesMap
+  { passed, filesMap }: VerifyResult
 ): boolean {
-  if (stored == null) return pkgRequiresBuild(bundledManifest, filesMap)
+  const readManifest = (): DependencyManifest | undefined => passed ? readManifestFromCafs(filesMap) : undefined
+  if (stored == null) return pkgRequiresBuild(bundledManifest ?? readManifest(), filesMap)
   if (!stored || !storedRequiresBuildNeedsManifestCheck(bundledManifest, filesMap)) return stored
-  const manifest = readManifestFromCafs(filesMap)
+  const manifest = readManifest()
   return manifest == null ? stored : pkgRequiresBuild(manifest, filesMap)
 }
 
