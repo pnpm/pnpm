@@ -50,6 +50,8 @@ impl<'a> ProjectHost<'a> {
         if self.config.skip_runtimes {
             return None;
         }
+        // An unreadable root manifest fails the root project's own check,
+        // which every install runs, so the error is reported there.
         let (_, manifest) = pnpm_workspace::try_read_project_manifest(self.root_dir).ok()??;
         node_version_from_engines_runtime(manifest.value())
     }
