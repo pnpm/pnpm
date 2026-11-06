@@ -15,13 +15,13 @@ function response (contentType = 'application/json', headers = {}) {
 
 for (const accept of [INSTALL_V2, `${INSTALL_V2}; q=1.0, ${INSTALL_V1}; q=0.9`]) {
   test(`install-v2 bypasses both metadata slots: ${accept}`, () => {
-    assert.equal(metadataVariant(accept), undefined)
+    assert.equal(metadataVariant(new globalThis.Headers(accept ? { accept } : {})), undefined)
   })
 }
 
 test('full and abbreviated metadata have distinct keys after URL fragments are removed', () => {
-  const full = metadataVariant(null)
-  const abbreviated = metadataVariant(INSTALL_V1)
+  const full = metadataVariant(new globalThis.Headers())
+  const abbreviated = metadataVariant(new globalThis.Headers({ accept: INSTALL_V1 }))
   const fullKey = new globalThis.URL(metadataKey('https://registry.example', '/npm/', '@acme/widget', full))
   const abbreviatedKey = new globalThis.URL(metadataKey('https://registry.example', '/npm/', '@acme/widget', abbreviated))
   fullKey.hash = ''
@@ -36,7 +36,7 @@ test('full and abbreviated metadata have distinct keys after URL fragments are r
 
 test('each metadata slot accepts only its response representation', () => {
   for (const accept of [null, INSTALL_V1]) {
-    const variant = metadataVariant(accept)
+    const variant = metadataVariant(new globalThis.Headers(accept ? { accept } : {}))
     const expected = accept ?? 'application/json'
     for (const contentType of ['application/json', INSTALL_V1, INSTALL_V2, 'text/html']) {
       assert.equal(matchesMetadata(response(contentType), variant), contentType === expected)
@@ -79,7 +79,6 @@ for (const headers of [
   { vary: 'Accept, Origin' },
   { vary: 'Cookie' },
   { vary: 'Accept, X-Registry-View' },
-  { vary: 'Accept-Encoding' },
 ]) {
   test(`does not share restricted responses: ${JSON.stringify(headers)}`, () => {
     assert.equal(isShareable(response('application/json', headers)), false)
@@ -88,4 +87,22 @@ for (const headers of [
 
 test('public metadata with Vary: Accept remains cacheable', () => {
   assert.equal(isShareable(response('application/json', { 'cache-control': 'public, max-age=300', vary: 'Accept' })), true)
+})
+
+test('encoding preferences have distinct metadata keys', () => {
+  const encodings = ['', 'gzip', 'br', 'gzip;q=0.5, br;q=1.0']
+  const keys = encodings.map(encoding => metadataKey(
+    'https://registry.example', '/npm/', 'widget',
+    metadataVariant(new globalThis.Headers({ 'accept-encoding': encoding })),
+  ))
+  assert.equal(new Set(keys).size, encodings.length)
+  for (let index = 0; index < keys.length; index++) {
+    assert.equal(new globalThis.URL(keys[index]).searchParams.get('__pnpr_encoding'), encodings[index])
+  }
+})
+
+test('metadata varying by encoding remains shareable', () => {
+  assert.equal(isShareable(response('application/json', {
+    'cache-control': 'public, max-age=300', vary: 'Accept, Accept-Encoding',
+  })), true)
 })

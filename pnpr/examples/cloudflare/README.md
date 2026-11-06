@@ -19,7 +19,7 @@ import {
 } from './cache-policy.mjs'
 
 async function fetchMetadata (request, origin, base, name, fetchFromRegistry) {
-  const variant = metadataVariant(request.headers.get('accept'))
+  const variant = metadataVariant(request.headers)
   if (bypassesCache(request) || !variant) return fetchFromRegistry(request)
 
   const key = new Request(metadataKey(origin, base, name, variant))
@@ -38,16 +38,17 @@ The response must provide the cache lifetime. Preserve its cache headers when
 storing it. The cache key is synthetic; send only the original URL to the
 registry.
 
-After package writes, invalidate both metadata representations on every
-cacheable route that resolves to the changed package. Include the default
+After package writes, invalidate both metadata representations and all cached
+encodings on every cacheable route that resolves to the changed package. Include the default
 `/npm/` route when a write arrives through a named base such as `/npm/~local/`.
 Deleting only the named-base keys leaves the default-route entries cached.
 [Cache API deletion](https://developers.cloudflare.com/workers/runtime-apis/cache/#delete)
 affects only the current data center. Other locations can serve old metadata
 until expiry unless you purge globally.
 
-Only `Vary: Accept` is supported. Other response selectors bypass storage
-because the cache key does not include them.
+Build the variant from the headers sent to the registry. The key includes
+the metadata format and the request's `Accept-Encoding` value. Responses may
+vary by `Accept` and `Accept-Encoding`. Other response selectors bypass storage because the cache key does not include them.
 
 Run the policy tests from the repository root:
 
