@@ -2,17 +2,16 @@ use super::{
     AccessArgs, AddArgs, ApproveArgs, ApproveBuildsArgs, AuditArgs, BinArgs, BugsArgs,
     CacheCommand, CatFileArgs, CatIndexArgs, ChangeArgs, CiArgs, CleanArgs, CompletionArgs,
     CompletionServerArgs, ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, CreateArgs,
-    DedupeArgs, DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EnvArgs,
-    ExecArgs, FetchArgs, FindHashArgs, FundArgs, IgnoredBuildsArgs, ImportArgs, InitArgs,
+    DedupeArgs, DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EditArgs,
+    EnvArgs, ExecArgs, FetchArgs, FindHashArgs, FundArgs, IgnoredBuildsArgs, ImportArgs, InitArgs,
     InstallArgs, InstallTestArgs, LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs,
-    LogoutArgs, NotImplementedArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs,
-    PatchCommitArgs, PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs,
-    PrefixArgs, ProfileArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs,
-    RestartArgs, RootArgs, RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs,
-    SelfUpdateArgs, SetScriptArgs, SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs,
-    StoreCommand, Subcommand, SummaryScope, TasksArgs, TeamArgs, TokenArgs, UndeprecateArgs,
-    UnlinkArgs, UnpublishArgs, UnstarArgs, UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs,
-    WithArgs,
+    LogoutArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs, PatchCommitArgs,
+    PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs, PrefixArgs,
+    ProfileArgs, PruneArgs, PublishArgs, RebuildArgs, RemoveArgs, RepoArgs, RestartArgs, RootArgs,
+    RunArgs, RuntimeArgs, SbomArgs, ScriptShortcutArgs, SearchArgs, SelfUpdateArgs, SetScriptArgs,
+    SetupArgs, ShimArgs, StageArgs, StarArgs, StarsArgs, StoreCommand, Subcommand, SummaryScope,
+    TasksArgs, TeamArgs, TokenArgs, UndeprecateArgs, UnlinkArgs, UnpublishArgs, UnstarArgs,
+    UpdateArgs, VersionArgs, ViewArgs, WhoamiArgs, WhyArgs, WithArgs,
 };
 
 #[derive(Debug, strum::IntoStaticStr, Subcommand)]
@@ -27,6 +26,8 @@ pub enum CliCommand {
     Recursive,
     /// Add a package
     Add(AddArgs),
+    /// Opens an installed package's folder in the default text editor.
+    Edit(EditArgs),
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
@@ -267,16 +268,10 @@ pub enum CliCommand {
     /// single invocation, ignoring the "packageManager" and
     /// "devEngines.packageManager" fields of the project's manifest.
     With(WithArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    // Registered rather than left to the external-subcommand fallback so
-    // it names npm instead of failing as a missing package script.
-    Edit(NotImplementedArgs),
     /// Change settings on your registry profile.
     Profile(ProfileArgs),
     /// Manage authentication tokens on the registry.
     Token(TokenArgs),
-    /// Not implemented in pnpm. Use the npm CLI directly.
-    Xmas(NotImplementedArgs),
     #[clap(external_subcommand)]
     External(Vec<String>),
 }
