@@ -324,6 +324,7 @@ impl ReporterState {
             LogEvent::PendingSkills(log) => self.on_pending_skills(log),
             LogEvent::UpdateCheck(log) => self.on_update_check(log),
             LogEvent::SkippedOptionalDependency(log) => self.on_skipped_optional(log),
+            LogEvent::InstallCheck(log) => self.on_pnpm(log.level, &log.message, &log.prefix),
             LogEvent::InstallingConfigDeps(log) => self.on_config_deps(log),
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
             LogEvent::Lockfile(log) => self.on_pnpm(log.level, &log.message, &log.prefix),
@@ -354,6 +355,7 @@ impl ReporterState {
     fn level_permits(&self, event: &LogEvent) -> bool {
         match event {
             LogEvent::Lockfile(_)
+            | LogEvent::InstallCheck(_)
             | LogEvent::Pnpm(_)
             | LogEvent::Global(_)
             | LogEvent::DedupeCheck(_)

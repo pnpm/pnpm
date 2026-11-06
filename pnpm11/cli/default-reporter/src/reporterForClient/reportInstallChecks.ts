@@ -26,6 +26,14 @@ function formatInstallCheck (
   }
 ): string | undefined {
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false
+  if (typeof logObj.message === 'string') {
+    return autozoom(
+      currentPrefix,
+      logObj.prefix,
+      formatWarn(logObj.message),
+      { zoomOutCurrent }
+    )
+  }
   switch (logObj.code) {
     case 'EBADPLATFORM':
       return autozoom(

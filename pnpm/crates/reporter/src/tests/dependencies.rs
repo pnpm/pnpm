@@ -3,6 +3,24 @@ use super::{
     SkippedOptionalPackage, SkippedOptionalReason, Value, assert_eq,
 };
 
+#[test]
+fn install_check_matches_the_package_installability_warning() {
+    let event = LogEvent::InstallCheck(super::PnpmLog {
+        level: LogLevel::Warn,
+        message: "Unsupported engine for foo@1.0.0".to_string(),
+        prefix: "/projects/x".to_string(),
+    });
+    assert_eq!(
+        serde_json::to_value(&event).unwrap(),
+        serde_json::json!({
+            "name": "pnpm:install-check",
+            "level": "warn",
+            "message": "Unsupported engine for foo@1.0.0",
+            "prefix": "/projects/x",
+        }),
+    );
+}
+
 /// `pnpm:skipped-optional-dependency` matches pnpm's wire shape:
 /// top-level `details`, `package: { id, name, version }`, `prefix`,
 /// and `reason` (`snake_case`).

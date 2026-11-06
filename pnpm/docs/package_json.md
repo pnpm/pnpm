@@ -43,7 +43,7 @@ the install fails.
 With [`engineStrict`](./settings/cli.md#enginestrict) enabled, an incompatible
 `engines.node` in the project or in a dependency fails the install. Optional
 dependencies are exempt. With it disabled, an incompatible `engines.node` in
-the project prints a warning.
+the project or a required dependency prints a warning.
 
 In a workspace, these checks apply to every workspace project. A project whose
 `os`, `cpu`, or `libc` excludes the current platform prints a warning.

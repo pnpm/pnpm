@@ -48,3 +48,36 @@ fn duplicate_metadata_dedupes_reporter_events() {
         .count();
     assert_eq!(skipped_events_count, 1, "must dedup per metadata row");
 }
+
+#[test]
+fn incompatible_required_engine_emits_install_check() {
+    recording_reporter!(take_events);
+    let key = snapshot_key("required@1.0.0");
+    let snapshots = HashMap::from([(key.clone(), SnapshotEntry::default())]);
+    let packages =
+        HashMap::from([(key, synthetic_metadata(Some(&[("node", ">=99")]), None, None, None))]);
+    let skipped = compute_skipped_snapshots::<RecordingReporter>(
+        &super::root_importer(&["required@1.0.0"], &[]),
+        &snapshots,
+        &packages,
+        &host("20.10.0", "darwin", "arm64"),
+        "/proj",
+        SkippedSnapshots::new(),
+    )
+    .unwrap();
+
+    assert!(skipped.is_empty());
+    let events: Vec<_> = take_events()
+        .iter()
+        .map(|event| serde_json::to_value(event).unwrap())
+        .collect();
+    assert_eq!(
+        events,
+        vec![serde_json::json!({
+            "name": "pnpm:install-check",
+            "level": "warn",
+            "prefix": "/proj",
+            "message": "Unsupported engine for required@1.0.0: wanted: {\"node\":\">=99\"} (current: {\"node\":\"20.10.0\"})",
+        })],
+    );
+}

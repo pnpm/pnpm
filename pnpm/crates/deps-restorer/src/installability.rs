@@ -41,7 +41,7 @@ use pnpm_lockfile::{
 use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions, SkipReason};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent, LogLevel, PnpmLog, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 
@@ -57,9 +57,8 @@ use pnpm_reporter::{
 /// - An incompatible snapshot with at least one non-optional inbound
 ///   edge from an installed (non-skipped) importer or snapshot is the
 ///   install error when `engine_strict` is set, and otherwise emits
-///   `tracing::warn!` and proceeds — even when the snapshot is also
-///   optionally reachable. (The warn should emit `pnpm:install-check`,
-///   which pacquet's reporter does not expose.)
+///   `pnpm:install-check` and proceeds, even when the snapshot is also
+///   optionally reachable.
 /// - A snapshot the walk cannot reach from any importer applies the
 ///   same dispatch to its lockfile-propagated
 ///   [`SnapshotEntry::optional`] flag instead.
@@ -203,7 +202,7 @@ impl SkipScan<'_, '_> {
             self.record_skip::<Reporter>(snapshot_key, &metadata_key, &warn);
             return Ok(());
         }
-        self.report_incompatible_required(
+        self.report_incompatible_required::<Reporter>(
             &metadata_key,
             metadata,
             warn,
@@ -245,7 +244,7 @@ impl SkipScan<'_, '_> {
     /// A package that an installed non-optional edge reaches cannot be
     /// skipped: under `engine-strict` it fails the install, otherwise
     /// it warns.
-    fn report_incompatible_required(
+    fn report_incompatible_required<Reporter: self::Reporter>(
         &mut self,
         metadata_key: &PackageKey,
         metadata: &PackageMetadata,
@@ -269,17 +268,11 @@ impl SkipScan<'_, '_> {
             return Err(Box::new(warn));
         }
 
-        // Required, non-strict: this should emit a
-        // `pnpm:install-check` warn (TODO: add channel to the
-        // reporter). For now the tracing-level warning is the
-        // user-visible signal that an incompatible required dep slipped
-        // through.
-        tracing::warn!(
-            target: "pacquet::install",
-            package = %metadata_key,
-            "{}",
-            warn,
-        );
+        Reporter::emit(&LogEvent::InstallCheck(PnpmLog {
+            level: LogLevel::Warn,
+            message: warn.to_string(),
+            prefix: self.prefix.to_string(),
+        }));
         Ok(())
     }
 }
