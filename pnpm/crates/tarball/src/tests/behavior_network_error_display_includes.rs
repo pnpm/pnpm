@@ -814,8 +814,10 @@ async fn mem_cache_spends_one_retry_budget_on_a_failing_archive() {
 
     for result in [first, second, later] {
         let error = result.expect_err("every consumer must fail");
-        eprintln!("ERROR: {error}");
-        assert!(error.to_string().contains("HTTP 503"), "the owner's error must be reported");
+        assert!(
+            error.to_string().contains("HTTP 503"),
+            "the owner's error must be reported; got {error}",
+        );
     }
     mock.assert_async().await;
     drop(store_dir_keep);

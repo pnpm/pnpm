@@ -204,7 +204,8 @@ pub enum TarballError {
     /// the message shape follows pnpm's `ERR_PNPM_NO_OFFLINE_META`.
     #[from(ignore)]
     #[display(
-        "Failed to fetch tarball for {package_id} from {url} in offline mode: snapshot not present in local store"
+        "Failed to fetch tarball for {package_id} from {} in offline mode: snapshot not present in local store",
+        redact_url_for_display(url)
     )]
     #[diagnostic(
         code(ERR_PNPM_NO_OFFLINE_TARBALL),
