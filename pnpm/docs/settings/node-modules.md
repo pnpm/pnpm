@@ -173,8 +173,8 @@ When set to `true`, pnpm populates the virtual store without creating importer s
 Controls the way packages are imported from the store (if you want to disable symlinks inside `node_modules`, then you need to change the [nodeLinker] setting, not this one).
 
 * **auto** - try the platform's cheap link tiers in order, falling back to
-copying when none of them is possible. On Linux it tries hardlinking before
-cloning; on macOS and Windows it tries cloning before hardlinking.
+copying when none of them is possible. On Linux and Windows it tries hardlinking
+before cloning; on macOS it tries cloning before hardlinking.
 * **hardlink** - hard link packages from the store
 * **clone-or-copy** - try to clone packages from the store. If cloning is not supported then fall back to copying
 * **copy** - copy packages from the store
@@ -194,7 +194,7 @@ Not all file systems support cloning. To clone on Linux, use a copy-on-write (Co
 |---|---|
 | Linux | hardlink → clone → copy |
 | macOS | clone → hardlink → copy |
-| Windows | clone → hardlink → copy |
+| Windows | hardlink → clone → copy |
 
 A reflink materializes a new inode and copies extent bookkeeping inside the
 filesystem's metadata trees, where a hardlink is one directory entry. On btrfs
@@ -203,6 +203,10 @@ that difference roughly halves the time an install spends materializing
 first there. ext4 is unaffected. It never supported cloning, so `auto` already
 hardlinked. macOS keeps clone-first, since APFS `clonefile` is that
 platform's cheap primitive.
+
+Windows also tries hardlinks first. On ReFS Dev Drives, block cloning requires
+more work per file than creating a hardlink. On NTFS, `auto` continues to use
+hardlinks.
 
 If you edit files inside `node_modules`, ask for `clone` explicitly. Under a
 hardlink, the file in `node_modules` *is* the file in the store, so editing it

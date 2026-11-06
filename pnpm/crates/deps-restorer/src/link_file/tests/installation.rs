@@ -603,19 +603,16 @@ fn auto_call_errors_propagate_without_downgrading() {
         "AlreadyExists must not poison the cache",
     );
 }
-/// The platform ladder itself: hardlink before clone on Linux, clone
-/// first everywhere else (`next_auto_tier` carries the why). Pinned so
-/// a refactor of the downgrade machinery can't quietly put Linux back
-/// on the reflink tier.
+/// Pin the platform ladder's head and fallback order.
 #[test]
 fn auto_ladder_order_is_platform_specific() {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     {
         assert_eq!(AUTO_FIRST_TIER, LINK_STATE_HARDLINK);
         assert_eq!(next_auto_tier(LINK_STATE_HARDLINK), LINK_STATE_CLONE);
         assert_eq!(next_auto_tier(LINK_STATE_CLONE), super::super::LINK_STATE_COPY);
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     {
         assert_eq!(AUTO_FIRST_TIER, LINK_STATE_CLONE);
         assert_eq!(next_auto_tier(LINK_STATE_CLONE), LINK_STATE_HARDLINK);
