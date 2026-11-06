@@ -29,7 +29,7 @@ pub use std::process::{
 };
 pub use std::process::{ExitCode, abort, exit};
 
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{RwLock, RwLockWriteGuard};
 
 /// Held shared by every [`Command`] spawn and exclusively by the spawn of
 /// the executor's process-group watchdog.
@@ -44,7 +44,7 @@ static SPAWNING: RwLock<()> = RwLock::new(());
 
 /// Take [`SPAWNING`] shared for the duration of one child spawn.
 #[cfg(any(unix, test))]
-pub(crate) fn spawning() -> RwLockReadGuard<'static, ()> {
+pub(crate) fn spawning() -> std::sync::RwLockReadGuard<'static, ()> {
     SPAWNING.read().expect("spawn lock is not poisoned")
 }
 
