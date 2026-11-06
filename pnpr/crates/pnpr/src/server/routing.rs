@@ -38,6 +38,8 @@ use npm_handlers::{
 mod variant_handlers;
 use variant_handlers::get_scoped_variant_tarball;
 
+pub(super) mod npm_errors;
+
 mod observability;
 use observability::with_observability_layers;
 
@@ -109,7 +111,8 @@ fn finish_router(
         // Inside the trace layer below, so a rejection is still one record.
         .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
         .merge(main_listener_metrics_routes(&state));
-    let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout);
+    let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout)
+        .layer(axum::middleware::from_fn(npm_errors::render));
     if !cors_origins.is_empty() {
         router = router.layer(
             CorsLayer::new()

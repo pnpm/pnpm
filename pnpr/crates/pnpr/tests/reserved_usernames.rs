@@ -132,27 +132,27 @@ async fn put_login(
 async fn cannot_self_register_configured_admin() {
     let dir = TempDir::new().unwrap();
     let app = router(test_config(dir.path()));
-    let (status, text, _) = put_login(&app, "admin_alice", "malicious_password").await;
+    let (status, _, body) = put_login(&app, "admin_alice", "malicious_password").await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(text, r#"Username "admin_alice" is reserved"#);
+    assert_eq!(body["error"], r#"Username "admin_alice" is reserved"#);
 }
 
 #[tokio::test]
 async fn cannot_self_register_oidc_login_bound_user() {
     let dir = TempDir::new().unwrap();
     let app = router(test_config(dir.path()));
-    let (status, text, _) = put_login(&app, "oidc_bob", "malicious_password").await;
+    let (status, _, body) = put_login(&app, "oidc_bob", "malicious_password").await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(text, r#"Username "oidc_bob" is reserved"#);
+    assert_eq!(body["error"], r#"Username "oidc_bob" is reserved"#);
 }
 
 #[tokio::test]
 async fn cannot_self_register_oidc_workload_bound_user() {
     let dir = TempDir::new().unwrap();
     let app = router(test_config(dir.path()));
-    let (status, text, _) = put_login(&app, "release-ci", "malicious_password").await;
+    let (status, _, body) = put_login(&app, "release-ci", "malicious_password").await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(text, r#"Username "release-ci" is reserved"#);
+    assert_eq!(body["error"], r#"Username "release-ci" is reserved"#);
 }
 
 #[tokio::test]
@@ -313,9 +313,9 @@ async fn a_login_racing_the_removal_of_a_reserved_account_keeps_no_account() {
     let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
     let app = router_with_auth(test_config(dir.path()), auth);
 
-    let (status, text, _) = put_login(&app, "admin_alice", "malicious_password").await;
+    let (status, _, body) = put_login(&app, "admin_alice", "malicious_password").await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(text, r#"Username "admin_alice" is reserved"#);
+    assert_eq!(body["error"], r#"Username "admin_alice" is reserved"#);
     assert!(
         users.users
             .password_hash("admin_alice")

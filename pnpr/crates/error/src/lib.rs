@@ -3,6 +3,8 @@ pub use redact_url::redact_url_credentials;
 mod redact_url;
 #[cfg(feature = "server")]
 mod response;
+#[cfg(feature = "server")]
+pub use response::PublicErrorMessage;
 
 use derive_more::{Display, Error, From};
 
