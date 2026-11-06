@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/peer-wave-d",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm/y": "^2.0.0"
+  }
+}

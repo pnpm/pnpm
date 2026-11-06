@@ -985,3 +985,81 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
         "`{local}` must not be hoisted into app-b",
     );
 }
+
+fn optional_peer_carrier_table()
+-> HashMap<(String, String), pnpm_resolving_resolver_base::ResolveResult> {
+    let mut table = HashMap::default();
+    let manifests = [
+        serde_json::json!({
+            "name": "needs-carrier",
+            "version": "1.0.0",
+            "peerDependencies": { "carrier": "*" },
+            "peerDependenciesMeta": { "carrier": { "optional": true } },
+        }),
+        serde_json::json!({ "name": "carrier", "version": "1.0.0", "peerDependencies": { "user": "*" } }),
+        serde_json::json!({ "name": "user", "version": "1.0.0", "peerDependencies": { "y": "^2.0.0" } }),
+        serde_json::json!({ "name": "y", "version": "1.0.0" }),
+        serde_json::json!({ "name": "y", "version": "2.0.0" }),
+    ];
+    for manifest in manifests {
+        let name = manifest["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let version = manifest["version"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        table.insert((name.clone(), version.clone()), fake_result(&name, &version, None, manifest));
+    }
+    table
+}
+
+/// Returns how `pkg-a`'s `needs-carrier` resolved.
+async fn resolve_needs_carrier_of_pkg_a(pkg_a_y: &str) -> String {
+    let resolver = RecordingResolver {
+        table: optional_peer_carrier_table(),
+        seen: Mutex::new(HashMap::default()),
+    };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({}));
+    let (tmp_a, a_manifest) =
+        fake_manifest(serde_json::json!({ "needs-carrier": "1.0.0", "y": pkg_a_y }));
+    let (tmp_b, b_manifest) =
+        fake_manifest(serde_json::json!({ "carrier": "1.0.0", "user": "1.0.0", "y": "2.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path(), tmp_b.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = PeerDependentsDedupe::On;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        importer_opts(dir, None)
+    })
+    .await
+    .unwrap();
+
+    result.peers.direct_dependencies_by_importer["pkg-a"]["needs-carrier"].to_string()
+}
+
+/// <https://github.com/orgs/pnpm/discussions/17718>
+#[tokio::test]
+async fn an_optional_peer_is_not_supplied_when_a_required_peer_it_brings_in_rejects_the_importers_version()
+ {
+    assert_eq!(resolve_needs_carrier_of_pkg_a("1.0.0").await, "needs-carrier@1.0.0");
+}
+
+#[tokio::test]
+async fn an_optional_peer_is_supplied_when_the_required_peers_it_brings_in_accept_the_importers_versions()
+ {
+    assert!(
+        resolve_needs_carrier_of_pkg_a("2.0.0").await
+            .starts_with("needs-carrier@1.0.0(carrier@1.0.0"),
+    );
+}
