@@ -361,6 +361,11 @@ async fn read_bounded_body(
     response: reqwest::Response,
     display_url: &str,
 ) -> Result<Vec<u8>, String> {
+    if let Some(length) = response.content_length()
+        && length > MAX_PACKUMENT_BYTES as u64
+    {
+        return Err(format!("{display_url} returned an oversized packument ({length} bytes)"));
+    }
     let body = read_limited_self_delimiting_body(response, MAX_PACKUMENT_BYTES)
         .await
         .map_err(|source| format!("{display_url}: {}", redact_and_sanitize(&source.to_string())))?;
