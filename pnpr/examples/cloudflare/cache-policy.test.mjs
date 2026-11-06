@@ -90,14 +90,14 @@ test('public metadata with Vary: Accept remains cacheable', () => {
 })
 
 test('encoding preferences have distinct metadata keys', () => {
-  const encodings = ['', 'identity', 'gzip', 'deflate', 'br', 'zstd', 'zstd, gzip']
+  const encodings = [null, '', 'identity', 'gzip', 'deflate', 'br', 'zstd', 'zstd, gzip']
   const keys = encodings.map(encoding => metadataKey(
     'https://registry.example', '/npm/', 'widget',
-    metadataVariant(new globalThis.Headers({ 'accept-encoding': encoding })),
+    metadataVariant(new globalThis.Headers(encoding === null ? {} : { 'accept-encoding': encoding })),
   ))
   assert.equal(new Set(keys).size, encodings.length)
   for (let index = 0; index < keys.length; index++) {
-    assert.equal(new globalThis.URL(keys[index]).searchParams.get('__pnpr_encoding'), encodings[index])
+    assert.equal(new globalThis.URL(keys[index]).searchParams.get('__pnpr_encoding'), encodings[index] ?? 'absent')
   }
 })
 
@@ -109,17 +109,28 @@ test('metadata varying by encoding remains shareable', () => {
 
 for (const encoding of ['gzip;q=0.5, br;q=1.0', 'unknown', 'gzip, br', 'gzip, gzip']) {
   test(`unsupported encoding preferences bypass the metadata cache: ${encoding}`, () => {
-    assert.equal(metadataVariant(new globalThis.Headers({ 'accept-encoding': encoding })), undefined)
+    assert.equal(metadataVariant(new globalThis.Headers(encoding === null ? {} : { 'accept-encoding': encoding })), undefined)
   })
 }
 
 test('invalidation enumerates both formats and every supported encoding', () => {
   const keys = metadataKeys('https://registry.example', '/npm/', 'widget')
-  assert.equal(new Set(keys).size, 14)
-  for (const encoding of ['', 'identity', 'gzip', 'deflate', 'br', 'zstd', 'zstd, gzip']) {
+  assert.equal(new Set(keys).size, 16)
+  for (const encoding of [null, '', 'identity', 'gzip', 'deflate', 'br', 'zstd', 'zstd, gzip']) {
     for (const accept of ['application/json', INSTALL_V1]) {
-      const variant = metadataVariant(new globalThis.Headers({ accept, 'accept-encoding': encoding }))
+      const headers = new globalThis.Headers({ accept })
+      if (encoding !== null) headers.set('accept-encoding', encoding)
+      const variant = metadataVariant(headers)
       assert.ok(keys.includes(metadataKey('https://registry.example', '/npm/', 'widget', variant)))
     }
   }
+})
+
+test('absent and empty encoding preferences have distinct keys', () => {
+  const absent = metadataVariant(new globalThis.Headers())
+  const empty = metadataVariant(new globalThis.Headers({ 'accept-encoding': '' }))
+  assert.notEqual(
+    metadataKey('https://registry.example', '/npm/', 'widget', absent),
+    metadataKey('https://registry.example', '/npm/', 'widget', empty),
+  )
 })

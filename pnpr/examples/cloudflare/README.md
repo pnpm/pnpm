@@ -53,7 +53,7 @@ Build the variant from the headers sent to the registry. The key includes
 the metadata format and the request's `Accept-Encoding` value. Responses may
 vary by `Accept` and `Accept-Encoding`. Other response selectors bypass storage because the cache key does not include them.
 
-Caching supports an absent `Accept-Encoding`, a single `identity`, `gzip`,
+Caching supports an absent or empty `Accept-Encoding`, a single `identity`, `gzip`,
 `deflate`, `br`, or `zstd` value, and the deployment Worker's fixed `zstd, gzip`
 value. Other preferences bypass caching. This keeps the key set bounded and
 lets `metadataKeys` enumerate it for invalidation.
