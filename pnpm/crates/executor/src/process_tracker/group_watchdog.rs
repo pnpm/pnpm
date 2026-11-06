@@ -52,14 +52,6 @@ while read -r line; do
 done
 for group in $groups; do kill -9 -"$group"; done"#;
 
-/// Held shared by every child spawn and exclusively by the watchdog's.
-///
-/// Where `pipe2` is missing, as on macOS, Rust creates a pipe without
-/// `FD_CLOEXEC` and sets it afterwards. A child forked by another thread in
-/// between inherits the watchdog's lifeline and holds it open after pnpm
-/// dies, so the watchdog never sees end of input and no group is killed.
-/// The watchdog likewise could inherit a child's output pipe and keep pnpm
-/// from seeing that child's end of output.
 /// The watch pnpm keeps over the process groups it creates.
 static WATCH: Mutex<GroupWatch> = Mutex::new(GroupWatch::new());
 

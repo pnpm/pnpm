@@ -196,7 +196,7 @@ pub fn spawn_child<'tracker>(
     if separate_process_group {
         prepare_command(command);
     }
-    let child = spawn(command)?;
+    let child = command.spawn()?;
     crate::job_control::assign_child(&child);
     // A task a bail may cancel gets a job of its own, so the cancellation
     // reaches everything the task started.
@@ -245,12 +245,6 @@ fn watch_process_group(mut child: Child, own_process_group: bool) -> io::Result<
             Err(error)
         }
     }
-}
-
-/// Spawn `command` so that it cannot race the start of the group watchdog.
-/// Every Unix spawn of this crate but the watchdog's goes through here.
-pub(crate) fn spawn(command: &mut Command) -> io::Result<Child> {
-    command.spawn()
 }
 
 #[cfg(unix)]

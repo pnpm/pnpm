@@ -31,12 +31,24 @@ pub use std::process::{ExitCode, abort, exit};
 
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+/// Held shared by every [`Command`] spawn and exclusively by the spawn of
+/// the executor's process-group watchdog.
+///
+/// Where `pipe2` is missing, as on macOS, Rust creates a pipe without
+/// `FD_CLOEXEC` and sets it afterwards. A child forked by another thread in
+/// between inherits the watchdog's lifeline and holds it open after pnpm
+/// dies, so the watchdog never sees end of input and no group is killed.
+/// The watchdog likewise could inherit a child's output pipe and keep pnpm
+/// from seeing that child's end of output.
 static SPAWNING: RwLock<()> = RwLock::new(());
 
-pub fn spawning() -> RwLockReadGuard<'static, ()> {
+/// Take [`SPAWNING`] shared for the duration of one child spawn.
+#[cfg(any(unix, test))]
+pub(crate) fn spawning() -> RwLockReadGuard<'static, ()> {
     SPAWNING.read().expect("spawn lock is not poisoned")
 }
 
+/// The spawn lock held exclusively, so no other child spawns until it drops.
 pub struct WatchdogSpawnGuard {
     _guard: RwLockWriteGuard<'static, ()>,
 }
@@ -48,6 +60,8 @@ impl WatchdogSpawnGuard {
     }
 }
 
+/// Wait for in-flight child spawns to finish and block new ones until the
+/// guard drops. Only the process-group watchdog's spawn takes it.
 pub fn watchdog_spawning() -> WatchdogSpawnGuard {
     WatchdogSpawnGuard { _guard: SPAWNING.write().expect("spawn lock is not poisoned") }
 }
