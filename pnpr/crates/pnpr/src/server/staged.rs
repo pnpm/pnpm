@@ -219,6 +219,9 @@ async fn serve_staged_publish(
         Ok(name) => name,
         Err(err) => return err.into_response(),
     };
+    if let Err(err) = name.validate_npm_publish() {
+        return err.into_response();
+    }
     let incoming: Value = match serde_json::from_slice(body) {
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
