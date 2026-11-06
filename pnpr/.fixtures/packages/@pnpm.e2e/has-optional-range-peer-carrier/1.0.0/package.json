@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/has-optional-range-peer-carrier",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/range-peer-carrier": "*"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/range-peer-carrier": {
+      "optional": true
+    }
+  }
+}

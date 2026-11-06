@@ -133,6 +133,23 @@ where
         .await
 }
 
+/// [`try_resolve_edge_cached`] for an edge resolved only to read its
+/// manifest. It shares the cache entry of the same edge resolved for the
+/// tree, but a failure drops it as [`SkippedOptionalReport::Detached`].
+pub(in super::super) async fn try_resolve_edge_detached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, SkippedOptionalReport::Detached)
+        .await
+}
+
 async fn resolve_edge_inner<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,

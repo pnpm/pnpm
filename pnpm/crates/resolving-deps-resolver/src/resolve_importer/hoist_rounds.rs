@@ -342,7 +342,7 @@ impl ImporterHoistState {
         {
             return Ok(false);
         }
-        let hoisted_optional = self.hoistable_optional_peers();
+        let hoisted_optional = self.hoistable_optional_peers(resolver).await?;
         if hoisted_optional.is_empty() {
             return Ok(false);
         }
@@ -379,6 +379,6 @@ impl ImporterHoistState {
 
 /// A hoisted peer as a direct dependency of the importer, left
 /// non-optional even when the peer it satisfies was declared optional.
-fn hoisted_dependency(alias: String, bare_specifier: String) -> DependencySpec {
+pub(super) fn hoisted_dependency(alias: String, bare_specifier: String) -> DependencySpec {
     DependencySpec { alias, bare_specifier, optional: false, injected: false }
 }

@@ -57,7 +57,7 @@ use crate::{
     },
     resolve_dependency_tree::{
         DependencySpec, TreeCtx, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
-        unwrap_package_name,
+        resolve_direct_dependency_detached, unwrap_package_name,
     },
     resolve_peers::{
         CandidatePeer, CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,

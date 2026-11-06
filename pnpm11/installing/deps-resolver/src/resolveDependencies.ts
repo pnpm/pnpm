@@ -4,7 +4,7 @@ import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import type { PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
 import { type PkgResolutionId, type PreferredVersions, RESOLVED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
-import type { SupportedArchitectures } from '@pnpm/types'
+import type { PackageManifest, SupportedArchitectures } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
 import {
@@ -36,7 +36,7 @@ import type {
   ResolveDependenciesOfDependency,
   UpdateMatchingFunction,
 } from './resolutionTypes.js'
-import { resolveDependency } from './resolveDependency.js'
+import { resolveDependency, resolveDependencyManifest } from './resolveDependency.js'
 
 export { buildTree, claimChildrenResolution } from './childrenResolution.js'
 export { getPinnedNameVer } from './getDepsToResolve.js'
@@ -99,7 +99,50 @@ async function resolveEachDependency (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: ResolvedDependenciesOptions
 ): Promise<CollectedDependencies> {
-  const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+  const extendedWantedDeps = extendWantedDependencies(ctx, { options, preferredVersions, wantedDependencies })
+  // Resolve in parallel, then drain the results in input order.
+  const resolvedDependencies = await Promise.all(
+    extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
+      ctx,
+      preferredVersions,
+      options,
+      extendedWantedDep
+    ))
+  )
+  return collectResolvedDependencies(resolvedDependencies)
+}
+
+/**
+ * The manifest a wanted dependency resolves to, read the way
+ * {@link resolveDependencies} reads it. The package is neither fetched nor
+ * added to the graph.
+ */
+export async function resolveDependencyManifestOnly (
+  ctx: ResolutionContext,
+  { options, preferredVersions, wantedDependency }: {
+    options: ResolvedDependenciesOptions
+    preferredVersions: PreferredVersions
+    wantedDependency: WantedDependency & { updateDepth?: number }
+  }
+): Promise<PackageManifest | null> {
+  const [extendedWantedDep] = extendWantedDependencies(ctx, { options, preferredVersions, wantedDependencies: [wantedDependency] })
+  const plan = planDependencyUpdate(ctx, options, extendedWantedDep)
+  return resolveDependencyManifest(
+    extendedWantedDep.wantedDependency,
+    ctx,
+    getResolveDependencyOptions(ctx, { extendedWantedDep, options, plan, preferredVersions })
+  )
+}
+
+function extendWantedDependencies (
+  ctx: ResolutionContext,
+  { options, preferredVersions, wantedDependencies }: {
+    options: ResolvedDependenciesOptions
+    preferredVersions: PreferredVersions
+    wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
+  }
+): ExtendedWantedDependency[] {
+  return getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     currentDepth: options.currentDepth,
     directDepVersions: options.directDepVersions,
     preferredDependencies: options.preferredDependencies,
@@ -111,16 +154,6 @@ async function resolveEachDependency (
     resolvedDependencies: options.resolvedDependencies,
     staleOverrideTargets: ctx.staleOverrideTargets,
   })
-  // Resolve in parallel, then drain the results in input order.
-  const resolvedDependencies = await Promise.all(
-    extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
-      ctx,
-      preferredVersions,
-      options,
-      extendedWantedDep
-    ))
-  )
-  return collectResolvedDependencies(resolvedDependencies)
 }
 
 export async function resolveDependenciesOfDependency (
