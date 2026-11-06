@@ -178,8 +178,9 @@ fn make_real_dir(parent: &Path, name: &str) -> Option<PathBuf> {
 /// (<https://github.com/pnpm/pnpm/issues/13676>).
 ///
 /// Only directories carrying a `package.json` are reported. That is the
-/// marker [`import_indexed_dir()`] writes last, so a directory holding
-/// one is a package that was materialized in full; a directory without
+/// marker [`import_indexed_dir()`](crate::import_indexed_dir()) writes
+/// last, so a directory holding one is a package that was materialized in
+/// full; a directory without
 /// one is not a package, and pruning is not entitled to remove it
 /// however little the hoisting plan has to say about it.
 ///
