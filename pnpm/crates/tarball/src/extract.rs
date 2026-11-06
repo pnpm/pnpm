@@ -176,7 +176,7 @@ pub(crate) fn extract_tarball_entries_with_bins(
 }
 
 /// [`extract_tarball_entries_with_bins`], running `side` on the calling
-/// thread while [`write_pending_files_alongside`] writes the entries.
+/// thread while the entries are written.
 pub(crate) fn extract_tarball_entries_alongside<Side: Send>(
     tar_data: &[u8],
     limits: TarLimits,
