@@ -309,6 +309,22 @@ depends on the request's `Origin`, so keep requests with an `Origin` header
 out of a cache that does not key on it. A cache also outlives
 [rule changes](configuration.md#changing-rules-through-the-api).
 
+Metadata at one URL has several representations, selected by `Accept`. Keep
+full JSON and `application/vnd.npm.install-v1+json` in separate cache entries.
+Bypass caching when `Accept` offers `application/vnd.pnpr.install-v2+json`,
+including when it also offers install-v1. Before storing metadata, check that
+its response `Content-Type` matches the entry's representation. `Vary: Accept`
+on the response does not partition a cache that builds its own keys.
+
+Bypass both cache reads and writes for requests with a query string, including
+`?write=true`, or request `Cache-Control: no-cache` or `no-store`. Such reads
+must reach the registry. Put representation selectors in the cache key's path
+or query, never its fragment. When replacing a cache that mixed representations,
+use a new key namespace or purge its entries.
+
+A [cache-policy example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)
+provides these checks for a custom Worker.
+
 **Publishes go through the Worker**, so your plan's request body limit caps
 the size of a package you can publish.
 
