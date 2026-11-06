@@ -295,7 +295,11 @@ testParallel('parallel dlx calls of the same package', async () => {
 
   // parallel dlx calls with cache
   await Promise.all(['abc', 'def', 'ghi'].map(
-    name => execPnpm(['dlx', 'shx@0.3.4', 'mkdir', name])
+    name => execPnpm([
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+      '--config.dlx-cache-max-age=Infinity',
+      'dlx', 'shx@0.3.4', 'mkdir', name])
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
