@@ -100,7 +100,7 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
-    let wheel = b"PK\x03\x04 pretend wheel".to_vec();
+    let wheel = common::python_wheel("demo-pkg", "1.0.0");
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
 
     let response = app
@@ -244,7 +244,7 @@ async fn upload_is_authenticated_and_validated() {
     let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
-    let wheel = b"wheel bytes".to_vec();
+    let wheel = common::python_wheel("demo-pkg", "1.0.0");
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
     let good = wheel_upload("demo-pkg", "1.0.0", filename, &wheel);
 
@@ -631,7 +631,12 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         .clone()
         .oneshot(upload_request(
             Some(&token),
-            wheel_upload("demo-pkg", "2.0.0", published, b"published wheel"),
+            wheel_upload(
+                "demo-pkg",
+                "2.0.0",
+                published,
+                &common::python_wheel("demo-pkg", "2.0.0"),
+            ),
         ))
         .await
         .unwrap();
@@ -647,5 +652,7 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, b"published wheel");
+    assert_eq!(body_bytes(response.into_body()).await, common::python_wheel("demo-pkg", "2.0.0"));
 }
+
+mod recovery;

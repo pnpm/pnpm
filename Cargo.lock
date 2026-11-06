@@ -7386,12 +7386,15 @@ name = "pnpr-pypi"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "flate2",
  "pep440_rs",
  "pnpm-network",
  "pnpr-package-name",
  "regex",
  "serde",
  "serde_json",
+ "tar",
+ "zip",
 ]
 
 [[package]]
