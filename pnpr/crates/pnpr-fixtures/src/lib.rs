@@ -1,4 +1,3 @@
-mod generation;
 pub mod presets;
 pub use generation::{FixtureGeneration, current};
 pub use metadata::{
@@ -11,6 +10,7 @@ pub use presets::{
     proxy_config, registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
 };
 
+mod generation;
 mod metadata;
 mod tarball;
 use tarball::{build_tarball, fixture_files};
