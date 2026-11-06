@@ -9,6 +9,7 @@ use super::{
 };
 use crate::platform_selection::VariantPlatforms;
 
+mod loaded;
 mod post_build_bins;
 
 #[cfg(test)]
@@ -182,7 +183,7 @@ fn finish_bin_links(
     }
 
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
-        finish_cas_bin_links(inputs, build_output, bin_state)?;
+        loaded::finish_cas_bin_links(inputs, build_output, bin_state)?;
         return Ok(());
     }
     finish_dependency_bin_links(inputs, build_output, bin_state)?;
@@ -191,30 +192,6 @@ fn finish_bin_links(
         build_output.mutated_slots,
         &bin_state.refreshed_hoisted_bins,
     )
-}
-
-fn finish_cas_bin_links(
-    inputs: &BuildPhaseInputs<'_>,
-    build_output: &crate::BuildModulesOutput,
-    bin_state: &crate::build_options::BuildBinState,
-) -> Result<(), BuildPhaseError> {
-    let config = inputs.policy.config;
-    let selected = post_build_bins::loaded_snapshots(inputs);
-    let native_inputs = BuildPhaseInputs {
-        graph: crate::BuildPhaseGraph { snapshots: Some(&selected), ..inputs.graph },
-        ..*inputs
-    };
-    finish_dependency_bin_links(&native_inputs, build_output, bin_state)?;
-    if build_output.mutated_slots {
-        crate::cas::refresh_bins(&crate::cas::BinInstall {
-            config,
-            root: inputs.directories.workspace_root,
-            importers: inputs.graph.importers,
-            trusted_importer_ids: inputs.graph.trusted_importer_ids,
-        })
-        .map_err(BuildPhaseError::CasBins)?;
-    }
-    Ok(())
 }
 
 fn finish_dependency_bin_links(

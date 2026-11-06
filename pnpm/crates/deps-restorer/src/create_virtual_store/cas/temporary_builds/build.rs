@@ -1,6 +1,5 @@
 use super::{CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput, Snapshots};
-use crate::BuildModules;
-use crate::platform_selection::VariantPlatforms;
+use crate::{BuildModules, platform_selection::VariantPlatforms};
 use pnpm_reporter::Reporter;
 
 pub(super) fn run<Report: Reporter>(

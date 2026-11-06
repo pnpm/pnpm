@@ -64,7 +64,8 @@ async fn build_in<Report: Reporter>(
         },
         ..installer.ctx.clone()
     };
-    let (materialized, prefetch) = materialize::<Report>(installer, temporary, &context).await?;
+    let (materialized, prefetch) =
+        Box::pin(materialize::<Report>(installer, temporary, &context)).await?;
     installer.fetching.cas_prefetch = prefetch;
     let captured = crate::CapturedBuildSideEffects::default();
     let output = build::run::<Report>(installer, temporary, &context, &materialized, &captured)?;

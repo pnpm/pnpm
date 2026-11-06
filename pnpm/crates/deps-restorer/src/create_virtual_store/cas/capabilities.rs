@@ -15,30 +15,11 @@ pub(super) fn retain_filesystem_packages(
     let Some(packages) = fetched.cas_paths_by_pkg_id.as_ref() else { return Ok(()) };
     let mut inspected = HashMap::new();
     let mut roots = Vec::new();
-    for key in snapshots
-        .keys()
-        .filter(|key| !selected.contains_key(*key))
-    {
-        let files = fetched.cas_paths_by_snapshot
-            .as_ref()
-            .and_then(|files| files.get(key))
-            .map(|files| {
-                files
-                    .iter()
-                    .map(|(name, file)| (name.clone(), file.clone()))
-                    .collect()
-            })
-            .or_else(|| {
-                packages
-                    .get(&super::cas_paths_key(key))
-                    .map(|files| {
-                        files.cas_paths
-                            .iter()
-                            .map(|(name, file)| (name.clone(), file.path.clone()))
-                            .collect()
-                    })
-            });
-        if let Some(files) = files
+    for key in snapshots.keys() {
+        if selected.contains_key(key) {
+            continue;
+        }
+        if let Some(files) = package_paths(fetched, packages, key)
             && needs_directory(&files, &mut inspected)?
         {
             roots.push(key.clone());
@@ -46,6 +27,29 @@ pub(super) fn retain_filesystem_packages(
     }
     retain_dependency_closure(selected, snapshots, roots);
     Ok(())
+}
+
+fn package_paths(
+    fetched: &CreateVirtualStoreOutput,
+    packages: &crate::CasPathsByPkgId,
+    key: &PackageKey,
+) -> Option<HashMap<String, PathBuf>> {
+    if let Some(files) = fetched.cas_paths_by_snapshot
+        .as_ref()
+        .and_then(|files| files.get(key))
+    {
+        let mut paths = HashMap::with_capacity(files.len());
+        for (name, file) in files.iter() {
+            paths.insert(name.clone(), file.clone());
+        }
+        return Some(paths);
+    }
+    let files = packages.get(&super::cas_paths_key(key))?;
+    let mut paths = HashMap::with_capacity(files.cas_paths.len());
+    for (name, file) in files.cas_paths.iter() {
+        paths.insert(name.clone(), file.path.clone());
+    }
+    Some(paths)
 }
 
 fn needs_directory(
