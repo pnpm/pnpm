@@ -190,7 +190,7 @@ impl InstallArgs {
         if !manifest_path.is_file() {
             return Err("there is no package.json");
         }
-        let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
+        let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path.clone())
             .map_err(|_| "package.json cannot be parsed")?;
         let node_linker =
             self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
@@ -212,6 +212,13 @@ impl InstallArgs {
             ),
         })?;
         if matches!(attempt, Attempt::BeforeConfig) {
+            crate::state::check_root_project_engine(
+                &manifest_path,
+                config,
+                !config.skip_runtimes,
+                emit,
+            )
+            .map_err(|_| "root project engine check failed")?;
             warn_about_config(root_manifest.as_ref(), config, emit);
         }
         report_up_to_date_install(config, &up_to_date, emit);
