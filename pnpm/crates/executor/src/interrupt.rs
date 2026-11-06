@@ -43,7 +43,7 @@
 use crate::ScriptExit;
 use pnpm_signal_registry::SignalList;
 #[cfg(unix)]
-use std::{ptr, sync::Once};
+use std::sync::Once;
 use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
 
 /// The number of interrupts pnpm relays to a child before it stops
@@ -80,35 +80,11 @@ pub fn interrupt_count() -> usize {
     }
 }
 
-/// How many of the signals [`install_handler`] handles are queued for pnpm
-/// and not yet handled.
+/// How many of the interrupts [`install_handler`] handles are queued for
+/// pnpm and not yet handled.
 #[cfg(unix)]
 fn pending_interrupts() -> usize {
-    // `sigpending` reports only the signals the calling thread blocks, so
-    // they are blocked around the call. Restoring the mask lets this
-    // thread run the handler for any of them.
-    // SAFETY: every call takes stack locals that outlive it.
-    unsafe {
-        let mut handled: libc::sigset_t = std::mem::zeroed();
-        libc::sigemptyset(&raw mut handled);
-        for signal in HANDLED_SIGNALS {
-            libc::sigaddset(&raw mut handled, signal);
-        }
-        let mut previous: libc::sigset_t = std::mem::zeroed();
-        if libc::pthread_sigmask(libc::SIG_BLOCK, &raw const handled, &raw mut previous) != 0 {
-            return 0;
-        }
-        let mut pending: libc::sigset_t = std::mem::zeroed();
-        let read = libc::sigpending(&raw mut pending) == 0;
-        libc::pthread_sigmask(libc::SIG_SETMASK, &raw const previous, ptr::null_mut());
-        if !read {
-            return 0;
-        }
-        HANDLED_SIGNALS
-            .into_iter()
-            .filter(|&signal| libc::sigismember(&raw const pending, signal) == 1)
-            .count()
-    }
+    pnpm_ffi_signal::pending_count(&HANDLED_INTERRUPTS)
 }
 
 #[cfg(not(unix))]
@@ -300,22 +276,22 @@ pub fn exit_like(exit: ScriptExit) -> ! {
     crate::exit(exit.code().unwrap_or(1));
 }
 
+/// The interrupts pnpm handles, which are also the ones
+/// [`pending_interrupts`] counts: a queued delivery only matters where
+/// pnpm would handle it.
 #[cfg(unix)]
-const HANDLED_SIGNALS: [libc::c_int; 3] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP];
+const HANDLED_INTERRUPTS: [pnpm_ffi_signal::Interrupt; 3] = [
+    pnpm_ffi_signal::Interrupt::Interrupt,
+    pnpm_ffi_signal::Interrupt::Terminate,
+    pnpm_ffi_signal::Interrupt::Hangup,
+];
 
 #[cfg(unix)]
 fn install_handler() {
     pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
     INSTALLED.call_once(|| {
-        pnpm_ffi_signal::install(
-            &[
-                pnpm_ffi_signal::Interrupt::Interrupt,
-                pnpm_ffi_signal::Interrupt::Terminate,
-                pnpm_ffi_signal::Interrupt::Hangup,
-            ],
-            relay_signal,
-        );
+        pnpm_ffi_signal::install(&HANDLED_INTERRUPTS, relay_signal);
     });
 }
 

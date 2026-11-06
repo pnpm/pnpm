@@ -17,7 +17,7 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
     #[cfg(windows)]
     if is_unc_path(&canonical)
         && let Some(drive) = drive_letter(&absolute)
-        && let Some(remote) = mapped_drive(drive)
+        && let Some(remote) = pnpm_ffi_fs::mapped_drive_target(drive)
         && let Some(mapped) = mapped_drive_path(&canonical, drive, &remote)
     {
         return Ok(mapped);
@@ -50,36 +50,6 @@ fn drive_letter(path: &Path) -> Option<char> {
 }
 
 #[cfg(windows)]
-fn mapped_drive(letter: char) -> Option<PathBuf> {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt};
-    use windows_sys::Win32::{
-        Foundation::ERROR_MORE_DATA, NetworkManagement::WNet::WNetGetConnectionW,
-    };
-
-    let drive_name = [letter as u16, u16::from(b':'), 0];
-    let mut remote_name = vec![0u16; 512];
-    let mut length = remote_name.len() as u32;
-    // SAFETY: The buffers are writable for the lengths passed to WNetGetConnectionW.
-    let mut result = unsafe {
-        WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
-    };
-    if result == ERROR_MORE_DATA {
-        remote_name.resize(length as usize, 0);
-        // SAFETY: The resized buffer and length pointer are writable for this call.
-        result = unsafe {
-            WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
-        };
-    }
-    if result != 0 {
-        return None;
-    }
-    let remote_length = remote_name
-        .iter()
-        .position(|unit| *unit == 0)?;
-    Some(PathBuf::from(OsString::from_wide(&remote_name[..remote_length])))
-}
-
-#[cfg(windows)]
 fn mapped_drive_path(path: &Path, drive: char, remote: &Path) -> Option<PathBuf> {
     let suffix = mapped_path_suffix(&remove_verbatim_unc_prefix(path), remote)?;
     Some(PathBuf::from(format!(r"{drive}:\")).join(suffix))
@@ -88,7 +58,6 @@ fn mapped_drive_path(path: &Path, drive: char, remote: &Path) -> Option<PathBuf>
 #[cfg(windows)]
 fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
     use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
-    use windows_sys::Win32::Globalization::{CSTR_EQUAL, CompareStringOrdinal};
 
     let path: Vec<u16> = path.as_os_str().encode_wide().collect();
     let mut remote: Vec<u16> = remote
@@ -106,17 +75,7 @@ fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
     {
         return None;
     }
-    // SAFETY: Both pointers address initialized UTF-16 slices for the lengths passed.
-    let equal = unsafe {
-        CompareStringOrdinal(
-            path.as_ptr(),
-            remote.len() as i32,
-            remote.as_ptr(),
-            remote.len() as i32,
-            1,
-        )
-    };
-    if equal != CSTR_EQUAL {
+    if !pnpm_ffi_fs::wide_names_equal_ignoring_case(&path[..remote.len()], &remote) {
         return None;
     }
     let mut suffix = remote.len();

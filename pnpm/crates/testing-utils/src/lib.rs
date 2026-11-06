@@ -14,6 +14,8 @@ pub mod git_repo;
 pub mod known_failure;
 #[cfg(target_os = "linux")]
 pub mod open_counter;
+#[cfg(unix)]
+pub mod pending_signal;
 #[cfg(windows)]
 pub mod privileges;
 #[cfg(unix)]

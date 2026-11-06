@@ -5573,6 +5573,7 @@ name = "pnpm-ffi-signal"
 version = "0.0.1"
 dependencies = [
  "libc",
+ "pnpm-testing-utils",
  "windows-sys 0.61.2",
 ]
 

@@ -33,6 +33,8 @@ pub use exchange::exchange_dirents;
 pub use fifo::create_fifo;
 #[cfg(unix)]
 pub use file_mode::FileMode;
+#[cfg(windows)]
+pub use mapped_drive::{mapped_drive_target, wide_names_equal_ignoring_case};
 #[cfg(target_vendor = "apple")]
 pub use sync::fsync;
 #[cfg(unix)]
@@ -59,6 +61,8 @@ mod exchange;
 mod fifo;
 #[cfg(unix)]
 mod file_mode;
+#[cfg(windows)]
+mod mapped_drive;
 #[cfg(target_vendor = "apple")]
 mod sync;
 #[cfg(unix)]

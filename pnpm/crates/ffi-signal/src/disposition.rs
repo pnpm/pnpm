@@ -138,6 +138,11 @@ impl Slot {
 static SLOTS: [Slot; 3] =
     [Slot::new(libc::SIGINT), Slot::new(libc::SIGTERM), Slot::new(libc::SIGHUP)];
 
+/// The signal number `interrupt` is delivered as.
+pub(crate) fn signal_number(interrupt: Interrupt) -> libc::c_int {
+    slot(interrupt).number
+}
+
 fn slot(interrupt: Interrupt) -> &'static Slot {
     &SLOTS[match interrupt {
         Interrupt::Interrupt => 0,
