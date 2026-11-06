@@ -82,6 +82,7 @@ describe('platformPackageName', () => {
 
   test('v12 builds for hosts outside the x64/arm64 matrix', () => {
     assert.equal(platformPackageName(target({ major: 12, platform: 'freebsd' })), '@pnpm/exe.freebsd-x64')
+    assert.equal(platformPackageName(target({ major: 12, platform: 'netbsd' })), '@pnpm/exe.netbsd-x64')
     assert.equal(platformPackageName(target({ major: 12, arch: 'ppc64' })), '@pnpm/exe.linux-ppc64')
     assert.equal(platformPackageName(target({ major: 12, arch: 'riscv64' })), '@pnpm/exe.linux-riscv64')
     assert.equal(platformPackageName(target({ major: 12, arch: 's390x' })), '@pnpm/exe.linux-s390x')
@@ -91,6 +92,7 @@ describe('platformPackageName', () => {
 
   test('those hosts have no binary before v12, and are pointed at it', () => {
     assert.throws(() => platformPackageName(target({ platform: 'freebsd' })), /pnpm v11 does not.*npx get-pnpm 12/s)
+    assert.throws(() => platformPackageName(target({ platform: 'netbsd' })), /pnpm v11 does not.*npx get-pnpm 12/s)
     assert.throws(() => platformPackageName(target({ arch: 's390x' })), /npx get-pnpm 12/)
   })
 
@@ -105,6 +107,7 @@ describe('platformPackageName', () => {
     assert.throws(() => platformPackageName(target({ arch: 'ia32' })), /linux-ia32/)
     assert.throws(() => platformPackageName(target({ major: 12, arch: 'ia32' })), /linux-ia32/)
     assert.throws(() => platformPackageName(target({ major: 12, platform: 'openbsd' })), /openbsd-x64/)
+    assert.throws(() => platformPackageName(target({ major: 12, platform: 'netbsd', arch: 'arm64' })), /netbsd-arm64/)
     // riscv64 is built for Linux only, so it is not a free pass on any OS.
     assert.throws(() => platformPackageName(target({ major: 12, platform: 'openbsd', arch: 'riscv64' })), /openbsd-riscv64/)
   })

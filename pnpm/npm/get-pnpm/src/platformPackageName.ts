@@ -16,6 +16,7 @@ const V12_ONLY_TARGETS = new Set([
   'linux-ppc64',
   'linux-riscv64',
   'linux-s390x',
+  'netbsd-x64',
 ])
 
 /**
