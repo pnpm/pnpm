@@ -329,31 +329,32 @@ pub(super) async fn serve_hosted_packument(
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
     let response = async {
+        let view = state.inner.storage
+            .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+            .read_hosted_package_view(name)
+            .await;
+        let view = match view {
+            Ok(Some(view)) => view,
+            Ok(None) => return not_found(),
+            Err(err) => return err.into_response(),
+        };
         let table = match state.inner.storage.read_tar_integrities(name).await {
             Ok(table) => table,
             Err(err) => return err.into_response(),
         };
         let view_options = DistView { tar_integrities: Some(&table), ..view_options };
-        let view = state.inner.storage
-            .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
-            .read_hosted_package_view(name)
-            .await;
-        match view {
-            Ok(Some(view)) => match packument_response(
-                name,
-                axum::body::Bytes::from_owner(view.bytes),
-                tarball_base,
-                view_options,
-                state,
-                headers,
-                max_age,
-            )
-            .await
-            {
-                Ok(response) => super::with_generation(response, Some(&view.generation)),
-                Err(err) => err.into_response(),
-            },
-            Ok(None) => not_found(),
+        match packument_response(
+            name,
+            axum::body::Bytes::from_owner(view.bytes),
+            tarball_base,
+            view_options,
+            state,
+            headers,
+            max_age,
+        )
+        .await
+        {
+            Ok(response) => super::with_generation(response, Some(&view.generation)),
             Err(err) => err.into_response(),
         }
     };
