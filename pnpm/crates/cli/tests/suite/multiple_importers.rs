@@ -1430,3 +1430,34 @@ fn adding_an_unrelated_dependency_does_not_reresolve_existing_dependency_to_sibl
         "100.1.0",
     );
 }
+
+/// TS: `frozenLockfile fails when a workspace package linked by a plain
+/// range is bumped to a version outside the range`
+/// (`multipleImporters.ts`). The link was written while the project's
+/// version satisfied the range, and a prerelease no longer does.
+#[test]
+fn frozen_install_rejects_a_plain_range_link_the_linked_version_no_longer_satisfies() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("linkWorkspacePackages: true\n");
+    fixture.project(
+        "consumer",
+        "consumer",
+        ManifestDeps { prod: &[("linked", "^7.9.5")], ..Default::default() },
+    );
+    let linked_project = fixture.project("linked", "linked", ManifestDeps::default());
+    set_version(&linked_project, "7.10.0");
+    fixture.run(["install", "--lockfile-only"]);
+    assert_eq!(
+        importer_version(&fixture.wanted(), "packages/consumer", "linked"),
+        "link:../linked"
+    );
+
+    set_version(&linked_project, "7.11.0-beta.1");
+    let output = fixture.command_at(&fixture.workspace, ["install", "--frozen-lockfile"]);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success() && stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
+        "a frozen install must reject the outdated link:\n{stderr}",
+    );
+}

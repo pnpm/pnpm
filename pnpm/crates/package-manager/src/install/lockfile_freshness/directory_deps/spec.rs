@@ -252,6 +252,28 @@ pub(super) fn importer_link_satisfies(
         || target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str)
 }
 
+/// Whether a plain or `npm:` semver range that the lockfile links to a
+/// workspace project still accepts that project's version. Any other spec is
+/// left to [`importer_link_satisfies`].
+pub(super) fn importer_range_link_satisfies(
+    dirs: &SpecDirs<'_>,
+    project_dir: &Path,
+    dep_name: &str,
+    spec: &str,
+    link_target: &str,
+) -> bool {
+    if spec.starts_with("workspace:") {
+        return true;
+    }
+    let (target, range) = parse_npm_spec(spec);
+    if range.parse::<node_semver::Range>().is_err() {
+        return true;
+    }
+    let target_dir = project_dir.join(link_target);
+    is_missing_from_checkout(dirs, &target_dir)
+        || target_dir_satisfies(dirs, &target_dir, target.unwrap_or(dep_name), range)
+}
+
 fn is_missing_from_checkout(dirs: &SpecDirs<'_>, target_dir: &Path) -> bool {
     !dirs.manifests_by_dir.contains_key(&pnpm_fs::lexical_normalize(target_dir))
         && matches!(

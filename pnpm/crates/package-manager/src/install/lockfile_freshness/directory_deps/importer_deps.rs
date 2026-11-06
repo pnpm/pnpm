@@ -65,7 +65,17 @@ fn check_importer_link_freshness(
         .parent()
         .unwrap_or(check.lockfile_dir);
     let dirs = spec_dirs(check);
-    if !spec::importer_link_satisfies(&dirs, project_dir, dep_name, specifier, link_target) {
+    let satisfied =
+        spec::importer_link_satisfies(&dirs, project_dir, dep_name, specifier, link_target)
+            && (!check.config.link_workspace_packages.enabled_at_depth(0)
+                || spec::importer_range_link_satisfies(
+                    &dirs,
+                    project_dir,
+                    dep_name,
+                    specifier,
+                    link_target,
+                ));
+    if !satisfied {
         return Err(local_dependency_outdated(dep_name, link_target));
     }
     Ok(())
