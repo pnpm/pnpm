@@ -2,7 +2,7 @@
 //! projects a sparse checkout leaves off disk.
 
 use super::super::{DependencyGroup, HashSet, Lockfile, PackageManifest, Path};
-use pnpm_lockfile::{ImporterDepVersion, ProjectSnapshot, ResolvedDependencySpec};
+use pnpm_lockfile::{ImporterDepVersion, ProjectSnapshot, ResolvedDependencySpec, VersionPart};
 use serde_json::{Map, Value};
 
 /// A manifest for every importer `lockfile` records outside
@@ -11,9 +11,8 @@ use serde_json::{Map, Value};
 /// The resolver resolves these alongside the projects on disk, so their
 /// dependencies take part in peer resolution and in the `optional` flags the
 /// lockfile records, as they do when the projects are on disk. A dependency
-/// recorded as `link:` or `file:`, or declared with a local path specifier,
-/// is left out: its target can be relative to a directory that is not on
-/// disk.
+/// recorded as a local path is left out: its target can be relative to a
+/// directory that is not on disk.
 pub(super) fn missing_project_manifests(
     lockfile: &Lockfile,
     real_importer_ids: &HashSet<String>,
@@ -30,9 +29,19 @@ pub(super) fn missing_project_manifests(
         .collect()
 }
 
+/// Whether `dependency` is recorded as a local path, including an aliased
+/// `<name>@file:` reference. The recorded reference decides it: a specifier
+/// such as `repo.tgz` can also be a dist-tag.
 fn is_local_dependency(dependency: &ResolvedDependencySpec) -> bool {
-    matches!(dependency.version, ImporterDepVersion::Link(_) | ImporterDepVersion::File(_))
-        || pnpm_local_spec::is_local_filesystem_specifier(&dependency.specifier)
+    match &dependency.version {
+        ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => true,
+        ImporterDepVersion::Alias(alias) => match alias.suffix.version() {
+            VersionPart::File(_) => true,
+            VersionPart::NonSemver(reference) => reference.starts_with("link:"),
+            VersionPart::Semver(_) | VersionPart::RegistryQualified { .. } => false,
+        },
+        ImporterDepVersion::Regular(_) => false,
+    }
 }
 
 fn declared_dependencies(importer: &ProjectSnapshot) -> Map<String, Value> {
@@ -52,3 +61,6 @@ fn declared_dependencies(importer: &ProjectSnapshot) -> Map<String, Value> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

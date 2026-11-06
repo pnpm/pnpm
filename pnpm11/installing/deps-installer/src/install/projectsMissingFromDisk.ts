@@ -1,9 +1,9 @@
 import path from 'node:path'
 
+import { parse as parseDepPath, refToRelative } from '@pnpm/deps.path'
 import type { PnpmContext } from '@pnpm/installing.context'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { LockfileObject, PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile.types'
-import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectId,
@@ -25,11 +25,12 @@ export type ProjectMissingFromDisk = PnpmContext['projects'][string] & {
  * lockfile records but that are not on disk, such as projects a sparse
  * checkout leaves out. Each one declares the specifiers its importer records,
  * so the resolution sees its dependencies as it does when the project is on
- * disk. A dependency recorded as `link:` or `file:`, or declared with a local
- * path specifier, is left out: its target can be relative to a directory that
- * is not on disk.
+ * disk. A dependency recorded as a local path is left out: its target can be
+ * relative to a directory that is not on disk.
  */
-export function listProjectsMissingFromDisk (ctx: PnpmContext): ProjectMissingFromDisk[] {
+export function listProjectsMissingFromDisk (
+  ctx: Pick<PnpmContext, 'lockfileDir' | 'projects' | 'wantedLockfile'>
+): ProjectMissingFromDisk[] {
   const projectIds = new Set(Object.values(ctx.projects).map(({ id }) => id))
   return (Object.entries(ctx.wantedLockfile.importers ?? {}) as Array<[ProjectId, ProjectSnapshot]>)
     .map(([id, importer]) => ({ id, importer, rootDir: path.join(ctx.lockfileDir, id) as ProjectRootDir }))
@@ -55,7 +56,7 @@ function manifestOfImporter (importer: ProjectSnapshot): ProjectManifest {
     const specifiers: Record<string, string> = {}
     for (const [alias, ref] of Object.entries(importer[field] ?? {})) {
       const specifier = importer.specifiers[alias]
-      if (specifier != null && !isLocalDependency(ref, specifier)) {
+      if (specifier != null && !isLocalDependency(alias, ref)) {
         specifiers[alias] = specifier
       }
     }
@@ -66,8 +67,16 @@ function manifestOfImporter (importer: ProjectSnapshot): ProjectManifest {
   return manifest
 }
 
-function isLocalDependency (ref: string, specifier: string): boolean {
-  return ref.startsWith('link:') || ref.startsWith('file:') || isLocalFilesystemSpecifier(specifier)
+/**
+ * Whether a dependency is recorded as a local path, including an aliased
+ * `<name>@file:` reference. The recorded reference decides it: a specifier
+ * such as `repo.tgz` can also be a dist-tag.
+ */
+function isLocalDependency (alias: string, ref: string): boolean {
+  const depPath = refToRelative(ref, alias)
+  if (depPath == null) return true
+  const version = parseDepPath(depPath).nonSemverVersion
+  return version != null && (version.startsWith('file:') || version.startsWith('link:'))
 }
 
 /**
