@@ -130,34 +130,35 @@ fn generate_sh_shim_matches_pnpm_typical_case() {
 
     assert!(body.starts_with("#!/bin/sh\n"), "shebang must come first");
     assert!(
-        body.contains(
-            r#"basedir_win="$basedir"
-exe=""
-msys=""
-
-case `run_helper uname -a` in"#
-        ),
+        body.contains("basedir_win=\"$basedir\"\nexe=\"\"\nmsys=\"\"\n"),
         "header must track a Windows-form basedir for WSL2/Cygwin, body was:\n{body}",
+    );
+    assert!(
+        body.contains("os=\n{ read -r os < /proc/version; } 2> /dev/null || :\ncase \"$os\" in\n"),
+        "header must pick the platform from /proc/version, body was:\n{body}",
     );
     // No test host reports itself as Cygwin, MSYS, or WSL2, so
     // `shim_execution_ignores_helpers_from_the_callers_path` can only decoy the
     // helpers outside the platform branch. This is what pins the rest.
-    for helper in [
-        "run_helper readlink",
-        "run_helper sed",
-        "run_helper uname",
-        "command -p cygpath",
-        "command -p wslpath",
-    ] {
+    for helper in
+        ["run_helper readlink", "run_helper sed", "command -p cygpath", "command -p wslpath"]
+    {
         assert!(body.contains(helper), "the header must reach {helper}, body was:\n{body}");
     }
     assert!(!body.contains("dirname"), "the header must not fork dirname, body was:\n{body}");
+    assert!(
+        !body
+            .lines()
+            .any(|line| !line.starts_with('#') && line.contains("uname")),
+        "the header must not fork uname, body was:\n{body}",
+    );
     // POSIX echo processes `\n` / `\t` before sed can convert the backslashes.
     assert!(
-        body.contains(
-            r#"basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')"#
-        ),
-        "header must print $link with printf so a Windows-form path keeps its backslashes, body was:\n{body}",
+        body.contains(&format!(
+            "case \"$link\" in\n{SH_SHIM_PATH_PRINTF_LINE}\n  *) basedir=$link ;;\nesac\n"
+        )),
+        "header must print a $link with a backslash through printf, and keep any other as is, \
+         body was:\n{body}",
     );
     assert!(
         !body.contains(r#"basedir=$(echo "$link""#),
@@ -197,19 +198,49 @@ case `run_helper uname -a` in"#
     );
 }
 
+/// A system without `/proc/version`, such as macOS, takes no platform branch,
+/// and the failed read must not stop a shim run with `sh -e`.
+#[test]
+#[cfg_attr(not(unix), ignore = "the shim shebang is /bin/sh")]
+fn posix_shim_header_runs_on_without_a_platform_file_under_errexit() {
+    let target = Path::new("/proj/node_modules/typescript/bin/tsc");
+    let shim = Path::new("/proj/node_modules/.bin/tsc");
+    let body = generate_sh_shim(target, shim, None, &[], None);
+    let start = body.find("os=\n").expect("header must read the platform");
+    let end = start
+        + body[start..].find("\nesac\n").expect("the platform branch must close")
+        + "\nesac\n".len();
+    let detection = body[start..end].replace("/proc/version", "/nonexistent/proc-version");
+    let script = format!(
+        "basedir=/proj/node_modules/.bin\nbasedir_win=\"$basedir\"\nexe=\"\"\nmsys=\"\"\n{detection}printf '%s|%s' \"$exe\" \"$msys\"",
+    );
+
+    let output = std::process::Command::new("/bin/sh")
+        .arg("-e")
+        .arg("-c")
+        .arg(&script)
+        .output()
+        .expect("run the header's platform detection");
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "|", "no platform branch may run");
+}
+
 /// POSIX `echo` turns `\n` and `\t` into a newline and a tab, so a Windows-form
-/// `$0` such as `C:\node_modules\.bin\tsc` is corrupted before `sed` runs.
+/// `$0` such as `C:\node_modules\.bin\tsc` is corrupted before `sed` runs. A
+/// `$0` without a backslash skips the conversion and is kept byte for byte.
 #[test]
 #[cfg_attr(not(unix), ignore = "the shim shebang is /bin/sh")]
 fn posix_shim_header_normalizes_windows_backslash_paths_without_echo_escapes() {
     let target = Path::new("/proj/node_modules/typescript/bin/tsc");
     let shim = Path::new("/proj/node_modules/.bin/tsc");
     let body = generate_sh_shim(target, shim, None, &[], None);
-    let conversion = body
-        .lines()
-        .find(|line| line.starts_with("basedir=$("))
+    let start = body
+        .find(&format!("case \"$link\" in\n{SH_SHIM_PATH_PRINTF_LINE}\n"))
         .expect("header must assign basedir from the shim path");
-    assert_eq!(conversion, SH_SHIM_PATH_PRINTF_LINE);
+    let end = start
+        + body[start..].find("\nesac\n").expect("the conversion must close")
+        + "\nesac\n".len();
+    let conversion = &body[start..end];
     let run_helper = body
         .find("run_helper() {\n")
         .and_then(|start| {
@@ -219,17 +250,22 @@ fn posix_shim_header_normalizes_windows_backslash_paths_without_echo_escapes() {
         })
         .expect("header must define run_helper");
 
-    let script = format!(
-        "{run_helper}link='C:\\node_modules\\.bin\\tsc'\n{conversion}\nprintf '%s' \"$basedir\"",
-    );
-    let output = std::process::Command::new("/bin/sh")
-        .arg("-c")
-        .arg(&script)
-        .output()
-        .expect("run the header's basedir conversion");
-    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    let basedir = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(basedir, "C:/node_modules/.bin/tsc");
+    for (link, expected) in [
+        (r"C:\node_modules\.bin\tsc", "C:/node_modules/.bin/tsc"),
+        (r"/p/a%s\t/node_modules/.bin/tsc", "/p/a%s/t/node_modules/.bin/tsc"),
+        ("/p/a%s/-n/node_modules/.bin/tsc", "/p/a%s/-n/node_modules/.bin/tsc"),
+    ] {
+        let script = format!("{run_helper}link=\"$1\"\n{conversion}printf '%s' \"$basedir\"");
+        let output = std::process::Command::new("/bin/sh")
+            .arg("-c")
+            .arg(&script)
+            .arg("sh")
+            .arg(link)
+            .output()
+            .expect("run the header's basedir conversion");
+        assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "{link}");
+    }
 }
 
 #[test]
@@ -930,7 +966,7 @@ fn plant_shimmed_tool(root: &Path) -> PathBuf {
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
     std::fs::write(&target, "console.log('tsc-output')\n").unwrap();
     // A dependency can declare a bin named `node.exe`, and the shim's basedir is
-    // the directory those bins land in. Only a lying `uname` reaches it.
+    // the directory those bins land in. Only a misdetected platform reaches it.
     write_executable(&bin_dir.join("node.exe"), "#!/bin/sh\necho hijacked\n");
 
     let shim = bin_dir.join("tsc");
@@ -1038,7 +1074,7 @@ const BRANCH_BASEDIR: &str = "/proj/node_modules/.bin";
 
 /// No test host reports itself as Cygwin or WSL2, and `command -p` searches the
 /// system default path, which a test cannot plant into. So the branch is taken
-/// from `body` and only its `uname` and its two converters are rewritten:
+/// from `body` and only its system name and its two converters are rewritten:
 /// `system_converter` stands in for what `command -p` would reach, and
 /// `callers_path` for what the fallback finds. That the real header reaches
 /// them through `command -p` is what
@@ -1050,13 +1086,13 @@ fn run_platform_branch(
     system_converter: &Path,
     callers_path: &Path,
 ) -> (String, String) {
-    const CASE_HEAD: &str = "case `run_helper uname -a` in";
+    const CASE_HEAD: &str = r#"case "$os" in"#;
     let start = body.find(CASE_HEAD).expect("the header must select a platform");
     let end = start
         + body[start..].find("\nesac\n").expect("the platform branch must close")
         + "\nesac\n".len();
     let branch = body[start..end]
-        .replace("`run_helper uname -a`", r#""$fake_uname""#)
+        .replace(CASE_HEAD, r#"case "$fake_uname" in"#)
         .replace("command -p cygpath", r#""$system_converter""#)
         .replace("command -p wslpath", r#""$system_converter""#);
     let script = format!(
