@@ -24,6 +24,7 @@ import type {
   ResolutionContext,
   ResolvedPackage,
   ResolvedPkgsById,
+  ResolvedRootDependenciesResult,
 } from './resolutionTypes.js'
 import { resolveRootDependencies } from './resolveRootDependencies.js'
 
@@ -35,6 +36,8 @@ export interface ResolvedImporters {
     directNodeIdsByAlias: Map<string, NodeId>
     hoistedPeerProviderNodeIds: Set<NodeId>
     linkedDependencies: LinkedDependency[]
+    /** See `ProjectToResolve.rejectedOptionalPeers`. */
+    rejectedOptionalPeers: Set<string>
   }
 }
 
@@ -193,7 +196,7 @@ export async function resolveDependencyTree<WantedDepExtraProps> (
     ctx.nodeVersion = await resolveRootRuntimeNodeVersion(importers, opts) ?? opts.nodeVersion
   }
 
-  const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, toImportersToResolve(importers, opts))
+  const { pkgAddressesByImporters, rejectedOptionalPeersByImporters, time } = await resolveRootDependencies(ctx, toImportersToResolve(importers, opts))
 
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {
@@ -205,7 +208,7 @@ export async function resolveDependencyTree<WantedDepExtraProps> (
   return {
     dependenciesTree: ctx.dependenciesTree,
     outdatedDependencies: ctx.outdatedDependencies,
-    resolvedImporters: getResolvedImporters(ctx, importers, pkgAddressesByImporters),
+    resolvedImporters: getResolvedImporters(ctx, importers, { pkgAddressesByImporters, rejectedOptionalPeersByImporters }),
     resolvedPkgsById: ctx.resolvedPkgsById,
     wantedToBeSkippedPackageIds,
     time,
@@ -337,16 +340,19 @@ function addPendingNodesToTree (ctx: ResolutionContext): void {
 function getResolvedImporters<WantedDepExtraProps> (
   ctx: ResolutionContext,
   importers: Array<ImporterToResolveGeneric<WantedDepExtraProps>>,
-  pkgAddressesByImporters: PkgAddressOrLink[][]
+  { pkgAddressesByImporters, rejectedOptionalPeersByImporters }: Omit<ResolvedRootDependenciesResult, 'time'>
 ): ResolvedImporters {
   const resolvedImporters: ResolvedImporters = {}
   for (const [index, { id, wantedDependencies }] of importers.entries()) {
-    resolvedImporters[id] = getResolvedImporter(ctx, dedupeSameAliasDirectDeps(pkgAddressesByImporters[index], wantedDependencies))
+    resolvedImporters[id] = {
+      ...getResolvedImporter(ctx, dedupeSameAliasDirectDeps(pkgAddressesByImporters[index], wantedDependencies)),
+      rejectedOptionalPeers: rejectedOptionalPeersByImporters[index],
+    }
   }
   return resolvedImporters
 }
 
-function getResolvedImporter (ctx: ResolutionContext, directDeps: PkgAddressOrLink[]): ResolvedImporters[string] {
+function getResolvedImporter (ctx: ResolutionContext, directDeps: PkgAddressOrLink[]): Omit<ResolvedImporters[string], 'rejectedOptionalPeers'> {
   const [linkedDependencies, directNonLinkedDeps] = partition((dep) => dep.isLinkedDependency === true, directDeps) as [LinkedDependency[], PkgAddress[]]
   return {
     directDependencies: directDeps

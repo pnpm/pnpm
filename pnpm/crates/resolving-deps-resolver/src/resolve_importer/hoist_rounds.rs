@@ -342,7 +342,11 @@ impl ImporterHoistState {
         {
             return Ok(false);
         }
-        let hoisted_optional = self.hoistable_optional_peers(resolver).await?;
+        let hoistable = self.hoistable_optional_peers(resolver).await?;
+        let hoisted_optional = hoistable.versions;
+        let rejected = &mut self.dependencies.rejected_optional_peers;
+        rejected.retain(|name| !hoisted_optional.contains_key(name));
+        rejected.extend(hoistable.rejected);
         if hoisted_optional.is_empty() {
             return Ok(false);
         }

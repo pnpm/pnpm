@@ -10,6 +10,7 @@ import pDefer, { type DeferredPromise } from 'p-defer'
 import { breakDepPathAwaitCycles } from './breakDepPathAwaitCycles.js'
 import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
 import { deduplicateAll } from './deduplicateDepPaths.js'
+import type { UnboundOptionalPeers } from './depPathCompatibility.js'
 import { getNodeIdsByPreviousDepPath } from './lockedPeerProviders.js'
 import { mergePeers } from './mergePeers.js'
 import type { NodeId } from './nextNodeId.js'
@@ -29,6 +30,7 @@ import type {
 import type { DependenciesTree } from './resolveDependencies.js'
 import type { ResolvedImporters } from './resolveDependencyTree.js'
 import { resolvePeersOfChildren } from './resolvePeersOfNode.js'
+import { collectUnboundOptionalPeers } from './unboundOptionalPeers.js'
 
 export type {
   BaseGenericDependenciesGraphNode,
@@ -100,9 +102,11 @@ export async function resolvePeers<Pkg extends PartialResolvedPackage> (
 
   const depGraphWithResolvedChildren = resolveChildren(sharedCtx.depGraph, sharedCtx.pathsByNodeId)
   const dependenciesByProjectId = getDependenciesByProjectId(opts.projects, sharedCtx.pathsByNodeId)
+  const unboundOptionalPeers = collectUnboundOptionalPeersForDedupe(depGraphWithResolvedChildren, { ...opts, dependenciesByProjectId })
   if (opts.dedupeInjectedDeps) {
     dedupeInjectedDeps({
       dependenciesByProjectId,
+      unboundOptionalPeers,
       projects: opts.projects,
       depGraph: depGraphWithResolvedChildren,
       pathsByNodeId: sharedCtx.pathsByNodeId,
@@ -113,7 +117,7 @@ export async function resolvePeers<Pkg extends PartialResolvedPackage> (
     })
   }
   if (opts.dedupePeerDependents) {
-    dedupePeerDependents(depGraphWithResolvedChildren, { dependenciesByProjectId, depPathsByPkgId: sharedCtx.depPathsByPkgId, projects: opts.projects })
+    dedupePeerDependents(depGraphWithResolvedChildren, { dependenciesByProjectId, depPathsByPkgId: sharedCtx.depPathsByPkgId, projects: opts.projects, unboundOptionalPeers })
   }
   return {
     dependenciesGraph: depGraphWithResolvedChildren,
@@ -297,17 +301,28 @@ function getDependenciesByProjectId (
   return dependenciesByProjectId
 }
 
+function collectUnboundOptionalPeersForDedupe<Pkg extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  opts: Pick<ResolvePeersOptions<Pkg>, 'dedupeInjectedDeps' | 'dedupePeerDependents' | 'projects'> & {
+    dependenciesByProjectId: DependenciesByProjectId
+  }
+): UnboundOptionalPeers {
+  if (!opts.dedupeInjectedDeps && !opts.dedupePeerDependents) return new Map()
+  return collectUnboundOptionalPeers(depGraph, opts)
+}
+
 function dedupePeerDependents<Pkg extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
   opts: {
     dependenciesByProjectId: DependenciesByProjectId
     depPathsByPkgId: Map<PkgIdWithPatchHash, Set<DepPath>>
     projects: ProjectToResolve[]
+    unboundOptionalPeers: UnboundOptionalPeers
   }
 ): void {
-  const { dependenciesByProjectId } = opts
+  const { dependenciesByProjectId, unboundOptionalPeers } = opts
   const duplicates = Array.from(opts.depPathsByPkgId.values()).filter((item) => item.size > 1)
-  const allDepPathsMap = deduplicateAll(depGraph, duplicates)
+  const allDepPathsMap = deduplicateAll({ depGraph, unboundOptionalPeers }, duplicates)
   for (const { id } of opts.projects) {
     for (const [alias, depPath] of dependenciesByProjectId[id].entries()) {
       dependenciesByProjectId[id].set(alias, allDepPathsMap[depPath] ?? depPath)

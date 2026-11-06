@@ -406,7 +406,7 @@ test('a deep chain of peer-suffixed children does not overflow the call stack', 
   }
 
   expect(isCompatibleAndHasMoreDeps(
-    depGraph as Parameters<typeof isCompatibleAndHasMoreDeps>[0],
+    { depGraph: depGraph as Parameters<typeof isCompatibleAndHasMoreDeps>[0]['depGraph'] },
     'pkg0/1.0.0(peer/1.0.0)' as DepPath,
     'pkg0/1.0.0' as DepPath
   )).toBe(true)

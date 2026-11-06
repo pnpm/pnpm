@@ -47,21 +47,16 @@ mod discovery;
 mod finalize;
 mod provider_peers;
 mod walker;
+mod workspace_graph;
 
 use crate::{
-    PeerDependentsDedupe,
-    dedupe_injected_deps::dedupe_injected_deps,
-    dedupe_peer_dependents::{PeerSuffixes, dedupe_peer_dependents},
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-use context::{
-    ChainSuffixMemo, CurrentProviderSource, ParentRefs, importer_relative_link_dep_path,
-};
+use context::{ChainSuffixMemo, CurrentProviderSource, ParentRefs};
 use discovery::PeerDiscoveryCaches;
-use finalize::{FinalDepPaths, PeerIdRecording};
-use pnpm_deps_path::{DepPath, PeerId};
+use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
@@ -69,6 +64,7 @@ use std::{
     sync::Arc,
 };
 use walker::{NodeWalkContext, PeerWalkMode, Walker};
+use workspace_graph::finish_workspace_graph;
 
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone)]
@@ -289,6 +285,10 @@ pub struct ImporterPeerInput {
     /// remap uses the correct per-importer target. `None` disables
     /// the remap for this importer.
     pub modules_dir: Option<PathBuf>,
+    /// Missing optional peers left unbound because every candidate was
+    /// rejected. A variant of this importer's closure that leaves one of
+    /// them unbound never collapses into a variant that resolves it.
+    pub rejected_optional_peers: HashSet<String>,
 }
 
 /// Output of [`fn@resolve_peers_workspace`] — the cross-importer
@@ -368,26 +368,15 @@ pub fn resolve_peers_workspace(
     let peer_dependency_issues_by_importer =
         walk_importers(&mut walker, &importers, settings.resolve_peers_from_workspace_root);
     walker.patch_pending_peer_edges();
-    let peer_id_recording = if settings.dedupe_peer_dependents.dedupes() {
-        PeerIdRecording::Record
-    } else {
-        PeerIdRecording::Skip
-    };
-    let mut finished = finish_workspace_graph(&walker, &importers, lockfile_dir, peer_id_recording);
+    let mut finished =
+        finish_workspace_graph(&walker, &importers, lockfile_dir, settings.dedupe_peer_dependents);
     finished.dedupe_peer_dependents(
         walker.opts.peers_suffix_max_length,
         settings.dedupe_peer_dependents,
+        &importers,
     );
     if settings.dedupe_injected_deps {
-        dedupe_injected_deps(
-            &mut finished.graph,
-            &mut finished.direct_dependencies_by_importer,
-            &importers
-                .iter()
-                .map(|importer| (importer.id.clone(), importer.root_dir.clone()))
-                .collect(),
-            lockfile_dir,
-        );
+        finished.dedupe_injected_deps(&importers, lockfile_dir);
     }
     WorkspaceResolvePeersResult {
         graph: finished.graph,
@@ -440,69 +429,6 @@ fn walk_importers(
         }
     }
     issues_by_importer
-}
-
-struct FinishedWorkspaceGraph {
-    graph: DependenciesGraph,
-    direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
-    paths_by_node_id: HashMap<NodeId, DepPath>,
-    peer_ids: HashMap<DepPath, Vec<PeerId>>,
-}
-
-impl FinishedWorkspaceGraph {
-    fn dedupe_peer_dependents(
-        &mut self,
-        peers_suffix_max_length: usize,
-        dedupe: PeerDependentsDedupe,
-    ) {
-        dedupe_peer_dependents(
-            &mut self.graph,
-            &mut self.direct_dependencies_by_importer,
-            &PeerSuffixes { peer_ids: &self.peer_ids, max_length: peers_suffix_max_length },
-            dedupe,
-        );
-    }
-}
-
-/// Recompute depPaths with full peer suffixes once, after every importer
-/// is walked, then rebuild the graph and re-key each importer's direct
-/// deps.
-fn finish_workspace_graph(
-    walker: &Walker<'_>,
-    importers: &[&ImporterPeerInput],
-    lockfile_dir: &Path,
-    recording: PeerIdRecording,
-) -> FinishedWorkspaceGraph {
-    let FinalDepPaths {
-        by_node_id: final_dep_paths,
-        peer_ids,
-        ..
-    } = walker.build_final_dep_paths(recording);
-    let direct_dependencies_by_importer = importers
-        .iter()
-        .map(|importer| {
-            let anchor = crate::link_target::ImporterAnchor::new(&importer.root_dir, lockfile_dir);
-            let direct_by_alias = importer.direct
-                .iter()
-                .map(|dep| {
-                    let dep_path = importer_relative_link_dep_path(
-                        &walker.final_dep_path_of(&dep.node_id, &final_dep_paths),
-                        &anchor,
-                        Some(lockfile_dir),
-                        Some(&importer.root_dir),
-                    );
-                    (dep.alias.clone(), dep_path)
-                })
-                .collect();
-            (importer.id.clone(), direct_by_alias)
-        })
-        .collect();
-    FinishedWorkspaceGraph {
-        graph: walker.build_final_graph(&final_dep_paths),
-        direct_dependencies_by_importer,
-        paths_by_node_id: walker.final_paths_by_node_id(&final_dep_paths),
-        peer_ids,
-    }
 }
 
 /// Walk one importer's direct dependencies, returning the peer-dependency

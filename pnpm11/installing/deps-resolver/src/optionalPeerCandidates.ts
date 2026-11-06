@@ -265,3 +265,15 @@ function listClosureVersions (
   }
   return nameVersions
 }
+
+/** `accepts`, adding the name of every candidate it rejects to `rejected`. */
+export function recordingRejections (
+  accepts: (name: string, version: string) => boolean,
+  rejected: Set<string>
+): (name: string, version: string) => boolean {
+  return (name, version) => {
+    const accepted = accepts(name, version)
+    if (!accepted) rejected.add(name)
+    return accepted
+  }
+}

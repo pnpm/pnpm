@@ -48,6 +48,14 @@ struct RequiredPeerPicker<'a> {
     picked: RefCell<HashMap<(String, String), RequiredPeerPick>>,
 }
 
+/// What [`ImporterHoistState::hoistable_optional_peers`] picked.
+pub(super) struct HoistableOptionalPeers {
+    /// `peer_name → version` to hoist.
+    pub(super) versions: BTreeMap<String, String>,
+    /// Names whose every candidate failed [`accepts_optional_peer_candidate`].
+    pub(super) rejected: HashSet<String>,
+}
+
 impl ImporterHoistState {
     /// The version [`Self::hoist_missing_required`] hoists the missing
     /// required peer `name@range` at. A specifier whose version or peers
@@ -162,7 +170,7 @@ impl ImporterHoistState {
     pub(super) async fn hoistable_optional_peers<Chain>(
         &self,
         resolver: &Chain,
-    ) -> Result<BTreeMap<String, String>, ResolveImporterError>
+    ) -> Result<HoistableOptionalPeers, ResolveImporterError>
     where
         Chain: Resolver + ?Sized,
     {
@@ -225,19 +233,9 @@ impl ImporterHoistState {
         &self,
         candidate_peers: &CandidatePeers<'_>,
         detached: &DetachedPeers,
-    ) -> BTreeMap<String, String> {
-        let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
-        let mut hoist_preferred =
-            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
-        let preferred_tiers =
-            self.ctx.optional_peer_version_tiers(&self.selection.locked_versions, names());
+    ) -> HoistableOptionalPeers {
         let provided_peer_versions = self.hoisted_provider_peer_versions();
-        match self.policy.peers.dedupe_peer_dependents.optional_peer_scope() {
-            OptionalPeerScope::Project => {
-                self.retain_own_closure_versions(&mut hoist_preferred, &provided_peer_versions);
-            }
-            OptionalPeerScope::Workspace => {}
-        }
+        let hoist_preferred = self.optional_peer_preferred_versions(&provided_peer_versions);
         let picker = RequiredPeerPicker {
             candidate_peers,
             detached,
@@ -246,21 +244,50 @@ impl ImporterHoistState {
         let pick_required_peer_versions = |missing_of_wave: &[Vec<CandidatePeer>]| {
             self.required_peer_versions(missing_of_wave, &picker)
         };
+        let rejected = RefCell::new(HashSet::default());
         let accepts_candidate = |name: &str, version: &str| {
-            accepts_optional_peer_candidate(
+            let accepted = accepts_optional_peer_candidate(
                 candidate_peers,
                 &pick_required_peer_versions,
                 &provided_peer_versions,
                 (name, version),
-            )
+            );
+            if !accepted {
+                rejected.borrow_mut().insert(name.to_string());
+            }
+            accepted
         };
-        get_hoistable_optional_peers_with_preferred_versions(
+        let versions = get_hoistable_optional_peers_with_preferred_versions(
             &self.dependencies.all_missing_optional_peers,
             &hoist_preferred,
             self.hoist_root_deps(),
-            &preferred_tiers,
+            &self.ctx.optional_peer_version_tiers(
+                &self.selection.locked_versions,
+                self.dependencies.all_missing_optional_peers.keys().map(String::as_str),
+            ),
             &accepts_candidate,
-        )
+        );
+        let mut rejected = rejected.into_inner();
+        rejected.retain(|name| !versions.contains_key(name));
+        HoistableOptionalPeers { versions, rejected }
+    }
+
+    /// The preferred versions a missing optional peer may be hoisted at,
+    /// limited by [`OptionalPeerScope`].
+    fn optional_peer_preferred_versions(
+        &self,
+        provided_peer_versions: &HashMap<String, String>,
+    ) -> PreferredVersions {
+        let names = self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
+        let mut preferred =
+            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names);
+        match self.policy.peers.dedupe_peer_dependents.optional_peer_scope() {
+            OptionalPeerScope::Project => {
+                self.retain_own_closure_versions(&mut preferred, provided_peer_versions);
+            }
+            OptionalPeerScope::Workspace => {}
+        }
+        preferred
     }
 
     /// Drops from `preferred` every version that neither the importer's

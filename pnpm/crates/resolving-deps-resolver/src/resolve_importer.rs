@@ -171,6 +171,14 @@ pub(crate) struct ImporterHoistState {
     selection: ImporterHoistSelection,
 }
 
+/// An importer's share of the workspace peer pass.
+pub(crate) struct ImporterDirect {
+    pub(crate) direct: Vec<DirectDep>,
+    pub(crate) hoisted_peer_provider_node_ids: HashSet<crate::NodeId>,
+    /// See [`crate::ImporterPeerInput::rejected_optional_peers`].
+    pub(crate) rejected_optional_peers: HashSet<String>,
+}
+
 pub(crate) struct RequiredRound {
     /// Peer providers that existed before this pass began. Retaining only
     /// this compact lookup lets the importer-scoped tree be dropped after
@@ -373,8 +381,12 @@ impl ImporterHoistState {
     /// pass would be discarded), together with the `NodeIds` of the peer
     /// providers among them (see
     /// [`crate::PeerResolutionScope::hoisted_peer_provider_node_ids`]).
-    pub(crate) fn into_direct(self) -> (Vec<DirectDep>, HashSet<crate::NodeId>) {
-        (self.dependencies.direct, self.dependencies.hoisted_peer_provider_node_ids)
+    pub(crate) fn into_direct(self) -> ImporterDirect {
+        ImporterDirect {
+            direct: self.dependencies.direct,
+            hoisted_peer_provider_node_ids: self.dependencies.hoisted_peer_provider_node_ids,
+            rejected_optional_peers: self.dependencies.rejected_optional_peers,
+        }
     }
 
     /// Run the final per-importer peer pass and emit the result. Used

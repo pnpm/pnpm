@@ -59,6 +59,12 @@ export interface ProjectToResolve {
   hoistedPeerProviderNodeIds?: Set<NodeId>
   declaredDirectDependencies?: Set<string>
   explicitlyRequestedDirectDependencies?: Set<string>
+  /**
+   * Optional peers the project leaves unbound because their candidate was
+   * rejected. A variant of the project's closure that leaves one of them
+   * unbound does not collapse into a variant that resolves it.
+   */
+  rejectedOptionalPeers?: Set<string>
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: Array<{ name: string, version: string, alias?: string }>
