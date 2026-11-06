@@ -300,7 +300,7 @@ impl SqlMetadata {
     }
 
     /// The retained outcome of `request` in `catalog`, when an identical
-    /// request committed there.
+    /// request committed there and none of its npm versions was unpublished.
     pub async fn recorded_outcome(
         self: &Arc<Self>,
         catalog: &str,
@@ -308,19 +308,7 @@ impl SqlMetadata {
     ) -> Result<Option<RecordedOutcome>> {
         let (catalog, request) = (catalog.to_string(), request.clone());
         self.read(catalog.clone(), Freshness::Current, move |connection, _| {
-            let PublicationRequest {
-                principal,
-                idempotency_key,
-                request_digest,
-                ..
-            } = &request;
-            publications::recorded_outcome(
-                connection,
-                &catalog,
-                principal,
-                idempotency_key,
-                request_digest,
-            )
+            publications::recorded_outcome(connection, &catalog, &request)
         })
         .await
     }

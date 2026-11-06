@@ -251,7 +251,8 @@ read sees the whole release or none of it:
   and overwriting them would be the worse outcome. Republishing the batch after
   bumping the conflicting version completes the release.
 - Every entry must belong to the same org. A batch that spans orgs is refused.
-- A retry gets the original response back. A client sends an
+- A retry gets the original response back while none of its published npm versions
+  have been unpublished. Retrying cannot restore an unpublished version. A client sends an
   `Idempotency-Key` header, or the digest of the whole request serves as the
   key. Reusing a key for a different request answers `409`. pnpr keeps the
   outcome for 7 days. A retry needs current publish permission like any
