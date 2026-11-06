@@ -44,8 +44,8 @@ pub use pnpr_registry::{
     ConcreteKind, Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
 pub use server::{
-    prepare_storage, router, router_with_auth, serve, serve_listener, try_router,
-    try_router_with_auth,
+    prepare_storage, router, router_with_auth, serve, serve_listener, serve_listener_with,
+    try_router, try_router_with_auth,
 };
 
 mod resolver;

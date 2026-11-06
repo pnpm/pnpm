@@ -6833,9 +6833,11 @@ version = "0.0.0"
 dependencies = [
  "assert_cmd",
  "axum 0.8.9",
+ "bytes",
  "command-extra",
  "dunce",
  "flate2",
+ "futures-util",
  "pipe-trait",
  "pnpm-fs",
  "pnpm-workspace-state",

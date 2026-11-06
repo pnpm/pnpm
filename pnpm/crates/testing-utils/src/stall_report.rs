@@ -103,8 +103,9 @@ fn fail_stalled(stall: Stall) -> ! {
         None => "was still running".to_string(),
     };
     panic!(
-        "the command {state} after {deadline:?}; its processes:\n{report}\
+        "the command {state} after {deadline:?}; its processes:\n{report}{}\
          stdout so far:\n{}\nstderr so far:\n{}",
+        crate::registry_activity::report(),
         String::from_utf8_lossy(&stdout.take()),
         String::from_utf8_lossy(&stderr.take()),
     );

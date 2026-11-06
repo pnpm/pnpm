@@ -17,6 +17,14 @@ pub enum RegistryError {
         source: reqwest::Error,
     },
 
+    /// The upstream sent no response head within its `timeout`.
+    #[display("Upstream request to {url} timed out before the response arrived")]
+    #[from(skip)]
+    UpstreamTimeout {
+        #[error(not(source))]
+        url: String,
+    },
+
     #[display("Upstream response body from {url} failed: {source}")]
     UpstreamBody {
         url: String,

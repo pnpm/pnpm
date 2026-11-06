@@ -14,3 +14,5 @@ pub mod stall_report;
 pub mod trusted_tls_server;
 pub mod turborepo_cache;
 pub mod untrusted_tls_server;
+
+mod registry_activity;
