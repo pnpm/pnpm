@@ -112,7 +112,7 @@ fn concurrent_launches_publish_one_complete_generation_marker() {
     assert!(
         storages
             .iter()
-            .all(|storage| versions(storage.path(), "@e2e/shared") == ["1.0.0"])
+            .all(|storage| versions(storage.path(), "@e2e/shared") == ["1.0.0"]),
     );
     assert_eq!(
         fs::read_to_string(storages[0].path().join(".fixture-generation"))
