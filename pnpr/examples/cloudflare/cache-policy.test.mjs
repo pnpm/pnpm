@@ -53,6 +53,10 @@ for (const [headers, query, method] of [
   [{ 'cache-control': 'max-age=10, No-Cache' }, '', 'GET'],
   [{ 'cache-control': 'no-store' }, '', 'GET'],
   [{ origin: 'https://client.example' }, '', 'GET'],
+  [{ 'if-none-match': '"revision"' }, '', 'GET'],
+  [{ 'if-modified-since': 'Fri, 06 Nov 2026 00:00:00 GMT' }, '', 'GET'],
+  [{ 'if-match': '"revision"' }, '', 'GET'],
+  [{ 'if-unmodified-since': 'Fri, 06 Nov 2026 00:00:00 GMT' }, '', 'GET'],
   [{}, '', 'PUT'],
   [{}, '', 'HEAD'],
 ]) {

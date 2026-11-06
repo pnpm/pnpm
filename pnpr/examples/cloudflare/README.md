@@ -10,7 +10,8 @@ compression, or routing.
 
 Use the checks before reading or writing metadata. `origin`, `base`, and `name`
 below come from your registry route parser. Forward the original request to the
-container, including its query and headers:
+container, including its query and headers. Conditional requests bypass the
+cache and let the registry evaluate their validators:
 
 ```js
 import {

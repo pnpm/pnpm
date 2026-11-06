@@ -318,7 +318,8 @@ on the response does not partition a cache that builds its own keys.
 
 Bypass both cache reads and writes for requests with a query string, including
 `?write=true`, or request `Cache-Control: no-cache` or `no-store`. Such reads
-must reach the registry. Put representation selectors in the cache key's path
+must reach the registry. Bypass conditional requests too, so the registry can
+evaluate their validators. Put representation selectors in the cache key's path
 or query, never its fragment. When replacing a cache that mixed representations,
 use a new key namespace or purge its entries.
 

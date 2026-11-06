@@ -3,7 +3,8 @@ const INSTALL_V2 = 'application/vnd.pnpr.install-v2+json'
 
 /** Requests whose response must come directly from the registry. */
 export function bypassesCache (request) {
-  return request.method !== 'GET' || request.headers.has('origin') ||
+  return request.method !== 'GET' ||
+    ['origin', 'if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since'].some(header => request.headers.has(header)) ||
     new globalThis.URL(request.url).search !== '' ||
     hasCacheDirective(request.headers, ['no-cache', 'no-store'])
 }
