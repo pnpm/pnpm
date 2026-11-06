@@ -135,9 +135,21 @@ pub(crate) struct StaleDirectDepLinks<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReportedRemovals {
     Every,
-    /// The hoisted linker reports its other removals from
+    /// The `link:` dependencies whose link the pass removed. The hoisted
+    /// linker reports its other removals from
     /// [`crate::report_direct_dependency_changes`].
-    LinkDependencies,
+    UnlinkedLinkDependencies,
+}
+
+impl ReportedRemovals {
+    fn includes(self, version: &ImporterDepVersion, unlinked: bool) -> bool {
+        match self {
+            ReportedRemovals::Every => true,
+            ReportedRemovals::UnlinkedLinkDependencies => {
+                unlinked && matches!(version, ImporterDepVersion::Link(_))
+            }
+        }
+    }
 }
 
 impl<'a> StaleDirectDepLinks<'a> {
@@ -341,11 +353,9 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
             continue;
         }
         let alias_name = alias.to_string();
-        remove_direct_dep_link(modules_dir, &alias_name)?;
+        let unlinked = remove_direct_dep_link(modules_dir, &alias_name)?;
         remove_emptied_scope_dir(modules_dir, &alias_name);
-        if reported == ReportedRemovals::LinkDependencies
-            && !matches!(current_spec.version, ImporterDepVersion::Link(_))
-        {
+        if !reported.includes(&current_spec.version, unlinked) {
             continue;
         }
         Reporter::emit(&LogEvent::Root(RootLog {

@@ -80,6 +80,15 @@ fn under_each_linker<Observed>(
         .collect()
 }
 
+/// What a scenario saw of the link it removes.
+#[derive(Debug)]
+struct LinkRemoval {
+    linked_before: bool,
+    present_after: bool,
+    /// See [`removals`].
+    removals: Vec<(String, String)>,
+}
+
 #[test]
 fn a_removed_link_dependency_is_reported() {
     let observed = under_each_linker(|pacquet, workspace| {
@@ -91,48 +100,89 @@ fn a_removed_link_dependency_is_reported() {
 
         write_root_manifest(workspace, &json!({}));
         let records = install(pacquet_in(workspace));
-        (linked_before, link.exists(), removals(&records))
+        LinkRemoval {
+            linked_before,
+            present_after: fs::symlink_metadata(&link).is_ok(),
+            removals: removals(&records),
+        }
     });
     dbg!(&observed);
-    for (linker, (linked_before, exists_after, removals)) in observed {
-        assert!(linked_before, "nodeLinker: {linker}");
-        assert!(!exists_after, "nodeLinker: {linker}");
-        let workspace_dir_removals: Vec<_> = removals
+    for (linker, removal) in observed {
+        assert!(removal.linked_before, "nodeLinker: {linker}");
+        assert!(!removal.present_after, "nodeLinker: {linker}");
+        let aliases: Vec<_> = removal.removals
             .into_iter()
             .map(|(_, alias)| alias)
             .collect();
-        assert_eq!(workspace_dir_removals, ["lib"], "nodeLinker: {linker}");
+        assert_eq!(aliases, ["lib"], "nodeLinker: {linker}");
     }
 }
 
 /// The root names `packages/shared` as `link:packages/shared`, the project
 /// as `link:../shared`: one target, so the root's link dedupes the
 /// project's.
+fn dedupe_a_project_link_under_another_spelling(pacquet: Command, workspace: &Path) -> LinkRemoval {
+    append_workspace_yaml_key(workspace, "dedupeDirectDeps", true);
+    write_json(&workspace.join("packages/shared/package.json"), &json!({ "name": "shared" }));
+    write_json(
+        &workspace.join("packages/app/package.json"),
+        &json!({ "name": "app", "dependencies": { "shared": "link:../shared" } }),
+    );
+    write_root_manifest(workspace, &json!({}));
+    install(pacquet);
+    let app_link = workspace.join("packages/app/node_modules/shared");
+    let linked_before = is_linked(&app_link);
+
+    write_root_manifest(workspace, &json!({ "shared": "link:packages/shared" }));
+    let records = install(pacquet_in(workspace));
+    LinkRemoval {
+        linked_before,
+        present_after: fs::symlink_metadata(&app_link).is_ok(),
+        removals: removals(&records),
+    }
+}
+
 #[test]
 fn a_project_link_the_root_starts_providing_under_another_spelling_is_removed() {
-    let observed = under_each_linker(|pacquet, workspace| {
-        append_workspace_yaml_key(workspace, "dedupeDirectDeps", true);
-        write_json(&workspace.join("packages/shared/package.json"), &json!({ "name": "shared" }));
-        write_json(
-            &workspace.join("packages/app/package.json"),
-            &json!({ "name": "app", "dependencies": { "shared": "link:../shared" } }),
-        );
-        write_root_manifest(workspace, &json!({}));
-        install(pacquet);
-        let app_link = workspace.join("packages/app/node_modules/shared");
-        let linked_before = is_linked(&app_link);
-
-        write_root_manifest(workspace, &json!({ "shared": "link:packages/shared" }));
-        let records = install(pacquet_in(workspace));
-        let exists_after = fs::symlink_metadata(&app_link).is_ok();
-        (linked_before, exists_after, removals(&records))
-    });
+    let observed = under_each_linker(dedupe_a_project_link_under_another_spelling);
     dbg!(&observed);
-    for (linker, (linked_before, exists_after, removals)) in observed {
-        assert!(linked_before, "nodeLinker: {linker}");
-        assert!(!exists_after, "nodeLinker: {linker}");
-        assert_eq!(removals, [("app".to_owned(), "shared".to_owned())], "nodeLinker: {linker}");
+    for (linker, removal) in observed {
+        assert!(removal.linked_before, "nodeLinker: {linker}");
+        assert!(!removal.present_after, "nodeLinker: {linker}");
+        assert_eq!(
+            removal.removals,
+            [("app".to_owned(), "shared".to_owned())],
+            "nodeLinker: {linker}",
+        );
     }
+}
+
+/// The lockfile still records the project's deduped link, so each later
+/// install finds it stale again, with nothing left to unlink. Hoisted only:
+/// the isolated linker reports it again (pnpm/tasks#293).
+#[test]
+fn a_deduped_link_is_reported_once() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+    append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
+    dedupe_a_project_link_under_another_spelling(pacquet, &workspace);
+
+    write_json(&workspace.join("other/package.json"), &json!({ "name": "other" }));
+    write_root_manifest(
+        &workspace,
+        &json!({ "shared": "link:packages/shared", "other": "link:other" }),
+    );
+    let removals = removals(&install(pacquet_in(&workspace)));
+    assert_eq!(removals, []);
+
+    drop((root, mock_instance));
 }
 
 /// The root and the project both record `link:vendor/x`, each meaning its

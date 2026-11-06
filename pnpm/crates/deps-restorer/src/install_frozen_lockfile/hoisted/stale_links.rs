@@ -38,7 +38,7 @@ pub(super) fn unlink_stale_direct_links<Reporter: self::Reporter>(
         current_lockfile,
         linked: crate::LinkedDirectDeps { included_groups: &ALL_DEPENDENCY_GROUPS, skipped },
         dedupe_direct_deps: inputs.config.dedupe_direct_deps,
-        reported: ReportedRemovals::LinkDependencies,
+        reported: ReportedRemovals::UnlinkedLinkDependencies,
     }
     .unlink::<Reporter>()
     .map_err(HoistedLinkerError::PruneStaleLinks)

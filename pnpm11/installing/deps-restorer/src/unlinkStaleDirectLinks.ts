@@ -6,6 +6,7 @@ import { rootLogger } from '@pnpm/core-loggers'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { isProvidedByRoot } from '@pnpm/installing.linking.modules-cleaner'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
+import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 
 import type { HeadlessContext } from './context.js'
@@ -19,15 +20,16 @@ import { isSymlink, unlinkIfSymlink } from './unlinkIfSymlink.js'
  * workspace links written beside them need this pass. Real directories are
  * left to the orphan diff.
  *
- * Reports the removal of each `link:` dependency. `reportDirectDependencyChanges`
- * reports the others.
+ * Reports each `link:` dependency it unlinks. `reportDirectDependencyChanges`
+ * reports the other removals.
  */
 export async function unlinkStaleDirectLinks (
   { currentLockfile, lockfileDir, opts, selectedProjects }: HeadlessContext,
   wantedLockfile: LockfileObject
 ): Promise<void> {
   if (currentLockfile == null) return
-  const wantedRootDeps = opts.dedupeDirectDeps
+  // The link pass dedupes only against a selected root.
+  const wantedRootDeps = opts.dedupeDirectDeps && selectedProjects.some(({ id }) => id === '.')
     ? mergeDependencies(wantedLockfile.importers['.' as ProjectId])
     : undefined
   await Promise.all(selectedProjects.map(async (project) => {
@@ -59,11 +61,11 @@ async function unlinkStaleLinksOfProject (
   const staleDeps = Object.entries(mergeDependencies(opts.currentImporter))
     .filter(([alias, ref]) => opts.wantedDeps[alias] !== ref || isProvidedByWorkspaceRoot(alias, ref))
   await Promise.all(staleDeps.map(async ([alias, ref]) => {
-    const version = await unlinkDirectLink(modulesDir, alias, binsDir)
-    if (!ref.startsWith('link:')) return
+    const unlinked = await unlinkDirectLink(modulesDir, alias, binsDir)
+    if (unlinked == null || !ref.startsWith('link:')) return
     rootLogger.debug({
       prefix: rootDir,
-      removed: { dependencyType: dependencyType(opts.currentImporter, alias), name: alias, version },
+      removed: { dependencyType: dependencyType(opts.currentImporter, alias), name: alias, version: unlinked.version },
     })
   }))
 }
@@ -78,18 +80,19 @@ function mergeDependencies (snapshot: ProjectSnapshot | undefined): Record<strin
   return Object.assign({}, ...DEPENDENCIES_FIELDS.map((depType) => snapshot?.[depType]))
 }
 
-/** Returns the version of the unlinked package, when its bins were removed through its manifest. */
-async function unlinkDirectLink (modulesDir: string, alias: string, binsDir: string): Promise<string | undefined> {
+/** Returns the linked package's version, or `undefined` when there was no link to remove. */
+async function unlinkDirectLink (modulesDir: string, alias: string, binsDir: string): Promise<{ version?: string } | undefined> {
   const link = safeJoinModulesDir(modulesDir, alias)
   // A symlinked `@scope` directory would redirect the unlink outside the modules directory.
   if (alias.startsWith('@') && !await isRealDir(path.dirname(link))) return undefined
   if (!await isSymlink(link)) return undefined
+  const version = (await safeReadPackageJsonFromDir(link))?.version
   // Unlinking through a symlinked `.bin` would delete files outside the project.
-  const uninstalledPkg = await isRealDir(binsDir)
-    ? await removeBinsOfDependency(link, { binsDir })
-    : undefined
+  if (await isRealDir(binsDir)) {
+    await removeBinsOfDependency(link, { binsDir })
+  }
   await unlinkIfSymlink(link)
-  return uninstalledPkg?.version
+  return { version }
 }
 
 async function isRealDir (dir: string): Promise<boolean> {

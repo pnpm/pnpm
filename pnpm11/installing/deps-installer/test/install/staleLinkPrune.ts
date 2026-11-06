@@ -83,6 +83,45 @@ test.each(LINKERS)('a project link the root starts providing under another spell
   expect(removals(reporter)).toStrictEqual([`${path.join('packages', 'app')}:shared`])
 })
 
+// The lockfile still records the project's deduped link, so each later install
+// finds it stale again, with nothing left to unlink. Hoisted only: the isolated
+// linker reports it again (pnpm/tasks#293).
+test('a deduped link is reported once (nodeLinker: hoisted)', async () => {
+  const nodeLinker = 'hoisted'
+  const { allProjects, importers } = prepareWorkspace({
+    '': { name: 'root' },
+    'packages/app': { name: 'app', dependencies: { shared: 'link:../shared' } },
+    'packages/shared': { name: 'shared' },
+  })
+  writeManifest('other', { name: 'other' })
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true, nodeLinker }))
+  allProjects[0].manifest.dependencies = { shared: 'link:packages/shared' }
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true, nodeLinker }))
+
+  allProjects[0].manifest.dependencies = { shared: 'link:packages/shared', other: 'link:other' }
+  const reporter = jest.fn()
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true, nodeLinker, reporter }))
+
+  expect(removals(reporter)).toStrictEqual([])
+})
+
+test('a filtered install that leaves out the root keeps a project link the root provides (nodeLinker: hoisted)', async () => {
+  const nodeLinker = 'hoisted'
+  const { allProjects, importers } = prepareWorkspace({
+    '': { name: 'root', dependencies: { shared: 'link:packages/shared' } },
+    'packages/app': { name: 'app', dependencies: { shared: 'link:../shared' } },
+    'packages/shared': { name: 'shared' },
+  })
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: false, nodeLinker }))
+  expect(isSymlink('packages/app/node_modules/shared')).toBe(true)
+
+  const reporter = jest.fn()
+  await mutateModules([importers[1]], testDefaults({ allProjects, dedupeDirectDeps: true, nodeLinker, reporter }))
+
+  expect(isSymlink('packages/app/node_modules/shared')).toBe(true)
+  expect(removals(reporter)).toStrictEqual([])
+})
+
 test.each(LINKERS)('a project link spelled like the root\'s to another directory is kept (nodeLinker: %s)', async (nodeLinker) => {
   const { allProjects, importers } = prepareWorkspace({
     '': { name: 'root', dependencies: { x: 'link:vendor/x' } },
