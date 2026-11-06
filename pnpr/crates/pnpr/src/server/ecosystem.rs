@@ -80,9 +80,15 @@ pub(super) fn caller_scoped(
     package: Option<&str>,
     response: Response,
 ) -> Response {
-    if registry.is_some() {
-        return private_no_cache(response);
+    // For a named registry, only mark as private if it requires authentication.
+    if let Some(registry_name) = registry {
+        if registry_requires_auth(state, registry_name, ecosystem) {
+            return private_no_cache(response);
+        }
+        // Publicly readable; keep cacheable.
+        return response;
     }
+    // Default registry handling.
     match (default_registry_target(state, ecosystem), package) {
         (Some(target), Some(package))
             if resolves_to_private_source(state, &target, ecosystem, package) =>
