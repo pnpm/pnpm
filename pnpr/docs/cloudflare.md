@@ -327,7 +327,26 @@ A [cache-policy example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cl
 provides these checks for a custom Worker.
 
 **Publishes go through the Worker**, so your plan's request body limit caps
-the size of a package you can publish.
+the size of a package you can publish. It also caps each OCI blob upload
+request. A layer larger than that limit fails with HTTP `413` when the client
+sends it in one `PATCH` or `PUT`, even if it fits `oci.maxBlobBytes`.
+
+For clients that honor the proposed `OCI-Chunk-Max-Length` header, configure
+[the upload hint](configuration.md#oci) below your plan's request body limit:
+
+```yaml title="pnpr.yaml"
+oci:
+  chunkMaxBytes: 50000000
+```
+
+This hint cannot force a client to split requests. Docker and Podman uploads
+may still send a whole layer in one request. For those clients, host pnpr
+outside Cloudflare Containers behind your own
+[TLS reverse proxy](tls-and-reverse-proxy.md), with a request body limit that
+accommodates the largest layer. The Container in this guide is
+[only reachable through its Worker](https://developers.cloudflare.com/containers/concepts/architecture/).
+Adding a custom domain to that Worker does not bypass its limit. Raising
+`oci.maxBlobBytes` alone cannot raise Cloudflare's limit.
 
 **Container logs are in the dashboard**, under the Worker's logs.
 `wrangler tail` shows only the Worker's own events.

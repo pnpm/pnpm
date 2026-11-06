@@ -510,6 +510,12 @@ oci:
 The values shown are the defaults. Both limits must be greater than zero. See
 [Container images](container-images.md#authentication) for `bearerAuth`.
 
+`chunkMaxBytes` optionally advertises a positive chunk size in bytes through
+`OCI-Chunk-Max-Length` on upload start and progress responses. It is a hint,
+not an enforced request limit, and does not change `maxBlobBytes`, which caps
+the whole blob. The header is an [OCI proposal](https://github.com/opencontainers/distribution-spec/issues/485)
+and requires client support. See [Cloudflare](cloudflare.md) for proxy limits.
+
 ## `cors`
 
 The exact browser origins allowed to call pnpr across origins. Cross-origin
