@@ -386,7 +386,9 @@ impl UpstreamDocument<'_> {
             Ok(None) => return not_found(),
             Err(err) => return err.into_response(),
         };
-        let response = self.render(document.bytes.clone()).await;
+        let rendering = self.render(document.bytes.clone());
+        let response =
+            self.state.inner.packuments.admissions.serve(DocumentSource::Stored, rendering).await;
         drop(document);
         match response {
             Ok(response) => response,

@@ -193,7 +193,8 @@ async fn shared_upstream_readers_admit_sources_before_waiting_for_workers() {
         worker_state.inner.packuments.workers
             .run(move || {
                 started_tx.send(()).unwrap();
-                release_rx.recv().unwrap();
+                // Sender teardown also releases the worker if an assertion fails.
+                release_rx.recv().unwrap_or_default();
             })
             .await
             .unwrap();
@@ -224,9 +225,22 @@ async fn shared_upstream_readers_admit_sources_before_waiting_for_workers() {
         .await
         .unwrap()
         .unwrap();
-    let second_fetch =
-        tokio::time::timeout(std::time::Duration::from_secs(1), upstream.fetched.recv()).await;
-    assert!(second_fetch.is_err(), "a queued reader downloaded another source document");
+    let misses = format!("pnpr_cache_misses_total {}", requests.len());
+    let readers_queued = async {
+        while !state.inner.metrics
+            .render_prometheus()
+            .lines()
+            .any(|line| line == misses)
+        {
+            tokio::task::yield_now().await;
+        }
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), readers_queued)
+        .await
+        .unwrap();
+    let slots = state.inner.packuments.admissions.upstream(&namespace);
+    assert_eq!(slots.available_permits(), 0);
+    assert!(upstream.fetched.try_recv().is_err());
     for request in requests {
         request.abort();
         let result = request.await;
@@ -397,6 +411,42 @@ async fn rendered_cache_and_response_bytes_do_not_retain_fetch_admission() {
     let namespace = crate::server::upstream_cache_namespace(&upstream.state, "npmjs");
     let slots = upstream.state.inner.packuments.admissions.upstream(&namespace);
     assert_eq!(slots.available_permits(), 2);
+    drop(response);
+    stop_upstream(upstream).await;
+}
+
+#[tokio::test]
+async fn fetched_responses_wait_for_stored_capacity_before_rendering() {
+    let mut upstream = controlled_upstream(false, 4).await;
+    let stored = upstream.state.inner.packuments.admissions.stored.acquire_many(4).await.unwrap();
+    let state = upstream.state.clone();
+    let mut request = tokio::spawn(async move {
+        let name = CanonicalPackageName::parse("other-example", pnpr_package_name::Ecosystem::Npm)
+            .unwrap();
+        crate::server::serve_packument_via_upstream(
+            &state,
+            &crate::server::Identity::Anonymous,
+            &super::HeaderMap::new(),
+            "npmjs",
+            &name,
+            "https://registry.example",
+            super::view(),
+        )
+        .await
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), upstream.fetched.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let early_response =
+        tokio::time::timeout(std::time::Duration::from_secs(1), &mut request).await;
+    assert!(early_response.is_err(), "fetched document rendering bypassed stored admission");
+    drop(stored);
+    let response = tokio::time::timeout(std::time::Duration::from_secs(5), request)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
     drop(response);
     stop_upstream(upstream).await;
 }
