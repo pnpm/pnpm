@@ -1449,7 +1449,7 @@ fn frozen_install_rejects_a_plain_range_link_the_linked_version_no_longer_satisf
     fixture.run(["install", "--lockfile-only"]);
     assert_eq!(
         importer_version(&fixture.wanted(), "packages/consumer", "linked"),
-        "link:../linked"
+        "link:../linked",
     );
 
     set_version(&linked_project, "7.11.0-beta.1");
