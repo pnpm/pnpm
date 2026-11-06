@@ -1,6 +1,6 @@
 use super::{
     Arc, AutoExcludeRoot, Catalogs, Config, HashMap, Mutex, PackArgs, PackError, PackOutputLocks,
-    PackResultJson, Path, PathBuf, PnpmfileHooks, Reporter, WorkspacePackageManifest,
+    PackResultJson, Path, PathBuf, PnpmfileHooks, Reporter, WorkspacePackageManifests,
     absolute_against, configured_catalogs, discover_workspace_projects,
     filtered_projects_dependencies, format_pack_output, graph_sequencer, pack_output_path,
     select_recursive_projects,
@@ -14,7 +14,7 @@ pub(super) struct RecursivePack<'a, 'graph> {
         &'a pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'graph>>,
     pub(super) catalogs: Catalogs,
     pub(super) before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
-    pub(super) workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
+    pub(super) workspace_packages: Option<Arc<WorkspacePackageManifests>>,
     pub(super) output: PackOutput,
     pub(super) results: PackResults,
 }
@@ -184,9 +184,10 @@ impl PackArgs {
         // eligibility check still applies below).
         let (projects, _) =
             discover_workspace_projects(config.workspace_dir.as_deref().unwrap_or(dir), config)?;
-        let workspace_packages = Arc::new(
-            crate::cli_args::workspace_packages::build_workspace_package_manifest_map(&projects),
-        );
+        let workspace_packages =
+            Arc::new(crate::cli_args::workspace_packages::build_workspace_package_manifest_map(
+                &projects, config,
+            )?);
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;

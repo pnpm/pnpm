@@ -98,14 +98,22 @@ export interface KeyPrefixRegistries {
  * names no registry.
  */
 export function pickDeclaredRegistryPrefix (registries: KeyPrefixRegistries, registry: string): string | undefined {
-  const declared = registries.registriesByPrefix
+  const prefix = pickSmallestDeclaredPrefix(registries.registriesByPrefix, registry)
+  if (prefix == null || normalizeRegistryKey(registry) === normalizeDefaultRegistry(registries.registriesByScope.default)) return undefined
+  return prefix
+}
+
+/**
+ * The lexicographically smallest prefix `declared` maps to `registry`, the
+ * default registry included. A prefix whose URL does not parse names no
+ * registry.
+ */
+export function pickSmallestDeclaredPrefix (declared: Record<string, string> | undefined, registry: string): string | undefined {
   // Asked once per resolved package, and most projects declare no prefix.
   if (declared == null || Object.keys(declared).length === 0) return undefined
   const registryKey = normalizeRegistryKey(registry)
   if (registryKey == null) return undefined
-  const prefix = getDeclaredPrefixByRegistry(declared).get(registryKey)
-  if (prefix == null || registryKey === normalizeDefaultRegistry(registries.registriesByScope.default)) return undefined
-  return prefix
+  return getDeclaredPrefixByRegistry(declared).get(registryKey)
 }
 
 /**

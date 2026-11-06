@@ -1,4 +1,5 @@
 pub mod console;
+pub mod hosted_registry;
 #[cfg(target_os = "linux")]
 pub mod inotify;
 pub mod terminal;

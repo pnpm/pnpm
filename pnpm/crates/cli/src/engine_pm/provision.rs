@@ -99,8 +99,12 @@ async fn provision_binary(
         BinaryChannel::Bun => "bun",
         BinaryChannel::Yarn => "yarn",
     };
-    let runtime =
-        materialize_runtime(&config.state_dir, name.to_string(), version_spec.to_string()).await?;
+    let runtime = Box::pin(materialize_runtime(
+        &config.state_dir,
+        name.to_string(),
+        version_spec.to_string(),
+    ))
+    .await?;
     let bin_dir = runtime.bin
         .parent()
         .ok_or_else(|| EngineError::MissingEngineBin {
@@ -166,10 +170,14 @@ async fn managed_node(
     if packages.links_native_binary || which::which("node").is_ok() {
         return Ok(None);
     }
-    materialize_runtime(&config.state_dir, "node".to_string(), MANAGED_NODE_SPEC.to_string())
-        .await
-        .wrap_err("install a Node.js runtime to run the package manager with")
-        .map(Some)
+    Box::pin(materialize_runtime(
+        &config.state_dir,
+        "node".to_string(),
+        MANAGED_NODE_SPEC.to_string(),
+    ))
+    .await
+    .wrap_err("install a Node.js runtime to run the package manager with")
+    .map(Some)
 }
 
 #[cfg(test)]
