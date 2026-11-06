@@ -182,6 +182,7 @@ pub(crate) struct CliReporter;
 
 impl Reporter for CliReporter {
     fn emit(event: &LogEvent) {
+        skipped_downloads::record(event);
         if EventFilter::current().hides(event) {
             return;
         }
@@ -359,6 +360,9 @@ pub(crate) fn configure_color(mode: ColorMode) {
         ColorMode::Never => owo_colors::set_override(false),
     }
 }
+
+mod skipped_downloads;
+pub(crate) use skipped_downloads::SkippedDownloads;
 
 #[cfg(test)]
 mod tests;

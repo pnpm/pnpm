@@ -17,9 +17,14 @@
 //! [`PrivateInstall`] of this process's own instead, and runs from there.
 
 use crate::{
-    cli_args::self_update::{
-        install_pnpm::{link_exe_platform_binary, package_dir, pnpm_executable_path, run_install},
-        verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+    cli_args::{
+        reporter::SkippedDownloads,
+        self_update::{
+            install_pnpm::{
+                link_exe_platform_binary, package_dir, pnpm_executable_path, run_install,
+            },
+            verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+        },
     },
     config_deps,
     engine_pm::{
@@ -206,6 +211,7 @@ async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
     fs::create_dir_all(&tmp_install_dir)
         .into_diagnostic()
         .wrap_err("create the temporary package manager install directory")?;
+    let skipped_downloads = SkippedDownloads::capture();
     let slot = Box::pin(run_install::<Reporter>(
         config,
         &tmp_install_dir,
@@ -224,6 +230,7 @@ async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
     // applies before its own `remove_dir_all`.
     let _ = remove_dir_if_not_symlink(&tmp_install_dir);
     link_engine_bins(&slot?, package_name, package.links_native_binary)
+        .map_err(|error| with_skipped_downloads(error, &skipped_downloads))
 }
 
 /// Install the engine into a private directory of this process's own,
@@ -239,6 +246,7 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
         .create_private_install(&format!("{}-{version}", pm.name()))
         .map_err(miette::Report::new)
         .wrap_err("create the private package manager install directory")?;
+    let skipped_downloads = SkippedDownloads::capture();
     Box::pin(run_install::<Reporter>(
         config,
         private_install.dir(),
@@ -250,8 +258,20 @@ async fn install_engine_privately<Reporter: self::Reporter + 'static>(
     ))
     .await?;
     let engine =
-        link_engine_bins(private_install.dir(), package.wrapper, package.links_native_binary)?;
+        link_engine_bins(private_install.dir(), package.wrapper, package.links_native_binary)
+            .map_err(|error| with_skipped_downloads(error, &skipped_downloads))?;
     Ok(InstalledEngine { private_install: Some(private_install), ..engine })
+}
+
+/// An engine's platform binaries are optional dependencies of its wrapper, so
+/// the install skips the host's binary when its download fails and only the
+/// link that needs it fails. Name the failed downloads in that error.
+fn with_skipped_downloads(error: miette::Report, skipped: &SkippedDownloads) -> miette::Report {
+    let downloads = skipped.take();
+    if downloads.is_empty() {
+        return error;
+    }
+    error.wrap_err(downloads.join("; "))
 }
 
 /// Take the host-wide lock guarding this engine's slot, or `None` when
