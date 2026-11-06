@@ -10,7 +10,7 @@ import { reportDeprecations } from './reportDeprecations.js'
 import { reportExecutionTime } from './reportExecutionTime.js'
 import { reportHooks } from './reportHooks.js'
 import { reportIgnoredBuilds } from './reportIgnoredBuilds.js'
-import { reportInstallChecks } from './reportInstallChecks.js'
+import { type InstallCheckEvent, reportInstallChecks } from './reportInstallChecks.js'
 import { reportInstallingConfigDeps } from './reportInstallingConfigDeps.js'
 import { reportLifecycleScripts } from './reportLifecycleScripts.js'
 import { reportLockfileVerification } from './reportLockfileVerification.js'
@@ -55,7 +55,7 @@ export function reporterForClient (
     lifecycle: Rx.Observable<logs.LifecycleLog>
     lockfileVerification: Rx.Observable<logs.LockfileVerificationLog>
     stats: Rx.Observable<logs.StatsLog>
-    installCheck: Rx.Observable<logs.InstallCheckLog>
+    installCheck: Rx.Observable<InstallCheckEvent>
     installingConfigDeps: Rx.Observable<logs.InstallingConfigDepsLog>
     registry: Rx.Observable<logs.RegistryLog>
     root: Rx.Observable<logs.RootLog>
@@ -147,6 +147,7 @@ function reportWarnings ({ log$, opts, cwd }: ReportContext): Outputs {
       stage: log$.stage,
     }, { cwd, isRecursive: opts.isRecursive }),
     reportRequestRetry(log$.requestRetry),
+    reportInstallChecks(log$.installCheck, { cwd }),
     reportOptionalFetchFailures(log$.skippedOptionalDependency),
   ]
 }
@@ -188,7 +189,6 @@ function reportInstallInfo ({ log$, opts, cwd, width }: ReportContext): Outputs 
       cwd,
       width,
     }),
-    reportInstallChecks(log$.installCheck, { cwd }),
     reportInstallingConfigDeps(log$.installingConfigDeps),
     reportLockfileVerification(log$.lockfileVerification, {
       cwd,

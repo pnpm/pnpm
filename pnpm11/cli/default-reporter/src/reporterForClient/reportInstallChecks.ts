@@ -1,12 +1,15 @@
 import type { InstallCheckLog } from '@pnpm/core-loggers'
+import type { LogBaseWarn } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
 
 import { formatWarn } from './utils/formatWarn.js'
 import { autozoom } from './utils/zooming.js'
 
+export type InstallCheckEvent = InstallCheckLog | ({ name: 'pnpm:install-check' } & LogBaseWarn)
+
 export function reportInstallChecks (
-  installCheck$: Rx.Observable<InstallCheckLog>,
+  installCheck$: Rx.Observable<InstallCheckEvent>,
   opts: {
     cwd: string
   }
@@ -20,7 +23,7 @@ export function reportInstallChecks (
 
 function formatInstallCheck (
   currentPrefix: string,
-  logObj: InstallCheckLog,
+  logObj: InstallCheckEvent,
   opts?: {
     zoomOutCurrent: boolean
   }
@@ -34,6 +37,7 @@ function formatInstallCheck (
       { zoomOutCurrent }
     )
   }
+  if (!('code' in logObj)) return undefined
   switch (logObj.code) {
     case 'EBADPLATFORM':
       return autozoom(
