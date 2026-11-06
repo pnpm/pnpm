@@ -1,3 +1,5 @@
+pub(super) mod revisions;
+
 pub(super) use dist_tags::{get_dist_tags, remove_dist_tag, set_dist_tag};
 pub(super) use unpublish::{delete_package, delete_tarball};
 
@@ -25,24 +27,12 @@ use super::{
     Action, AppState, RegistrySource, authorize_package, hosted_storage, resolve_write_target,
 };
 
-/// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
-/// overwrite the on-disk packument with the client-supplied body. pnpm uses
-/// this in the partial-unpublish flow: it fetches the packument, removes the
-/// unpublished version from `versions` / `dist-tags`, then PUTs the result
-/// back. We strip any `_attachments` so we don't persist base64 payloads
-/// alongside the manifest, and run
-/// [`enforce_published_version_immutability`] so the body can't tamper with
-/// a published version's `dist` or smuggle in a new one — everything else in
-/// the body is trusted verbatim, the same trust verdaccio extends.
-///
-/// If the request body contains `maintainers` without `versions`, this is an
-/// `npm owner` mutation. Maintainer updates require maintainer/admin privileges
-/// and validate that maintainers cannot be emptied.
+/// Apply a partial unpublish based on its revision, or an owner update.
 pub(super) async fn update_packument(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
-    raw_name: &str,
+    (raw_name, revision): (&str, &str),
     body: &[u8],
 ) -> Response {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
@@ -83,7 +73,7 @@ pub(super) async fn update_packument(
     if let Err(err) = authorize_rewrite(state, identity, &source, name.as_str(), Some(&org)).await {
         return err.into_response();
     }
-    let mut packument = match submitted_packument(body, &name) {
+    let mut packument = match submitted_packument(incoming_val, (&name, revision)) {
         Ok(packument) => packument,
         Err(err) => return err.into_response(),
     };
@@ -119,6 +109,12 @@ fn prepare_packument_rewrite(
         }
         .into_response());
     }
+    revisions::check(name, &hosted, packument.get("_rev").and_then(Value::as_str))
+        .map_err(IntoResponse::into_response)?;
+    packument
+        .as_object_mut()
+        .expect("submitted packument is an object")
+        .remove("_rev");
     super::tar_registry::overlay_verified_tar_stats(&mut hosted, tar_integrities);
     super::restore_tgz_integrities(&hosted, tar_integrities, packument);
     if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {

@@ -200,8 +200,12 @@ pub(super) fn packument_response(
     headers: &HeaderMap,
     max_age: u64,
 ) -> Result<Response, RegistryError> {
+    let representation = Representation::requested(headers);
     let osv_index = state.inner.osv_index.as_ref();
     let mut doc: Value = serde_json::from_slice(bytes)?;
+    if view.hosted && representation == Representation::Full {
+        doc["_rev"] = Value::String(super::package_mutation::revisions::revision(&doc));
+    }
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
     match view.revision_registry {
         Some(source_registry) => {
@@ -212,7 +216,6 @@ pub(super) fn packument_response(
     if let Some(table) = view.tar_integrities {
         describe_tars(&mut doc, table, view.tar_registry);
     }
-    let representation = Representation::requested(headers);
     let last_modified_source = packument_last_modified(&doc);
     let documents = &state.inner.config.http.package_documents;
     let (body, content_type) = representation.render(doc, documents)?;

@@ -237,7 +237,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
     packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
     );
-    let tamper = Request::put("/npm/mypkg/-rev/1-0")
+    let tamper = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
@@ -298,7 +298,7 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
     // A non-object dist would skip the integrity-restore path and strip the hash,
     // so it must be rejected rather than silently persisted.
     packument["versions"]["1.0.0"]["dist"] = json!(null);
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+    let request = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
@@ -364,7 +364,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
     // can't match it (or 404) — it must be rejected, not persisted.
     packument["versions"]["1.0.0"]["dist"]["tarball"] =
         json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
-    let tamper = Request::put("/npm/mypkg/-rev/1-0")
+    let tamper = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
@@ -436,7 +436,7 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
             "integrity": packument["versions"]["1.0.0"]["dist"]["integrity"].clone(),
         },
     });
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+    let request = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
@@ -516,10 +516,20 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
     let app = router(static_config(moved.path().to_path_buf()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let served = body_json(get.into_body()).await;
     let mut tampered = stored.clone();
     tampered["versions"]["1.0.0"]["dist"]["tarball"] =
         json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+    let request = Request::put(format!("/npm/mypkg/-rev/{}", served["_rev"].as_str().unwrap()))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&tampered).unwrap()))
@@ -605,6 +615,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
     )
     .await;
     let body = json!({
+        "_rev": hosted["_rev"],
         "_id": "mypkg",
         "name": "mypkg",
         "dist-tags": { "latest": "1.0.0" },

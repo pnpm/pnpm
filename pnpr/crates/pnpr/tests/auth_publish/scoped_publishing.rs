@@ -128,11 +128,12 @@ async fn unpublish_partial_writes_modified_packument() {
         .as_object_mut()
         .unwrap()
         .remove("integrity");
-    let request = Request::put("/npm/unpub-partial/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&modified).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/unpub-partial/-rev/{}", modified["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&modified).unwrap()))
+            .unwrap();
     let response = app
         .clone()
         .oneshot(request)
@@ -596,13 +597,24 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .unwrap(),
     )
     .unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/replace-policy")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    replacement["_rev"] = body_json(response.into_body()).await["_rev"].clone();
     replacement["owner"] = json!("admin");
 
-    let request = Request::put("/npm/replace-policy/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {alice}"))
-        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/replace-policy/-rev/{}", replacement["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {alice}"))
+            .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+            .unwrap();
     assert_eq!(
         app.clone()
             .oneshot(request)
@@ -623,11 +635,12 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     .unwrap();
     assert!(on_disk.get("owner").is_none());
 
-    let request = Request::put("/npm/replace-policy/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {admin}"))
-        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/replace-policy/-rev/{}", replacement["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {admin}"))
+            .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+            .unwrap();
     assert_eq!(
         app.clone()
             .oneshot(request)

@@ -446,7 +446,7 @@ a hosted registry.
 | `PUT` | `/{name}` | Publish an unscoped package. Body is the npm publish document with `_attachments`. Requires `publish`. |
 | `PUT` | `/@scope/{name}` | Publish a scoped package. Body is the npm publish document with `_attachments`. Requires `publish`. |
 | `PUT` | `/-/pnpr/v0/publish` | pnpm batch publish (also mounted on the server root). Body is `{"packages":[<publish document>, ...]}`. The batch is all-or-nothing and each package requires `publish`. See [One publish for a workspace that spans ecosystems](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems). |
-| `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires both `publish` and `unpublish`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
+| `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires the current [revision](#packument-revisions) and both `publish` and `unpublish`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `DELETE` | `/{name}` | Remove an entire unscoped package, used by force unpublish. Requires `unpublish`. Legacy `/{package}/-rev/{rev}` is also accepted. |
 | `DELETE` | `/@scope/{name}` | Remove an entire scoped package, used by force unpublish. Requires `unpublish`. Legacy `/@scope/{name}/-rev/{rev}` is also accepted. |
 | `DELETE` | `/{name}@{version}` | Unpublish an unscoped version, and reclaim its archives that no other file shares. A version the package no longer lists is left as it is. Requires `unpublish`. Legacy `/{name}@{version}/-rev/{rev}` is also accepted. |
@@ -458,6 +458,17 @@ a hosted registry.
 
 Every key under `versions` and its manifest's `version` must be valid SemVer.
 pnpr rejects an invalid version with `400`.
+
+### Packument revisions
+
+A hosted package's full metadata document includes `_rev`. A partial unpublish
+PUT must use that value in `/{package}/-rev/{rev}`. If the body also includes
+`_rev`, it must match the path. A stale revision returns `409` without removing
+versions. Read the package metadata again before retrying.
+
+A deprecation PUT to `/{package}` must include the current `_rev`. It changes
+only the versions' `deprecated` fields. Dist-tags and other package metadata
+stay unchanged. A missing or stale `_rev` returns `409`.
 
 ### Platform variants
 
@@ -526,7 +537,7 @@ partial unpublish computed from a packument that another replica has since
 changed is rejected with a `409`; a dist-tag write instead replays its mutation
 against the fresh packument, and reports `409` only if it keeps losing. Either
 way no writer's update is silently discarded. See
-[Storage backends](storage.md#concurrent-writers).
+[Packument revisions](#packument-revisions) and [Storage backends](storage.md#concurrent-writers).
 
 ### Publish-time manifest verification {#publish-time-manifest-verification}
 
