@@ -398,12 +398,16 @@ async fn s3_upload_moves_between_replicas_and_keeps_an_interrupted_chunks_prefix
     let objects: std::sync::Arc<dyn object_store::ObjectStore> =
         std::sync::Arc::new(object_store::memory::InMemory::new());
     let auth_state = AuthState::in_memory();
+    // Replicas share the bucket and the metadata database that maps its
+    // blobs.
+    let metadata = pnpr_config::MetadataBackend::Sqlite(first_disk.path().join("shared.sqlite"));
     let replica = |disk: &TempDir| {
         let mut config = oci_config(disk.path().to_path_buf(), "$all");
         config.storage.hosted_backend = pnpr::HostedStoreConfig::ObjectStore {
             store: std::sync::Arc::clone(&objects),
             prefix: "shared/".into(),
         };
+        config.storage.metadata = metadata.clone();
         router_with_auth(config, auth_state.clone())
     };
     let first = replica(&first_disk);
@@ -693,10 +697,7 @@ async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
     // manifest when the deletion lands on the other replica.
     let manifest = image_manifest("config", &[]);
     let manifest_digest = pnpr_oci::Digest::of(&manifest);
-    objects.pause_write(pnpr_storage::layout::blob_segment(
-        "acme/app",
-        &manifest_digest.blob_filename(),
-    ));
+    objects.pause_write(format!("{}.1", manifest_digest.blob_filename()));
     let publish = tokio::spawn(
         first.oneshot(
             Request::put("/v2/acme/app/manifests/latest")

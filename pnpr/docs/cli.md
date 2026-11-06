@@ -4,7 +4,7 @@ title: CLI reference
 ---
 
 `pnpr` runs the registry server when no subcommand is given. The other
-subcommands are offline maintenance tools.
+subcommands are maintenance tools.
 
 ```sh
 pnpr [serve] [OPTIONS]
@@ -14,7 +14,7 @@ pnpr export --out <dir> [OPTIONS]
 pnpr migrate-storage [OPTIONS]
 pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr add-user <username>
-pnpr oci-gc --registry <name> [OPTIONS]
+pnpr gc [OPTIONS]
 pnpr cache-gc [OPTIONS]
 ```
 
@@ -74,19 +74,13 @@ pnpr verify
 
 # Check that every blob exists, without comparing hashes
 pnpr verify --skip-hashes
-
-# Prune unreferenced blobs left behind by interrupted operations (older than 24h)
-pnpr verify --prune-orphans
-
-# Prune immediately without age guard
-pnpr verify --prune-orphans --min-age 0
 ```
+
+`verify` reports orphaned blobs and changes nothing; [`gc`](#gc) removes them.
 
 | Flag | Description |
 | --- | --- |
 | `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). |
-| `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. Recommended when registry writers are stopped. |
-| `--min-age <interval>` | Minimum age before an unreferenced blob is considered for pruning (e.g. `1d`, `86400s`, or bare seconds; defaults to `1d`). |
 
 ### export
 
@@ -176,19 +170,53 @@ printf '%s\n' "$PASSWORD" | pnpr add-user alice
 The password is read from the terminal, or from one line of stdin when stdin is
 not a terminal. It cannot be passed as a flag.
 
-### oci-gc
+### gc
 
-Added in: v0.1.0-alpha.11
+Removes the archives no file of a hosted package maps, in every hosted
+registry: npm, PyPI, Cargo, and OCI. It is safe to run while the registry
+serves and other replicas publish.
 
-Reclaims [container image](container-images.md#reclaiming-space) blobs that no
-retained manifest references. Every writer sharing the store must be stopped for
-the whole run.
+```sh
+# Report what would go
+pnpr gc --dry-run
+
+# Collect one registry
+pnpr gc --registry local
+```
+
+A namespace stores each archive's bytes once, under an incarnation of their
+identity, and its metadata maps every published file to one (see
+[Layout](storage.md#layout)). `gc` removes:
+
+- the bytes nothing maps any more: those of unpublished versions and packages
+  whose removal did not finish reclaiming them, and image blobs no retained
+  manifest reaches;
+- incarnations no commit made live: what a publish that stopped before its
+  commit, or one refused at it, stored;
+- reclaims a run or replica started and did not finish, once the
+  [`gc.lease`](configuration.md#gc) has passed since they started.
+
+An OCI blob stays while a retained manifest reaches it: untagged manifests,
+the children of retained indexes, and their config and layer blobs. A
+repository whose retained manifest is missing or corrupt keeps every blob, and
+`gc` reports the error after collecting the rest. A name in the store that is
+no key pnpr stores archives under is never removed.
+
+The metadata database fences every removal; no step depends on timing. A
+reclaim first moves the bytes' live incarnation to `reclaiming`, in a
+transaction that holds only while no file maps them, then removes exactly that
+incarnation's key, then records it gone. A publish that depends on that
+incarnation is refused with `409` and can be retried: the retry stores the
+bytes again as the next incarnation, under another key, so a removal that
+lands late never removes them. An incarnation a publish on its way may still
+commit is first recorded gone, which refuses that commit, and only once it was
+stored longer than `--min-age` ago.
 
 | Flag | Description |
 | --- | --- |
-| `--registry <name>` | The concrete hosted OCI registry to collect, by its config name. Required. |
-| `--dry-run` | Report the candidates without deleting anything. |
-| `--min-age <interval>` | Keep blobs younger than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so an interrupted push can still resume. `0` collects every unreferenced blob. |
+| `--registry <name>` | A hosted registry to collect, by its config name. Repeat it for more. Defaults to every hosted registry. |
+| `--dry-run` | Report the archives that would be removed without removing them. The report is a snapshot taken without the fence, so it can differ from a real run: it also counts incarnations another run is still removing, which a real run leaves to that run until `gc.lease` has passed, and publishes landing meanwhile can keep archives it lists. |
+| `--min-age <interval>` | Keep an incarnation no commit made live, and an image blob no manifest reaches yet, until it is older than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so a publish or image push still in flight is not refused. `0` collects them all. |
 
 ### cache-gc
 

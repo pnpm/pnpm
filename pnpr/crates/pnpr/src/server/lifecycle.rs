@@ -60,6 +60,32 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     Ok(())
 }
 
+/// Remove the archive staging files a process left behind when it stopped
+/// between writing an archive and storing it, in every hosted namespace.
+/// One older than a day belongs to no publish still running.
+async fn sweep_abandoned_archive_temps(config: &Config) -> pnpr_error::Result<()> {
+    let storage = Storage::from_config(&config.storage)?;
+    let mut namespaces: Vec<(&str, Ecosystem)> = config.routing.hosted
+        .iter()
+        .filter_map(|(name, hosted)| {
+            Some((hosted.org.as_str(), config.routing.registries.ecosystem(name)?))
+        })
+        .collect();
+    namespaces.push(("", Ecosystem::Npm));
+    namespaces.sort_unstable();
+    namespaces.dedup();
+    for (org, ecosystem) in namespaces {
+        let swept = storage
+            .for_hosted(org, ecosystem)
+            .sweep_archive_temps(pnpr_storage::upload::UPLOAD_MAX_AGE)
+            .await?;
+        if swept > 0 {
+            tracing::info!(swept, org, %ecosystem, "removed abandoned archive staging files");
+        }
+    }
+    Ok(())
+}
+
 /// Remove release archives staged for a publish that never claimed them
 /// before they expired, now and then every hour while the server runs.
 async fn sweep_expired_staged_archives(config: &Config) -> pnpr_error::Result<()> {
@@ -93,6 +119,7 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.features.registry.enabled {
         prepare_storage(config).await?;
         sweep_abandoned_uploads(config).await?;
+        sweep_abandoned_archive_temps(config).await?;
         sweep_expired_staged_archives(config).await?;
         crate::cache_maintenance::prune_orphaned_namespaces_startup(config).await?;
     }

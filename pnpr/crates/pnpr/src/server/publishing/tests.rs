@@ -109,32 +109,6 @@ fn a_request_digest_hashes_the_canonical_json() {
     assert_eq!(targeted, ssri::Integrity::from(canonical).to_string());
 }
 
-#[tokio::test]
-async fn archives_compare_a_bounded_chunk_at_a_time() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let staged = tmp.path().join("staged");
-    // Longer than one comparison chunk, so the comparison spans several.
-    let bytes: Vec<u8> = (0..200_000u32)
-        .map(|index| (index % 251) as u8)
-        .collect();
-    std::fs::write(&staged, &bytes).unwrap();
-    let mut changed = bytes.clone();
-    changed[150_000] ^= 1;
-    let cases = [
-        (bytes.clone(), Some(bytes.len() as u64), true),
-        (bytes.clone(), None, true),
-        (changed, None, false),
-        (bytes[..100].to_vec(), None, false),
-        ([bytes.as_slice(), b"more"].concat(), None, false),
-        (bytes.clone(), Some(1), false),
-    ];
-    for (index, (existing, length, same)) in cases.into_iter().enumerate() {
-        let body = axum::body::Body::from(existing);
-        let compared = super::atomic::same_bytes(body, length, &staged).await.unwrap();
-        assert_eq!(compared, same, "case {index}");
-    }
-}
-
 #[test]
 fn a_python_version_note_is_keyed_by_the_normalized_version() {
     let mut entry = json!({ "name": "demo", "version": "01.0", "notes": "- first\n" });
@@ -213,3 +187,5 @@ fn semver_validation_is_strict() {
         assert!(!super::is_valid_semver(invalid), "{invalid:?} should be invalid");
     }
 }
+
+mod fence;

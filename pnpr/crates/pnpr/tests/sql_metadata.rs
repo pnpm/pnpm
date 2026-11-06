@@ -14,7 +14,7 @@ use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::{
     TOMBSTONES_NAMESPACE,
-    layout::{local_blob_path, namespace_segments, package_segments},
+    layout::{namespace_segments, package_segments},
 };
 use serde_json::{Value, json};
 use std::{
@@ -93,15 +93,15 @@ async fn npm_metadata_round_trips_through_sqlite() {
     let (generation, document) = packument(&app, &token).await;
     assert_eq!(generation.as_deref(), Some(":2"));
     assert_eq!(document["dist-tags"]["latest"], "1.1.0");
-    let blob = local_blob_path(
-        tmp.path(),
-        "",
-        pnpr_storage::Ecosystem::Npm,
+    let blob = crate::storage::served_file(
+        &sqlite_config(tmp.path()),
+        ("", pnpr_storage::Ecosystem::Npm),
         "sql-pkg",
         "sql-pkg-1.0.0.tgz",
-    );
+    )
+    .await;
     let archive = npm_tgz("sql-pkg", "1.0.0", b"1.0.0");
-    assert_eq!(std::fs::read(blob).unwrap(), archive);
+    assert_eq!(blob.unwrap(), archive);
     // The version is served as its archive was accepted, under the profile
     // the accepted manifest records.
     let accepted = &document["versions"]["1.0.0"];
@@ -214,7 +214,8 @@ async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
 
 #[cfg(unix)]
 #[tokio::test]
-async fn an_unpublish_whose_archive_removal_fails_leaves_the_name_tombstoned() {
+async fn an_unpublish_whose_archive_removal_fails_leaves_the_archive_to_gc_and_the_name_tombstoned()
+{
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = TempDir::new().unwrap();
@@ -222,21 +223,28 @@ async fn an_unpublish_whose_archive_removal_fails_leaves_the_name_tombstoned() {
     let alice = token(&app).await;
     assert_eq!(publish(&app, &alice, "1.0.0").await, StatusCode::CREATED);
 
-    // A read-only archive directory, so removing its archives fails after the
-    // package's metadata is gone.
-    let archive = local_blob_path(
-        tmp.path(),
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "sql-pkg",
-        "sql-pkg-1.0.0.tgz",
-    );
+    // A read-only archive directory, so removing the package's archive fails
+    // after its metadata is gone. The unpublish stands, and the archive stays
+    // `reclaiming` for `pnpr gc`.
+    let npm = pnpr_storage::Ecosystem::Npm;
+    let [key] = crate::storage::stored_archives(tmp.path(), "", npm).try_into().unwrap();
+    let archive = pnpr_storage::layout::local_archive_path(tmp.path(), "", npm, &key);
     let archives = archive.parent().unwrap();
     std::fs::set_permissions(archives, std::fs::Permissions::from_mode(0o555)).unwrap();
     let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg/-rev/1", &alice, None)).await;
     std::fs::set_permissions(archives, std::fs::Permissions::from_mode(0o755)).unwrap();
-    assert!(status.is_server_error(), "the removal fails: {status}");
+    assert_eq!(status, StatusCode::CREATED);
     assert!(archive.is_file());
+    assert!(
+        crate::storage::served_file(
+            &sqlite_config(tmp.path()),
+            ("", pnpr_storage::Ecosystem::Npm),
+            "sql-pkg",
+            "sql-pkg-1.0.0.tgz"
+        )
+        .await
+        .is_none(),
+    );
 
     // The tombstone was written first, so the name is not free for anyone
     // but its former maintainer.

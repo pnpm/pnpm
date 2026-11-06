@@ -251,11 +251,11 @@ impl Request {
             }
             Err(err) => return registry_error(err),
         }
-        match storage.finalize_uploaded_blob(upload, key, &digest.blob_filename()).await {
-            Ok(pnpr_storage::BlobFinalize::Conflict) => {
-                error(ErrorCode::DigestInvalid, "stored blob conflicts with the uploaded content")
-            }
-            Ok(_) => created(&format!("{}/{}/blobs/{digest}", self.base, key.as_str()), &digest),
+        let filename = digest.blob_filename();
+        let id =
+            pnpr_storage::BlobId::parse(&filename).expect("a digest's file name is an identity");
+        match storage.finalize_uploaded_blob(upload, key, (&filename, id)).await {
+            Ok(()) => created(&format!("{}/{}/blobs/{digest}", self.base, key.as_str()), &digest),
             Err(err) => registry_error(err),
         }
     }

@@ -83,6 +83,17 @@ pub fn runtime_hosted_storage() -> PathBuf {
     runtime_storage().join(".registry-mock").join(build)
 }
 
+/// Where every mock's config is written, beside [`runtime_hosted_storage`]:
+/// the config's relative `./htpasswd`, and the tokens beside it, resolve
+/// here.
+#[must_use]
+pub fn runtime_config_dir() -> PathBuf {
+    runtime_hosted_storage()
+        .parent()
+        .expect("the hosted store has a directory")
+        .to_path_buf()
+}
+
 /// The metadata database of [`runtime_hosted_storage`].
 #[must_use]
 pub fn runtime_metadata_path() -> PathBuf {

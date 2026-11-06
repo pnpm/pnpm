@@ -12,8 +12,16 @@ use super::{
     verification::{describe_generated_archive, verify_published_manifests},
 };
 use crate::server::staged_archives::claim_staged_archive;
+use pnpr_storage::{
+    BlobId,
+    metadata::{ArtifactBlob, BlobLookup, BlobRow},
+    publish::sigstore_bundle_bytes,
+};
 use slot_writes::{AttachmentPaths, write_under_permit};
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 mod preparation;
@@ -161,6 +169,14 @@ pub(in super::super) struct StagedBase {
     /// another replica rebases the publish's changes off; `None` for a
     /// first publish and for other ecosystems.
     pub(in super::super) packument: Option<Value>,
+    /// The rows of the blobs the publish expected to store, read with the
+    /// document, `None` for bytes never stored.
+    pub(in super::super) blobs: BTreeMap<BlobId, Option<BlobRow>>,
+    /// Files of the package already stored that the document references and
+    /// the publish did not stage, such as the layers an image manifest names.
+    /// The commit maps them and depends on their blobs as on the ones it
+    /// promotes.
+    pub(in super::super) references: Vec<ArtifactBlob>,
 }
 
 /// What verifying a publish's archives against its version metadata
@@ -188,10 +204,8 @@ pub(in super::super) async fn stage_publish(
 ) -> Result<StagedPublish, RegistryError> {
     let storage = hosted_storage(state, org);
 
-    let (hosted, base_version) = parse_hosted_packument(
-        &doc.name,
-        storage.read_hosted_document_for_update(&doc.name).await?,
-    )?;
+    let base = read_staged_base(&storage, &doc).await?;
+    let hosted = base.packument.as_ref();
 
     check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
     let publisher = doc.publisher.username().map(str::to_string);
@@ -203,12 +217,11 @@ pub(in super::super) async fn stage_publish(
         variants,
         ..
     } = doc;
-    restore_submitted_tgz_integrities(&storage, &name, hosted.as_ref(), &mut incoming).await?;
+    restore_submitted_tgz_integrities(&storage, &name, hosted, &mut incoming).await?;
 
-    let without_any =
-        check_publishable_versions(&name, &incoming, hosted.as_ref(), (&prepared, &variants))?;
+    let without_any = check_publishable_versions(&name, &incoming, hosted, (&prepared, &variants))?;
 
-    let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
+    let merged = prepare_staged_document(&name, hosted, &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -225,12 +238,60 @@ pub(in super::super) async fn stage_publish(
         name,
         ecosystem: Ecosystem::Npm,
         document: verified.document,
-        base: StagedBase { version: base_version, packument: hosted },
+        base,
         slots: verified.slots,
         org: org.map(str::to_string),
         publisher,
         verification: verified.verification,
     })
+}
+
+/// The packument `doc` is computed from, read with the rows of the blobs it
+/// expects to store.
+async fn read_staged_base(
+    storage: &Storage,
+    doc: &ValidatedPublish,
+) -> Result<StagedBase, RegistryError> {
+    let lookup = BlobLookup { ids: expected_blobs(doc), artifacts: Vec::new() };
+    let base = storage.read_hosted_document_for_publish(&doc.name, &lookup).await?;
+    staged_base(&doc.name, base)
+}
+
+/// The packument a publish of `name` is computed from, as `base` read it.
+fn staged_base(
+    name: &CanonicalPackageName,
+    base: pnpr_storage::metadata::PublishBase,
+) -> Result<StagedBase, RegistryError> {
+    let (packument, version) = parse_hosted_packument(name, base.stored)?;
+    Ok(StagedBase { version, packument, blobs: base.blobs, references: Vec::new() })
+}
+
+/// The identities the bytes `doc` stores will have, where they are known
+/// before they are written, so their rows are read with the document: a
+/// `.tgz` stored as published has the `sha512` its `dist.integrity`
+/// declares, and a sigstore bundle is its own bytes. A tar a tar registry
+/// stores in place of the `.tgz`, and the archive pnpr generates for a
+/// version without one, are known only once written, and their rows take
+/// one more round trip.
+fn expected_blobs(doc: &ValidatedPublish) -> Vec<BlobId> {
+    let ecosystem = pnpr_registry::Ecosystem::Npm;
+    let mut ids: Vec<BlobId> = doc.prepared
+        .iter()
+        .filter_map(|prepared| match prepared.kind {
+            AttachmentKind::Tarball if doc.tarballs == TarballStorage::Tar => None,
+            AttachmentKind::Tarball | AttachmentKind::Variant => {
+                let integrity = prepared.dist.get("integrity")?.as_str()?;
+                BlobId::from_integrity(&integrity.parse().ok()?, ecosystem)
+            }
+            AttachmentKind::Sigstore => {
+                let bytes = sigstore_bundle_bytes(prepared.attachment.inline_data()?).ok()?;
+                Some(BlobId::of_bytes(ecosystem, &bytes))
+            }
+        })
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
 }
 
 /// The blob slots a publish wrote, and the tar each of its `.tgz` files
@@ -328,7 +389,7 @@ pub(super) async fn write_attachment_slot(
     } else {
         prepared.canonical.clone()
     };
-    let slot = storage.reserve_hosted_blob(name, &blob).await?;
+    let slot = storage.reserve_hosted_blob(name, &blob).await?.for_version(&prepared.version);
     let paths = AttachmentPaths::for_slot(&slot.tmp_path, stores_tar);
     let result = write_under_permit(
         (prepared.attachment, staged),

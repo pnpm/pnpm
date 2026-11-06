@@ -56,6 +56,10 @@ storage: ./storage
 # If omitted or commented out, a secure 32-byte CSPRNG random secret is generated on startup.
 #secret: ${PNPR_SECRET}
 
+# Archive garbage collection (`pnpr gc`).
+#gc:
+#  lease: 1h   # how long an interrupted reclaim is left before another run takes it over
+
 auth:
   htpasswd:
     file: ./htpasswd

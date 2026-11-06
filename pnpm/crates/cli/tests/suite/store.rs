@@ -541,8 +541,15 @@ fn assert_downloaded_tarballs_warm_the_store_for_an_offline_install(
     }
 
     let storage = root.path().join("registry-storage");
+    // The registry stores archives by their bytes' identity; `store add`
+    // takes a downloaded `.tgz`, so each is copied out under its name.
     let tarballs = ["@pnpm.e2e/foo", "@pnpm.e2e/bar"].map(|package| {
-        pnpr_fixtures::tarball_path(&storage, package, "100.0.0")
+        let downloaded = root
+            .path()
+            .join(format!("{}.tgz", package.replace('/', "-")));
+        fs::copy(pnpr_fixtures::tarball_path(&storage, package, "100.0.0"), &downloaded)
+            .expect("copy the tarball");
+        downloaded
     });
     if pinned == PinnedHash::Sha1 {
         pin_lockfile_to_sha1(&workspace.join("pnpm-lock.yaml"), &tarballs);

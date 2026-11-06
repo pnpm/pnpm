@@ -13,15 +13,19 @@ use std::{path::PathBuf, time::Duration};
 pub enum Command {
     /// Run the registry server (default when no subcommand is specified).
     Serve(ServerArgs),
-    /// Collect old, unreferenced image blobs. Stop all registry writers first.
-    OciGc {
-        /// Concrete hosted OCI registry from the config.
+    /// Remove archives no hosted package references. Safe while the
+    /// registry serves and other replicas publish.
+    Gc {
+        /// Hosted registry from the config to collect in; repeat for more.
+        /// Every hosted registry when omitted.
         #[arg(long)]
-        registry: String,
-        /// Report reclaimable blobs without deleting them.
+        registry: Vec<String>,
+        /// Report reclaimable archives without removing them.
         #[arg(long)]
         dry_run: bool,
-        /// Minimum blob age to reclaim (e.g. "1d", "86400s", or bare seconds).
+        /// How long ago an archive must have been stored, or an image blob
+        /// uploaded, before an unfinished publish or push of it is fenced off
+        /// and it is reclaimed (e.g. "1d", "86400s", or bare seconds).
         #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
         min_age: Duration,
     },
@@ -45,17 +49,12 @@ pub enum Command {
         #[command(subcommand)]
         action: ConfigSubcommand,
     },
-    /// Verify every document against its blobs (tarballs, attestations).
+    /// Verify every document against its blobs (tarballs, attestations), and
+    /// report orphaned blobs. `pnpr gc` removes them.
     Verify {
         /// Skip cryptographic hash verification (SHA-512 / SHA-1) of stored blobs against packument integrity.
         #[arg(long)]
         skip_hashes: bool,
-        /// Remove orphaned blobs from storage.
-        #[arg(long)]
-        prune_orphans: bool,
-        /// Minimum age before an unreferenced blob is considered for pruning (e.g. "1d", "86400s", or bare seconds).
-        #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
-        min_age: Duration,
     },
     /// Export hosted packages and blobs to a directory.
     Export {
@@ -126,7 +125,7 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         Command::Serve(..) => Err(miette::miette!(
             "`serve` is not a maintenance command; start the server with `pnpr::serve`"
         )),
-        Command::OciGc { .. } => run_oci_gc_command(config, command).await,
+        Command::Gc { .. } => run_gc_command(config, command).await,
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
         Command::Config { .. } => run_config_check(),
         Command::Verify { .. } => run_verify_command(config, command).await,
@@ -139,11 +138,12 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
     }
 }
 
-async fn run_oci_gc_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::OciGc { registry, dry_run, min_age } = command else {
+async fn run_gc_command(config: &Config, command: Command) -> miette::Result<()> {
+    let Command::Gc { registry, dry_run, min_age } = command else {
         return Ok(());
     };
-    run_oci_gc(config, registry, dry_run, min_age.as_secs()).await
+    let options = crate::archive_gc::GcOptions { registries: registry, min_age, dry_run };
+    run_gc(config, &options).await
 }
 
 async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -162,10 +162,10 @@ async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Resu
 }
 
 async fn run_verify_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Verify { skip_hashes, prune_orphans, min_age } = command else {
+    let Command::Verify { skip_hashes } = command else {
         return Ok(());
     };
-    run_verify(config, !skip_hashes, prune_orphans, min_age.as_secs()).await
+    run_verify(config, !skip_hashes).await
 }
 
 async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -222,13 +222,8 @@ async fn run_migrate_storage(
     Ok(())
 }
 
-async fn run_verify(
-    config: &Config,
-    check_hashes: bool,
-    prune_orphans: bool,
-    min_age_secs: u64,
-) -> miette::Result<()> {
-    let options = crate::verify::VerifyOptions { check_hashes, prune_orphans, min_age_secs };
+async fn run_verify(config: &Config, check_hashes: bool) -> miette::Result<()> {
+    let options = crate::verify::VerifyOptions { check_hashes };
     let report = crate::verify::verify_storage(config, &options).await?;
     print!("{}", crate::verify::format_verify_report(&report));
     if !report.missing_blobs.is_empty() || !report.corrupted_blobs.is_empty() {
@@ -271,22 +266,12 @@ fn run_import_htpasswd(
     Ok(())
 }
 
-async fn run_oci_gc(
-    config: &Config,
-    registry: String,
-    dry_run: bool,
-    min_age_secs: u64,
-) -> miette::Result<()> {
+async fn run_gc(config: &Config, options: &crate::archive_gc::GcOptions) -> miette::Result<()> {
     crate::prepare_storage(config).await.map_err(|err| redacted_report(&err))?;
-    let (blobs, bytes) = crate::oci_maintenance::collect_oci_blobs(
-        config,
-        &registry,
-        Duration::from_secs(min_age_secs),
-        dry_run,
-    )
-    .await
-    .map_err(|err| redacted_report(&err))?;
-    tracing::info!(blobs, bytes, dry_run, "OCI collection completed");
+    let report = crate::archive_gc::collect_archives(config, options).await
+        .map_err(|err| redacted_report(&err))?;
+    let verb = if options.dry_run { "would remove" } else { "removed" };
+    println!("Archive collection {verb} {} archives ({} bytes).", report.archives, report.bytes);
     Ok(())
 }
 

@@ -259,8 +259,9 @@ fn verify_prerequisites(
     }
 }
 
-/// A scenario with its own fixture packages seeds them into the mock
-/// registry's storage before it comes up.
+/// A scenario with its own fixture packages seeds them into the shared mock
+/// registry's storage before it comes up. A revision's own mock gets them
+/// published through it once it is up instead.
 fn seed_scenario_fixture(
     scenario: Option<cli_args::BenchmarkScenario>,
     registry_mode: RegistryMode,
@@ -273,7 +274,7 @@ fn seed_scenario_fixture(
         "the peer-heavy benchmark requires --registry=verdaccio",
     );
     // Seed the fixtures first, so the scenario's packages go into the
-    // database the mocks serve.
+    // database the shared mock serves.
     pnpm_registry_mock::seed_runtime_storage()
         .unwrap_or_else(|err| panic!("seed registry-mock fixtures into runtime storage: {err}"));
     work_env::seed_peer_heavy_registry(&pnpm_registry_mock::runtime_metadata_path());

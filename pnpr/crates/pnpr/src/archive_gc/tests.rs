@@ -1,17 +1,53 @@
-use super::{collect, referenced_blobs};
+use super::{Collection, GcOptions, liveness};
 use crate::RegistryError;
 use pnpr_config::HostedStoreConfig;
 use pnpr_oci::{Digest, ImageDocument, ManifestEntry, media_type};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::{HostedDocumentVersion, Storage, layout::local_blob_path};
+use pnpr_storage::{HostedDocumentVersion, Storage, layout::local_archive_path};
 use serde_json::json;
 use std::{collections::HashSet, time::Duration};
 use tempfile::TempDir;
 
+mod uncommitted;
+
 const MANIFEST_LIMIT: usize = 4 * 1024 * 1024;
+
+/// Collect the namespace `storage` views, taking over reclaims stopped for
+/// `lease`, and report how many archives and bytes went.
+async fn collect_with(
+    storage: &Storage,
+    (min_age, lease): (Duration, Duration),
+    dry_run: bool,
+) -> Result<(usize, u64), RegistryError> {
+    let collection = Collection { storage, manifest_limit: MANIFEST_LIMIT, lease };
+    let options = GcOptions { registries: Vec::new(), min_age, dry_run };
+    let report = collection.run(&options).await?;
+    Ok((report.archives, report.bytes))
+}
+
+async fn collect(
+    storage: &Storage,
+    min_age: Duration,
+    dry_run: bool,
+    _manifest_limit: usize,
+) -> Result<(usize, u64), RegistryError> {
+    collect_with(storage, (min_age, Duration::from_hours(1)), dry_run).await
+}
+
+async fn referenced_blobs(
+    storage: &Storage,
+    repository: &CanonicalPackageName,
+    manifest_limit: usize,
+) -> Result<HashSet<String>, RegistryError> {
+    let bytes = storage.read_hosted_document(repository).await?.unwrap();
+    let document = liveness::parse_image_document(&bytes)?;
+    liveness::referenced_document_blobs(storage, repository, &document, manifest_limit).await
+}
 
 fn setup() -> (TempDir, Storage) {
     let temp = TempDir::new().unwrap();
+    std::fs::create_dir_all(temp.path().join("store")).unwrap();
+    pnpr_storage::layout::write_local_layout_marker(&temp.path().join("store")).unwrap();
     let storage = Storage::new(
         &HostedStoreConfig::Fs,
         temp.path().join("store"),
@@ -27,6 +63,8 @@ fn name(repository: &str) -> CanonicalPackageName {
     CanonicalPackageName::parse(repository, Ecosystem::Oci).unwrap()
 }
 
+/// Upload `bytes` as an image blob of `repository`, as a finished upload
+/// maps it.
 async fn blob(storage: &Storage, repository: &CanonicalPackageName, bytes: &[u8]) -> Digest {
     let digest = Digest::of(bytes);
     let slot = storage
@@ -34,8 +72,32 @@ async fn blob(storage: &Storage, repository: &CanonicalPackageName, bytes: &[u8]
         .await
         .unwrap();
     tokio::fs::write(&slot.tmp_path, bytes).await.unwrap();
-    storage.finalize_blob_slot(slot).await.unwrap();
+    let (id, size) = storage.identify_blob_slot(&slot).await.unwrap();
+    let rows = storage
+        .blob_rows(vec![id.clone()])
+        .await
+        .unwrap();
+    let promoted = storage
+        .promote_blob_slot(slot, (id.clone(), size), rows.get(&id))
+        .await
+        .unwrap();
+    storage.map_hosted_artifact(promoted.artifact).await.unwrap();
     digest
+}
+
+/// Where the archive of `repository`'s `digest` is stored on disk.
+async fn archive_path(
+    temp: &TempDir,
+    storage: &Storage,
+    repository: &CanonicalPackageName,
+    digest: &Digest,
+) -> std::path::PathBuf {
+    let blob = storage
+        .hosted_blob_of(repository, &digest.blob_filename())
+        .await
+        .unwrap()
+        .unwrap();
+    local_archive_path(&temp.path().join("store"), "", Ecosystem::Oci, &blob.key())
 }
 
 async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) -> (Digest, Digest) {
@@ -110,24 +172,27 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
     let repository = name("acme/app");
     let (manifest, _) = retained_image(&storage, &repository).await;
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
-    let path = local_blob_path(
-        &temp.path().join("store"),
-        "",
-        Ecosystem::Oci,
-        repository.as_str(),
-        &manifest.blob_filename(),
-    );
+    let path = archive_path(&temp, &storage, &repository, &manifest).await;
     tokio::fs::write(&path, b"corrupt").await.unwrap();
     let error = collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap_err();
     assert!(
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("manifest digest mismatch")),
+    );
+    // The repository whose manifest is corrupt keeps every blob; another
+    // repository is collected on its own.
+    assert!(
+        storage
+            .open_hosted_blob(&repository, &manifest.blob_filename())
+            .await
+            .unwrap()
+            .is_some(),
     );
     assert!(
         storage
             .open_hosted_blob(&name("aaa"), &orphan.blob_filename())
             .await
             .unwrap()
-            .is_some(),
+            .is_none(),
     );
     tokio::fs::remove_file(path).await.unwrap();
     let error = collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap_err();
@@ -208,7 +273,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
 }
 
 #[tokio::test]
-async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt() {
+async fn a_corrupt_repository_without_blobs_leaves_other_repositories_collectable() {
     let (_temp, storage) = setup();
     let repository = name("empty");
     let mut document = ImageDocument::new(repository.as_str());
@@ -222,17 +287,16 @@ async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt(
         .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
         .await
         .unwrap();
+    // A repository's manifests reach only its own blobs, so one with no
+    // blobs has nothing a corrupt document could keep.
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
-    let error = collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap_err();
-    assert!(
-        matches!(error, RegistryError::BadRequest { reason } if reason.contains("retained manifest is missing")),
-    );
+    assert_eq!(collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(), (1, 6));
     assert!(
         storage
             .open_hosted_blob(&name("aaa"), &orphan.blob_filename())
             .await
             .unwrap()
-            .is_some(),
+            .is_none(),
     );
 }
 
@@ -251,6 +315,7 @@ async fn collection_streams_an_object_store_inventory() {
     )
     .unwrap()
     .for_hosted("", Ecosystem::Oci);
+    storage.ensure_hosted_layout().await.unwrap();
     let repository = name("acme/app");
     retained_image(&storage, &repository).await;
     blob(&storage, &name("acme/app/nested"), b"orphan").await;
@@ -275,48 +340,53 @@ async fn collection_does_not_remove_a_matching_blob_from_the_shared_cache() {
     assert_eq!(tokio::fs::read(cache).await.unwrap(), b"cached");
 }
 
+/// A reclaim that stopped after it moved its blob to `reclaiming` is
+/// finished by a collection once the lease has passed, whatever the
+/// archive's age, and the bytes uploaded again take the next incarnation.
 #[tokio::test]
-async fn offline_collection_finishes_interrupted_explicit_deletion() {
+async fn collection_finishes_an_interrupted_reclaim_after_the_lease() {
     let (_temp, storage) = setup();
     let repository = name("acme/app");
     let digest = blob(&storage, &repository, b"pending deletion").await;
-    let mut document = ImageDocument::new(repository.as_str());
-    document.generation = 1;
-    document.deleting_blob = Some(digest.clone());
-    storage
-        .write_hosted_document_if_current(&repository, &document.to_bytes(), None, None)
+    let unmapped = storage
+        .sql_metadata()
+        .unmap_artifacts(
+            "",
+            Ecosystem::Oci,
+            repository.as_str(),
+            (None, vec![digest.blob_filename().into()]),
+        );
+    let ids = unmapped.await.unwrap().unwrap();
+    let marked = storage
+        .sql_metadata()
+        .mark_reclaiming("", Ecosystem::Oci, ids)
         .await
         .unwrap();
+    assert_eq!(marked.len(), 1);
+    let day = Duration::from_hours(24);
+    assert_eq!(collect_with(&storage, (day, day), false).await.unwrap(), (0, 0));
     assert_eq!(
-        collect(&storage, Duration::from_hours(24), true, MANIFEST_LIMIT).await.unwrap(),
-        (0, 0),
+        storage
+            .stored_incarnations()
+            .await
+            .unwrap()
+            .len(),
+        1,
+        "within the lease",
     );
+    assert_eq!(collect_with(&storage, (day, Duration::ZERO), false).await.unwrap(), (1, 0));
     assert!(
         storage
-            .open_hosted_blob(&repository, &digest.blob_filename())
+            .stored_incarnations()
             .await
             .unwrap()
-            .is_some(),
+            .is_empty(),
     );
-    assert_eq!(
-        collect(&storage, Duration::from_hours(24), false, MANIFEST_LIMIT).await.unwrap(),
-        (1, 16),
-    );
-    assert!(
-        storage
-            .open_hosted_blob(&repository, &digest.blob_filename())
-            .await
-            .unwrap()
-            .is_none(),
-    );
-    let document = ImageDocument::parse(
-        &storage
-            .read_hosted_document(&repository)
-            .await
-            .unwrap()
-            .unwrap(),
-    )
-    .unwrap();
-    assert_eq!(document.generation, 1);
-    assert!(document.deleting_blob.is_none());
+    blob(&storage, &repository, b"pending deletion").await;
+    let blob = storage
+        .hosted_blob_of(&repository, &digest.blob_filename())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(blob.incarnation, 2);
 }

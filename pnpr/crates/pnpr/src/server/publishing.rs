@@ -15,6 +15,7 @@ mod attachments;
 mod generated_archive;
 mod manifest;
 mod notes;
+mod promotion;
 mod provenance;
 mod rebase;
 mod release_records;

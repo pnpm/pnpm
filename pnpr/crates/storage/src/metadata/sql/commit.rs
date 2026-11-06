@@ -10,7 +10,7 @@ use super::{
     to_column, to_generation,
 };
 use crate::{
-    DocumentWrite,
+    BlobId, DocumentWrite,
     metadata::{ArtifactMember, ReleaseRecords},
 };
 use pnpr_error::{RegistryError, Result};
@@ -365,13 +365,21 @@ fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
 }
 
 /// The tables holding a version's rows, each before the tables its rows
-/// reference.
-const VERSION_TABLES: [&str; 5] =
-    ["release_records", "accepted_manifests", "readmes", "annotations", "versions"];
+/// reference. The mappings of its files go with it, which leaves the blobs
+/// nothing else maps to be reclaimed.
+const VERSION_TABLES: [&str; 6] = [
+    "artifact_blobs",
+    "release_records",
+    "accepted_manifests",
+    "readmes",
+    "annotations",
+    "versions",
+];
 
 /// The tables holding a package's rows other than its history, each before
 /// the tables its rows reference.
-const PACKAGE_TABLES: [&str; 7] = [
+const PACKAGE_TABLES: [&str; 8] = [
+    "artifact_blobs",
     "release_records",
     "accepted_manifests",
     "readmes",
@@ -409,18 +417,27 @@ fn apply_tags(
 }
 
 /// Remove every row of the package except its tag history and the identities
-/// of its versions, which stay removed, under a new generation.
-pub(super) fn remove_package(connection: &dyn Connection, key: &PackageKey) -> Result<bool> {
-    let (mut batch, results) =
-        Batch::begin_with(connection, &key.catalog, &[package_row_query(key)])?;
-    let exists = results
-        .into_iter()
-        .next()
-        .is_some_and(|rows| !rows.is_empty());
-    if !exists {
-        return Ok(false);
-    }
+/// of its versions, which stay removed, under a new generation. Returns the
+/// blobs its files were mapped to, `None` when there was no package.
+pub(super) fn remove_package(
+    connection: &dyn Connection,
+    key: &PackageKey,
+) -> Result<Option<Vec<BlobId>>> {
     let (catalog, ecosystem, name) = key.params();
+    let mapped = query!(
+        "SELECT DISTINCT integrity FROM artifact_blobs
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+        catalog,
+        ecosystem,
+        name,
+    );
+    let (mut batch, results) =
+        Batch::begin_with(connection, &key.catalog, &[package_row_query(key), mapped])?;
+    let mut results = results.into_iter();
+    if results.next().is_none_or(|rows| rows.is_empty()) {
+        return Ok(None);
+    }
+    let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
     batch.transaction().execute(
         "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
          SELECT catalog, ecosystem, name, version, revision_key, ?4 FROM versions
@@ -438,7 +455,7 @@ pub(super) fn remove_package(connection: &dyn Connection, key: &PackageKey) -> R
     }
     batch.touch(key);
     batch.finish()?;
-    Ok(true)
+    Ok(Some(ids))
 }
 
 pub(super) fn parse_json<Parsed: serde::de::DeserializeOwned>(text: &str) -> Result<Parsed> {

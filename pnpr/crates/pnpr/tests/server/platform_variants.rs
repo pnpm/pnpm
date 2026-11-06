@@ -624,41 +624,6 @@ async fn an_archive_declares_its_versions_integrity_or_none() {
     );
 }
 
-/// A variant is stored as a file named by the version and its tag, so a long
-/// version and a long tag that cannot fit one file name together are refused
-/// as a bad request, not failed as a server error.
-#[tokio::test]
-async fn a_variant_that_cannot_be_stored_as_one_file_is_refused() {
-    let platforms: Vec<String> = (100..103)
-        .map(|abi| format!("linux-x64-manylinux_2_17-node{abi}"))
-        .collect();
-    let platforms: Vec<&str> = platforms
-        .iter()
-        .map(String::as_str)
-        .collect();
-    let tag = platforms.join("+");
-    assert!(tag.len() <= pnpm_platform_variants::MAX_VARIANT_TAG_BYTES);
-    let version = format!("1.0.0-{}", "a".repeat(120));
-    let mut manifest = any_manifest();
-    manifest["version"] = json!(version);
-    let (_tmp, app, token) = setup().await;
-    let (_, any) = archive(&manifest, "any");
-    let request = publish_request(&any, &[], &token);
-    let (parts, body) = request.into_parts();
-    let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
-    let mut version_manifest = document["versions"]["1.0.0"].take();
-    version_manifest["version"] = json!(version);
-    document["versions"] = json!({ version.clone(): version_manifest });
-    document["_attachments"] = json!({
-        format!("@acme/fast-{version}~{tag}.tgz"): { "data": "AAAA", "integrity": "sha512-AAAA" },
-    });
-    let request = Request::from_parts(parts, Body::from(serde_json::to_vec(&document).unwrap()));
-    let response = app.oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(reason.contains("too long together"), "{reason}");
-}
-
 /// `request` with a provenance statement naming `subjects`, each a PURL and
 /// the `.tgz` it names.
 async fn with_statement(request: Request<Body>, subjects: &[(&str, &[u8])]) -> Request<Body> {
