@@ -123,7 +123,8 @@ impl CachedBuildInputs<'_> {
         {
             return HashMap::new();
         }
-        let graph = crate::build_deps_subgraph(snapshots, packages, roots);
+        let platforms = crate::platform_selection::VariantPlatforms::host();
+        let graph = crate::build_deps_subgraph(snapshots, packages, (roots, &platforms));
         let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
         self.fetched.requires_build_by_snapshot
             .iter()
@@ -229,7 +230,15 @@ fn cached_build_maps(
         else {
             continue;
         };
-        maps.insert(key.clone(), Arc::new(overlay.files.clone()));
+        maps.insert(
+            key.clone(),
+            Arc::new(
+                overlay.files
+                    .iter()
+                    .map(|(name, file)| (name.clone(), file.path.clone()))
+                    .collect(),
+            ),
+        );
     }
     (!maps.is_empty()).then_some(maps)
 }
