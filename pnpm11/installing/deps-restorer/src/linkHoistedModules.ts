@@ -28,6 +28,7 @@ import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
 
+import { importerModulesDir } from './importerModulesDir.js'
 import { reportOptionalFetchFailure } from './reportOptionalFetchFailure.js'
 
 const limitLinking = pLimit(16)
@@ -56,6 +57,8 @@ interface LinkHoistedModulesOptions {
   holdBackMissingBins: boolean
   ignoreScripts: boolean
   lockfileDir: string
+  /** The configured `modulesDir`. Each importer keeps its dependencies there. */
+  modulesDir?: string
   /**
    * The root project's `engines.runtime` Node version, which keys the
    * side-effects cache of every package that does not pin its own.
@@ -76,7 +79,7 @@ export async function linkHoistedModules (
   hierarchy: DepHierarchy,
   opts: LinkHoistedModulesOptions
 ): Promise<string[]> {
-  await removeDirsOutsidePlan(graph, prevGraph, hierarchy, opts.lockfileDir)
+  await removeDirsOutsidePlan(graph, prevGraph, hierarchy, opts)
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
@@ -101,7 +104,7 @@ export async function linkHoistedModules (
             prefix: parentDir,
           })
         }
-        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
+        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts.modulesDir), {
           ...opts,
           holdBackMissingTargets: opts.holdBackMissingBins,
           nestedHeldBackBinsDirs: heldBackBinsDirs,
@@ -118,7 +121,7 @@ async function removeDirsOutsidePlan (
   graph: DependenciesGraph,
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
-  lockfileDir: string
+  { lockfileDir, modulesDir }: Pick<LinkHoistedModulesOptions, 'lockfileDir' | 'modulesDir'>
 ): Promise<void> {
   // TODO: remove nested node modules first
   const dirsToRemove = difference(
@@ -129,7 +132,7 @@ async function removeDirsOutsidePlan (
   // the on-disk scan found is not: pnpm has no record of putting it there, so it
   // is quarantined instead, the way an alien package directory already is.
   const recordedDirs = new Set(dirsToRemove)
-  const dirsToQuarantine = (await findUnplannedDirs(hierarchy))
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, modulesDir))
     .filter(({ dir }) => !recordedDirs.has(dir))
   statsLogger.debug({
     prefix: lockfileDir,
@@ -321,7 +324,7 @@ async function linkAllPkgsInOrder (
   storeController: StoreController,
   graph: DependenciesGraph,
   hierarchy: DepHierarchy,
-  parentDir: string,
+  modulesDir: string,
   opts: LinkAllPkgsInOrderOptions
 ): Promise<void> {
   await Promise.all(
@@ -331,10 +334,9 @@ async function linkAllPkgsInOrder (
       await Promise.all(Object.entries(depNode.packageRootLinks ?? {}).map(([alias, target]) =>
         symlinkDependency(path.join(depNode.dir, target), path.join(depNode.dir, 'node_modules'), alias)
       ))
-      return linkAllPkgsInOrder(storeController, graph, deps, dir, { ...opts, isNested: true })
+      return linkAllPkgsInOrder(storeController, graph, deps, path.join(dir, 'node_modules'), { ...opts, isNested: true })
     })
   )
-  const modulesDir = path.join(parentDir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
@@ -442,10 +444,10 @@ async function pickSideEffectsCacheKey (
  * Symlinks are skipped: that is how workspace packages and `link:` dependencies
  * are attached, and they are absent from the graph by design.
  */
-async function findUnplannedDirs (hierarchy: DepHierarchy): Promise<UnplannedDir[]> {
+async function findUnplannedDirs (hierarchy: DepHierarchy, projectModulesDir: string | undefined): Promise<UnplannedDir[]> {
   const unplannedDirs = await Promise.all(
     Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
-      const modulesDir = path.join(projectDir, 'node_modules')
+      const modulesDir = importerModulesDir(projectDir, projectModulesDir)
       const pkgNames = await readModulesDir(modulesDir)
       if (pkgNames == null) return []
       const plannedDirs = new Set(Object.keys(plannedDeps))

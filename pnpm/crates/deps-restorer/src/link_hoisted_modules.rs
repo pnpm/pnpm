@@ -114,15 +114,16 @@ pub struct LinkHoistedModulesOpts<'a> {
     /// root. Single-importer installs have one entry keyed by
     /// `lockfile_dir`.
     pub hierarchy: &'a std::collections::BTreeMap<PathBuf, DepHierarchy>,
+    /// Where each importer root of [`hierarchy`](Self::hierarchy) keeps
+    /// its dependencies. Its lockfile directory is the containment root
+    /// for orphan removal: an orphan directory that does not sit
+    /// lexically inside it is skipped, never deleted. The walker builds
+    /// every graph dir through `safe_join_modules_dir`, so a confined
+    /// path is the invariant. This keeps the deletion site from
+    /// depending on the constructor's discipline.
+    pub modules_dirs: &'a crate::ImporterModulesDirs,
     /// Pre-fetched CAS file index per package.
     pub cas_paths_by_pkg_id: &'a CasPathsByPkgId,
-    /// Containment root for orphan removal: an orphan directory that
-    /// does not sit lexically inside this root is skipped, never
-    /// deleted. The walker builds every graph dir through
-    /// `safe_join_modules_dir`, so a confined path is the invariant —
-    /// this keeps the deletion site from depending on the
-    /// constructor's discipline.
-    pub confine_root: &'a Path,
     /// Options for every bin this pass links — the
     /// [`crate::shim_link_options`] output for the hoisted linker
     /// (no `extraNodePaths`; hoisted-tree shims never carry
@@ -207,8 +208,9 @@ pub(crate) fn link_hoisted_modules_with_sources<Reporter: self::Reporter>(
     let LinkedLevel { imported: added, bins } = crate::link_pool::in_link_pool(|| {
         opts.hierarchy
             .par_iter()
-            .map(|(parent_dir, deps_hierarchy)| {
-                link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, true, opts)
+            .map(|(project_dir, deps_hierarchy)| {
+                let modules_dir = opts.modules_dirs.of(project_dir);
+                link_all_pkgs_in_order::<Reporter>(deps_hierarchy, &modules_dir, true, opts)
             })
             .collect::<Result<Vec<LinkedLevel>, _>>()
     })?
@@ -251,13 +253,13 @@ fn remove_orphans(opts: &LinkHoistedModulesOpts<'_>) -> Result<u64, LinkHoistedM
         .flatten()
         .map(|(dir, _)| dir.clone())
         .filter(|dir| !opts.graph.contains_key(dir))
-        .filter(|dir| confined(dir, opts.confine_root))
+        .filter(|dir| confined(dir, opts.modules_dirs.lockfile_dir()))
         .collect();
     let mut unplanned_dirs = BTreeSet::new();
     for (project_dir, planned_deps) in opts.hierarchy {
-        for unplanned in find_unplanned_dirs(project_dir, planned_deps)? {
+        for unplanned in find_unplanned_dirs(&opts.modules_dirs.of(project_dir), planned_deps)? {
             if !recorded_dirs.contains(&unplanned.dir)
-                && confined(&unplanned.dir, opts.confine_root)
+                && confined(&unplanned.dir, opts.modules_dirs.lockfile_dir())
             {
                 unplanned_dirs.insert(unplanned);
             }
@@ -369,13 +371,12 @@ fn make_real_dir(parent: &Path, name: &str) -> Option<PathBuf> {
 /// dependencies are attached, and they are absent from the graph by
 /// design.
 fn find_unplanned_dirs(
-    project_dir: &Path,
+    modules_dir: &Path,
     planned_deps: &DepHierarchy,
 ) -> Result<Vec<UnplannedDir>, LinkHoistedModulesError> {
-    let modules_dir = project_dir.join("node_modules");
-    let pkg_names = read_modules_dir(&modules_dir)
+    let pkg_names = read_modules_dir(modules_dir)
         .map_err(|source| LinkHoistedModulesError::ReadModulesDir {
-            path: modules_dir.clone(),
+            path: modules_dir.to_path_buf(),
             source,
         })?;
     let mut unplanned = Vec::new();
@@ -389,7 +390,7 @@ fn find_unplanned_dirs(
                 if dir.join("package.json").exists() {
                     unplanned.push(UnplannedDir {
                         dir,
-                        modules_dir: modules_dir.clone(),
+                        modules_dir: modules_dir.to_path_buf(),
                         pkg_name,
                     });
                 }
@@ -441,7 +442,7 @@ fn try_remove_dir(dir: &Path) -> io::Result<()> {
 /// [`IntoParallelRefIterator::par_iter`]: rayon::iter::IntoParallelRefIterator::par_iter
 fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     hierarchy: &DepHierarchy,
-    parent_dir: &Path,
+    modules_dir: &Path,
     is_project_root: bool,
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<LinkedLevel, LinkHoistedModulesError> {
@@ -455,14 +456,19 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
                 .get(dir)
                 .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
             let here = u64::from(import_node::<Reporter>(node, opts)?);
-            let below = link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, false, opts)?;
+            let below = link_all_pkgs_in_order::<Reporter>(
+                sub_hierarchy,
+                &dir.join("node_modules"),
+                false,
+                opts,
+            )?;
             Ok(LinkedLevel { imported: here, ..LinkedLevel::default() }.merge(below))
         })
         .collect::<Result<Vec<LinkedLevel>, LinkHoistedModulesError>>()?
         .into_iter()
         .fold(LinkedLevel::default(), LinkedLevel::merge);
 
-    let mut bins = link_hierarchy_bins(hierarchy, parent_dir, opts)?;
+    let mut bins = link_hierarchy_bins(hierarchy, modules_dir, opts)?;
     // A project's `.bin` is linked again after the builds anyway.
     if is_project_root {
         bins.held_back_bins_dirs.clear();

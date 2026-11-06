@@ -15,10 +15,10 @@ import type {
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, ProjectId, RegistryContext, SupportedArchitectures } from '@pnpm/types'
-import { pathAbsolute } from 'path-absolute'
 
 import { pickResolvableImporterIds } from './currentLockfileImporters.js'
 import { fetchDeps, type FetchDepsOptions, type SkipFetchingOption } from './fetchHoistedDeps.js'
+import { importerModulesDir } from './importerModulesDir.js'
 
 export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
   allowBuild?: AllowBuild
@@ -94,7 +94,7 @@ async function _lockfileToHoistedDepGraph (
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const { tree, rootImporterId } = hoistImporters(lockfile, opts)
   const graph: DependenciesGraph = {}
-  const modulesDir = pathAbsolute(opts.modulesDir ?? 'node_modules', opts.lockfileDir)
+  const modulesDir = importerModulesDir(opts.lockfileDir, opts.modulesDir)
   const fetchDepsOpts: FetchDepsOptions = {
     ...opts,
     lockfile,
@@ -112,6 +112,7 @@ async function _lockfileToHoistedDepGraph (
     },
     fetchDepsOpts,
     hierarchy,
+    modulesDir: opts.modulesDir,
     symlinkedDirectDependenciesByImporterId: { '.': {} },
   }
   if (rootImporterId != null) {
@@ -171,6 +172,7 @@ interface ProjectDepsContext {
   directDependenciesByImporterId: DirectDependenciesByImporterId
   fetchDepsOpts: FetchDepsOptions
   hierarchy: Record<string, DepHierarchy>
+  modulesDir: string | undefined
   symlinkedDirectDependenciesByImporterId: DirectDependenciesByImporterId
 }
 
@@ -190,7 +192,7 @@ async function addWorkspaceProjectDeps (ctx: ProjectDepsContext, rootDep: Hoiste
   const { fetchDepsOpts } = ctx
   const importerId = reference.replace('workspace:', '') as ProjectId
   const projectDir = path.join(fetchDepsOpts.lockfileDir, importerId)
-  const modulesDir = path.join(projectDir, 'node_modules')
+  const modulesDir = importerModulesDir(projectDir, ctx.modulesDir)
   const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
   const importer = fetchDepsOpts.lockfile.importers[importerId]
   if (importerHasDeps(importer) || rootDep.dependencies.size > 0) {

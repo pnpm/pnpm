@@ -16,6 +16,7 @@ pub mod hoist;
 pub mod hoisted_dep_graph;
 pub mod hoisting_limits;
 pub mod import_indexed_dir;
+pub mod importer_modules_dirs;
 pub mod install_context;
 pub mod install_frozen_lockfile;
 pub mod install_package_by_snapshot;
@@ -63,6 +64,7 @@ pub use hoist::*;
 pub use hoisted_dep_graph::*;
 pub use hoisting_limits::*;
 pub use import_indexed_dir::*;
+pub use importer_modules_dirs::ImporterModulesDirs;
 pub use install_context::*;
 pub use install_frozen_lockfile::*;
 pub use install_options::{

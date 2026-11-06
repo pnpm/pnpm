@@ -41,7 +41,7 @@ fn collapsed_peer_variants_reuse_the_hoisters_recorded_placements() {
     let dir = tempdir().unwrap();
     let lockfile = lockfile_with_peer_variants();
     let options = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: dir.path().to_path_buf(),
+        modules_dirs: pnpm_deps_restorer::ImporterModulesDirs::node_modules(dir.path()),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let hoisted = lockfile_to_hoisted_dep_graph(&lockfile, None, &options).unwrap();

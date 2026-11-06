@@ -83,6 +83,7 @@ async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph
     holdBackMissingBins: !opts.ignoreScripts && opts.enableModulesDir !== false && !opts.ignorePackageManifest,
     ignoreScripts: opts.ignoreScripts,
     lockfileDir: opts.lockfileDir,
+    modulesDir: opts.modulesDir,
     nodeVersion: ctx.rootRuntimeNodeVersion,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,

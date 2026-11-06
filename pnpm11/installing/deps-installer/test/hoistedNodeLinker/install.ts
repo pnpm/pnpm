@@ -368,6 +368,67 @@ test('bins of a nested package are removed when the package is deduped into the 
   expect(readBinEntries('.')).not.toHaveLength(0)
 })
 
+test('a project dependency that is not hoisted goes in the project modules directory set by modulesDir', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '0.0.0',
+    },
+  }
+  preparePackages([project1Manifest, project2Manifest])
+  const installProjects = (opts: { force: boolean }) => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    force: opts.force,
+    modulesDir: 'vendor',
+    nodeLinker: 'hoisted',
+  }))
+
+  await installProjects({ force: false })
+  expect(loadJsonFileSync<{ version: string }>('vendor/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('1.0.0')
+  expect(loadJsonFileSync<{ version: string }>('project-2/vendor/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
+  expect(fs.existsSync('project-2/node_modules')).toBeFalsy()
+  expect(fs.readdirSync('project-2/vendor/.bin')).toContain('hello-world-js-bin')
+
+  for (const modulesDir of ['vendor', 'project-2/vendor']) {
+    fs.mkdirSync(path.join(modulesDir, 'stray'))
+    fs.writeFileSync(path.join(modulesDir, 'stray/package.json'), JSON.stringify({ name: 'stray', version: '1.0.0' }))
+  }
+  await installProjects({ force: true })
+
+  for (const modulesDir of ['vendor', 'project-2/vendor']) {
+    expect(fs.existsSync(path.join(modulesDir, 'stray'))).toBeFalsy()
+    expect(fs.existsSync(path.join(modulesDir, '.ignored/stray/package.json'))).toBeTruthy()
+  }
+})
+
 function readBinEntries (projectDir: string): string[] {
   return fs.readdirSync(path.join(projectDir, 'node_modules/.bin'))
     .filter((entry) => entry.startsWith('hello-world-js-bin'))

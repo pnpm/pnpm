@@ -22,7 +22,7 @@ fn walker_single_root_dep_emits_one_node() {
     let lockfile = lockfile_with(root_deps, packages, snapshots);
     let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: lockfile_dir.clone(),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(&lockfile_dir),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
