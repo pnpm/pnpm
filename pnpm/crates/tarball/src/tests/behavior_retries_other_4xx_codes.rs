@@ -352,8 +352,8 @@ async fn zero_retries_makes_a_single_attempt() {
 }
 
 /// `run_with_mem_cache` must not deadlock when the *owning* fetch
-/// errors. The owner must set the slot to `CacheValue::Failed`,
-/// remove the entry from `mem_cache`, and notify waiters — otherwise
+/// errors. The owner must set the slot to `CacheValue::Failed` and
+/// notify waiters — otherwise
 /// a second requester parks on `Notify::notified` forever. Both
 /// requesters surface a `TarballError`.
 ///

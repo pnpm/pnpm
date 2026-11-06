@@ -253,7 +253,8 @@ fn url_bearing_errors_redact_inline_credentials() {
     let rendered = [
         TarballError::HttpStatus(HttpStatusError { url: url.clone(), status: 404 }).to_string(),
         TarballError::TarballTooLarge { url: url.clone(), advertised_size: u64::MAX }.to_string(),
-        TarballError::SiblingFetchFailed { url: url.clone() }.to_string(),
+        TarballError::NoOfflineTarball { package_id: "pkg@1.0.0".to_string(), url: url.clone() }
+            .to_string(),
         TarballError::OffAllowlist { url }.to_string(),
     ];
     for message in rendered {

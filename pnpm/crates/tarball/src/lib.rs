@@ -220,14 +220,12 @@ pub enum CacheValue {
     InProgress(Arc<Notify>),
     /// The package is saved.
     Available(Arc<CachedTarball>),
-    /// The owning fetch failed; concurrent waiters wake up to this
-    /// instead of `Available` and surface a sibling-fetch-failed
-    /// error rather than blocking on the `Notify` forever. The
-    /// originating [`TarballError`] cannot be cloned past the owner
-    /// (it's wrapped in `reqwest::Error` / IO chains that aren't
-    /// `Clone`), so waiters return their own variant — see
-    /// [`TarballError::SiblingFetchFailed`].
-    Failed,
+    /// The owning fetch failed with this rendered error, after its retries
+    /// ran out or on an error it does not retry. The slot stays failed for
+    /// the life of the cache, so every other request for the archive reports
+    /// [`TarballError::SiblingFetchFailed`] instead of spending another retry
+    /// budget. The originating [`TarballError`] is not `Clone`.
+    Failed(Arc<str>),
 }
 
 /// Internal in-memory cache of tarballs.
@@ -349,14 +347,7 @@ impl<'a> IngestTarballToStore<'a> {
         match owner_notify {
             None => self.wait_for_owner::<Reporter>(&cache_lock, progress_key).await,
             Some(notify) => {
-                self.fetch_as_owner::<Reporter>(
-                    mem_cache,
-                    &mem_cache_key,
-                    &cache_lock,
-                    &notify,
-                    revision_addressed,
-                )
-                .await
+                self.fetch_as_owner::<Reporter>(&cache_lock, &notify, revision_addressed).await
             }
         }
     }
@@ -405,14 +396,8 @@ impl<'a> IngestTarballToStore<'a> {
     /// the slot must transition to `Failed` and `notify_waiters` must fire so
     /// concurrent requesters surface a sibling-fetch error instead of parking
     /// on the Notify forever.
-    ///
-    /// Ordinary fetches remove the failed slot so a later caller can retry. A
-    /// revision-addressed fetch keeps it terminal for this install,
-    /// preserving the protocol's one-GET contract.
     async fn fetch_as_owner<Reporter: self::Reporter>(
         &self,
-        mem_cache: &'a MemCache,
-        mem_cache_key: &str,
         cache_lock: &RwLock<CacheValue>,
         notify: &Notify,
         revision_addressed: bool,
@@ -434,14 +419,7 @@ impl<'a> IngestTarballToStore<'a> {
                 Ok(cached)
             }
             Err(err) => {
-                publish_cache_failure(
-                    mem_cache,
-                    mem_cache_key,
-                    cache_lock,
-                    notify,
-                    revision_addressed,
-                )
-                .await;
+                publish_cache_failure(cache_lock, notify, &err).await;
                 Err(err)
             }
         }
@@ -549,7 +527,7 @@ pub(crate) async fn wait_for_cached_tarball(
     let notify = match &*cache_lock.read().await {
         CacheValue::Available(cached) => return Ok(Arc::clone(cached)),
         CacheValue::InProgress(notify) => Arc::clone(notify),
-        CacheValue::Failed => return Err(sibling_fetch_failed(package_url)),
+        CacheValue::Failed(cause) => return Err(sibling_fetch_failed(cause)),
     };
 
     tracing::info!(target: "pacquet::download", package_url = ?package_url, "Wait for cache");
@@ -559,7 +537,7 @@ pub(crate) async fn wait_for_cached_tarball(
         notified.as_mut().enable();
         match &*cache_lock.read().await {
             CacheValue::Available(cached) => return Ok(Arc::clone(cached)),
-            CacheValue::Failed => return Err(sibling_fetch_failed(package_url)),
+            CacheValue::Failed(cause) => return Err(sibling_fetch_failed(cause)),
             // The owner notifies only after flipping the slot to
             // `Available` or `Failed`, so a wake with the slot still
             // `InProgress` cannot happen — but a stale registration
@@ -581,27 +559,17 @@ pub(crate) async fn publish_cached_tarball(
     cached
 }
 
-/// Ordinary fetches remove the failed slot so a later caller can retry.
-/// A revision-addressed fetch keeps it terminal for this install,
-/// preserving the protocol's one-GET contract.
 pub(crate) async fn publish_cache_failure(
-    mem_cache: &MemCache,
-    mem_cache_key: &str,
     cache_lock: &RwLock<CacheValue>,
     notify: &Notify,
-    revision_addressed: bool,
+    error: &TarballError,
 ) {
-    *cache_lock.write().await = CacheValue::Failed;
-    if !revision_addressed {
-        mem_cache.remove_if(mem_cache_key, |_, existing| {
-            std::ptr::eq(existing.as_ref(), cache_lock)
-        });
-    }
+    *cache_lock.write().await = CacheValue::Failed(error.to_string().into());
     notify.notify_waiters();
 }
 
-fn sibling_fetch_failed(url: &str) -> TarballError {
-    TarballError::SiblingFetchFailed { url: url.to_string() }
+fn sibling_fetch_failed(cause: &Arc<str>) -> TarballError {
+    TarballError::SiblingFetchFailed { cause: Arc::clone(cause) }
 }
 
 #[cfg(test)]
