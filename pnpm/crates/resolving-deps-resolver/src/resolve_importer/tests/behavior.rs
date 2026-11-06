@@ -23,7 +23,28 @@ fn merged_peer_locators_survive_preferred_registry_versions() {
             ),
         ]),
     )]);
-    for range in ["file:../b", "link:../b", "npm:other@1.0.0"] {
+    for range in [
+        "file:../b",
+        "link:../b",
+        "../b",
+        "./b",
+        "/packages/b",
+        "~/b",
+        "npm:other@1.0.0",
+        "workspace:*",
+        "workspace:other@^1",
+        "http://example.test/b.tgz",
+        "https://example.test/b.tgz",
+        "git+https://example.test/b.git",
+        "git+ssh://git@example.test/b.git",
+        "github:example/b",
+        "gitlab:example/b",
+        "bitbucket:example/b",
+        "example/b",
+        "catalog:default",
+        "work:^1.0.0",
+        "work:other@1.0.0",
+    ] {
         for auto_install_peers_from_highest_match in [false, true] {
             let merged = merge_ranges(&[range, range], auto_install_peers_from_highest_match)
                 .expect("identical peer locators merge");

@@ -3,7 +3,28 @@ import { expect, test } from '@jest/globals'
 import { hoistPeers } from '../lib/hoistPeers.js'
 import { mergePkgsDeps } from '../lib/missingPeers.js'
 
-test.each(['file:../b', 'link:../b', 'npm:other@1.0.0'])(
+test.each([
+  'file:../b',
+  'link:../b',
+  '../b',
+  './b',
+  '/packages/b',
+  '~/b',
+  'npm:other@1.0.0',
+  'workspace:*',
+  'workspace:other@^1',
+  'http://example.test/b.tgz',
+  'https://example.test/b.tgz',
+  'git+https://example.test/b.git',
+  'git+ssh://git@example.test/b.git',
+  'github:example/b',
+  'gitlab:example/b',
+  'bitbucket:example/b',
+  'example/b',
+  'catalog:default',
+  'work:^1.0.0',
+  'work:other@1.0.0',
+])(
   'preserves merged peer locator %s when registry versions are preferred',
   (range) => {
     for (const autoInstallPeersFromHighestMatch of [false, true]) {
@@ -67,4 +88,12 @@ test('joins conflicting semver peer ranges only with highest-match enabled', () 
   expect(mergePkgsDeps(peers, { autoInstallPeersFromHighestMatch: true })).toStrictEqual({
     b: { range: '^1.0.0 || ^2.0.0', optional: false },
   })
+})
+
+test.each(['latest', 'next'])('still deduplicates registry tag %s onto a preferred version', (range) => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: { b: { '1.0.0': 'version' } },
+    workspaceRootDeps: [],
+  }, [['b', { range }]])).toStrictEqual({ b: '1.0.0' })
 })
