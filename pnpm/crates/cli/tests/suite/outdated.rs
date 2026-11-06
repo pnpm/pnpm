@@ -737,7 +737,7 @@ fn outdated_recursive_resolves_project_override_references_without_lockfile() {
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
-            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\noverrides:\n  '{DEP}': 'npm:{FOO}@100.1.0'\npackageConfigs:\n  app:\n    overrides:\n      '{DEP}': '$DEP'\n",
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\noverrides:\n  '{DEP}': 'npm:{FOO}@100.1.0'\npackageConfigs:\n  app:\n    overrides:\n      '{DEP}': '${DEP}'\n",
         ),
     )
     .expect("write workspace manifest");
