@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-pnpm now finds the install scripts of packages stored by older pnpm versions that recorded neither the build flag nor the manifest in the store index. Before, those scripts could be skipped and the package could be hardlinked to the store.
+Packages that an older pnpm version added to the store now run their install scripts. Before, pnpm could skip those scripts and hardlink the package's files to the store.
