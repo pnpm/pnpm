@@ -194,17 +194,15 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    // Accepted (no integrity change to reject) but the malformed entry is ignored.
     assert_eq!(
         app.clone()
             .oneshot(malformed)
             .await
             .unwrap()
             .status(),
-        StatusCode::CREATED,
+        StatusCode::BAD_REQUEST,
     );
 
-    // The hosted version is intact — its `dist` was not erased.
     let after = body_json(
         app.oneshot(
             Request::get("/npm/mypkg")

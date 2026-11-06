@@ -82,6 +82,8 @@ function getPinnableLockedPeer<Pkg extends PartialResolvedPackage> (
   const { peerName, previousPeerDepPath, peerDependency } = opts
   const peerNodeId = ctx.nodeIdsByPreviousDepPath.get(previousPeerDepPath)
   if (peerNodeId == null || peerDependency == null) return undefined
+  // The provider may sit in another project's graph.
+  if (ctx.dedupePeerDependents === false && opts.parentPkgs[peerName] == null) return undefined
   if (!lockedPeerProviderIsStable(ctx, peerNodeId, previousPeerDepPath)) return undefined
   const pick = providerFor(peerDependency.version, {
     inheritedMustWin: () => hasCurrentPeerProviderThatMustWin(peerName, opts.parentPkgs, ctx),

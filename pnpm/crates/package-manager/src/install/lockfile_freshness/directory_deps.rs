@@ -1,5 +1,5 @@
+pub(crate) use crate::install_state::ProjectManifestsByDir;
 pub(crate) use importer_deps::check_directory_dependencies_freshness;
-pub use injected_manifest::ProjectManifestsByDir;
 pub(super) use injected_manifest::{InjectedDirectory, is_deploy_file_url_key, unhooked_manifest};
 pub(crate) use injected_manifest::{dependency_manifests_by_dir, project_manifests_by_dir};
 pub(crate) use nested::{
@@ -31,10 +31,12 @@ use std::path::Path;
 
 struct LocalDepContext<'a> {
     name: &'a str,
-    /// The importer declared the dependency with a `file:` spec, which the
-    /// resolver reads from the directory itself rather than from a workspace
-    /// project.
-    declared_as_file: bool,
+    /// See [`is_declared_by_path`].
+    declared_by_path: bool,
+    /// The lockfile does not record which spec declared the package, so it
+    /// is checked under both declarations. Only the workspace one judges its
+    /// `catalog:` children then.
+    declaration_assumed: bool,
     rel_path: &'a str,
     dir: &'a Path,
     dirs: SpecDirs<'a>,
@@ -49,7 +51,8 @@ impl<'a> LocalDepContext<'a> {
     fn child(&self, name: &'a str, spec: &str, rel_path: &'a str, dir: &'a Path) -> Self {
         Self {
             name,
-            declared_as_file: is_declared_local_directory(spec),
+            declared_by_path: is_declared_by_path(spec),
+            declaration_assumed: false,
             rel_path,
             dir,
             dirs: self.dirs,
@@ -65,11 +68,19 @@ fn local_dependency_outdated(name: &str, path: &str) -> FreshnessCheckError {
     })
 }
 
+/// Whether the local resolver claims `spec` as a filesystem path, a `file:`
+/// spec or a bare one such as `../lib`. It resolves such a directory as
+/// `local-filesystem`, not through the workspace: the directory's children
+/// skip the catalogs, and its manifest is read from the directory itself.
+pub(crate) fn is_declared_by_path(spec: &str) -> bool {
+    pnpm_local_spec::is_local_filesystem_specifier(spec)
+}
+
 pub(crate) fn is_declared_local_directory(spec: &str) -> bool {
     let Some(path) = spec.strip_prefix("file:") else {
         return false;
     };
-    !pnpm_lockfile::is_local_tarball_path(path)
+    !pnpm_local_spec::is_tarball_filename(path)
 }
 
 fn spec_dirs<'a>(check: &'a ImporterSatisfactionCheck<'a>) -> SpecDirs<'a> {

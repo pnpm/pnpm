@@ -1,4 +1,5 @@
 mod sources;
+mod stored_variants;
 
 use super::{
     InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
@@ -292,7 +293,7 @@ impl InstallPackageBySnapshot<'_> {
 
     /// Fetch the archive a `variations` resolution selects for this
     /// install's platform: a runtime's binary archive, or a registry
-    /// package's variant or primary tarball.
+    /// package's platform variant or its variant that targets `any`.
     async fn fetch_variations<Reporter: self::Reporter>(
         &self,
         fetch: &SnapshotFetch<'_>,
@@ -300,9 +301,10 @@ impl InstallPackageBySnapshot<'_> {
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
     ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
-        let platform = super::variations_platform(variations, self.runtime_platform_selector);
-        let selected = variant_for_host(variations, fetch.package_key, &platform, self.ctx.config)?;
-        let (resolution, source) = match selected {
+        let platform = self.variant_platforms.for_variations(variations);
+        let (_, archive) =
+            variant_for_host(variations, fetch.package_key, platform, self.ctx.config)?;
+        let (resolution, source) = match archive {
             VariantFetch::Binary(binary) => {
                 return self
                     .fetch_binary::<Reporter>(binary, fetch.package_key)
@@ -398,7 +400,7 @@ impl InstallPackageBySnapshot<'_> {
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
-            source: ArchiveSource::Primary,
+            source: ArchiveSource::Any,
         })
         .await
     }

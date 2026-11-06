@@ -12,7 +12,9 @@ use pnpm_package_manifest::PackageManifestError;
 /// not path-relative: it selects the same workspace package from every
 /// importer, so it needs none of this.
 pub(super) fn is_project_relative_specifier(spec: &str) -> bool {
-    spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:.")
+    spec.starts_with("link:")
+        || spec.starts_with("file:")
+        || pnpm_workspace_spec::is_workspace_path_specifier(spec)
 }
 
 /// The name and version of the package a project-relative specifier points

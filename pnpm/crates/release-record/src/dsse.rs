@@ -130,12 +130,16 @@ fn signs(key: &VerifierKey, signature: &EnvelopeSignature, message: &[u8], sig: 
 }
 
 /// Decodes standard or URL-safe base64, padded or not, as DSSE requires
-/// verifiers to accept.
-fn decode(encoded: &str) -> Result<Vec<u8>, DsseError> {
+/// verifiers to accept, or `None` for text none of them decodes.
+#[must_use]
+pub fn decode_base64(encoded: &str) -> Option<Vec<u8>> {
     [STANDARD, URL_SAFE, STANDARD_NO_PAD, URL_SAFE_NO_PAD]
         .iter()
         .find_map(|engine| engine.decode(encoded).ok())
-        .ok_or(DsseError::Encoding)
+}
+
+fn decode(encoded: &str) -> Result<Vec<u8>, DsseError> {
+    decode_base64(encoded).ok_or(DsseError::Encoding)
 }
 
 #[cfg(test)]

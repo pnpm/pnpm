@@ -14,7 +14,7 @@ use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_policy::{AccessList, PackageRules, RuleOverride};
 use pnpr_registry::{PackagePattern, Registries, Registry};
-use pnpr_storage::{Ecosystem, layout::local_blob_path};
+use pnpr_storage::Ecosystem;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -219,8 +219,17 @@ async fn a_batch_is_one_publication() {
     let gadgets = send(&app, "GET", "/npm/gadgets", &token, None).await;
     assert_eq!(gadgets.status, StatusCode::NOT_FOUND);
     // The refused commit took the archive it had promoted with it.
-    let archive = local_blob_path(tmp.path(), "", Ecosystem::Npm, "gadgets", "gadgets-1.0.0.tgz");
-    assert!(!archive.exists());
+    assert!(
+        crate::storage::served_file(
+            &sqlite_config(tmp.path()),
+            ("", Ecosystem::Npm),
+            "gadgets",
+            "gadgets-1.0.0.tgz"
+        )
+        .await
+        .is_none(),
+    );
+    assert_eq!(crate::storage::stored_archives(tmp.path(), "", Ecosystem::Npm).len(), 2);
 }
 
 #[tokio::test]
@@ -340,7 +349,7 @@ async fn a_member_lookup_answers_only_for_a_package_its_registry_still_claims() 
 }
 
 #[tokio::test]
-async fn a_refused_publish_keeps_an_archive_it_found_in_place() {
+async fn a_refused_publish_keeps_the_bytes_a_committed_file_maps() {
     let tmp = TempDir::new().unwrap();
     let app = router(sqlite_config(tmp.path()));
     let token = token(&app).await;
@@ -348,19 +357,44 @@ async fn a_refused_publish_keeps_an_archive_it_found_in_place() {
     let committed =
         send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
     assert_eq!(committed.status, StatusCode::CREATED);
+    let same = json!({ "packages": [publish_doc("same", "1.0.0", b"same")] });
+    let placed =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&same), Some("k2")).await;
+    assert_eq!(placed.status, StatusCode::CREATED);
+    let stored = crate::storage::served_file(
+        &sqlite_config(tmp.path()),
+        ("", Ecosystem::Npm),
+        "same",
+        "same-1.0.0.tgz",
+    )
+    .await
+    .unwrap();
 
-    // An archive already in place: the same bytes the refused publish
-    // stages, and other bytes, which it must not promote over.
-    for (package, placed) in [("same", b"same".as_slice()), ("other", b"placed".as_slice())] {
-        let filename = format!("{package}-1.0.0.tgz");
-        let archive = local_blob_path(tmp.path(), "", Ecosystem::Npm, package, &filename);
-        std::fs::create_dir_all(archive.parent().unwrap()).unwrap();
-        std::fs::write(&archive, placed).unwrap();
-        let reused = json!({ "packages": [publish_doc(package, "1.0.0", package.as_bytes())] });
-        let refused =
-            send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&reused), Some("k1"))
-                .await;
-        assert_eq!(refused.status, StatusCode::CONFLICT, "{package}");
-        assert_eq!(std::fs::read(&archive).unwrap(), placed, "{package}");
-    }
+    // A publish refused at its commit stages the same bytes, finds them live,
+    // and stores nothing, so it has nothing of its own to discard.
+    let reused = json!({ "packages": [publish_doc("same", "1.0.0", b"same"), publish_doc("third", "1.0.0", b"third")] });
+    let refused =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&reused), Some("k1")).await;
+    assert!(refused.status.is_client_error(), "{:?}", refused.status);
+    assert_eq!(
+        crate::storage::served_file(
+            &sqlite_config(tmp.path()),
+            ("", Ecosystem::Npm),
+            "same",
+            "same-1.0.0.tgz"
+        )
+        .await,
+        Some(stored),
+    );
+    assert!(
+        crate::storage::served_file(
+            &sqlite_config(tmp.path()),
+            ("", Ecosystem::Npm),
+            "third",
+            "third-1.0.0.tgz"
+        )
+        .await
+        .is_none(),
+    );
+    assert_eq!(crate::storage::stored_archives(tmp.path(), "", Ecosystem::Npm).len(), 2);
 }

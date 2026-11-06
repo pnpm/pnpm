@@ -339,6 +339,28 @@ test('engine-strict=true: install should fail if the used Node version does not 
   expect(stdout.toString()).toContain('Your Node version is incompatible with')
 })
 
+test('a repeat install checks the project engines', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+
+    engines: {
+      node: '99999',
+    },
+  })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+
+  const repeat = execPnpmSync(['install'])
+  expect(repeat.status).toBe(0)
+  expect(repeat.stdout.toString()).toContain('Already up to date')
+  expect(repeat.stdout.toString()).toContain('Unsupported engine')
+
+  const strictRepeat = execPnpmSync(['install', '--engine-strict'])
+  expect(strictRepeat.status).toBe(1)
+  expect(strictRepeat.stdout.toString()).toContain('Your Node version is incompatible with')
+})
+
 test('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace projects', async () => {
   preparePackages([
     {

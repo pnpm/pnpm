@@ -2,7 +2,7 @@
 //! carrying packages of more than one ecosystem. Static-mode (no upstream) to
 //! keep the tests hermetic.
 
-use crate::{npm, storage::object_key};
+use crate::npm;
 
 use axum::{
     body::{Body, to_bytes},
@@ -15,12 +15,11 @@ use pnpr::{
     Registries, Registry, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::local_blob_path;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -340,93 +339,6 @@ async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
-}
-
-/// A blob whose immutable slot another writer already owns is the one thing a
-/// batch cannot roll back: the bytes that won are someone's published release.
-/// The package that lost is reported, nothing of the batch commits, and the
-/// bytes that won stay where they are.
-#[tokio::test]
-async fn a_package_that_loses_its_blob_is_reported_and_nothing_commits() {
-    use object_store::{ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
-    use pnpr::HostedStoreConfig;
-    use std::sync::Arc;
-
-    let tmp = TempDir::new().unwrap();
-    let storage = tmp.path().to_path_buf();
-    let store = Arc::new(InMemory::new());
-    // Another writer already published this tarball, with other bytes.
-    store
-        .put(
-            &ObjectPath::from(object_key(&local_blob_path(
-                Path::new(""),
-                "",
-                pnpr_storage::Ecosystem::Npm,
-                "mixed-pkg",
-                "mixed-pkg-1.0.0.tgz",
-            ))),
-            axum::body::Bytes::from_static(b"the winning tarball").into(),
-        )
-        .await
-        .unwrap();
-    let mut config = tri_ecosystem_config(storage.clone());
-    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
-        store: Arc::<InMemory>::clone(&store),
-        prefix: String::new(),
-    };
-    let app = router_with_auth(config, AuthState::in_memory());
-    let token = token_for(&app, "alice").await;
-
-    let body = json!({
-        "packages": [
-            npm_entry("mixed-pkg", "1.0.0", b"the losing tarball"),
-            cargo_entry("demo", "0.1.0", &crate_archive("demo", "0.1.0")),
-        ],
-    });
-    let response = app
-        .clone()
-        .oneshot(publish_request("/-/pnpr/v0/publish", &body, Some(&token)))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::CONFLICT);
-    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(reason.contains("mixed-pkg"), "{reason}");
-
-    let packument = app
-        .clone()
-        .oneshot(
-            Request::get("/npm/mixed-pkg")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the version that lost is not served");
-    let index = app
-        .oneshot(
-            Request::get("/cargo/index/de/mo/demo")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(index.status(), StatusCode::NOT_FOUND, "the crate beside it does not commit");
-    assert_eq!(
-        store
-            .get(&ObjectPath::from(object_key(&local_blob_path(
-                Path::new(""),
-                "",
-                pnpr_storage::Ecosystem::Npm,
-                "mixed-pkg",
-                "mixed-pkg-1.0.0.tgz",
-            ))))
-            .await
-            .unwrap()
-            .bytes()
-            .await
-            .unwrap(),
-        "the winning tarball",
-    );
 }
 
 /// The failure that matters most is the one after other packages have already

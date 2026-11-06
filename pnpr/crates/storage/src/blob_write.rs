@@ -11,24 +11,37 @@ pub struct BlobWrite {
     pub(super) final_path: PathBuf,
 }
 
-/// A reserved slot for a hosted-blob write. The publish flow writes
+/// A reserved slot for a hosted-archive write. The publish flow writes
 /// the decoded + verified bytes to `tmp_path` (a local file) inside a
-/// blocking task, then promotes it to its final home — a rename on the
-/// fs backend, an upload on the S3 backend — via
-/// [`crate::Storage::finalize_blob_slot`], which recomputes the
-/// destination from `name`/`filename`.
+/// blocking task, then promotes it under the identity of those bytes — a
+/// rename on the fs backend, an upload on the S3 backend — via
+/// [`crate::Storage::promote_blob_slot`].
 #[derive(Debug)]
 pub struct BlobSlot {
     pub tmp_path: PathBuf,
     pub(super) name: CanonicalPackageName,
+    /// The public file name the archive is published as.
     pub(super) filename: String,
+    /// The version the file belongs to, empty when none.
+    pub(super) version: String,
 }
 
 impl BlobSlot {
-    /// The name the blob is stored under in its package.
+    /// The public file name the archive is published as.
     #[must_use]
     pub fn filename(&self) -> &str {
         &self.filename
+    }
+
+    #[must_use]
+    pub fn name(&self) -> &CanonicalPackageName {
+        &self.name
+    }
+
+    /// The slot of a file of `version`, whose mapping goes with the version.
+    #[must_use]
+    pub fn for_version(self, version: &str) -> Self {
+        Self { version: version.to_string(), ..self }
     }
 }
 

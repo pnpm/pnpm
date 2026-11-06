@@ -1,7 +1,4 @@
-use super::{
-    PEER_HEAVY_DEPTH, PEER_HEAVY_INTEGRITY, PEER_HEAVY_PROVIDER, PEER_HEAVY_VERSION,
-    PEER_HEAVY_WIDTH,
-};
+use super::{PEER_HEAVY_PROVIDER, PEER_HEAVY_VERSION, PEER_HEAVY_WIDTH};
 use crate::{
     cli_args::BenchmarkScenario,
     fixtures::PACKAGE_JSON,
@@ -78,83 +75,6 @@ pub(super) fn peer_heavy_root_manifest() -> String {
         "dependencies": dependencies,
     }))
     .expect("serialize peer-heavy root manifest")
-}
-/// Commit the peer-heavy packages to the registry metadata database at
-/// `database`. Their archives are never fetched, so none is written.
-pub(crate) fn seed_peer_heavy_registry(database: &Path) {
-    let mut packuments =
-        vec![peer_heavy_packument(PEER_HEAVY_PROVIDER, &serde_json::Map::new(), false)];
-    for level in 0..PEER_HEAVY_DEPTH {
-        let dependencies = if level + 1 == PEER_HEAVY_DEPTH {
-            serde_json::Map::new()
-        } else {
-            (0..PEER_HEAVY_WIDTH)
-                .map(|index| {
-                    (
-                        peer_heavy_package_name(level + 1, index),
-                        Value::String(PEER_HEAVY_VERSION.to_string()),
-                    )
-                })
-                .collect()
-        };
-        for index in 0..PEER_HEAVY_WIDTH {
-            packuments.push(peer_heavy_packument(
-                &peer_heavy_package_name(level, index),
-                &dependencies,
-                true,
-            ));
-        }
-    }
-    pnpr_fixtures::write_packuments_into(database, packuments);
-}
-pub(super) fn peer_heavy_packument(
-    name: &str,
-    dependencies: &serde_json::Map<String, Value>,
-    has_peer: bool,
-) -> (String, Value) {
-    let manifest = peer_heavy_manifest(name, dependencies, has_peer);
-    let versions = serde_json::Map::from_iter([(PEER_HEAVY_VERSION.to_string(), manifest)]);
-    let time = serde_json::Map::from_iter([
-        ("created".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
-        ("modified".to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
-        (PEER_HEAVY_VERSION.to_string(), Value::String("2020-01-01T00:00:00.000Z".to_string())),
-    ]);
-    let packument = serde_json::json!({
-        "name": name,
-        "dist-tags": { "latest": PEER_HEAVY_VERSION },
-        "versions": versions,
-        "time": time,
-    });
-    (name.to_string(), packument)
-}
-pub(super) fn peer_heavy_manifest(
-    name: &str,
-    dependencies: &serde_json::Map<String, Value>,
-    has_peer: bool,
-) -> Value {
-    let mut manifest = serde_json::json!({
-        "name": name,
-        "version": PEER_HEAVY_VERSION,
-        "dependencies": dependencies,
-        "dist": {
-            "tarball": format!(
-                "http://example.test/{name}/-/{}-{PEER_HEAVY_VERSION}.tgz",
-                name.rsplit('/').next().expect("package name has a final segment"),
-            ),
-            "integrity": PEER_HEAVY_INTEGRITY,
-        },
-    });
-    if has_peer {
-        let peer_dependencies = serde_json::Map::from_iter([(
-            PEER_HEAVY_PROVIDER.to_string(),
-            Value::String(PEER_HEAVY_VERSION.to_string()),
-        )]);
-        manifest
-            .as_object_mut()
-            .expect("package manifest is an object")
-            .insert("peerDependencies".to_string(), Value::Object(peer_dependencies));
-    }
-    manifest
 }
 pub(super) fn peer_heavy_package_name(level: usize, index: usize) -> String {
     format!("@pnpmtest/peer-benchmark-level-{level}-{index:02}")

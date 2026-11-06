@@ -1,9 +1,9 @@
 use super::{
     ABBREVIATED_META_DIR, AuthHeaders, EXISTING_VERSION_SELECTOR_WEIGHT, InMemoryPackageMetaCache,
-    PACKAGE_BODY, PickPackageContext, RetryOpts, STALE_PACKAGE_BODY, TempDir, ThrottledClient,
-    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
-    assert_eq, default_opts, get_pkg_mirror_path, persist_meta_to_mirror, pick_package, range_spec,
-    shared_packument_fetch_locker, version_spec,
+    PACKAGE_BODY, PickPackageContext, RegistryPackageSpec, RetryOpts, STALE_PACKAGE_BODY, TempDir,
+    ThrottledClient, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    VersionSelectors, assert_eq, default_opts, get_pkg_mirror_path, persist_meta_to_mirror,
+    pick_package, range_spec, shared_packument_fetch_locker, version_spec,
 };
 use crate::pick_package::metadata_cache::PackageMetaCache;
 
@@ -299,7 +299,7 @@ async fn uncacheable_packument_is_reused_in_memory_but_refetched_from_the_mirror
     let registry = format!("{}/", server.url());
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
-    let spec = version_spec("acme", "1.0.0");
+    let spec = range_spec("acme", "^1.0.0");
     let opts = default_opts(&registry);
     let pick_in_new_install = async || {
         let meta_cache = InMemoryPackageMetaCache::default();
@@ -402,6 +402,11 @@ async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
             },
         },
     };
+    // A pinned pick answers from the mirror and leaves it in memory.
+    let pinned = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
+        .await
+        .expect("pinned");
+    assert_eq!(pinned.picked_package.expect("picked").version.to_string(), "1.0.0");
     let mut opts = default_opts(&registry);
     opts.pick_lowest_version = true;
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("refetch");
@@ -530,6 +535,64 @@ async fn uncacheable_mirror_without_etag_is_fetched_again() {
 
     assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
+}
+
+/// Seeds an aged mirror of [`PACKAGE_BODY`] that the registry served with
+/// `Cache-Control: no-cache` and no `ETag`, and picks `spec` from it online.
+/// The registry must not be asked.
+async fn pick_from_aged_uncacheable_mirror(
+    spec: &RegistryPackageSpec,
+    selectors: &VersionSelectors,
+) -> String {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let cached: pnpm_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let path = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+        .expect("mirror path");
+    crate::mirror::save_meta_indexed(&path, &cached, None, true).expect("seed uncacheable mirror");
+    age_mirror(cache_dir.path(), &registry);
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = public_ctx(&cache_dir, &http_client, &auth_headers, &meta_cache, &fetch_locker);
+    let mut opts = default_opts(&registry);
+    opts.preferred_version_selectors = Some(selectors);
+
+    let result = pick_package(&ctx, spec, &opts).await.expect("ok");
+
+    mock.assert_async().await;
+    result.picked_package.expect("picked").version.to_string()
+}
+
+#[tokio::test]
+async fn uncacheable_mirror_answers_a_pinned_version_it_holds() {
+    let picked =
+        pick_from_aged_uncacheable_mirror(&version_spec("acme", "1.0.0"), &VersionSelectors::new())
+            .await;
+    assert_eq!(picked, "1.0.0");
+}
+
+#[tokio::test]
+async fn uncacheable_mirror_answers_a_dominant_lockfile_version() {
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    let picked = pick_from_aged_uncacheable_mirror(&range_spec("acme", "^1.0.0"), &selectors).await;
+    assert_eq!(picked, "1.0.0");
 }
 
 #[tokio::test]

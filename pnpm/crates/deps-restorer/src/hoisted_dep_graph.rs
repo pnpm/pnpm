@@ -24,7 +24,9 @@ use presence::{
 mod walk;
 use walk::{PackageLocations, WalkState, walk_deps};
 
-use crate::{HoistedLocations, safe_join_modules_dir::InvalidDependencyAliasError};
+use crate::{
+    HoistedLocations, ImporterModulesDirs, safe_join_modules_dir::InvalidDependencyAliasError,
+};
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
 use pnpm_lockfile::{Lockfile, LockfileResolution, ParsePkgNameVerPeerError, PkgIdWithPatchHash};
@@ -34,7 +36,7 @@ use pnpm_patching::PatchInfo;
 use pnpm_real_hoist::{HoistError, HoistOpts, hoist};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 /// One node in a hoisted-linker dependency graph. Keyed in the
@@ -149,15 +151,10 @@ pub struct LockfileToDepGraphResult {
 pub struct LockfileToHoistedDepGraphOptions<'a> {
     pub installability: HoistedInstallability,
     pub placement: HoistedPlacementOptions,
-    /// Project / workspace root. Used as the base for relativizing
-    /// `hoisted_locations` entries and for placing the root's modules
-    /// directory.
-    pub lockfile_dir: PathBuf,
-    /// The root's modules directory, the configured `modulesDir`,
-    /// resolved against [`lockfile_dir`](Self::lockfile_dir) when
-    /// relative. Workspace projects and package directories keep
-    /// `node_modules`, as pnpm's `lockfileToHoistedDepGraph` does.
-    pub root_modules_dir: PathBuf,
+    /// Where each importer's dependencies go. Its lockfile directory is
+    /// also the base for relativizing `hoisted_locations` entries. A
+    /// package's own dependencies always go in its `node_modules`.
+    pub modules_dirs: ImporterModulesDirs,
     /// Packages the previous install decided not to fetch
     /// (installability check failed; the package was added here).
     /// The walker skips any depPath in this set without consulting
@@ -202,8 +199,7 @@ impl Default for LockfileToHoistedDepGraphOptions<'_> {
                 hoisting_limits: pnpm_real_hoist::HoistingLimits::new(),
                 external_dependencies: BTreeSet::new(),
             },
-            lockfile_dir: PathBuf::new(),
-            root_modules_dir: PathBuf::from("node_modules"),
+            modules_dirs: ImporterModulesDirs::node_modules(Path::new("")),
 
             skipped: BTreeSet::new(),
             force: false,
@@ -321,11 +317,9 @@ fn build_dep_graph<'a>(
     };
     let hoister_result = hoist(lockfile, &hoist_opts)?;
 
-    let modules_dir = opts.lockfile_dir.join(&opts.root_modules_dir);
     let mut state = WalkState {
         result: LockfileToDepGraphResult { skipped: opts.skipped.clone(), ..Default::default() },
         lockfile,
-        lockfile_dir: &opts.lockfile_dir,
         opts,
         prev_graph,
 
@@ -335,7 +329,7 @@ fn build_dep_graph<'a>(
         per_importer_direct_deps: BTreeMap::new(),
     };
     let root_deps = hoister_result.dependencies.borrow();
-    let root_hierarchy = walk_deps(&mut state, &modules_dir, &root_deps)?;
+    let root_hierarchy = walk_deps(&mut state, opts.modules_dirs.root(), &root_deps)?;
     drop(root_deps);
     state.into_result(root_hierarchy)
 }
@@ -394,7 +388,7 @@ pub struct HoistedPlacementOptions {
     /// When `true` (the default), every non-root workspace importer
     /// becomes a `Workspace`-kind child of the virtual `.` root in
     /// the hoist tree, and the walker emits per-importer subtrees
-    /// under `<lockfile_dir>/<importer_id>/node_modules`. When
+    /// under each project's modules directory. When
     /// `false`, only the root importer's subtree is emitted (the
     /// hoister also skips adding the workspace children to its
     /// shared tree). Pacquet's `Config::hoist_workspace_packages`

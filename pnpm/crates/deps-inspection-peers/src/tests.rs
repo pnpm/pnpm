@@ -928,3 +928,46 @@ fn render_omits_the_heading_when_only_the_root_project_has_issues() {
     let rendered = super::render_peer_issues(&issues);
     assert!(rendered.starts_with("✕ missing peer react\n  Wanted:"), "{rendered}");
 }
+
+#[test]
+fn undeclared_required_peers_respect_ancestor_providers_and_optional_metadata() {
+    let mut value = serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": { ".": { "dependencies": {
+            "parent": { "specifier": "1.0.0", "version": "1.0.0" }
+        } } },
+        "packages": {
+            "parent@1.0.0": { "resolution": { "integrity": "sha512-parent" } },
+            "consumer@1.0.0": {
+                "resolution": { "integrity": "sha512-consumer" },
+                "peerDependencies": { "provider": "^1.0.0" }
+            },
+            "provider@1.0.0": { "resolution": { "integrity": "sha512-provider" } }
+        },
+        "snapshots": {
+            "parent@1.0.0": { "dependencies": { "consumer": "1.0.0" } },
+            "consumer@1.0.0": { "dependencies": { "provider": "1.0.0" } },
+            "provider@1.0.0": {}
+        }
+    });
+    let check = |value: &serde_json::Value| {
+        let lockfile = serde_json::from_value(value.clone()).expect("parse lockfile");
+        super::UndeclaredPeerInspector::new(&lockfile, std::path::Path::new("."))
+            .check(".", crate::WorkspaceRootScope::Exclude)
+    };
+    let warnings = check(&value);
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(warnings[0].peer, "provider");
+    value["snapshots"]["parent@1.0.0"]["dependencies"]["provider"] = "1.0.0".into();
+    assert!(check(&value).is_empty());
+    value["snapshots"]["parent@1.0.0"]["dependencies"]
+        .as_object_mut()
+        .unwrap()
+        .remove("provider");
+    value["packages"]["consumer@1.0.0"]["peerDependenciesMeta"] =
+        serde_json::json!({"provider": {"optional": true}});
+    assert!(check(&value).is_empty());
+    value["packages"]["consumer@1.0.0"]["peerDependenciesMeta"] = serde_json::json!({});
+    value["packages"]["consumer@1.0.0"]["peerDependencies"]["provider"] = "^2.0.0".into();
+    assert!(check(&value).is_empty());
+}

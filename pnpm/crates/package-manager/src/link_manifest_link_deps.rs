@@ -279,7 +279,14 @@ pub(crate) fn workspace_link_target(
     let versions = workspace_links.packages.get(&parsed.name)?;
     let version =
         pnpm_resolving_npm_resolver::pick_matching_local_version_or_null(versions, &parsed)?;
-    versions.get(&version).map(pnpm_resolving_npm_resolver::resolve_workspace_package_dir)
+    versions
+        .get(&version)
+        .map(|package| {
+            pnpm_resolving_npm_resolver::resolve_workspace_package_dir(
+                &package.root_dir,
+                &package.manifest,
+            )
+        })
 }
 
 /// `None` for a `catalog:` spec whose catalog has no usable entry.

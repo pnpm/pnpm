@@ -11,20 +11,17 @@
 //! is needed.
 
 mod gitlab_parameters;
+mod sign;
 
 use std::time::Duration;
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
-#[cfg(not(target_family = "wasm"))]
-use pnpm_network::{RetryOpts, redact_url_credentials};
 use pnpm_reporter::Reporter;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha512};
-#[cfg(not(target_family = "wasm"))]
-use sigstore_sign::{SigningContext, oidc::IdentityToken};
 
 use crate::{
-    capabilities::{Clock, EnvVar, Host, OidcFetch, OidcFetchError},
+    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError},
     global_log::global_info,
     oidc::{
         GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
@@ -67,11 +64,38 @@ where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
-    let sha512_hex = format!("{:x}", Sha512::digest(tarball_data));
-    let subject = json!([{
-        "name": npm_purl(package_name, package_version),
-        "digest": { "sha512": sha512_hex },
-    }]);
+    let subject = ProvenanceSubject {
+        name: npm_purl(package_name, package_version),
+        sha512_hex: format!("{:x}", Sha512::digest(tarball_data)),
+    };
+    generate_provenance_for::<Sys, Reporter>(package_name, package_version, &[subject], options)
+        .await
+}
+
+/// One archive a provenance statement names: its PURL, and its `.tgz`
+/// SHA-512 in lowercase hex.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProvenanceSubject {
+    pub name: String,
+    pub sha512_hex: String,
+}
+
+/// [`generate_provenance`] for a statement that names every archive of a
+/// version: the `any` archive and each platform variant.
+pub async fn generate_provenance_for<Sys, Reporter>(
+    package_name: &str,
+    package_version: &str,
+    subjects: &[ProvenanceSubject],
+    options: &OidcHttpOptions,
+) -> Result<ProvenanceAttachment, ProvenanceGenError>
+where
+    Sys: EnvVar + Clock + OidcFetch + SignProvenance,
+    Reporter: self::Reporter,
+{
+    let subject: Value = subjects
+        .iter()
+        .map(|subject| json!({ "name": subject.name, "digest": { "sha512": subject.sha512_hex } }))
+        .collect();
 
     let statement = build_statement::<Sys>(&subject)?;
     let statement_bytes = serde_json::to_vec(&statement).expect("serialize provenance statement");
@@ -90,7 +114,7 @@ where
 }
 
 /// Sign the in-toto SLSA statement into a sigstore bundle. The production
-/// [`Host`] impl performs the real keyless sigstore exchange (Fulcio
+/// [`Host`](crate::capabilities::Host) impl performs the real keyless sigstore exchange (Fulcio
 /// certificate + Rekor transparency log) over the network; tests inject a fake
 /// so [`generate_provenance`] runs offline and deterministically.
 pub trait SignProvenance {
@@ -110,115 +134,6 @@ pub trait SignProvenance {
 pub struct SignedProvenance {
     pub media_type: String,
     pub data: String,
-}
-
-#[cfg(not(target_family = "wasm"))]
-impl SignProvenance for Host {
-    async fn sign_statement(
-        jwt: &str,
-        statement: &[u8],
-        timeout: Option<Duration>,
-    ) -> Result<SignedProvenance, ProvenanceGenError> {
-        let token = IdentityToken::from_jwt(jwt)
-            .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
-        let context = SigningContext::production();
-        let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
-        sign_with_retry(SIGN_RETRY_OPTS, || {
-            with_sign_deadline(deadline, async {
-                let bundle = context
-                    .signer(token.clone())
-                    .sign_raw_statement(statement)
-                    .await
-                    .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
-                let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
-                Ok(SignedProvenance { media_type: bundle.media_type, data })
-            })
-        })
-        .await
-    }
-}
-
-#[cfg(target_family = "wasm")]
-impl SignProvenance for Host {
-    async fn sign_statement(
-        _jwt: &str,
-        _statement: &[u8],
-        _timeout: Option<Duration>,
-    ) -> Result<SignedProvenance, ProvenanceGenError> {
-        Err(ProvenanceGenError::UnsupportedRuntime)
-    }
-}
-
-/// The TypeScript CLI signs through sigstore-js, which wraps every Fulcio /
-/// TSA / Rekor request in `make-fetch-happen` with its default retry policy
-/// (2 retries, factor 2, 1 s floor), so a transient sigstore outage does not
-/// abort the publish. The `sigstore_sign` crate issues each request exactly
-/// once, so pacquet retries at the boundary it owns instead: the whole
-/// signing exchange. Every step is idempotent (a fresh ephemeral key,
-/// certificate, timestamp, and transparency-log entry per attempt), so
-/// re-running it is safe.
-#[cfg(not(target_family = "wasm"))]
-const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
-    retries: 2,
-    factor: 2,
-    min_timeout: Duration::from_secs(1),
-    max_timeout: Duration::from_mins(1),
-};
-
-/// sigstore-js's `DEFAULT_TIMEOUT`, used only when the caller supplies no
-/// `fetch-timeout` — the sigstore-rust clients set no request timeout of
-/// their own, so without a deadline a hung connection stalls the publish
-/// until the OS gives up on the socket.
-#[cfg(not(target_family = "wasm"))]
-const DEFAULT_SIGN_TIMEOUT: Duration = Duration::from_secs(5);
-
-#[cfg(not(target_family = "wasm"))]
-async fn with_sign_deadline<Fut>(
-    deadline: Duration,
-    attempt: Fut,
-) -> Result<SignedProvenance, ProvenanceGenError>
-where
-    Fut: Future<Output = Result<SignedProvenance, ProvenanceGenError>>,
-{
-    match tokio::time::timeout(deadline, attempt).await {
-        Ok(result) => result,
-        Err(_) => Err(ProvenanceGenError::Sign {
-            source: format!(
-                "no response from the sigstore signing exchange within {} ms",
-                deadline.as_millis(),
-            ),
-        }),
-    }
-}
-
-#[cfg(not(target_family = "wasm"))]
-async fn sign_with_retry<Fut>(
-    retry_opts: RetryOpts,
-    mut attempt_fn: impl FnMut() -> Fut,
-) -> Result<SignedProvenance, ProvenanceGenError>
-where
-    Fut: Future<Output = Result<SignedProvenance, ProvenanceGenError>>,
-{
-    let mut attempt = 0;
-    loop {
-        match attempt_fn().await {
-            Ok(signed) => return Ok(signed),
-            Err(error) if attempt < retry_opts.retries => {
-                let delay = retry_opts.delay_for(attempt);
-                tracing::warn!(
-                    target: "pnpm_publish::provenance",
-                    error = %redact_url_credentials(&error.to_string()),
-                    attempt = attempt + 1,
-                    max_attempts = retry_opts.retries + 1,
-                    ?delay,
-                    "Signing the provenance statement failed; retrying after backoff",
-                );
-                tokio::time::sleep(delay).await;
-                attempt += 1;
-            }
-            Err(error) => return Err(error),
-        }
-    }
 }
 
 /// Format the npm package coordinate as a PURL

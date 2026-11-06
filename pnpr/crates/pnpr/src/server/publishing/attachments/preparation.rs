@@ -22,7 +22,9 @@ pub(super) fn prepare_attachments(
                 reason: format!("duplicate attachment for {}", item.canonical),
             });
         }
-        if item.kind == AttachmentKind::Tarball {
+        // A version published without an `any` archive has only variants
+        // until pnpr generates its archive, and a statement names them.
+        if matches!(item.kind, AttachmentKind::Tarball | AttachmentKind::Variant) {
             tarball_versions.insert(item.version.clone());
         }
         prepared.push(item);

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use serde_json::{Value, json};
 
@@ -13,6 +13,7 @@ use pnpr_storage::{
 use super::{
     attachments::{AttachmentKind, PreparedAttachment, PublishedTar},
     restore_tgz_integrities,
+    variants::Declarations,
 };
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
@@ -77,13 +78,16 @@ pub(super) fn parse_hosted_packument(
 /// Validate each incoming version against the locally hosted packument. A
 /// hosted packument is served as-is, so anything not in it is genuinely new.
 /// Published content is immutable, so re-publishes with modified tarballs or
-/// integrity are rejected. New versions must provide a tarball.
+/// integrity are rejected. New versions must provide a tarball, unless they
+/// reference variants and declare no `dist`: those are returned, as the
+/// versions published without an `any` archive.
 pub(super) fn check_publishable_versions(
     name: &CanonicalPackageName,
     incoming: &Value,
     hosted: Option<&Value>,
-    prepared: &[PreparedAttachment],
-) -> Result<(), RegistryError> {
+    (prepared, variants): (&[PreparedAttachment], &Declarations),
+) -> Result<BTreeSet<String>, RegistryError> {
+    let mut without_any = BTreeSet::new();
     let attachment_versions: HashSet<&str> = prepared
         .iter()
         .filter(|attachment| attachment.kind == AttachmentKind::Tarball)
@@ -93,20 +97,16 @@ pub(super) fn check_publishable_versions(
         .and_then(|h| h.get("versions"))
         .and_then(Value::as_object);
     let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
-        return Ok(());
+        return Ok(without_any);
     };
     for (version, incoming_manifest) in incoming_versions {
         let has_attachment = attachment_versions.contains(version.as_str());
         let Some(hosted_manifest) = hosted_versions.and_then(|hosted| hosted.get(version)) else {
-            if has_attachment {
-                continue;
+            if !has_attachment {
+                check_new_version_without_any(name, (version, incoming_manifest), variants)?;
+                without_any.insert(version.clone());
             }
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "cannot publish version {version} of {:?} without a tarball",
-                    name.as_str(),
-                ),
-            });
+            continue;
         };
         if has_attachment || integrity_changed(incoming_manifest, hosted_manifest) {
             return Err(RegistryError::VersionAlreadyPublished {
@@ -115,7 +115,26 @@ pub(super) fn check_publishable_versions(
             });
         }
     }
-    Ok(())
+    Ok(without_any)
+}
+
+/// Refuse a new version with no archive attached unless it can be published
+/// without an `any` archive: it attaches variants and declares no `dist`.
+/// Any other new version needs its archive.
+fn check_new_version_without_any(
+    name: &CanonicalPackageName,
+    (version, incoming_manifest): (&str, &Value),
+    variants: &Declarations,
+) -> Result<(), RegistryError> {
+    if variants.contains_key(version) && incoming_manifest.get("dist").is_none() {
+        return Ok(());
+    }
+    Err(RegistryError::BadRequest {
+        reason: format!(
+            "cannot publish version {version} of {:?} without a tarball",
+            name.as_str(),
+        ),
+    })
 }
 
 /// Apply [`restore_tgz_integrities`] to a publish body. The tar-integrity
@@ -221,10 +240,17 @@ fn attach_sigstore_attestations(
         .iter()
         .filter(|att| att.kind == AttachmentKind::Sigstore)
     {
+        // A version published without an `any` archive gets its `dist` from
+        // the archive pnpr generates, which keeps these attestations.
         if let Some(dist) = merged
             .get_mut("versions")
             .and_then(|v| v.get_mut(&attachment.version))
-            .and_then(|m| m.get_mut("dist"))
+            .and_then(Value::as_object_mut)
+            .map(|manifest| {
+                manifest
+                    .entry("dist")
+                    .or_insert_with(|| json!({}))
+            })
             .and_then(Value::as_object_mut)
         {
             let predicate_type =

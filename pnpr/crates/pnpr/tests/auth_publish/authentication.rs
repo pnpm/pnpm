@@ -4,7 +4,6 @@ use super::{
     static_config_with_packages,
 };
 use base64::Engine;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
 async fn adduser_creates_user_and_returns_token() {
@@ -118,14 +117,8 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     assert!(packument.get("_attachments").is_none(), "_attachments should not be persisted");
 
     // Tarball on disk
-    let on_disk_tarball = std::fs::read(local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "mypkg",
-        "mypkg-1.0.0.tgz",
-    ))
-    .expect("tarball written");
+    let on_disk_tarball =
+        crate::storage::hosted_file(&storage, "mypkg", "mypkg-1.0.0.tgz").expect("tarball written");
     assert_eq!(on_disk_tarball, *bytes);
 
     // Subsequent GET serves it back with the public URL rewritten.
@@ -230,7 +223,13 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         StatusCode::CREATED,
     );
     assert!(
-        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "unpub-policy").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "unpub-policy"
+        )
+        .is_none(),
     );
 }
 
@@ -263,14 +262,8 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         StatusCode::CREATED,
     );
     assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "tarball-policy",
-            "tarball-policy-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "tarball-policy", "tarball-policy-1.0.0.tgz")
+            .is_some(),
     );
 
     let request = Request::delete("/npm/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
@@ -286,14 +279,8 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         StatusCode::FORBIDDEN,
     );
     assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "tarball-policy",
-            "tarball-policy-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "tarball-policy", "tarball-policy-1.0.0.tgz")
+            .is_some(),
     );
 
     let request = Request::delete("/npm/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
@@ -309,13 +296,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         StatusCode::CREATED,
     );
     assert!(
-        !local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "tarball-policy",
-            "tarball-policy-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "tarball-policy", "tarball-policy-1.0.0.tgz")
+            .is_none(),
     );
 }

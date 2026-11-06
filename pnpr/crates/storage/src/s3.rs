@@ -18,9 +18,8 @@ mod hosted_backend;
 mod records;
 
 use crate::{
-    BLOBS_DIR, BlobFinalize, DOCUMENT_FILE, DocumentWrite, HostedBackend, HostedDocumentForUpdate,
-    HostedDocumentVersion, PACKAGES_DIR, blob_segment, decode_blob_segment,
-    decode_package_segments, package_segments,
+    DOCUMENT_FILE, DocumentWrite, HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion,
+    PACKAGES_DIR, layout::ARCHIVES_DIR, package_segments,
 };
 use async_trait::async_trait;
 use axum::body::Body;
@@ -222,15 +221,10 @@ impl S3Store {
         }
     }
 
-    /// Open a hosted blob for streaming. `Ok(None)` means the object
-    /// doesn't exist so the caller can fall through to the proxy cache
-    /// or upstream.
-    pub async fn open_blob(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<Option<(Body, Option<u64>)>> {
-        match self.store.get(&self.blob_key(name, filename)).await {
+    /// Open a hosted archive for streaming, `None` when nothing is stored
+    /// under `key`.
+    pub async fn open_archive(&self, key: &str) -> Result<Option<(Body, Option<u64>)>> {
+        match self.store.get(&self.archive_key(key)).await {
             Ok(result) => {
                 let len = result.meta.size;
                 let stream = result
@@ -244,145 +238,60 @@ impl S3Store {
     }
 
     /// Reserve a local staging path for the publish flow to decode and
-    /// verify a blob into; [`Self::upload_blob`] promotes it to
-    /// the bucket once the verification passes.
-    pub async fn staging_tmp_path(
-        &self,
-        _name: &CanonicalPackageName,
-        _filename: &str,
-    ) -> Result<PathBuf> {
+    /// verify an archive into; [`Self::upload_archive`] stores it in the
+    /// bucket once its identity is known.
+    pub async fn staging_tmp_path(&self) -> Result<PathBuf> {
         fs::create_dir_all(&self.staging_dir).await?;
-        // The blob is keyed by its file name when it is uploaded; the staging
-        // file only needs a name that fits the file system.
-        Ok(crate::unique_tmp_path(&self.staging_dir.join("blob")))
+        Ok(crate::unique_tmp_path(&self.staging_tmp_base()))
     }
 
-    pub async fn upload_blob(
-        &self,
-        tmp_path: &Path,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<BlobFinalize> {
-        let key = self.blob_key(name, filename);
+    /// The path the staging files are named after.
+    #[must_use]
+    pub fn staging_tmp_base(&self) -> PathBuf {
+        self.staging_dir.join("archive")
+    }
+
+    /// Upload the staged file at `tmp_path` under `key`. A key only ever
+    /// holds the bytes its identity names, so writing over one a concurrent
+    /// writer stored writes the same bytes again.
+    pub async fn upload_archive(&self, tmp_path: &Path, key: &str) -> Result<()> {
+        let key = self.archive_key(key);
         if fs::metadata(tmp_path).await?.len() > MAX_SINGLE_PUT_BYTES {
-            return self.upload_blob_in_parts(tmp_path, &key).await;
+            let mut upload = self.store.put_multipart(&key).await?;
+            return send_parts(tmp_path, upload.as_mut()).await;
         }
         let bytes = fs::read(tmp_path).await?;
-        // Create-only. A published version's blob is immutable, so an object
-        // already at this key belongs to a concurrent publisher of the same
-        // version. Overwriting it would corrupt that artifact against the
-        // integrity its document records, so tolerate only byte-identical
-        // content and otherwise report a conflict.
-        match self.store.put_opts(
-            &key,
-            PutPayload::from(bytes),
-            PutOptions { mode: PutMode::Create, ..PutOptions::default() },
-        )
-        .await
-        {
-            Ok(_) => Ok(BlobFinalize::Written),
-            Err(
-                object_store::Error::AlreadyExists { .. }
-                | object_store::Error::Precondition { .. },
-            ) => {
-                let ours = fs::read(tmp_path).await?;
-                let existing = self.store.get(&key).await?.bytes().await?;
-                if existing.as_ref() == ours.as_slice() {
-                    Ok(BlobFinalize::AlreadyIdentical)
-                } else {
-                    Ok(BlobFinalize::Conflict)
-                }
-            }
-            Err(err) => Err(err.into()),
-        }
+        self.store.put(&key, PutPayload::from(bytes)).await?;
+        Ok(())
     }
 
-    /// Upload a blob too large to hold in memory, a part at a time.
-    ///
-    /// Create-only is not available on a multipart upload, and does not need
-    /// to be here: only a content-addressed image layer reaches this path, so
-    /// a concurrent writer of the same key is writing the same bytes.
-    /// Everything addressed by filename stays under
-    /// [`MAX_SINGLE_PUT_BYTES`] and keeps the conditional write that makes a
-    /// race between two publishers of one version safe.
-    async fn upload_blob_in_parts(
-        &self,
-        tmp_path: &Path,
-        key: &ObjectPath,
-    ) -> Result<BlobFinalize> {
-        let mut upload = self.store.put_multipart(key).await?;
-        send_parts(tmp_path, upload.as_mut()).await?;
-        Ok(BlobFinalize::Written)
-    }
-
-    pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
-        match self.store.delete(&self.blob_key(name, filename)).await {
+    pub async fn remove_archive(&self, key: &str) -> Result<bool> {
+        match self.store.delete(&self.archive_key(key)).await {
             Ok(()) => Ok(true),
             Err(object_store::Error::NotFound { .. }) => Ok(false),
             Err(err) => Err(err.into()),
         }
     }
 
-    pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        let prefix = ObjectPath::from(self.package_prefix(name));
-        let mut listing = self.store.list(Some(&prefix));
-        let mut removed = false;
-        while let Some(meta) = listing.next().await {
-            let meta = meta?;
-            self.store.delete(&meta.location).await?;
-            removed = true;
-        }
-        Ok(removed)
-    }
-
-    /// Every document and blob below `packages/`, as the package it belongs
-    /// to and which of its files it is. Keys the layout does not produce are
-    /// left out.
-    pub(super) fn list_package_files(
+    /// Every object stored where the namespace keeps its archives.
+    pub(super) fn list_archive_objects(
         &self,
-    ) -> futures_util::stream::BoxStream<'_, Result<(String, PackageFile, object_store::ObjectMeta)>>
-    {
-        let scope = ObjectPath::from(format!("{}{PACKAGES_DIR}", self.prefix));
-        let normalized_prefix = format!("{}/", scope.as_ref());
-        let ecosystem = self.ecosystem;
+    ) -> futures_util::stream::BoxStream<'_, Result<crate::StoredArchive>> {
+        let scope = ObjectPath::from(format!("{}{ARCHIVES_DIR}", self.prefix));
         self.store
             .list(Some(&scope))
-            .filter_map(move |result| {
-                let normalized_prefix = normalized_prefix.clone();
-                async move {
-                    let meta = match result {
-                        Ok(meta) => meta,
-                        Err(error) => return Some(Err(error.into())),
-                    };
-                    let (name, file) = decode_package_file_key(
-                        ecosystem,
-                        &normalized_prefix,
-                        meta.location.as_ref(),
-                    )?;
-                    Some(Ok((name, file, meta)))
-                }
+            .map(|result| {
+                let meta = result?;
+                Ok(crate::StoredArchive {
+                    name: meta.location
+                        .filename()
+                        .unwrap_or_default()
+                        .to_string(),
+                    modified: meta.last_modified.into(),
+                    size: meta.size,
+                })
             })
             .boxed()
-    }
-
-    pub(super) async fn list_package_blobs(
-        &self,
-        name: &CanonicalPackageName,
-    ) -> Result<Vec<String>> {
-        let scope = ObjectPath::from(format!("{}{BLOBS_DIR}", self.package_prefix(name)));
-        let prefix = format!("{}/", scope.as_ref());
-        let mut listing = self.store.list(Some(&scope));
-        let mut blobs = Vec::new();
-        while let Some(result) = listing.next().await {
-            let meta = result?;
-            if let Some(rest) = meta.location.as_ref().strip_prefix(prefix.as_str())
-                && let Some(decoded) = decode_blob_segment(name.as_str(), rest)
-            {
-                blobs.push(decoded);
-            }
-        }
-        blobs.sort();
-        Ok(blobs)
     }
 
     pub(super) async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
@@ -405,47 +314,9 @@ impl S3Store {
         ObjectPath::from(format!("{}{DOCUMENT_FILE}", self.package_prefix(name)))
     }
 
-    fn blob_key(&self, name: &CanonicalPackageName, filename: &str) -> ObjectPath {
-        ObjectPath::from(format!(
-            "{}{BLOBS_DIR}/{}",
-            self.package_prefix(name),
-            blob_segment(name.as_str(), filename),
-        ))
+    fn archive_key(&self, key: &str) -> ObjectPath {
+        ObjectPath::from(format!("{}{}", self.prefix, crate::layout::archive_object_path(key)))
     }
-}
-
-/// Which file of a package an object is.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) enum PackageFile {
-    Document,
-    Blob(String),
-}
-
-fn decode_package_file_key(
-    ecosystem: Ecosystem,
-    normalized_prefix: &str,
-    location: &str,
-) -> Option<(String, PackageFile)> {
-    let rest = location.strip_prefix(normalized_prefix)?;
-    let (pkg_path, tail) = if let Some(pkg_path) = rest
-        .strip_suffix(DOCUMENT_FILE)
-        .and_then(|prefix| prefix.strip_suffix('/'))
-    {
-        (pkg_path, None)
-    } else {
-        let (pkg_path, blob) = rest.rsplit_once(&format!("/{BLOBS_DIR}/"))?;
-        if blob.is_empty() || blob.contains('/') {
-            return None;
-        }
-        (pkg_path, Some(blob))
-    };
-    let pkg_segments: Vec<&str> = pkg_path.split('/').collect();
-    let name = decode_package_segments(ecosystem, &pkg_segments)?;
-    let file = match tail {
-        None => PackageFile::Document,
-        Some(blob) => PackageFile::Blob(decode_blob_segment(&name, blob)?),
-    };
-    Some((name, file))
 }
 
 #[cfg(test)]

@@ -263,3 +263,93 @@ fn skips_dot_directories_when_a_managed_directory_is_configured() {
         ["real", "root"],
     );
 }
+
+fn modules_dir_opts(root: &Path, project: &str) -> FindWorkspaceProjectsOpts {
+    FindWorkspaceProjectsOpts {
+        patterns: Some(vec!["**".to_string()]),
+        ignored_directories: vec![root.join(project).join("node_modules")],
+    }
+}
+
+/// The roots of the projects the walk finds with `opts`, sorted.
+fn found_roots(root: &Path, opts: &FindWorkspaceProjectsOpts) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = find_workspace_projects(root, opts)
+        .unwrap()
+        .into_iter()
+        .map(|project| project.root_dir)
+        .collect();
+    roots.sort();
+    roots
+}
+
+#[test]
+fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "packages/a", "a");
+    make_project(tmp.path(), "packages/a/node_modules/dep", "dep");
+    make_project(tmp.path(), "packages/b", "b");
+
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let in_b = modules_dir_opts(tmp.path(), "packages/b");
+
+    let expected = [tmp.path().join("packages/a"), tmp.path().join("packages/b")];
+    assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+    assert_eq!(found_roots(tmp.path(), &in_a), expected);
+    assert_eq!(found_roots(tmp.path(), &in_b), expected);
+}
+
+#[test]
+fn other_patterns_do_not_find_the_same_projects() {
+    let tmp = TempDir::new().unwrap();
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut other = in_a.clone();
+    other.patterns = Some(vec!["packages/*".to_string()]);
+
+    assert_ne!(in_a.discovery_key(tmp.path()), other.discovery_key(tmp.path()));
+}
+
+/// On a case-insensitive filesystem the configured `node_modules` names the
+/// `NODE_MODULES` on disk, which only the exclusion skips, so the projects
+/// differ. On a case-sensitive one it names nothing, and they do not. The
+/// keys follow the projects either way.
+#[test]
+fn a_modules_directory_spelled_otherwise_on_disk_keys_by_the_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "packages/a", "a");
+    make_project(tmp.path(), "packages/a/NODE_MODULES/dep", "dep");
+    make_project(tmp.path(), "packages/b", "b");
+
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let in_b = modules_dir_opts(tmp.path(), "packages/b");
+
+    let roots_in_b = found_roots(tmp.path(), &in_b);
+    assert!(roots_in_b.contains(&tmp.path().join("packages/a")), "{roots_in_b:?}");
+    let same_key = in_a.discovery_key(tmp.path()) == in_b.discovery_key(tmp.path());
+    let same_projects = found_roots(tmp.path(), &in_a) == roots_in_b;
+    assert_eq!(same_key, same_projects);
+}
+
+#[test]
+fn a_pattern_naming_a_modules_directory_keeps_every_exclusion_in_the_key() {
+    let tmp = TempDir::new().unwrap();
+    let mut in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut in_b = modules_dir_opts(tmp.path(), "packages/b");
+    for opts in [&mut in_a, &mut in_b] {
+        opts.patterns =
+            Some(vec!["packages/*".to_string(), "packages/a/NODE_MODULES/*".to_string()]);
+    }
+
+    assert_ne!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+}
+
+#[test]
+fn a_negative_pattern_naming_a_modules_directory_keeps_the_key_shared() {
+    let tmp = TempDir::new().unwrap();
+    let mut in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut in_b = modules_dir_opts(tmp.path(), "packages/b");
+    for opts in [&mut in_a, &mut in_b] {
+        opts.patterns = Some(vec!["packages/*".to_string(), "!**/node_modules/**".to_string()]);
+    }
+
+    assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+}

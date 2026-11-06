@@ -171,7 +171,7 @@ fn host(current_os: &str, current_cpu: &str, current_libc: &str) -> Option<Named
     let os = Os::parse(current_os)?;
     let architecture = Architecture::parse(current_cpu)?;
     let libc = (os == Os::Linux).then(|| linux_libc(current_libc));
-    Some(NamedPlatform { os, architecture, libc })
+    Some(NamedPlatform::from_machine(os, architecture, libc))
 }
 
 impl ArchitectureAxes {
@@ -185,11 +185,7 @@ impl ArchitectureAxes {
                 platforms.extend(
                     libcs
                         .iter()
-                        .map(|libc| NamedPlatform {
-                            os,
-                            architecture: *architecture,
-                            libc: libc.clone(),
-                        }),
+                        .map(|libc| NamedPlatform::from_machine(os, *architecture, libc.clone())),
                 );
             }
         }

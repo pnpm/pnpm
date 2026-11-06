@@ -18,6 +18,9 @@ pub(crate) fn lockfile_settings_from_config(config: &Config) -> LockfileSettings
         dedupe_peers: config.dedupe_peers.then_some(true),
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,
         add_missing_peer_types: config.add_missing_peer_types.then_some(true),
+        project_scoped_optional_peers: config
+            .project_scoped_optional_peers_take_effect()
+            .then_some(true),
         inject_workspace_packages: config.inject_workspace_packages,
         peers_suffix_max_length: (config.peers_suffix_max_length
             != pnpm_config::default_peers_suffix_max_length())
@@ -40,7 +43,7 @@ pub(crate) fn resolution_settings_from_config(config: &Config) -> ResolutionSett
         dedupe_injected_deps: Some(config.dedupe_injected_deps),
         dedupe_peer_dependents: Some(config.dedupe_peer_dependents),
         link_workspace_packages: Some(
-            crate::optimistic_repeat_install::settings::link_workspace_packages_to_json(
+            crate::install_state::settings::link_workspace_packages_to_json(
                 config.link_workspace_packages,
             ),
         ),
@@ -55,6 +58,7 @@ pub(crate) enum ChangedSetting {
     DedupePeers,
     ExcludeLinksFromLockfile,
     AddMissingPeerTypes,
+    ProjectScopedOptionalPeers,
     PeersSuffixMaxLength,
     InjectWorkspacePackages,
     IntegrityTarget,
@@ -108,31 +112,17 @@ fn changed_settings(
     if pnpm_lockfile::auto_install_peers_changed(recorded, settings.auto_install_peers) {
         changed.push(ChangedSetting::AutoInstallPeers);
     }
-    if pnpm_lockfile::recorded_dedupe_peers(recorded)
-        != pnpm_lockfile::recorded_dedupe_peers(Some(settings))
-    {
-        changed.push(ChangedSetting::DedupePeers);
-    }
     if pnpm_lockfile::exclude_links_from_lockfile_changed(
         recorded,
         settings.exclude_links_from_lockfile,
     ) {
         changed.push(ChangedSetting::ExcludeLinksFromLockfile);
     }
-    if pnpm_lockfile::recorded_add_missing_peer_types(recorded)
-        != pnpm_lockfile::recorded_add_missing_peer_types(Some(settings))
-    {
-        changed.push(ChangedSetting::AddMissingPeerTypes);
-    }
+    changed.extend(changed_flags(recorded, settings));
     if pnpm_lockfile::recorded_peers_suffix_max_length(recorded)
         != pnpm_lockfile::recorded_peers_suffix_max_length(Some(settings))
     {
         changed.push(ChangedSetting::PeersSuffixMaxLength);
-    }
-    if pnpm_lockfile::recorded_inject_workspace_packages(recorded)
-        != pnpm_lockfile::recorded_inject_workspace_packages(Some(settings))
-    {
-        changed.push(ChangedSetting::InjectWorkspacePackages);
     }
     if integrity_target_changed(recorded, settings) {
         changed.push(ChangedSetting::IntegrityTarget);
@@ -144,6 +134,31 @@ fn changed_settings(
         changed.push(ChangedSetting::ResolutionSettings);
     }
     changed
+}
+
+/// The boolean settings whose recorded value, absent counting as `false`,
+/// differs from `settings`.
+fn changed_flags<'a>(
+    recorded: Option<&'a LockfileSettings>,
+    settings: &'a LockfileSettings,
+) -> impl Iterator<Item = ChangedSetting> + 'a {
+    type RecordedFlag = fn(Option<&LockfileSettings>) -> bool;
+    let flags: [(ChangedSetting, RecordedFlag); 4] = [
+        (ChangedSetting::DedupePeers, pnpm_lockfile::recorded_dedupe_peers),
+        (ChangedSetting::AddMissingPeerTypes, pnpm_lockfile::recorded_add_missing_peer_types),
+        (
+            ChangedSetting::ProjectScopedOptionalPeers,
+            pnpm_lockfile::recorded_project_scoped_optional_peers,
+        ),
+        (
+            ChangedSetting::InjectWorkspacePackages,
+            pnpm_lockfile::recorded_inject_workspace_packages,
+        ),
+    ];
+    flags
+        .into_iter()
+        .filter(move |(_, recorded_flag)| recorded_flag(recorded) != recorded_flag(Some(settings)))
+        .map(|(setting, _)| setting)
 }
 
 fn integrity_target_changed(
@@ -164,6 +179,7 @@ fn setting_cannot_affect_lockfile(
         ChangedSetting::AutoInstallPeers
         | ChangedSetting::DedupePeers
         | ChangedSetting::AddMissingPeerTypes
+        | ChangedSetting::ProjectScopedOptionalPeers
         | ChangedSetting::PeersSuffixMaxLength => has_no_peer_dependencies(lockfile, manifests),
         ChangedSetting::ExcludeLinksFromLockfile => {
             has_no_linked_dependencies(lockfile, manifests, workspace_package_names)

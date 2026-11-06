@@ -12,7 +12,10 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
-    metadata::{BatchDocument, PublishNotes, ReleaseRecords, SqlMetadata, TagChange, TagUpdate},
+    metadata::{
+        ArtifactBlob, BatchDocument, BlobFence, PublishNotes, ReleaseRecords, SqlMetadata,
+        TagChange, TagUpdate,
+    },
 };
 use serde_json::{Map, Value, json};
 use std::{future::Future, path::Path, sync::Arc};
@@ -103,6 +106,24 @@ pub fn write_packuments(storage: &Path, packuments: Vec<(String, Value)>) {
 
 /// [`write_packuments`] into the metadata database at `database`.
 pub fn write_packuments_into(database: &Path, packuments: Vec<(String, Value)>) {
+    commit_packuments(database, packuments, Vec::new());
+}
+
+/// [`write_packuments`], mapping each of `archives` to the incarnation of
+/// its bytes the storage holds, in the same commit.
+pub(crate) fn write_packuments_with_archives(
+    storage: &Path,
+    packuments: Vec<(String, Value)>,
+    archives: Vec<ArtifactBlob>,
+) {
+    commit_packuments(&default_metadata_path(storage), packuments, archives);
+}
+
+fn commit_packuments(
+    database: &Path,
+    packuments: Vec<(String, Value)>,
+    archives: Vec<ArtifactBlob>,
+) {
     let path = database.to_path_buf();
     let documents = packuments
         .into_iter()
@@ -122,10 +143,95 @@ pub fn write_packuments_into(database: &Path, packuments: Vec<(String, Value)>) 
                     panic!("open registry metadata at {}: {error}", path.display())
                 }),
         );
+        let fence = BlobFence { artifacts: archives, references: Vec::new() };
         database
-            .commit_publication("", documents, Vec::new(), PublishNotes::default(), None)
+            .commit_fenced_publication(
+                "",
+                documents,
+                Vec::new(),
+                PublishNotes::default(),
+                None,
+                fence,
+            )
             .await
             .unwrap_or_else(|error| panic!("write registry packuments: {error}"));
+    });
+}
+
+/// Where a built storage tree holds the tarball of `package@version`: the
+/// incarnation of its bytes the package's tarball is mapped to.
+#[must_use]
+pub fn tarball_path(storage: &Path, package: &str, version: &str) -> std::path::PathBuf {
+    let store = open(storage);
+    let name = canonical(package, Ecosystem::Npm);
+    let file = name.tarball_name_for_version(version);
+    let blob = run(async move {
+        store
+            .hosted_blob_of(&name, &file)
+            .await
+            .unwrap_or_else(|error| panic!("read the tarball mapping of {package}: {error}"))
+    })
+    .unwrap_or_else(|| panic!("no fixture tarball of {package}@{version}"));
+    pnpr_storage::layout::local_archive_path(storage, "", Ecosystem::Npm, &blob.key())
+}
+
+/// The bytes the storage at `storage` serves for the file `file` of `name` in
+/// the `ecosystem` namespace of `org`, through the blob the file is mapped
+/// to, or `None` when the package maps no such file.
+#[must_use]
+pub fn read_hosted_file(
+    storage: &Path,
+    (org, ecosystem): (&str, Ecosystem),
+    name: &str,
+    file: &str,
+) -> Option<Vec<u8>> {
+    let store = open(storage).for_hosted(org, ecosystem);
+    let name = canonical(name, ecosystem);
+    run(async move {
+        let (body, _) = store
+            .open_hosted_blob(&name, file)
+            .await
+            .unwrap_or_else(|error| panic!("open {file} of {}: {error}", name.as_str()))?;
+        let bytes = axum::body::to_bytes(body, usize::MAX).await
+            .unwrap_or_else(|error| panic!("read {file} of {}: {error}", name.as_str()));
+        Some(bytes.to_vec())
+    })
+}
+
+/// Store `bytes` as the file `file` of `version` of `name` in the
+/// `ecosystem` namespace of `org` of the storage at `storage`, and map the
+/// file to them, as a publish would. `version` is empty for a file of no
+/// version.
+pub fn write_hosted_file(
+    storage: &Path,
+    (org, ecosystem): (&str, Ecosystem),
+    (name, version): (&str, &str),
+    file: &str,
+    bytes: &[u8],
+) {
+    let store = open(storage).for_hosted(org, ecosystem);
+    let name = canonical(name, ecosystem);
+    let fail = |error: &dyn std::fmt::Display| -> ! {
+        panic!("store {file} of {}: {error}", name.as_str())
+    };
+    run(async {
+        let slot = store
+            .reserve_hosted_blob(&name, file)
+            .await
+            .unwrap_or_else(|error| fail(&error))
+            .for_version(version);
+        tokio::fs::write(&slot.tmp_path, bytes).await.unwrap_or_else(|error| fail(&error));
+        let (id, size) = store.identify_blob_slot(&slot).await.unwrap_or_else(|error| fail(&error));
+        let rows = store
+            .blob_rows(vec![id.clone()])
+            .await
+            .unwrap_or_else(|error| fail(&error));
+        let row = rows.get(&id).copied();
+        let promoted = store
+            .promote_blob_slot(slot, (id, size), row.as_ref())
+            .await
+            .unwrap_or_else(|error| fail(&error));
+        store.map_hosted_artifact(promoted.artifact).await.unwrap_or_else(|error| fail(&error));
     });
 }
 

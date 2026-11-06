@@ -139,6 +139,7 @@ function createSharedPeersContext<Pkg extends PartialResolvedPackage> (opts: Res
       ? new Map<DepPath, NodeId>()
       : getNodeIdsByPreviousDepPath(opts.dependenciesTree),
     resolvedPeerProviderPaths: opts.resolvedPeerProviderPaths,
+    dedupePeerDependents: opts.dedupePeerDependents,
     peersCache: new Map(),
     purePkgs: new Set<PkgIdWithPatchHash>(),
     dedupePeers: opts.dedupePeers,

@@ -11,6 +11,8 @@
 //! sorting the workspace projects — lives in the CLI command alongside
 //! pacquet's other recursive commands, and calls [`api`] per project.
 
+pub mod variants;
+
 pub use capabilities::{
     FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, Host,
 };
@@ -20,6 +22,9 @@ pub use options::{
 };
 pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
+pub use variants::{
+    PackedArchive, PackedArchives, archive_result_json, declared_manifests, pack_archives,
+};
 
 mod capabilities;
 mod collation;
@@ -54,6 +59,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
+use variants::VariantDeclaration;
 
 /// The published manifest basename used in identity validation errors.
 const MANIFEST_FILE_NAME: &str = "package.json";
@@ -71,6 +77,16 @@ pub struct PackResult {
     pub tarball_path: String,
     /// Total uncompressed size of all files in the tarball, in bytes.
     pub unpacked_size: u64,
+    /// The written tarball's integrity and size; `None` for a dry run,
+    /// which writes none.
+    pub archive: Option<ArchiveDigest>,
+}
+
+/// The SRI SHA-512 and the size in bytes of a written tarball.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArchiveDigest {
+    pub integrity: String,
+    pub size: u64,
 }
 
 /// JSON-serializable projection of a [`PackResult`].
@@ -79,6 +95,19 @@ pub struct PackResultJson {
     pub name: String,
     pub version: String,
     pub filename: String,
+    /// The derived tag of a platform variant's archive.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    /// The targets of the `publishConfig.variants` entry the archive was
+    /// packed for.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub targets: Option<Vec<String>>,
+    /// The written archive's SRI SHA-512; absent for a dry run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub integrity: Option<String>,
+    /// The written archive's size in bytes; absent for a dry run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
     pub files: Vec<PackFile>,
 }
 
@@ -171,6 +200,43 @@ pub enum PackError {
         source: io::Error,
     },
 
+    #[diagnostic(transparent)]
+    Variants(#[error(source)] variants::VariantDeclarationError),
+
+    #[diagnostic(transparent)]
+    VariantArchive(#[error(source)] variants::VariantArchiveError),
+
+    #[display("The pattern {pattern:?} of the variant for {targets} matches no file")]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANT_PATTERN_MATCHES_NOTHING),
+        help(
+            "Build the files the archive needs before packing it, so it is never packed without them."
+        )
+    )]
+    VariantPatternMatchesNothing { targets: String, pattern: String },
+
+    #[display("The archive of the variant for {targets} lacks {path:?}, which its manifest names")]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANT_ENTRY_POINT_MISSING),
+        help(
+            "Every archive holds the files its own manifest's main, browser, and bin name, each by its exact path. Build the file before packing, or name it exactly in the entry's manifest."
+        )
+    )]
+    VariantEntryPointMissing { targets: String, path: String },
+
+    #[display(
+        "The package declares publishConfig.variants, so it packs into one archive per entry"
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_VARIANTS_UNSUPPORTED),
+        help("Pack it with pnpm pack, which writes every archive.")
+    )]
+    OneArchiveOfVariants,
+
+    #[display("The package declares no publishConfig.variants to pack {target:?} from")]
+    #[diagnostic(code(ERR_PNPM_NO_VARIANTS))]
+    NoVariants { target: String },
+
     #[display("The bin file \"{path}\" has a shebang line ending with CRLF (\\r\\n).")]
     #[diagnostic(
         code(ERR_PNPM_BIN_CRLF),
@@ -187,9 +253,25 @@ where
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
 {
     let source = prepare_source::<Reporter>(opts).await?;
+    if VariantDeclaration::read(&source.publish_manifest).map_err(PackError::Variants)?.is_some() {
+        return Err(PackError::OneArchiveOfVariants);
+    }
+    pack_source::<Reporter, Sys>(opts, source).await
+}
+
+/// Pack `source`, prepared by [`prepare_source`], into one archive, then run
+/// `postpack`.
+async fn pack_source<Reporter, Sys>(
+    opts: &PackOptions,
+    source: PackSource,
+) -> Result<PackResult, PackError>
+where
+    Reporter: self::Reporter,
+    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite + FsIsExecutable,
+{
     let (tarball_name, pack_destination) =
         resolve_output(&opts.output, &source.normalized_name, &source.published_version)?;
-    let files_map = packed_files_map(opts, &source)?;
+    let files_map = packed_files_map(opts, &source, &source.publish_manifest)?;
     warn_about_unlisted_dotenv_files::<Reporter>(&source.dir, &source.publish_manifest, &files_map);
     check_packed_bins_for_crlf(&files_map, &source.bins)?;
     let manifest_json = serde_json::to_string_pretty(&source.publish_manifest)
@@ -210,13 +292,14 @@ where
             .sum::<u64>();
     let contents = packed_contents_with_injected(&files_map, &opts.output.injected_files);
 
+    let mut archive = None;
     if !opts.output.dry_run {
         let packed = PackedTarball {
             dest_file: dest_dir.join(&tarball_name),
             files_map: &files_map,
             manifest_json: &manifest_json,
         };
-        write_tarball::<Sys>(&opts.output, &packed, &source.bins).await?;
+        archive = Some(write_tarball::<Sys>(&opts.output, &packed, &source.bins).await?);
         if !opts.scripts.ignore {
             opts.scripts.run_if_present::<Reporter>(
                 &opts.dir,
@@ -228,16 +311,19 @@ where
 
     let tarball_path = packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name);
     let published_manifest = with_registry_readme(source.publish_manifest, &source.dir)?;
-    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size, archive })
 }
 
+/// The files `source` packs as `manifest` selects them, by their path in
+/// the archive.
 fn packed_files_map(
     opts: &PackOptions,
     source: &PackSource,
+    manifest: &Value,
 ) -> Result<indexmap::IndexMap<String, PathBuf>, PackError> {
     let files = packlist_with_sources(
         &source.dir,
-        &source.publish_manifest,
+        manifest,
         PacklistOptions {
             workspace_dir: opts.workspace_dir.as_deref(),
             bundled_dependencies_dir: Some(&opts.dir),
@@ -267,29 +353,67 @@ struct PackedTarball<'a> {
     manifest_json: &'a [u8],
 }
 
+/// Write `packed`'s tarball, and give the integrity and size of the bytes
+/// written, digested as they are written.
 async fn write_tarball<Sys: FsReadFile + FsIsExecutable + FsAtomicWrite>(
     opts: &PackOutputOptions,
     packed: &PackedTarball<'_>,
     bins: &[PathBuf],
-) -> Result<(), PackError> {
+) -> Result<ArchiveDigest, PackError> {
     let _output_guard = match &opts.locks {
         Some(locks) => Some(locks.lock(&packed.dest_file).await),
         None => None,
     };
+    let mut digest = None;
     Sys::atomic_write(&packed.dest_file, &mut |writer| {
+        let mut digesting = DigestingWriter::new(writer);
         tarball::build_tarball::<Sys>(
-            writer,
+            &mut digesting,
             packed.files_map,
             packed.manifest_json,
             bins,
             opts.gzip_level,
             &opts.injected_files,
-        )
+        )?;
+        digest = Some(digesting.finish());
+        Ok(())
     })
     .map_err(|error| PackError::WriteTarball {
         path: packed.dest_file.display().to_string(),
         source: error,
-    })
+    })?;
+    Ok(digest.expect("a written tarball has a digest"))
+}
+
+/// A writer that hashes and counts the bytes it passes on.
+struct DigestingWriter<'w> {
+    inner: &'w mut dyn std::io::Write,
+    hasher: ssri::IntegrityOpts,
+    size: u64,
+}
+
+impl<'w> DigestingWriter<'w> {
+    fn new(inner: &'w mut dyn std::io::Write) -> Self {
+        let hasher = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+        DigestingWriter { inner, hasher, size: 0 }
+    }
+
+    fn finish(self) -> ArchiveDigest {
+        ArchiveDigest { integrity: self.hasher.result().to_string(), size: self.size }
+    }
+}
+
+impl std::io::Write for DigestingWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let written = self.inner.write(buf)?;
+        self.hasher.input(&buf[..written]);
+        self.size += written as u64;
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
 }
 
 mod output;
@@ -318,19 +442,18 @@ impl PackManifestOptions {
         manifest: &Value,
     ) -> Result<Value, PackError> {
         let modules_dir = project_dir.join("node_modules");
-        let mut publish_manifest = create_exportable_manifest(
-            dir,
-            manifest,
-            &CreateExportableManifestOptions {
-                catalogs: &self.catalogs,
-                workspace_dir: self.catalogs_dir.as_deref(),
-                modules_dir: Some(&modules_dir),
-                skip_manifest_obfuscation: self.skip_obfuscation,
-                embed_readme: self.embed_readme,
-                workspace_packages: self.workspace_packages.as_deref(),
-            },
-        )
-        .map_err(PackError::CreateManifest)?;
+        let options = CreateExportableManifestOptions {
+            catalogs: &self.catalogs,
+            workspace_dir: self.catalogs_dir.as_deref(),
+            modules_dir: Some(&modules_dir),
+            skip_manifest_obfuscation: self.skip_obfuscation,
+            embed_readme: self.embed_readme,
+            workspace_packages: self.workspace_packages.as_deref(),
+        };
+        let mut publish_manifest =
+            create_exportable_manifest(dir, manifest, &options).map_err(PackError::CreateManifest)?;
+        variants::export_entry_dependencies(dir, &mut publish_manifest, &options)
+            .map_err(PackError::CreateManifest)?;
 
         // Run `beforePacking` hooks against the built manifest, before the
         // file list is computed, so a hook that rewrites `files` / `bin` /

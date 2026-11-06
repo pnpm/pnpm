@@ -505,14 +505,17 @@ fn the_hoisted_linker_installs_into_a_custom_modules_dir() {
             .success();
         assert_eq!(installed_version(&workspace.join("deps/vendor")), "3.1.0", "{args:?}");
         assert_eq!(
-            installed_version(&workspace.join("project-1/node_modules")),
+            installed_version(&workspace.join("project-1/deps/vendor")),
             "1.0.0",
             "{args:?}",
         );
+        assert!(!workspace.join("project-1/node_modules").exists(), "{args:?}");
         assert!(!workspace.join("node_modules/is-positive").exists(), "{args:?}");
         assert!(workspace.join("deps/vendor/.pnpm/lock.yaml").is_file(), "{args:?}");
         assert!(!workspace.join("vendor").exists(), "{args:?}");
         fs::remove_dir_all(workspace.join("deps/vendor")).expect("remove deps/vendor");
+        fs::remove_dir_all(workspace.join("project-1/deps/vendor"))
+            .expect("remove project-1/deps/vendor");
     }
 
     drop((root, mock_instance));

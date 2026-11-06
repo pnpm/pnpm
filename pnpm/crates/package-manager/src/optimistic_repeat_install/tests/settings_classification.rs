@@ -7,7 +7,7 @@
 //! The other buckets carry the reason, which the test cannot check.
 
 use super::{super::config_blocks_fast_path, current_settings, isolated_included};
-use crate::optimistic_repeat_install::first_setting_drift;
+use crate::install_state::first_setting_drift;
 use indexmap::IndexMap;
 use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pnpm_workspace_state::WorkspaceState;
@@ -218,6 +218,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("prefer_symlinked_executables", NotAnInput("a full install leaves the bins it linked")),
     ("prefer_workspace_packages", Recorded { key: "preferWorkspacePackages", change: |config| config.prefer_workspace_packages = !config.prefer_workspace_packages }),
     ("progress", NotAnInput(CLI_ONLY)),
+    ("project_scoped_optional_peers", Recorded { key: "projectScopedOptionalPeers", change: |config| config.project_scoped_optional_peers = !config.project_scoped_optional_peers }),
     ("provenance", NotAnInput(OTHER_COMMAND)),
     ("proxy", NotAnInput(NETWORK)),
     ("proxy_keys", NotAnInput(NETWORK)),

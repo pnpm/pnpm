@@ -99,7 +99,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             has_modules_dir: false,
         },
     );
-    let settings = crate::optimistic_repeat_install::settings::current_settings(
+    let settings = crate::install_state::settings::current_settings(
         config,
         pnpm_config::NodeLinker::Isolated,
         included,

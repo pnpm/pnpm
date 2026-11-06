@@ -1,23 +1,34 @@
 use super::{
     Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
     Integrity, PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
-    authorize_package, cleanup_tmp_slots, extract_attachments, hosted_storage,
+    authorize_package, cleanup_tmp_slots, extract_attachments, generated_archive, hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
     },
-    release_records, resolve_write_target,
+    provenance, release_records, resolve_write_target,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
     variants::{self, Declarations, PublishedVariant, VariantTar},
-    verification::verify_published_manifests,
+    verification::{describe_generated_archive, verify_published_manifests},
 };
 use crate::server::staged_archives::claim_staged_archive;
+use pnpr_storage::{
+    BlobId,
+    metadata::{ArtifactBlob, BlobLookup, BlobRow},
+    publish::sigstore_bundle_bytes,
+};
 use slot_writes::{AttachmentPaths, write_under_permit};
-use std::sync::Arc;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 mod preparation;
 mod slot_writes;
+mod verified_documents;
+
+use verified_documents::write_verified;
 
 use preparation::prepare_attachments;
 
@@ -91,6 +102,8 @@ pub(in super::super) async fn validate_publish_doc(
     name: CanonicalPackageName,
     mut incoming: Value,
 ) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
+    super::check_body_versions(&incoming)?;
+
     // Route write to hosted target and enforce the registry's publish rule.
     let target = resolve_write_target(state, identity, registry, &name)?;
     authorize_package(
@@ -133,7 +146,8 @@ pub(in super::super) struct StagedPublish {
     /// The document to record, merged with what the store held when it was
     /// read: a packument, a crate document, a project document.
     pub(in super::super) document: Vec<u8>,
-    pub(in super::super) base_version: Option<HostedDocumentVersion>,
+    /// What the store held when `document` was computed from it.
+    pub(in super::super) base: StagedBase,
     pub(in super::super) slots: Vec<pnpr_storage::BlobSlot>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit so the write
@@ -143,6 +157,26 @@ pub(in super::super) struct StagedPublish {
     pub(in super::super) publisher: Option<String>,
     /// What verifying the published archives produced.
     pub(in super::super) verification: Verification,
+}
+
+/// The stored document a staged publish was computed from.
+#[derive(Default)]
+pub(in super::super) struct StagedBase {
+    /// Its version, which the commit expects to replace; `None` when there
+    /// was none.
+    pub(in super::super) version: Option<HostedDocumentVersion>,
+    /// The npm packument itself, which a commit that lost the race to
+    /// another replica rebases the publish's changes off; `None` for a
+    /// first publish and for other ecosystems.
+    pub(in super::super) packument: Option<Value>,
+    /// The rows of the blobs the publish expected to store, read with the
+    /// document, `None` for bytes never stored.
+    pub(in super::super) blobs: BTreeMap<BlobId, Option<BlobRow>>,
+    /// Files of the package already stored that the document references and
+    /// the publish did not stage, such as the layers an image manifest names.
+    /// The commit maps them and depends on their blobs as on the ones it
+    /// promotes.
+    pub(in super::super) references: Vec<ArtifactBlob>,
 }
 
 /// What verifying a publish's archives against its version metadata
@@ -170,10 +204,8 @@ pub(in super::super) async fn stage_publish(
 ) -> Result<StagedPublish, RegistryError> {
     let storage = hosted_storage(state, org);
 
-    let (hosted, base_version) = parse_hosted_packument(
-        &doc.name,
-        storage.read_hosted_document_for_update(&doc.name).await?,
-    )?;
+    let base = read_staged_base(&storage, &doc).await?;
+    let hosted = base.packument.as_ref();
 
     check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
     let publisher = doc.publisher.username().map(str::to_string);
@@ -185,34 +217,28 @@ pub(in super::super) async fn stage_publish(
         variants,
         ..
     } = doc;
-    restore_submitted_tgz_integrities(&storage, &name, hosted.as_ref(), &mut incoming).await?;
+    restore_submitted_tgz_integrities(&storage, &name, hosted, &mut incoming).await?;
 
-    check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
+    let without_any = check_publishable_versions(&name, &incoming, hosted, (&prepared, &variants))?;
 
-    let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
+    let merged = prepare_staged_document(&name, hosted, &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
     drop(incoming);
 
-    // Stream-decode + verify + write each tarball. A mismatch — or a
-    // missing integrity field — short-circuits the publish with a
-    // 400; any tmp files written before the failure get removed
-    // along the way so a bad upload leaves no on-disk artifact.
-    let written = write_attachment_slots(
-        (&storage, publisher.as_deref()),
+    let verified = write_verified(
+        (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
         &name,
-        prepared,
-        tarballs,
-        &state.inner.proxy.tar_decodes,
+        (prepared, tarballs),
+        (merged, &variants, &without_any),
     )
     .await?;
-    let verified = verified_document(&name, (merged, &variants), written).await?;
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
         document: verified.document,
-        base_version,
+        base,
         slots: verified.slots,
         org: org.map(str::to_string),
         publisher,
@@ -220,39 +246,52 @@ pub(in super::super) async fn stage_publish(
     })
 }
 
-/// A publish document whose archives agree with its version metadata.
-struct VerifiedDocument {
-    document: Vec<u8>,
-    slots: Vec<pnpr_storage::BlobSlot>,
-    verification: Verification,
+/// The packument `doc` is computed from, read with the rows of the blobs it
+/// expects to store.
+async fn read_staged_base(
+    storage: &Storage,
+    doc: &ValidatedPublish,
+) -> Result<StagedBase, RegistryError> {
+    let lookup = BlobLookup { ids: expected_blobs(doc), artifacts: Vec::new() };
+    let base = storage.read_hosted_document_for_publish(&doc.name, &lookup).await?;
+    staged_base(&doc.name, base)
 }
 
-/// Verify every archive `written` holds against the version metadata in
-/// `merged`, record the verified variants `declared` on it, and serialize
-/// the verified document. A refused archive removes the written slots.
-async fn verified_document(
+/// The packument a publish of `name` is computed from, as `base` read it.
+fn staged_base(
     name: &CanonicalPackageName,
-    (mut merged, declared): (Value, &Declarations),
-    written: WrittenAttachments,
-) -> Result<VerifiedDocument, RegistryError> {
-    let verified = verify_published_manifests(name, &mut merged, &written.tars)
-        .and_then(|notices| {
-            variants::attach_variants(&mut merged, declared, &written.variants, &written.tars)?;
-            let records =
-                release_records::accepted_records(name, &merged, &written.tars, &written.variants)?;
-            Ok((notices, records))
-        });
-    match verified {
-        Ok((notices, records)) => Ok(VerifiedDocument {
-            document: serialize_staged_document(merged, &written.tars),
-            slots: written.slots,
-            verification: Verification { notices, records },
-        }),
-        Err(err) => {
-            cleanup_tmp_slots(written.slots).await;
-            Err(err)
-        }
-    }
+    base: pnpr_storage::metadata::PublishBase,
+) -> Result<StagedBase, RegistryError> {
+    let (packument, version) = parse_hosted_packument(name, base.stored)?;
+    Ok(StagedBase { version, packument, blobs: base.blobs, references: Vec::new() })
+}
+
+/// The identities the bytes `doc` stores will have, where they are known
+/// before they are written, so their rows are read with the document: a
+/// `.tgz` stored as published has the `sha512` its `dist.integrity`
+/// declares, and a sigstore bundle is its own bytes. A tar a tar registry
+/// stores in place of the `.tgz`, and the archive pnpr generates for a
+/// version without one, are known only once written, and their rows take
+/// one more round trip.
+fn expected_blobs(doc: &ValidatedPublish) -> Vec<BlobId> {
+    let ecosystem = pnpr_registry::Ecosystem::Npm;
+    let mut ids: Vec<BlobId> = doc.prepared
+        .iter()
+        .filter_map(|prepared| match prepared.kind {
+            AttachmentKind::Tarball if doc.tarballs == TarballStorage::Tar => None,
+            AttachmentKind::Tarball | AttachmentKind::Variant => {
+                let integrity = prepared.dist.get("integrity")?.as_str()?;
+                BlobId::from_integrity(&integrity.parse().ok()?, ecosystem)
+            }
+            AttachmentKind::Sigstore => {
+                let bytes = sigstore_bundle_bytes(prepared.attachment.inline_data()?).ok()?;
+                Some(BlobId::of_bytes(ecosystem, &bytes))
+            }
+        })
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
 }
 
 /// The blob slots a publish wrote, and the tar each of its `.tgz` files
@@ -276,6 +315,10 @@ pub(super) struct PublishedTar {
     pub(super) archive: pnpm_tarball::PublicationArchive,
     /// Set for a platform variant's `.tgz`.
     pub(super) variant: Option<VariantTar>,
+    /// Whether pnpr generated the archive for a version published without a
+    /// `any` archive (see [`generated_archive`]). It is not one of the version's
+    /// archives.
+    pub(super) generated: bool,
 }
 
 /// What a published `.tgz` decodes to: the key its tar integrity is recorded
@@ -346,7 +389,7 @@ pub(super) async fn write_attachment_slot(
     } else {
         prepared.canonical.clone()
     };
-    let slot = storage.reserve_hosted_blob(name, &blob).await?;
+    let slot = storage.reserve_hosted_blob(name, &blob).await?.for_version(&prepared.version);
     let paths = AttachmentPaths::for_slot(&slot.tmp_path, stores_tar);
     let result = write_under_permit(
         (prepared.attachment, staged),
@@ -409,7 +452,15 @@ impl PublishedTar {
             inspection,
             archive,
         } = derived;
-        PublishedTar { version, tgz_integrity, integrity, inspection, archive, variant }
+        PublishedTar {
+            version,
+            tgz_integrity,
+            integrity,
+            inspection,
+            archive,
+            variant,
+            generated: false,
+        }
     }
 }
 

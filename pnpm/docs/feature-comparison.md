@@ -10,7 +10,7 @@ title: Feature Comparison
 | [Hoisted `node_modules`]         |:white_check_mark:|:white_check_mark:| Default in npm. |
 | Plug'n'Play                      |:white_check_mark:|:x:               |
 | [Autoinstalling peers]           |:white_check_mark:|:white_check_mark:|
-| [Patching dependencies]          |:white_check_mark:|:x:               |
+| [Patching dependencies]          |:white_check_mark:|:white_check_mark:|
 | [Managing runtimes]              |:white_check_mark:|:x:               |
 | [Managing versions of itself]    |:white_check_mark:|:x:               |
 | Has a lockfile                   |:white_check_mark:|:white_check_mark:| `pnpm-lock.yaml`, `package-lock.json`. |

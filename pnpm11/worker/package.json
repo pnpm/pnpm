@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/worker",
-  "version": "1100.4.12",
+  "version": "1100.4.13",
   "description": "A worker for extracting package tarballs to the store",
   "keywords": [
     "pnpm",

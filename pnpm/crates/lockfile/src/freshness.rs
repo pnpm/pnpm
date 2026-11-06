@@ -18,7 +18,7 @@ pub use manifest::satisfies_package_manifest;
 pub use recorded_settings::{
     auto_install_peers_changed, exclude_links_from_lockfile_changed,
     recorded_add_missing_peer_types, recorded_dedupe_peers, recorded_inject_workspace_packages,
-    recorded_peers_suffix_max_length,
+    recorded_peers_suffix_max_length, recorded_project_scoped_optional_peers,
 };
 pub use spec_diff::SpecDiff;
 
@@ -39,6 +39,9 @@ pub struct LockfileSettingsCheck<'a> {
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
     pub integrity_target: crate::IntegrityTarget,
+    /// Whether `projectScopedOptionalPeers` takes effect, that is, whether
+    /// it and `dedupePeerDependents` are both on.
+    pub project_scoped_optional_peers: bool,
     pub resolution: ResolutionSettingsCheck<'a>,
 }
 
@@ -103,8 +106,9 @@ pub enum StalenessReason {
 
     /// The lockfile records an importer whose project directory exists
     /// but holds no project manifest, so the project cannot be installed.
-    /// An absent directory is not reported: a build context may leave
-    /// unneeded projects out.
+    /// An absent or empty directory is not reported: a build context may
+    /// leave unneeded projects out, and git leaves an uninitialized
+    /// submodule's directory empty.
     #[display(
         r#"the lockfile records `importers["{importer_id}"]`, but that project's directory has no package.json"#
     )]
@@ -282,6 +286,14 @@ pub enum StalenessReason {
     )]
     AddMissingPeerTypesChanged { lockfile: bool, config: bool },
 
+    /// The lockfile's `settings.projectScopedOptionalPeers` differs from
+    /// whether the setting takes effect in the current install. Normalized
+    /// like [`Self::DedupePeersChanged`].
+    #[display(
+        "`projectScopedOptionalPeers` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    ProjectScopedOptionalPeersChanged { lockfile: bool, config: bool },
+
     /// The lockfile's `settings.excludeLinksFromLockfile` differs from
     /// the current install's `Config::exclude_links_from_lockfile`. The
     /// setting decides whether `link:` deps are recorded at all, so a
@@ -344,6 +356,7 @@ impl StalenessReason {
             StalenessReason::AutoInstallPeersChanged { .. }
             | StalenessReason::DedupePeersChanged { .. }
             | StalenessReason::AddMissingPeerTypesChanged { .. }
+            | StalenessReason::ProjectScopedOptionalPeersChanged { .. }
             | StalenessReason::ExcludeLinksFromLockfileChanged { .. }
             | StalenessReason::PeersSuffixMaxLengthChanged { .. }
             | StalenessReason::InjectWorkspacePackagesChanged { .. }
@@ -395,6 +408,7 @@ pub fn check_lockfile_settings(
     check_recorded_config(lockfile, &check)?;
     check_recorded_settings(lockfile, &check.resolution)?;
     check_integrity_target(lockfile, check.integrity_target)?;
+    check_project_scoped_optional_peers(lockfile, check.project_scoped_optional_peers)?;
     // Last, because every gate above reports a cause this one cannot: each
     // compares the lockfile against a configured value the user can act on,
     // while this compares the lockfile against itself. A lockfile that drifted
@@ -600,4 +614,6 @@ mod recorded_settings;
 mod spec_diff;
 
 use manifest::dependency_specifiers_equal;
-use recorded_settings::{check_integrity_target, check_recorded_settings};
+use recorded_settings::{
+    check_integrity_target, check_project_scoped_optional_peers, check_recorded_settings,
+};

@@ -1,4 +1,4 @@
-mod deprecations;
+mod registry_metadata;
 
 use crate::{
     State,
@@ -134,7 +134,7 @@ pub(crate) fn check_lockfile<Reporter: self::Reporter>(
     }
     let previous = parse_snapshot(existing, lockfile_path);
     let next = parse_snapshot(current.as_deref(), lockfile_path);
-    if deprecations::differs_only_in_deprecations(
+    if registry_metadata::differs_only_in_registry_metadata(
         (existing, previous.as_ref()),
         (current.as_deref(), next.as_ref()),
     ) {

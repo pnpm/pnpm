@@ -73,10 +73,6 @@ struct StoredImageDocument {
     manifests: Vec<ManifestEntry>,
     #[serde(default)]
     tags: Vec<TagEntry>,
-    #[serde(default)]
-    generation: u64,
-    #[serde(default)]
-    deleting_blob: Option<Digest>,
 }
 
 impl From<StoredImageDocument> for ImageDocument {
@@ -86,12 +82,10 @@ impl From<StoredImageDocument> for ImageDocument {
             name,
             mut manifests,
             mut tags,
-            generation,
-            deleting_blob,
         } = stored;
         manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
         tags.sort_by(|left, right| left.tag.cmp(&right.tag));
-        Self { format_version, name, manifests, tags, generation, deleting_blob }
+        Self { format_version, name, manifests, tags }
     }
 }
 
@@ -115,12 +109,6 @@ pub struct ImageDocument {
     manifests: Vec<ManifestEntry>,
     #[serde(default)]
     tags: Vec<TagEntry>,
-    /// Fences publishes prepared before an explicit blob deletion.
-    #[serde(default)]
-    pub generation: u64,
-    /// Blocks new publishes until the deletion completes or offline collection recovers it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deleting_blob: Option<Digest>,
 }
 
 impl Default for ImageDocument {
@@ -130,8 +118,6 @@ impl Default for ImageDocument {
             name: String::new(),
             manifests: Vec::new(),
             tags: Vec::new(),
-            generation: 0,
-            deleting_blob: None,
         }
     }
 }
@@ -243,14 +229,7 @@ impl ImageDocument {
     /// bytes and is left alone. Tags reach the same result whichever order
     /// the two documents arrive in, so a write that lands after the one that
     /// superseded it changes nothing.
-    ///
-    /// A generation mismatch or pending blob deletion refuses the addition
-    /// and returns `false`, just like an unchanged document. Older generations
-    /// cannot be replayed after deletion advances the stored generation.
     pub fn merge(&mut self, addition: Self) -> bool {
-        if self.generation != addition.generation || self.deleting_blob.is_some() {
-            return false;
-        }
         let mut changed = false;
         if self.name.is_empty() && !addition.name.is_empty() {
             self.name.clone_from(&addition.name);

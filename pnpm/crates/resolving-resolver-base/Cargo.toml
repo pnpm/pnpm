@@ -21,7 +21,7 @@ chrono = { workspace = true }
 derive_more = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["rc"] }
 serde_json = { workspace = true }
 url = { workspace = true }
 

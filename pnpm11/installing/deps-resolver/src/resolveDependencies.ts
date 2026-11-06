@@ -369,6 +369,7 @@ function setResolvedChildren (
   ctx.childrenByParentId[parentPkg.pkgId] = pkgAddresses.map((child) => ({
     alias: child.alias,
     id: child.pkgId,
+    ...(child.isLinkedDependency ? { linked: { name: child.name, version: child.version } } : {}),
   }))
   ctx.dependenciesTree.set(parentPkg.nodeId, {
     children: pkgAddresses.reduce((chn, child) => {

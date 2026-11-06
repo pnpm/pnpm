@@ -316,12 +316,12 @@ fn collect_snapshot_deps(
 /// one per injected workspace package and cannot explode that way. A
 /// local tarball (`file:foo.tgz`) unpacks the same archive for every
 /// variant like a registry package, so it collapses like one — the
-/// boundary is [`pnpm_lockfile::is_local_tarball_path`], the same one
+/// boundary is [`pnpm_local_spec::is_tarball_filename`], the same one
 /// the lockfile itself draws for `file:` resolutions.
 #[must_use]
 pub fn pkg_id(dep_key: &PkgNameVerPeer) -> String {
     if let VersionPart::File(path) = dep_key.suffix.version()
-        && !pnpm_lockfile::is_local_tarball_path(path)
+        && !pnpm_local_spec::is_tarball_filename(path)
     {
         return dep_key.to_string();
     }

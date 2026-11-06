@@ -96,6 +96,8 @@ pub(super) struct OnDiskRuntime<'a> {
 
 pub(super) struct OnDiskProjects<'a> {
     pub(super) materialization_lockfile: &'a Lockfile,
+    /// The whole wanted lockfile, with every variant's own snapshot.
+    pub(super) platform_lockfile: pnpm_deps_restorer::PlatformLockfile<'a>,
     pub(super) importer_manifests: &'a std::collections::BTreeMap<String, &'a PackageManifest>,
     pub(super) project_anchor_importer_ids: &'a std::collections::HashSet<String>,
 }
@@ -140,6 +142,7 @@ impl<'a> OnDiskInputs<'a> {
                 skipped,
                 include_optional: self.include_transitive_optional_dependencies,
                 supported_architectures: self.install.projects.supported_architectures,
+                platform_lockfile: Some(self.projects.platform_lockfile),
                 known_requires_build: self.runtime.known_requires_build,
                 known_bins: self.runtime.known_bins,
             },
@@ -316,6 +319,7 @@ impl<'a> OnDiskInputs<'a> {
 
                 skipped,
                 pending_bins: Some(&linked.pending_bins),
+                supported_architectures: self.install.projects.supported_architectures,
                 // The fresh-resolve path never serves an explicit
                 // `pacquet rebuild`; rebuilds always take the frozen path.
             },

@@ -105,7 +105,6 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         id: PkgResolutionId::from("node@runtime:26.3.0"),
         resolution: LockfileResolution::Variations(VariationsResolution {
             variants: vec![],
-            fallback: None,
             revision: None,
         }),
         resolved_via: "node-runtime".to_string(),
@@ -533,6 +532,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
             add_missing_peer_types: None,
+            project_scoped_optional_peers: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
             integrity_target: None,
@@ -622,6 +622,7 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
             add_missing_peer_types: None,
+            project_scoped_optional_peers: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
             integrity_target: None,

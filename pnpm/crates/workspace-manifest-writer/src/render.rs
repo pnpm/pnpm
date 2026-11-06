@@ -9,7 +9,7 @@
 
 use std::cmp::Ordering;
 
-use serde_saphyr::granit_parser::{ScalarStyle, Scanner, StrInput, Token, TokenType};
+use serde_saphyr::granit_parser::{ScalarStyle, Scanner, StrInput, TokenType};
 
 /// The quoting style for string scalars that require quotes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,7 +96,8 @@ pub(crate) fn detect_quote_style(text: &str) -> QuoteStyle {
     let mut single_count = 0usize;
     let mut double_count = 0usize;
 
-    for Token(_span, token) in Scanner::new(StrInput::new(text)) {
+    for token in Scanner::new(StrInput::new(text)).map_while(Result::ok) {
+        let token = token.token_type();
         match token {
             TokenType::Scalar(ScalarStyle::SingleQuoted, _) => single_count += 1,
             TokenType::Scalar(ScalarStyle::DoubleQuoted, _) => double_count += 1,

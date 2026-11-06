@@ -286,7 +286,7 @@ impl<'a> RunExecution<'a> {
             deploy_manifest_hook: self.options.manifests.deploy_hook,
             manifest_spec_bumps: self.options.manifests.spec_bumps,
             known_requires_build: self.options.manifests.known_requires_build.take(),
-            lockfile_check_sink: self.options.lockfile_check.take(),
+            lockfile_check_sink: self.options.save.lockfile_check.take(),
             inputs: std::mem::take(&mut self.owned.resolution),
         }
     }

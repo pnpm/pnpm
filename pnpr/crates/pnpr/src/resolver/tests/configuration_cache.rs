@@ -739,3 +739,33 @@ fn the_server_keys_a_registry_by_the_client_s_prefix() {
     assert_eq!(server.declared_registry_prefixes().prefix_for(REGISTRY), Some("work"));
     assert_eq!(server.registries_by_prefix, client.registries_by_prefix);
 }
+
+#[test]
+fn intern_config_keys_project_scoped_optional_peers() {
+    use super::super::intern_config;
+    use pnpm_store_dir::StoreDir;
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-scoped-peers-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-scoped-peers-cache");
+    let intern = |project_scoped_optional_peers| {
+        let request = ResolveRequest {
+            registry: Some("https://a.test/".to_string()),
+            project_scoped_optional_peers: Some(project_scoped_optional_peers),
+            ..ResolveRequest::default()
+        };
+        intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+            .expect("intern config")
+    };
+
+    let on = intern(true);
+    let off = intern(false);
+
+    assert!(on.project_scoped_optional_peers);
+    assert!(!off.project_scoped_optional_peers);
+    let cache_request = ResolveRequest::default();
+    assert_ne!(
+        resolution_cache_key(on, &cache_request).expect("resolution cache key"),
+        resolution_cache_key(off, &cache_request).expect("resolution cache key"),
+    );
+}

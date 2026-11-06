@@ -30,32 +30,39 @@
 pub(crate) mod adapter;
 
 pub use cache::RenderStats;
+pub use mappings::{Mapping, Unmapping};
+pub(crate) use staged::{StagedEntry, StagedId};
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
 
 #[macro_use]
 mod params;
 mod batch;
+mod blobs;
 mod cache;
 mod commit;
+mod fence;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
+mod mappings;
 mod notes;
 mod packument;
 mod publications;
 mod publish;
+mod reclaims;
 mod render;
 mod schema;
 mod sqlite;
+mod staged;
 mod tags;
 mod transactions;
 mod versions;
 mod view;
 
 use super::{
-    ArtifactMember, BatchDocument, Generation, Publication, PublicationCommit, PublicationRequest,
-    PublishNotes, RecordedOutcome,
+    ArtifactMember, BatchDocument, BlobFence, Generation, Publication, PublicationCommit,
+    PublicationRequest, PublishNotes, RecordedOutcome,
 };
 use crate::{HostedDocumentVersion, transparency_log::LogId};
 use adapter::{Adapter, Connection};
@@ -134,6 +141,10 @@ impl SqlMetadata {
     /// The version of the schema this pnpr creates and reads. A database
     /// that holds another one is refused.
     pub const SCHEMA_VERSION: &'static str = schema::SCHEMA_VERSION;
+
+    /// The statements that create the schema, so a cache of databases can
+    /// tell a layout that changed under one version apart.
+    pub const SCHEMA_TABLES: &'static str = schema::TABLES;
 
     /// Open the `SQLite` database at `path`, creating it and its directory if
     /// needed.
@@ -254,6 +265,25 @@ impl SqlMetadata {
         notes: PublishNotes,
         request: Option<PublicationRequest>,
     ) -> Result<PublicationCommit> {
+        let fence = BlobFence::default();
+        self.commit_fenced_publication(catalog, documents, artifacts, notes, request, fence).await
+    }
+
+    /// [`Self::commit_publication`], mapping every file of `fence` to its
+    /// blob, and refused with [`RegistryError::ArchiveReclaimed`] unless
+    /// each blob's incarnation is live or is the next one, which the commit
+    /// creates (see [`crate::metadata::BlobRow`]). The check is read with the
+    /// commit's other reads, in the same round trip, and the rows are written
+    /// with the commit.
+    pub async fn commit_fenced_publication(
+        self: &Arc<Self>,
+        catalog: &str,
+        documents: Vec<BatchDocument>,
+        artifacts: Vec<ArtifactMember>,
+        notes: PublishNotes,
+        request: Option<PublicationRequest>,
+        fence: BlobFence,
+    ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
         self.write(move |connection| {
             let submission = publish::Submission {
@@ -262,6 +292,7 @@ impl SqlMetadata {
                 artifacts: &artifacts,
                 notes: &notes,
                 request: request.as_ref(),
+                fence: &fence,
             };
             publish::commit_publication(connection, &submission)
         })

@@ -37,7 +37,7 @@ pub(crate) use context::{SharedChain, satisfies_with_prereleases, split_peer_suf
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 pub(crate) use finalize::merge_additional_edges;
 pub(crate) use provider_peers::{
-    CandidatePeerRanges, peers_accept_provided_versions, resolved_name_and_version,
+    CandidatePeer, CandidatePeers, accepts_optional_peer_candidate, resolved_name_and_version,
 };
 pub(crate) use walker::{MissingNames, index_missing_names};
 
@@ -49,6 +49,7 @@ mod provider_peers;
 mod walker;
 
 use crate::{
+    PeerDependentsDedupe,
     dedupe_injected_deps::dedupe_injected_deps,
     dedupe_peer_dependents::{PeerSuffixes, dedupe_peer_dependents},
     dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
@@ -175,11 +176,11 @@ pub struct WorkspacePeerSettings {
     /// back to `link:` when the injected snapshot's children are a subset
     /// of the target project's own direct deps.
     pub dedupe_injected_deps: bool,
-    /// `true` enables the peer-dependent dedupe pass: peer-suffixed
-    /// variants of one package that are a subset of a larger compatible
-    /// variant collapse into it. Maps to the `dedupePeerDependents`
-    /// setting.
-    pub dedupe_peer_dependents: bool,
+    /// The peer-dependent dedupe pass: peer-suffixed variants of one
+    /// package that are a subset of a larger compatible variant collapse
+    /// into it. Maps to `dedupePeerDependents` and
+    /// `projectScopedOptionalPeers`.
+    pub dedupe_peer_dependents: crate::PeerDependentsDedupe,
     /// When true, non-root importers can resolve peers from the workspace
     /// root's direct dependencies. Maps to the
     /// `resolvePeersFromWorkspaceRoot` setting.
@@ -367,15 +368,16 @@ pub fn resolve_peers_workspace(
     let peer_dependency_issues_by_importer =
         walk_importers(&mut walker, &importers, settings.resolve_peers_from_workspace_root);
     walker.patch_pending_peer_edges();
-    let peer_id_recording = if settings.dedupe_peer_dependents {
+    let peer_id_recording = if settings.dedupe_peer_dependents.dedupes() {
         PeerIdRecording::Record
     } else {
         PeerIdRecording::Skip
     };
     let mut finished = finish_workspace_graph(&walker, &importers, lockfile_dir, peer_id_recording);
-    if settings.dedupe_peer_dependents {
-        finished.dedupe_peer_dependents(walker.opts.peers_suffix_max_length);
-    }
+    finished.dedupe_peer_dependents(
+        walker.opts.peers_suffix_max_length,
+        settings.dedupe_peer_dependents,
+    );
     if settings.dedupe_injected_deps {
         dedupe_injected_deps(
             &mut finished.graph,
@@ -448,11 +450,16 @@ struct FinishedWorkspaceGraph {
 }
 
 impl FinishedWorkspaceGraph {
-    fn dedupe_peer_dependents(&mut self, peers_suffix_max_length: usize) {
+    fn dedupe_peer_dependents(
+        &mut self,
+        peers_suffix_max_length: usize,
+        dedupe: PeerDependentsDedupe,
+    ) {
         dedupe_peer_dependents(
             &mut self.graph,
             &mut self.direct_dependencies_by_importer,
             &PeerSuffixes { peer_ids: &self.peer_ids, max_length: peers_suffix_max_length },
+            dedupe,
         );
     }
 }

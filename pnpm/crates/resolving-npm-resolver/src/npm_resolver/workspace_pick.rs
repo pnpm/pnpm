@@ -308,7 +308,7 @@ pub(super) fn resolve_workspace_protocol(
     bare: &str,
     default_tag: &str,
 ) -> Result<Option<ResolveResult>, ResolveError> {
-    if bare.starts_with("workspace:.") {
+    if pnpm_workspace_spec::is_workspace_path_specifier(bare) {
         return Ok(None);
     }
     let registry = pick_registry_for_package(

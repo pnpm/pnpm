@@ -4,8 +4,6 @@ use super::{
     ensure_storage, latest_version, metadata::read_packument, packages_dir, publish_storage,
     remove_tree, remove_version, restore_claimed_storage, set_dist_tag,
 };
-use pnpr_registry::Ecosystem;
-use pnpr_storage::layout::local_blob_path;
 use std::{collections::BTreeSet, fs, path::Path};
 use tempfile::TempDir;
 
@@ -54,9 +52,7 @@ fn ensure_storage_generates_packuments_and_tarballs() {
     assert!(packages_dir().join("@pnpm.e2e/abc/1.0.0/package.json").exists());
     assert!(pnpr_config::default_metadata_path(storage).is_file());
     assert_eq!(read_packument(storage, "@pnpm.e2e/abc")["name"], "@pnpm.e2e/abc");
-    assert!(
-        local_blob_path(storage, "", Ecosystem::Npm, "@pnpm.e2e/abc", "abc-1.0.0.tgz").exists(),
-    );
+    assert!(crate::tarball_path(storage, "@pnpm.e2e/abc", "1.0.0").exists());
     assert!(storage.join(pnpr_storage::layout::LAYOUT_FILE).exists());
 }
 
@@ -74,13 +70,7 @@ fn per_run_substitutions_update_packuments_and_tarballs() {
     let name = "@pnpm.e2e/has-aliased-git-dependency";
     let packument = read_packument(out.path(), name);
     assert_eq!(packument["versions"]["1.0.0"]["dependencies"]["say-hi"], "git+file:///tmp/hi#main");
-    let manifest = tarball_package_manifest(&local_blob_path(
-        out.path(),
-        "",
-        Ecosystem::Npm,
-        name,
-        "has-aliased-git-dependency-1.0.0.tgz",
-    ));
+    let manifest = tarball_package_manifest(&crate::tarball_path(out.path(), name, "1.0.0"));
     assert_eq!(manifest["dependencies"]["say-hi"], "git+file:///tmp/hi#main");
 }
 
@@ -89,12 +79,10 @@ fn per_run_substitutions_update_packuments_and_tarballs() {
 #[test]
 fn case_colliding_files_are_composed_in_memory() {
     let storage = ensure_storage();
-    let entries = tarball_entries(&local_blob_path(
+    let entries = tarball_entries(&crate::tarball_path(
         storage,
-        "",
-        Ecosystem::Npm,
         "@pnpm.e2e/with-same-file-in-different-cases",
-        "with-same-file-in-different-cases-1.0.0.tgz",
+        "1.0.0",
     ));
     assert!(entries.contains("package/Foo.js"), "{entries:?}");
     assert!(entries.contains("package/foo.js"), "{entries:?}");
@@ -106,24 +94,20 @@ fn case_colliding_files_are_composed_in_memory() {
 #[test]
 fn bundle_dependencies_embed_node_modules() {
     let storage = ensure_storage();
-    let bundled = tarball_entries(&local_blob_path(
+    let bundled = tarball_entries(&crate::tarball_path(
         storage,
-        "",
-        Ecosystem::Npm,
         "@pnpm.e2e/pkg-with-bundle-dependencies",
-        "pkg-with-bundle-dependencies-1.0.0.tgz",
+        "1.0.0",
     ));
     assert!(
         bundled.contains("package/node_modules/@pnpm.e2e/hello-world-js-bin/package.json"),
         "{bundled:?}",
     );
 
-    let not_bundled = tarball_entries(&local_blob_path(
+    let not_bundled = tarball_entries(&crate::tarball_path(
         storage,
-        "",
-        Ecosystem::Npm,
         "@pnpm.e2e/pkg-with-bundle-dependencies-false",
-        "pkg-with-bundle-dependencies-false-1.0.0.tgz",
+        "1.0.0",
     ));
     assert!(
         !not_bundled
@@ -138,21 +122,13 @@ fn bundle_dependencies_embed_node_modules() {
 #[test]
 fn root_license_is_injected_except_for_self_contained_workspaces() {
     let storage = ensure_storage();
-    let abc = tarball_entries(&local_blob_path(
-        storage,
-        "",
-        Ecosystem::Npm,
-        "@pnpm.e2e/abc",
-        "abc-1.0.0.tgz",
-    ));
+    let abc = tarball_entries(&crate::tarball_path(storage, "@pnpm.e2e/abc", "1.0.0"));
     assert!(abc.contains("package/LICENSE"), "{abc:?}");
 
-    let bundled = tarball_entries(&local_blob_path(
+    let bundled = tarball_entries(&crate::tarball_path(
         storage,
-        "",
-        Ecosystem::Npm,
         "@pnpm.e2e/pkg-with-bundled-dependencies",
-        "pkg-with-bundled-dependencies-1.0.0.tgz",
+        "1.0.0",
     ));
     assert!(!bundled.contains("package/LICENSE"), "{bundled:?}");
 }
@@ -315,13 +291,8 @@ fn a_removed_field_leaves_the_metadata_but_not_the_tarball() {
 
     let packument = read_packument(out.path(), "@pnpm.e2e/deprecated");
     assert!(packument["versions"]["1.0.0"].get("deprecated").is_none(), "{packument}");
-    let manifest = tarball_package_manifest(&local_blob_path(
-        out.path(),
-        "",
-        Ecosystem::Npm,
-        "@pnpm.e2e/deprecated",
-        "deprecated-1.0.0.tgz",
-    ));
+    let manifest =
+        tarball_package_manifest(&crate::tarball_path(out.path(), "@pnpm.e2e/deprecated", "1.0.0"));
     assert!(manifest.get("deprecated").is_some(), "{manifest}");
 
     deprecate_version(out.path(), "@pnpm.e2e/deprecated", "1.0.0", "Gone.");
@@ -437,4 +408,20 @@ fn mock_config_yaml_enforces_registry_mock_protections() {
         config.routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
+}
+
+#[test]
+fn mock_config_yaml_and_proxy_preset_share_the_npm_upstream_timeout() {
+    use super::{MockConfigPresets, REGISTRY_MOCK_UPSTREAM_TIMEOUT, mock_config_path};
+    use pnpr_config::Config;
+    use std::net::SocketAddr;
+
+    let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
+    let from_yaml = Config::from_yaml(&mock_config_path(), listen, None).unwrap();
+    let preset = Config::proxy(listen, std::env::temp_dir());
+    assert_eq!(
+        from_yaml.routing.upstreams["npmjs"].requests.timeout,
+        REGISTRY_MOCK_UPSTREAM_TIMEOUT,
+    );
+    assert_eq!(preset.routing.upstreams["npmjs"].requests.timeout, REGISTRY_MOCK_UPSTREAM_TIMEOUT);
 }

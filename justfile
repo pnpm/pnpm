@@ -150,6 +150,10 @@ codecov:
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
+# Report the linked size of the install engine as an embedding application links it.
+engine-size *args:
+  cargo run --quiet --bin=engine-size -- {{args}}
+
 # Compare Rust artifact reuse between two disposable worktrees.
 bench-rust-cache *args:
   node pnpm/scripts/bench-rust-cache.mjs {{args}}
@@ -165,8 +169,9 @@ registry-mock +args:
   cargo nextest run --no-run
   cargo run --bin=pnpm-registry-mock -- {{args}}
 
-# Check crate dependencies against the layers in crate-layers.toml, or list
-# the edges the working tree adds or removes: `just crate-layers diff origin/main`.
+# Check crate dependencies against the layers, ratchets, and budgets in
+# crate-layers.toml, or list the edges the working tree adds or removes:
+# `just crate-layers diff origin/main`.
 crate-layers +args:
   cargo run --quiet --bin=crate-layers -- {{args}}
 

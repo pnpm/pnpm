@@ -91,6 +91,10 @@ pub(crate) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<
 /// setting inherited from the environment or the global config would
 /// materialize the runtime inside the environment directory, where
 /// [`managed_runtime_bin`] does not accept it for a shared install.
+/// The lockfile directory, `virtualStoreOnly`, and `symlink` are pinned
+/// too. A `PNPM_CONFIG_*` variable inherited from a parent pnpm would
+/// otherwise move the lockfile out of the environment or leave the
+/// runtime unlinked, and the dispatch would find no executable.
 pub(super) fn hardened_install_config(
     config: Config,
     environment_dir: &Path,
@@ -105,6 +109,9 @@ pub(super) fn hardened_install_config(
     }
     install_config.node_linker = NodeLinker::Isolated;
     install_config.workspace_dir = Some(environment_dir.to_path_buf());
+    install_config.lockfile_dir = Some(environment_dir.to_path_buf());
+    install_config.virtual_store_only = false;
+    install_config.symlink = true;
     install_config.lockfile = true;
     install_config.frozen_lockfile = Some(false);
     install_config.prefer_frozen_lockfile = false;

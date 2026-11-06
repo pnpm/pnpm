@@ -53,6 +53,10 @@ pub(crate) struct NpmrcAuth {
     /// `${VAR}` placeholders that could not be resolved while parsing.
     /// Surfaced as warnings.
     pub warnings: Vec<String>,
+    /// The first `registry` or `@scope:registry` key whose URL held a
+    /// `${VAR}` placeholder this source may not expand. Loading the project
+    /// `.npmrc` fails on it.
+    pub unexpanded_registry: Option<String>,
     /// Raw INI config keys (those for which
     /// [`crate::config_types::is_ini_config_key`] holds), post-`${VAR}`
     /// substitution, captured verbatim for `pnpm config get` / `list`. This

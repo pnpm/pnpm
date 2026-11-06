@@ -52,6 +52,7 @@ export function createReadPackageHook (
   {
     ignoreCompatibilityDb,
     lockfileDir,
+    overridesRootDir,
     overrides,
     convergeDeclaredRanges,
     ignoredOptionalDependencies,
@@ -60,6 +61,8 @@ export function createReadPackageHook (
   }: {
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
+    /** The directory relative local paths in `overrides` resolve from. Defaults to `lockfileDir`. */
+    overridesRootDir?: string
     overrides?: VersionOverrideWithoutRawSelector[]
     convergeDeclaredRanges?: CreateVersionsOverriderOptions['convergeDeclaredRanges']
     ignoredOptionalDependencies?: string[]
@@ -71,7 +74,7 @@ export function createReadPackageHook (
     packageExtensions,
     readPackageHook,
     overrides,
-    lockfileDir,
+    overridesRootDir: overridesRootDir ?? lockfileDir,
     convergeDeclaredRanges,
     ignoredOptionalDependencies,
   })
@@ -101,14 +104,14 @@ function collectBaseHooks (
     packageExtensions,
     readPackageHook,
     overrides,
-    lockfileDir,
+    overridesRootDir,
     convergeDeclaredRanges,
     ignoredOptionalDependencies,
   }: {
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
     overrides?: VersionOverrideWithoutRawSelector[]
-    lockfileDir: string
+    overridesRootDir: string
     convergeDeclaredRanges?: CreateVersionsOverriderOptions['convergeDeclaredRanges']
     ignoredOptionalDependencies?: string[]
   }
@@ -123,7 +126,7 @@ function collectBaseHooks (
     hooks.push(readPackageHook)
   }
   if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir, { convergeDeclaredRanges }))
+    hooks.push(createVersionsOverrider(overrides!, overridesRootDir, { convergeDeclaredRanges }))
   }
   if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
     hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))

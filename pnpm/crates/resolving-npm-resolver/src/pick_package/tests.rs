@@ -36,8 +36,9 @@ use pnpm_resolving_resolver_base::{
 use pnpm_version_policy::create_package_version_policy;
 
 use super::{
-    InMemoryPackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions,
-    metadata_cache_key, persist_meta_to_mirror, pick_package, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache, PackumentSource, PickPackageContext, PickPackageError,
+    PickPackageOptions, metadata_cache_key, persist_meta_to_mirror, pick_package,
+    shared_packument_fetch_locker,
 };
 use crate::{
     mirror::{

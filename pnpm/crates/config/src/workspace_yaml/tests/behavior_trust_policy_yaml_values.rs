@@ -18,7 +18,8 @@ fn trust_policy_yaml_values_round_trip() {
     assert_eq!(settings.trust_policy, Some(TrustPolicy::NoDowngrade));
 
     let yaml = "";
-    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str::<Option<WorkspaceSettings>>(yaml).unwrap().unwrap_or_default();
     assert!(settings.trust_policy.is_none());
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));

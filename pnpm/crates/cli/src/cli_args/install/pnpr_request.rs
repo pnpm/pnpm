@@ -97,6 +97,9 @@ pub(super) fn resolve_projects_options(
             dedupe_peers: Some(state.config.dedupe_peers),
             exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
             add_missing_peer_types: Some(state.config.add_missing_peer_types),
+            project_scoped_optional_peers: Some(
+                state.config.project_scoped_optional_peers_take_effect(),
+            ),
             resolution_mode: state.config.resolution_mode,
         },
         reuse: pnpm_pnpr_client::LockfileReuseOptions {
@@ -122,13 +125,29 @@ pub(super) fn resolve_projects_options(
 )]
 pub(super) struct AddMissingPeerTypesIgnoredByPnpr;
 
+/// `projectScopedOptionalPeers` took effect, but the lockfile the pnpr
+/// server returned was resolved without it, like
+/// [`AddMissingPeerTypesIgnoredByPnpr`].
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The pnpr server resolved the lockfile without the projectScopedOptionalPeers setting.")]
+#[diagnostic(
+    code(ERR_PNPM_PNPR_SERVER_IGNORED_PROJECT_SCOPED_OPTIONAL_PEERS),
+    help("Upgrade the pnpr server, or set projectScopedOptionalPeers to false.")
+)]
+pub(super) struct ProjectScopedOptionalPeersIgnoredByPnpr;
+
 /// Reject a server lockfile resolved without a setting the request sent.
 pub(super) fn check_pnpr_applied_settings(
     config: &pnpm_config::Config,
     returned: Option<&pnpm_lockfile::LockfileSettings>,
-) -> Result<(), AddMissingPeerTypesIgnoredByPnpr> {
+) -> miette::Result<()> {
     if config.add_missing_peer_types && !pnpm_lockfile::recorded_add_missing_peer_types(returned) {
-        return Err(AddMissingPeerTypesIgnoredByPnpr);
+        return Err(AddMissingPeerTypesIgnoredByPnpr.into());
+    }
+    if config.project_scoped_optional_peers_take_effect()
+        && !pnpm_lockfile::recorded_project_scoped_optional_peers(returned)
+    {
+        return Err(ProjectScopedOptionalPeersIgnoredByPnpr.into());
     }
     Ok(())
 }

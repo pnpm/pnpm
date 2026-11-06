@@ -163,6 +163,16 @@ fn package_without_declared_fields_is_not_skipped_without_an_os_token() {
 }
 
 #[test]
+fn package_without_declared_fields_is_not_skipped_by_an_os_token_alone() {
+    let manifest =
+        PackageInstallabilityManifest { name: "get-windows".to_string(), ..Default::default() };
+    let verdict =
+        package_is_installable("get-windows@9.3.0", &manifest, &optional_on_linux_x64(None))
+            .unwrap();
+    assert_eq!(verdict, InstallabilityVerdict::Installable);
+}
+
+#[test]
 fn platform_is_not_inferred_for_a_non_optional_dependency() {
     let manifest = PackageInstallabilityManifest {
         name: "@nx/nx-win32-arm64-msvc".to_string(),

@@ -5,7 +5,6 @@ use super::{
     sha512_integrity, to_bytes,
 };
 use crate::tokens::issue_token;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
 async fn search_paginates_across_hosted_and_upstream_sources() {
@@ -346,14 +345,13 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     );
 
     assert!(
-        local_blob_path(
+        pnpr_fixtures::read_hosted_file(
             tmp.path(),
-            "acme",
-            pnpr_storage::Ecosystem::Npm,
+            ("acme", pnpr_storage::Ecosystem::Npm),
             "@acme/widget",
             "widget-1.0.0.tgz"
         )
-        .exists(),
+        .is_some(),
     );
 
     // The unpublish flow: PUT back a packument without the version, delete
@@ -383,14 +381,13 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .unwrap();
     assert_eq!(delete_tar.status(), StatusCode::CREATED);
     assert!(
-        !local_blob_path(
+        pnpr_fixtures::read_hosted_file(
             tmp.path(),
-            "acme",
-            pnpr_storage::Ecosystem::Npm,
+            ("acme", pnpr_storage::Ecosystem::Npm),
             "@acme/widget",
             "widget-1.0.0.tgz"
         )
-        .exists(),
+        .is_none(),
     );
     let delete_pkg = app
         .clone()
@@ -403,8 +400,13 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .unwrap();
     assert_eq!(delete_pkg.status(), StatusCode::CREATED);
     assert!(
-        !local_package_dir(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@acme/widget")
-            .exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/widget"
+        )
+        .is_none(),
     );
 }
 

@@ -126,6 +126,10 @@ impl<'a> FrozenInputs<'a> {
                 skipped,
                 include_optional: install.included().optional_dependencies,
                 supported_architectures: install.platform.supported_architectures,
+                platform_lockfile: Some(crate::PlatformLockfile {
+                    lockfile: install.lockfiles.verified,
+                    groups: install.groups(),
+                }),
                 known_requires_build,
                 known_bins: None,
             },

@@ -1,6 +1,7 @@
 use super::{
     AsyncWriteExt, AtomicU64, ErrorKind, Ordering, Path, PathBuf, Result, fs, read_dir_if_present,
 };
+use crate::tmp_suffix::{RANDOM_HEX_DIGITS, TMP_MARKER, tmp_suffix};
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
@@ -76,7 +77,7 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
         return Ok(());
     };
     let mut prefix = file_name.to_os_string();
-    prefix.push(".tmp.");
+    prefix.push(TMP_MARKER);
     let Some(mut entries) = read_dir_if_present(parent).await? else {
         return Ok(());
     };
@@ -97,10 +98,45 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Whether `name` is a file name [`unique_tmp_path`] produced.
-pub(crate) fn is_atomic_write_temp_name(name: &str) -> bool {
-    name.match_indices(".tmp.")
-        .any(|(at, marker)| is_atomic_write_temp_suffix(&name.as_bytes()[at + marker.len()..]))
+/// Remove the temporary siblings of `base` (see [`unique_tmp_path`]) last
+/// modified more than `max_age` ago: files a process wrote and never moved
+/// into place because it stopped. Returns how many went.
+pub async fn remove_stale_temps(base: &Path, max_age: std::time::Duration) -> Result<usize> {
+    let (Some(parent), Some(file_name)) = (base.parent(), base.file_name()) else {
+        return Ok(0);
+    };
+    let mut prefix = file_name.to_os_string();
+    prefix.push(TMP_MARKER);
+    let Some(mut entries) = read_dir_if_present(parent).await? else {
+        return Ok(0);
+    };
+    let mut removed = 0;
+    while let Some(entry) = entries.next_entry().await? {
+        let name = entry.file_name();
+        let is_temp = name
+            .as_encoded_bytes()
+            .strip_prefix(prefix.as_encoded_bytes())
+            .is_some_and(is_atomic_write_temp_suffix);
+        let stale = entry
+            .metadata()
+            .await
+            .ok()
+            .and_then(|metadata| metadata.modified().ok())
+            .and_then(|modified| modified.elapsed().ok())
+            .is_some_and(|age| age >= max_age);
+        if is_temp && stale && remove_if_present(&entry.path()).await? {
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
+async fn remove_if_present(path: &Path) -> Result<bool> {
+    match fs::remove_file(path).await {
+        Ok(()) => Ok(true),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(err.into()),
+    }
 }
 
 pub(super) fn is_atomic_write_temp_suffix(suffix: &[u8]) -> bool {
@@ -114,7 +150,7 @@ pub(super) fn is_atomic_write_temp_suffix(suffix: &[u8]) -> bool {
         && pid.iter().all(u8::is_ascii_digit)
         && !counter.is_empty()
         && counter.iter().all(u8::is_ascii_digit)
-        && random.len() == 16
+        && random.len() == RANDOM_HEX_DIGITS
         && random.iter().all(u8::is_ascii_hexdigit)
 }
 
@@ -166,7 +202,7 @@ pub fn unique_tmp_path(base: &Path) -> PathBuf {
         .file_name()
         .map(std::ffi::OsStr::to_os_string)
         .unwrap_or_default();
-    name.push(format!(".tmp.{pid}.{counter}.{random:016x}"));
+    name.push(tmp_suffix(pid, counter, random));
     match base.parent() {
         Some(parent) => parent.join(name),
         None => PathBuf::from(name),

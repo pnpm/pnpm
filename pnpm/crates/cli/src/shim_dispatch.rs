@@ -69,6 +69,7 @@ use settings::{
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
 };
 use trust::is_trusted;
 
@@ -79,6 +80,19 @@ mod trust;
 /// target: a user-facing kill switch that the target's own children, a
 /// sibling `node` shim included, inherit.
 const BYPASS_ENV: &str = "PNPM_SHIM_BYPASS";
+
+/// Environment variable marking the processes a shim dispatch spawns while
+/// it prepares the program it runs, such as the `node --version` probe of
+/// a runtime install. A shim launched with it set runs its global target:
+/// dispatching again would prepare the same program, and a shim that
+/// prepares a runtime by running that runtime's own shim recurses forever.
+/// The program the dispatch finally runs does not inherit it, so the
+/// project's own nested commands dispatch as usual.
+const PREPARING_ENV: &str = "PNPM_SHIM_PREPARING";
+
+/// Whether this process set [`PREPARING_ENV`], rather than inheriting it
+/// from an enclosing dispatch.
+static SET_PREPARING_ENV: AtomicBool = AtomicBool::new(false);
 
 /// What this process was launched as, resolved once in [`crate::main`].
 ///
@@ -126,6 +140,20 @@ impl ShimLaunch {
         !matches!(self, Self::Cli)
     }
 
+    /// Set [`PREPARING_ENV`] for a shim launch that no enclosing dispatch
+    /// has marked.
+    ///
+    /// `single_threaded` is what permits the environment change, and so
+    /// what pins this call to the stretch of `main` before any thread
+    /// starts.
+    pub(crate) fn mark_preparation(&self, single_threaded: &pnpm_ffi_process::SingleThreaded) {
+        if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
+            return;
+        }
+        single_threaded.set_var(PREPARING_ENV, "1");
+        SET_PREPARING_ENV.store(true, Ordering::Relaxed);
+    }
+
     /// Intercept a launch under a shim name, or a legacy shim's `--shim`
     /// invocation of the dispatcher it replaced. `None` means this is pnpm
     /// itself and the regular CLI should proceed; `Some(code)` means the
@@ -166,7 +194,7 @@ fn dispatch_target(
     state_dir: &Path,
 ) -> i32 {
     let ShimInvocation { name, target, .. } = *shim;
-    if bypass_requested() || shims.dispatches_nothing() {
+    if bypass_requested() || inside_preparation() || shims.dispatches_nothing() {
         return run_global_target(shim, args);
     }
     let Some(package) = shim_package(target) else {
@@ -290,6 +318,19 @@ fn runtime_runs_promptless(policy: ShimPolicy, name: &str, version_spec: &str) -
         ShimPolicy::Always => true,
         ShimPolicy::Auto => is_automatic_runtime(name, version_spec),
         ShimPolicy::Off | ShimPolicy::Prompt => false,
+    }
+}
+
+/// Whether an enclosing shim dispatch is still preparing what it runs.
+fn inside_preparation() -> bool {
+    !SET_PREPARING_ENV.load(Ordering::Relaxed) && std::env::var_os(PREPARING_ENV).is_some()
+}
+
+/// Keep [`PREPARING_ENV`] out of the program a dispatch finally runs when
+/// this process set it.
+fn unmark_preparation(command: &mut crate::process::Command) {
+    if SET_PREPARING_ENV.load(Ordering::Relaxed) {
+        command.env_remove(PREPARING_ENV);
     }
 }
 

@@ -194,7 +194,9 @@ pnpm does not expand environment variables in the project `.npmrc` for:
 * credentials: `_authToken`, `_auth`, `_password`, `username`, `tokenHelper`,
   `cert`, `key`
 
-pnpm ignores such a setting and prints a warning. The project `.npmrc` comes
+pnpm ignores such a setting and prints a warning. A `registry` or
+`@scope:registry` URL with a placeholder fails the command instead, because
+ignoring it would resolve packages from another registry. The project `.npmrc` comes
 with the repository, so a malicious repository could otherwise send your CI
 tokens to a registry it controls
 ([GHSA-3qhv-2rgh-x77r](https://github.com/pnpm/pnpm/security/advisories/GHSA-3qhv-2rgh-x77r)).

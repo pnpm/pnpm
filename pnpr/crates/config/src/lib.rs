@@ -12,6 +12,7 @@ pub use backend_config::{
     SqlBackendSettings, TokensConfig,
 };
 pub use byte_size::{ByteSize, parse_byte_size};
+pub use gc::GcConfig;
 pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
@@ -52,6 +53,9 @@ use config_file::{
     UpstreamFile,
 };
 
+mod gc;
+use gc::{GcFile, build_gc_config};
+
 mod hosted;
 mod ip_network;
 mod loading;
@@ -59,6 +63,7 @@ mod logging;
 use logging::build_log_config;
 
 mod metrics;
+mod null_default;
 
 mod package_documents;
 use package_documents::{PackageDocumentsFile, build_package_documents_config};
@@ -166,6 +171,9 @@ pub struct Config {
     pub routing: RoutingConfig,
     /// How the release records of hosted versions are logged.
     pub release_records: ReleaseRecordsConfig,
+    /// How `pnpr gc` reclaims unreferenced archives. Sourced from the YAML
+    /// `gc:` block.
+    pub gc: GcConfig,
 }
 
 impl std::fmt::Debug for Config {
@@ -183,6 +191,7 @@ impl std::fmt::Debug for Config {
             .field("features", &self.features)
             .field("routing", &self.routing)
             .field("release_records", &self.release_records)
+            .field("gc", &self.gc)
             .finish()
     }
 }

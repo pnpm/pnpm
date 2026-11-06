@@ -1,9 +1,9 @@
-use crate::graph::{CrateGraph, Edge};
-use serde::Deserialize;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
+use crate::{
+    graph::{CrateGraph, Edge},
+    problem::{Metric, Problem},
 };
+use serde::Deserialize;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -13,6 +13,10 @@ struct LayersFile {
     exception: Vec<Exception>,
     #[serde(default)]
     module_cycles: BTreeMap<String, usize>,
+    #[serde(default)]
+    direct_dependencies: BTreeMap<String, usize>,
+    #[serde(default)]
+    leaked_dependencies: BTreeMap<String, usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -22,6 +26,7 @@ struct LayerEntry {
     #[expect(dead_code, reason = "documents the layer in the file; the check does not read it")]
     description: String,
     crates: Vec<String>,
+    max_transitive_dependencies: Option<usize>,
 }
 
 /// An upward edge accepted until the refactor that removes it lands.
@@ -41,54 +46,11 @@ pub struct Exception {
 #[derive(Debug)]
 pub struct Layers {
     names: Vec<String>,
+    /// Each layer's `max_transitive_dependencies`, by rank.
+    transitive_budgets: Vec<Option<usize>>,
     rank_by_crate: BTreeMap<String, usize>,
     exceptions: Vec<Exception>,
-    /// The accepted size of each crate's largest module cycle.
-    pub module_cycles: BTreeMap<String, usize>,
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Problem {
-    Unassigned(String),
-    UnknownCrate(String),
-    Upward { edge: Edge, from_layer: String, to_layer: String },
-    StaleException { from: String, to: String },
-    ModuleCycleGrew { crate_name: String, size: usize, baseline: usize },
-    ModuleCycleShrank { crate_name: String, size: usize, baseline: usize },
-}
-
-impl fmt::Display for Problem {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unassigned(name) => {
-                write!(formatter, "{name} is in no layer; add it to crate-layers.toml")
-            }
-            Self::UnknownCrate(name) => {
-                write!(formatter, "crate-layers.toml lists {name}, which is not a workspace crate")
-            }
-            Self::Upward { edge, from_layer, to_layer } => write!(
-                formatter,
-                "{} ({from_layer}) depends on {} ({to_layer}), a higher layer",
-                edge.from, edge.to,
-            ),
-            Self::StaleException { from, to } => {
-                write!(
-                    formatter,
-                    "the exception for {from} -> {to} no longer matches an upward edge; remove it",
-                )
-            }
-            Self::ModuleCycleGrew { crate_name, size, baseline } => write!(
-                formatter,
-                "{crate_name} has a cycle of {size} top-level modules, more than the {baseline} \
-                 in crate-layers.toml; `crate-layers modules --crate {crate_name}` lists it",
-            ),
-            Self::ModuleCycleShrank { crate_name, size, baseline } => write!(
-                formatter,
-                "{crate_name}'s largest module cycle shrank to {size}; lower its \
-                 module_cycles entry in crate-layers.toml from {baseline}",
-            ),
-        }
-    }
+    baselines: BTreeMap<Metric, BTreeMap<String, usize>>,
 }
 
 impl Layers {
@@ -103,22 +65,42 @@ impl Layers {
                 }
             }
         }
+        let transitive_budgets = file.layer
+            .iter()
+            .map(|layer| layer.max_transitive_dependencies)
+            .collect();
         let names = file.layer
             .into_iter()
             .map(|layer| layer.name)
             .collect();
         Ok(Self {
             names,
+            transitive_budgets,
             rank_by_crate,
             exceptions: file.exception,
-            module_cycles: file.module_cycles,
+            baselines: BTreeMap::from([
+                (Metric::ModuleCycle, file.module_cycles),
+                (Metric::DirectDependencies, file.direct_dependencies),
+                (Metric::LeakedDependencies, file.leaked_dependencies),
+            ]),
         })
+    }
+
+    /// The accepted value of each crate in the metric's table.
+    pub fn baseline(&self, metric: Metric) -> &BTreeMap<String, usize> {
+        &self.baselines[&metric]
     }
 
     pub fn layer_of(&self, name: &str) -> Option<&str> {
         self.rank_by_crate
             .get(name)
             .map(|&rank| self.names[rank].as_str())
+    }
+
+    /// The crate's layer and that layer's `max_transitive_dependencies`, when it sets one.
+    pub fn transitive_budget_of(&self, name: &str) -> Option<(&str, usize)> {
+        let rank = *self.rank_by_crate.get(name)?;
+        Some((self.names[rank].as_str(), self.transitive_budgets[rank]?))
     }
 
     /// Whether `edge` points to a higher layer. `None` when either end is unassigned.

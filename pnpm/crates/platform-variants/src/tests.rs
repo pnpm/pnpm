@@ -1,6 +1,6 @@
 use super::{
-    AmbiguousSelection, Floor, Host, HostFloors, Libc, NodeAbi, Platform, Purpose, select,
-    variant_manifests, variant_tag,
+    AmbiguousSelection, Floor, Host, HostFloors, Libc, NodeAbi, Platform, Purpose,
+    canonical_spelling, select, variant_manifests, variant_tag,
 };
 use pretty_assertions::assert_eq;
 
@@ -194,4 +194,21 @@ fn the_rfc_counterexample_ranks_per_host() {
         assert_eq!(select(variants, &linux), Ok(Some(b_index)));
         assert_eq!(select(variants, &darwin), Ok(Some(1 - b_index)));
     }
+}
+
+#[test]
+fn spells_close_tags_canonically() {
+    for (written, canonical) in [
+        ("linux-x64-gnu", "linux-x64"),
+        ("linux-x64-glibc", "linux-x64"),
+        ("win32-x64-msvc", "win32-x64"),
+        ("linux-arm-gnueabihf", "linux-arm"),
+        ("linux-arm-musleabihf", "linux-arm-musl"),
+        ("linux-x64-napi8-musl", "linux-x64-musl-napi8"),
+        ("linux-x64-napi8-manylinux_2_17", "linux-x64-manylinux_2_17-napi8"),
+    ] {
+        assert_eq!(canonical_spelling(written).as_deref(), Some(canonical), "{written}");
+    }
+    assert_eq!(canonical_spelling("linux-x64"), None, "already canonical");
+    assert_eq!(canonical_spelling("linux-x64-glibc217"), None, "nothing close");
 }

@@ -457,7 +457,6 @@ fn deserialize_variations_resolution() {
 #[test]
 fn serialize_variations_resolution() {
     let resolution = LockfileResolution::Variations(VariationsResolution {
-        fallback: None,
         revision: None,
         variants: vec![PlatformAssetResolution {
             resolution: LockfileResolution::Binary(BinaryResolution {

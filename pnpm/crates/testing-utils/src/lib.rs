@@ -25,8 +25,11 @@ pub mod signal_delivery;
 pub mod spawn;
 #[cfg(feature = "libsql")]
 pub mod sqlite_misuse;
+pub mod stall_report;
 #[cfg(unix)]
 pub mod terminal;
 pub mod trusted_tls_server;
 pub mod turborepo_cache;
 pub mod untrusted_tls_server;
+
+mod registry_activity;

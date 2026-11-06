@@ -4,9 +4,9 @@ use super::{
     parse_shebang, parse_shebang_from_bytes, read_head_filled, relative_target,
     search_script_runtime,
     sh::{
-        SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_PATH_FILTER_LINE,
-        SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE, strip_exe_suffix, upper_case_cmd_switch,
-        write_sh_node_path,
+        SH_SHIM_CYGPATH_LINE, SH_SHIM_HARDENED_HELPER_LINE, SH_SHIM_HELPER_DEFAULT_PATH_LINE,
+        SH_SHIM_HELPER_PATH_FILTER_LINE, SH_SHIM_PATH_PRINTF_LINE, SH_SHIM_WSLPATH_LINE,
+        strip_exe_suffix, upper_case_cmd_switch, write_sh_node_path,
     },
 };
 use crate::{
@@ -111,6 +111,13 @@ fn generate_sh_shim_header_carries_the_hardened_helper_line() {
     assert!(
         !is_sh_shim_hardened(&body.replace(SH_SHIM_HELPER_PATH_FILTER_LINE, "")),
         "a shim that resolves helpers with node_modules on PATH must not count as hardened",
+    );
+    assert!(
+        !is_sh_shim_hardened(&body.replace(
+            SH_SHIM_HELPER_DEFAULT_PATH_LINE,
+            r#"  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi"#,
+        )),
+        "a shim that trusts `command -p -v` to find a helper must not count as hardened",
     );
 }
 
@@ -1113,8 +1120,10 @@ fn a_shim_lets_the_targets_signal_death_reach_the_caller() {
 }
 
 /// The default path `command -p` searches can lack the helpers, as inside a Nix
-/// build sandbox. No test host is set up that way, so each `command -p` in the
-/// shim is rewritten to a `command` that searches a directory that does not exist.
+/// build sandbox on Linux, or deny access to them, as inside one on macOS. No
+/// test host is set up that way, so the shim's checks of `/usr/bin` and `/bin`
+/// and each `command -p` are rewritten to search a directory that does not
+/// exist.
 #[cfg(unix)]
 #[test]
 fn shim_execution_skips_node_modules_and_relative_path_entries_when_the_default_path_lacks_the_helpers()
@@ -1123,7 +1132,10 @@ fn shim_execution_skips_node_modules_and_relative_path_entries_when_the_default_
     let bin_dir = plant_shimmed_tool(tmp.path());
     let shim = bin_dir.join("tsc");
     let body = std::fs::read_to_string(&shim).unwrap();
-    write_executable(&shim, &body.replace("command -p ", "PATH=/nonexistent command "));
+    // The bash 3.2 that macOS ships as `sh` answers `command -p -v` from `PATH`,
+    // so that probe cannot detect a sandboxed default path.
+    assert!(!body.contains("command -p -v "), "the shim must not trust `command -p -v`");
+    write_executable(&shim, &hide_default_path_helpers(&body));
     let decoy_dir = plant_hijack_tree_and_decoys(tmp.path());
     let callers_path = std::env::var("PATH").unwrap_or_default();
     let run = |path: String, cwd: &Path| {
@@ -1178,19 +1190,12 @@ fn shim_execution_skips_node_modules_and_relative_path_entries_when_the_default_
     );
 }
 
-/// The bash 3.2 that macOS ships as `sh` answers `command -p -v` from `PATH`,
-/// so a caller's `PATH` without the helpers must still leave them to the
-/// default path. No test host runs that bash, so the shim's `command -p -v` is
-/// rewritten to the `command -v` it amounts to there.
+/// A caller's `PATH` without the helpers leaves them to the default path.
 #[cfg(unix)]
 #[test]
-fn shim_execution_keeps_the_default_path_helpers_when_command_p_v_searches_path() {
+fn shim_execution_keeps_the_default_path_helpers_when_path_lacks_them() {
     let tmp = tempfile::tempdir().unwrap();
     let bin_dir = plant_shimmed_tool(tmp.path());
-    let shim = bin_dir.join("tsc");
-    let body = std::fs::read_to_string(&shim).unwrap();
-    assert!(body.contains("command -p -v "), "precondition: the shim probes the default path");
-    write_executable(&shim, &body.replace("command -p -v ", "command -v "));
     let node_dir = tmp.path().join("node-only");
     std::fs::create_dir_all(&node_dir).unwrap();
     let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
@@ -1435,4 +1440,12 @@ fn the_windows_form_basedir_is_derived_from_the_physical_dir() {
         .find(r#"basedir_win="$basedir""#)
         .expect("the shim must derive a Windows-form basedir");
     assert!(anchor < windows_form, "body was:\n{body}");
+}
+
+/// `body` as it behaves where the default path has none of the helpers.
+#[cfg(unix)]
+fn hide_default_path_helpers(body: &str) -> String {
+    body.replace(r#"[ -x "/usr/bin/"#, r#"[ -x "/nonexistent/"#)
+        .replace(r#"[ -x "/bin/"#, r#"[ -x "/nonexistent/"#)
+        .replace("command -p ", "PATH=/nonexistent command ")
 }

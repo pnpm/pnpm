@@ -25,6 +25,7 @@ use graph_hash::GvsHasher;
 use crate::{
     AllowBuildPolicy,
     install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
+    platform_selection::VariantPlatforms,
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{
@@ -32,8 +33,8 @@ use pnpm_graph_hasher::{
     join_global_virtual_store_path,
 };
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, PlatformSelector,
-    SnapshotEntry, VersionPart,
+    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, SnapshotEntry,
+    VersionPart,
 };
 use std::{
     collections::HashMap,
@@ -284,7 +285,7 @@ impl VirtualStoreLayout {
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
         allow_build_policy: Option<&AllowBuildPolicy>,
         lockfile_dir: Option<&Path>,
-        platform: &PlatformSelector,
+        platform: &VariantPlatforms,
     ) -> Self {
         let Some(snapshots) = snapshots else {
             return VirtualStoreLayout {
@@ -559,7 +560,9 @@ fn injected_targets(
 
 /// Version segment of a snapshot's global-virtual-store path. Derives
 /// the version as `pkgSnapshot.version ?? pkgInfo.version`, then feeds
-/// it into the global-virtual-store path format.
+/// it into the global-virtual-store path format. A registry-qualified
+/// version (`<registryName>:<version>`) contributes only its version;
+/// the registry name reaches the slot hash through the dep path.
 ///
 /// A snapshot resolved from a local directory gets the fixed
 /// [`LOCAL_DIRECTORY_SEGMENT`] instead: the lockfile records no version
@@ -574,7 +577,9 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
     }
     match metadata.and_then(|meta| meta.version.as_deref()) {
         Some(version) => version.to_string(),
-        None => suffix.version().to_string(),
+        None => suffix
+            .registry_version()
+            .map_or_else(|| suffix.version().to_string(), ToString::to_string),
     }
 }
 
@@ -654,14 +659,10 @@ mod tests;
 /// could describe a revision the suffixes did not come from.
 mod gvs_layout_cache;
 
-/// The platform a runtime's `variations` resolution selects an archive for:
-/// the one `supportedArchitectures` names, or the host's. A registry
-/// package's variants follow the host; see
-/// [`variations_platform`](crate::install_package_by_snapshot::variations_platform).
-pub(crate) fn selected_platform(config: &Config) -> PlatformSelector {
-    crate::install_package_by_snapshot::runtime_platform_selector(
-        config.supported_architectures.as_ref(),
-    )
+/// The platforms a `variations` resolution selects an archive for under
+/// `config`'s `supportedArchitectures`.
+pub(crate) fn selected_platform(config: &Config) -> VariantPlatforms {
+    VariantPlatforms::of(config.supported_architectures.as_ref())
 }
 
 /// [`gvs_layout_cache::load`], logging a hit.

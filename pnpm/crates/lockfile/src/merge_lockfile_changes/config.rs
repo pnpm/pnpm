@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 use super::{Winner, take_changed, winner};
 
 /// A merged graph is no resolution's output, so it records no
-/// [`crate::ResolutionSettings`] and the next install re-resolves it.
+/// [`crate::ResolutionSettings`] and no `projectScopedOptionalPeers`, and
+/// the next install that expects them re-resolves it.
 pub(super) fn merge_settings(
     ours: Option<&LockfileSettings>,
     theirs: Option<&LockfileSettings>,
@@ -20,6 +21,7 @@ pub(super) fn merge_settings(
             exclude_links_from_lockfile: ours.exclude_links_from_lockfile
                 || theirs.exclude_links_from_lockfile,
             add_missing_peer_types: ours.add_missing_peer_types.or(theirs.add_missing_peer_types),
+            project_scoped_optional_peers: None,
             inject_workspace_packages: ours.inject_workspace_packages
                 || theirs.inject_workspace_packages,
             peers_suffix_max_length: ours.peers_suffix_max_length
@@ -29,6 +31,7 @@ pub(super) fn merge_settings(
         }),
     };
     merged.map(|settings| LockfileSettings {
+        project_scoped_optional_peers: None,
         resolution: crate::ResolutionSettings::default(),
         ..settings
     })

@@ -285,9 +285,11 @@ supportedArchitectures:
   - win32-x64
 ```
 
-Each entry is `<os>-<cpu>`, optionally followed by a Linux C library, such as `linux-x64-manylinux_2_28`. Linux entries without a C library mean glibc. Rust target triples are accepted too: `x86_64-unknown-linux-gnu` is equivalent to `linux-x64`. `current` includes the platform running the install.
+Each entry is a platform tag, the same tags a package's [`publishConfig.variants`](../package_json.md#publishconfigvariants) entries name: `<os>-<cpu>`, then for Linux `musl` when the platform uses musl, then the floors and ABI the platform has, such as `linux-x64-manylinux_2_28` (glibc 2.28), `darwin-arm64-macos_14_0`, `win32-x64-windows_10_0`, `linux-x64-napi8`, or `linux-x64-node127` (a Node.js ABI). `<os>` and `<cpu>` are Node.js names, so `freebsd-x64` and `linux-loong64` are platforms too. Linux entries without a C library mean glibc.
 
-The list prepares only the named platforms. The mapping form continues to work with its existing meaning. Python uses these targets together with [`python.versions`](../python.md#pythonversions) when locking for multiple environments.
+The spellings pnpm accepted before platform tags still work: `glibc` or `gnu` for the C library, other names of an architecture such as `amd64`, a `musllinux_<major>_<minor>` wheel baseline, and Rust target triples, so `x86_64-unknown-linux-gnu` is equivalent to `linux-x64`. `current` includes the platform running the install. Python resolves for the Linux, macOS, and Windows platforms of the list and reports the others.
+
+A setting that names exactly one platform, without `current`, also decides which [platform variant](../registries.md#servertype) of a package pnpm links: that platform's, not the host's. A list names one by one entry; the mapping form names one when `os` and `cpu` each hold one value, an unset `libc` being the host's C library. The list prepares only the named platforms. The mapping form continues to work with its existing meaning. Python uses these targets together with [`python.versions`](../python.md#pythonversions) when locking for multiple environments.
 
 ### optional
 

@@ -1,18 +1,20 @@
-import os from 'node:os'
 import path from 'node:path'
 
 import type { ProjectSnapshot } from '@pnpm/lockfile.types'
 import { findWorkspaceLinkTarget, type WorkspaceLinkContext } from '@pnpm/resolving.npm-resolver'
+import { resolveWorkspaceRange } from '@pnpm/workspace.range-resolver'
 import semver from 'semver'
 
 export function isWorkspaceRangeSpec (spec: string): boolean {
   return spec.startsWith('workspace:') && !isWorkspacePath(spec.slice(10))
 }
 
+/**
+ * Whether the resolver picks a workspace project at `version` for `range`. A
+ * project without a version matches only the pick-the-highest tokens.
+ */
 export function versionSatisfies (version: string | undefined, range: string): boolean {
-  // This should pass the same options to semver as @pnpm/resolving.npm-resolver
-  return range === '*' || range === '^' || range === '~' ||
-    (version != null && semver.satisfies(version, range, { loose: true }))
+  return resolveWorkspaceRange(range, [version ?? '']) != null
 }
 
 export function getLocalPath (lockfileDep: string): string | null {
@@ -45,14 +47,6 @@ export function isSubdirectory (parentDir: string, childPath: string): boolean {
     !relativePath.startsWith(`..${path.sep}`) &&
     !path.isAbsolute(relativePath)
   )
-}
-
-export function resolveSpecPath (baseDir: string, rawPath: string): string {
-  const clean = rawPath.startsWith('./') ? rawPath.slice(2) : rawPath
-  if (clean.startsWith('~/') || clean.startsWith('~\\')) {
-    return path.resolve(os.homedir(), clean.slice(2))
-  }
-  return path.resolve(baseDir, clean)
 }
 
 export function isWorkspacePath (spec: string): boolean {

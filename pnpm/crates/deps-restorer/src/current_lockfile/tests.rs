@@ -129,6 +129,7 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
             dedupe_peers: Some(marker == "fresh"),
             exclude_links_from_lockfile: marker != "fresh",
             add_missing_peer_types: None,
+            project_scoped_optional_peers: None,
             inject_workspace_packages: marker == "fresh",
             peers_suffix_max_length: Some(if marker == "fresh" { 2000 } else { 1000 }),
             integrity_target: None,

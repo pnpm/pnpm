@@ -1,18 +1,43 @@
 //! The variant archives a publish body attaches.
 
 use super::{
-    Declarations, PreparedAttachment, RegistryError, STORED_FIELD, Value, VariantDeclaration,
+    Declarations, GENERATED_ARCHIVE_FIELD, PreparedAttachment, RegistryError, STORED_FIELD, Value,
+    VariantDeclaration,
 };
 
-/// Remove the server-owned variant field from every version of a publish
-/// body: pnpr derives the stored variants from the archives.
+/// Remove the server-owned variant fields from every version of a publish
+/// body: pnpr derives them from the archives.
 pub(in super::super) fn remove_server_fields(incoming: &mut Value) {
     let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
     };
     for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
         manifest.remove(STORED_FIELD);
+        manifest.remove(GENERATED_ARCHIVE_FIELD);
     }
+}
+
+/// Put back the server-owned variant fields of every version of a rewritten
+/// `incoming` packument from the `hosted` version it retains: a rewrite
+/// carries what clients see, which lacks them, and may not set them.
+pub(in super::super::super) fn restore_server_fields(hosted: &Value, incoming: &mut Value) {
+    let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for (version, manifest) in versions.iter_mut() {
+        let Some(manifest) = manifest.as_object_mut() else { continue };
+        for field in [STORED_FIELD, GENERATED_ARCHIVE_FIELD] {
+            match hosted.pointer(&format!("/versions/{}/{field}", escape_pointer(version))) {
+                Some(kept) => manifest.insert(field.to_string(), kept.clone()),
+                None => manifest.remove(field),
+            };
+        }
+    }
+}
+
+/// A JSON pointer segment for `segment`.
+fn escape_pointer(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
 }
 
 /// The variants each version attaches, by the tags that name their

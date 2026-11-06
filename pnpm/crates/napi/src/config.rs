@@ -102,6 +102,7 @@ pub struct ConfigOverlay {
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
     pub add_missing_peer_types: Option<bool>,
+    pub project_scoped_optional_peers: Option<bool>,
     pub dedupe_direct_deps: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,

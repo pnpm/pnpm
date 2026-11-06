@@ -111,6 +111,7 @@ fn install_options() -> InstallOptions {
         dedupe_peer_dependents: None,
         dedupe_peers: None,
         add_missing_peer_types: None,
+        project_scoped_optional_peers: None,
         dedupe_direct_deps: None,
         dedupe_injected_deps: None,
         resolve_peers_from_workspace_root: None,

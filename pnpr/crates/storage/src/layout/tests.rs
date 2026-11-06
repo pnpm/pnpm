@@ -1,6 +1,5 @@
 use super::{
-    blob_segment, decode_blob_segment, decode_package_segments, decode_segment, encode_segment,
-    namespace_segments, package_segments,
+    archive_object_path, blob_segment, decode_segment, encode_segment, namespace_segments,
 };
 use pnpr_package_name::Ecosystem;
 
@@ -45,51 +44,6 @@ fn the_default_namespace_cannot_be_an_org() {
 }
 
 #[test]
-fn every_package_becomes_segments_that_decode_back() {
-    for (ecosystem, name, segments) in [
-        (Ecosystem::Npm, "left-pad", &["@", "left-pad"][..]),
-        (Ecosystem::Npm, "@pnpm-testing/fresh", &["@pnpm-testing", "fresh"][..]),
-        (Ecosystem::Npm, "@Scope/App", &["@!53cope", "!41pp"][..]),
-        (Ecosystem::Npm, "@/empty-scope", &["@", "!40!2fempty-scope"][..]),
-        (Ecosystem::Npm, "@no-slash", &["@", "!40no-slash"][..]),
-        (Ecosystem::Cargo, "serde_json", &["@", "serde_json"][..]),
-        (Ecosystem::Pypi, "django", &["@", "django"][..]),
-        (Ecosystem::Oci, "ubuntu", &["@", "ubuntu"][..]),
-        (Ecosystem::Oci, "library/alpine", &["@library", "alpine"][..]),
-        (Ecosystem::Oci, "acme/app/tool", &["@acme", "@app", "tool"][..]),
-        (Ecosystem::Oci, "acme/blobs", &["@acme", "blobs"][..]),
-    ] {
-        assert_eq!(package_segments(ecosystem, name), segments, "{ecosystem}:{name}");
-        assert_eq!(
-            decode_package_segments(ecosystem, segments).as_deref(),
-            Some(name),
-            "{ecosystem}:{name}",
-        );
-    }
-}
-
-#[test]
-fn package_segments_the_layout_cannot_produce_do_not_decode() {
-    for (ecosystem, segments) in [
-        (Ecosystem::Npm, &["scope", "pkg"][..]),
-        (Ecosystem::Npm, &["@a!2fb", "c"][..]),
-        (Ecosystem::Npm, &["@", "Upper"][..]),
-        (Ecosystem::Npm, &["@!zz", "pkg"][..]),
-        (Ecosystem::Npm, &["@acme", "@app", "tool"][..]),
-        (Ecosystem::Cargo, &["@scope", "serde"][..]),
-        (Ecosystem::Pypi, &["@scope", "django"][..]),
-        (Ecosystem::Oci, &["@", "library!2falpine"][..]),
-        (Ecosystem::Oci, &["@a!2fb", "c"][..]),
-        (Ecosystem::Oci, &["@", "@app", "tool"][..]),
-        (Ecosystem::Oci, &["acme", "app"][..]),
-        (Ecosystem::Oci, &["@acme", ".."][..]),
-        (Ecosystem::Oci, &["@acme", "."][..]),
-    ] {
-        assert_eq!(decode_package_segments(ecosystem, segments), None, "{ecosystem}:{segments:?}");
-    }
-}
-
-#[test]
 fn a_blob_named_after_its_package_drops_the_name() {
     for (name, file, segment) in [
         ("left-pad", "left-pad-1.0.0.tgz", "1.0.0.tgz"),
@@ -104,14 +58,6 @@ fn a_blob_named_after_its_package_drops_the_name() {
         ("foo", "1.0.0.tgz", "@1.0.0.tgz"),
     ] {
         assert_eq!(blob_segment(name, file), segment, "{file}");
-        assert_eq!(decode_blob_segment(name, segment).as_deref(), Some(file), "{segment}");
-    }
-}
-
-#[test]
-fn blob_segments_the_layout_cannot_produce_do_not_decode() {
-    for segment in ["@foo-1.0.0.tgz", "@sha256-aa", ".tgz", "Upper"] {
-        assert_eq!(decode_blob_segment("foo", segment), None, "{segment:?}");
     }
 }
 
@@ -126,4 +72,10 @@ fn files_of_ecosystems_without_versioned_names_keep_their_names() {
     ] {
         assert_eq!(blob_segment("demo", file), encode_segment(file), "{file}");
     }
+}
+
+#[test]
+fn an_archive_is_stored_under_a_shard_of_its_digest() {
+    assert_eq!(archive_object_path("sha512-ab12.3"), "archives/ab/sha512-ab12.3");
+    assert_eq!(archive_object_path("sha256-0f.1"), "archives/0f/sha256-0f.1");
 }

@@ -89,7 +89,8 @@ pub(super) fn walk_child_specs(
     through_catalogs: bool,
 ) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     let catalogs = catalogs_for_children(ctx, through_catalogs);
-    let declaring_dir = catalogs.and_then(|_| declaring_manifest_dir(ctx, result));
+    let declaring_dir =
+        catalogs.and_then(|_| declaring_manifest_dir(&ctx.importer.lockfile_dir, result));
     let catalogs = catalogs.map(|catalogs| {
         (catalogs, catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref()))
     });
@@ -149,7 +150,7 @@ impl<'s> ChildSeedScope<'s> {
             direct_versions: lock_recoverable(&ctx.workspace.versions.direct_dep_versions)
                 .get(&ctx.importer.id)
                 .map(Arc::clone),
-            declaring_dir: declaring_manifest_dir(ctx, result),
+            declaring_dir: declaring_manifest_dir(&ctx.importer.lockfile_dir, result),
             parent_is_workspace: result.resolved_via == "workspace",
         }
     }
