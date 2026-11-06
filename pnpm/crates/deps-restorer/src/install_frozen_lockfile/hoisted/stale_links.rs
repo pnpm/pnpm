@@ -37,9 +37,12 @@ pub(super) fn unlink_stale_direct_links(
         wanted_lockfile: inputs.graph.lockfile,
         current_lockfile,
         linked: crate::LinkedDirectDeps { included_groups: &ALL_DEPENDENCY_GROUPS, skipped },
-        dedupe_direct_deps: inputs.config.dedupe_direct_deps,
+        // Off until the dedupe compares resolved `link:` targets as the
+        // link pass does (pnpm/tasks#289).
+        dedupe_direct_deps: false,
     }
-    // `report_direct_dependency_changes` reports this linker's removals.
+    // `report_direct_dependency_changes` reports this linker's other
+    // removals; a `link:` removal goes unreported (pnpm/tasks#289).
     .unlink::<SilentReporter>()
     .map_err(HoistedLinkerError::PruneStaleLinks)
 }
