@@ -35,11 +35,9 @@ fn assert_ms_in_vendor_dirs(workspace: &Path) {
     assert!(is_real_dir(workspace, "packages/foo/vendor/ms"));
     assert_eq!(read_pkg_version(workspace, "packages/foo/vendor/ms"), "2.0.0");
     assert!(!workspace.join("node_modules/ms").exists());
-    assert!(!workspace.join("packages/foo/node_modules").exists());
+    assert!(!workspace.join("packages/foo/node_modules/ms").exists());
 }
 
-/// A project's dependency that the hoister cannot move to the root goes
-/// in the project's configured modules directory.
 #[test]
 fn a_project_dependency_kept_in_the_project_goes_in_its_modules_dir() {
     let CommandTempCwd {
@@ -75,8 +73,6 @@ fn a_project_dependency_kept_in_the_project_goes_in_its_modules_dir() {
     drop((root, mock_instance));
 }
 
-/// A package directory pnpm did not place is moved aside from every
-/// importer's modules directory.
 #[test]
 fn an_unplanned_package_in_a_modules_dir_is_quarantined() {
     let CommandTempCwd {
@@ -110,6 +106,53 @@ fn an_unplanned_package_in_a_modules_dir_is_quarantined() {
         assert!(!modules_dir.join("stray").exists());
         assert!(modules_dir.join(".ignored/stray/package.json").exists());
     }
+
+    drop((root, mock_instance));
+}
+
+/// Earlier versions put the project's copy in its `node_modules`, so an
+/// upgraded install finds it only in the recorded locations. A changed
+/// manifest makes the install relink rather than report it up to date.
+#[test]
+fn an_install_removes_a_project_copy_an_earlier_layout_left_in_node_modules() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_conflicting_ms(&workspace);
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let legacy_copy = workspace.join("packages/foo/node_modules/ms");
+    fs::create_dir_all(legacy_copy.parent().unwrap()).expect("mkdir packages/foo/node_modules");
+    fs::rename(workspace.join("packages/foo/vendor/ms"), &legacy_copy).expect("move the copy");
+    let modules_yaml = workspace.join("vendor/.modules.yaml");
+    let manifest = fs::read_to_string(&modules_yaml).expect("read .modules.yaml");
+    assert!(manifest.contains("packages/foo/vendor/ms"), "{manifest}");
+    let legacy_manifest =
+        manifest.replace("packages/foo/vendor/ms", "packages/foo/node_modules/ms");
+    fs::write(&modules_yaml, legacy_manifest).expect("write .modules.yaml");
+
+    let foo_manifest = serde_json::json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "dependencies": { "ms": "~2.0.0" },
+    });
+    fs::write(workspace.join("packages/foo/package.json"), foo_manifest.to_string())
+        .expect("write packages/foo/package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(!legacy_copy.exists());
+    assert_ms_in_vendor_dirs(&workspace);
 
     drop((root, mock_instance));
 }

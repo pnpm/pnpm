@@ -74,7 +74,7 @@ async function unlinkPriorWorkspaceHoists ({ opts, currentLockfile, wantedLockfi
 
 async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph, { hierarchy, prevGraph }: HoistedLayout): Promise<string[]> {
   const { opts } = ctx
-  return linkHoistedModules(opts.storeController, depGraph.graph, prevGraph, hierarchy, {
+  return linkHoistedModules(opts.storeController, depGraph.graph, previousPackageDirs(ctx, prevGraph), hierarchy, {
     allowBuild: depGraph.allowBuild,
     deferDependencyBuilds: opts.deferDependencyBuilds === true,
     depsStateCache: ctx.depsStateCache,
@@ -92,6 +92,21 @@ async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph
     configByUri: opts.configByUri,
     supportedArchitectures: opts.supportedArchitectures,
   })
+}
+
+/**
+ * The package directories the previous install placed: the previous lockfile's
+ * graph, plus every location `.modules.yaml` recorded. The graph is rebuilt
+ * under the current settings, so only the record still names a directory an
+ * older layout put elsewhere. A recorded location that leaves the lockfile
+ * directory is ignored.
+ */
+function previousPackageDirs ({ opts }: HeadlessContext, prevGraph: DependenciesGraph): string[] {
+  const recorded = Object.values(opts.modulesFile?.hoistedLocations ?? {})
+    .flat()
+    .filter((location) => !path.isAbsolute(location) && !location.split(/[/\\]/).includes('..'))
+    .map((location) => path.join(opts.lockfileDir, location))
+  return [...Object.keys(prevGraph), ...recorded]
 }
 
 async function hoistWorkspacePackagesToRoot (ctx: HeadlessContext, depGraph: HeadlessDepGraph): Promise<HoistedDependencies> {

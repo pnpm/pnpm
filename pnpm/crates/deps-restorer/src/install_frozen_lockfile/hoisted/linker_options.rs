@@ -1,6 +1,6 @@
 //! The walker's and the linker's options, read from the install inputs.
 
-use super::{BTreeSet, HoistedLinkerInputs, Lockfile, LockfileToHoistedDepGraphOptions};
+use super::{BTreeSet, HoistedLinkerInputs, Lockfile, LockfileToHoistedDepGraphOptions, PathBuf};
 
 pub(super) fn hoisted_walker_options<'a>(
     inputs: &HoistedLinkerInputs<'a>,
@@ -51,4 +51,24 @@ pub(super) fn hoisted_dir_clone_cache<'a>(
         inputs.materialization.requires_build_by_snapshot,
         inputs.config.force,
     )
+}
+
+/// The package directories the previous install placed: the previous
+/// lockfile's graph, plus every location `.modules.yaml` recorded. The
+/// graph is rebuilt under the current settings, so only the record still
+/// names a directory an older layout put elsewhere.
+pub(super) fn previous_package_dirs(
+    inputs: &HoistedLinkerInputs<'_>,
+    walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
+) -> BTreeSet<PathBuf> {
+    let lockfile_dir = inputs.projects.walker_lockfile_dir;
+    let recorded = inputs.prior.current_hoisted_locations
+        .into_iter()
+        .flat_map(|locations| locations.values().flatten())
+        .map(|location| lockfile_dir.join(location));
+    walked.prev_graph
+        .iter()
+        .flat_map(|graph| graph.keys().cloned())
+        .chain(recorded)
+        .collect()
 }

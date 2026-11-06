@@ -16,7 +16,7 @@ mod workspace_links;
 
 use crate::create_virtual_store::linked_archives;
 use direct_links::link_selected_hoisted_direct_dependencies;
-use linker_options::{hoisted_dir_clone_cache, hoisted_walker_options};
+use linker_options::{hoisted_dir_clone_cache, hoisted_walker_options, previous_package_dirs};
 use replaced_locations::forget_replaced_hoisted_locations;
 use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
 use workspace_links::{link_hoisted_workspace_dependencies, prune_importer_hoisted_bins};
@@ -263,7 +263,7 @@ fn link_hoisted<Reporter: self::Reporter>(
                 inputs.materialization.swap_lock,
             ),
             graph: &walked.graph,
-            prev_graph: walked.prev_graph.as_ref(),
+            previous_dirs: &previous_package_dirs(inputs, walked),
             hierarchy: &walked.hierarchy,
             modules_dirs: &crate::ImporterModulesDirs::from_config(
                 config,

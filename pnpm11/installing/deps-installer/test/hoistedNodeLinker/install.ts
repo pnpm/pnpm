@@ -429,6 +429,106 @@ test('a project dependency that is not hoisted goes in the project modules direc
   }
 })
 
+test('an install removes a project dependency that an earlier layout left in the project node_modules', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  let project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '0.0.0',
+    },
+  }
+  preparePackages([project1Manifest, project2Manifest])
+  const installProjects = () => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    modulesDir: 'vendor',
+    nodeLinker: 'hoisted',
+  }))
+  await installProjects()
+
+  // Earlier versions put the project's copy in its node_modules, so only the
+  // recorded locations still name it.
+  const legacyCopy = 'project-2/node_modules/@pnpm.e2e/hello-world-js-bin'
+  fs.mkdirSync(path.dirname(legacyCopy), { recursive: true })
+  fs.renameSync('project-2/vendor/@pnpm.e2e/hello-world-js-bin', legacyCopy)
+  const modulesYaml = fs.readFileSync('vendor/.modules.yaml', 'utf8')
+  expect(modulesYaml).toContain('project-2/vendor/@pnpm.e2e/hello-world-js-bin')
+  fs.writeFileSync('vendor/.modules.yaml', modulesYaml.replaceAll('project-2/vendor/', 'project-2/node_modules/'))
+
+  project2Manifest = {
+    ...project2Manifest,
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '~0.0.0',
+    },
+  }
+  await installProjects()
+
+  expect(fs.existsSync(legacyCopy)).toBeFalsy()
+  expect(loadJsonFileSync<{ version: string }>('project-2/vendor/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
+})
+
+test('the orphan scan leaves alone a modules directory that is not inside its importer', async () => {
+  const manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  preparePackages([manifest])
+  fs.mkdirSync('stray')
+  fs.writeFileSync('stray/package.json', JSON.stringify({ name: 'stray', version: '1.0.0' }))
+  const installProject = (opts: { force: boolean }) => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+    ],
+    force: opts.force,
+    modulesDir: '.',
+    nodeLinker: 'hoisted',
+  }))
+
+  await installProject({ force: false })
+  await installProject({ force: true })
+
+  expect(fs.existsSync('stray/package.json')).toBeTruthy()
+  expect(fs.existsSync('project-1/package.json')).toBeTruthy()
+})
+
 function readBinEntries (projectDir: string): string[] {
   return fs.readdirSync(path.join(projectDir, 'node_modules/.bin'))
     .filter((entry) => entry.startsWith('hello-world-js-bin'))

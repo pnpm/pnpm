@@ -28,7 +28,7 @@ import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
 
-import { importerModulesDir, type ImporterModulesDirOptions } from './importerModulesDir.js'
+import { importerModulesDir } from './importerModulesDir.js'
 import { reportOptionalFetchFailure } from './reportOptionalFetchFailure.js'
 
 const limitLinking = pLimit(16)
@@ -75,11 +75,11 @@ interface LinkHoistedModulesOptions {
 export async function linkHoistedModules (
   storeController: StoreController,
   graph: DependenciesGraph,
-  prevGraph: DependenciesGraph,
+  previousDirs: string[],
   hierarchy: DepHierarchy,
   opts: LinkHoistedModulesOptions
 ): Promise<string[]> {
-  await removeDirsOutsidePlan(graph, prevGraph, hierarchy, opts)
+  await removeDirsOutsidePlan(graph, previousDirs, hierarchy, opts)
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
@@ -104,7 +104,7 @@ export async function linkHoistedModules (
             prefix: parentDir,
           })
         }
-        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts), {
+        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts.modulesDir), {
           ...opts,
           holdBackMissingTargets: opts.holdBackMissingBins,
           nestedHeldBackBinsDirs: heldBackBinsDirs,
@@ -119,20 +119,17 @@ export async function linkHoistedModules (
 
 async function removeDirsOutsidePlan (
   graph: DependenciesGraph,
-  prevGraph: DependenciesGraph,
+  previousDirs: string[],
   hierarchy: DepHierarchy,
   { lockfileDir, modulesDir }: Pick<LinkHoistedModulesOptions, 'lockfileDir' | 'modulesDir'>
 ): Promise<void> {
   // TODO: remove nested node modules first
-  const dirsToRemove = difference(
-    Object.keys(prevGraph),
-    Object.keys(graph)
-  )
+  const dirsToRemove = difference(previousDirs, Object.keys(graph))
   // A directory the previous install recorded is pnpm's to delete. One that only
   // the on-disk scan found is not: pnpm has no record of putting it there, so it
   // is quarantined instead, the way an alien package directory already is.
   const recordedDirs = new Set(dirsToRemove)
-  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, { lockfileDir, modulesDir }))
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, modulesDir))
     .filter(({ dir }) => !recordedDirs.has(dir))
   statsLogger.debug({
     prefix: lockfileDir,
@@ -442,25 +439,41 @@ async function pickSideEffectsCacheKey (
  * (https://github.com/pnpm/pnpm/issues/13676).
  *
  * Symlinks are skipped: that is how workspace packages and `link:` dependencies
- * are attached, and they are absent from the graph by design.
+ * are attached, and they are absent from the graph by design. A directory that
+ * holds an importer is never reported, and nor is anything in a modules
+ * directory that is not strictly inside its importer: `modulesDir` may point at
+ * the importer itself, a parent, or a directory outside the workspace, and pnpm
+ * does not own the rest of what is there.
  */
-async function findUnplannedDirs (hierarchy: DepHierarchy, opts: ImporterModulesDirOptions): Promise<UnplannedDir[]> {
+async function findUnplannedDirs (hierarchy: DepHierarchy, projectModulesDir: string | undefined): Promise<UnplannedDir[]> {
+  const importerDirs = Object.keys(hierarchy)
+  const holdsImporter = (dir: string) => importerDirs.some((importerDir) => importerDir === dir || isStrictlyInside(importerDir, dir))
   const unplannedDirs = await Promise.all(
     Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
-      const modulesDir = importerModulesDir(projectDir, opts)
-      const pkgNames = await readModulesDir(modulesDir)
-      if (pkgNames == null) return []
-      const plannedDirs = new Set(Object.keys(plannedDeps))
-      const candidates = pkgNames
-        .map((pkgName) => ({ dir: path.join(modulesDir, pkgName), modulesDir, pkgName }))
-        .filter(({ dir }) => !plannedDirs.has(dir))
-      const checked = await Promise.all(
-        candidates.map(async (candidate) => await isPackageDir(candidate.dir) ? candidate : null)
-      )
-      return checked.filter((candidate) => candidate != null)
+      const modulesDir = importerModulesDir(projectDir, projectModulesDir)
+      if (!isStrictlyInside(modulesDir, projectDir)) return []
+      const isUnplanned = (dir: string) => plannedDeps[dir] == null && !holdsImporter(dir)
+      return findUnplannedDirsIn(modulesDir, isUnplanned)
     })
   )
   return unplannedDirs.flat()
+}
+
+async function findUnplannedDirsIn (modulesDir: string, isUnplanned: (dir: string) => boolean): Promise<UnplannedDir[]> {
+  const pkgNames = await readModulesDir(modulesDir)
+  if (pkgNames == null) return []
+  const candidates = pkgNames
+    .map((pkgName) => ({ dir: path.join(modulesDir, pkgName), modulesDir, pkgName }))
+    .filter(({ dir }) => isUnplanned(dir))
+  const checked = await Promise.all(
+    candidates.map(async (candidate) => await isPackageDir(candidate.dir) ? candidate : null)
+  )
+  return checked.filter((candidate) => candidate != null)
+}
+
+function isStrictlyInside (dir: string, parent: string): boolean {
+  const relative = path.relative(parent, dir)
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
 }
 
 /**
