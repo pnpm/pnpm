@@ -99,6 +99,21 @@ test('dlx', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
+test('dlx resolves a relative store dir against the directory it runs in, not its config dir', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('home'),
+    storeDir: 'store',
+    cacheDir: path.resolve('cache'),
+  }, ['shx@0.3.4', 'touch', 'foo'])
+
+  expect(fs.existsSync('foo')).toBeTruthy()
+  expect(fs.existsSync('store/v11/links')).toBeTruthy()
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))).not.toContain('store')
+})
+
 test('dlx install from git', async () => {
   prepareEmpty()
 

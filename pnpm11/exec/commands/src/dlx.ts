@@ -100,10 +100,11 @@ export type DlxCommandOptions = {
 } & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registriesByScope' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Partial<Pick<ConfigContext, 'cliOptions'>> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
-  opts: DlxCommandOptions,
+  inputOpts: DlxCommandOptions,
   [command, ...args]: string[],
   commands?: CommandHandlerMap
 ): Promise<{ exitCode: number, output?: string }> {
+  const opts = withAbsoluteStoreDir(inputOpts)
   if (!command) {
     if (!opts.package?.length) {
       return { exitCode: 1, output: help() }
@@ -133,10 +134,23 @@ export async function handler (
     ? command
     : await getBinName(cachedDir, opts)
   return runDlxBin(binName, args, {
-    cwd: (opts.cliOptions?.dir as string | undefined) ?? process.cwd(),
+    cwd: getDlxWorkingDir(opts),
     env,
     shellMode: opts.shellMode,
   })
+}
+
+/**
+ * dlx installs with its cache directory as the project directory, so a
+ * relative `storeDir` is resolved against the directory dlx runs in first.
+ */
+function withAbsoluteStoreDir (opts: DlxCommandOptions): DlxCommandOptions {
+  if (opts.storeDir == null || path.isAbsolute(opts.storeDir)) return opts
+  return { ...opts, storeDir: path.resolve(getDlxWorkingDir(opts), opts.storeDir) }
+}
+
+function getDlxWorkingDir (opts: DlxCommandOptions): string {
+  return (opts.cliOptions?.dir as string | undefined) ?? process.cwd()
 }
 
 type DlxResolve = ReturnType<typeof createResolver>['resolve']
