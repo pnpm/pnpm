@@ -477,9 +477,15 @@ test('an install removes a project dependency that an earlier layout left in the
   const legacyCopy = 'project-2/node_modules/@pnpm.e2e/hello-world-js-bin'
   fs.mkdirSync(path.dirname(legacyCopy), { recursive: true })
   fs.renameSync('project-2/vendor/@pnpm.e2e/hello-world-js-bin', legacyCopy)
-  const modulesYaml = fs.readFileSync('vendor/.modules.yaml', 'utf8')
-  expect(modulesYaml).toContain('project-2/vendor/@pnpm.e2e/hello-world-js-bin')
-  fs.writeFileSync('vendor/.modules.yaml', modulesYaml.replaceAll('project-2/vendor/', 'project-2/node_modules/'))
+  const modulesFile = loadJsonFileSync<{ hoistedLocations: Record<string, string[]> }>('vendor/.modules.yaml')
+  const recordedCopy = path.join('project-2', 'vendor', '@pnpm.e2e', 'hello-world-js-bin')
+  expect(Object.values(modulesFile.hoistedLocations).flat()).toContain(recordedCopy)
+  for (const locations of Object.values(modulesFile.hoistedLocations)) {
+    locations.forEach((location, index) => {
+      if (location === recordedCopy) locations[index] = path.normalize(legacyCopy)
+    })
+  }
+  fs.writeFileSync('vendor/.modules.yaml', JSON.stringify(modulesFile))
 
   project2Manifest = {
     ...project2Manifest,
