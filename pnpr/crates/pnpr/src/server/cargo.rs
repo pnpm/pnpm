@@ -191,8 +191,12 @@ async fn search_crate(storage: &pnpr_storage::Storage, key: &CanonicalPackageNam
 /// detail instead of a bare status.
 fn error_response(err: RegistryError) -> Response {
     let detail = err.public_message();
-    let status = err.into_response().status();
-    json_response(status, &errors_json(&detail))
+    let original = err.into_response();
+    let mut response = json_response(original.status(), &errors_json(&detail));
+    if let Some(retry_after) = original.headers().get(header::RETRY_AFTER) {
+        response.headers_mut().insert(header::RETRY_AFTER, retry_after.clone());
+    }
+    response
 }
 
 fn bad_request(reason: impl Display) -> Response {
@@ -426,3 +430,6 @@ fn parse_upstream_index(index: &str, name: &str) -> Result<Vec<IndexEntry>, Regi
             reason: err.to_string(),
         })
 }
+
+#[cfg(test)]
+mod tests;
