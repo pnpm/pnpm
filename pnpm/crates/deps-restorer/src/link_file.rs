@@ -83,7 +83,7 @@ pub fn auto_optimistic_wire_method() -> WireImportMethod {
 /// every ext4 and Windows install runs with, guarded by
 /// `verify-store-integrity`, not by the import tier.
 ///
-/// Windows also tries hardlinks first because ReFS block cloning requires
+/// Windows also tries hardlinks first because `ReFS` block cloning requires
 /// more per-file setup. Explicit `Clone` remains available for isolation.
 ///
 /// macOS keeps clone-first: APFS `clonefile` is the platform's cheap
