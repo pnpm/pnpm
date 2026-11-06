@@ -472,8 +472,7 @@ test('an install removes a project dependency that an earlier layout left in the
   }))
   await installProjects()
 
-  // Earlier versions put the project's copy in its node_modules, so only the
-  // recorded locations still name it.
+  // Only the recorded locations name the copy in node_modules.
   const legacyCopy = 'project-2/node_modules/@pnpm.e2e/hello-world-js-bin'
   fs.mkdirSync(path.dirname(legacyCopy), { recursive: true })
   fs.renameSync('project-2/vendor/@pnpm.e2e/hello-world-js-bin', legacyCopy)

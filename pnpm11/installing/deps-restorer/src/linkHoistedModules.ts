@@ -478,7 +478,11 @@ async function findUnplannedDirsIn (modulesDir: string, isUnplanned: (dir: strin
 }
 
 function holdsAnyOf (importerDirs: string[]): (dir: string) => boolean {
-  return (dir) => importerDirs.some((importerDir) => path.resolve(importerDir) === path.resolve(dir) || isStrictlyInside(importerDir, dir))
+  const resolvedImporterDirs = importerDirs.map((importerDir) => path.resolve(importerDir))
+  return (dir) => {
+    const resolvedDir = path.resolve(dir)
+    return resolvedImporterDirs.some((importerDir) => importerDir === resolvedDir || isStrictlyInside(importerDir, resolvedDir))
+  }
 }
 
 /**

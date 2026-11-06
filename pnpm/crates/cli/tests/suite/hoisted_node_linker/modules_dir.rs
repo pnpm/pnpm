@@ -110,8 +110,7 @@ fn an_unplanned_package_in_a_modules_dir_is_quarantined() {
     drop((root, mock_instance));
 }
 
-/// Earlier versions put the project's copy in its `node_modules`, so an
-/// upgraded install finds it only in the recorded locations. A changed
+/// Only the recorded locations name the copy in `node_modules`. A changed
 /// manifest makes the install relink rather than report it up to date.
 #[test]
 fn an_install_removes_a_project_copy_an_earlier_layout_left_in_node_modules() {
