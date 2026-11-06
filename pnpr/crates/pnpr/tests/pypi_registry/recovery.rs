@@ -111,7 +111,7 @@ async fn publishers_yank_and_admins_delete_files() {
         .await
         .unwrap();
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(html.contains("data-yanked=\"Broken release\""));
+    assert!(html.contains(r#"data-yanked="Broken release""#));
     assert_eq!(
         app.clone()
             .oneshot(get(&file, None))

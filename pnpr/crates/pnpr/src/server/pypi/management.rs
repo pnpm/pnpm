@@ -1,11 +1,10 @@
-use super::super::{require_admin, resolve_write_target_for};
 use super::{
+    super::{require_admin, resolve_write_target_for},
     Action, AppState, AuthedCaller, CanonicalPackageName, ECOSYSTEM, HashMap, Identity, Path,
     ProjectDocument, RegistryError, RegistrySource, Response, State, StatusCode, TargetRegistry,
     Yanked, authorize, is_safe_path_segment, not_found, private_no_cache,
 };
-use axum::Json;
-use axum::response::IntoResponse;
+use axum::{Json, response::IntoResponse};
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate};
 use serde::Deserialize;
 

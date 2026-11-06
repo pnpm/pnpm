@@ -172,7 +172,7 @@ fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
             .count();
         if count != 1 {
             return Err(bad_request(format!(
-                "distribution metadata must carry exactly one {field} field"
+                "distribution metadata must carry exactly one {field} field",
             )));
         }
     }
