@@ -123,8 +123,8 @@ pub struct PendingBinLinks {
     pub held_back_bins_dirs: Vec<crate::HeldBackBinsDir>,
     pub hoisted_bin_sources: crate::HoistedBinSources,
     /// Command names linked into each isolated importer's `<modules_dir>/.bin`
-    /// during the link phase, keyed by [`pnpm_fs::lexical_normalize`].
-    pub claimed_importer_bins: HashMap<PathBuf, HashSet<String>>,
+    /// during the link phase.
+    pub claimed_importer_bins: crate::ClaimedCommands,
     /// Privately-hoisted `(alias, snapshot key)` pairs with bins under
     /// `<install_state_dir>/node_modules`.
     pub privately_hoisted_bins: Vec<(String, PackageKey)>,
@@ -205,7 +205,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     let claimed_importer_bins = if has_virtual_store && !inputs.ctx.config.virtual_store_only {
         relink_importer_tree::<Reporter>(&inputs, skipped, &hoist)?
     } else {
-        HashMap::new()
+        crate::ClaimedCommands::default()
     };
     if has_virtual_store {
         link_virtual_store_bins(&inputs, skipped)?;
@@ -228,7 +228,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
     skipped: &SkippedSnapshots,
     hoist: &PlannedHoist,
-) -> Result<HashMap<PathBuf, HashSet<String>>, LinkPhaseError> {
+) -> Result<crate::ClaimedCommands, LinkPhaseError> {
     let config = inputs.ctx.config;
     prune_importer_tree::<Reporter>(inputs, skipped, hoist)?;
 
@@ -306,7 +306,7 @@ fn write_project_links<Reporter: self::Reporter>(
     mut inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
     pre_hoist: Option<HoistPlan>,
-    mut claimed_importer_bins: HashMap<PathBuf, HashSet<String>>,
+    mut claimed_importer_bins: crate::ClaimedCommands,
 ) -> Result<LinkPhaseOutput, LinkPhaseError> {
     let config = inputs.ctx.config;
     let build_scope = crate::build_scope::isolated_build_scope(&inputs);
@@ -353,13 +353,12 @@ fn write_project_links<Reporter: self::Reporter>(
 fn finish_project_bins(
     inputs: &LinkPhaseInputs<'_>,
     bin_deps: &[(String, PathBuf)],
-    claimed_importer_bins: &mut HashMap<PathBuf, HashSet<String>>,
+    claimed_importer_bins: &mut crate::ClaimedCommands,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
     if !bin_deps.is_empty() {
-        let root_modules = pnpm_fs::lexical_normalize(&config.modules_dir);
         let empty = HashSet::new();
-        let excluded = claimed_importer_bins.get(&root_modules).unwrap_or(&empty);
+        let excluded = claimed_importer_bins.get(&config.modules_dir).unwrap_or(&empty);
         let workspace_hoist_bins = link_direct_dep_bins_resolved_excluding(
             &config.modules_dir,
             bin_deps,
@@ -367,9 +366,7 @@ fn finish_project_bins(
             inputs.ctx.linker.bin_options,
         )
         .map_err(LinkPhaseError::LinkBins)?;
-        if let Some(root_claimed) = claimed_importer_bins.get_mut(&root_modules) {
-            root_claimed.extend(workspace_hoist_bins);
-        }
+        claimed_importer_bins.claim_recorded(&config.modules_dir, workspace_hoist_bins);
     }
     Ok(())
 }

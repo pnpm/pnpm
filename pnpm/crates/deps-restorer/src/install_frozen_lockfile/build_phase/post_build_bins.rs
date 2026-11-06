@@ -169,7 +169,7 @@ pub(super) fn finish_importer_top_level_bins(
         .unwrap_or_default();
     let modules_dir_name = inputs.policy.config.modules_dir_name();
     for (importer_id, importer_snapshot) in inputs.graph.importers {
-        if let Some((project_dir, modules_dir, linked)) = super::link_importer_top_level_bins(
+        if let Some((modules_dir, linked)) = super::link_importer_top_level_bins(
             inputs,
             mutated_slots,
             modules_dir_name,
@@ -177,26 +177,21 @@ pub(super) fn finish_importer_top_level_bins(
             importer_snapshot,
             plans,
         )? {
-            extend_claimed_importer_bins(
-                &mut claimed_importer_bins,
-                &project_dir,
-                &modules_dir,
-                modules_dir_name,
-                linked,
-            );
+            claimed_importer_bins.claim_recorded(&modules_dir, linked);
         }
     }
     let selected_dirs = selected_importer_modules_dirs(inputs, modules_dir_name);
-    for (modules_dir, claimed) in &claimed_importer_bins {
-        if selected_dirs
-            .as_ref()
-            .is_none_or(|dirs| dirs.contains(modules_dir))
-        {
-            pnpm_cmd_shim::prune_stale_bins(&modules_dir.join(".bin"), claimed)
-                .map_err(BuildPhaseError::TopLevelBinLink)?;
-        }
-    }
-    Ok(())
+    claimed_importer_bins
+        .prune_stale_bins(
+            claimed_importer_bins
+                .dirs()
+                .filter(|modules_dir| {
+                    selected_dirs
+                        .as_ref()
+                        .is_none_or(|dirs| dirs.contains(*modules_dir))
+                }),
+        )
+        .map_err(BuildPhaseError::TopLevelBinLink)
 }
 
 fn selected_importer_modules_dirs(
@@ -215,23 +210,4 @@ fn selected_importer_modules_dirs(
         }
         dirs
     })
-}
-
-fn extend_claimed_importer_bins(
-    claimed_importer_bins: &mut HashMap<PathBuf, HashSet<String>>,
-    project_dir: &Path,
-    modules_dir: &Path,
-    modules_dir_name: &std::ffi::OsStr,
-    linked: HashSet<String>,
-) {
-    let key = pnpm_fs::lexical_normalize(modules_dir);
-    if let Some(claimed) = claimed_importer_bins.get_mut(&key) {
-        claimed.extend(linked);
-    } else if let Ok(real_project_dir) = std::fs::canonicalize(project_dir)
-        && let Some(claimed) = claimed_importer_bins.get_mut(&pnpm_fs::lexical_normalize(
-            &real_project_dir.join(modules_dir_name),
-        ))
-    {
-        claimed.extend(linked);
-    }
 }

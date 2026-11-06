@@ -1,18 +1,15 @@
 use super::importer_root_dir;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
 };
 
 pub(super) fn merge_claimed_bins(
     group_results: Vec<Vec<(PathBuf, HashSet<String>)>>,
-) -> HashMap<PathBuf, HashSet<String>> {
-    let mut claimed_by_dir = HashMap::new();
+) -> crate::ClaimedCommands {
+    let mut claimed_by_dir = crate::ClaimedCommands::default();
     for (dir, claimed) in group_results.into_iter().flatten() {
-        claimed_by_dir
-            .entry(dir)
-            .or_insert_with(HashSet::new)
-            .extend(claimed);
+        claimed_by_dir.claim(&dir, claimed);
     }
     claimed_by_dir
 }

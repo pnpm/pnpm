@@ -386,10 +386,7 @@ fn link_importer_top_level_bins(
     importer_id: &str,
     importer_snapshot: &pnpm_lockfile::ProjectSnapshot,
     plans: &crate::build_options::HoistedBinPlans,
-) -> Result<
-    Option<(std::path::PathBuf, std::path::PathBuf, std::collections::HashSet<String>)>,
-    BuildPhaseError,
-> {
+) -> Result<Option<(std::path::PathBuf, std::collections::HashSet<String>)>, BuildPhaseError> {
     // Public-hoist promotes transitives into the workspace root's
     // `<root>/node_modules/<alias>`, so only the root importer's `.bin`
     // sees `BinOrigin::Hoisted` candidates.
@@ -436,7 +433,7 @@ fn link_importer_top_level_bins(
         cached.as_ref(),
     )
     .map_err(BuildPhaseError::TopLevelBinLink)?;
-    Ok(Some((project_dir, modules_dir, linked)))
+    Ok(Some((modules_dir, linked)))
 }
 
 /// In hoisted mode, each importer snapshot already carries its retained groups.
