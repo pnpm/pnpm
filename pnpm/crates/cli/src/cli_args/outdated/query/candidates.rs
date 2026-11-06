@@ -103,6 +103,9 @@ fn current_version_from_specifier(
     bare_specifier: &str,
 ) -> miette::Result<Option<Version>> {
     let resolved_specifier = dereference_catalog(catalogs, alias, bare_specifier)?;
+    if resolved_specifier.starts_with("workspace:") {
+        return Ok(None);
+    }
     let (package_name, specifier) =
         PackageManifest::resolve_registry_dependency(alias, &resolved_specifier);
     Ok(min_version_of_spec(package_name, specifier))

@@ -339,6 +339,54 @@ fn recursive_outdated_reports_newer_versions_without_a_shared_lockfile() {
 }
 
 #[test]
+fn recursive_outdated_checks_packages_with_only_excluded_action_selectors() {
+    let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, "{}");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project manifest");
+
+    let output = pacquet(&workspace, ["outdated", "--recursive", "!actions/checkout"])
+        .output()
+        .expect("run recursive outdated with excluded action selector");
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "package checks should still run: {stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_skips_workspace_dependencies_without_a_lockfile() {
+    let (root, workspace, anchor) = setup();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "workspace:^100.0.0 || ^101.0.0" }}"#));
+    let dependency = workspace.join("packages/dep");
+    fs::create_dir_all(&dependency).expect("create workspace dependency");
+    fs::write(
+        dependency.join("package.json"),
+        format!(r#"{{ "name": "{DEP}", "version": "101.0.0" }}"#),
+    )
+    .expect("write workspace dependency manifest");
+
+    let output = pacquet(&workspace, ["outdated"])
+        .output()
+        .expect("run outdated with workspace dependency and no lockfile");
+    assert_eq!(output.status.code(), Some(0), "workspace dependencies are not registry updates");
+
+    drop((root, anchor));
+}
+
+#[test]
 fn outdated_recursive_aggregates_workspace_dependents() {
     let (root, workspace, anchor) = setup();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")

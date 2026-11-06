@@ -270,7 +270,7 @@ impl OutdatedArgs {
             &standalone_dirs,
             true,
         )?;
-        let mut outdated = if self.packages.is_empty() || !package_patterns.is_empty() {
+        let mut outdated = if !self.selects_github_actions_only(&package_patterns) {
             recursive_workspace_outdated(
                 &state,
                 &selection,

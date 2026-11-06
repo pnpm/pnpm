@@ -171,7 +171,7 @@ impl OutdatedArgs {
             OutdatedFilters::validated(&self, config, &package_patterns, [manifest], false)?;
         let lockfile = loaded_lockfile(&state)?;
         let query = filters.query(self.target_version());
-        if (self.packages.is_empty() || !package_patterns.is_empty())
+        if !self.selects_github_actions_only(&package_patterns)
             && requires_ecosystem_lockfile(
                 project_dir(manifest),
                 config,
@@ -252,6 +252,13 @@ impl OutdatedArgs {
             .collect()
     }
 
+    fn selects_github_actions_only(&self, package_patterns: &[String]) -> bool {
+        package_patterns.is_empty()
+            && self.packages
+                .iter()
+                .any(|selector| github_actions::is_selector(selector) && !selector.starts_with('!'))
+    }
+
     fn write_rendered(
         &self,
         outdated: &[OutdatedPackage],
@@ -304,7 +311,7 @@ impl OutdatedArgs {
             || !crate::cli_args::engine_deps::declared_engine_deps(manifest, config, include)
                 .is_empty()
             || !declared_ecosystem_dep_names(project_dir(manifest), config, include)?.is_empty();
-        Ok(has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty()))
+        Ok(has_any_dependency && !self.selects_github_actions_only(package_patterns))
     }
 
     pub(super) async fn outdated_actions<Reporter: self::Reporter>(
