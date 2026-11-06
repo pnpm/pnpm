@@ -21,6 +21,11 @@ async fn npm_authentication_errors_distinguish_missing_and_invalid_tokens() {
                 r#"Bearer error="invalid_token""#,
                 "Invalid authentication token",
             ),
+            (
+                signed(Method::GET, path, "pnpr_workload_not-a-jwt"),
+                r#"Bearer error="invalid_token""#,
+                "Invalid authentication token",
+            ),
         ] {
             let response = app
                 .clone()
@@ -159,4 +164,19 @@ async fn npm_head_errors_have_no_body_and_other_protocols_keep_plain_text() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "text/plain; charset=utf-8");
     assert_eq!(to_bytes(response.into_body(), usize::MAX).await.unwrap().as_ref(), b"Not Found");
+}
+
+#[tokio::test]
+async fn oversized_npm_publish_explains_the_body_limit() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "valid-token", record(false, &[]));
+    let mut request = signed(Method::PUT, "/npm/example-package", "valid-token");
+    *request.body_mut() = Body::from(vec![0; super::super::MAX_PUBLISH_BODY_BYTES + 1]);
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["error"], "Publish request body exceeds the size limit");
+    assert_eq!(body["error"], body["reason"]);
 }

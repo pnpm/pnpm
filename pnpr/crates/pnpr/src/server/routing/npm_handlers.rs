@@ -235,7 +235,12 @@ async fn collect_publish_body(
 ) -> Result<axum::body::Bytes, Response> {
     let _permit = state.inner.locks.publish_concurrency.acquire().await;
     axum::body::to_bytes(body, MAX_PUBLISH_BODY_BYTES).await
-        .map_err(|_| StatusCode::PAYLOAD_TOO_LARGE.into_response())
+        .map_err(|_| {
+            super::npm_errors::json_error(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "Publish request body exceeds the size limit",
+            )
+        })
 }
 
 /// `PUT {base}/{pkg}`.

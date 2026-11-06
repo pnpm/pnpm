@@ -208,7 +208,8 @@ async fn get_couchdb_user_endpoint() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let err = body_json(response.into_body()).await;
-    assert_eq!(err["error"], "not_found");
+    assert_eq!(err["error"], "User not found");
+    assert_eq!(err["error"], err["reason"]);
 }
 
 #[tokio::test]

@@ -143,7 +143,8 @@ async fn request_timeout_returns_504_gateway_timeout() {
     assert_eq!(
         body_json(response.into_body()).await,
         json!({
-            "error": "request timed out"
+            "error": "request timed out",
+            "reason": "request timed out"
         }),
     );
 }

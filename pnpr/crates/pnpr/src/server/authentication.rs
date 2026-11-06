@@ -6,7 +6,7 @@ use std::{
 
 use axum::{
     extract::{ConnectInfo, FromRequestParts, Request, State},
-    http::{HeaderMap, Method, header, request::Parts},
+    http::{HeaderMap, Method, StatusCode, header, request::Parts},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -20,6 +20,13 @@ use super::{
     AppState, PeerAddr, RegistrySource, oidc::WorkloadScope,
     restrictions::check_token_restrictions, single_authorization_header,
 };
+
+#[derive(Clone)]
+pub(super) struct InvalidToken;
+
+/// A password login authenticates independently of the Authorization header.
+#[derive(Clone)]
+pub(super) struct PasswordAuthentication;
 
 /// Whether `headers` carry `Authorization: Bearer <expected>`, for an
 /// endpoint authenticated by a configured secret instead of a user token.
@@ -119,17 +126,17 @@ pub(super) async fn authenticate(
         match bearer_token_identity(&state, &raw, &method, &path, client_ip).await {
             Ok(Some(identity)) => {
                 if let Err(err) = refuse_deprovisioned(&state, &identity) {
-                    return err.into_response();
+                    return token_failure_response(err.into_response(), header.as_deref());
                 }
                 let caller = AuthedCaller(identity);
                 record_user_on_span(&caller.0);
                 request.extensions_mut().insert(caller.clone());
                 let mut response = next.run(request).await;
                 response.extensions_mut().insert(caller);
-                return response;
+                return token_failure_response(response, header.as_deref());
             }
             Ok(None) => {}
-            Err(response) => return response,
+            Err(response) => return token_failure_response(response, header.as_deref()),
         }
     }
 
@@ -139,10 +146,27 @@ pub(super) async fn authenticate(
         Ok(resolved)
     }) {
         Ok(resolved) => attach_caller(&mut request, resolved),
-        Err(err) => return err.into_response(),
+        Err(err) => return token_failure_response(err.into_response(), header.as_deref()),
     };
     let mut response = next.run(request).await;
     response.extensions_mut().insert(caller);
+    token_failure_response(response, header.as_deref())
+}
+
+fn token_failure_response(mut response: Response, header: Option<&str>) -> Response {
+    if response.status() == StatusCode::UNAUTHORIZED
+        && response
+            .extensions()
+            .get::<PasswordAuthentication>()
+            .is_none()
+        && response
+            .extensions()
+            .get::<AuthedCaller>()
+            .is_none_or(|caller| matches!(caller.0, Identity::Anonymous))
+        && header.and_then(token_credentials).is_some()
+    {
+        response.extensions_mut().insert(InvalidToken);
+    }
     response
 }
 

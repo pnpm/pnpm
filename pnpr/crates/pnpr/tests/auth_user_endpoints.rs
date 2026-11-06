@@ -701,7 +701,13 @@ async fn login_rate_limiting_enforces_retry_after_after_repeated_failures() {
             "type": "user",
             "roles": [],
         });
-        put_json("/-/user/org.couchdb.user:alice", body)
+        {
+            let mut request = put_json("/-/user/org.couchdb.user:alice", body);
+            request
+                .headers_mut()
+                .insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer unknown-token"));
+            request
+        }
     };
 
     // First 5 attempts fail with 401 Unauthorized
@@ -712,6 +718,15 @@ async fn login_rate_limiting_enforces_retry_after_after_repeated_failures() {
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(res.headers()[header::WWW_AUTHENTICATE], "Bearer");
+        let payload = body_json(res.into_body()).await;
+        assert!(
+            payload["error"]
+                .as_str()
+                .unwrap()
+                .contains("Authentication required"),
+        );
+        assert_eq!(payload["error"], payload["reason"]);
     }
 
     // 6th attempt is rate-limited: 429 Too Many Requests with Retry-After header
@@ -723,4 +738,5 @@ async fn login_rate_limiting_enforces_retry_after_after_repeated_failures() {
     assert!(res.headers().contains_key("retry-after"));
     let payload = body_json(res.into_body()).await;
     assert_eq!(payload["error"], "too many failed login attempts, please try again later");
+    assert_eq!(payload["error"], payload["reason"]);
 }

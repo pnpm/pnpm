@@ -7,49 +7,44 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use pnpr_error::PublicErrorMessage;
-use pnpr_policy::Identity;
 use serde_json::json;
 
-use super::super::{AuthedCaller, authentication::token_credentials};
+use super::super::authentication::InvalidToken;
 
 pub(in crate::server) async fn render(request: Request, next: Next) -> Response {
     if !is_npm_path(request.uri().path()) {
         return next.run(request).await;
     }
     let is_head = request.method() == Method::HEAD;
-    let supplied_token = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(token_credentials)
-        .is_some();
     let mut response = next.run(request).await;
-    let Some(PublicErrorMessage(mut message)) = response.extensions_mut().remove() else {
+    let invalid_token = response
+        .extensions()
+        .get::<InvalidToken>()
+        .is_some();
+    let message = if invalid_token {
+        "Invalid authentication token".to_string()
+    } else if let Some(PublicErrorMessage(message)) = response.extensions_mut().remove() {
+        message
+    } else {
         return response;
     };
     if response.status() == StatusCode::UNAUTHORIZED {
-        let invalid_token = supplied_token
-            && response
-                .extensions()
-                .get::<AuthedCaller>()
-                .is_some_and(|caller| matches!(caller.0, Identity::Anonymous));
-        let challenge = if invalid_token {
-            message = "Invalid authentication token".to_string();
-            r#"Bearer error="invalid_token""#
-        } else {
-            "Bearer"
-        };
+        let challenge = if invalid_token { r#"Bearer error="invalid_token""# } else { "Bearer" };
         response
             .headers_mut()
             .insert(header::WWW_AUTHENTICATE, HeaderValue::from_static(challenge));
     }
-    let json = Json(json!({ "error": message, "reason": message })).into_response();
+    let json = json_error(response.status(), &message);
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
     response.headers_mut().remove(header::CONTENT_LENGTH);
     *response.body_mut() = if is_head { Body::empty() } else { json.into_body() };
     response
+}
+
+pub(in crate::server) fn json_error(status: StatusCode, message: &str) -> Response {
+    (status, Json(json!({ "error": message, "reason": message }))).into_response()
 }
 
 fn is_npm_path(path: &str) -> bool {
