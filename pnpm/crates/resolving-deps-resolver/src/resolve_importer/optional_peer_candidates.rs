@@ -6,7 +6,6 @@ use super::{
     Resolver, accepts_optional_peer_candidate,
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
     hoist_rounds::hoisted_dependency,
-    manifest_peers,
     missing_peers::{MissingPeerKind, classify_missing_peer},
     resolve_direct_dependency_detached,
 };
@@ -168,7 +167,10 @@ impl ImporterHoistState {
                     .and_then(|manifest| manifest.get("version")?.as_str())
                     .map(str::to_string);
                 if let (Some(manifest), Some(version)) = (&manifest, &version) {
-                    range_peers.peers.insert(format!("{name}@{version}"), manifest_peers(manifest));
+                    range_peers.peers.insert(
+                        format!("{name}@{version}"),
+                        CandidatePeer::from_manifest(manifest),
+                    );
                 }
                 range_peers.versions.insert((name, specifier), version);
             }

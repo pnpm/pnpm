@@ -24,6 +24,20 @@ pub(crate) struct CandidatePeer {
     pub(crate) optional: bool,
 }
 
+impl CandidatePeer {
+    /// The peers `manifest` declares.
+    pub(crate) fn from_manifest(manifest: &serde_json::Value) -> Vec<CandidatePeer> {
+        declared_peer_dependencies(manifest)
+            .into_iter()
+            .map(|(name, peer)| CandidatePeer {
+                name,
+                range: peer.version,
+                optional: peer.optional,
+            })
+            .collect()
+    }
+}
+
 /// Looks up the peers an optional peer candidate declares. A candidate is
 /// found by name and version, since a package resolved from a named
 /// registry has a different id. One seeded only from the wanted lockfile
@@ -109,14 +123,6 @@ fn lockfile_peers(metadata: &pnpm_lockfile::PackageMetadata) -> Vec<CandidatePee
                 .and_then(|meta| meta.get(peer_name))
                 .is_some_and(|meta| meta.optional),
         })
-        .collect()
-}
-
-/// The peers `manifest` declares.
-pub(crate) fn manifest_peers(manifest: &serde_json::Value) -> Vec<CandidatePeer> {
-    declared_peer_dependencies(manifest)
-        .into_iter()
-        .map(|(name, peer)| CandidatePeer { name, range: peer.version, optional: peer.optional })
         .collect()
 }
 
