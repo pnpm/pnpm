@@ -1,3 +1,5 @@
+pub(crate) mod admission;
+
 use super::{
     super::{
         describe_tars, filter_osv_vulnerable_versions, rewrite_tarball_urls,
@@ -19,6 +21,7 @@ const CACHE_BUDGET: usize = 128 * 1024 * 1024;
 
 mod contexts;
 mod workers;
+use admission::Admissions;
 use contexts::TarContexts;
 use workers::Workers;
 
@@ -34,7 +37,7 @@ struct SharedRender {
 pub(crate) struct PackumentProcessing {
     pub(crate) workers: Workers,
     lookups: Workers,
-    admissions: Arc<tokio::sync::Semaphore>,
+    pub(crate) admissions: Admissions,
     cache: Mutex<BoundedCache<CacheKey, Arc<RenderedPackument>>>,
     fingerprints: RandomState,
     contexts: TarContexts,
@@ -47,26 +50,12 @@ impl Default for PackumentProcessing {
         Self {
             workers: Workers::new(workers),
             lookups: Workers::new(workers.min(2)),
-            admissions: Arc::new(tokio::sync::Semaphore::new(workers * 2)),
+            admissions: Admissions::new(workers * 2),
             cache: Mutex::new(BoundedCache::default()),
             fingerprints: RandomState::new(),
             contexts: TarContexts::default(),
             in_flight: RenderFlight::new(),
         }
-    }
-}
-
-impl PackumentProcessing {
-    /// Poll the response only after admission, before it can buffer source documents.
-    pub(crate) async fn serve(
-        &self,
-        response: impl std::future::Future<Output = super::Response>,
-    ) -> super::Response {
-        let _permit = Arc::clone(&self.admissions)
-            .acquire_owned()
-            .await
-            .expect("document admission never closes");
-        response.await
     }
 }
 

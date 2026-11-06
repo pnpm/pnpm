@@ -4,7 +4,8 @@ use super::{
     Action, AppState, CanonicalPackageName, ConcreteKind, DistView, Ecosystem, HeaderMap, Identity,
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
     dist_view, ensure_osv_allowed, extract_upstream_version_manifest, extract_version_manifest,
-    is_osv_vulnerable_packument_version, is_tar_registry, not_found, packument_response,
+    is_osv_vulnerable_packument_version, is_tar_registry, not_found,
+    package_responses::processing::admission::DocumentSource, packument_response,
     read_source_packument, registry_endpoint, resolve_version_or_tag, serve_packument_via_upstream,
     serve_tarball_via_upstream, tar_integrities_of, tarball_response,
 };
@@ -153,19 +154,6 @@ pub(super) fn resolves_to_private_source(
 
 /// Serve a packument addressed to `/~<name>/<pkg>` through the registry graph.
 pub(super) async fn serve_registry_packument(
-    state: &AppState,
-    identity: &Identity,
-    headers: &HeaderMap,
-    registry: &str,
-    raw_name: &str,
-    tarball_base: &str,
-) -> Response {
-    let response =
-        serve_admitted_packument(state, identity, headers, registry, raw_name, tarball_base);
-    state.inner.packuments.serve(response).await
-}
-
-async fn serve_admitted_packument(
     state: &AppState,
     identity: &Identity,
     headers: &HeaderMap,
@@ -344,28 +332,31 @@ pub(super) async fn serve_hosted_packument(
     let max_age = state.inner.config.http.packument_ttl.as_secs();
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
-    let view = state.inner.storage
-        .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
-        .read_hosted_package_view(name)
-        .await;
-    match view {
-        Ok(Some(view)) => match packument_response(
-            name,
-            axum::body::Bytes::from_owner(view.bytes),
-            tarball_base,
-            view_options,
-            state,
-            headers,
-            max_age,
-        )
-        .await
-        {
-            Ok(response) => super::with_generation(response, Some(&view.generation)),
+    let response = async {
+        let view = state.inner.storage
+            .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
+            .read_hosted_package_view(name)
+            .await;
+        match view {
+            Ok(Some(view)) => match packument_response(
+                name,
+                axum::body::Bytes::from_owner(view.bytes),
+                tarball_base,
+                view_options,
+                state,
+                headers,
+                max_age,
+            )
+            .await
+            {
+                Ok(response) => super::with_generation(response, Some(&view.generation)),
+                Err(err) => err.into_response(),
+            },
+            Ok(None) => not_found(),
             Err(err) => err.into_response(),
-        },
-        Ok(None) => not_found(),
-        Err(err) => err.into_response(),
-    }
+        }
+    };
+    state.inner.packuments.admissions.serve(DocumentSource::Stored, response).await
 }
 
 pub(super) async fn serve_hosted_tarball(

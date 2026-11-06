@@ -422,16 +422,17 @@ fn immutable_tar_snapshots_reuse_their_digest() {
 async fn admission_precedes_polling_the_source_loader() {
     use std::{future::Future, task::Poll};
     let processing = PackumentProcessing {
-        admissions: Arc::new(tokio::sync::Semaphore::new(1)),
+        admissions: super::admission::Admissions::new(1),
         ..PackumentProcessing::default()
     };
-    let permit = processing.admissions.acquire().await.unwrap();
+    let permit = processing.admissions.stored.acquire().await.unwrap();
     let loaded = AtomicBool::new(false);
     let source = async {
         loaded.store(true, Ordering::SeqCst);
         std::future::pending::<super::super::Response>().await
     };
-    let mut response = Box::pin(processing.serve(source));
+    let mut response =
+        Box::pin(processing.admissions.serve(super::admission::DocumentSource::Stored, source));
     std::future::poll_fn(|context| {
         let result = response.as_mut().poll(context);
         assert!(result.is_pending());
@@ -448,7 +449,7 @@ async fn admission_precedes_polling_the_source_loader() {
     .await;
     assert!(loaded.load(Ordering::SeqCst));
     drop(response);
-    assert_eq!(processing.admissions.available_permits(), 1);
+    assert_eq!(processing.admissions.stored.available_permits(), 1);
 }
 
 #[tokio::test]
@@ -495,4 +496,103 @@ async fn an_in_flight_error_is_not_shared_with_a_different_source() {
     assert_eq!(document["name"], "example-widget");
     let shared = leader.await.unwrap();
     assert!(shared.result.is_err());
+}
+
+#[tokio::test]
+async fn slow_origins_do_not_hold_stored_or_other_upstream_admission() {
+    let admissions = super::admission::Admissions::new(1);
+    let slow = admissions.upstream("slow-example");
+    let permit = slow.acquire().await.unwrap();
+    let stored = admissions.serve(super::admission::DocumentSource::Stored, async { "stored" });
+    let stored = tokio::time::timeout(std::time::Duration::from_secs(5), stored)
+        .await
+        .unwrap();
+    assert_eq!(stored, "stored");
+    let other =
+        admissions.serve(super::admission::DocumentSource::Upstream("other-example"), async {
+            "other"
+        });
+    let other = tokio::time::timeout(std::time::Duration::from_secs(5), other)
+        .await
+        .unwrap();
+    assert_eq!(other, "other");
+    drop(permit);
+}
+
+#[tokio::test]
+async fn slow_upstream_misses_do_not_block_a_fresh_cached_package() {
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+        routing::get,
+    };
+    use tower::ServiceExt;
+    let (started_tx, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
+    let upstream = Router::new()
+        .route(
+            "/{*name}",
+            get(move || {
+                let started = started_tx.clone();
+                async move {
+                    started.send(()).unwrap();
+                    std::future::pending::<StatusCode>().await
+                }
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let origin = tokio::spawn(async move {
+        axum::serve(listener, upstream).await.unwrap();
+    });
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::proxy("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().url = format!("http://{address}");
+    let (state, app) =
+        crate::server::routing::state_and_router(config, pnpr_auth::AuthState::in_memory(), None)
+            .unwrap();
+    let namespace = crate::server::upstream_cache_namespace(&state, "npmjs");
+    let name =
+        CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm).unwrap();
+    state.inner.storage
+        .write_upstream_document(&namespace, &name, &document())
+        .await
+        .unwrap();
+    let admissions = &state.inner.packuments.admissions;
+    let slots = admissions.upstream(&namespace);
+    let mut requests = Vec::new();
+    for index in 0..admissions.capacity {
+        let app = app.clone();
+        requests.push(tokio::spawn(async move {
+            let request = Request::get(format!("/npm/slow-example-{index}"))
+                .body(Body::empty())
+                .unwrap();
+            app.oneshot(request).await.unwrap()
+        }));
+    }
+    started_rx.recv().await.unwrap();
+    let wait_for_saturation = async {
+        while slots.available_permits() != 0 {
+            tokio::task::yield_now().await;
+        }
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), wait_for_saturation)
+        .await
+        .unwrap();
+    let request = Request::get("/npm/example-widget")
+        .body(Body::empty())
+        .unwrap();
+    let cached = tokio::time::timeout(std::time::Duration::from_secs(5), app.oneshot(request))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(cached.status(), StatusCode::OK);
+    for request in requests {
+        request.abort();
+        let result = request.await;
+        assert!(matches!(result, Err(error) if error.is_cancelled()));
+    }
+    origin.abort();
+    let result = origin.await;
+    assert!(matches!(result, Err(error) if error.is_cancelled()));
 }

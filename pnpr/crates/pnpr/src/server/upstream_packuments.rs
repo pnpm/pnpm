@@ -2,8 +2,8 @@ use super::{
     Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
     HeaderMap, HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response,
     Upstream, authorize, authorized_upstream, default_registry_target, hosted_gate,
-    hosted_read_namespace, not_found, packument_response, resolve_registry_source, timed,
-    upstream_cache_namespace,
+    hosted_read_namespace, not_found, package_responses::processing::admission::DocumentSource,
+    packument_response, resolve_registry_source, timed, upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 use std::sync::Arc;
@@ -46,23 +46,47 @@ pub(super) async fn load_upstream_packument(
     name: &CanonicalPackageName,
     ttl: Duration,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    if upstream.caches()
-        && let Some(bytes) = timed(
-            "packument:cache_read",
-            name.as_str(),
-            state.inner.storage.read_upstream_document(namespace, name, ttl),
-        )
-        .await?
+    if let Some(bytes) =
+        read_cached_upstream_packument(state, namespace, upstream, name, ttl).await?
     {
-        state.inner.metrics.record_cache_hit();
         return Ok(Some(bytes));
     }
-    if upstream.caches() {
+    fetch_coalesced_upstream_packument(state, namespace, upstream, name, ttl).await
+}
+
+async fn read_cached_upstream_packument(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &CanonicalPackageName,
+    ttl: Duration,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    if !upstream.caches() {
+        return Ok(None);
+    }
+    let bytes = timed(
+        "packument:cache_read",
+        name.as_str(),
+        state.inner.storage.read_upstream_document(namespace, name, ttl),
+    )
+    .await?;
+    if bytes.is_some() {
+        state.inner.metrics.record_cache_hit();
+    } else {
         state.inner.metrics.record_cache_miss();
     }
+    Ok(bytes)
+}
 
-    let singleflight_key = (namespace.to_string(), name.clone());
-    Box::pin(state.inner.proxy.packument_singleflight.work(singleflight_key, || {
+async fn fetch_coalesced_upstream_packument(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &CanonicalPackageName,
+    ttl: Duration,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    let key = (namespace.to_string(), name.clone());
+    Box::pin(state.inner.proxy.packument_singleflight.work(key, || {
         Box::pin(async {
             fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await
         })
@@ -284,19 +308,99 @@ pub(super) async fn serve_packument_via_upstream(
     tarball_base: &str,
     view: DistView<'_>,
 ) -> Response {
-    let ttl = match authorized_upstream(state, identity, upstream) {
-        Ok(upstream) => upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl),
+    let client = match authorized_upstream(state, identity, upstream) {
+        Ok(client) => client,
         Err(err) => return err.into_response(),
     };
-    let bytes = match load_upstream_packument_for(state, identity, upstream, name).await {
-        Ok(Some(bytes)) => bytes,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
+    let document = UpstreamDocument {
+        state,
+        upstream: client,
+        namespace: upstream_cache_namespace(state, upstream),
+        name,
+        ttl: client.maxage().unwrap_or(state.inner.config.http.packument_ttl),
+        response: DocumentResponse { headers, tarball_base, view },
     };
-    match packument_response(name, bytes.into(), tarball_base, view, state, headers, ttl.as_secs())
-        .await
-    {
-        Ok(response) => response,
+    match document.cached().await {
+        Ok(Some(response)) => response,
+        Ok(None) => document.fetched().await,
         Err(err) => err.into_response(),
+    }
+}
+
+struct UpstreamDocument<'a> {
+    state: &'a AppState,
+    upstream: &'a Upstream,
+    namespace: String,
+    name: &'a CanonicalPackageName,
+    ttl: Duration,
+    response: DocumentResponse<'a>,
+}
+
+struct DocumentResponse<'a> {
+    headers: &'a HeaderMap,
+    tarball_base: &'a str,
+    view: DistView<'a>,
+}
+
+impl UpstreamDocument<'_> {
+    async fn cached(&self) -> Result<Option<Response>, RegistryError> {
+        if !self.upstream.caches() {
+            return Ok(None);
+        }
+        let response = async {
+            let Some(bytes) = read_cached_upstream_packument(
+                self.state,
+                &self.namespace,
+                self.upstream,
+                self.name,
+                self.ttl,
+            )
+            .await?
+            else {
+                return Ok(None);
+            };
+            self.render(bytes).await.map(Some)
+        };
+        self.state.inner.packuments.admissions.serve(DocumentSource::Stored, response).await
+    }
+
+    async fn fetched(&self) -> Response {
+        let response = async {
+            let bytes = match fetch_coalesced_upstream_packument(
+                self.state,
+                &self.namespace,
+                self.upstream,
+                self.name,
+                self.ttl,
+            )
+            .await
+            {
+                Ok(Some(bytes)) => bytes,
+                Ok(None) => return not_found(),
+                Err(err) => return err.into_response(),
+            };
+            match self.render(bytes).await {
+                Ok(response) => response,
+                Err(err) => err.into_response(),
+            }
+        };
+        self.state.inner.packuments.admissions.serve(
+            DocumentSource::Upstream(&self.namespace),
+            response,
+        )
+        .await
+    }
+
+    async fn render(&self, bytes: Vec<u8>) -> Result<Response, RegistryError> {
+        packument_response(
+            self.name,
+            bytes.into(),
+            self.response.tarball_base,
+            self.response.view,
+            self.state,
+            self.response.headers,
+            self.ttl.as_secs(),
+        )
+        .await
     }
 }
