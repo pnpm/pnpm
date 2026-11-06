@@ -83,7 +83,7 @@ pub(crate) async fn provision<Reporter: self::Reporter + 'static>(
         Channel::Registry { package } => {
             Box::pin(provision_from_registry::<Reporter>(config, pm, package, version_spec)).await
         }
-        Channel::Binary(binary) => provision_binary(config, binary, version_spec).await,
+        Channel::Binary(binary) => Box::pin(provision_binary(config, binary, version_spec)).await,
     }
 }
 
@@ -99,8 +99,12 @@ async fn provision_binary(
         BinaryChannel::Bun => "bun",
         BinaryChannel::Yarn => "yarn",
     };
-    let runtime =
-        materialize_runtime(&config.state_dir, name.to_string(), version_spec.to_string()).await?;
+    let runtime = Box::pin(materialize_runtime(
+        &config.state_dir,
+        name.to_string(),
+        version_spec.to_string(),
+    ))
+    .await?;
     let bin_dir = runtime.bin
         .parent()
         .ok_or_else(|| EngineError::MissingEngineBin {
@@ -145,7 +149,7 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     let packages = pm
         .engine_packages(&resolved.version)
         .ok_or_else(|| miette::miette!("{name}@{} is not a registry engine", resolved.version))?;
-    if let Some(node) = managed_node(config, packages).await? {
+    if let Some(node) = Box::pin(managed_node(config, packages)).await? {
         bin_dirs.extend(node.bin.parent().map(Path::to_path_buf));
         private_installs.extend(node.private_install);
     }
@@ -166,10 +170,14 @@ async fn managed_node(
     if packages.links_native_binary || which::which("node").is_ok() {
         return Ok(None);
     }
-    materialize_runtime(&config.state_dir, "node".to_string(), MANAGED_NODE_SPEC.to_string())
-        .await
-        .wrap_err("install a Node.js runtime to run the package manager with")
-        .map(Some)
+    Box::pin(materialize_runtime(
+        &config.state_dir,
+        "node".to_string(),
+        MANAGED_NODE_SPEC.to_string(),
+    ))
+    .await
+    .wrap_err("install a Node.js runtime to run the package manager with")
+    .map(Some)
 }
 
 #[cfg(test)]
