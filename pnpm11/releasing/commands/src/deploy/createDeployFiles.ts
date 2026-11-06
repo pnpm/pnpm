@@ -5,6 +5,7 @@ import { getAppliedPatchKeys, getLockfilePeerDependencies, groupPatchedDependenc
 import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
+  PackageSnapshot,
   PackageSnapshots,
   ProjectSnapshot,
   ResolvedDependencies,
@@ -176,6 +177,7 @@ function convertWorkspaceImporters (
     }
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, opts.allProjects)
     ctx.targetPackageSnapshots[depPath] = packageSnapshot
+    addLinkedPublishDirSnapshot(ctx.targetPackageSnapshots, { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot })
     if (manifest?.peerDependencies == null) continue
     linkedWorkspaceProjects.set(depPath, {
       manifest,
@@ -188,6 +190,29 @@ function convertWorkspaceImporters (
     })
   }
   return linkedWorkspaceProjects
+}
+
+/**
+ * Adds the package that the other importers link to when the project has a
+ * publish directory that workspace links use. It is the project's package,
+ * installed from the publish directory.
+ */
+function addLinkedPublishDirSnapshot (
+  targetPackageSnapshots: PackageSnapshots,
+  importer: {
+    opts: CreateDeployFilesOptions
+    packageSnapshot: PackageSnapshot
+    projectRootDirRealPath: string
+    projectSnapshot: ProjectSnapshot
+  }
+): void {
+  const { opts, packageSnapshot, projectRootDirRealPath, projectSnapshot } = importer
+  if (projectSnapshot.publishDirectory == null || projectSnapshot.linkDirectory === false) return
+  const publishDir = path.join(projectRootDirRealPath, projectSnapshot.publishDirectory)
+  targetPackageSnapshots[createFileUrlDepPath({ resolvedPath: publishDir }, opts.allProjects)] = {
+    ...packageSnapshot,
+    resolution: { type: 'directory', directory: normalizePath(path.relative(opts.deployDir, publishDir)) },
+  }
 }
 
 /**

@@ -108,6 +108,9 @@ Since v12.16.0, it checks the source workspace lockfile against [`minimumRelease
   its build scripts. pnpm approves it by its dependency path in the
   [`allowBuilds`](../settings/build.md#allowbuilds) setting. An `allowBuilds`
   entry that denies the project still applies.
+* A workspace project with [`publishConfig.directory`](../package_json.md#publishconfigdirectory)
+  is installed from that directory. Its build scripts run only if the
+  directory is inside the project and not inside `node_modules`.
 
 ## Reproducible output
 

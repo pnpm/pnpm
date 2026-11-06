@@ -127,6 +127,9 @@ struct ProjectInfo {
     /// The project's root as discovered. [`ProjectPathKey`] compares paths
     /// lossily, so a check that must name this exact directory compares it.
     root_dir: PathBuf,
+    /// The directory dependents link the project from, when its
+    /// `publishConfig.directory` applies to workspace links.
+    linked_publish_dir: Option<PathBuf>,
     name: Option<String>,
     has_bin: bool,
     peer_dependencies: Vec<PkgName>,
@@ -339,7 +342,11 @@ fn select_project(
                 .get("name")?
                 .as_str()?
                 .to_string();
-            Some(NamedProjectRoot { name, root_dir: project.root_dir.clone() })
+            Some(NamedProjectRoot {
+                name,
+                root_dir: project.root_dir.clone(),
+                linked_publish_dir: linked_publish_dir(project),
+            })
         })
         .collect();
 
@@ -369,6 +376,7 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
             .entry(ProjectPathKey::new(&project.root_dir))
             .or_insert_with(|| ProjectInfo {
                 root_dir: lexical_normalize(&project.root_dir),
+                linked_publish_dir: linked_publish_dir(project),
                 name: project.manifest
                     .value()
                     .get("name")
@@ -393,6 +401,16 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
             });
     }
     projects_by_path
+}
+
+fn linked_publish_dir(project: &Project) -> Option<PathBuf> {
+    let root_dir = lexical_normalize(&project.root_dir);
+    let package_dir =
+        lexical_normalize(&pnpm_resolving_npm_resolver::resolve_workspace_package_dir(
+            &root_dir,
+            project.manifest.value(),
+        ));
+    (package_dir != root_dir).then_some(package_dir)
 }
 
 fn warn<ReporterT: Reporter>(prefix: &Path, message: impl Into<String>) {
