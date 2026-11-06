@@ -19,14 +19,10 @@ fn write_package(dir: &Path) {
         .expect("write package.json");
 }
 
-/// Links an empty plan for the root and `packages/foo`, with the root's
-/// modules directory at `root_modules_dir`.
+/// Links an empty plan for a workspace of the root and a dependency-free
+/// `packages/foo`, with the root's modules directory at `root_modules_dir`.
 fn link_empty_plan(lockfile_dir: &Path, root_modules_dir: &str, previous_dirs: &BTreeSet<PathBuf>) {
-    let project_dir = lockfile_dir.join("packages/foo");
-    let hierarchy = BTreeMap::from([
-        (lockfile_dir.to_path_buf(), DepHierarchy::default()),
-        (project_dir, DepHierarchy::default()),
-    ]);
+    let hierarchy = BTreeMap::from([(lockfile_dir.to_path_buf(), DepHierarchy::default())]);
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
@@ -46,13 +42,14 @@ fn link_empty_plan(lockfile_dir: &Path, root_modules_dir: &str, previous_dirs: &
             lockfile_dir,
             Path::new(root_modules_dir),
             OsStr::new("node_modules"),
-        ),
+        )
+        .with_importers([".", "packages/foo"]),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 }
 
 #[test]
-fn a_modules_dir_holding_a_project_keeps_the_project() {
+fn a_modules_dir_holding_a_project_is_not_scanned() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let lockfile_dir = tmp.path().join("repo");
     write_package(&lockfile_dir.join("packages/foo"));
@@ -61,8 +58,7 @@ fn a_modules_dir_holding_a_project_keeps_the_project() {
     link_empty_plan(&lockfile_dir, "packages", &BTreeSet::new());
 
     assert!(lockfile_dir.join("packages/foo/package.json").exists());
-    assert!(!lockfile_dir.join("packages/stray").exists());
-    assert!(lockfile_dir.join("packages/.ignored/stray/package.json").exists());
+    assert!(lockfile_dir.join("packages/stray/package.json").exists());
 }
 
 #[test]

@@ -83,6 +83,7 @@ async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph
     force: opts.force,
     holdBackMissingBins: !opts.ignoreScripts && opts.enableModulesDir !== false && !opts.ignorePackageManifest,
     ignoreScripts: opts.ignoreScripts,
+    importerDirs: Object.keys(ctx.wantedLockfile.importers).map((importerId) => path.join(opts.lockfileDir, importerId)),
     lockfileDir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
     nodeVersion: ctx.rootRuntimeNodeVersion,

@@ -268,7 +268,8 @@ fn link_hoisted<Reporter: self::Reporter>(
             modules_dirs: &crate::ImporterModulesDirs::from_config(
                 config,
                 inputs.projects.walker_lockfile_dir,
-            ),
+            )
+            .with_importers(lockfile.importers.keys().map(String::as_str)),
             cas_paths_by_pkg_id: cas_index,
             link_options: &link_options,
             dir_clone_cache: dir_clone_cache.as_ref(),

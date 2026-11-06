@@ -14,6 +14,7 @@ pub struct ImporterModulesDirs {
     lockfile_dir: PathBuf,
     root: PathBuf,
     project_relative: OsString,
+    importer_dirs: Vec<PathBuf>,
 }
 
 impl ImporterModulesDirs {
@@ -25,6 +26,7 @@ impl ImporterModulesDirs {
             lockfile_dir: lockfile_dir.to_path_buf(),
             root: lexical_normalize(&lockfile_dir.join(root)),
             project_relative: project_relative.to_os_string(),
+            importer_dirs: Vec::new(),
         }
     }
 
@@ -37,6 +39,29 @@ impl ImporterModulesDirs {
     #[must_use]
     pub fn from_config(config: &Config, lockfile_dir: &Path) -> Self {
         Self::new(lockfile_dir, &config.modules_dir, config.modules_dir_name())
+    }
+
+    /// Records the directories of the lockfile's importers, so
+    /// [`Self::holds_importer`] knows every project, including one the
+    /// hoisting plan has nothing to place in.
+    #[must_use]
+    pub fn with_importers<'a>(mut self, importer_ids: impl IntoIterator<Item = &'a str>) -> Self {
+        self.importer_dirs = importer_ids
+            .into_iter()
+            .map(|importer_id| lexical_normalize(&self.lockfile_dir.join(importer_id)))
+            .collect();
+        self
+    }
+
+    /// Whether `dir` is the lockfile directory, a recorded importer's
+    /// directory, or an ancestor of either.
+    #[must_use]
+    pub fn holds_importer(&self, dir: &Path) -> bool {
+        let dir = lexical_normalize(dir);
+        lexical_normalize(&self.lockfile_dir).starts_with(&dir)
+            || self.importer_dirs
+                .iter()
+                .any(|importer_dir| importer_dir.starts_with(&dir))
     }
 
     /// The modules directory of the importer whose directory is

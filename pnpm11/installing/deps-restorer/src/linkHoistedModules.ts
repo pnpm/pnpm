@@ -56,6 +56,8 @@ interface LinkHoistedModulesOptions {
    */
   holdBackMissingBins: boolean
   ignoreScripts: boolean
+  /** The directories of every project in the lockfile, whether the plan places anything in them or not. */
+  importerDirs: string[]
   lockfileDir: string
   /** The configured `modulesDir`. Each importer keeps its dependencies there. */
   modulesDir?: string
@@ -121,10 +123,10 @@ async function removeDirsOutsidePlan (
   graph: DependenciesGraph,
   previousDirs: string[],
   hierarchy: DepHierarchy,
-  { lockfileDir, modulesDir }: Pick<LinkHoistedModulesOptions, 'lockfileDir' | 'modulesDir'>
+  { importerDirs, lockfileDir, modulesDir }: Pick<LinkHoistedModulesOptions, 'importerDirs' | 'lockfileDir' | 'modulesDir'>
 ): Promise<void> {
   // TODO: remove nested node modules first
-  const holdsImporter = holdsAnyOf(Object.keys(hierarchy))
+  const holdsImporter = holdsAnyOf([lockfileDir, ...importerDirs, ...Object.keys(hierarchy)])
   const dirsToRemove = difference(previousDirs, Object.keys(graph))
     .filter((dir) => !holdsImporter(dir))
   // A directory the previous install recorded is pnpm's to delete. One that only
@@ -441,11 +443,11 @@ async function pickSideEffectsCacheKey (
  * (https://github.com/pnpm/pnpm/issues/13676).
  *
  * Symlinks are skipped: that is how workspace packages and `link:` dependencies
- * are attached, and they are absent from the graph by design. A directory that
- * holds an importer is never reported, and nor is anything in a modules
- * directory that is not strictly inside its importer: `modulesDir` may point at
- * the importer itself, a parent, or a directory outside the workspace, and pnpm
- * does not own the rest of what is there.
+ * are attached, and they are absent from the graph by design. A modules
+ * directory is scanned only when it is strictly inside its importer and holds
+ * no importer: `modulesDir` may point at the importer itself, a parent, a
+ * directory of projects, or a directory outside the workspace, and pnpm does
+ * not own the rest of what is there.
  */
 async function findUnplannedDirs (
   hierarchy: DepHierarchy,
@@ -455,8 +457,8 @@ async function findUnplannedDirs (
   const unplannedDirs = await Promise.all(
     Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
       const modulesDir = importerModulesDir(projectDir, opts)
-      if (!isStrictlyInside(modulesDir, projectDir)) return []
-      const isUnplanned = (dir: string) => plannedDeps[dir] == null && !holdsImporter(dir)
+      if (!isStrictlyInside(modulesDir, projectDir) || holdsImporter(modulesDir)) return []
+      const isUnplanned = (dir: string) => plannedDeps[dir] == null
       return findUnplannedDirsIn(modulesDir, isUnplanned)
     })
   )

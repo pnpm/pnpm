@@ -585,6 +585,58 @@ test('the orphan scan leaves alone a modules directory that is not inside its im
   expect(fs.existsSync('project-1/package.json')).toBeTruthy()
 })
 
+test('the orphan scan leaves alone a modules directory that holds a project', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+  }
+  preparePackages([
+    project1Manifest,
+    { location: 'packages/foo', package: project2Manifest },
+  ])
+  fs.mkdirSync('packages/stray')
+  fs.writeFileSync('packages/stray/package.json', JSON.stringify({ name: 'stray', version: '1.0.0' }))
+  const installProjects = (opts: { force: boolean }) => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('packages/foo') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('packages/foo') as ProjectRootDir,
+      },
+    ],
+    force: opts.force,
+    modulesDir: 'packages',
+    nodeLinker: 'hoisted',
+  }))
+
+  await installProjects({ force: false })
+  await installProjects({ force: true })
+
+  expect(fs.existsSync('packages/foo/package.json')).toBeTruthy()
+  expect(fs.existsSync('packages/stray/package.json')).toBeTruthy()
+})
+
 function readBinEntries (projectDir: string): string[] {
   return fs.readdirSync(path.join(projectDir, 'node_modules/.bin'))
     .filter((entry) => entry.startsWith('hello-world-js-bin'))

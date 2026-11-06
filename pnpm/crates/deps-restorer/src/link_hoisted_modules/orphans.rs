@@ -62,11 +62,10 @@ pub(super) fn remove_orphans(
 /// The package directories in the importers' modules directories that
 /// neither the plan nor the previous install placed.
 ///
-/// A directory that holds an importer is never one of them, and nor is
-/// anything in a modules directory that is not strictly inside its
-/// importer: `modulesDir` may point at the importer itself, a parent, or
-/// a directory outside the workspace, and pnpm does not own the rest of
-/// what is there.
+/// A modules directory is scanned only when it is strictly inside its
+/// importer and holds no importer: `modulesDir` may point at the importer
+/// itself, a parent, a directory of projects, or a directory outside the
+/// workspace, and pnpm does not own the rest of what is there.
 fn unplanned_dirs(
     opts: &LinkHoistedModulesOpts<'_>,
     recorded_dirs: &BTreeSet<&PathBuf>,
@@ -74,12 +73,11 @@ fn unplanned_dirs(
     let mut unplanned_dirs = BTreeSet::new();
     for (importer_dir, planned_deps) in opts.hierarchy {
         let modules_dir = opts.modules_dirs.of(importer_dir);
-        if !is_strictly_inside(&modules_dir, importer_dir) {
+        if !is_strictly_inside(&modules_dir, importer_dir) || holds_importer(opts, &modules_dir) {
             continue;
         }
         for unplanned in find_unplanned_dirs(&modules_dir, planned_deps)? {
             if !recorded_dirs.contains(&unplanned.dir)
-                && !holds_importer(opts, &unplanned.dir)
                 && confined(&unplanned.dir, opts.modules_dirs.lockfile_dir())
             {
                 unplanned_dirs.insert(unplanned);
@@ -90,9 +88,10 @@ fn unplanned_dirs(
 }
 
 fn holds_importer(opts: &LinkHoistedModulesOpts<'_>, dir: &Path) -> bool {
-    opts.hierarchy
-        .keys()
-        .any(|importer_dir| importer_dir.starts_with(dir))
+    opts.modules_dirs.holds_importer(dir)
+        || opts.hierarchy
+            .keys()
+            .any(|importer_dir| importer_dir.starts_with(dir))
 }
 
 fn is_strictly_inside(dir: &Path, parent: &Path) -> bool {
