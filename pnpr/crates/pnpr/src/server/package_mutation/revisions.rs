@@ -1,11 +1,13 @@
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 /// The stored document's content identity, before response projections and overlays.
 pub(in super::super) fn revision(document: &Value) -> String {
-    let bytes = serde_json::to_vec(document).expect("JSON values serialize");
-    super::super::ecosystem::sha256_hex(&bytes)
+    let mut hasher = Sha256::new();
+    serde_json::to_writer(&mut hasher, document).expect("JSON values serialize into a digest");
+    format!("{:x}", hasher.finalize())
 }
 
 pub(in super::super) fn check(
