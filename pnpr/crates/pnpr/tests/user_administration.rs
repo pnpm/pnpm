@@ -449,3 +449,73 @@ async fn deleted_names_cannot_be_reclaimed_with_open_registration() {
     assert_eq!(users, json!({ "users": [{ "name": "root" }] }));
     assert!(login(&app, "new-member", "password").await.is_ok());
 }
+
+#[tokio::test]
+async fn deleting_a_token_only_identity_reserves_its_name() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret").await.unwrap();
+    auth.tokens.issue("oidc-member").await.unwrap();
+    let users = Arc::clone(&auth.users);
+    let app = router_with_auth(load_config(&dir), auth);
+    let root = login(&app, "root", "secret").await.unwrap();
+    assert!(
+        users
+            .password_hash("oidc-member")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/oidc-member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT,
+    );
+    assert!(users.is_retired("oidc-member").await.unwrap());
+    assert_eq!(login(&app, "oidc-member", "new-password").await, Err(StatusCode::FORBIDDEN));
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/unknown-member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NOT_FOUND,
+    );
+    assert!(!users.is_retired("unknown-member").await.unwrap());
+    assert!(login(&app, "unknown-member", "password").await.is_ok());
+}
+
+#[tokio::test]
+async fn deleting_a_configured_oidc_identity_without_tokens_reserves_its_name() {
+    let dir = TempDir::new().unwrap();
+    let mut config = load_config(&dir);
+    config.http.public_url = "https://example.test".to_string();
+    config.identity.auth.oidc = serde_json::from_value(json!([{
+        "name": "company", "issuer": "https://issuer.example.test", "audience": "pnpr",
+        "login": { "users": [{ "subject": "subject-1", "username": "oidc-member" }] },
+    }]))
+    .unwrap();
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret").await.unwrap();
+    let users = Arc::clone(&auth.users);
+    let app = router_with_auth(config, auth);
+    let root = login(&app, "root", "secret").await.unwrap();
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/oidc-member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT,
+    );
+    assert!(users.is_retired("oidc-member").await.unwrap());
+    assert_eq!(
+        send(
+            &app,
+            "PUT",
+            "/-/pnpr/v0/admin/users/oidc-member",
+            Some(&root),
+            Some(json!({"password":"new-password"}))
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN,
+    );
+}

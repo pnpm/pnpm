@@ -107,6 +107,23 @@ pub(super) fn serialize_htpasswd(users: &HashMap<String, String>) -> String {
     out
 }
 
+/// Hold the shared edit lock before reading, merging, and writing an htpasswd file.
+pub fn lock_htpasswd(path: &Path) -> Result<std::fs::File> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    let lock_file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path.with_extension("htpasswd.lock"))?;
+    lock_file.lock()?;
+    Ok(lock_file)
+}
+
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     use std::io::Write as _;
 

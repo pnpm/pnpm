@@ -199,19 +199,11 @@ impl AuthSqlBackend for PostgresDatabase {
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        self.remove_user_record(
-            username,
-            "DELETE FROM users WHERE username = $1 AND bcrypt_hash <> '!'",
-        )
-        .await
+        self.remove_user_record(username, crate::UserRemovalMode::Delete).await
     }
 
     async fn retire_user(&self, username: &str) -> Result<UserRemoval> {
-        self.remove_user_record(
-            username,
-            "UPDATE users SET bcrypt_hash = '!' WHERE username = $1 AND bcrypt_hash <> '!'",
-        )
-        .await
+        self.remove_user_record(username, crate::UserRemovalMode::Retire).await
     }
 
     async fn check_readiness(&self) -> Result<()> {
@@ -221,8 +213,26 @@ impl AuthSqlBackend for PostgresDatabase {
 }
 
 impl PostgresDatabase {
-    async fn remove_user_record(&self, username: &str, statement: &str) -> Result<UserRemoval> {
+    async fn remove_user_record(
+        &self,
+        username: &str,
+        mode: crate::UserRemovalMode,
+    ) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
+        if matches!(mode, crate::UserRemovalMode::Retire) {
+            crate::validation::validate_username(username)?;
+            let reservation = "INSERT INTO users (username, bcrypt_hash) VALUES ($1, '!')
+                               ON CONFLICT (username) DO UPDATE SET username = EXCLUDED.username";
+            sqlx::query(reservation).bind(username).execute(&mut *tx).await?;
+        }
+        let statement = match mode {
+            crate::UserRemovalMode::Delete => {
+                "DELETE FROM users WHERE username = $1 AND bcrypt_hash <> '!'"
+            }
+            crate::UserRemovalMode::Retire => {
+                "UPDATE users SET bcrypt_hash = '!' WHERE username = $1 AND bcrypt_hash <> '!'"
+            }
+        };
         let removed = sqlx::query(statement)
             .bind(username)
             .execute(&mut *tx)

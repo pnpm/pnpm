@@ -137,13 +137,17 @@ impl UserBackend for UserStore {
     }
 
     async fn retire_user(&self, username: &str) -> Result<UserRemoval> {
+        validate_username(username)?;
         let name = username.to_string();
-        self.update(move |users| match users.get_mut(&name) {
-            Some(hash) if hash.as_str() != crate::DELETED_USER_HASH => {
-                *hash = crate::DELETED_USER_HASH.to_string();
-                Ok(Change::Write(UserRemoval::Removed))
+        self.update(move |users| {
+            let previous = users.insert(name, crate::DELETED_USER_HASH.to_string());
+            match previous {
+                Some(hash) if hash == crate::DELETED_USER_HASH => {
+                    Ok(Change::Keep(UserRemoval::NoSuchUser))
+                }
+                Some(_) => Ok(Change::Write(UserRemoval::Removed)),
+                None => Ok(Change::Write(UserRemoval::NoSuchUser)),
             }
-            _ => Ok(Change::Keep(UserRemoval::NoSuchUser)),
         })
         .await
     }

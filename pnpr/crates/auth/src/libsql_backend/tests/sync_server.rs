@@ -1,7 +1,7 @@
 //! An embedded replica of the auth database against a local primary that
 //! serves libsql's newer sync protocol, as Turso Cloud does.
 
-use super::{Builder, LibsqlAuth, MaxUsers, TokenBackend, UpsertOutcome, UserBackend};
+use super::{Builder, LibsqlAuth, MaxUsers, TokenBackend, UpsertOutcome, UserBackend, UserRemoval};
 use pnpr_config::LibsqlSettings;
 use pnpr_libsql::testing::serve_primary;
 use std::{net::SocketAddr, path::PathBuf, sync::atomic::Ordering, time::Duration};
@@ -158,4 +158,22 @@ async fn wait_for_token(replica: &LibsqlAuth, token: &str) -> Option<String> {
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn retirement_without_a_password_row_syncs_the_reservation() {
+    let directory = tempfile::tempdir().unwrap();
+    let (_primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let settings = replica_settings(address, directory.path().join("replica/auth.db"), Some(0));
+    let replica = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
+    assert_eq!(replica.retire_user("oidc-member").await.unwrap(), UserRemoval::NoSuchUser);
+    assert!(replica.is_retired("oidc-member").await.unwrap());
+    assert!(
+        replica
+            .password_hash("oidc-member")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    server.abort();
 }

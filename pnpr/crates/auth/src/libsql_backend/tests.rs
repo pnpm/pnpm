@@ -772,9 +772,14 @@ async fn retirement_reserves_name_disables_tokens_and_releases_capacity() {
         backend.set_password("former-member", "new-password").await.unwrap(),
         super::PasswordChange::NoSuchUser,
     );
+
+    assert_eq!(backend.retire_user("oidc-member").await.unwrap(), UserRemoval::NoSuchUser);
+    assert!(backend.is_retired("oidc-member").await.unwrap());
+    assert_eq!(backend.user_count().await.unwrap(), 0);
     let db = Builder::new_local(backend.dir.path().join("auth.db")).build().await.unwrap();
     let reopened = LibsqlAuth::from_database(db, MaxUsers::Limited(1), 4).await.unwrap();
     assert!(reopened.is_retired("former-member").await.unwrap());
+    assert!(reopened.is_retired("oidc-member").await.unwrap());
     assert_eq!(
         reopened.add_or_login("new-member", "password").await.unwrap().0,
         UpsertOutcome::Created,

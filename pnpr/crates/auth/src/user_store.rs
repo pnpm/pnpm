@@ -21,8 +21,16 @@ use file_stamp::FileStamp;
 #[derive(Debug, Default)]
 struct UserStoreState {
     users: Users,
+    active_count: u64,
     last_synced: Option<FileStamp>,
     synced_at: Option<std::time::SystemTime>,
+}
+
+impl UserStoreState {
+    fn replace_users(&mut self, users: Users) {
+        self.active_count = active_user_count(&users);
+        self.users = users;
+    }
 }
 
 /// File-backed (or in-memory) htpasswd store.
@@ -93,7 +101,12 @@ impl UserStore {
         };
         let synced_at = last_synced.as_ref().map(|_| now);
         Ok(Self {
-            state: Arc::new(Mutex::new(UserStoreState { users, last_synced, synced_at })),
+            state: Arc::new(Mutex::new(UserStoreState {
+                active_count: active_user_count(&users),
+                users,
+                last_synced,
+                synced_at,
+            })),
             path: Some(path),
             max_users,
             bcrypt_cost,
@@ -109,6 +122,7 @@ impl UserStore {
     ) -> Self {
         Self {
             state: Arc::new(Mutex::new(UserStoreState {
+                active_count: active_user_count(&users),
                 users,
                 last_synced: None,
                 synced_at: None,
@@ -122,11 +136,9 @@ impl UserStore {
 
     #[cfg(test)]
     pub(crate) fn insert_user_for_test(&self, username: String, hash: String) {
-        self.state
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .users
-            .insert(username, hash);
+        let mut state = self.snapshot();
+        state.users.insert(username, hash);
+        state.active_count = active_user_count(&state.users);
     }
 
     #[cfg(test)]
@@ -142,9 +154,7 @@ impl UserStore {
         let meta = match std::fs::metadata(path) {
             Ok(meta) => meta,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                if !state.users.is_empty() {
-                    state.users.clear();
-                }
+                state.replace_users(Users::new());
                 state.last_synced = None;
                 state.synced_at = None;
                 return Ok(());
@@ -167,13 +177,13 @@ impl UserStore {
                 path: path.display().to_string(),
                 reason,
             })?;
-        state.users = fresh;
+        state.replace_users(fresh);
         state.last_synced = Some(stamp);
         state.synced_at = Some(std::time::SystemTime::now());
         Ok(())
     }
 
-    /// Whether `username` is stored.
+    /// Whether `username` has a password account.
     pub(crate) fn holds(&self, username: &str) -> Result<bool> {
         self.sync_from_disk_if_path()?;
         Ok(self
@@ -192,7 +202,7 @@ impl UserStore {
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
-                if active_user_count(&self.snapshot().users) >= max {
+                if self.snapshot().active_count >= max {
                     return Err(RegistryError::TooManyUsers { max });
                 }
             }
@@ -224,20 +234,6 @@ impl UserStore {
     }
 }
 
-fn lock_htpasswd(path: Option<&std::path::Path>) -> Result<Option<std::fs::File>> {
-    let Some(path) = path else {
-        return Ok(None);
-    };
-    let lock_file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(path.with_extension("htpasswd.lock"))?;
-    lock_file.lock()?;
-    Ok(Some(lock_file))
-}
-
 fn persist_users_to_disk(
     path: Option<&std::path::Path>,
     users: &Users,
@@ -267,7 +263,10 @@ impl UserStore {
         let path = self.path.clone();
         tokio::task::spawn_blocking(move || {
             let _edit = edit_lock.lock().unwrap_or_else(PoisonError::into_inner);
-            let _file_lock = lock_htpasswd(path.as_deref())?;
+            let _file_lock = path
+                .as_deref()
+                .map(crate::lock_htpasswd)
+                .transpose()?;
             let mut next = Self::load_users_for_update(path.as_deref(), &state)?;
             let out = match edit(&mut next)? {
                 Change::Keep(out) => return Ok(out),
@@ -275,7 +274,7 @@ impl UserStore {
             };
             let new_sync = persist_users_to_disk(path.as_deref(), &next)?;
             let mut guard = state.lock().unwrap_or_else(PoisonError::into_inner);
-            guard.users = next;
+            guard.replace_users(next);
             if new_sync.is_some() {
                 guard.last_synced = new_sync;
                 guard.synced_at = Some(std::time::SystemTime::now());

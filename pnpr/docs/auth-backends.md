@@ -124,4 +124,5 @@ Deleted accounts do not appear in user lists or count toward `maxUsers`.
 Existing team memberships and package maintainer entries retain the old username.
 
 For an htpasswd file, a `!` password record preserves the reservation.
-Keep these records when editing or importing the file.
+Keep these records when editing the file. Imports preserve existing reservations,
+including with `--overwrite`.

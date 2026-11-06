@@ -85,23 +85,41 @@ impl LibsqlAuth {
     pub(super) async fn remove_user_record(
         &self,
         username: &str,
-        statement: &str,
+        mode: crate::UserRemovalMode,
     ) -> Result<UserRemoval> {
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
-                let tx = conn.transaction().await?;
-                let removed = tx.execute(statement, params![username]).await?;
-                if removed > 0 {
-                    tx.execute(COUNT_ONE_LESS, ()).await?;
-                }
-                tx.commit().await?;
-                Ok::<_, RegistryError>(if removed > 0 {
-                    UserRemoval::Removed
-                } else {
-                    UserRemoval::NoSuchUser
-                })
+                remove_user_in_transaction(&conn, username, mode).await
             })
         })
         .await
     }
+}
+
+async fn remove_user_in_transaction(
+    conn: &libsql::Connection,
+    username: &str,
+    mode: crate::UserRemovalMode,
+) -> Result<UserRemoval> {
+    let tx = conn.transaction().await?;
+    if matches!(mode, crate::UserRemovalMode::Retire) {
+        validate_username(username)?;
+        let reservation = "INSERT INTO users (username, bcrypt_hash) VALUES (?1, '!')
+                           ON CONFLICT (username) DO NOTHING";
+        tx.execute(reservation, params![username]).await?;
+    }
+    let statement = match mode {
+        crate::UserRemovalMode::Delete => {
+            "DELETE FROM users WHERE username = ?1 AND bcrypt_hash <> '!'"
+        }
+        crate::UserRemovalMode::Retire => {
+            "UPDATE users SET bcrypt_hash = '!' WHERE username = ?1 AND bcrypt_hash <> '!'"
+        }
+    };
+    let removed = tx.execute(statement, params![username]).await?;
+    if removed > 0 {
+        tx.execute(COUNT_ONE_LESS, ()).await?;
+    }
+    tx.commit().await?;
+    Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
 }

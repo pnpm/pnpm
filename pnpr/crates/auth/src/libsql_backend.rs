@@ -240,11 +240,7 @@ impl UserBackend for LibsqlAuth {
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        let removal = self.remove_user_record(
-            username,
-            "DELETE FROM users WHERE username = ?1 AND bcrypt_hash <> '!'",
-        )
-        .await?;
+        let removal = self.remove_user_record(username, crate::UserRemovalMode::Delete).await?;
         if removal == UserRemoval::Removed {
             self.sync_replica().await?;
         }
@@ -252,14 +248,9 @@ impl UserBackend for LibsqlAuth {
     }
 
     async fn retire_user(&self, username: &str) -> Result<UserRemoval> {
-        let removal = self.remove_user_record(
-            username,
-            "UPDATE users SET bcrypt_hash = '!' WHERE username = ?1 AND bcrypt_hash <> '!'",
-        )
-        .await?;
-        if removal == UserRemoval::Removed {
-            self.sync_replica().await?;
-        }
+        let removal = self.remove_user_record(username, crate::UserRemovalMode::Retire).await?;
+        // NoSuchUser can still create a reservation.
+        self.sync_replica().await?;
         Ok(removal)
     }
 

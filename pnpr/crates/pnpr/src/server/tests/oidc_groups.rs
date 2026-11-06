@@ -1,6 +1,7 @@
 use super::super::oidc_groups::{session_identity, validate_group_grants};
-use pnpr_auth::oidc::SessionUser;
+use pnpr_auth::{AuthState, oidc::SessionUser};
 use pnpr_config::{Config, oidc::OidcTeamGrant};
+use pnpr_fixtures::MockConfigPresets;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 const PROVIDER: &str = "\
@@ -78,4 +79,26 @@ fn group_grants_must_name_a_hosted_registry_and_a_declared_team() {
     let renamed = LOCAL.replace("  local:", "  other:");
     let err = validate_group_grants(&config(&renamed)).unwrap_err();
     assert!(err.to_string().contains("is not a hosted registry"), "{err}");
+}
+
+#[tokio::test]
+async fn retired_identities_without_passwords_are_refused() {
+    let directory = tempfile::tempdir().unwrap();
+    let config = Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+        directory.path().to_path_buf(),
+    );
+    let auth = AuthState::in_memory();
+    let users = std::sync::Arc::clone(&auth.users);
+    let (state, _router) = super::super::routing::state_and_router(config, auth, None).unwrap();
+    assert!(
+        super::super::authentication::refuse_retired(&state, "oidc-member")
+            .await
+            .is_ok(),
+    );
+    users.retire_user("oidc-member").await.unwrap();
+    assert!(matches!(
+        super::super::authentication::refuse_retired(&state, "oidc-member").await,
+        Err(pnpr_error::RegistryError::Unauthenticated { .. }),
+    ));
 }

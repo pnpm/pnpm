@@ -34,7 +34,8 @@ pub mod schema;
 pub(crate) mod validation;
 
 pub use htpasswd::{
-    is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt, write_atomic,
+    is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line, verify_bcrypt,
+    write_atomic,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
@@ -289,7 +290,7 @@ pub trait UserBackend: Send + Sync {
     async fn add_or_login(&self, username: &str, password: &str)
     -> Result<(UpsertOutcome, String)>;
 
-    /// Every stored username, sorted.
+    /// Password account usernames, sorted.
     async fn list_users(&self) -> Result<Vec<String>>;
 
     /// The stored bcrypt hash of `username`, or `None` when there is no
@@ -315,7 +316,8 @@ pub trait UserBackend: Send + Sync {
     }
 
     /// Remove an account while permanently reserving its name against reuse.
-    /// Backends must persist the reservation atomically with the removal.
+    /// Reserve the name even without a password account. Return whether a
+    /// password account was removed. Persist both changes atomically.
     async fn retire_user(&self, _username: &str) -> Result<UserRemoval> {
         Err(RegistryError::Internal {
             reason: "the user backend does not support reserving deleted usernames".to_string(),
@@ -460,6 +462,14 @@ pub enum UserRemoval {
     NoSuchUser,
 }
 
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+#[derive(Clone, Copy)]
+enum UserRemovalMode {
+    Delete,
+    /// Keep the record locked so temporary removal cannot erase the reservation.
+    Retire,
+}
+
 /// SQL account records, including deleted-name reservations.
 #[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 pub(crate) const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
@@ -479,4 +489,4 @@ mod retirement_tests;
 mod tests;
 
 /// A password record that reserves a deleted username and cannot authenticate.
-pub(crate) const DELETED_USER_HASH: &str = "!";
+pub const DELETED_USER_HASH: &str = "!";

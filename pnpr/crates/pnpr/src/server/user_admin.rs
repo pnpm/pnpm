@@ -107,7 +107,7 @@ async fn delete_user(
     let result = async {
         require_admin(&state, &identity, "remove", format!("user {:?}", path.user))?;
         let revoked_before = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
-        let removed = state.inner.identity.auth.users.retire_user(&path.user).await?;
+        let removed = retire_known_user(&state, &path.user, revoked_before).await?;
         state.inner.identity.oidc.revoke_user_sessions(&path.user);
         let revoked_after = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
         let had_nothing_to_revoke = revoked_before + revoked_after == 0;
@@ -197,4 +197,26 @@ fn parse_password(body: &Bytes) -> Result<String, RegistryError> {
         });
     }
     Ok(password)
+}
+
+async fn retire_known_user(
+    state: &AppState,
+    username: &str,
+    revoked: usize,
+) -> Result<UserRemoval, RegistryError> {
+    let auth = &state.inner.identity.auth;
+    let managed = state.inner.config.identity.is_reserved_name(username)
+        || super::scim::is_provisioned(state, username)?;
+    let was_retired = auth.users.is_retired(username).await?;
+    if revoked == 0
+        && !managed
+        && !was_retired
+        && auth.users.password_hash(username).await?.is_none()
+    {
+        return Err(RegistryError::NotFound);
+    }
+    match auth.users.retire_user(username).await? {
+        UserRemoval::NoSuchUser if managed && !was_retired => Ok(UserRemoval::Removed),
+        removal => Ok(removal),
+    }
 }

@@ -1,5 +1,7 @@
 use miette::IntoDiagnostic as _;
-use pnpr_auth::{is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line};
+use pnpr_auth::{
+    DELETED_USER_HASH, is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line,
+};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -38,7 +40,13 @@ pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<Htpass
         .into_diagnostic()
         .map_err(|err| miette::miette!("failed to read source file: {err}"))?;
 
-    let (source_users, bcrypt_count, sha_count) = parse_source_entries(&source_content)?;
+    let (source_users, total_read, bcrypt_count, sha_count) =
+        parse_source_entries(&source_content)?;
+    let _lock = if options.dry_run {
+        None
+    } else {
+        Some(pnpr_auth::lock_htpasswd(&target_path).into_diagnostic()?)
+    };
     let mut target_users = load_existing_target(&target_path)?;
 
     let (merged, collisions) = merge_users(&mut target_users, source_users, options.overwrite);
@@ -48,7 +56,7 @@ pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<Htpass
     }
 
     Ok(HtpasswdImportReport {
-        total_read: bcrypt_count + sha_count,
+        total_read,
         bcrypt_count,
         sha_count,
         merged,
@@ -58,8 +66,11 @@ pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<Htpass
     })
 }
 
-fn parse_source_entries(raw: &str) -> miette::Result<(HashMap<String, String>, usize, usize)> {
+fn parse_source_entries(
+    raw: &str,
+) -> miette::Result<(HashMap<String, String>, usize, usize, usize)> {
     let mut users = HashMap::new();
+    let mut total_read = 0;
     let mut bcrypt_count = 0;
     let mut sha_count = 0;
 
@@ -71,6 +82,7 @@ fn parse_source_entries(raw: &str) -> miette::Result<(HashMap<String, String>, u
         let (user, hash) = parse_htpasswd_line(line)
             .map_err(|err| miette::miette!("line {}: {err}", line_no + 1))?;
 
+        total_read += 1;
         if is_bcrypt_hash(hash) {
             bcrypt_count += 1;
         } else if is_sha_hash(hash) {
@@ -79,7 +91,7 @@ fn parse_source_entries(raw: &str) -> miette::Result<(HashMap<String, String>, u
         users.insert(user.to_string(), hash.to_string());
     }
 
-    Ok((users, bcrypt_count, sha_count))
+    Ok((users, total_read, bcrypt_count, sha_count))
 }
 
 fn load_existing_target(target_path: &Path) -> miette::Result<HashMap<String, String>> {
@@ -102,7 +114,7 @@ fn merge_users(
     for (user, source_hash) in source {
         match target.get(&user) {
             Some(existing) if existing == &source_hash => {}
-            Some(existing) if !overwrite => {
+            Some(existing) if existing == DELETED_USER_HASH || !overwrite => {
                 let d_kind = hash_kind(existing);
                 let s_kind = hash_kind(&source_hash);
                 collisions.push(format!("{user} (destination: {d_kind}, source: {s_kind})"));
@@ -121,6 +133,8 @@ fn hash_kind(hash: &str) -> &'static str {
         "bcrypt"
     } else if is_sha_hash(hash) {
         "{SHA}"
+    } else if hash == DELETED_USER_HASH {
+        "retired"
     } else {
         "unrecognized"
     }
@@ -153,10 +167,7 @@ pub fn format_import_report(report: &HtpasswdImportReport) -> String {
     );
     if !report.collisions.is_empty() {
         let count = report.collisions.len();
-        let _ = writeln!(
-            out,
-            "  warning: {count} conflicting credentials not overwritten (pass --overwrite to replace):",
-        );
+        let _ = writeln!(out, "  warning: {count} conflicting credentials not overwritten:");
         for collision in &report.collisions {
             let _ = writeln!(out, "    - {collision}");
         }
