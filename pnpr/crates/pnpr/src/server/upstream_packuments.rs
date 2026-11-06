@@ -46,12 +46,14 @@ pub(super) async fn load_upstream_packument(
     name: &CanonicalPackageName,
     ttl: Duration,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
+    let cached = read_cached_upstream_packument(state, namespace, upstream, name, ttl);
     if let Some(bytes) =
-        read_cached_upstream_packument(state, namespace, upstream, name, ttl).await?
+        state.inner.packuments.admissions.serve(DocumentSource::Stored, cached).await?
     {
         return Ok(Some(bytes));
     }
-    fetch_coalesced_upstream_packument(state, namespace, upstream, name, ttl).await
+    let fetched = fetch_coalesced_upstream_packument(state, namespace, upstream, name, ttl);
+    state.inner.packuments.admissions.serve(DocumentSource::Upstream(namespace), fetched).await
 }
 
 async fn read_cached_upstream_packument(
