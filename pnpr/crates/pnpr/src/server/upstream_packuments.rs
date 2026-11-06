@@ -2,10 +2,11 @@ use super::{
     Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
     HeaderMap, HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response,
     Upstream, authorize, authorized_upstream, default_registry_target, hosted_gate,
-    hosted_read_namespace, not_found, package_responses::processing::admission::DocumentSource,
+    hosted_read_namespace, not_found,
+    package_responses::processing::admission::{DocumentSource, SourceAdmission},
     packument_response, resolve_registry_source, timed, upstream_cache_namespace,
 };
-use axum::response::IntoResponse;
+use axum::{body::Bytes, response::IntoResponse};
 use std::sync::Arc;
 
 /// The stored packument of whichever source a registry routes this package to.
@@ -46,26 +47,24 @@ pub(super) async fn load_upstream_packument(
     name: &CanonicalPackageName,
     ttl: Duration,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    let cached = read_cached_upstream_packument(state, namespace, upstream, name, ttl);
-    if let Some(bytes) =
-        state.inner.packuments.admissions.serve(DocumentSource::Stored, cached).await?
-    {
-        return Ok(Some(bytes));
+    if upstream.caches() {
+        let cached = read_cached_upstream_packument(state, namespace, name, ttl);
+        if let Some(bytes) =
+            state.inner.packuments.admissions.serve(DocumentSource::Stored, cached).await?
+        {
+            return Ok(Some(bytes));
+        }
     }
-    let fetched = fetch_coalesced_upstream_packument(state, namespace, upstream, name, ttl);
-    state.inner.packuments.admissions.serve(DocumentSource::Upstream(namespace), fetched).await
+    let document = fetch_coalesced_upstream_packument(state, namespace, upstream, name, ttl).await?;
+    Ok(document.map(|document| document.bytes.to_vec()))
 }
 
 async fn read_cached_upstream_packument(
     state: &AppState,
     namespace: &str,
-    upstream: &Upstream,
     name: &CanonicalPackageName,
     ttl: Duration,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    if !upstream.caches() {
-        return Ok(None);
-    }
     let bytes = timed(
         "packument:cache_read",
         name.as_str(),
@@ -80,17 +79,29 @@ async fn read_cached_upstream_packument(
     Ok(bytes)
 }
 
+pub(super) struct AdmittedPackument {
+    bytes: Bytes,
+    _admission: SourceAdmission,
+}
+
 async fn fetch_coalesced_upstream_packument(
     state: &AppState,
     namespace: &str,
     upstream: &Upstream,
     name: &CanonicalPackageName,
     ttl: Duration,
-) -> Result<Option<Vec<u8>>, RegistryError> {
+) -> Result<Option<Arc<AdmittedPackument>>, RegistryError> {
     let key = (namespace.to_string(), name.clone());
     Box::pin(state.inner.proxy.packument_singleflight.work(key, || {
         Box::pin(async {
-            fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await
+            let admission =
+                state.inner.packuments.admissions.acquire(DocumentSource::Upstream(namespace))
+                    .await;
+            let fetched =
+                fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await?;
+            Ok(fetched.map(|bytes| {
+                Arc::new(AdmittedPackument { bytes: bytes.into(), _admission: admission })
+            }))
         })
     }))
     .await
@@ -350,55 +361,45 @@ impl UpstreamDocument<'_> {
             return Ok(None);
         }
         let response = async {
-            let Some(bytes) = read_cached_upstream_packument(
-                self.state,
-                &self.namespace,
-                self.upstream,
-                self.name,
-                self.ttl,
-            )
-            .await?
+            let Some(bytes) =
+                read_cached_upstream_packument(self.state, &self.namespace, self.name, self.ttl)
+                    .await?
             else {
                 return Ok(None);
             };
-            self.render(bytes).await.map(Some)
+            self.render(bytes.into()).await.map(Some)
         };
         self.state.inner.packuments.admissions.serve(DocumentSource::Stored, response).await
     }
 
     async fn fetched(&self) -> Response {
-        let response = async {
-            let bytes = match fetch_coalesced_upstream_packument(
-                self.state,
-                &self.namespace,
-                self.upstream,
-                self.name,
-                self.ttl,
-            )
-            .await
-            {
-                Ok(Some(bytes)) => bytes,
-                Ok(None) => return not_found(),
-                Err(err) => return err.into_response(),
-            };
-            match self.render(bytes).await {
-                Ok(response) => response,
-                Err(err) => err.into_response(),
-            }
-        };
-        self.state.inner.packuments.admissions.serve(
-            DocumentSource::Upstream(&self.namespace),
-            response,
+        let document = match fetch_coalesced_upstream_packument(
+            self.state,
+            &self.namespace,
+            self.upstream,
+            self.name,
+            self.ttl,
         )
         .await
+        {
+            Ok(Some(document)) => document,
+            Ok(None) => return not_found(),
+            Err(err) => return err.into_response(),
+        };
+        let response = self.render(document.bytes.clone()).await;
+        drop(document);
+        match response {
+            Ok(response) => response,
+            Err(err) => err.into_response(),
+        }
     }
 
-    async fn render(&self, bytes: Vec<u8>) -> Result<Response, RegistryError> {
+    async fn render(&self, bytes: Bytes) -> Result<Response, RegistryError> {
         let table = self.state.inner.storage.read_tar_integrities(self.name).await?;
         let view = DistView { tar_integrities: Some(&table), ..self.response.view };
         packument_response(
             self.name,
-            bytes.into(),
+            bytes,
             self.response.tarball_base,
             view,
             self.state,

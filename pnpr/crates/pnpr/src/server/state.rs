@@ -30,8 +30,10 @@ pub(crate) struct AppInner {
     pub(crate) metrics: Arc<ServerMetrics>,
 }
 
-type PackumentSingleflight =
-    Singleflight<(String, CanonicalPackageName), Result<Option<Vec<u8>>, Arc<RegistryError>>>;
+type PackumentSingleflight = Singleflight<
+    (String, CanonicalPackageName),
+    Result<Option<Arc<super::upstream_packuments::AdmittedPackument>>, Arc<RegistryError>>,
+>;
 pub(super) struct BuildServices {
     pub(super) artifacts: Option<pnpr_shared_artifacts::SharedArtifactStore>,
     pub(super) compiler_cache_uploads: tokio::sync::Semaphore,
