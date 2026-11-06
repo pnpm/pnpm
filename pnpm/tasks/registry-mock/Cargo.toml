@@ -25,12 +25,15 @@ assert_cmd = { workspace = true }
 clap = { workspace = true }
 home = { workspace = true }
 pipe-trait = { workspace = true }
+pnpm-fs = { workspace = true }
 pnpr-fixtures = { workspace = true }
+pnpr-registry = { workspace = true }
 pnpr-package-name = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sysinfo = { workspace = true }
+tempfile = { workspace = true }
 tokio = { workspace = true }
 walkdir = { workspace = true }
 

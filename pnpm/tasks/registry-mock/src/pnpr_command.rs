@@ -76,8 +76,6 @@ pub fn pnpr_command(port: u16, public_url: Option<&str>) -> Command {
 /// Like [`pnpr_command`] but runs an explicit `pnpr` binary instead of the
 /// one resolved from the workspace `target/` dir, so the integrated benchmark
 /// can front each compared revision with a mock built from its own `pnpr`.
-/// All revisions share the one runtime storage — serving a warm cache is
-/// read-only, so concurrent mocks don't contend.
 #[must_use]
 pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>) -> Command {
     pnpr_command_with_home(bin, port, public_url, None)
@@ -103,8 +101,8 @@ pub fn pnpr_command_with_home(
     );
     let seeded = seed_runtime_storage()
         .unwrap_or_else(|err| panic!("seed registry-mock fixtures into runtime storage: {err}"));
-    if seeded > 0 {
-        eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
+    if seeded.seeded_files() > 0 {
+        eprintln!("info: seeded {} fixture file(s) into runtime storage", seeded.seeded_files());
     }
     let default_public_url;
     let public_url = if let Some(public_url) = public_url {
@@ -120,16 +118,16 @@ pub fn pnpr_command_with_home(
     // the config file can't know about via CLI arguments.
     let (storage, database) = match home {
         Some(home) => (home.join("storage"), home.join("metadata.sqlite")),
-        None => (crate::runtime_hosted_storage(), crate::runtime_metadata_path()),
+        None => (seeded.path().to_path_buf(), pnpr_fixtures::metadata_path(seeded.path())),
     };
-    let config = runtime_mock_config(&database)
+    let config = runtime_mock_config(&database, &crate::runtime_config_dir())
         .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
     cmd.arg("--config")
         .arg(config)
         .arg("--storage")
         .arg(storage)
         .arg("--cache")
-        .arg(crate::runtime_cache())
+        .arg(crate::runtime_storage_root().join(".pnpr-cache"))
         .arg("--packument-ttl")
         .arg("31536000")
         .arg("--listen")
@@ -155,19 +153,17 @@ fn command_without_pnpr_env(bin: &Path) -> Command {
     cmd
 }
 
-/// The registry-mock config with the metadata `database` named outright,
-/// written beside the build's hosted store. A `pnpr` from another revision, such as the one the integrated benchmark compares against, may
-/// not move its default database along with `--storage`, and every revision
-/// reads a named one. The config is named after the fixture build and its
-/// own contents, so no mock reads a config another checkout wrote for
-/// another build or another fixture config.
-fn runtime_mock_config(database: &Path) -> io::Result<PathBuf> {
+/// The registry-mock config with the metadata `database` named outright.
+/// Its directory holds `htpasswd`, whose path the mock config resolves
+/// relative to itself, so every revision mock reads the benchmark user that
+/// `seed_mock_publisher` writes there.
+fn runtime_mock_config(database: &Path, config_dir: &Path) -> io::Result<PathBuf> {
     let database = std::path::absolute(database)?;
     let url = format!("sqlite:{}", database.display()).replace('\'', "''");
     let yaml = format!("{}\nmetadata:\n  url: '{url}'\n", pnpr_fixtures::MOCK_CONFIG_YAML);
     let mut hasher = DefaultHasher::new();
     yaml.hash(&mut hasher);
-    let mut path = std::path::absolute(crate::runtime_hosted_storage())?.into_os_string();
+    let mut path = std::path::absolute(config_dir)?.join("mock").into_os_string();
     path.push(format!("-{:016x}.yaml", hasher.finish()));
     let path = PathBuf::from(path);
     if fs::read_to_string(&path).is_ok_and(|existing| existing == yaml) {
@@ -184,3 +180,6 @@ fn runtime_mock_config(database: &Path) -> io::Result<PathBuf> {
     fs::rename(&temp, &path)?;
     Ok(path)
 }
+
+#[cfg(test)]
+mod tests;
