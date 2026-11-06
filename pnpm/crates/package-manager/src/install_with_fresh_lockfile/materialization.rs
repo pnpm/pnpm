@@ -7,6 +7,7 @@ use super::{
     resolver_setup, run_on_disk_phases, warn_stale_convergence_overrides_if_any,
 };
 use crate::{AllowBuildPolicy, VirtualStoreLayout};
+use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
@@ -299,6 +300,8 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         );
         let swap_lock =
             pnpm_deps_restorer::ModulesSwapLock::new(&self.install.drivers.config.modules_dir);
+        let project_manifests =
+            projects_on_disk(&self.resolved.importer_manifests, self.install.projects.real_ids);
         run_on_disk_phases::<Reporter>(
             OnDiskInputs {
                 install: self.install,
@@ -323,7 +326,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     known_requires_build,
                     known_bins,
                 },
-                projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
+                projects: scope.on_disk_projects(built_lockfile, &project_manifests),
             },
             &mut plan.skipped,
             &mut self.resources.lockfile.verification_gate,
@@ -332,6 +335,29 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
     }
 }
 
+/// The importers of the projects on disk. A filtered install also resolves the
+/// importers its previous lockfile records for projects missing from disk, so
+/// their dependencies shape the lockfile; nothing is linked into them.
+fn projects_on_disk<'m>(
+    importer_manifests: &'m BTreeMap<String, &'m PackageManifest>,
+    real_importer_ids: Option<&std::collections::HashSet<String>>,
+) -> std::borrow::Cow<'m, BTreeMap<String, &'m PackageManifest>> {
+    let Some(real_importer_ids) = real_importer_ids else {
+        return std::borrow::Cow::Borrowed(importer_manifests);
+    };
+    if importer_manifests
+        .keys()
+        .all(|importer_id| real_importer_ids.contains(importer_id))
+    {
+        return std::borrow::Cow::Borrowed(importer_manifests);
+    }
+    importer_manifests
+        .iter()
+        .filter(|(importer_id, _)| real_importer_ids.contains(*importer_id))
+        .map(|(importer_id, manifest)| (importer_id.clone(), *manifest))
+        .collect::<BTreeMap<_, _>>()
+        .pipe(std::borrow::Cow::Owned)
+}
 fn collect_known_requires_build(
     graph: &pnpm_resolving_deps_resolver::DependenciesGraph,
 ) -> Option<pnpm_deps_restorer::RequiresBuildBySnapshot> {

@@ -10,6 +10,7 @@ import { clone } from 'ramda'
 import { isCheckOnlyInstall } from './installPredicates.js'
 import { linkResolvedProjects, toUpdatedProjects } from './linkResolvedProjects.js'
 import type { ImporterToUpdate, InstallFunctionResult, InstallInContextOptions } from './mutationTypes.js'
+import { keepImportersOfProjectsMissingFromDisk } from './projectsMissingFromDisk.js'
 import { removeDepsFromManifests } from './removeDepsFromManifests.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { type GraphResolution, resolveProjects } from './resolveProjects.js'
@@ -39,6 +40,7 @@ export async function resolveAndLinkProjects (
 
   await prepareProjectsForResolution(projects, ctx, opts)
   const resolution = await resolveProjects(projects, ctx, opts)
+  keepImportersOfProjectsMissingFromDisk(resolution.newLockfile, projects)
 
   const depsStateCache: DepsStateCache = {}
   const shouldWritePackageMap = opts.nodeExperimentalPackageMap && opts.enableModulesDir !== false && opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly

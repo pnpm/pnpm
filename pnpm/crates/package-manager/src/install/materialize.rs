@@ -1,6 +1,7 @@
 pub(super) use scope::initial_materialization_ids;
 
 mod frozen;
+mod missing_projects;
 mod scope;
 use scope::{
     allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
@@ -366,6 +367,19 @@ impl<'a> MaterializationInputs<'a, '_> {
         )
     }
 
+    /// See [`missing_projects::missing_project_manifests`]. Only a filtered
+    /// install keeps the importers of projects missing from disk.
+    fn missing_project_manifests(&self) -> Vec<(String, PackageManifest)> {
+        match (self.workspace.requested_importer_ids, self.lockfiles.merge_wanted) {
+            (Some(_), Some(lockfile)) => missing_projects::missing_project_manifests(
+                lockfile,
+                self.workspace.real_importer_ids,
+                self.workspace.workspace_root,
+            ),
+            _ => Vec::new(),
+        }
+    }
+
     async fn fresh<Reporter: self::Reporter + 'static>(
         mut self,
     ) -> Result<MaterializationOutput, InstallError> {
@@ -382,6 +396,16 @@ impl<'a> MaterializationInputs<'a, '_> {
         let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
+        let missing_projects = self.missing_project_manifests();
+        let mut importer_manifests = importer_manifests_by_id(
+            self.workspace.project_manifests,
+            self.workspace.workspace_root,
+        );
+        importer_manifests.extend(
+            missing_projects
+                .iter()
+                .map(|(importer_id, manifest)| (importer_id.clone(), manifest)),
+        );
         let fresh_result = InstallWithFreshLockfile {
             inputs: self.fresh_inputs(
                 &dependency_groups,
@@ -389,10 +413,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 &prior_unbuilt,
                 &prior_skipped,
             ),
-            importer_manifests: importer_manifests_by_id(
-                self.workspace.project_manifests,
-                self.workspace.workspace_root,
-            ),
+            importer_manifests,
             owned: self.into_owned_inputs(lockfile_verification_gate),
         }
         .run::<Reporter>()

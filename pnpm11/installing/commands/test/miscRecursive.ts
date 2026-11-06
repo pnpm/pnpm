@@ -903,6 +903,80 @@ test.each([
   expect(fs.existsSync('project-3')).toBe(false)
 })
 
+test.each([
+  [true],
+  [false],
+])('filtered recursive install resolves against the dependencies of a project missing from disk (lockfileOnly: %j)', async (lockfileOnly) => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/has-optional-peer': '1.0.0',
+        '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-c': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-c': '1.0.1',
+        'is-positive': '1.0.0',
+        'project-2': 'workspace:*',
+      },
+    },
+  ])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    lockfileOnly: true,
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+  const before = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+  expect(before.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer'].version).toBe('1.0.0(@pnpm.e2e/peer-c@1.0.1)')
+
+  fs.rmSync('project-3', { recursive: true })
+  writeJsonFileSync(path.join(projects['project-1'].dir(), 'package.json'), {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/has-optional-peer': '1.0.0',
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+  })
+  const filter = ['project-1', 'project-2']
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), filter.map((namePattern) => ({ namePattern }))),
+    dir: process.cwd(),
+    filter,
+    lockfileDir: process.cwd(),
+    lockfileOnly,
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+  expect(lockfile.importers!['project-1'].dependencies).toHaveProperty(['@pnpm.e2e/foo'])
+  expect(lockfile.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer']).toStrictEqual(before.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer'])
+  expect(lockfile.importers!['project-3']).toStrictEqual(before.importers!['project-3'])
+  expect(lockfile.snapshots!['is-positive@1.0.0']).toStrictEqual(before.snapshots!['is-positive@1.0.0'])
+  expect(fs.existsSync('project-3')).toBe(false)
+})
+
 test('recursive install on workspace with custom lockfile-dir', async () => {
   preparePackages([
     {

@@ -14,24 +14,23 @@ pub(super) fn retain_importers(
     real_importer_ids: &HashSet<String>,
     lockfile: &mut Lockfile,
 ) -> HashMap<String, ProjectSnapshot> {
-    let importers = missing_project_importers(previous_wanted, real_importer_ids);
+    let importers = previous_wanted
+        .into_iter()
+        .flat_map(|previous| missing_project_importers(previous, real_importer_ids))
+        .map(|(importer_id, importer)| (importer_id.clone(), importer.clone()))
+        .collect();
     retain_catalog_entries(lockfile, previous_wanted, &importers);
     importers
 }
 
-fn missing_project_importers(
-    previous_wanted: Option<&Lockfile>,
-    real_importer_ids: &HashSet<String>,
-) -> HashMap<String, ProjectSnapshot> {
-    previous_wanted
-        .map(|previous| {
-            previous.importers
-                .iter()
-                .filter(|(importer_id, _)| !real_importer_ids.contains(*importer_id))
-                .map(|(importer_id, importer)| (importer_id.clone(), importer.clone()))
-                .collect()
-        })
-        .unwrap_or_default()
+/// The importers `lockfile` records outside `real_importer_ids`.
+pub fn missing_project_importers<'a>(
+    lockfile: &'a Lockfile,
+    real_importer_ids: &'a HashSet<String>,
+) -> impl Iterator<Item = (&'a String, &'a ProjectSnapshot)> {
+    lockfile.importers
+        .iter()
+        .filter(|(importer_id, _)| !real_importer_ids.contains(*importer_id))
 }
 
 /// Copy the catalog entries `importers` use from `previous_wanted` into
