@@ -158,6 +158,7 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   bootConfig: 'pnpm v12',
   cargo: 'pnpm v12',
   concurrencyGroups: 'pnpm v12',
+  editor: 'pnpm v12',
   globalShims: 'pnpm v12',
   macosBackup: 'pnpm v12',
   nodePackageMap: 'pnpm v12',

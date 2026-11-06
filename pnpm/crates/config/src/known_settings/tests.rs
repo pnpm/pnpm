@@ -121,7 +121,12 @@ fn mirrored_lists_and_workspace_settings_match_unknown_settings_ts() {
     let mut rust_untyped_and_v11: Vec<&str> = UNTYPED_WORKSPACE_SETTING_KEYS
         .iter()
         .copied()
-        .chain(SETTINGS_OF_OTHER_PNPM_VERSIONS.iter().map(|(key, _)| *key))
+        .chain(
+            SETTINGS_OF_OTHER_PNPM_VERSIONS
+                .iter()
+                .filter(|(_, version)| *version == "pnpm v11")
+                .map(|(key, _)| *key),
+        )
         .collect();
     rust_untyped_and_v11.sort_unstable();
     assert_eq!(rust_untyped_and_v11, ts_untyped);

@@ -113,7 +113,8 @@ const UNTYPED_WORKSPACE_SETTING_KEYS: &[&str] = &[
     "onlyBuiltDependenciesFile",
 ];
 
-const SETTINGS_OF_OTHER_PNPM_VERSIONS: &[(&str, &str)] = &[("confirmModulesPurge", "pnpm v11")];
+const SETTINGS_OF_OTHER_PNPM_VERSIONS: &[(&str, &str)] =
+    &[("confirmModulesPurge", "pnpm v11"), ("editor", "pnpm v12")];
 
 /// The camelCase field names of [`WorkspaceSettings`], read off its serde
 /// serialization so the set cannot drift from the struct.
