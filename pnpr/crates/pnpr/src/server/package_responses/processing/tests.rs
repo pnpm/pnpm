@@ -163,7 +163,10 @@ async fn large_packument_render_leaves_the_request_thread_available() {
 
 #[tokio::test]
 async fn cancellation_keeps_the_worker_permit_until_blocking_work_finishes() {
-    let processing = Arc::new(PackumentProcessing::default());
+    let processing = Arc::new(PackumentProcessing {
+        workers: Arc::new(tokio::sync::Semaphore::new(2)),
+        ..PackumentProcessing::default()
+    });
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();
     let (release_tx, release_rx) = std::sync::mpsc::channel();
     let worker = Arc::clone(&processing);

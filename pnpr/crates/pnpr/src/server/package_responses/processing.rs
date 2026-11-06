@@ -25,9 +25,10 @@ pub(crate) struct PackumentProcessing {
 
 impl Default for PackumentProcessing {
     fn default() -> Self {
+        let workers = std::thread::available_parallelism().map_or(1, usize::from).min(8);
         Self {
-            // Limit CPU contention and simultaneous expansion of large documents.
-            workers: Arc::new(tokio::sync::Semaphore::new(2)),
+            // Scale CPU work with the instance while bounding document expansion.
+            workers: Arc::new(tokio::sync::Semaphore::new(workers)),
             cache: Mutex::new(BoundedCache::default()),
             fingerprints: RandomState::new(),
         }
