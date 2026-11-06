@@ -1,14 +1,16 @@
 //! Picks the version a missing optional peer of the importer is hoisted at.
 
-use super::missing_peers::merge_ranges;
 use super::{
     BTreeMap, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeerInfo,
     PreferredVersions, accepts_optional_peer_candidate,
-    get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
+    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, missing_peers::merge_ranges,
 };
 use crate::peer_dependents_dedupe::OptionalPeerScope;
 use node_semver::Version;
 use std::cell::RefCell;
+
+/// The version picked for each required peer `(name, range)`.
+type RequiredPeerPicks = RefCell<HashMap<(String, String), Option<String>>>;
 
 impl ImporterHoistState {
     /// The exact version [`Self::hoist_missing_required`] hoists the
@@ -37,7 +39,7 @@ impl ImporterHoistState {
     fn required_peer_versions(
         &self,
         missing_of_wave: &[Vec<CandidatePeer>],
-        picked: &RefCell<HashMap<(String, String), Option<String>>>,
+        picked: &RequiredPeerPicks,
     ) -> Vec<(String, String)> {
         let mut ranges_by_name: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
         for peer in missing_of_wave.iter().flatten() {
@@ -94,7 +96,7 @@ impl ImporterHoistState {
         }
         let workspace = self.ctx.workspace();
         let candidate_peers = CandidatePeers::new(workspace);
-        let picked = RefCell::new(HashMap::default());
+        let picked: RequiredPeerPicks = RefCell::new(HashMap::default());
         let pick_required_peer_versions = |missing_of_wave: &[Vec<CandidatePeer>]| {
             self.required_peer_versions(missing_of_wave, &picked)
         };
