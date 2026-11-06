@@ -139,7 +139,8 @@ function effectivePlatform (pkg: PlatformFields & { name: string }, optional: bo
   const inferred = inferPlatformFromPackageName(pkg.name)
   if (inferred == null) return pkg
   const pkgDeclaresPlatform = pkg.os != null || pkg.cpu != null || pkg.libc != null
-  if (!pkgDeclaresPlatform && (inferred.os == null || (inferred.cpu == null && inferred.libc == null))) return pkg
+  const namesBinaryTarget = inferred.os != null && (inferred.cpu != null || inferred.libc != null)
+  if (!pkgDeclaresPlatform && !namesBinaryTarget) return pkg
   return {
     os: pkg.os ?? inferred.os,
     cpu: pkg.cpu ?? inferred.cpu,
