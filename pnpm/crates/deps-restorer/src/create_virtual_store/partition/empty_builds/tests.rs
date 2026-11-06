@@ -9,10 +9,13 @@ use std::{
 };
 
 fn prefetch() -> PrefetchResult {
-    let files = HashMap::from([("index.js".to_string(), PathBuf::from("/store/index"))]);
+    let files = HashMap::from([(
+        "index.js".to_string(),
+        pnpm_fs::StoreFile::new(PathBuf::from("/store/index")),
+    )]);
     let built = SideEffectsOverlay::from(HashMap::from([(
         "built.json".to_string(),
-        PathBuf::from("/store/built"),
+        pnpm_fs::StoreFile::new(PathBuf::from("/store/built")),
     )]));
     let empty = SideEffectsDiff { added: None, deleted: None, remote_origin: None };
     let changed = SideEffectsDiff { added: Some(HashMap::new()), ..empty.clone() };
@@ -47,7 +50,7 @@ fn restores_an_empty_row_from_the_package_files_only_when_asked() {
         assert!(overlays["built"].files.contains_key("built.json"));
         assert_eq!(
             overlays.get("empty").map(|overlay| &overlay.files),
-            restores_empty_builds.then(|| &*prefetch.cas_paths["row"]),
+            restores_empty_builds.then(|| &prefetch.cas_paths["row"]),
         );
     }
 }

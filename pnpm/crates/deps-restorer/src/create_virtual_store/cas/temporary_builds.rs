@@ -77,6 +77,7 @@ async fn build_in<Report: Reporter>(
         installer.entries.packages,
         fetched,
         installer.ctx,
+        installer.selection.supported_architectures,
     )?;
     selected.retain(|key, _| !fetched.fetch_failed.contains(key));
     promote::retain(installer, &layout, temporary, selected)

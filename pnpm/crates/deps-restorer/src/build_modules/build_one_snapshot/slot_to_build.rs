@@ -52,3 +52,22 @@ pub(super) fn slot_to_build(
     mark_global_virtual_store_build_started(context.pkg_roots(), snapshot_key);
     Ok(Some((pkg_dir, lock)))
 }
+
+fn built_by_an_earlier_install(
+    context: &BuildOneSnapshot<'_>,
+    candidate: &BuildCandidate<'_>,
+    marker: &Path,
+) -> Result<bool, BuildModulesError> {
+    let from_an_immutable_source = context.graph.packages
+        .and_then(|packages| packages.get(&candidate.metadata_key))
+        .is_some_and(|metadata| !matches!(metadata.resolution, LockfileResolution::Directory(_)));
+    if candidate.force_rebuild
+        || !from_an_immutable_source
+        || !context.directories.layout.enable_global_virtual_store()
+    {
+        return Ok(false);
+    }
+    crate::build_modules::slots::built_slot_is_complete(
+        marker.parent().expect("build marker has a package directory"),
+    )
+}

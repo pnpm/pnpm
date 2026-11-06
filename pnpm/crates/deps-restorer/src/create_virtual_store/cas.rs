@@ -61,6 +61,7 @@ impl CreateVirtualStore<'_> {
             installer.entries.packages,
             &mut fetched,
             installer.ctx,
+            installer.selection.supported_architectures,
         )?;
         installer.fetching.cas_prefetch = prefetch;
         let promoted = temporary_builds::build::<Report>(
@@ -112,8 +113,16 @@ fn prepare_loaded_packages(
     packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
     fetched: &mut CreateVirtualStoreOutput,
     context: &crate::InstallContext<'_>,
+    supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
 ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
-    let mut cached_builds = cached_builds::retain(selected, snapshots, packages, fetched, context);
+    let mut cached_builds = cached_builds::retain(
+        selected,
+        snapshots,
+        packages,
+        fetched,
+        context,
+        supported_architectures,
+    );
     fetched.cas_paths_by_snapshot = cached_build_maps(fetched, &cached_builds);
     retain_native_addon_packages(selected, snapshots, fetched);
     capabilities::retain_filesystem_packages(selected, snapshots, fetched)?;
@@ -152,7 +161,15 @@ fn cached_build_maps(
         else {
             continue;
         };
-        maps.insert(key.clone(), Arc::new(overlay.files.clone()));
+        maps.insert(
+            key.clone(),
+            Arc::new(
+                overlay.files
+                    .iter()
+                    .map(|(name, file)| (name.clone(), file.path.clone()))
+                    .collect(),
+            ),
+        );
     }
     (!maps.is_empty()).then_some(maps)
 }

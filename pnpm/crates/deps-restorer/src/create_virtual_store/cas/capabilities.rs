@@ -22,14 +22,24 @@ pub(super) fn retain_filesystem_packages(
         let files = fetched.cas_paths_by_snapshot
             .as_ref()
             .and_then(|files| files.get(key))
-            .map(AsRef::as_ref)
+            .map(|files| {
+                files
+                    .iter()
+                    .map(|(name, file)| (name.clone(), file.clone()))
+                    .collect()
+            })
             .or_else(|| {
                 packages
                     .get(&super::cas_paths_key(key))
-                    .map(|files| files.cas_paths.as_ref())
+                    .map(|files| {
+                        files.cas_paths
+                            .iter()
+                            .map(|(name, file)| (name.clone(), file.path.clone()))
+                            .collect()
+                    })
             });
         if let Some(files) = files
-            && needs_directory(files, &mut inspected)?
+            && needs_directory(&files, &mut inspected)?
         {
             roots.push(key.clone());
         }
