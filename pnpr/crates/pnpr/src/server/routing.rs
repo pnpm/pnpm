@@ -1,3 +1,5 @@
+pub(super) mod npm_errors;
+
 pub(super) use super::{
     Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_PUBLISH_BODY_BYTES,
     MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, authenticate, authorize_package, batch,
@@ -37,8 +39,6 @@ use npm_handlers::{
 
 mod variant_handlers;
 use variant_handlers::get_scoped_variant_tarball;
-
-pub(super) mod npm_errors;
 
 mod observability;
 use observability::with_observability_layers;

@@ -20,7 +20,7 @@ async fn npm_authentication_errors_distinguish_missing_and_invalid_tokens() {
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{path}");
             assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
             let expected_challenge =
-                if token.is_some() { "Bearer error=\"invalid_token\"" } else { "Bearer" };
+                if token.is_some() { r#"Bearer error="invalid_token""# } else { "Bearer" };
             assert_eq!(response.headers()[header::WWW_AUTHENTICATE], expected_challenge);
             let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
             let body: serde_json::Value = serde_json::from_slice(&body).unwrap();

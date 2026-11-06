@@ -35,7 +35,7 @@ pub(in crate::server) async fn render(request: Request, next: Next) -> Response 
                 .is_some_and(|caller| matches!(caller.0, Identity::Anonymous));
         let challenge = if invalid_token {
             message = "Invalid authentication token".to_string();
-            "Bearer error=\"invalid_token\""
+            r#"Bearer error="invalid_token""#
         } else {
             "Bearer"
         };
