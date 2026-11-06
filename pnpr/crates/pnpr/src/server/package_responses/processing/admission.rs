@@ -13,6 +13,7 @@ pub(crate) enum DocumentSource<'a> {
 
 pub(crate) struct Admissions {
     pub(super) stored: Arc<Semaphore>,
+    upstream_total: Arc<Semaphore>,
     upstreams: Mutex<HashMap<String, Arc<Semaphore>>>,
     pub(super) capacity: usize,
 }
@@ -21,6 +22,7 @@ impl Admissions {
     pub(super) fn new(capacity: usize) -> Self {
         Self {
             stored: Arc::new(Semaphore::new(capacity)),
+            upstream_total: Arc::new(Semaphore::new(capacity)),
             upstreams: Mutex::new(HashMap::new()),
             capacity,
         }
@@ -31,7 +33,7 @@ impl Admissions {
         Arc::clone(
             upstreams
                 .entry(namespace.to_string())
-                .or_insert_with(|| Arc::new(Semaphore::new(self.capacity))),
+                .or_insert_with(|| Arc::new(Semaphore::new(self.capacity.div_ceil(2)))),
         )
     }
 
@@ -46,6 +48,12 @@ impl Admissions {
             DocumentSource::Upstream(namespace) => self.upstream(namespace),
         };
         let _permit = admission.acquire_owned().await.expect("document admission never closes");
+        let _upstream_permit = match source {
+            DocumentSource::Stored => None,
+            DocumentSource::Upstream(_) => {
+                Some(self.upstream_total.acquire().await.expect("upstream admission never closes"))
+            }
+        };
         response.await
     }
 }

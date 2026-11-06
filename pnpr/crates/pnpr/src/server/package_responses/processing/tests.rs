@@ -596,3 +596,45 @@ async fn slow_upstream_misses_do_not_block_a_fresh_cached_package() {
     let result = origin.await;
     assert!(matches!(result, Err(error) if error.is_cancelled()));
 }
+
+#[tokio::test]
+async fn upstream_admission_has_an_instance_wide_bound() {
+    use super::admission::{Admissions, DocumentSource};
+    use std::future::Future;
+
+    let admissions = Admissions::new(2);
+    let (started, mut received) = tokio::sync::mpsc::unbounded_channel();
+    let first = admissions.serve(DocumentSource::Upstream("first-example"), async {
+        started.send(()).unwrap();
+        std::future::pending::<()>().await;
+    });
+    let second = admissions.serve(DocumentSource::Upstream("second-example"), async {
+        started.send(()).unwrap();
+        std::future::pending::<()>().await;
+    });
+    let occupied = async {
+        tokio::join!(first, second);
+    };
+    tokio::pin!(occupied);
+    tokio::select! {
+        () = &mut occupied => panic!("upstreams should remain pending"),
+        () = async { received.recv().await.unwrap(); received.recv().await.unwrap(); } => {}
+    }
+    let polled = std::sync::atomic::AtomicBool::new(false);
+    let third = admissions.serve(DocumentSource::Upstream("third-example"), async {
+        polled.store(true, std::sync::atomic::Ordering::SeqCst);
+    });
+    tokio::pin!(third);
+    std::future::poll_fn(|context| {
+        assert!(
+            third
+                .as_mut()
+                .poll(context)
+                .is_pending(),
+        );
+        std::task::Poll::Ready(())
+    })
+    .await;
+    assert!(!polled.load(std::sync::atomic::Ordering::SeqCst));
+    admissions.serve(DocumentSource::Stored, async {}).await;
+}

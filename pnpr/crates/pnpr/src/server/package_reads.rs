@@ -171,11 +171,7 @@ pub(super) async fn serve_registry_packument(
     // client's lockfile drops them — persisting the resolved source path would
     // bake the registry name in and break lockfile portability.
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let tar_integrities = match tar_integrities_of(state, &resolved_source, &name).await {
-        Ok(table) => table,
-        Err(err) => return err.into_response(),
-    };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_ref());
+    let view = dist_view(state, registry, &resolved_source, None);
     match &resolved_source {
         RegistrySource::Upstream(source) => {
             // The upstream registry's per-package rules gate every served
@@ -333,6 +329,11 @@ pub(super) async fn serve_hosted_packument(
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
     let response = async {
+        let table = match state.inner.storage.read_tar_integrities(name).await {
+            Ok(table) => table,
+            Err(err) => return err.into_response(),
+        };
+        let view_options = DistView { tar_integrities: Some(&table), ..view_options };
         let view = state.inner.storage
             .for_hosted(&org, pnpr_registry::Ecosystem::Npm)
             .read_hosted_package_view(name)

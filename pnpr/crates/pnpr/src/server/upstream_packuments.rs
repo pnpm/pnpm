@@ -392,11 +392,13 @@ impl UpstreamDocument<'_> {
     }
 
     async fn render(&self, bytes: Vec<u8>) -> Result<Response, RegistryError> {
+        let table = self.state.inner.storage.read_tar_integrities(self.name).await?;
+        let view = DistView { tar_integrities: Some(&table), ..self.response.view };
         packument_response(
             self.name,
             bytes.into(),
             self.response.tarball_base,
-            self.response.view,
+            view,
             self.state,
             self.response.headers,
             self.ttl.as_secs(),
