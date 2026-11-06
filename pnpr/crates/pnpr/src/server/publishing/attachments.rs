@@ -162,6 +162,8 @@ pub(in super::super) struct StagedPublish {
 /// The stored document a staged publish was computed from.
 #[derive(Default)]
 pub(in super::super) struct StagedBase {
+    /// A client revision precondition forbids rebasing onto another document.
+    pub(in super::super) revision_checked: bool,
     /// Its version, which the commit expects to replace; `None` when there
     /// was none.
     pub(in super::super) version: Option<HostedDocumentVersion>,
@@ -198,34 +200,21 @@ pub(in super::super) struct Verification {
 /// removed.
 pub(in super::super) async fn stage_publish(
     state: &AppState,
-    doc: ValidatedPublish,
+    mut doc: ValidatedPublish,
     now_iso: &str,
     org: Option<&str>,
 ) -> Result<StagedPublish, RegistryError> {
     let storage = hosted_storage(state, org);
 
-    let base = read_staged_base(&storage, &doc).await?;
-    let hosted = base.packument.as_ref();
-
-    check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
+    let mut base = read_staged_base(&storage, &doc).await?;
+    check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
     let publisher = doc.publisher.username().map(str::to_string);
+    let (merged, without_any) =
+        prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
+    drop(doc.incoming);
     let ValidatedPublish {
-        name,
-        mut incoming,
-        prepared,
-        tarballs,
-        variants,
-        ..
+        name, prepared, tarballs, variants, ..
     } = doc;
-    restore_submitted_tgz_integrities(&storage, &name, hosted, &mut incoming).await?;
-
-    let without_any = check_publishable_versions(&name, &incoming, hosted, (&prepared, &variants))?;
-
-    let merged = prepare_staged_document(&name, hosted, &incoming, &prepared, now_iso);
-    // `incoming` is no longer needed; drop it so the base64 strings
-    // inside go away as soon as `prepared` (which owns each one) is
-    // drained below.
-    drop(incoming);
 
     let verified = write_verified(
         (&storage, publisher.as_deref(), &state.inner.proxy.tar_decodes),
@@ -246,6 +235,37 @@ pub(in super::super) async fn stage_publish(
     })
 }
 
+async fn prepare_publish_document(
+    storage: &Storage,
+    doc: &mut ValidatedPublish,
+    base: &mut StagedBase,
+    now_iso: &str,
+) -> Result<(Value, BTreeSet<String>), RegistryError> {
+    let hosted = base.packument.as_ref();
+    restore_submitted_tgz_integrities(storage, &doc.name, hosted, &mut doc.incoming).await?;
+    let without_any = check_publishable_versions(
+        &doc.name,
+        &doc.incoming,
+        hosted,
+        (&doc.prepared, &doc.variants),
+    )?;
+    if doc.prepared.is_empty()
+        && let Some(hosted) = hosted
+    {
+        super::super::package_mutation::revisions::prepare_deprecation(
+            &doc.name,
+            hosted,
+            &mut doc.incoming,
+        )?;
+        base.revision_checked = true;
+    }
+    if let Some(object) = doc.incoming.as_object_mut() {
+        object.remove("_rev");
+    }
+    let merged = prepare_staged_document(&doc.name, hosted, &doc.incoming, &doc.prepared, now_iso);
+    Ok((merged, without_any))
+}
+
 /// The packument `doc` is computed from, read with the rows of the blobs it
 /// expects to store.
 async fn read_staged_base(
@@ -263,7 +283,7 @@ fn staged_base(
     base: pnpr_storage::metadata::PublishBase,
 ) -> Result<StagedBase, RegistryError> {
     let (packument, version) = parse_hosted_packument(name, base.stored)?;
-    Ok(StagedBase { version, packument, blobs: base.blobs, references: Vec::new() })
+    Ok(StagedBase { version, packument, blobs: base.blobs, ..StagedBase::default() })
 }
 
 /// The identities the bytes `doc` stores will have, where they are known

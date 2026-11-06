@@ -744,11 +744,14 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     let rewrite = app
         .clone()
         .oneshot(
-            Request::put("/npm/~acme/@acme%2Fnative/-rev/1-0")
-                .header(header::CONTENT_TYPE, "application/json")
-                .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                .body(Body::from(packument.to_string()))
-                .unwrap(),
+            Request::put(format!(
+                "/npm/~acme/@acme%2Fnative/-rev/{}",
+                packument["_rev"].as_str().unwrap(),
+            ))
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(packument.to_string()))
+            .unwrap(),
         )
         .await
         .unwrap();
@@ -761,11 +764,14 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     let rewrite_omitted = app
         .clone()
         .oneshot(
-            Request::put("/npm/~acme/@acme%2Fnative/-rev/2-0")
-                .header(header::CONTENT_TYPE, "application/json")
-                .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                .body(Body::from(omitted.to_string()))
-                .unwrap(),
+            Request::put(format!(
+                "/npm/~acme/@acme%2Fnative/-rev/{}",
+                omitted["_rev"].as_str().unwrap(),
+            ))
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(omitted.to_string()))
+            .unwrap(),
         )
         .await
         .unwrap();

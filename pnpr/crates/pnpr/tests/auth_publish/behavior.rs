@@ -56,7 +56,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     // A present-but-non-string integrity must be rejected — otherwise it slips
     // past the string-only immutability check and breaks tarball serving.
     packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(null);
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+    let request = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
@@ -110,6 +110,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
         Some(sri_sha512(&npm_tgz("mypkg", "1.0.0", b"original")).as_str()),
     );
     let body = json!({
+        "_rev": hosted["_rev"],
         "_id": "mypkg",
         "name": "mypkg",
         "dist-tags": { "latest": "1.0.0" },

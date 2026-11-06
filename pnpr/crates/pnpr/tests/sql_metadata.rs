@@ -122,8 +122,16 @@ async fn npm_metadata_round_trips_through_sqlite() {
     assert_eq!(document["dist-tags"]["stable"], "1.0.0");
 
     document["versions"]["1.0.0"]["deprecated"] = json!("use 1.1.0");
-    let (status, ..) =
-        send(&app, request("PUT", "/npm/sql-pkg/-rev/1", &token, Some(&document))).await;
+    let (status, ..) = send(
+        &app,
+        request(
+            "PUT",
+            &format!("/npm/sql-pkg/-rev/{}", document["_rev"].as_str().unwrap()),
+            &token,
+            Some(&document),
+        ),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let (_, document) = packument(&app, &token).await;
     assert_eq!(document["versions"]["1.0.0"]["deprecated"], "use 1.1.0");
@@ -184,8 +192,16 @@ async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
         .as_object_mut()
         .unwrap()
         .remove("1.0.0");
-    let (status, ..) =
-        send(&app, request("PUT", "/npm/sql-pkg/-rev/1", &token, Some(&document))).await;
+    let (status, ..) = send(
+        &app,
+        request(
+            "PUT",
+            &format!("/npm/sql-pkg/-rev/{}", document["_rev"].as_str().unwrap()),
+            &token,
+            Some(&document),
+        ),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
 
     // The metadata store keeps the removed version itself, so losing the
@@ -472,11 +488,115 @@ async fn pnprs_package_document_and_release_records_render_from_sqlite() {
     // A deprecation changes the next document and leaves the record alone.
     let (_, mut packument) = packument(&app, &token).await;
     packument["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
-    let (status, ..) =
-        send(&app, request("PUT", "/npm/sql-pkg/-rev/1", &token, Some(&packument))).await;
+    let (status, ..) = send(
+        &app,
+        request(
+            "PUT",
+            &format!("/npm/sql-pkg/-rev/{}", packument["_rev"].as_str().unwrap()),
+            &token,
+            Some(&packument),
+        ),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let (_, _, document) = get_json(&app, "/npm/sql-pkg", INSTALL_V2, &token).await;
     assert_eq!(document["versions"]["1.0.0"]["deprecated"], "use 2.0.0");
     let (_, _, unchanged) = get_json(&app, record_path, "application/json", &token).await;
     assert_eq!(unchanged, record);
+}
+
+#[tokio::test]
+async fn stale_packuments_cannot_remove_new_versions_or_roll_back_tags() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let first = publish_doc("sql-pkg", "1.0.0", b"first");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&first))).await.0,
+        StatusCode::CREATED,
+    );
+    let (_, stale) = packument(&app, &token).await;
+    let revision = stale["_rev"].as_str().unwrap();
+    let next = publish_doc("sql-pkg", "1.1.0", b"next");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&next))).await.0,
+        StatusCode::CREATED,
+    );
+    let (_, current) = packument(&app, &token).await;
+    assert_ne!(current["_rev"], stale["_rev"]);
+
+    let mut deprecated = stale.clone();
+    deprecated["versions"]["1.0.0"]["deprecated"] = json!("old");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&deprecated)))
+            .await
+            .0,
+        StatusCode::CONFLICT,
+    );
+    let mut removed = stale.clone();
+    removed["versions"] = json!({});
+    removed["dist-tags"] = json!({});
+    let path = format!("/npm/sql-pkg/-rev/{revision}");
+    assert_eq!(
+        send(&app, request("PUT", &path, &token, Some(&removed))).await.0,
+        StatusCode::CONFLICT,
+    );
+    removed
+        .as_object_mut()
+        .unwrap()
+        .remove("_rev");
+    assert_eq!(
+        send(&app, request("PUT", &path, &token, Some(&removed))).await.0,
+        StatusCode::CONFLICT,
+    );
+    assert_eq!(packument(&app, &token).await.1, current);
+    let republish = publish_doc("sql-pkg", "1.1.0", b"different archive");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&republish)))
+            .await
+            .0,
+        StatusCode::CONFLICT,
+        "the newer version must not be tombstoned",
+    );
+
+    let mut missing = current.clone();
+    missing
+        .as_object_mut()
+        .unwrap()
+        .remove("_rev");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&missing))).await.0,
+        StatusCode::CONFLICT,
+    );
+    let mut deprecated = current.clone();
+    deprecated["versions"]["1.0.0"]["deprecated"] = json!("old");
+    deprecated["dist-tags"]["latest"] = json!("1.0.0");
+    deprecated["readme"] = json!("untrusted replacement");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&deprecated)))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    let (_, after) = packument(&app, &token).await;
+    assert_eq!(after["dist-tags"], current["dist-tags"]);
+    assert_eq!(after.get("readme"), current.get("readme"));
+    assert_eq!(after["versions"]["1.0.0"]["deprecated"], "old");
+    assert_eq!(after["versions"]["1.1.0"], current["versions"]["1.1.0"]);
+    assert_ne!(after["_rev"], current["_rev"]);
+
+    let mut removed = after.clone();
+    removed["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.0.0");
+    let path = format!("/npm/sql-pkg/-rev/{}", after["_rev"].as_str().unwrap());
+    assert_eq!(
+        send(&app, request("PUT", &path, &token, Some(&removed))).await.0,
+        StatusCode::CREATED,
+    );
+    let (_, after) = packument(&app, &token).await;
+    assert!(after["versions"].get("1.0.0").is_none());
+    assert!(after["versions"].get("1.1.0").is_some());
+    assert_eq!(after["dist-tags"]["latest"], "1.1.0");
 }

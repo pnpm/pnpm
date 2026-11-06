@@ -202,6 +202,9 @@ pub(super) fn packument_response(
 ) -> Result<Response, RegistryError> {
     let osv_index = state.inner.osv_index.as_ref();
     let mut doc: Value = serde_json::from_slice(bytes)?;
+    if view.hosted {
+        doc["_rev"] = Value::String(super::package_mutation::revisions::revision(&doc));
+    }
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
     match view.revision_registry {
         Some(source_registry) => {

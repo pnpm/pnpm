@@ -24,12 +24,14 @@ const REBASE_ATTEMPTS: usize = 4;
 
 /// The packument each staged npm publish was computed from, taken out of
 /// `staged`, for a commit that loses the race to rebase off. `None` unless
-/// every document is an npm packument, the one format a rebase understands;
+/// every document is an npm packument without a client revision precondition;
 /// a lost race of any other answers the conflict.
 pub(super) fn rebase_bases(staged: &mut [StagedPublish]) -> Option<Vec<Option<Value>>> {
     if staged
         .iter()
-        .any(|stage| stage.ecosystem != pnpr_registry::Ecosystem::Npm)
+        .any(|stage| {
+            stage.ecosystem != pnpr_registry::Ecosystem::Npm || stage.base.revision_checked
+        })
     {
         return None;
     }

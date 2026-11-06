@@ -226,8 +226,14 @@ async fn an_unpublished_version_serves_no_note() {
         .as_object_mut()
         .unwrap()
         .remove("1.0.0");
-    let rewritten =
-        send(&app, "PUT", "/npm/pruned/-rev/1", Some(&token), json_body(&packument)).await;
+    let rewritten = send(
+        &app,
+        "PUT",
+        &format!("/npm/pruned/-rev/{}", packument["_rev"].as_str().unwrap()),
+        Some(&token),
+        json_body(&packument),
+    )
+    .await;
     assert_eq!(rewritten.status, StatusCode::CREATED, "{}", rewritten.text());
 
     let removed = send(&app, "GET", "/npm/pruned/1.0.0/notes", None, Body::empty()).await;

@@ -459,6 +459,17 @@ a hosted registry.
 Every key under `versions` and its manifest's `version` must be valid SemVer.
 pnpr rejects an invalid version with `400`.
 
+### Packument revisions
+
+A hosted package's full metadata document includes `_rev`. A partial unpublish
+PUT must use that value in `/{package}/-rev/{rev}`. If the body also includes
+`_rev`, it must match the path. A stale revision returns `409` without removing
+versions. Read the package metadata again before retrying.
+
+A deprecation PUT to `/{package}` must include the current `_rev`. It changes
+only the versions' `deprecated` fields. Dist-tags and other package metadata
+stay unchanged. A missing or stale `_rev` returns `409`.
+
 ### Platform variants
 
 A hosted version can carry platform variants: archives that pnpm links in

@@ -357,15 +357,28 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     // The unpublish flow: PUT back a packument without the version, delete
     // its tarball (the unencoded scoped 7-segment form), then delete the
     // package — all through the registry.
+    let current = app
+        .clone()
+        .oneshot(
+            authed(Request::get("/npm/~acme/@acme%2Fwidget"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let current = body_json(current.into_body()).await;
     let put_back = app
         .clone()
         .oneshot(
-            authed(Request::put("/npm/~acme/@acme%2Fwidget/-rev/1"))
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    json!({ "name": "@acme/widget", "versions": {}, "dist-tags": {} }).to_string(),
-                ))
-                .unwrap(),
+            authed(Request::put(format!(
+                "/npm/~acme/@acme%2Fwidget/-rev/{}",
+                current["_rev"].as_str().unwrap(),
+            )))
+            .header("content-type", "application/json")
+            .body(Body::from(
+                json!({ "name": "@acme/widget", "versions": {}, "dist-tags": {} }).to_string(),
+            ))
+            .unwrap(),
         )
         .await
         .unwrap();

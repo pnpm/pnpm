@@ -21,6 +21,7 @@ const MAX_PACKUMENT_BINS_BYTES: usize = 64 * 1024;
 /// How a served document describes each version's tarball.
 #[derive(Clone, Copy)]
 pub(super) struct DistView<'a> {
+    pub(super) hosted: bool,
     /// The upstream whose revision tarballs may be linked. Every
     /// other version is described by its canonical resource.
     pub(super) revision_registry: Option<&'a str>,
@@ -56,7 +57,12 @@ pub(super) fn dist_view<'a>(
         RegistrySource::Upstream(source) => revision_source_registry(state, source),
         RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     };
-    DistView { revision_registry, tar_integrities, tar_registry: is_tar_registry(state, registry) }
+    DistView {
+        hosted: matches!(source, RegistrySource::Hosted(_)),
+        revision_registry,
+        tar_integrities,
+        tar_registry: is_tar_registry(state, registry),
+    }
 }
 
 /// Whether the registry `key` declares `tarballs: tar`.
