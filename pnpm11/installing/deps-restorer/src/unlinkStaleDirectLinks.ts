@@ -90,11 +90,10 @@ async function unlinkDirectLink (modulesDir: string, alias: string, binsDir: str
   // A symlinked `@scope` directory would redirect the unlink outside the modules directory.
   if (alias.startsWith('@') && !await isRealDir(path.dirname(link))) return undefined
   if (!await isSymlink(link)) return undefined
-  const version = await readManifestVersion(link)
   // Unlinking through a symlinked `.bin` would delete files outside the project.
-  if (await isRealDir(binsDir)) {
-    await removeBinsOfDependency(link, { binsDir })
-  }
+  const version = await isRealDir(binsDir)
+    ? (await removeBinsOfDependency(link, { binsDir }))?.version
+    : await readManifestVersion(link)
   await unlinkIfSymlink(link)
   return { version }
 }

@@ -122,6 +122,32 @@ fn a_removed_link_dependency_is_reported() {
     }
 }
 
+#[test]
+fn a_removed_link_dependency_with_a_malformed_manifest_is_unlinked() {
+    let observed = under_each_linker(|pacquet, workspace| {
+        write_json(
+            &workspace.join("lib/package.json"),
+            &json!({ "name": "lib", "version": "1.0.0" }),
+        );
+        write_root_manifest(workspace, &json!({ "lib": "link:lib" }));
+        install(pacquet);
+        fs::write(workspace.join("lib/package.json"), "{").expect("break the manifest");
+
+        write_root_manifest(workspace, &json!({}));
+        let records = install(pacquet_in(workspace));
+        let removed: Vec<_> = removals(&records)
+            .into_iter()
+            .map(|(_, alias, version)| (alias, version))
+            .collect();
+        (fs::symlink_metadata(workspace.join("node_modules/lib")).is_ok(), removed)
+    });
+    dbg!(&observed);
+    for (linker, (present_after, removed)) in observed {
+        assert!(!present_after, "nodeLinker: {linker}");
+        assert_eq!(removed, [("lib".to_owned(), Value::Null)], "nodeLinker: {linker}");
+    }
+}
+
 /// The root names `packages/shared` as `link:packages/shared`, the project
 /// as `link:../shared`: one target, so the root's link dedupes the
 /// project's.

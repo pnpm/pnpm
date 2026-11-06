@@ -65,6 +65,25 @@ test.each(LINKERS)('a removed link: dependency is reported (nodeLinker: %s)', as
   expect(removals(reporter)).toStrictEqual([':lib@1.0.0'])
 })
 
+// The isolated linker and a real `.bin` read the manifest to remove its bins, so
+// a malformed one fails the install there.
+test('a removed link: dependency with a malformed manifest is unlinked (nodeLinker: hoisted)', async () => {
+  const nodeLinker = 'hoisted'
+  const { allProjects, importers } = prepareWorkspace({
+    '': { name: 'root', dependencies: { lib: 'link:lib' } },
+  })
+  writeManifest('lib', { name: 'lib', version: '1.0.0' })
+  await mutateModules(importers, testDefaults({ allProjects, nodeLinker }))
+  fs.writeFileSync('lib/package.json', '{')
+
+  allProjects[0].manifest.dependencies = {}
+  const reporter = jest.fn()
+  await mutateModules(importers, testDefaults({ allProjects, nodeLinker, reporter }))
+
+  expect(fs.lstatSync('node_modules/lib', { throwIfNoEntry: false })).toBeUndefined()
+  expect(removals(reporter)).toStrictEqual([':lib@undefined'])
+})
+
 test.each(LINKERS)('a project link the root starts providing under another spelling is removed (nodeLinker: %s)', async (nodeLinker) => {
   const { allProjects, importers } = prepareWorkspace({
     '': { name: 'root' },

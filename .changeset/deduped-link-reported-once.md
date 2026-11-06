@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-With `dedupeDirectDeps`, `pnpm install` reports a project dependency that the workspace root provides as removed only once, when it removes the project's link. Every later install reported it as removed again.
+With `dedupeDirectDeps`, `pnpm install` reports a project dependency that the workspace root provides as removed only once, when it removes the project's link [pnpm/tasks#293](https://github.com/pnpm/tasks/issues/293).
