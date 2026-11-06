@@ -9,7 +9,7 @@ use pnpm_resolving_resolver_base::{
 use std::{collections::BTreeMap, path::Path};
 
 #[test]
-fn merged_local_peer_locators_survive_preferred_registry_versions() {
+fn merged_peer_locators_survive_preferred_registry_versions() {
     let preferred = PreferredVersions::from_iter([(
         "b".to_string(),
         BTreeMap::from([
@@ -23,7 +23,7 @@ fn merged_local_peer_locators_survive_preferred_registry_versions() {
             ),
         ]),
     )]);
-    for range in ["file:../b", "link:../b"] {
+    for range in ["file:../b", "link:../b", "npm:other@1.0.0"] {
         for auto_install_peers_from_highest_match in [false, true] {
             let merged = merge_ranges(&[range, range], auto_install_peers_from_highest_match)
                 .expect("identical peer locators merge");
