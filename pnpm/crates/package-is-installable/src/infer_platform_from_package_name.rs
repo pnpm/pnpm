@@ -64,7 +64,9 @@ pub fn inferred_platform(name: &str, declared: WantedPlatformRef<'_>) -> Option<
     let inferred = infer_platform_from_package_name(name)?;
     let declares_platform =
         declared.os.is_some() || declared.cpu.is_some() || declared.libc.is_some();
-    if !declares_platform && inferred.os.is_none() {
+    if !declares_platform
+        && (inferred.os.is_none() || (inferred.cpu.is_none() && inferred.libc.is_none()))
+    {
         return None;
     }
     Some(WantedPlatform {
