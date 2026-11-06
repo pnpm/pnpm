@@ -58,6 +58,7 @@ pub enum RegistryError {
     UpstreamUnavailable {
         #[error(not(source))]
         upstream: String,
+        retry_after: std::time::Duration,
     },
 
     #[display("Storage is temporarily unavailable: {reason}")]

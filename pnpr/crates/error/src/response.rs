@@ -28,6 +28,14 @@ impl RegistryError {
         }
     }
 
+    fn retry_after(&self) -> Option<std::time::Duration> {
+        match self {
+            RegistryError::UpstreamUnavailable { retry_after, .. } => Some(*retry_after),
+            RegistryError::Shared(inner) => inner.retry_after(),
+            _ => None,
+        }
+    }
+
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
         if let Some(kind) = self.package_log_kind() {
@@ -148,6 +156,9 @@ impl RegistryError {
         if let RegistryError::Shared(inner) = self {
             return inner.public_message();
         }
+        if let RegistryError::UpstreamUnavailable { .. } = self {
+            return self.to_string();
+        }
         let status = self.status_code();
         if status.is_server_error() {
             return status
@@ -249,7 +260,22 @@ impl IntoResponse for RegistryError {
         } else {
             tracing::warn!(err = %self, %error_kind, %status, "request failed");
         }
-        (status, self.public_message()).into_response()
+        let mut response = (status, self.public_message()).into_response();
+        if let Some(delay) = self.retry_after() {
+            let seconds = delay
+                .as_secs()
+                .saturating_add(u64::from(delay.subsec_nanos() > 0));
+            response
+                .headers_mut()
+                .insert(
+                    axum::http::header::RETRY_AFTER,
+                    seconds
+                        .to_string()
+                        .parse()
+                        .expect("integer is a valid header value"),
+                );
+        }
+        response
     }
 }
 

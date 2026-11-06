@@ -42,8 +42,11 @@ fn circuit_breaker_opens_after_max_fails_and_resets_on_success() {
     assert!(breaker.try_acquire(), "one failure is under the threshold");
     breaker.record_failure();
     assert!(!breaker.try_acquire(), "two failures trip the breaker for the cooldown");
+    assert!(breaker.retry_after() > Duration::from_secs(299));
+    assert!(breaker.retry_after() <= Duration::from_mins(5));
     breaker.record_success();
     assert!(breaker.try_acquire(), "a success clears the failure count");
+    assert_eq!(breaker.retry_after(), Duration::ZERO);
 }
 
 #[test]
@@ -137,4 +140,52 @@ async fn client_error_status_does_not_open_the_circuit() {
         );
     }
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn body_timeouts_do_not_open_the_circuit() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            tokio::spawn(async move {
+                let mut request = [0u8; 4096];
+                let _ = socket.read(&mut request).await;
+                socket
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 1024\r\nConnection: close\r\n\r\n{",
+                    )
+                    .await
+                    .unwrap();
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            });
+        }
+    });
+    let mut config = super::UpstreamConfig::with_defaults(url, super::HeaderMap::new());
+    config.requests.max_fails = 1;
+    config.requests.timeout = Duration::from_millis(100);
+    let upstream = super::Upstream::new("test", &config);
+    let name =
+        CanonicalPackageName::parse("example-package", pnpr_package_name::Ecosystem::Npm).unwrap();
+    for _ in 0..2 {
+        let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+        assert!(
+            matches!(result, Err(RegistryError::Upstream { source, .. }) if source.is_timeout()),
+        );
+        assert!(upstream.ensure_available().is_ok());
+        let result = upstream.fetch_document("document", None, 2048).await;
+        assert!(matches!(result, Err(RegistryError::UpstreamResponse { .. })));
+        assert!(upstream.ensure_available().is_ok());
+        let result = upstream.fetch_search("text=example").await;
+        assert!(matches!(result, Err(RegistryError::UpstreamResponse { .. })));
+        assert!(upstream.ensure_available().is_ok());
+        let result = upstream.post_audit("-/npm/v1/security/advisories/bulk", b"{}").await;
+        assert!(matches!(result, Err(RegistryError::UpstreamResponse { .. })));
+        assert!(upstream.ensure_available().is_ok());
+        let result = upstream.get_keys().await;
+        assert!(matches!(result, Err(RegistryError::UpstreamResponse { .. })));
+        assert!(upstream.ensure_available().is_ok());
+    }
+    server.abort();
 }

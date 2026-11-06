@@ -270,6 +270,11 @@ registries:
 | `search` | Opts this upstream into browser-facing search and organization discovery. Defaults to `false`. See [Browsing and discovery](discovery.md). |
 | `cache` | Whether tarballs fetched from this registry are cached locally. Defaults to `true`; `false` streams verified tarballs through a temporary file. With caching on, pnpr computes a SHA-512 `dist.integrity` for up to 64 versions per fetched packument that omit one, caching each tarball it hashes. |
 
+Timeouts while reading a response body do not count toward `maxFails`.
+An open circuit returns HTTP 503 with the configured upstream name and a
+`Retry-After` header indicating the remaining cooldown in seconds. Cached
+packages remain available.
+
 Interval values accept strings such as `30s`, `5m`, `1h30m`, or a bare number
 of seconds.
 
