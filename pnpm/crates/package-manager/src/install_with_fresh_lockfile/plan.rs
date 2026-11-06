@@ -447,16 +447,12 @@ pub(super) fn log_layout_phase(config: &Config, phase_start: std::time::Instant)
     );
 }
 /// The importers whose own project manifests anchor the link phase: the
-/// materialized importers in `real_importer_ids`, or all of them when it is
-/// `None`. A previous hoisted install can have materialized an importer
-/// whose project is now missing from disk.
+/// importers in `materialized` that are also in `real_importer_ids`, or all
+/// of them when it is `None`. A previous hoisted install can have
+/// materialized an importer whose project is now missing from disk.
 pub(super) fn project_anchor_importer_ids(
     real_importer_ids: Option<&HashSet<String>>,
-    materialization_importer_ids: &HashSet<String>,
+    materialized: &HashSet<String>,
 ) -> HashSet<String> {
-    materialization_importer_ids
-        .iter()
-        .filter(|importer_id| real_importer_ids.is_none_or(|real| real.contains(*importer_id)))
-        .cloned()
-        .collect()
+    real_importer_ids.map_or_else(|| materialized.clone(), |real| materialized & real)
 }
