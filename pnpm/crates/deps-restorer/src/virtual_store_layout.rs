@@ -22,11 +22,7 @@
 mod graph_hash;
 use graph_hash::GvsHasher;
 
-use crate::{
-    AllowBuildPolicy,
-    install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
-    platform_selection::VariantPlatforms,
-};
+use crate::{AllowBuildPolicy, platform_selection::VariantPlatforms};
 use pnpm_config::Config;
 use pnpm_graph_hasher::{
     detect_node_major, engine_name, format_global_virtual_store_path,

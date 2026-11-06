@@ -316,7 +316,6 @@ impl<'w> InstallScope<'w> {
                 resolve_only: mode.resolve_only,
                 disable_optimistic_repeat_install: install.lockfile_policy
                     .disable_optimistic_repeat,
-                effective_node_version: mode.effective_node_version.as_deref(),
             },
             repeat_install,
         )
