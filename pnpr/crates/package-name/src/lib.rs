@@ -287,7 +287,7 @@ pub fn canonicalize_crate_name(name: &str) -> Result<String, CrateNameError> {
     if !chars.all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_')) {
         return Err(CrateNameError::InvalidCharacter { name: name.to_string() });
     }
-    Ok(name.to_ascii_lowercase())
+    Ok(name.to_ascii_lowercase().replace('_', "-"))
 }
 
 pub fn canonicalize_python_name(raw: &str) -> Result<String, PythonNameError> {

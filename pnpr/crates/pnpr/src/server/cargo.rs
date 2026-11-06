@@ -13,10 +13,8 @@
 //!
 //! In a multi-ecosystem registry, both families answer under `/cargo/` (the
 //! default target) and `/cargo/~<name>/` (a named registry). A Cargo-only
-//! registry omits `/cargo`. Crate names are case-insensitive:
-//! the index path `cargo` requests is lowercase, so hosted documents and cache
-//! entries are keyed by the lowercase name while archives keep the name as
-//! published.
+//! registry omits `/cargo`. Crate keys fold ASCII case and map `_` to `-`;
+//! archives and index entries keep the published name.
 
 pub(super) use publication::{CratePublication, authorize_crate_publish, verify_crate_archive};
 

@@ -5,7 +5,7 @@ fn canonicalizes_each_ecosystem() {
     assert_eq!(CanonicalPackageName::parse("React", Ecosystem::Npm).unwrap().as_str(), "React");
     assert_eq!(
         CanonicalPackageName::parse("Serde_JSON", Ecosystem::Cargo).unwrap().as_str(),
-        "serde_json",
+        "serde-json",
     );
     assert_eq!(
         CanonicalPackageName::parse("Demo.Package_name", Ecosystem::Pypi).unwrap().as_str(),
@@ -195,5 +195,17 @@ fn publishing_rejects_names_that_reads_accept() {
             .unwrap()
             .validate_npm_publish()
             .unwrap();
+    }
+}
+
+#[test]
+fn cargo_keys_fold_case_and_separators_without_collapsing_them() {
+    for raw in ["Demo_Crate", "demo-crate", "DEMO-CRATE"] {
+        let name = CanonicalPackageName::parse(raw, Ecosystem::Cargo).unwrap();
+        assert_eq!(name.as_str(), "demo-crate");
+        assert_eq!(name, CanonicalPackageName::parse(name.as_str(), Ecosystem::Cargo).unwrap());
+    }
+    for (raw, expected) in [("_demo", "-demo"), ("demo__crate", "demo--crate")] {
+        assert_eq!(CanonicalPackageName::parse(raw, Ecosystem::Cargo).unwrap().as_str(), expected);
     }
 }

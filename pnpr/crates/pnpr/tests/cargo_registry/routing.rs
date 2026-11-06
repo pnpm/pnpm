@@ -240,7 +240,7 @@ async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_re
 #[tokio::test]
 async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     let mut upstream = mockito::Server::new_async().await;
-    let archive = crate_archive("serde", "1.0.0");
+    let archive = crate_archive("sample_crate", "1.0.0");
     let config_mock = upstream
         .mock("GET", "/config.json")
         .with_body(
@@ -251,7 +251,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
         .create_async()
         .await;
     let index_line = json!({
-        "name": "serde",
+        "name": "sample_crate",
         "vers": "1.0.0",
         "deps": [],
         "cksum": sha256_hex(&archive),
@@ -260,13 +260,13 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
         "v": 1,
     });
     let index_mock = upstream
-        .mock("GET", "/se/rd/serde")
+        .mock("GET", "/sa/mp/sample_crate")
         .with_body(format!("{index_line}\n"))
         .expect(1)
         .create_async()
         .await;
     let download_mock = upstream
-        .mock("GET", "/dl/serde/1.0.0")
+        .mock("GET", "/dl/sample_crate/1.0.0")
         .with_body(archive.clone())
         .expect(1)
         .create_async()
@@ -282,7 +282,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/cargo/index/se/rd/serde")
+            Request::get("/cargo/index/sa/mp/sample_crate")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -297,7 +297,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/cargo/api/v1/crates/serde/1.0.0/download")
+                Request::get("/cargo/api/v1/crates/sample_crate/1.0.0/download")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -311,7 +311,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     download_mock.assert_async().await;
     let cache = tmp.path().join(".pnpr-cache");
     assert!(
-        find_file(&cache, &blob_segment("serde", "serde-1.0.0.crate")).is_some(),
+        find_file(&cache, &blob_segment("sample-crate", "sample_crate-1.0.0.crate")).is_some(),
         "download is cached",
     );
 
@@ -463,4 +463,80 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     corrected.assert_async().await;
     config_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn hosted_claims_cover_cargo_separator_aliases() {
+    for claim in ["demo-crate", "Demo_Crate"] {
+        let tmp = TempDir::new().unwrap();
+        let auth = AuthState::in_memory();
+        let token = issue_token(&auth, "publisher").await;
+        let mut upstream = mockito::Server::new_async().await;
+        let upstream_requests = upstream
+            .mock("GET", mockito::Matcher::Any)
+            .expect(0)
+            .create_async()
+            .await;
+        let config = common::mixed_router_config(
+            tmp.path().to_path_buf(),
+            Ecosystem::Cargo,
+            common::HostedSource {
+                name: "crates",
+                org: "crates",
+                access: "$all",
+                packages: &[claim],
+            },
+            ("cratesio", &upstream.url()),
+        );
+        let app = router_with_auth(config, auth);
+        for name in ["demo-crate", "demo_crate"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/index/de/mo/{name}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+        let archive = crate_archive("demo_crate", "0.1.0");
+        let response = app
+            .clone()
+            .oneshot(publish_request(
+                Some(&token),
+                publish_body(&metadata("demo_crate", "0.1.0"), &archive),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        for name in ["demo-crate", "demo_crate"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/index/de/mo/{name}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+            let entry: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
+            assert_eq!(entry["name"], "demo_crate");
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/api/v1/crates/{name}/0.1.0/download"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(body_bytes(response.into_body()).await, archive);
+        }
+        upstream_requests.assert_async().await;
+    }
 }
