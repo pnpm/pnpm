@@ -23,25 +23,33 @@ fn project_runtime_from_json5_selects_the_license_store_slot() {
         ..Config::default()
     };
     config.allow_builds.insert("native".to_owned(), true);
-    let expected = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
+    let with_config_18 =
+        super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+            .unwrap()
+            .slot_dir(&key);
     config.node_version = Some("20.0.0".to_owned());
-    let other = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    dbg!(&expected, &other);
-    assert_ne!(expected, other);
+    let with_config_20 =
+        super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+            .unwrap()
+            .slot_dir(&key);
+    assert_eq!(with_config_18, with_config_20);
     config.node_version = None;
     std::fs::write(
         dir.path().join("package.json5"),
         "{devEngines: {runtime: {name: 'node', version: '18.0.0'}}}",
     )
     .unwrap();
-    let actual = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    assert_eq!(actual, expected);
+    let from_manifest_18 =
+        super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+            .unwrap()
+            .slot_dir(&key);
+    config.node_version = Some("20.0.0".to_owned());
+    let ignored_config =
+        super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
+            .unwrap()
+            .slot_dir(&key);
+    assert_eq!(ignored_config, from_manifest_18);
+    config.node_version = None;
     std::fs::write(
         dir.path().join("package.json"),
         r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0"}}}"#,
@@ -50,7 +58,7 @@ fn project_runtime_from_json5_selects_the_license_store_slot() {
     let preferred = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
         .unwrap()
         .slot_dir(&key);
-    assert_eq!(preferred, other);
+    assert_ne!(preferred, from_manifest_18);
 }
 
 #[test]
