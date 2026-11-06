@@ -26,7 +26,7 @@ fn state(tmp: &TempDir) -> AppState {
 }
 
 fn view() -> DistView<'static> {
-    DistView { revision_registry: None, tar_integrities: None, tar_registry: false }
+    DistView { revision_registry: None, tar_integrities: None, tar_registry: false, hosted: false }
 }
 
 fn document() -> Vec<u8> {
@@ -54,6 +54,7 @@ fn render_cached(
             revision_registry: view.revision_registry.map(str::to_string),
             tar_integrities: view.tar_integrities.cloned(),
             tar_registry: view.tar_registry,
+            hosted: view.hosted,
         },
         representation,
     };
@@ -462,7 +463,12 @@ async fn an_in_flight_error_is_not_shared_with_a_different_source() {
             .unwrap(),
         bytes: document().into(),
         tarball_base: "https://registry.example".to_string(),
-        view: OwnedView { revision_registry: None, tar_integrities: None, tar_registry: false },
+        view: OwnedView {
+            revision_registry: None,
+            tar_integrities: None,
+            tar_registry: false,
+            hosted: false,
+        },
         representation: Representation::Full,
     };
     let key = input_key(&input, &state.inner.packuments).unwrap();
@@ -637,4 +643,36 @@ async fn upstream_admission_has_an_instance_wide_bound() {
     .await;
     assert!(!polled.load(std::sync::atomic::Ordering::SeqCst));
     admissions.serve(DocumentSource::Stored, async {}).await;
+}
+
+#[tokio::test]
+async fn hosted_revisions_are_isolated_from_upstream_cached_responses() {
+    let tmp = TempDir::new().unwrap();
+    let state = state(&tmp);
+    let name =
+        CanonicalPackageName::parse("example-widget", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let base = "https://registry.example";
+    let upstream =
+        render_cached(&name, document().into(), base, view(), &state, Representation::Full)
+            .unwrap();
+    let hosted = render_cached(
+        &name,
+        document().into(),
+        base,
+        DistView { hosted: true, ..view() },
+        &state,
+        Representation::Full,
+    )
+    .unwrap();
+    let upstream_doc: Value = serde_json::from_slice(&upstream.body).unwrap();
+    let hosted_doc: Value = serde_json::from_slice(&hosted.body).unwrap();
+    assert!(upstream_doc.get("_rev").is_none());
+    let source: Value = serde_json::from_slice(&document()).unwrap();
+    let expected = crate::server::package_mutation::revisions::revision(&source);
+    assert_eq!(hosted_doc["_rev"], expected);
+    assert_ne!(upstream.etag, hosted.etag);
+    let repeated =
+        render_cached(&name, document().into(), base, view(), &state, Representation::Full)
+            .unwrap();
+    assert!(Arc::ptr_eq(&upstream, &repeated));
 }

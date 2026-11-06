@@ -74,6 +74,7 @@ struct OwnedView {
     revision_registry: Option<String>,
     tar_integrities: Option<Arc<std::collections::BTreeMap<String, pnpr_storage::DerivedTar>>>,
     tar_registry: bool,
+    hosted: bool,
 }
 
 impl OwnedView {
@@ -82,6 +83,7 @@ impl OwnedView {
             revision_registry: self.revision_registry.as_deref(),
             tar_integrities: self.tar_integrities.as_ref(),
             tar_registry: self.tar_registry,
+            hosted: self.hosted,
         }
     }
 }
@@ -118,6 +120,7 @@ pub(super) async fn render(
             revision_registry: view.revision_registry.map(str::to_string),
             tar_integrities: view.tar_integrities.cloned(),
             tar_registry: view.tar_registry,
+            hosted: view.hosted,
         },
         representation: Representation::requested(headers),
     };
