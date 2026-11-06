@@ -132,8 +132,7 @@ function pickMissingPeerSpec (
   opts: HoistPeersOptions,
   { peerName, range }: { peerName: string, range: string }
 ): string | undefined {
-  // A local path or alias carries identity absent from a preferred registry version.
-  if (range.startsWith('file:') || range.startsWith('link:') || range.startsWith('npm:')) {
+  if (!isRegistryPeerSpecifier(range)) {
     return opts.autoInstallPeers ? range : undefined
   }
   const preferredSelectors = opts.isUpdateTarget?.(peerName)
@@ -149,6 +148,10 @@ function pickMissingPeerSpec (
   })
 }
 
+function isRegistryPeerSpecifier (range: string): boolean {
+  return !range.includes(':') && !range.includes('/') && !range.includes('\\')
+}
+
 function pickPreferredPeerSpec (
   preferredSelectors: VersionSelectors,
   { autoInstallPeers, lockfileOnlyVersions, range }: { autoInstallPeers: boolean, lockfileOnlyVersions?: Set<string>, range: string }
@@ -159,12 +162,8 @@ function pickPreferredPeerSpec (
   // the range lets a version resolved for one importer be auto-installed as
   // another importer's peer even though nothing in that importer's closure
   // accepts it, silently producing a peer graph that mixes incompatible
-  // majors. Scheme specifiers (named-registry, workspace:)
-  // contribute a comparable range through getPeerVersionRange, so they get
-  // range-aware selection too; specs with no version body (catalog:,
-  // dist-tags) yield a non-semver value and keep the dedupe-to-highest
-  // behavior. The raw scheme is preserved below so the fallback still
-  // selects the package to install.
+  // majors. Dist-tags yield a non-semver value and keep the dedupe-to-highest
+  // behavior.
   const rangeForMatch = getPeerVersionRange(range)
   const isSemverRange = semver.validRange(rangeForMatch, { includePrerelease: true }) != null
   if (isSemverRange) {

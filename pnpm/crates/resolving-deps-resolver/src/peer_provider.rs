@@ -128,27 +128,22 @@ fn hoisted_specifier(opts: &HoistPeersOptions<'_>, peer_name: &str, range: &str)
     let Some(selectors) = opts.all_preferred_versions.get(peer_name) else {
         return opts.auto_install_peers.then(|| range.to_string());
     };
-    // A workspace, local path, or alias carries identity absent from a registry version.
-    if range.starts_with("workspace:")
-        || range.starts_with("file:")
-        || range.starts_with("link:")
-        || range.starts_with("npm:")
-    {
+    if !is_registry_peer_specifier(range) {
         return opts.auto_install_peers.then(|| range.to_string());
     }
     preferred_version_specifier(opts, selectors, opts.resolved_versions.get(peer_name), range)
+}
+
+fn is_registry_peer_specifier(range: &str) -> bool {
+    !range.contains([':', '/', '\\'])
 }
 
 /// Dedupe onto a preferred version only when it actually satisfies the wanted
 /// peer range. Picking the highest preferred version regardless of the range
 /// lets a version resolved for one importer be auto-installed as another
 /// importer's peer even though nothing in that importer's closure accepts it,
-/// silently producing a peer graph that mixes incompatible majors. Named-registry
-/// specifiers contribute a
-/// comparable range through `get_peer_version_range`, so they get range-aware
-/// selection too; specs with no version body (`catalog:`, dist-tags) yield a
-/// non-semver value and keep the dedupe-to-highest behavior. The raw scheme is
-/// preserved so the fallback still selects the package to install.
+/// silently producing a peer graph that mixes incompatible majors. Dist-tags
+/// yield a non-semver value and keep the dedupe-to-highest behavior.
 fn preferred_version_specifier(
     opts: &HoistPeersOptions<'_>,
     selectors: &VersionSelectors,
