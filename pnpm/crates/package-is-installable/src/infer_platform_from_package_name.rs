@@ -54,6 +54,10 @@ fn pick_token_values(
 /// and lockfile entries written from such metadata lack them too. For a
 /// platform-specific binary the package name carries the same information.
 ///
+/// A package that declares none of the fields is inferred only when its name
+/// has an os token and a cpu or libc token, so a lone `windows` or `arm`
+/// segment does not mark it as platform-specific.
+///
 /// Returns `None` when the declared fields stand as-is. The `optional` gate
 /// stays at the call site.
 /// See <https://github.com/pnpm/pnpm/issues/11702>.
@@ -64,7 +68,9 @@ pub fn inferred_platform(name: &str, declared: WantedPlatformRef<'_>) -> Option<
     let inferred = infer_platform_from_package_name(name)?;
     let declares_platform =
         declared.os.is_some() || declared.cpu.is_some() || declared.libc.is_some();
-    if !declares_platform && inferred.os.is_none() {
+    let names_a_binary_target =
+        inferred.os.is_some() && (inferred.cpu.is_some() || inferred.libc.is_some());
+    if !declares_platform && !names_a_binary_target {
         return None;
     }
     Some(WantedPlatform {
