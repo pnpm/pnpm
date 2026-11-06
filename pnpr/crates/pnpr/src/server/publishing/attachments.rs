@@ -15,7 +15,7 @@ use crate::server::staged_archives::claim_staged_archive;
 use pnpr_storage::{
     BlobId,
     metadata::{ArtifactBlob, BlobLookup, BlobRow},
-    publish::sigstore_bundle_bytes,
+    publish::{now_iso, sigstore_bundle_bytes},
 };
 use slot_writes::{AttachmentPaths, write_under_permit};
 use std::{
@@ -134,6 +134,26 @@ pub(in super::super) async fn validate_publish_doc(
         TarballStorage::Tgz
     };
     Ok((ValidatedPublish { name, incoming, prepared, publisher, tarballs, variants }, target))
+}
+
+/// Accept a new npm name or preflight an existing package's metadata update.
+pub(in super::super) async fn validate_staged_publish_name(
+    state: &AppState,
+    mut doc: ValidatedPublish,
+    org: &str,
+) -> Result<(), RegistryError> {
+    let invalid = match doc.name.validate_npm_publish() {
+        Ok(()) => return Ok(()),
+        Err(error @ RegistryError::InvalidPackageName { .. }) => error,
+        Err(error) => return Err(error),
+    };
+    if !doc.prepared.is_empty() {
+        return Err(invalid);
+    }
+    let storage = hosted_storage(state, Some(org));
+    let mut base = read_staged_base(&storage, &doc).await?;
+    prepare_publish_document(&storage, &mut doc, &mut base, &now_iso()).await?;
+    Ok(())
 }
 
 /// A publish whose document is computed and whose blobs are fully written to

@@ -6,6 +6,7 @@ pub(super) use atomic::{
 };
 pub(super) use attachments::{
     StagedBase, StagedPublish, ValidatedPublish, Verification, stage_publish, validate_publish_doc,
+    validate_staged_publish_name,
 };
 pub(super) use notes::{refuse_notes_of_published_python_versions, take_note, take_version_note};
 pub(super) use tombstones::check_publish_tombstone;

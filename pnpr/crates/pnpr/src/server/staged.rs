@@ -40,7 +40,9 @@ use serde_json::{Value, json};
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize_package,
     commit_publishes, json_response, not_found, private_no_cache,
-    publishing::{ValidatedPublish, check_body_name, cleanup_tmp_slots},
+    publishing::{
+        ValidatedPublish, check_body_name, cleanup_tmp_slots, validate_staged_publish_name,
+    },
     resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;
@@ -219,9 +221,6 @@ async fn serve_staged_publish(
         Ok(name) => name,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = name.validate_npm_publish() {
-        return err.into_response();
-    }
     let incoming: Value = match serde_json::from_slice(body) {
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
@@ -233,7 +232,7 @@ async fn serve_staged_publish(
     // The same routing + `publish`-rule + attachment validation a direct
     // publish runs; conflicts with already-published versions are checked
     // when the stage is approved, against the registry state at that time.
-    let (validated, _target) =
+    let (validated, target) =
         match validate_publish_doc(state, identity, registry, name, incoming).await {
             Ok(validated) => validated,
             Err(err) => return err.into_response(),
@@ -254,6 +253,9 @@ async fn serve_staged_publish(
 
     let stage_id = generate_stage_id();
     let record = staged_record(&validated, identity, registry, &stage_id);
+    if let Err(err) = validate_staged_publish_name(state, validated, &target.org).await {
+        return err.into_response();
+    }
 
     if let Err(err) = store_staged(state, &stage_id, body, &record).await {
         return err.into_response();

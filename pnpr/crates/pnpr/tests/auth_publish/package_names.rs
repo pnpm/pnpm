@@ -92,7 +92,7 @@ async fn staged_and_batch_publishes_reject_invalid_new_names() {
 }
 
 #[tokio::test]
-async fn legacy_names_can_be_deprecated_but_cannot_publish_new_versions() {
+async fn legacy_names_allow_direct_and_staged_deprecation_but_not_new_versions() {
     let temp = TempDir::new().unwrap();
     pnpr_storage::layout::write_local_layout_marker(temp.path()).unwrap();
     let mut legacy = publish_doc("Upper", "1.0.0", b"data");
@@ -114,7 +114,12 @@ async fn legacy_names_can_be_deprecated_but_cannot_publish_new_versions() {
             .body(Body::empty())
             .unwrap()
     };
-    for deprecated in [Some("use a lowercase name"), None] {
+    for (method, path, deprecated) in [
+        ("PUT", "/npm/Upper", Some("use a lowercase name")),
+        ("PUT", "/npm/Upper", None),
+        ("POST", "/npm/-/stage/package/Upper", Some("use a lowercase name")),
+        ("POST", "/npm/-/stage/package/Upper", None),
+    ] {
         let response = app
             .clone()
             .oneshot(get())
@@ -132,7 +137,9 @@ async fn legacy_names_can_be_deprecated_but_cannot_publish_new_versions() {
         let response = app
             .clone()
             .oneshot(
-                Request::put("/npm/Upper")
+                Request::builder()
+                    .method(method)
+                    .uri(path)
                     .header("content-type", "application/json")
                     .header("authorization", format!("Bearer {token}"))
                     .body(Body::from(serde_json::to_vec(&document).unwrap()))
@@ -143,6 +150,23 @@ async fn legacy_names_can_be_deprecated_but_cannot_publish_new_versions() {
         let status = response.status();
         let error = body_bytes(response.into_body()).await;
         assert_eq!(status, StatusCode::CREATED, "{}", String::from_utf8_lossy(&error));
+        if method == "POST" {
+            let stage: serde_json::Value = serde_json::from_slice(&error).unwrap();
+            let stage_id = stage["stageId"].as_str().unwrap();
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post(format!("/npm/-/stage/{stage_id}/approve"))
+                        .header("authorization", format!("Bearer {token}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let status = response.status();
+            let error = body_bytes(response.into_body()).await;
+            assert_eq!(status, StatusCode::CREATED, "{}", String::from_utf8_lossy(&error));
+        }
         let response = app
             .clone()
             .oneshot(get())
@@ -152,17 +176,30 @@ async fn legacy_names_can_be_deprecated_but_cannot_publish_new_versions() {
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
         assert_eq!(stored["versions"]["1.0.0"]["deprecated"].as_str(), deprecated);
     }
-    let response = app
-        .oneshot(
-            Request::put("/npm/Upper")
-                .header("content-type", "application/json")
-                .header("authorization", format!("Bearer {token}"))
-                .body(Body::from(
-                    serde_json::to_vec(&publish_doc("Upper", "2.0.0", b"data")).unwrap(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let new_version = publish_doc("Upper", "2.0.0", b"data");
+    let mut without_attachment = new_version.clone();
+    without_attachment
+        .as_object_mut()
+        .unwrap()
+        .remove("_attachments");
+    for (method, path, body) in [
+        ("PUT", "/npm/Upper", new_version.clone()),
+        ("POST", "/npm/-/stage/package/Upper", new_version),
+        ("POST", "/npm/-/stage/package/Upper", without_attachment),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header("content-type", "application/json")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
+    }
 }
