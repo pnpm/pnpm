@@ -32,7 +32,7 @@ export function matchesMetadata (response, variant) {
 export function isShareable (response) {
   const vary = (response.headers.get('vary') ?? '').toLowerCase().split(',').map(value => value.trim())
   return !hasCacheDirective(response.headers, ['private', 'no-store', 'no-cache']) &&
-    !vary.some(value => value === '*' || value === 'authorization' || value === 'origin')
+    vary.every(value => value === '' || value === 'accept')
 }
 
 function hasCacheDirective (headers, directives) {

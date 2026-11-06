@@ -77,6 +77,9 @@ for (const headers of [
   { vary: 'Accept, Authorization' },
   { vary: '*' },
   { vary: 'Accept, Origin' },
+  { vary: 'Cookie' },
+  { vary: 'Accept, X-Registry-View' },
+  { vary: 'Accept-Encoding' },
 ]) {
   test(`does not share restricted responses: ${JSON.stringify(headers)}`, () => {
     assert.equal(isShareable(response('application/json', headers)), false)

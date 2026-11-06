@@ -36,9 +36,16 @@ async function fetchMetadata (request, origin, base, name, fetchFromRegistry) {
 
 The response must provide the cache lifetime. Preserve its cache headers when
 storing it. The cache key is synthetic; send only the original URL to the
-registry. Purge both metadata variants after package writes, using `metadataKey`
+registry. For local invalidation after package writes, address both metadata
+variants using `metadataKey`
 with `metadataVariant(null)` and
 `metadataVariant('application/vnd.npm.install-v1+json')`.
+[Cache API deletion](https://developers.cloudflare.com/workers/runtime-apis/cache/#delete)
+affects only the current data center. Other locations can serve old metadata
+until expiry unless you purge globally.
+
+Only `Vary: Accept` is supported. Other response selectors bypass storage
+because the cache key does not include them.
 
 Run the policy tests from the repository root:
 
