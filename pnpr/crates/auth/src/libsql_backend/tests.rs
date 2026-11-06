@@ -17,13 +17,13 @@ async fn local_backend(max_users: MaxUsers) -> LocalBackend {
     let dir = tempfile::tempdir().unwrap();
     let db = Builder::new_local(dir.path().join("auth.db")).build().await.unwrap();
     let backend = LibsqlAuth::from_database(db, max_users, 4).await.unwrap();
-    LocalBackend { backend, _dir: dir }
+    LocalBackend { backend, dir }
 }
 
 /// A backend and the directory its database lives in.
 struct LocalBackend {
     backend: LibsqlAuth,
-    _dir: tempfile::TempDir,
+    dir: tempfile::TempDir,
 }
 
 impl std::ops::Deref for LocalBackend {
@@ -715,4 +715,68 @@ async fn one_row_cursor() -> axum::body::Body {
     ];
     let lines = entries.map(|entry| Ok::<_, std::convert::Infallible>(format!("{entry}\n")));
     axum::body::Body::from_stream(futures_util::stream::iter(lines))
+}
+
+#[tokio::test]
+async fn retirement_reserves_name_disables_tokens_and_releases_capacity() {
+    let backend = local_backend(MaxUsers::Limited(1)).await;
+    backend.add_or_login("former-member", "old-password").await.unwrap();
+    let token = backend.issue("former-member").await.unwrap();
+    assert_eq!(backend.retire_user("former-member").await.unwrap(), UserRemoval::Removed);
+    assert_eq!(backend.retire_user("former-member").await.unwrap(), UserRemoval::NoSuchUser);
+    assert!(backend.is_retired("former-member").await.unwrap());
+    assert!(
+        backend
+            .list_users()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert!(
+        backend
+            .password_hash("former-member")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        backend
+            .lookup(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        backend
+            .lookup_record(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        backend
+            .list_for_user("former-member")
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(backend.delete_user("former-member").await.unwrap(), UserRemoval::NoSuchUser);
+    for password in ["old-password", "new-password"] {
+        assert!(matches!(
+            backend.add_or_login("former-member", password).await,
+            Err(RegistryError::ReservedUsername { .. }),
+        ));
+    }
+    assert_eq!(
+        backend.set_password("former-member", "new-password").await.unwrap(),
+        super::PasswordChange::NoSuchUser,
+    );
+    let db = Builder::new_local(backend.dir.path().join("auth.db")).build().await.unwrap();
+    let reopened = LibsqlAuth::from_database(db, MaxUsers::Limited(1), 4).await.unwrap();
+    assert!(reopened.is_retired("former-member").await.unwrap());
+    assert_eq!(
+        reopened.add_or_login("new-member", "password").await.unwrap().0,
+        UpsertOutcome::Created,
+    );
 }

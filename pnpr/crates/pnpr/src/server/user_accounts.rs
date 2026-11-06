@@ -96,6 +96,9 @@ pub(super) async fn check_user_exists(state: &AppState, name: &str) -> Result<bo
     if users.password_hash(name).await?.is_some() {
         return Ok(true);
     }
+    if users.is_retired(name).await? {
+        return Ok(false);
+    }
     if super::scim::is_active_scim_user(state, name)? {
         return Ok(true);
     }

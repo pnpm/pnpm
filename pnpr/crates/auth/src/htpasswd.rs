@@ -5,11 +5,8 @@ use crate::validation::validate_username;
 // htpasswd I/O
 // ---------------------------------------------------------------
 
-/// Parse an Apache-shaped htpasswd file. Each non-empty, non-comment
-/// line is `username:hash`; we accept any bcrypt variant (`$2a$`,
-/// `$2b$`, `$2y$`) but reject everything else so a config file
-/// holding `crypt(3)` or plaintext entries can't masquerade as
-/// passing without the password actually being verifiable.
+/// Parse `username:hash` records, accepting bcrypt, Apache `{SHA}`, and `!`
+/// for retired accounts. Reject other password formats.
 pub fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
     let mut out = HashMap::new();
     for (line_no, line) in raw.lines().enumerate() {
@@ -41,7 +38,7 @@ pub fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str), Stri
         };
         return Err(format!("invalid username {user:?}: {reason}"));
     }
-    if !is_supported_hash(hash) {
+    if hash != super::DELETED_USER_HASH && !is_supported_hash(hash) {
         return Err(format!(
             "unsupported hash format for user {user:?} (only bcrypt and {{SHA}} are accepted)",
         ));
@@ -204,6 +201,9 @@ pub async fn verify_returning_user(
     stored: String,
     bcrypt_cost: u32,
 ) -> Result<(UpsertOutcome, String)> {
+    if stored == super::DELETED_USER_HASH {
+        return Err(RegistryError::ReservedUsername { name: username.to_string() });
+    }
     let valid = if is_sha_hash(&stored) {
         let ok = verify_sha1(password, &stored);
         if !ok {

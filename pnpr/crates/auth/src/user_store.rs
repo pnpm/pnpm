@@ -1,10 +1,7 @@
 use super::{
-    DEFAULT_BCRYPT_COST, PasswordChange, Result, UpsertOutcome, UserBackend, UserCreation,
-    UserRemoval, dummy_verify, hash_bcrypt, is_sha_hash, parse_htpasswd, serialize_htpasswd,
-    verify_returning_user, write_atomic,
+    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, hash_bcrypt, is_sha_hash, parse_htpasswd,
+    serialize_htpasswd, verify_returning_user, write_atomic,
 };
-use crate::validation::validate_username;
-use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::RegistryError;
 use std::{
@@ -13,10 +10,10 @@ use std::{
     sync::{Arc, Mutex, PoisonError},
 };
 
-/// `username -> bcrypt hash`. The hash string carries its own version and
-/// cost (`$2y$10$...`) so we never need to remember per-record metadata.
+/// Username to password hash, or [`crate::DELETED_USER_HASH`] for a retired account.
 type Users = HashMap<String, String>;
 
+mod backend;
 mod file_stamp;
 
 use file_stamp::FileStamp;
@@ -179,7 +176,11 @@ impl UserStore {
     /// Whether `username` is stored.
     pub(crate) fn holds(&self, username: &str) -> Result<bool> {
         self.sync_from_disk_if_path()?;
-        Ok(self.snapshot().users.contains_key(username))
+        Ok(self
+            .snapshot()
+            .users
+            .get(username)
+            .is_some_and(|hash| hash != super::DELETED_USER_HASH))
     }
 
     fn snapshot(&self) -> std::sync::MutexGuard<'_, UserStoreState> {
@@ -191,7 +192,7 @@ impl UserStore {
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
-                if self.snapshot().users.len() as u64 >= max {
+                if active_user_count(&self.snapshot().users) >= max {
                     return Err(RegistryError::TooManyUsers { max });
                 }
             }
@@ -316,134 +317,15 @@ enum Registration {
     Existing(String),
 }
 
-#[async_trait]
-impl UserBackend for UserStore {
-    /// * Unknown username, registration allowed → bcrypt the password,
-    ///   insert, persist, return `Created`.
-    /// * Known username, password matches → return `LoggedIn`.
-    /// * Known username, password wrong → `Unauthenticated`.
-    /// * Unknown username, registration disabled or capped →
-    ///   `RegistrationDisabled` / `TooManyUsers`.
-    async fn add_or_login(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<(UpsertOutcome, String)> {
-        validate_username(username)?;
-        self.sync_from_disk_if_path()?;
-
-        let existing_hash = self
-            .snapshot()
-            .users
-            .get(username)
-            .cloned();
-        if let Some(stored) = existing_hash {
-            return self.login_existing(username, password, stored).await;
-        }
-
-        if matches!(self.max_users, MaxUsers::Disabled) {
-            dummy_verify(password, self.bcrypt_cost).await;
-            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
-        }
-
-        self.check_registration_capacity()?;
-
-        let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        let name = username.to_string();
-        let max_users = self.max_users;
-        let registration = self.update(move |users| {
-            if let Some(stored) = users.get(&name) {
-                return Ok(Change::Keep(Registration::Existing(stored.clone())));
-            }
-            // Re-check under the lock because another registration may
-            // have filled the store while we were hashing.
-            if let MaxUsers::Limited(max) = max_users
-                && users.len() as u64 >= max
-            {
-                return Err(RegistryError::TooManyUsers { max });
-            }
-            users.insert(name, hash);
-            Ok(Change::Write(Registration::Created))
-        });
-        match registration.await? {
-            Registration::Created => Ok((UpsertOutcome::Created, username.to_string())),
-            Registration::Existing(stored) => self.login_existing(username, password, stored).await,
-        }
-    }
-
-    async fn list_users(&self) -> Result<Vec<String>> {
-        self.sync_from_disk_if_path()?;
-        let mut names: Vec<String> = self
-            .snapshot()
-            .users
-            .keys()
-            .cloned()
-            .collect();
-        names.sort();
-        Ok(names)
-    }
-
-    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
-        self.sync_from_disk_if_path()?;
-        Ok(self
-            .snapshot()
-            .users
-            .get(username)
-            .cloned())
-    }
-
-    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
-        validate_username(username)?;
-        let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        let name = username.to_string();
-        self.update(move |users| {
-            if users.contains_key(&name) {
-                return Ok(Change::Keep(UserCreation::NameTaken));
-            }
-            users.insert(name, hash);
-            Ok(Change::Write(UserCreation::Created))
-        })
-        .await
-    }
-
-    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
-        let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        let name = username.to_string();
-        self.update(move |users| match users.get_mut(&name) {
-            Some(stored) => {
-                *stored = hash;
-                Ok(Change::Write(PasswordChange::Changed))
-            }
-            None => Ok(Change::Keep(PasswordChange::NoSuchUser)),
-        })
-        .await
-    }
-
-    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        let name = username.to_string();
-        self.update(move |users| match users.remove(&name) {
-            Some(_) => Ok(Change::Write(UserRemoval::Removed)),
-            None => Ok(Change::Keep(UserRemoval::NoSuchUser)),
-        })
-        .await
-    }
-
-    async fn check_readiness(&self) -> Result<()> {
-        if let Some(path) = &self.path {
-            if path.exists() {
-                tokio::fs::metadata(path).await.map_err(RegistryError::Io)?;
-            } else if let Some(parent) = path.parent()
-                && !parent.as_os_str().is_empty()
-            {
-                tokio::fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
-            }
-        }
-        Ok(())
-    }
-}
-
 impl Default for UserStore {
     fn default() -> Self {
         Self::in_memory()
     }
+}
+
+fn active_user_count(users: &Users) -> u64 {
+    users
+        .values()
+        .filter(|hash| hash.as_str() != super::DELETED_USER_HASH)
+        .count() as u64
 }

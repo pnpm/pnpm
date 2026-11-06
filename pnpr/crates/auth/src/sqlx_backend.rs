@@ -166,6 +166,10 @@ trait AuthSqlBackend: Send + Sync {
     }
     /// Remove the user and take one off the `users` counter in one transaction.
     async fn delete_user(&self, username: &str) -> Result<UserRemoval>;
+    async fn retire_user(&self, _username: &str) -> Result<UserRemoval> {
+        Err(RegistryError::Internal { reason: "retirement is unsupported".to_string() })
+    }
+
     async fn check_readiness(&self) -> Result<()> {
         Ok(())
     }
@@ -226,7 +230,14 @@ where
 
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
         let stored = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?;
-        Ok(stored.map(|stored| stored.bcrypt_hash))
+        Ok(stored
+            .map(|stored| stored.bcrypt_hash)
+            .filter(|hash| hash != super::DELETED_USER_HASH))
+    }
+
+    async fn is_retired(&self, username: &str) -> Result<bool> {
+        let stored = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?;
+        Ok(stored.is_some_and(|stored| stored.bcrypt_hash == super::DELETED_USER_HASH))
     }
 
     /// Inserts as an uncapped store would, so the `users` counter still
@@ -248,6 +259,10 @@ where
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
         self.db.delete_user(username).await
+    }
+
+    async fn retire_user(&self, username: &str) -> Result<UserRemoval> {
+        self.db.retire_user(username).await
     }
 
     async fn check_readiness(&self) -> Result<()> {

@@ -72,7 +72,7 @@ impl TokenBackend for LibsqlAuth {
         self.pool.read(|conn| async move {
             let rows = conn
                 .query(
-                    "SELECT t.username, t.expires_at FROM tokens t JOIN users u ON u.username = t.username
+                    "SELECT t.username, t.expires_at FROM tokens t JOIN users u ON u.username = t.username AND u.bcrypt_hash <> '!'
                      WHERE t.token_hash = ?1",
                     params![token_hash],
                 )
@@ -85,7 +85,7 @@ impl TokenBackend for LibsqlAuth {
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let query = format!(
-            "SELECT {OWNED_TOKEN_COLUMNS} FROM tokens t JOIN users u ON u.username = t.username
+            "SELECT {OWNED_TOKEN_COLUMNS} FROM tokens t JOIN users u ON u.username = t.username AND u.bcrypt_hash <> '!'
              WHERE t.token_hash = ?1",
         );
         let now = unix_seconds();

@@ -158,7 +158,7 @@ impl LibsqlAuth {
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         self.pool.read(|conn| async move {
-            let rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+            let rows = conn.query("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'", ()).await?;
             let Some(count) = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await? else {
                 return Err(missing_count_row());
             };
@@ -210,7 +210,17 @@ impl UserBackend for LibsqlAuth {
     }
 
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
-        self.stored_hash(username).await
+        Ok(self
+            .stored_hash(username)
+            .await?
+            .filter(|hash| hash != super::DELETED_USER_HASH))
+    }
+
+    async fn is_retired(&self, username: &str) -> Result<bool> {
+        Ok(self
+            .stored_hash(username)
+            .await?
+            .is_some_and(|hash| hash == super::DELETED_USER_HASH))
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
@@ -230,7 +240,23 @@ impl UserBackend for LibsqlAuth {
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        let removal = self.remove_user(username).await?;
+        let removal = self.remove_user_record(
+            username,
+            "DELETE FROM users WHERE username = ?1 AND bcrypt_hash <> '!'",
+        )
+        .await?;
+        if removal == UserRemoval::Removed {
+            self.sync_replica().await?;
+        }
+        Ok(removal)
+    }
+
+    async fn retire_user(&self, username: &str) -> Result<UserRemoval> {
+        let removal = self.remove_user_record(
+            username,
+            "UPDATE users SET bcrypt_hash = '!' WHERE username = ?1 AND bcrypt_hash <> '!'",
+        )
+        .await?;
         if removal == UserRemoval::Removed {
             self.sync_replica().await?;
         }

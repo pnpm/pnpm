@@ -60,7 +60,7 @@ impl MysqlDatabase {
     ) -> Result<Option<TokenRecord>> {
         let row = sqlx::query(
             "SELECT t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist, t.name, t.expires_at, t.scopes, t.kind
-             FROM tokens t JOIN users u ON u.username = t.username WHERE t.token_hash = ?",
+             FROM tokens t JOIN users u ON u.username = t.username AND u.bcrypt_hash <> '!' WHERE t.token_hash = ?",
         )
         .bind(token_hash)
         .fetch_optional(&self.pool)

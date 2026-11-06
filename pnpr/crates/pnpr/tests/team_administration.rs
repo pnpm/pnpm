@@ -233,3 +233,37 @@ async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
     let (status, _) = send(&app, "GET", "/npm/lodash", Some(&bob), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn deleting_a_member_prevents_reclaiming_its_team_access() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path())).await;
+    let root = add_user(&app, "root").await;
+    let former = add_user(&app, "former-member").await;
+    let roster = "/npm/-/team/acme/readers/user";
+    let member = json!({ "user": "former-member" });
+    assert_eq!(send(&app, "PUT", roster, Some(&root), Some(member)).await.0, StatusCode::CREATED);
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&former), None).await.0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/former-member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT,
+    );
+    let (_, members) = send(&app, "GET", roster, Some(&root), None).await;
+    assert_eq!(members, json!([{ "name": "former-member" }]));
+    let registration = json!({ "name": "former-member", "password": "new-password" });
+    assert_eq!(
+        send(&app, "PUT", "/-/user/org.couchdb.user:former-member", None, Some(registration))
+            .await
+            .0,
+        StatusCode::FORBIDDEN,
+    );
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&former), None).await.0,
+        StatusCode::UNAUTHORIZED,
+    );
+}

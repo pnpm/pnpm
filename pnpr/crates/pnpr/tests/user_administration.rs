@@ -423,3 +423,29 @@ async fn a_recreated_account_does_not_inherit_tokens_left_behind() {
     }
     assert_eq!(whoami(&app, &carol).await, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn deleted_names_cannot_be_reclaimed_with_open_registration() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(&dir);
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret").await.unwrap();
+    let app = router_with_auth(config, auth);
+    let root = login(&app, "root", "secret").await.unwrap();
+    let previous = login(&app, "former-member", "old-password").await.unwrap();
+    let path = "/-/pnpr/v0/admin/users/former-member";
+    assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(whoami(&app, &previous).await, StatusCode::UNAUTHORIZED);
+    for password in ["old-password", "new-password"] {
+        assert_eq!(login(&app, "former-member", password).await, Err(StatusCode::FORBIDDEN));
+    }
+    assert_eq!(
+        send(&app, "PUT", path, Some(&root), Some(json!({ "password": "new-password" })))
+            .await
+            .0,
+        StatusCode::FORBIDDEN,
+    );
+    let (_, users) = send(&app, "GET", "/-/pnpr/v0/admin/users", Some(&root), None).await;
+    assert_eq!(users, json!({ "users": [{ "name": "root" }] }));
+    assert!(login(&app, "new-member", "password").await.is_ok());
+}

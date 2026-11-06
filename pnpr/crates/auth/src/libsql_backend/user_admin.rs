@@ -13,7 +13,11 @@ const COUNT_ONE_LESS: &str =
 impl LibsqlAuth {
     pub(super) async fn list_usernames(&self) -> Result<Vec<String>> {
         self.pool.read(|conn| async move {
-            let mut rows = conn.query("SELECT username FROM users ORDER BY username", ()).await?;
+            let mut rows = conn.query(
+                "SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
+                (),
+            )
+            .await?;
             let mut names = Vec::new();
             while let Some(row) = rows.next().await? {
                 names.push(row.get::<String>(0)?);
@@ -67,7 +71,7 @@ impl LibsqlAuth {
             self.pool.write(|conn| async move {
                 Ok::<_, RegistryError>(
                     conn.execute(
-                        "UPDATE users SET bcrypt_hash = ?2 WHERE username = ?1",
+                        "UPDATE users SET bcrypt_hash = ?2 WHERE username = ?1 AND bcrypt_hash <> '!'",
                         params![username, hash],
                     )
                     .await?,
@@ -78,12 +82,15 @@ impl LibsqlAuth {
         Ok(if updated > 0 { PasswordChange::Changed } else { PasswordChange::NoSuchUser })
     }
 
-    pub(super) async fn remove_user(&self, username: &str) -> Result<UserRemoval> {
+    pub(super) async fn remove_user_record(
+        &self,
+        username: &str,
+        statement: &str,
+    ) -> Result<UserRemoval> {
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
                 let tx = conn.transaction().await?;
-                let removed =
-                    tx.execute("DELETE FROM users WHERE username = ?1", params![username]).await?;
+                let removed = tx.execute(statement, params![username]).await?;
                 if removed > 0 {
                     tx.execute(COUNT_ONE_LESS, ()).await?;
                 }

@@ -143,6 +143,7 @@ pub(super) async fn caller_username(
     let authorization = single_authorization_header(headers)?;
     let username = match authorization.and_then(authentication::bearer_credentials) {
         Some(raw) if let Some(user) = state.inner.identity.oidc.session(raw)? => {
+            authentication::refuse_retired(state, &user.username).await?;
             Some(user.username)
         }
         _ => identify(authorization, state.inner.identity.auth.tokens.as_ref()).await?,

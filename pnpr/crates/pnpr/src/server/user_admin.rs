@@ -96,11 +96,9 @@ async fn put_user(
     respond(result.await)
 }
 
-/// `DELETE /-/pnpr/v0/admin/users/{user}` — remove the user and revoke every
-/// token it holds. The tokens are revoked before the account goes, so a
-/// failed revocation leaves the account in place, and again after, for any
-/// token a login racing the removal issued. A retried request finishes a
-/// removal whose second sweep failed.
+/// Delete the account, permanently reserving its username. Revoke tokens
+/// before and after retirement to cover concurrent logins. A failed first
+/// sweep leaves the account active. Retry if the second sweep fails.
 async fn delete_user(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -109,7 +107,7 @@ async fn delete_user(
     let result = async {
         require_admin(&state, &identity, "remove", format!("user {:?}", path.user))?;
         let revoked_before = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
-        let removed = state.inner.identity.auth.users.delete_user(&path.user).await?;
+        let removed = state.inner.identity.auth.users.retire_user(&path.user).await?;
         state.inner.identity.oidc.revoke_user_sessions(&path.user);
         let revoked_after = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
         let had_nothing_to_revoke = revoked_before + revoked_after == 0;

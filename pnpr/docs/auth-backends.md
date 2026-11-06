@@ -114,3 +114,14 @@ non-negative cap to let new users register.
 
 Custom user and token backends are compiled into pnpr. There is no plugin
 runtime.
+
+## Deleted accounts
+
+Deleting an account through the admin API permanently reserves its username.
+The name cannot be reused through registration, `pnpr add-user`, or the admin API.
+Identity-provider credentials for that username are also refused.
+Deleted accounts do not appear in user lists or count toward `maxUsers`.
+Existing team memberships and package maintainer entries retain the old username.
+
+For an htpasswd file, a `!` password record preserves the reservation.
+Keep these records when editing or importing the file.

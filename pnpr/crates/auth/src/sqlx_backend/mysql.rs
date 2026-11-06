@@ -163,8 +163,11 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn list_usernames(&self) -> Result<Vec<String>> {
-        Ok(sqlx::query_scalar("SELECT username FROM users ORDER BY username").fetch_all(&self.pool)
-            .await?)
+        Ok(sqlx::query_scalar(
+            "SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
+        )
+        .fetch_all(&self.pool)
+        .await?)
     }
 
     async fn update_password_hash(
@@ -172,11 +175,13 @@ impl AuthSqlBackend for MysqlDatabase {
         username: &str,
         bcrypt_hash: &str,
     ) -> Result<PasswordChange> {
-        let updated = sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE username = ?")
-            .bind(bcrypt_hash)
-            .bind(username)
-            .execute(&self.pool)
-            .await?;
+        let updated = sqlx::query(
+            "UPDATE users SET bcrypt_hash = ? WHERE username = ? AND bcrypt_hash <> '!'",
+        )
+        .bind(bcrypt_hash)
+        .bind(username)
+        .execute(&self.pool)
+        .await?;
         if updated.rows_affected() > 0 {
             Ok(PasswordChange::Changed)
         } else {
@@ -201,8 +206,31 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
+        self.remove_user_record(
+            username,
+            "DELETE FROM users WHERE username = ? AND bcrypt_hash <> '!'",
+        )
+        .await
+    }
+
+    async fn retire_user(&self, username: &str) -> Result<UserRemoval> {
+        self.remove_user_record(
+            username,
+            "UPDATE users SET bcrypt_hash = '!' WHERE username = ? AND bcrypt_hash <> '!'",
+        )
+        .await
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        sqlx::query("SELECT 1;").execute(&self.pool).await.map_err(RegistryError::from)?;
+        Ok(())
+    }
+}
+
+impl MysqlDatabase {
+    async fn remove_user_record(&self, username: &str, statement: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
-        let removed = sqlx::query("DELETE FROM users WHERE username = ?")
+        let removed = sqlx::query(statement)
             .bind(username)
             .execute(&mut *tx)
             .await?
@@ -217,13 +245,6 @@ impl AuthSqlBackend for MysqlDatabase {
         Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
     }
 
-    async fn check_readiness(&self) -> Result<()> {
-        sqlx::query("SELECT 1;").execute(&self.pool).await.map_err(RegistryError::from)?;
-        Ok(())
-    }
-}
-
-impl MysqlDatabase {
     async fn init_schema(&self) -> Result<()> {
         crate::schema::migrate_mysql(&self.pool).await?;
         self.ensure_user_counter().await
@@ -251,8 +272,9 @@ impl MysqlDatabase {
     }
 
     async fn actual_user_count(&self) -> Result<i64> {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
+            .fetch_one(&self.pool)
+            .await?;
         Ok(count.max(0))
     }
 
@@ -290,8 +312,9 @@ impl MysqlDatabase {
             tx.commit().await?;
             return Ok(false);
         };
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx).await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
+            .fetch_one(&mut *tx)
+            .await?;
         if counter <= count {
             tx.commit().await?;
             return Ok(false);

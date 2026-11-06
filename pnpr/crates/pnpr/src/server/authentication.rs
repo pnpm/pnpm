@@ -282,9 +282,9 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
-/// backend at most once. Browser sessions and prefixed workload credentials
-/// skip the persistent backend. Invalid OIDC
-/// credentials are rejected even on public routes.
+/// backend at most once. Browser sessions and workload credentials check
+/// deleted-name reservations. Invalid OIDC credentials are rejected even on
+/// public routes.
 /// A pnpr token — however the client carried it, see
 /// [`token_credentials`] — is looked up as a full record so its read-only /
 /// CIDR restrictions can be enforced here (a violation is a `Forbidden`
@@ -302,6 +302,7 @@ async fn resolve_caller(
 ) -> Result<(Identity, Option<WorkloadScope>), RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
+            refuse_retired(state, &user.username).await?;
             return Ok((super::oidc_groups::session_identity(&state.inner.config, user), None));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
@@ -311,6 +312,7 @@ async fn resolve_caller(
                 .ok_or_else(|| RegistryError::Unauthenticated {
                     resource: "OIDC workload credentials".to_string(),
                 })?;
+            refuse_retired(state, &workload.identity.username).await?;
             super::oidc::check_workload_request(&workload, method, path)?;
             let scope = WorkloadScope::new(&state.inner.config, &workload);
             return Ok((Identity::user(workload.identity.username), Some(scope)));
@@ -502,4 +504,11 @@ pub(super) async fn authorize_package(
 pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     let (scheme, credentials) = header_value.trim().split_once(' ')?;
     scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
+}
+
+pub(super) async fn refuse_retired(state: &AppState, username: &str) -> Result<(), RegistryError> {
+    if state.inner.identity.auth.users.is_retired(username).await? {
+        return Err(RegistryError::Unauthenticated { resource: "a deleted account".to_string() });
+    }
+    Ok(())
 }

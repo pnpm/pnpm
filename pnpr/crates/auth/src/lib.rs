@@ -149,6 +149,9 @@ impl AuthState {
     /// revoked first, so they never reach the new account. `None` means
     /// another writer removed the account between the two steps.
     pub async fn put_user(&self, username: &str, password: &str) -> Result<Option<UserPut>> {
+        if self.users.is_retired(username).await? {
+            return Err(RegistryError::ReservedUsername { name: username.to_string() });
+        }
         if self.users.password_hash(username).await?.is_none() {
             self.revoke_all_tokens(username).await?;
         }
@@ -302,8 +305,22 @@ pub trait UserBackend: Send + Sync {
     /// Replace the password of `username`.
     async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange>;
 
-    /// Remove `username`. The user's tokens are not touched.
+    /// Remove a temporary password account without reserving its name.
+    /// Existing retirement reservations and tokens are not touched.
     async fn delete_user(&self, username: &str) -> Result<UserRemoval>;
+
+    /// Whether a deleted account permanently reserves `username`.
+    async fn is_retired(&self, _username: &str) -> Result<bool> {
+        Ok(false)
+    }
+
+    /// Remove an account while permanently reserving its name against reuse.
+    /// Backends must persist the reservation atomically with the removal.
+    async fn retire_user(&self, _username: &str) -> Result<UserRemoval> {
+        Err(RegistryError::Internal {
+            reason: "the user backend does not support reserving deleted usernames".to_string(),
+        })
+    }
 
     /// Check that the user store backend is reachable and ready to process requests.
     async fn check_readiness(&self) -> Result<()> {
@@ -434,7 +451,7 @@ pub enum PasswordChange {
     NoSuchUser,
 }
 
-/// What [`UserBackend::delete_user`] did.
+/// The outcome of removing an account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserRemoval {
     /// The account is gone.
@@ -443,9 +460,7 @@ pub enum UserRemoval {
     NoSuchUser,
 }
 
-/// `users` table DDL — only shared-database backends need it, since
-/// the local backend keeps users in an htpasswd file. One bcrypt hash
-/// per username, the same `$2y$...` string the htpasswd file would hold.
+/// SQL account records, including deleted-name reservations.
 #[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 pub(crate) const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
     username     VARCHAR(255) PRIMARY KEY,
@@ -459,4 +474,9 @@ pub(crate) const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS aut
 )";
 
 #[cfg(test)]
+mod retirement_tests;
+#[cfg(test)]
 mod tests;
+
+/// A password record that reserves a deleted username and cannot authenticate.
+pub(crate) const DELETED_USER_HASH: &str = "!";
