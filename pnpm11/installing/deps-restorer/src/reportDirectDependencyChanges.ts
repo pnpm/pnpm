@@ -34,7 +34,8 @@ interface DirectDependency {
  * comes from the lockfile the previous install left in `node_modules/.pnpm`.
  *
  * `link:` dependencies are left out: they are symlinked even under the hoisted
- * linker, so they are already reported. So are the packages each install
+ * linker, so the link pass reports their additions and `unlinkStaleDirectLinks`
+ * their removals. So are the packages each install
  * skipped, which it resolved but left uninstalled. Each side is read against
  * the skip set of its own install, because a lockfile entry says what that
  * install resolved and not what it put on disk: a dependency this install

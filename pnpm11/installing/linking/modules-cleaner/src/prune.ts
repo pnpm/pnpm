@@ -27,6 +27,7 @@ import {
 import { rimraf } from '@zkochan/rimraf'
 import { difference, equals, mergeAll, pickAll } from 'ramda'
 
+import { isProvidedByRoot } from './dedupeByRoot.js'
 import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency.js'
 
 export type PruneImporter = {
@@ -115,8 +116,10 @@ async function pruneImporterDirectDeps (
     dedupeDirectDeps: opts.dedupeDirectDeps,
     hoistedDependencies: opts.hoistedDependencies,
     id,
+    lockfileDir: opts.lockfileDir,
     pruneDirectDependencies,
     removePackages,
+    rootDir,
     wantedPkgs,
     wantedRootPkgs,
   })
@@ -137,8 +140,10 @@ interface CollectDepsToRemoveOptions {
   dedupeDirectDeps?: boolean
   hoistedDependencies: HoistedDependencies
   id: ProjectId
+  lockfileDir: string
   pruneDirectDependencies?: boolean
   removePackages?: string[]
+  rootDir: string
   wantedPkgs: Record<string, string>
   wantedRootPkgs: Record<string, string>
 }
@@ -161,13 +166,16 @@ function collectDepsToRemove (opts: CollectDepsToRemoveOptions): Set<string> {
 function shouldRemoveCurrentPkg (
   depName: string,
   depVersion: string,
-  opts: Pick<CollectDepsToRemoveOptions, 'dedupeDirectDeps' | 'id' | 'wantedPkgs' | 'wantedRootPkgs'>
+  opts: Pick<CollectDepsToRemoveOptions, 'dedupeDirectDeps' | 'id' | 'lockfileDir' | 'rootDir' | 'wantedPkgs' | 'wantedRootPkgs'>
 ): boolean {
   const wantedVersion = opts.wantedPkgs[depName]
   if (!wantedVersion || wantedVersion !== depVersion) {
     return true
   }
-  return Boolean(opts.dedupeDirectDeps && opts.id !== '.' && wantedVersion === opts.wantedRootPkgs[depName])
+  if (!opts.dedupeDirectDeps || opts.id === '.') return false
+  const rootVersion = opts.wantedRootPkgs[depName]
+  return rootVersion != null &&
+    isProvidedByRoot({ ref: wantedVersion, rootDir: opts.rootDir }, { ref: rootVersion, rootDir: opts.lockfileDir })
 }
 
 function addUnwantedDirectDeps (

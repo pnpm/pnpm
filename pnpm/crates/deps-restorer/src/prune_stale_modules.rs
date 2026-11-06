@@ -20,7 +20,7 @@ use crate::{
     prune_direct_deps::{
         PruneDirectDepsError, confined_modules_dir, is_real_dir, remove_direct_dep_link,
     },
-    symlink_direct_dependencies::{importer_root_dir, validate_importer_id},
+    symlink_direct_dependencies::{importer_root_dir, link_target_dir, validate_importer_id},
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
@@ -35,7 +35,7 @@ use pnpm_reporter::{
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsStr,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 /// Remove what a previous install materialized that the wanted lockfile
@@ -85,6 +85,7 @@ impl PruneStaleModules<'_> {
             current_lockfile: self.current_lockfile,
             linked: self.linked,
             dedupe_direct_deps: self.config.dedupe_direct_deps,
+            reported: ReportedRemovals::Every,
         }
         .unlink::<Reporter>()?;
 
@@ -127,11 +128,22 @@ pub(crate) struct StaleDirectDepLinks<'a> {
     pub current_lockfile: &'a Lockfile,
     pub linked: LinkedDirectDeps<'a>,
     pub dedupe_direct_deps: bool,
+    pub reported: ReportedRemovals,
+}
+
+/// Which removals [`StaleDirectDepLinks::unlink`] reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReportedRemovals {
+    Every,
+    /// The hoisted linker reports its other removals from
+    /// [`crate::report_direct_dependency_changes`].
+    LinkDependencies,
 }
 
 impl<'a> StaleDirectDepLinks<'a> {
     /// Unlinks the stale links of every importer both lockfiles cover,
-    /// emitting a `pnpm:root` `removed` event through `Reporter` for each.
+    /// emitting a `pnpm:root` `removed` event through `Reporter` for each
+    /// one [`Self::reported`] selects.
     pub(crate) fn unlink<Reporter: self::Reporter>(&self) -> Result<(), PruneDirectDepsError> {
         let wanted_root_deps = self.wanted_root_deps();
         for (importer_id, current_snapshot) in &self.current_lockfile.importers {
@@ -158,10 +170,11 @@ impl<'a> StaleDirectDepLinks<'a> {
                 (importer_id != ".").then_some(wanted_root_deps.as_ref()).flatten();
             unlink_stale_direct_deps::<Reporter>(
                 &modules_dir,
-                &importer_dir.display().to_string(),
+                &importer_dir,
                 current_snapshot,
                 &wanted_specs,
                 dedupe_against_root,
+                self.reported,
             )?;
         }
         Ok(())
@@ -173,15 +186,39 @@ impl<'a> StaleDirectDepLinks<'a> {
     /// starts providing the same resolution — otherwise the layout would
     /// depend on install history rather than on the manifests. Pnpm
     /// folds the same condition into this diff.
-    fn wanted_root_deps(&self) -> Option<HashMap<&'a PkgName, &'a ImporterDepVersion>> {
+    fn wanted_root_deps(&self) -> Option<RootDeps<'a>> {
         let root_snapshot =
             self.dedupe_direct_deps.then(|| self.wanted_lockfile.importers.get("."))??;
-        Some(
-            direct_deps_of(root_snapshot, self.linked.included_groups)
+        Some(RootDeps {
+            dir: importer_root_dir(self.workspace_root, "."),
+            versions: direct_deps_of(root_snapshot, self.linked.included_groups)
                 .into_iter()
                 .map(|(alias, spec, _)| (alias, &spec.version))
                 .collect(),
-        )
+        })
+    }
+}
+
+/// The workspace root's wanted direct dependencies, which the other
+/// importers dedupe against.
+struct RootDeps<'a> {
+    dir: PathBuf,
+    versions: HashMap<&'a PkgName, &'a ImporterDepVersion>,
+}
+
+impl RootDeps<'_> {
+    /// Whether the root resolves `alias` to what `version` resolves to in
+    /// the importer at `importer_dir`. A `link:` version is relative to
+    /// its importer, so links compare by the directory they point at, as
+    /// the link pass does.
+    fn provides(&self, alias: &PkgName, importer_dir: &Path, version: &ImporterDepVersion) -> bool {
+        let Some(root_version) = self.versions.get(alias) else { return false };
+        match (root_version, version) {
+            (ImporterDepVersion::Link(root_target), ImporterDepVersion::Link(target)) => {
+                link_target_dir(&self.dir, root_target) == link_target_dir(importer_dir, target)
+            }
+            _ => *root_version == version,
+        }
     }
 }
 
@@ -289,17 +326,16 @@ pub(crate) fn remove_emptied_scope_dir(target_dir: &Path, alias: &str) {
 /// longer records at the same version, or that the root now provides.
 fn unlink_stale_direct_deps<Reporter: self::Reporter>(
     modules_dir: &Path,
-    prefix: &str,
+    importer_dir: &Path,
     current_snapshot: &ProjectSnapshot,
     wanted_specs: &[(&PkgName, &ResolvedDependencySpec, DependencyGroup)],
-    dedupe_against_root: Option<&HashMap<&PkgName, &ImporterDepVersion>>,
+    dedupe_against_root: Option<&RootDeps<'_>>,
+    reported: ReportedRemovals,
 ) -> Result<(), PruneDirectDepsError> {
     for (alias, current_spec, group) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
         let still_wanted = is_still_wanted(alias, current_spec, wanted_specs);
         let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
-            root_deps
-                .get(alias)
-                .is_some_and(|version| **version == current_spec.version)
+            root_deps.provides(alias, importer_dir, &current_spec.version)
         });
         if still_wanted && !deduped_by_root {
             continue;
@@ -307,10 +343,15 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
         let alias_name = alias.to_string();
         remove_direct_dep_link(modules_dir, &alias_name)?;
         remove_emptied_scope_dir(modules_dir, &alias_name);
+        if reported == ReportedRemovals::LinkDependencies
+            && !matches!(current_spec.version, ImporterDepVersion::Link(_))
+        {
+            continue;
+        }
         Reporter::emit(&LogEvent::Root(RootLog {
             level: LogLevel::Debug,
             message: RootMessage::Removed {
-                prefix: prefix.to_owned(),
+                prefix: importer_dir.display().to_string(),
                 removed: RemovedRoot {
                     name: alias_name,
                     version: removed_version(current_spec),
