@@ -358,6 +358,7 @@ fn legacy_deploy_hook_rebases_workspace_paths() {
         "outside": "workspace:../lib",
         "range": "workspace:*",
     }));
+    dbg!(&dependencies);
     assert_eq!(
         dependencies,
         json!({ "kept": "workspace:./copied", "outside": "workspace:../packages/lib", "range": "workspace:*" }),
