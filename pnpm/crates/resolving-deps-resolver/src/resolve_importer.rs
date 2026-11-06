@@ -57,12 +57,12 @@ use crate::{
     },
     resolve_dependency_tree::{
         DependencySpec, TreeCtx, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
-        unwrap_package_name,
+        resolve_direct_dependency_detached, unwrap_package_name,
     },
     resolve_peers::{
         CandidatePeer, CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
         ResolvePeersOptions, accepts_optional_peer_candidate, apply_hoist_missing_scope,
-        index_missing_names, resolve_peers, resolved_name_and_version,
+        index_missing_names, manifest_peers, resolve_peers, resolved_name_and_version,
     },
     resolved_tree::ResolvedTree,
 };

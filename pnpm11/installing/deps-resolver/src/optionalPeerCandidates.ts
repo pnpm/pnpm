@@ -2,9 +2,12 @@ import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { PkgResolutionId, PreferredVersions } from '@pnpm/resolving.resolver-base'
+import type { PackageManifest } from '@pnpm/types'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
+import semver from 'semver'
 
-import type { MissingPeerInfo, PkgAddressOrLink, ResolutionContext, ResolvedPackage, ResolvedPkgsById } from './resolutionTypes.js'
+import type { MissingPeerInfo, PeerDependencies, PkgAddressOrLink, ResolutionContext, ResolvedPackage, ResolvedPkgsById } from './resolutionTypes.js'
+import { getPeerSet } from './resolvedPackage.js'
 
 /** The version each direct dependency alias resolved to. */
 export function getDirectDepVersions (
@@ -84,10 +87,51 @@ function getLockfilePeers ({ peerDependencies, peerDependenciesMeta }: PackageSn
 }
 
 function getPeers (resolvedPackage: ResolvedPackage): CandidatePeers {
-  return Object.fromEntries(Object.entries(resolvedPackage.peers.taken).map(([peerName, { version: range, optional }]) => [
+  return toCandidatePeers(resolvedPackage.peers.taken)
+}
+
+/** The peers a package resolved from `manifest` takes. */
+export function getManifestPeers (manifest: PackageManifest): CandidatePeers {
+  return toCandidatePeers(getPeerSet(manifest).taken)
+}
+
+function toCandidatePeers (peers: PeerDependencies): CandidatePeers {
+  return Object.fromEntries(Object.entries(peers).map(([peerName, { version: range, optional }]) => [
     peerName,
     { range, optional: optional === true },
   ]))
+}
+
+/**
+ * The required peers of optional peer candidates that would be hoisted from
+ * a range, resolved without adding them to the graph.
+ */
+export interface RangePeerResolutions {
+  /** The ranges no candidate check has resolved yet, keyed by `name@range`. */
+  pending: Map<string, { name: string, range: string }>
+  /** The peers of each resolved package, keyed by `name@version`. */
+  peers: Map<string, CandidatePeers>
+  /** The version each `name@range` resolved to. */
+  versions: Map<string, string | undefined>
+}
+
+export function createRangePeerResolutions (): RangePeerResolutions {
+  return { pending: new Map(), peers: new Map(), versions: new Map() }
+}
+
+/**
+ * The version a required peer hoisted at `spec` installs: `spec` itself when
+ * it is exact, else the version `rangePeers` resolved it to. A range not
+ * resolved yet is added to `rangePeers.pending`.
+ */
+export function pickHoistedVersion (rangePeers: RangePeerResolutions, name: string, spec: string): string | undefined {
+  const exactVersion = semver.valid(spec.split(' || ')[0])
+  if (exactVersion != null) return exactVersion
+  const key = `${name}@${spec}`
+  if (!rangePeers.versions.has(key)) {
+    rangePeers.pending.set(key, { name, range: spec })
+  }
+  return rangePeers.versions.get(key)
 }
 
 /**

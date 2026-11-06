@@ -26,6 +26,8 @@ export interface DependencyRequest {
   currentPkg: CurrentPkg
   depIsLinked: boolean
   options: ResolveDependencyOptions
+  /** Resolve the package without fetching it, even when the install fetches. */
+  skipFetch?: boolean
   wantedDependency: WantedDependency
 }
 
@@ -106,7 +108,7 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
     projectDir: (options.currentDepth > 0 && !isRelativeToDeclaringManifest(ctx, wantedDependency))
       ? ctx.lockfileDir
       : options.parentPkg.rootDir,
-    skipFetch: ctx.dryRun,
+    skipFetch: ctx.dryRun || request.skipFetch === true,
     update: options.update,
     updateRequested: options.updateRequested,
     updateChecksums: options.updateChecksums,

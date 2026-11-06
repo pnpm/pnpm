@@ -1,24 +1,48 @@
 //! Picks the version a missing optional peer of the importer is hoisted at.
 
 use super::{
-    BTreeMap, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeer,
-    MissingPeerInfo, PreferredVersions, accepts_optional_peer_candidate,
+    BTreeMap, BTreeSet, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState,
+    MissingPeer, MissingPeerInfo, ParentPkgAliases, PreferredVersions, ResolveImporterError,
+    Resolver, accepts_optional_peer_candidate,
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
+    hoist_rounds::hoisted_dependency,
+    manifest_peers,
     missing_peers::{MissingPeerKind, classify_missing_peer},
+    resolve_direct_dependency_detached,
 };
 use crate::{ParentChain, peer_dependents_dedupe::OptionalPeerScope};
+use futures_util::future;
 use node_semver::Version;
+use pipe_trait::Pipe;
 use pnpm_resolving_resolver_base::get_peer_version_range;
 use std::cell::RefCell;
 
 /// The version picked for each required peer `(name, range)`.
 type RequiredPeerPicks = RefCell<HashMap<(String, String), Option<String>>>;
 
+/// The required peers of optional peer candidates that are hoisted from a
+/// range, resolved without adding them to the tree.
+#[derive(Default)]
+struct RangePeers {
+    /// The version each `(name, specifier)` resolved to.
+    versions: HashMap<(String, String), Option<String>>,
+    /// The peers of each resolved package, keyed by `name@version`.
+    peers: HashMap<String, Vec<CandidatePeer>>,
+    /// The `(name, specifier)` pairs no candidate check has resolved yet.
+    pending: RefCell<BTreeSet<(String, String)>>,
+}
+
 impl ImporterHoistState {
-    /// The exact version [`Self::hoist_missing_required`] hoists the
-    /// missing required peer `name@range` at, or `None` when the peer stays
-    /// missing or resolves from a range.
-    fn hoisted_required_peer_version(&self, name: &str, range: &str) -> Option<String> {
+    /// The version [`Self::hoist_missing_required`] hoists the missing
+    /// required peer `name@range` at, or `None` when the peer stays missing
+    /// or resolves from a specifier `range_peers` has no version for. Such a
+    /// specifier is added to `range_peers.pending`.
+    fn hoisted_required_peer_version(
+        &self,
+        name: &str,
+        range: &str,
+        range_peers: &RangePeers,
+    ) -> Option<String> {
         let names = || std::iter::once(name);
         let preferred =
             self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
@@ -28,13 +52,18 @@ impl ImporterHoistState {
             hoist_peers(&self.hoist_peers_options(&preferred, &resolved_versions), &missing)
                 .remove(name)?;
         let version = specifier.split(" || ").next()?;
-        version
-            .parse::<Version>()
-            .is_ok()
-            .then(|| version.to_string())
+        if version.parse::<Version>().is_ok() {
+            return Some(version.to_string());
+        }
+        let key = (name.to_string(), specifier);
+        if let Some(version) = range_peers.versions.get(&key) {
+            return version.clone();
+        }
+        range_peers.pending.borrow_mut().insert(key);
+        None
     }
 
-    /// The exact versions the missing required peers of a wave of packages
+    /// The versions the missing required peers of a wave of packages
     /// are hoisted at, with each name's declarations classified the way
     /// [`Self::hoist_missing_required`] classifies them. `None` when a
     /// required peer's ranges do not merge, so the peer would stay unmet.
@@ -43,6 +72,7 @@ impl ImporterHoistState {
         &self,
         missing_of_wave: &[Vec<CandidatePeer>],
         picked: &RequiredPeerPicks,
+        range_peers: &RangePeers,
     ) -> Option<Vec<(String, String)>> {
         let mut declarations_by_name: BTreeMap<&str, Vec<MissingPeer>> = BTreeMap::new();
         for peer in missing_of_wave.iter().flatten() {
@@ -72,7 +102,9 @@ impl ImporterHoistState {
             let version = picked
                 .borrow_mut()
                 .entry((name.to_string(), range))
-                .or_insert_with_key(|(name, range)| self.hoisted_required_peer_version(name, range))
+                .or_insert_with_key(|(name, range)| {
+                    self.hoisted_required_peer_version(name, range, range_peers)
+                })
                 .clone();
             versions.extend(version.map(|version| (name.to_string(), version)));
         }
@@ -94,8 +126,56 @@ impl ImporterHoistState {
 
     /// `peer_name → version` for each missing optional peer a version in
     /// the graph can supply. A candidate is skipped unless
-    /// [`accepts_optional_peer_candidate`].
-    pub(super) fn hoistable_optional_peers(&self) -> BTreeMap<String, String> {
+    /// [`accepts_optional_peer_candidate`]. The required peers a candidate
+    /// brings in from a range are resolved, without being added to the
+    /// tree, so their own peers are checked too.
+    pub(super) async fn hoistable_optional_peers<Chain>(
+        &self,
+        resolver: &Chain,
+    ) -> Result<BTreeMap<String, String>, ResolveImporterError>
+    where
+        Chain: Resolver + ?Sized,
+    {
+        let mut range_peers = RangePeers::default();
+        loop {
+            let hoistable = self.pick_hoistable_optional_peers(&range_peers);
+            let pending = range_peers.pending.take();
+            if pending.is_empty() {
+                return Ok(hoistable);
+            }
+            let parent_pkg_aliases =
+                ParentPkgAliases::root(self.dependencies.parent_pkg_aliases.clone());
+            let resolved = pending
+                .into_iter()
+                .map(|(name, specifier)| async {
+                    let result = resolve_direct_dependency_detached(
+                        &self.ctx,
+                        resolver,
+                        hoisted_dependency(name.clone(), specifier.clone()),
+                        &self.importer_id,
+                        &parent_pkg_aliases,
+                    )
+                    .await?;
+                    let manifest =
+                        result.and_then(|result| result.package.manifest.clone());
+                    Ok::<_, ResolveImporterError>(((name, specifier), manifest))
+                })
+                .pipe(future::try_join_all)
+                .await?;
+            for ((name, specifier), manifest) in resolved {
+                let version = manifest
+                    .as_deref()
+                    .and_then(|manifest| manifest.get("version")?.as_str())
+                    .map(str::to_string);
+                if let (Some(manifest), Some(version)) = (&manifest, &version) {
+                    range_peers.peers.insert(format!("{name}@{version}"), manifest_peers(manifest));
+                }
+                range_peers.versions.insert((name, specifier), version);
+            }
+        }
+    }
+
+    fn pick_hoistable_optional_peers(&self, range_peers: &RangePeers) -> BTreeMap<String, String> {
         let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
         let mut hoist_preferred =
             self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
@@ -109,10 +189,10 @@ impl ImporterHoistState {
             OptionalPeerScope::Workspace => {}
         }
         let workspace = self.ctx.workspace();
-        let candidate_peers = CandidatePeers::new(workspace);
+        let candidate_peers = CandidatePeers::new(workspace, &range_peers.peers);
         let picked: RequiredPeerPicks = RefCell::new(HashMap::default());
         let pick_required_peer_versions = |missing_of_wave: &[Vec<CandidatePeer>]| {
-            self.required_peer_versions(missing_of_wave, &picked)
+            self.required_peer_versions(missing_of_wave, &picked, range_peers)
         };
         let accepts_candidate = |name: &str, version: &str| {
             accepts_optional_peer_candidate(

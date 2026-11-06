@@ -3,7 +3,10 @@
 //! in the graph is not hoisted where its own peers would conflict.
 
 use super::context;
-use crate::{resolve_dependency_tree::WorkspaceTreeCtx, resolved_tree::ResolvedPackage};
+use crate::{
+    parent_pkg_aliases::declared_peer_dependencies, resolve_dependency_tree::WorkspaceTreeCtx,
+    resolved_tree::ResolvedPackage,
+};
 use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::FxHashMap as HashMap;
 use std::cell::OnceCell;
@@ -25,20 +28,27 @@ pub(crate) struct CandidatePeer {
 /// found by name and version, since a package resolved from a named
 /// registry has a different id. One seeded only from the wanted lockfile
 /// has no resolved package yet, so the lockfile describes its peers
-/// instead. The name-and-version index is built on the first miss and
+/// instead, and one resolved only for the check is described by
+/// `detached`. The name-and-version index is built on the first miss and
 /// reused for the rest of the selection.
 pub(crate) struct CandidatePeers<'workspace> {
     workspace: &'workspace WorkspaceTreeCtx,
+    detached: &'workspace HashMap<String, Vec<CandidatePeer>>,
     by_name_version: OnceCell<HashMap<String, Vec<CandidatePeer>>>,
 }
 
 impl<'workspace> CandidatePeers<'workspace> {
-    pub(crate) fn new(workspace: &'workspace WorkspaceTreeCtx) -> Self {
-        CandidatePeers { workspace, by_name_version: OnceCell::new() }
+    /// `detached` maps `name@version` to the peers of a package resolved
+    /// without being added to the tree.
+    pub(crate) fn new(
+        workspace: &'workspace WorkspaceTreeCtx,
+        detached: &'workspace HashMap<String, Vec<CandidatePeer>>,
+    ) -> Self {
+        CandidatePeers { workspace, detached, by_name_version: OnceCell::new() }
     }
 
     /// The peers `name@version` declares, or `None` when neither the
-    /// resolved packages nor the wanted lockfile know it.
+    /// resolved packages, the wanted lockfile, nor `detached` know it.
     pub(crate) fn get(&self, name: &str, version: &str) -> Option<Vec<CandidatePeer>> {
         let pkg_id = format!("{name}@{version}");
         if let Some(peers) = self.workspace.inspect_package(&pkg_id, peers_of) {
@@ -46,6 +56,7 @@ impl<'workspace> CandidatePeers<'workspace> {
         }
         self.by_name_version()
             .get(&pkg_id)
+            .or_else(|| self.detached.get(&pkg_id))
             .cloned()
     }
 
@@ -98,6 +109,14 @@ fn lockfile_peers(metadata: &pnpm_lockfile::PackageMetadata) -> Vec<CandidatePee
                 .and_then(|meta| meta.get(peer_name))
                 .is_some_and(|meta| meta.optional),
         })
+        .collect()
+}
+
+/// The peers `manifest` declares.
+pub(crate) fn manifest_peers(manifest: &serde_json::Value) -> Vec<CandidatePeer> {
+    declared_peer_dependencies(manifest)
+        .into_iter()
+        .map(|(name, peer)| CandidatePeer { name, range: peer.version, optional: peer.optional })
         .collect()
 }
 

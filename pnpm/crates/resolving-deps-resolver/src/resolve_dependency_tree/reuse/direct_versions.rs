@@ -323,18 +323,72 @@ async fn preseed_one_changed_direct<Chain>(
 where
     Chain: super::Resolver + ?Sized,
 {
+    let resolved = resolve_direct_dependency(
+        ctx,
+        resolver,
+        spec,
+        importer_id,
+        parent_pkg_aliases,
+        ChangedDirectScope::OwnImporter,
+    )
+    .await?;
+    Ok(resolved.and_then(|resolved| {
+        resolved.package.name_ver
+            .as_ref()
+            .map(|name_ver| (name_ver.name.to_string(), name_ver.suffix.to_string()))
+    }))
+}
+
+/// What a direct dependency of the importer resolves to, the way
+/// [`super::super::extend_tree`] resolves it, without adding it to the tree.
+/// `None` when an optional dependency fails to resolve.
+pub(crate) async fn resolve_direct_dependency_detached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    spec: DependencySpec,
+    importer_id: &str,
+    parent_pkg_aliases: &Arc<super::ParentPkgAliases>,
+) -> Result<
+    Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>,
+    super::ResolveDependencyTreeError,
+>
+where
+    Chain: super::Resolver + ?Sized,
+{
+    resolve_direct_dependency(
+        ctx,
+        resolver,
+        spec,
+        importer_id,
+        parent_pkg_aliases,
+        ChangedDirectScope::EveryImporter,
+    )
+    .await
+}
+
+async fn resolve_direct_dependency<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    spec: DependencySpec,
+    importer_id: &str,
+    parent_pkg_aliases: &Arc<super::ParentPkgAliases>,
+    scope: ChangedDirectScope,
+) -> Result<
+    Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>,
+    super::ResolveDependencyTreeError,
+>
+where
+    Chain: super::Resolver + ?Sized,
+{
     let mut wanted_dep = super::super::wanted_from_spec(spec);
     let reuse = super::ReuseSource::Importer { importer_id: importer_id.to_string() };
     let prior_key = reuse.prior_key(ctx, &wanted_dep);
-    let scope = ChangedDirectScope::OwnImporter;
     if ctx.workspace.reuse.subtrees
         && reuse.allows_reuse()
         && !node_depends_on_changed_direct_dep_with(ctx, prior_key.as_ref(), scope)
         && let Some(reused) = super::try_reuse_node(ctx, &wanted_dep, prior_key.as_ref(), 0)
     {
-        return Ok(reused.result.package.name_ver
-            .as_ref()
-            .map(|name_ver| (name_ver.name.to_string(), name_ver.suffix.to_string())));
+        return Ok(Some(Arc::new(reused.result)));
     }
     let ancestors = Arc::new(Vec::new());
     let edge = super::ChildEdge {
@@ -347,20 +401,14 @@ where
         parent_pkg_aliases,
         parent_is_workspace: false,
     };
-    let Some(resolved) = super::super::walk::try_resolve_edge_cached(
+    super::super::walk::try_resolve_edge_cached(
         ctx,
         resolver,
         &mut wanted_dep,
         &edge,
         prior_key.as_ref(),
     )
-    .await?
-    else {
-        return Ok(None);
-    };
-    Ok(resolved.package.name_ver
-        .as_ref()
-        .map(|name_ver| (name_ver.name.to_string(), name_ver.suffix.to_string())))
+    .await
 }
 
 #[cfg(test)]

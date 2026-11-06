@@ -1,7 +1,6 @@
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectId } from '@pnpm/types'
-import semver from 'semver'
 
 import { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
 import type { WantedDependency } from './getWantedDependencies.js'
@@ -12,9 +11,14 @@ import { getImporterLockedPeerVersions } from './lockedPeerVersions.js'
 import { collectMissingRequiredPeers, filterMissingPeers, mergePkgsDeps } from './missingPeers.js'
 import {
   acceptsOptionalPeerCandidate,
+  type CandidatePeers,
   createCandidatePeersLookup,
+  createRangePeerResolutions,
   getDirectDepVersions,
+  getManifestPeers,
+  pickHoistedVersion,
   pickVersionsInClosure,
+  type RangePeerResolutions,
 } from './optionalPeerCandidates.js'
 import type {
   ImporterToResolve,
@@ -23,9 +27,10 @@ import type {
   ParentPkgAliases,
   PkgAddressesByImportersWithoutPeers,
   ResolutionContext,
+  ResolvedDependenciesOptions,
   ResolvedRootDependenciesResult,
 } from './resolutionTypes.js'
-import { resolveDependencies } from './resolveDependencies.js'
+import { resolveDependencies, resolveDependencyManifestOnly } from './resolveDependencies.js'
 import { resolveDependenciesOfImporters } from './resolveDependenciesOfImporters.js'
 
 /**
@@ -129,13 +134,19 @@ async function hoistRequiredPeersOfImporter (hoisting: PeerHoisting, index: numb
     if (!missingRequiredPeers.length) break
     const dependencies = hoistPeersToImporter(missingRequiredPeers)
     if (!Object.keys(dependencies).length) break
-    const wantedDependencies = getNonDevWantedDependencies({ dependencies })
-      .map((wantedDependency) => ({ ...wantedDependency, updateDepth: hoisting.hoistedPeersUpdateDepths[index] }))
-
     // eslint-disable-next-line no-await-in-loop -- the next round depends on the peers this round resolves
-    await resolveHoistedDependencies(hoisting, index, wantedDependencies)
+    await resolveHoistedDependencies(hoisting, index, getHoistedRequiredPeers(hoisting, index, dependencies))
   }
   return allMissingOptionalPeers
+}
+
+function getHoistedRequiredPeers (
+  hoisting: PeerHoisting,
+  index: number,
+  dependencies: Record<string, string>
+): Array<WantedDependency & { updateDepth: number }> {
+  return getNonDevWantedDependencies({ dependencies })
+    .map((wantedDependency) => ({ ...wantedDependency, updateDepth: hoisting.hoistedPeersUpdateDepths[index] }))
 }
 
 function createImporterPeersHoister (hoisting: PeerHoisting, index: number): (missingRequiredPeers: Array<[string, MissingPeerInfo]>) => Record<string, string> {
@@ -237,15 +248,10 @@ async function resolveHoistedDependencies (
   index: number,
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
 ): Promise<void> {
-  const { ctx, publishedBy } = hoisting
+  const { ctx } = hoisting
   const importerResult = hoisting.importerResults[index]
   const { preferredVersions, parentPkgAliases, options } = hoisting.importers[index]
-  const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
-    ...options,
-    parentPkgAliases,
-    publishedBy,
-    updateToLatest: false,
-  })
+  const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, getHoistedDependencyOptions(hoisting, index))
   importerResult.pkgAddresses.push(...resolveDependenciesResult.pkgAddresses)
   if (options.directDepVersions) {
     for (const pkgAddress of resolveDependenciesResult.pkgAddresses) {
@@ -257,6 +263,16 @@ async function resolveHoistedDependencies (
   Object.assign(importerResult,
     filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases)
   )
+}
+
+function getHoistedDependencyOptions (hoisting: PeerHoisting, index: number): ResolvedDependenciesOptions {
+  const { parentPkgAliases, options } = hoisting.importers[index]
+  return {
+    ...options,
+    parentPkgAliases,
+    publishedBy: hoisting.publishedBy,
+    updateToLatest: false,
+  }
 }
 
 /**
@@ -298,42 +314,17 @@ function refreshRootDepVersions (hoisting: PeerHoisting): void {
 
 async function hoistOptionalPeersOfImporter (
   hoisting: PeerHoisting,
-  { allMissingOptionalPeers, getCandidatePeers, index }: {
-    allMissingOptionalPeers: MissingOptionalPeerRanges
-    getCandidatePeers: CandidatePeersLookup
-    index: number
-  }
+  opts: OptionalPeersOfImporter
 ): Promise<boolean> {
-  const { ctx } = hoisting
-  if (!Object.keys(allMissingOptionalPeers).length || !ctx.allPreferredVersions) return false
-  // A hoisted provider resolves its own peers from the importer's direct
-  // dependencies first, then from the workspace root's.
-  const providedPeerVersions = new Map([
-    ...(index === hoisting.rootImporterIndex ? [] : hoisting.rootDepVersions),
-    ...getDirectDepVersions(ctx.resolvedPkgsById, hoisting.importerResults[index].pkgAddresses),
-  ])
-  const pickRequiredPeerVersions = createRequiredPeerVersionsPicker(hoisting, index)
-  const optionalDependencies = getHoistableOptionalPeers(
-    allMissingOptionalPeers,
-    ctx.dedupePeerDependents
-      ? ctx.allPreferredVersions
-      : pickVersionsInClosure(ctx, {
-        extraVersions: providedPeerVersions,
-        names: new Set(Object.keys(allMissingOptionalPeers)),
-        preferredVersions: ctx.allPreferredVersions,
-        roots: hoisting.importerResults[index].pkgAddresses,
-      }),
-    hoisting.workspaceRootDeps,
-    (name, version) => acceptsOptionalPeerCandidate({
-      getCandidatePeers,
-      pickRequiredPeerVersions,
-      providedVersions: providedPeerVersions,
-    }, { name, version }),
-    {
-      lockedVersions: getLockedPeerVersionsOfImporter(hoisting, index),
-      lockfileOnlyVersions: hoisting.lockfileOnlyVersions,
-    }
-  )
+  if (!Object.keys(opts.allMissingOptionalPeers).length || !hoisting.ctx.allPreferredVersions) return false
+  const rangePeers = createRangePeerResolutions()
+  let optionalDependencies = pickHoistableOptionalPeers(hoisting, opts, rangePeers)
+  /* eslint-disable no-await-in-loop -- each pick may meet required peers whose ranges the previous pick did not reach */
+  while (rangePeers.pending.size > 0) {
+    await resolvePendingRangePeers(hoisting, opts.index, rangePeers)
+    optionalDependencies = pickHoistableOptionalPeers(hoisting, opts, rangePeers)
+  }
+  /* eslint-enable no-await-in-loop */
   if (!Object.keys(optionalDependencies).length) return false
   for (const [name, version] of Object.entries(optionalDependencies)) {
     optionalDependencies[name] = getOptionalPeerSpecifier({
@@ -343,18 +334,87 @@ async function hoistOptionalPeersOfImporter (
       rootDepVersions: hoisting.rootDepVersions,
     })
   }
-  await resolveHoistedDependencies(hoisting, index, getNonDevWantedDependencies({ optionalDependencies }))
+  await resolveHoistedDependencies(hoisting, opts.index, getNonDevWantedDependencies({ optionalDependencies }))
   return true
 }
 
+interface OptionalPeersOfImporter {
+  allMissingOptionalPeers: MissingOptionalPeerRanges
+  getCandidatePeers: CandidatePeersLookup
+  index: number
+}
+
 /**
- * The exact versions the missing required peers of a wave of packages would
- * be hoisted to the importer at. A peer that would not be hoisted, or would
- * be resolved from a range, is left out. `undefined` when a peer's ranges do
- * not merge, so the peer would stay unmet. Each pick is cached for the round.
+ * The optional peers to hoist to the importer. A candidate whose required
+ * peers resolve from a range not in `rangePeers` yet is judged without them,
+ * and the range is added to `rangePeers.pending`.
  */
-function createRequiredPeerVersionsPicker (hoisting: PeerHoisting, index: number): (missingPeersOfWave: MissingPeers[]) => Map<string, string> | undefined {
-  const pickVersion = createCachedRequiredPeerVersionPicker(hoisting, index)
+function pickHoistableOptionalPeers (
+  hoisting: PeerHoisting,
+  { allMissingOptionalPeers, getCandidatePeers, index }: OptionalPeersOfImporter,
+  rangePeers: RangePeerResolutions
+): Record<string, string> {
+  const { ctx } = hoisting
+  // A hoisted provider resolves its own peers from the importer's direct
+  // dependencies first, then from the workspace root's.
+  const providedPeerVersions = new Map([
+    ...(index === hoisting.rootImporterIndex ? [] : hoisting.rootDepVersions),
+    ...getDirectDepVersions(ctx.resolvedPkgsById, hoisting.importerResults[index].pkgAddresses),
+  ])
+  const pickRequiredPeerVersions = createRequiredPeerVersionsPicker(hoisting, index, rangePeers)
+  const getPeersOfCandidate = (name: string, version: string): CandidatePeers | undefined =>
+    getCandidatePeers(name, version) ?? rangePeers.peers.get(`${name}@${version}`)
+  return getHoistableOptionalPeers(
+    allMissingOptionalPeers,
+    ctx.dedupePeerDependents
+      ? ctx.allPreferredVersions!
+      : pickVersionsInClosure(ctx, {
+        extraVersions: providedPeerVersions,
+        names: new Set(Object.keys(allMissingOptionalPeers)),
+        preferredVersions: ctx.allPreferredVersions!,
+        roots: hoisting.importerResults[index].pkgAddresses,
+      }),
+    hoisting.workspaceRootDeps,
+    (name, version) => acceptsOptionalPeerCandidate({
+      getCandidatePeers: getPeersOfCandidate,
+      pickRequiredPeerVersions,
+      providedVersions: providedPeerVersions,
+    }, { name, version }),
+    {
+      lockedVersions: getLockedPeerVersionsOfImporter(hoisting, index),
+      lockfileOnlyVersions: hoisting.lockfileOnlyVersions,
+    }
+  )
+}
+
+async function resolvePendingRangePeers (hoisting: PeerHoisting, index: number, rangePeers: RangePeerResolutions): Promise<void> {
+  const pending = [...rangePeers.pending]
+  rangePeers.pending.clear()
+  const { preferredVersions } = hoisting.importers[index]
+  const options = getHoistedDependencyOptions(hoisting, index)
+  await Promise.all(pending.map(async ([key, { name, range }]) => {
+    const [wantedDependency] = getHoistedRequiredPeers(hoisting, index, { [name]: range })
+    const manifest = await resolveDependencyManifestOnly(hoisting.ctx, preferredVersions, wantedDependency, options)
+    rangePeers.versions.set(key, manifest?.version)
+    if (manifest?.version != null) {
+      rangePeers.peers.set(`${name}@${manifest.version}`, getManifestPeers(manifest))
+    }
+  }))
+}
+
+/**
+ * The versions the missing required peers of a wave of packages would be
+ * hoisted to the importer at. A peer that would not be hoisted, or resolves
+ * from a range `rangePeers` has no version for, is left out. `undefined` when
+ * a peer's ranges do not merge, so the peer would stay unmet. Each pick is
+ * cached for the round.
+ */
+function createRequiredPeerVersionsPicker (
+  hoisting: PeerHoisting,
+  index: number,
+  rangePeers: RangePeerResolutions
+): (missingPeersOfWave: MissingPeers[]) => Map<string, string> | undefined {
+  const pickVersion = createCachedRequiredPeerVersionPicker(hoisting, index, rangePeers)
   return (missingPeersOfWave) => {
     const merged = mergePkgsDeps(missingPeersOfWave, hoisting.ctx)
     if (dropsAnyPeer(missingPeersOfWave, merged)) return undefined
@@ -368,14 +428,18 @@ function createRequiredPeerVersionsPicker (hoisting: PeerHoisting, index: number
   }
 }
 
-function createCachedRequiredPeerVersionPicker (hoisting: PeerHoisting, index: number): (name: string, range: string) => string | undefined {
+function createCachedRequiredPeerVersionPicker (
+  hoisting: PeerHoisting,
+  index: number,
+  rangePeers: RangePeerResolutions
+): (name: string, range: string) => string | undefined {
   const hoistPeersToImporter = createImporterPeersHoister(hoisting, index)
   const picked = new Map<string, string | undefined>()
   return (name, range) => {
     const key = `${name}@${range}`
     if (!picked.has(key)) {
       const spec = hoistPeersToImporter([[name, { range, optional: false }]])[name]
-      picked.set(key, spec == null ? undefined : semver.valid(spec.split(' || ')[0]) ?? undefined)
+      picked.set(key, spec == null ? undefined : pickHoistedVersion(rangePeers, name, spec))
     }
     return picked.get(key)
   }
