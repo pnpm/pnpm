@@ -61,9 +61,9 @@ pub enum CatalogMode {
 #[serde(rename_all = "kebab-case")]
 pub enum PackageImportMethod {
     /// Try the platform's cheap link tiers in order — hardlink first on
-    /// Linux, clone first elsewhere — and fall back to copying when none
-    /// is possible. `deps-restorer::link_file::next_auto_tier` implements
-    /// the ladder and carries the rationale.
+    /// Linux and Windows, clone first elsewhere — and fall back to copying
+    /// when none is possible. `deps-restorer::link_file::next_auto_tier`
+    /// implements the ladder and carries the rationale.
     #[default]
     Auto,
 

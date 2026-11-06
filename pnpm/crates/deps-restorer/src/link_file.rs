@@ -51,9 +51,9 @@ const LINK_STATE_COPY: u8 = 2;
 
 /// The tier `Auto` starts at, per platform — the head of
 /// [`next_auto_tier`]'s ladder.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 const AUTO_FIRST_TIER: u8 = LINK_STATE_HARDLINK;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", windows)))]
 const AUTO_FIRST_TIER: u8 = LINK_STATE_CLONE;
 
 /// The wire method `Auto` optimistically resolves to on this platform —
@@ -83,6 +83,11 @@ pub fn auto_optimistic_wire_method() -> WireImportMethod {
 /// every ext4 and Windows install runs with, guarded by
 /// `verify-store-integrity`, not by the import tier.
 ///
+/// Windows runs the same ladder. A block clone on a Dev Drive creates
+/// the file and then sets it sparse, copies its integrity settings, sets
+/// its length and duplicates its extents, where a hardlink is one call.
+/// On Windows this also matches pnpm 11, whose `Auto` never clones there.
+///
 /// macOS keeps clone-first: APFS `clonefile` is the platform's cheap
 /// primitive.
 ///
@@ -92,12 +97,12 @@ pub fn auto_optimistic_wire_method() -> WireImportMethod {
 /// point-release change. The two `Auto` implementations intentionally
 /// diverge on this until pnpm 11 is retired.
 fn next_auto_tier(tier: u8) -> u8 {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     match tier {
         LINK_STATE_HARDLINK => LINK_STATE_CLONE,
         _ => LINK_STATE_COPY,
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     match tier {
         LINK_STATE_CLONE => LINK_STATE_HARDLINK,
         _ => LINK_STATE_COPY,
@@ -527,7 +532,7 @@ fn copy_and_log<Reporter: self::Reporter>(
     Ok(WireImportMethod::Copy)
 }
 
-/// `Auto`'s downgrade chain — hardlink → clone → copy on Linux,
+/// `Auto`'s downgrade chain — hardlink → clone → copy on Linux and Windows,
 /// clone → hardlink → copy elsewhere (see [`next_auto_tier`] for the
 /// why) — using `state` to skip tiers that have already failed in this
 /// process. Factored out so tests can
