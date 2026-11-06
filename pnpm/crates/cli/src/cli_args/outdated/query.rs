@@ -78,7 +78,11 @@ impl OutdatedRun {
         manifest: &'a PackageManifest,
         lockfile: Option<&Lockfile>,
     ) -> miette::Result<Cow<'a, PackageManifest>> {
-        let Some(overrides) = lockfile.and_then(|lockfile| lockfile.overrides.as_ref()) else {
+        let overrides = match lockfile {
+            Some(lockfile) => lockfile.overrides.as_ref(),
+            None => self.config.overrides.as_ref(),
+        };
+        let Some(overrides) = overrides else {
             return Ok(Cow::Borrowed(manifest));
         };
         let overrides =

@@ -601,6 +601,24 @@ fn outdated_npm_alias_override_checks_the_alias_target() {
     drop((root, anchor));
 }
 
+#[test]
+fn outdated_override_checks_the_alias_target_without_lockfile() {
+    let (root, workspace, anchor) = setup();
+
+    append_workspace_yaml_key(
+        &workspace,
+        "overrides",
+        format!("{{ '{DEP}': 'npm:{FOO}@100.1.0' }}"),
+    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run outdated without lockfile");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(0), "the alias target is at its latest: {stdout}");
+
+    drop((root, anchor));
+}
+
 /// A project's own overrides, set through `packageConfigs`, apply to it
 /// when it has a lockfile of its own.
 #[test]
