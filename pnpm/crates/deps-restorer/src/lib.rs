@@ -6,6 +6,7 @@ pub(crate) use std::process;
 pub mod build_graph;
 pub mod build_modules;
 pub mod cas;
+pub mod claimed_commands;
 pub mod create_symlink_layout;
 pub mod create_virtual_dir_by_snapshot;
 pub mod create_virtual_store;
@@ -49,6 +50,7 @@ pub use build_options::{
     BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
     BuildSnapshotInputs, CachedSideEffects, PatchedEngineCheck, ScriptPath,
 };
+pub use claimed_commands::ClaimedCommands;
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
 pub use create_virtual_store::*;

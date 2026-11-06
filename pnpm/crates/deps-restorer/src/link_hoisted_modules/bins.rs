@@ -16,19 +16,14 @@ pub type HoistedBinSources = HashMap<PathBuf, Arc<[PackageBinSource]>>;
 pub(crate) struct HoistedBinLinkOutput {
     pub(crate) held_back_bins_dirs: Vec<HeldBackBinsDir>,
     pub(crate) sources: HoistedBinSources,
-    pub(crate) claimed_commands: HashMap<PathBuf, HashSet<String>>,
+    pub(crate) claimed_commands: crate::ClaimedCommands,
 }
 
 impl HoistedBinLinkOutput {
     pub(super) fn merge(&mut self, other: Self) {
         self.held_back_bins_dirs.extend(other.held_back_bins_dirs);
         self.sources.extend(other.sources);
-        for (dir, commands) in other.claimed_commands {
-            self.claimed_commands
-                .entry(dir)
-                .or_default()
-                .extend(commands);
-        }
+        self.claimed_commands.merge(other.claimed_commands);
     }
 }
 
@@ -62,10 +57,7 @@ pub(super) fn link_hierarchy_bins(
     )
     .map_err(LinkHoistedModulesError::LinkBins)?;
     let mut output = HoistedBinLinkOutput::default();
-    output.claimed_commands.insert(
-        pnpm_fs::lexical_normalize(modules_dir),
-        outcome.linked_commands,
-    );
+    output.claimed_commands.claim(modules_dir, outcome.linked_commands);
     output.sources.insert(modules_dir.to_path_buf(), packages.into());
     if outcome.held_back {
         output.held_back_bins_dirs.push(HeldBackBinsDir {
@@ -106,10 +98,7 @@ pub(super) fn link_bundled_bins(
             &ShimTargetCache::default(),
         )
         .map_err(LinkHoistedModulesError::LinkBins)?;
-        output.claimed_commands
-            .entry(pnpm_fs::lexical_normalize(&modules_dir))
-            .or_default()
-            .extend(outcome.linked_commands);
+        output.claimed_commands.claim(&modules_dir, outcome.linked_commands);
         if outcome.held_back {
             let dep_names = packages
                 .iter()

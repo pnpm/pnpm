@@ -133,10 +133,10 @@ where
     }
 
     /// Execute the subroutine and return the command names linked for each
-    /// importer's modules directory (keyed by [`pnpm_fs::lexical_normalize`]).
+    /// importer's modules directory.
     pub fn run_claiming_bins<Reporter: self::Reporter>(
         self,
-    ) -> Result<HashMap<PathBuf, HashSet<String>>, SymlinkDirectDependenciesError> {
+    ) -> Result<crate::ClaimedCommands, SymlinkDirectDependenciesError> {
         // Collect once so the same group order can drive every importer.
         let dependency_groups: Vec<DependencyGroup> = self.dependency_groups.into_iter().collect();
         ImporterPass {
@@ -175,7 +175,7 @@ struct ImporterPass<'a> {
 impl ImporterPass<'_> {
     fn run<Reporter: self::Reporter>(
         &self,
-    ) -> Result<HashMap<PathBuf, HashSet<String>>, SymlinkDirectDependenciesError> {
+    ) -> Result<crate::ClaimedCommands, SymlinkDirectDependenciesError> {
         let modules_dir_name: &OsStr = self.context.config.modules_dir_name();
 
         // Sorted so the fallible upfront validation below rejects a
