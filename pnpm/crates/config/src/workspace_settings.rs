@@ -117,12 +117,17 @@ impl Config {
         if default_pnpm_home_dir::<Sys>().as_deref() == Some(base_dir) {
             self.apply_pnpm_home_global_shims::<Sys>(base_dir)?;
         }
-        // `overrides` reaches `Config` only from the workspace yaml (the
-        // global config.yaml is stripped of the key, and no `PNPM_CONFIG_*`
-        // var carries a map), so the `$dep-name` values it may hold are
-        // resolved here, against the workspace root's manifest.
         if let Some(overrides) = self.overrides.as_mut() {
             crate::override_version_references::resolve_version_references(overrides, base_dir)?;
+        }
+        if let Some(package_configs) = self.package_configs.as_mut() {
+            for package_config in package_configs.values_mut() {
+                if let Some(overrides) = package_config.overrides.as_mut() {
+                    crate::override_version_references::resolve_version_references(
+                        overrides, base_dir,
+                    )?;
+                }
+            }
         }
         Ok(())
     }

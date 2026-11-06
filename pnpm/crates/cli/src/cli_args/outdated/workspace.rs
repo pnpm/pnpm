@@ -270,7 +270,9 @@ impl OutdatedArgs {
             &standalone_dirs,
             true,
         )?;
-        let mut outdated = if !self.selects_github_actions_only(&package_patterns) {
+        let mut outdated = if self.selects_github_actions_only(&package_patterns) {
+            Vec::new()
+        } else {
             recursive_workspace_outdated(
                 &state,
                 &selection,
@@ -279,8 +281,6 @@ impl OutdatedArgs {
                 package_patterns,
             )
             .await?
-        } else {
-            Vec::new()
         };
         outdated.extend(
             self.workspace_outdated_actions::<Reporter>(config, &workspace_root, &filters.include)

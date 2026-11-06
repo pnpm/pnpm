@@ -78,35 +78,16 @@ impl OutdatedRun {
         manifest: &'a PackageManifest,
         lockfile: Option<&Lockfile>,
     ) -> miette::Result<Cow<'a, PackageManifest>> {
-        let overrides = match lockfile {
-            Some(lockfile) => lockfile.overrides
-                .as_ref()
-                .map(|overrides| parse_overrides_iter(overrides.iter(), &self.catalogs)),
-            None => {
-                let project_config = if self.config.applies_package_configs() {
-                    manifest
-                        .value()
-                        .get("name")
-                        .and_then(|name| name.as_str())
-                        .and_then(|name| self.config.package_configs.as_ref()?.get(name))
-                } else {
-                    None
-                };
-                let overrides = match project_config {
-                    Some(project_config) => match project_config.overrides.as_ref() {
-                        Some(overrides) if !overrides.is_empty() => Some(overrides),
-                        Some(_) => None,
-                        None => self.config.overrides.as_ref(),
-                    },
-                    None => self.config.overrides.as_ref(),
-                };
-                overrides.map(|overrides| parse_overrides_iter(overrides.iter(), &self.catalogs))
-            }
-        }
-        .transpose()
-        .map_err(miette::Report::new)?;
-        let Some(overrides) = overrides else {
-            return Ok(Cow::Borrowed(manifest));
+        let overrides = if let Some(lockfile) = lockfile {
+            let Some(overrides) = lockfile.overrides.as_ref() else {
+                return Ok(Cow::Borrowed(manifest));
+            };
+            parse_overrides_iter(overrides.iter(), &self.catalogs).map_err(miette::Report::new)?
+        } else {
+            let Some(overrides) = self.configured_overrides(manifest)? else {
+                return Ok(Cow::Borrowed(manifest));
+            };
+            overrides
         };
         // Only registry specifiers are compared, so the base a `link:`
         // override resolves against does not matter here.
@@ -114,6 +95,40 @@ impl OutdatedRun {
         let mut overridden = manifest.clone();
         VersionsOverrider::new(&overrides, project_dir).apply(&mut overridden, Some(project_dir));
         Ok(Cow::Owned(overridden))
+    }
+
+    fn configured_overrides(
+        &self,
+        manifest: &PackageManifest,
+    ) -> miette::Result<Option<Vec<pnpm_config_parse_overrides::VersionOverride>>> {
+        let Some(overrides) = self.configured_override_map(manifest) else {
+            return Ok(None);
+        };
+        parse_overrides_iter(overrides.iter(), &self.catalogs)
+            .map(Some)
+            .map_err(miette::Report::new)
+    }
+
+    fn configured_override_map(
+        &self,
+        manifest: &PackageManifest,
+    ) -> Option<&indexmap::IndexMap<String, String>> {
+        let project_config = if self.config.applies_package_configs() {
+            manifest
+                .value()
+                .get("name")
+                .and_then(|name| name.as_str())
+                .and_then(|name| self.config.package_configs.as_ref()?.get(name))
+        } else {
+            None
+        };
+        let Some(project_config) = project_config else {
+            return self.config.overrides.as_ref();
+        };
+        match project_config.overrides.as_ref() {
+            Some(overrides) => (!overrides.is_empty()).then_some(overrides),
+            None => self.config.overrides.as_ref(),
+        }
     }
 }
 
