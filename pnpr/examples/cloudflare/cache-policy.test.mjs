@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { bypassesCache, isShareable, matchesMetadata, metadataKey, metadataVariant } from './cache-policy.mjs'
+import { bypassesCache, isShareable, matchesMetadata, metadataKey, metadataKeys, metadataVariant } from './cache-policy.mjs'
 
 const INSTALL_V1 = 'application/vnd.npm.install-v1+json'
 const INSTALL_V2 = 'application/vnd.pnpr.install-v2+json'
@@ -90,7 +90,7 @@ test('public metadata with Vary: Accept remains cacheable', () => {
 })
 
 test('encoding preferences have distinct metadata keys', () => {
-  const encodings = ['', 'gzip', 'br', 'gzip;q=0.5, br;q=1.0']
+  const encodings = ['', 'identity', 'gzip', 'deflate', 'br', 'zstd', 'zstd, gzip']
   const keys = encodings.map(encoding => metadataKey(
     'https://registry.example', '/npm/', 'widget',
     metadataVariant(new globalThis.Headers({ 'accept-encoding': encoding })),
@@ -105,4 +105,21 @@ test('metadata varying by encoding remains shareable', () => {
   assert.equal(isShareable(response('application/json', {
     'cache-control': 'public, max-age=300', vary: 'Accept, Accept-Encoding',
   })), true)
+})
+
+for (const encoding of ['gzip;q=0.5, br;q=1.0', 'unknown', 'gzip, br', 'gzip, gzip']) {
+  test(`unsupported encoding preferences bypass the metadata cache: ${encoding}`, () => {
+    assert.equal(metadataVariant(new globalThis.Headers({ 'accept-encoding': encoding })), undefined)
+  })
+}
+
+test('invalidation enumerates both formats and every supported encoding', () => {
+  const keys = metadataKeys('https://registry.example', '/npm/', 'widget')
+  assert.equal(new Set(keys).size, 14)
+  for (const encoding of ['', 'identity', 'gzip', 'deflate', 'br', 'zstd', 'zstd, gzip']) {
+    for (const accept of ['application/json', INSTALL_V1]) {
+      const variant = metadataVariant(new globalThis.Headers({ accept, 'accept-encoding': encoding }))
+      assert.ok(keys.includes(metadataKey('https://registry.example', '/npm/', 'widget', variant)))
+    }
+  }
 })

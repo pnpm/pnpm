@@ -1,5 +1,6 @@
 const INSTALL_V1 = 'application/vnd.npm.install-v1+json'
 const INSTALL_V2 = 'application/vnd.pnpr.install-v2+json'
+const ENCODINGS = ['', 'identity', 'gzip', 'deflate', 'br', 'zstd', 'zstd, gzip']
 
 /** Requests whose response must come directly from the registry. */
 export function bypassesCache (request) {
@@ -13,7 +14,7 @@ export function bypassesCache (request) {
 export function metadataVariant (headers) {
   const accept = headers.get('accept')
   const encoding = headers.get('accept-encoding') ?? ''
-  if (accept?.toLowerCase().includes(INSTALL_V2)) return undefined
+  if (accept?.toLowerCase().includes(INSTALL_V2) || !ENCODINGS.includes(encoding)) return undefined
   return accept?.includes(INSTALL_V1)
     ? { name: 'abbreviated', contentType: INSTALL_V1, encoding }
     : { name: 'full', contentType: 'application/json', encoding }
@@ -22,9 +23,17 @@ export function metadataVariant (headers) {
 /** The query distinguishes representations even in caches that ignore fragments. */
 export function metadataKey (origin, base, name, variant) {
   const key = new globalThis.URL(`${base}${name}`, origin)
-  key.searchParams.set('__pnpr_metadata', `v3-${variant.name}`)
+  key.searchParams.set('__pnpr_metadata', `v4-${variant.name}`)
   key.searchParams.set('__pnpr_encoding', variant.encoding)
   return key.href
+}
+
+/** Every metadata key for a package route, for invalidation. */
+export function metadataKeys (origin, base, name) {
+  return ENCODINGS.flatMap(encoding => ['application/json', INSTALL_V1].map(accept => {
+    const variant = metadataVariant(new globalThis.Headers({ accept, 'accept-encoding': encoding }))
+    return metadataKey(origin, base, name, variant)
+  }))
 }
 
 export function matchesMetadata (response, variant) {

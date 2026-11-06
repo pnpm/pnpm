@@ -42,13 +42,21 @@ After package writes, invalidate both metadata representations and all cached
 encodings on every cacheable route that resolves to the changed package. Include the default
 `/npm/` route when a write arrives through a named base such as `/npm/~local/`.
 Deleting only the named-base keys leaves the default-route entries cached.
+Use `metadataKeys(origin, base, name)` to enumerate every key for each route.
 [Cache API deletion](https://developers.cloudflare.com/workers/runtime-apis/cache/#delete)
 affects only the current data center. Other locations can serve old metadata
-until expiry unless you purge globally.
+until expiry unless you purge globally. An in-flight read can also store old
+metadata after a purge. Coordinate cache fills with invalidation if you need
+immediate consistency after writes.
 
 Build the variant from the headers sent to the registry. The key includes
 the metadata format and the request's `Accept-Encoding` value. Responses may
 vary by `Accept` and `Accept-Encoding`. Other response selectors bypass storage because the cache key does not include them.
+
+Caching supports an absent `Accept-Encoding`, a single `identity`, `gzip`,
+`deflate`, `br`, or `zstd` value, and the deployment Worker's fixed `zstd, gzip`
+value. Other preferences bypass caching. This keeps the key set bounded and
+lets `metadataKeys` enumerate it for invalidation.
 
 Run the policy tests from the repository root:
 
