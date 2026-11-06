@@ -1,4 +1,6 @@
+mod generation;
 pub mod presets;
+pub use generation::{FixtureGeneration, current};
 pub use metadata::{
     deprecate_version, read_hosted_document, read_hosted_file, read_packument, remove_version,
     set_dist_tag, tarball_path, write_hosted_document, write_hosted_file, write_packuments,
@@ -61,44 +63,6 @@ pub fn ensure_storage() -> &'static Path {
         storage
     });
     STORAGE.as_path()
-}
-
-#[derive(Debug, Clone)]
-pub struct FixtureGeneration {
-    fingerprint: String,
-    storage: PathBuf,
-}
-
-impl FixtureGeneration {
-    #[must_use]
-    pub fn of(packages: &Path, generated: &Path) -> Self {
-        let fingerprint = fixture_fingerprint(packages);
-        let storage = generated.join("storage").join(&fingerprint);
-        ensure_storage_for_fingerprint(packages, generated, &storage);
-        Self { fingerprint, storage }
-    }
-
-    #[must_use]
-    pub fn fingerprint(&self) -> &str {
-        &self.fingerprint
-    }
-
-    #[must_use]
-    pub fn storage(&self) -> &Path {
-        &self.storage
-    }
-}
-
-#[must_use]
-pub fn current() -> &'static FixtureGeneration {
-    static CURRENT: LazyLock<FixtureGeneration> = LazyLock::new(|| {
-        let workspace = workspace_root();
-        FixtureGeneration::of(
-            &workspace.join(PACKAGES_DIR),
-            &target_dir(&workspace).join(GENERATED_DIR),
-        )
-    });
-    &CURRENT
 }
 
 /// The metadata database of the fixture storage at `storage`, the one pnpr
