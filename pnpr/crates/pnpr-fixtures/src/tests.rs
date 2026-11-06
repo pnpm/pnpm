@@ -450,7 +450,7 @@ fn mock_config_yaml_and_proxy_preset_share_the_npm_upstream_timeout() {
     let preset = Config::proxy(listen, std::env::temp_dir());
     assert_eq!(
         from_yaml.routing.upstreams["npmjs"].requests.timeout,
-        REGISTRY_MOCK_UPSTREAM_TIMEOUT
+        REGISTRY_MOCK_UPSTREAM_TIMEOUT,
     );
     assert_eq!(preset.routing.upstreams["npmjs"].requests.timeout, REGISTRY_MOCK_UPSTREAM_TIMEOUT);
 }
