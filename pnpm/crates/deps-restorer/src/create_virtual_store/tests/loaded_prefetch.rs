@@ -41,7 +41,7 @@ fn seed_store_row(config: &Config, package_key: &PackageKey) -> String {
     }
     if package_key.name.bare.as_str() == "native" {
         let content = b"native addon";
-        let (_, digest) = config.store_dir.write_cas_file(content, false).expect("write addon");
+        let digest = config.store_dir.write_cas_file(content, false).expect("write addon").hash;
         files.insert(
             "binding.node".to_string(),
             CafsFileInfo {
