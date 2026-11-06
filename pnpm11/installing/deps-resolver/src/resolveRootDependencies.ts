@@ -359,7 +359,8 @@ function createRequiredPeerVersionsPicker (hoisting: PeerHoisting, index: number
     const merged = mergePkgsDeps(missingPeersOfWave, hoisting.ctx)
     if (dropsAnyPeer(missingPeersOfWave, merged)) return undefined
     const versions = new Map<string, string>()
-    for (const [name, { range }] of Object.entries(merged)) {
+    for (const [name, { range, optional }] of Object.entries(merged)) {
+      if (optional) continue
       const version = pickVersion(name, range)
       if (version != null) versions.set(name, version)
     }
@@ -381,7 +382,7 @@ function createCachedRequiredPeerVersionPicker (hoisting: PeerHoisting, index: n
 }
 
 function dropsAnyPeer (missingPeersOfWave: MissingPeers[], merged: MissingPeers): boolean {
-  return missingPeersOfWave.some((missingPeers) => Object.keys(missingPeers).some((name) => merged[name] == null))
+  return missingPeersOfWave.some((missingPeers) => Object.entries(missingPeers).some(([name, { optional }]) => !optional && merged[name] == null))
 }
 
 /**

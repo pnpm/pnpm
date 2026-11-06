@@ -1,13 +1,14 @@
 //! Picks the version a missing optional peer of the importer is hoisted at.
 
 use super::{
-    BTreeMap, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeerInfo,
-    PreferredVersions, accepts_optional_peer_candidate,
+    BTreeMap, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeer,
+    MissingPeerInfo, PreferredVersions, accepts_optional_peer_candidate,
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
-    missing_peers::merge_required_peer_ranges,
+    missing_peers::{MissingPeerKind, classify_missing_peer},
 };
-use crate::peer_dependents_dedupe::OptionalPeerScope;
+use crate::{ParentChain, peer_dependents_dedupe::OptionalPeerScope};
 use node_semver::Version;
+use pnpm_resolving_resolver_base::get_peer_version_range;
 use std::cell::RefCell;
 
 /// The version picked for each required peer `(name, range)`.
@@ -34,28 +35,40 @@ impl ImporterHoistState {
     }
 
     /// The exact versions the missing required peers of a wave of packages
-    /// are hoisted at, with each name's ranges merged the way
-    /// [`Self::hoist_missing_required`] merges them. `None` when a name's
-    /// ranges do not merge, so the peer would stay unmet. `picked` caches
-    /// each pick by name and range.
+    /// are hoisted at, with each name's declarations classified the way
+    /// [`Self::hoist_missing_required`] classifies them. `None` when a
+    /// required peer's ranges do not merge, so the peer would stay unmet.
+    /// `picked` caches each pick by name and range.
     fn required_peer_versions(
         &self,
         missing_of_wave: &[Vec<CandidatePeer>],
         picked: &RequiredPeerPicks,
     ) -> Option<Vec<(String, String)>> {
-        let mut ranges_by_name: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        let mut declarations_by_name: BTreeMap<&str, Vec<MissingPeer>> = BTreeMap::new();
         for peer in missing_of_wave.iter().flatten() {
-            ranges_by_name
+            declarations_by_name
                 .entry(&peer.name)
                 .or_default()
-                .push(&peer.range);
+                .push(MissingPeer {
+                    wanted_range: get_peer_version_range(&peer.range),
+                    raw_range: peer.range.clone(),
+                    optional: peer.optional,
+                    parents: ParentChain::default(),
+                });
         }
         let mut versions = Vec::new();
-        for (name, ranges) in ranges_by_name {
-            let range = merge_required_peer_ranges(
-                &ranges,
+        for (name, declarations) in declarations_by_name {
+            let range = match classify_missing_peer(
+                &declarations,
                 self.policy.peers.auto_install_peers_from_highest_match,
-            )?;
+            ) {
+                MissingPeerKind::Required(range) => range,
+                MissingPeerKind::Optional(_) => continue,
+                MissingPeerKind::Unhoistable if declarations.iter().all(|peer| peer.optional) => {
+                    continue;
+                }
+                MissingPeerKind::Unhoistable => return None,
+            };
             let version = picked
                 .borrow_mut()
                 .entry((name.to_string(), range))

@@ -100,7 +100,7 @@ function getPeers (resolvedPackage: ResolvedPackage): CandidatePeers {
 export function acceptsOptionalPeerCandidate (
   { getCandidatePeers, pickRequiredPeerVersions, providedVersions }: {
     getCandidatePeers: (name: string, version: string) => CandidatePeers | undefined
-    /** Picks the versions to hoist for the missing required peers that each package of a wave declares, or `undefined` when they conflict. */
+    /** Picks the versions to hoist for the missing peers that each package of a wave declares, or `undefined` when a required one conflicts. */
     pickRequiredPeerVersions: (missingPeersOfWave: CandidatePeers[]) => Map<string, string> | undefined
     providedVersions: Map<string, string>
   },
@@ -113,7 +113,7 @@ export function acceptsOptionalPeerCandidate (
   while (wave.length) {
     const peersOfWave = wave.map(({ name, version }) => getCandidatePeers(name, version)).filter((peers) => peers != null)
     peersOfHoisted.push(...peersOfWave)
-    const picked = pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingRequiredPeers(peers, versionOf)))
+    const picked = pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingPeers(peers, versionOf)))
     if (picked == null) return false
     wave = []
     for (const [name, version] of picked) {
@@ -124,8 +124,8 @@ export function acceptsOptionalPeerCandidate (
   return peersOfHoisted.every((peers) => peersAcceptVersions(peers, versionOf))
 }
 
-function pickMissingRequiredPeers (peers: CandidatePeers, versionOf: (name: string) => string | undefined): CandidatePeers {
-  return Object.fromEntries(Object.entries(peers).filter(([name, { optional }]) => !optional && versionOf(name) == null))
+function pickMissingPeers (peers: CandidatePeers, versionOf: (name: string) => string | undefined): CandidatePeers {
+  return Object.fromEntries(Object.entries(peers).filter(([name]) => versionOf(name) == null))
 }
 
 function peersAcceptVersions (
