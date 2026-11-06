@@ -89,10 +89,7 @@ pub(super) fn align_reflinked_target_mode(
     target_link: &Path,
 ) -> io::Result<()> {
     let Some(desired) = desired_mode(&source.path) else { return Ok(()) };
-    if source
-        .mode()
-        .is_some_and(|mode| mode & 0o7777 == desired)
-    {
+    if source.mode() == Some(desired) {
         return Ok(());
     }
     pnpm_fs::file_mode::set_path_permissions(target_link, desired)
