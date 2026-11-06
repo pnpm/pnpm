@@ -132,8 +132,8 @@ function pickMissingPeerSpec (
   opts: HoistPeersOptions,
   { peerName, range }: { peerName: string, range: string }
 ): string | undefined {
-  // A registry version cannot identify the package at a local peer's path.
-  if (range.startsWith('file:') || range.startsWith('link:')) {
+  // A local path or alias carries identity absent from a preferred registry version.
+  if (range.startsWith('file:') || range.startsWith('link:') || range.startsWith('npm:')) {
     return opts.autoInstallPeers ? range : undefined
   }
   const preferredSelectors = opts.isUpdateTarget?.(peerName)
@@ -159,7 +159,7 @@ function pickPreferredPeerSpec (
   // the range lets a version resolved for one importer be auto-installed as
   // another importer's peer even though nothing in that importer's closure
   // accepts it, silently producing a peer graph that mixes incompatible
-  // majors. Scheme specifiers (named-registry, npm: aliases, workspace:)
+  // majors. Scheme specifiers (named-registry, workspace:)
   // contribute a comparable range through getPeerVersionRange, so they get
   // range-aware selection too; specs with no version body (catalog:,
   // dist-tags) yield a non-semver value and keep the dedupe-to-highest
