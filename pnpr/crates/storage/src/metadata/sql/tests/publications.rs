@@ -105,6 +105,45 @@ async fn a_retried_request_gets_its_recorded_outcome(db: Db) {
     assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
 }
 
+async fn an_unpublished_member_invalidates_the_recorded_outcome(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    let org = storage.for_hosted("acme", Ecosystem::Npm);
+    let core = packument("core", &["1.0.0"]);
+    let widgets = packument("widgets", &["1.0.0"]);
+    commit(
+        database,
+        vec![document("core", &core), document("widgets", &widgets)],
+        request("one", None),
+    )
+    .await
+    .unwrap();
+    assert!(
+        org.remove_package(&npm("widgets")).await
+            .unwrap(),
+    );
+    assert!(
+        database
+            .recorded_outcome("acme", &request("one", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+
+    let mut retained = document("core", &core);
+    retained.expected = Some(crate::HostedDocumentVersion::Unversioned);
+    let err = commit(database, vec![retained, document("widgets", &widgets)], request("one", None))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, RegistryError::CannotRepublishUnpublishedVersion { .. }), "{err:?}");
+    assert_eq!(database.catalog_generation("acme").await.unwrap(), 2);
+    assert_eq!(read(&org, "core").await, core);
+    let mut reused = request("different", None);
+    reused.idempotency_key = "request:one".to_string();
+    let err = commit(database, vec![document("core", &core)], reused).await.unwrap_err();
+    assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
+}
+
 async fn publications_are_found_by_id_name_and_member(db: Db) {
     let storage = storage(&db);
     let database = storage.sql_metadata();
@@ -335,6 +374,7 @@ conformance! {
     a_release_record_must_describe_its_version,
     a_batch_commits_every_package_under_one_generation_or_none,
     a_retried_request_gets_its_recorded_outcome,
+    an_unpublished_member_invalidates_the_recorded_outcome,
     publications_are_found_by_id_name_and_member,
     a_version_written_outside_a_publish_request_gets_a_publication,
     a_publication_without_a_request_records_its_publisher,

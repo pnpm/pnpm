@@ -122,6 +122,84 @@ async fn a_retried_publish_gets_its_recorded_outcome() {
     assert_eq!(retagged.status, StatusCode::CONFLICT);
 }
 
+#[tokio::test]
+async fn an_identical_publish_after_unpublish_is_refused() {
+    for whole_package in [false, true] {
+        let tmp = TempDir::new().unwrap();
+        let app = router(sqlite_config(tmp.path()));
+        let token = token(&app).await;
+        let mut doc = publish_doc("retry-removed", "1.1.0-beta.0", b"bytes");
+        doc["dist-tags"] = json!({ "beta": "1.1.0-beta.0" });
+        assert_eq!(
+            send(&app, "PUT", "/npm/retry-removed", &token, Some(&doc)).await.status,
+            StatusCode::CREATED,
+        );
+        let other = publish_doc("retry-removed", "1.0.0", b"other");
+        assert_eq!(
+            send(&app, "PUT", "/npm/retry-removed", &token, Some(&other)).await.status,
+            StatusCode::CREATED,
+        );
+        let path = if whole_package {
+            "/npm/retry-removed/-rev/anything"
+        } else {
+            "/npm/retry-removed/-/retry-removed-1.1.0-beta.0.tgz/-rev/anything"
+        };
+        assert!(send(&app, "DELETE", path, &token, None).await.status.is_success());
+        let before = send(&app, "GET", "/npm/retry-removed", &token, None).await;
+        let retry = send(&app, "PUT", "/npm/retry-removed", &token, Some(&doc)).await;
+        assert_eq!(retry.status, StatusCode::FORBIDDEN, "{}", retry.text);
+        assert!(
+            retry.text.contains("Cannot republish previously unpublished version"),
+            "{}",
+            retry.text,
+        );
+        let version = send(&app, "GET", "/npm/retry-removed/1.1.0-beta.0", &token, None).await;
+        assert_eq!(version.status, StatusCode::NOT_FOUND);
+        if !whole_package {
+            let retained = send(&app, "PUT", "/npm/retry-removed", &token, Some(&other)).await;
+            assert_eq!(retained.status, StatusCode::CREATED, "{}", retained.text);
+            let metadata = send(&app, "GET", "/npm/retry-removed", &token, None).await;
+            assert_eq!(metadata.body["dist-tags"], before.body["dist-tags"]);
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_batch_retry_after_unpublishing_one_member_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let batch = json!({ "packages": [
+        publish_doc("batch-kept", "1.0.0", b"kept"),
+        publish_doc("batch-removed", "1.0.0", b"removed"),
+    ] });
+    let committed =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
+    assert_eq!(committed.status, StatusCode::CREATED);
+    assert!(
+        send(&app, "DELETE", "/npm/batch-removed/-rev/anything", &token, None)
+            .await
+            .status
+            .is_success(),
+    );
+    let retry =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
+    assert_eq!(retry.status, StatusCode::CONFLICT, "{}", retry.text);
+    assert!(
+        retry.text.contains("Cannot publish over the previously published version"),
+        "{}",
+        retry.text,
+    );
+    assert_eq!(
+        send(&app, "GET", "/npm/batch-removed", &token, None).await.status,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        send(&app, "GET", "/npm/batch-kept/1.0.0", &token, None).await.status,
+        StatusCode::OK,
+    );
+}
+
 /// Leave `bob` alone allowed to publish.
 fn only_bob_publishes(rules: &PackageRules) {
     let bob = AccessList::from_tokens(["bob"]);
