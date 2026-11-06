@@ -62,8 +62,7 @@ pub(super) struct ScopedTarballPath {
 pub(super) struct ScopedRevPath {
     pub(super) scope: String,
     pub(super) name: String,
-    #[serde(default)]
-    pub(super) rev: Option<String>,
+    pub(super) rev: String,
 }
 
 #[derive(Deserialize)]
@@ -330,14 +329,7 @@ pub(super) async fn put_scoped_packument_revision(
         Ok(bytes) => bytes,
         Err(response) => return response,
     };
-    update_packument(
-        &state,
-        &identity,
-        registry.as_deref(),
-        (&full, rev.as_deref().expect("revision route captures rev")),
-        &body_bytes,
-    )
-    .await
+    update_packument(&state, &identity, registry.as_deref(), (&full, &rev), &body_bytes).await
 }
 
 /// `DELETE {base}/{pkg}` and `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole
