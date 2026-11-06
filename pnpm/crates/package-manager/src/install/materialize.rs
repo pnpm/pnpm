@@ -11,10 +11,10 @@ use scope::{
 };
 
 use super::{
-    Arc, AtomicU8, Catalogs, DependencyGroup, HashSet, HoistedDependencies, IncludedDependencies,
-    InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile, LockfileEntries,
-    MemCache, PackageManifest, Path, PathBuf, RebuildOptions, Reporter, ResolutionVerifier,
-    ThrottledClient, build_workspace_packages_map, map_fresh_lockfile_error,
+    Arc, AtomicU8, BTreeMap, Catalogs, DependencyGroup, HashSet, HoistedDependencies,
+    IncludedDependencies, InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile,
+    LockfileEntries, MemCache, PackageManifest, Path, PathBuf, RebuildOptions, Reporter,
+    ResolutionVerifier, ThrottledClient, build_workspace_packages_map, map_fresh_lockfile_error,
     map_frozen_lockfile_error, run::InstallView,
 };
 use crate::install_with_fresh_lockfile::{FreshInputs, OwnedInputs};
@@ -380,6 +380,27 @@ impl<'a> MaterializationInputs<'a, '_> {
         }
     }
 
+    /// The importers the fresh resolve resolves: the projects on disk and the
+    /// projects missing from disk.
+    fn importer_manifests<'m>(
+        &self,
+        missing_projects: &'m [(String, PackageManifest)],
+    ) -> BTreeMap<String, &'m PackageManifest>
+    where
+        'a: 'm,
+    {
+        let mut importer_manifests = importer_manifests_by_id(
+            self.workspace.project_manifests,
+            self.workspace.workspace_root,
+        );
+        importer_manifests.extend(
+            missing_projects
+                .iter()
+                .map(|(importer_id, manifest)| (importer_id.clone(), manifest)),
+        );
+        importer_manifests
+    }
+
     async fn fresh<Reporter: self::Reporter + 'static>(
         mut self,
     ) -> Result<MaterializationOutput, InstallError> {
@@ -397,15 +418,6 @@ impl<'a> MaterializationInputs<'a, '_> {
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
         let missing_projects = self.missing_project_manifests();
-        let mut importer_manifests = importer_manifests_by_id(
-            self.workspace.project_manifests,
-            self.workspace.workspace_root,
-        );
-        importer_manifests.extend(
-            missing_projects
-                .iter()
-                .map(|(importer_id, manifest)| (importer_id.clone(), manifest)),
-        );
         let fresh_result = InstallWithFreshLockfile {
             inputs: self.fresh_inputs(
                 &dependency_groups,
@@ -413,7 +425,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 &prior_unbuilt,
                 &prior_skipped,
             ),
-            importer_manifests,
+            importer_manifests: self.importer_manifests(&missing_projects),
             owned: self.into_owned_inputs(lockfile_verification_gate),
         }
         .run::<Reporter>()
