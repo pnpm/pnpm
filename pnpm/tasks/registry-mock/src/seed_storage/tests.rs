@@ -87,30 +87,8 @@ fn concurrent_fixture_generations_are_seeded_into_separate_directories() {
     });
 
     assert_ne!(first_storage.path(), second_storage.path());
-    assert!(
-        first_storage
-            .path()
-            .join("@e2e/first/package.json")
-            .exists(),
-    );
-    assert!(
-        !first_storage
-            .path()
-            .join("@e2e/second")
-            .exists(),
-    );
-    assert!(
-        second_storage
-            .path()
-            .join("@e2e/second/package.json")
-            .exists(),
-    );
-    assert!(
-        !second_storage
-            .path()
-            .join("@e2e/first")
-            .exists(),
-    );
+    assert_eq!(versions(first_storage.path(), "@e2e/first"), ["1.0.0"]);
+    assert_eq!(versions(second_storage.path(), "@e2e/second"), ["1.0.0"]);
 }
 
 #[test]
@@ -134,10 +112,7 @@ fn concurrent_launches_publish_one_complete_generation_marker() {
     assert!(
         storages
             .iter()
-            .all(|storage| storage
-                .path()
-                .join("@e2e/shared/package.json")
-                .exists()),
+            .all(|storage| versions(storage.path(), "@e2e/shared") == ["1.0.0"])
     );
     assert_eq!(
         fs::read_to_string(storages[0].path().join(".fixture-generation"))

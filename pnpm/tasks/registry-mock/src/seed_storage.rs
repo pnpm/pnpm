@@ -94,7 +94,7 @@ fn seed_generation(generation: &FixtureGeneration, root: &Path) -> io::Result<Ru
 
 fn publish_generation_marker(marker: &Path, fingerprint: &str) -> io::Result<()> {
     let parent = marker.parent().expect("generation marker has a parent directory");
-    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    let mut temporary = pnpm_fs::umask_named_tempfile_in(parent)?;
     temporary.write_all(fingerprint.as_bytes())?;
     match temporary.persist_noclobber(marker) {
         Ok(_) => Ok(()),
@@ -136,12 +136,22 @@ fn read_generation_marker(marker: &Path) -> io::Result<Option<String>> {
 fn seed_files(generation: &FixtureGeneration, dest: &Path) -> io::Result<usize> {
     let src = generation.storage();
     fs::create_dir_all(dest)?;
+    copy_metadata(src, dest)?;
+    seed_fixture_files(src, dest)
+}
+
+fn copy_metadata(src: &Path, dest: &Path) -> io::Result<()> {
     let metadata = pnpr_fixtures::metadata_path(src);
     let metadata_dest = pnpr_fixtures::metadata_path(dest);
     if metadata.is_file() {
         fs::create_dir_all(metadata_dest.parent().expect("metadata database has a parent"))?;
         copy_into_new_file(&metadata, &metadata_dest)?;
     }
+    Ok(())
+}
+
+fn seed_fixture_files(src: &Path, dest: &Path) -> io::Result<usize> {
+    let metadata = pnpr_fixtures::metadata_path(src);
     let mut seeded = 0;
     for entry in WalkDir::new(src) {
         // Propagate traversal errors instead of silently dropping
@@ -194,7 +204,7 @@ fn link_or_copy(src: &Path, dest: &Path) -> io::Result<LinkOutcome> {
 fn copy_into_new_file(src: &Path, dest: &Path) -> io::Result<LinkOutcome> {
     let mut source = fs::File::open(src)?;
     let parent = dest.parent().expect("runtime storage file has a parent directory");
-    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    let mut temporary = pnpm_fs::umask_named_tempfile_in(parent)?;
     io::copy(&mut source, &mut temporary)?;
     temporary
         .as_file()

@@ -6437,6 +6437,7 @@ dependencies = [
  "clap",
  "home",
  "pipe-trait",
+ "pnpm-fs",
  "pnpr-fixtures",
  "pnpr-package-name",
  "reqwest",

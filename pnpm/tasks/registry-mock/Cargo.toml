@@ -25,6 +25,7 @@ assert_cmd = { workspace = true }
 clap = { workspace = true }
 home = { workspace = true }
 pipe-trait = { workspace = true }
+pnpm-fs = { workspace = true }
 pnpr-fixtures = { workspace = true }
 pnpr-package-name = { workspace = true }
 reqwest = { workspace = true }
