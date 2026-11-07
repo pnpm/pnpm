@@ -195,9 +195,15 @@ async fn a_new_process_applies_the_stored_changes() {
 #[tokio::test]
 async fn unreadable_stored_changes_close_the_registry() {
     let dir = TempDir::new().unwrap();
-    let record = dir.path().join("storage/.rule-overrides/npm/local.json");
-    std::fs::create_dir_all(record.parent().unwrap()).unwrap();
-    std::fs::write(&record, "not rules").unwrap();
+    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    storage
+        .create_registry_record(
+            pnpr_storage::RegistryRecord::RuleOverrides,
+            "npm/local",
+            b"not rules",
+        )
+        .await
+        .unwrap();
     let app = app_router(load_config(dir.path())).await;
     let bob = add_user(&app, "bob").await;
 
@@ -348,8 +354,6 @@ async fn a_read_on_another_replica_returns_the_stored_rules_with_their_version()
 #[tokio::test]
 async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
     let dir = TempDir::new().unwrap();
-    let storage_dir = dir.path().join("storage/.rule-overrides/npm");
-    std::fs::create_dir_all(&storage_dir).unwrap();
     let change_with_unknown = json!({
         "access": ["$authenticated"],
         "futureFieldFromNewerReplica": true,
@@ -360,11 +364,15 @@ async fn a_stored_rule_change_with_unknown_fields_does_not_fail_closed() {
             }
         }
     });
-    std::fs::write(
-        storage_dir.join("local.json"),
-        serde_json::to_vec(&change_with_unknown).unwrap(),
-    )
-    .unwrap();
+    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    storage
+        .create_registry_record(
+            pnpr_storage::RegistryRecord::RuleOverrides,
+            "npm/local",
+            &serde_json::to_vec(&change_with_unknown).unwrap(),
+        )
+        .await
+        .unwrap();
 
     let app = app_router(load_config(dir.path())).await;
     let root = add_user(&app, "root").await;
@@ -521,8 +529,6 @@ registries:
 defaultRegistry: main
 ";
     let storage = dir.path().join("storage");
-    let storage_dir = storage.join(".rule-overrides");
-    std::fs::create_dir_all(&storage_dir).unwrap();
     let change_with_unpublish = json!({
         "packages": {
             "foo": {
@@ -531,18 +537,20 @@ defaultRegistry: main
             },
         },
     });
-    let target_dir = storage_dir.join("cargo");
-    std::fs::create_dir_all(&target_dir).unwrap();
-    std::fs::write(
-        target_dir.join("crates.json"),
-        serde_json::to_vec(&change_with_unpublish).unwrap(),
-    )
-    .unwrap();
-
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, format!("storage: {}\n{config_yaml}", storage.display())).unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let config = Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    storage
+        .create_registry_record(
+            pnpr_storage::RegistryRecord::RuleOverrides,
+            "cargo/crates",
+            &serde_json::to_vec(&change_with_unpublish).unwrap(),
+        )
+        .await
+        .unwrap();
+
     let app = app_router(config).await;
     let root = add_user(&app, "root").await;
 

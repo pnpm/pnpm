@@ -7,7 +7,7 @@ use super::{
 use futures_util::future::join_all;
 use pnpr_config::{Management, Teams};
 use pnpr_policy::RuleTable;
-use pnpr_storage::{DocumentWrite, RegistryRecord};
+use pnpr_storage::RegistryRecord;
 use std::{
     future::Future,
     sync::{Arc, Mutex, PoisonError},
@@ -31,7 +31,7 @@ pub(super) const WRITE_ATTEMPTS: usize = 5;
 /// (`teamsManagedBy: api`), package rules (`rulesManagedBy: api`), and the
 /// SCIM directory (`auth.scim`).
 ///
-/// The hosted store holds each one as a [`RegistryRecord`], so every replica
+/// The metadata database holds each one as a [`RegistryRecord`], so every replica
 /// sees the same state. A registry with no stored record yet serves its YAML.
 pub(super) struct ManagedState {
     /// Each roster-managed registry's `teams:` map, keyed by registry name.
@@ -156,7 +156,7 @@ pub(super) async fn store_registry_record(
     state: &AppState,
     kind: RegistryRecord,
     registry: &str,
-    expected: Option<&[u8]>,
+    expected: Option<&pnpr_storage::MetadataRecord>,
     bytes: &[u8],
 ) -> Result<bool, RegistryError> {
     let storage = &state.inner.storage;
@@ -172,7 +172,7 @@ pub(super) async fn store_registry_record(
             let written =
                 storage.replace_registry_record_if_current(kind, &canonical, expected, bytes)
                     .await?;
-            Ok(written == DocumentWrite::Written)
+            Ok(written.is_some())
         }
     }
 }

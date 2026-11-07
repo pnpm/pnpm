@@ -1,7 +1,7 @@
 //! Team administration through the npm team API on a registry whose teams
 //! the API manages (`teamsManagedBy: api`): who may edit the roster, how an
-//! edit reaches the `team:` rules, and that the roster lives in the hosted
-//! store rather than in the process.
+//! edit reaches the `team:` rules, and that the roster persists in the metadata
+//! database.
 
 use axum::{
     body::{Body, to_bytes},
@@ -248,9 +248,15 @@ async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
         send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await.0,
         StatusCode::NOT_FOUND,
     );
-    let roster = dir.path().join("storage/.team-rosters/npm/local.json");
-    std::fs::create_dir_all(roster.parent().unwrap()).unwrap();
-    std::fs::write(&roster, "not a roster").unwrap();
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    storage
+        .create_registry_record(
+            pnpr_storage::RegistryRecord::TeamRoster,
+            "npm/local",
+            b"not a roster",
+        )
+        .await
+        .unwrap();
     let app = router_with_auth(config, auth);
 
     let (status, _) = send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await;

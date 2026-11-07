@@ -6,10 +6,6 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::Config;
-use pnpr_storage::{
-    TOMBSTONES_NAMESPACE,
-    layout::{namespace_segments, package_segments},
-};
 use serde_json::{Value, json};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use tempfile::TempDir;
@@ -682,7 +678,7 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
 }
 
 #[tokio::test]
-async fn a_packument_rewrite_whose_tombstone_fails_leaves_the_packument_unchanged() {
+async fn a_packument_rewrite_whose_removal_record_fails_leaves_the_packument_unchanged() {
     let (dir, config) = config_with_packages(
         "packages:\n  'fail-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
         &[],
@@ -726,15 +722,9 @@ async fn a_packument_rewrite_whose_tombstone_fails_leaves_the_packument_unchange
         dist_tags.insert("latest".to_string(), json!("1.0.0"));
     }
 
-    // Block tombstone recording by creating a directory where the tombstone file belongs
-    let mut tombstone_file = dir.path().join("storage");
-    tombstone_file.extend(namespace_segments("", pnpr_storage::Ecosystem::Npm));
-    tombstone_file.push(TOMBSTONES_NAMESPACE);
-    tombstone_file.push(format!(
-        "{}.json",
-        package_segments(pnpr_storage::Ecosystem::Npm, "fail-pkg").join("/"),
-    ));
-    std::fs::create_dir_all(&tombstone_file).unwrap();
+    let connection =
+        rusqlite::Connection::open(dir.path().join("storage/.metadata/metadata.sqlite")).unwrap();
+    connection.execute_batch("CREATE TRIGGER refuse_removal BEFORE INSERT ON removed_packages BEGIN SELECT RAISE(ABORT, 'injected removal failure'); END;").unwrap();
 
     // Alice attempts to rewrite the packument to remove 1.1.0
     let res = app
@@ -748,8 +738,7 @@ async fn a_packument_rewrite_whose_tombstone_fails_leaves_the_packument_unchange
         res.status(),
     );
 
-    // The tombstone is written first, so the rewrite never ran and 1.1.0 is
-    // still present
+    // The transaction rolled back the package rewrite.
     let res = app
         .clone()
         .oneshot(authed_get("/npm/fail-pkg", &alice_token))

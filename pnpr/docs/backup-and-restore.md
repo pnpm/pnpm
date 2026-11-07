@@ -11,7 +11,7 @@ A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
    - **Hosted storage (`storage`)**: Contains the archives, stored by the identity of their bytes rather than by file name. Only the metadata database maps a package's files to them, so a copy of the store is usable only with the metadata from the same point in time. Back this up regularly.
-   - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): holds the package metadata, in SQLite by default or in a libSQL database. SQLite's backup API copies the database consistently, but not at the same point in time as the hosted store, and a publish writes its archives before it commits the metadata that references them. Stop pnpr before copying a SQLite database and the hosted store, or take both copies from the same point in time, and run `pnpr verify` after a restore. Back a libSQL database up according to provider documentation.
+   - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): holds package metadata, former maintainers and unpublished versions, team rosters, rule overrides, SCIM users, and staged-publish approval records, in SQLite by default or in a libSQL database. SQLite's backup API copies the database consistently, but not at the same point in time as the hosted store, and a publish writes its archives before it commits the metadata that references them. Stop pnpr before copying a SQLite database and the hosted store, or take both copies from the same point in time, and run `pnpr verify` after a restore. Back a libSQL database up according to provider documentation.
    - **Authentication and user state**:
      - `users.json` file (when configured).
      - SQLite token database (`tokens.db`, when configured).
@@ -46,7 +46,7 @@ With `metadata.url`, use the path that URL names.
 pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
 ```
 
-An export is not a complete backup of the metadata. It leaves out three things only the database holds: the unpublished versions pnpr never accepts again, the record of every dist-tag move (its versions, time, and principal), and release notes.
+An export does not include unpublished versions, former maintainer claims, dist-tag history, release notes, team rosters, rule overrides, SCIM users, or staged publishes. Back up the [metadata database](storage.md#sqlite-metadata) and hosted storage at the same point in time to retain these records and the staged bodies.
 
 ### Restore
 

@@ -145,11 +145,11 @@ pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimStat
 
 pub(super) async fn read_directory(
     state: &AppState,
-) -> Result<(Directory, Option<Vec<u8>>), RegistryError> {
+) -> Result<(Directory, Option<pnpr_storage::MetadataRecord>), RegistryError> {
     let kind = RegistryRecord::ScimUsers;
     let stored = state.inner.storage.read_registry_record(kind, SCIM_DIRECTORY).await?;
     let directory = match &stored {
-        Some(bytes) => serde_json::from_slice(bytes)
+        Some(bytes) => serde_json::from_slice(&bytes.bytes)
             .map_err(|err| RegistryError::Internal {
                 reason: format!("the stored SCIM directory is unreadable: {err}"),
             })?,
@@ -176,7 +176,7 @@ where
         let output = edit(&mut directory)?;
         let bytes = serde_json::to_vec(&directory)?;
         let kind = RegistryRecord::ScimUsers;
-        if store_registry_record(state, kind, SCIM_DIRECTORY, stored.as_deref(), &bytes).await? {
+        if store_registry_record(state, kind, SCIM_DIRECTORY, stored.as_ref(), &bytes).await? {
             scim.publish(state, &directory);
             return Ok(output);
         }

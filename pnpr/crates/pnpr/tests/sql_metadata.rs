@@ -12,10 +12,6 @@ use axum::{
 use pnpr::{Config, MaxUsers, router};
 use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::{
-    TOMBSTONES_NAMESPACE,
-    layout::{namespace_segments, package_segments},
-};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -168,21 +164,11 @@ async fn publish(app: &Router, token: &str, version: &str) -> StatusCode {
     send(app, request("PUT", "/npm/sql-pkg", token, Some(&doc))).await.0
 }
 
-fn tombstone_path(storage: &Path) -> std::path::PathBuf {
-    let mut path = storage.to_path_buf();
-    path.extend(namespace_segments("", pnpr_storage::Ecosystem::Npm));
-    path.push(TOMBSTONES_NAMESPACE);
-    path.push(format!(
-        "{}.json",
-        package_segments(pnpr_storage::Ecosystem::Npm, "sql-pkg").join("/"),
-    ));
-    path
-}
-
 #[tokio::test]
-async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
+async fn unpublished_versions_and_ownership_survive_restart() {
     let tmp = TempDir::new().unwrap();
-    let app = router(sqlite_config(tmp.path()));
+    let auth = pnpr::AuthState::in_memory();
+    let app = pnpr::router_with_auth(sqlite_config(tmp.path()), auth.clone());
     let token = token(&app).await;
     for version in ["1.0.0", "1.1.0"] {
         assert_eq!(publish(&app, &token, version).await, StatusCode::CREATED);
@@ -204,9 +190,7 @@ async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    // The metadata store keeps the removed version itself, so losing the
-    // server's tombstone does not let it back in.
-    std::fs::remove_file(tombstone_path(tmp.path())).unwrap();
+    let app = pnpr::router_with_auth(sqlite_config(tmp.path()), auth.clone());
     let (status, _, body) = send(
         &app,
         request("PUT", "/npm/sql-pkg", &token, Some(&publish_doc("sql-pkg", "1.0.0", b"other"))),
@@ -219,12 +203,14 @@ async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
     // Unpublishing the whole package keeps every version it had.
     let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg/-rev/1", &token, None)).await;
     assert_eq!(status, StatusCode::CREATED);
-    std::fs::remove_file(tombstone_path(tmp.path())).unwrap();
+    let app = pnpr::router_with_auth(sqlite_config(tmp.path()), auth.clone());
     // Other bytes than the first publish of 1.1.0, so the request is not a
     // replay of that one.
     let republished = publish_doc("sql-pkg", "1.1.0", b"other");
     let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&republished))).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+    let other = token_of(&app, "other").await;
+    assert_eq!(publish(&app, &other, "2.0.0").await, StatusCode::FORBIDDEN);
     assert_eq!(publish(&app, &token, "2.0.0").await, StatusCode::CREATED);
 }
 
@@ -262,9 +248,6 @@ async fn an_unpublish_whose_archive_removal_fails_leaves_the_archive_to_gc_and_t
         .is_none(),
     );
 
-    // The tombstone was written first, so the name is not free for anyone
-    // but its former maintainer.
-    assert!(tombstone_path(tmp.path()).is_file());
     let bob = token_of(&app, "bob").await;
     assert_eq!(publish(&app, &bob, "2.0.0").await, StatusCode::FORBIDDEN);
 }

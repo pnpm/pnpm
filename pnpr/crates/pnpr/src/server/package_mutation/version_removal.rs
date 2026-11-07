@@ -12,8 +12,8 @@ use serde_json::{Map, Value};
 /// reclaim the archives only it mapped. Reports whether it was listed. A
 /// `dist-tags` entry naming it moves to the highest version left, or goes
 /// when none is. A commit another writer lands first is read again and the
-/// removal retried, so an unrelated change to the package does not leave
-/// the version listed after the caller recorded it unpublished.
+/// removal retried. The commit records the removed version and former
+/// maintainers together.
 pub(super) async fn remove_listed_version(
     storage: &pnpr_storage::Storage,
     identity: &Identity,

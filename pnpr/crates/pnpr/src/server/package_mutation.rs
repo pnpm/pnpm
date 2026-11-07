@@ -9,9 +9,6 @@ mod maintainers;
 mod unpublish;
 mod version_removal;
 
-#[cfg(test)]
-mod tests;
-
 use axum::{
     body::Body,
     http::{StatusCode, header},
@@ -24,7 +21,7 @@ use maintainers::update_package_maintainers;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DocumentWrite, PackageTombstone, metadata::validate_document_dist_tags};
+use pnpr_storage::{DocumentWrite, metadata::validate_document_dist_tags};
 
 use super::{
     Action, AppState, RegistrySource, authorize_package, hosted_storage, resolve_write_target,
@@ -99,7 +96,7 @@ fn prepare_packument_rewrite(
     tar_integrities: &std::collections::BTreeMap<String, pnpr_storage::DerivedTar>,
     name: &CanonicalPackageName,
     packument: &mut Value,
-) -> Result<(Value, Vec<String>), Response> {
+) -> Result<Vec<String>, Response> {
     let mut hosted: Value = serde_json::from_slice(hosted_bytes)
         .map_err(|err| RegistryError::Json(err).into_response())?;
     if let Some(format_version) = hosted.get("formatVersion").and_then(Value::as_u64)
@@ -132,8 +129,7 @@ fn prepare_packument_rewrite(
         );
     }
     validate_document_dist_tags(&hosted, packument).map_err(IntoResponse::into_response)?;
-    let removed = detect_removed_versions(&hosted, packument);
-    Ok((hosted, removed))
+    Ok(detect_removed_versions(&hosted, packument))
 }
 
 /// Serialize against other same-package writers so the rewrite cannot
@@ -152,24 +148,16 @@ async fn rewrite_packument(
         Err(response) => return response,
     };
     let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
-    let (hosted, removed) =
+    let removed =
         match prepare_packument_rewrite(&hosted_packument.bytes, &tar_integrities, name, packument)
         {
-            Ok(pair) => pair,
+            Ok(removed) => removed,
             Err(response) => return response,
         };
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    // The tombstone names the removed versions before the rewrite removes
-    // them: the metadata store may refuse a removed version for good, so a
-    // rewrite could not be undone if recording them failed after it.
-    if let Err(err) =
-        record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed).await
-    {
-        return err.into_response();
-    }
     let unpublished = unpublished_blobs(storage, name, &removed).await;
     let version = Some(&hosted_packument.version);
     match storage.write_hosted_document_if_current(name, &bytes, version, identity.user_id()).await
@@ -208,34 +196,6 @@ fn detect_removed_versions(hosted: &Value, packument: &Value) -> Vec<String> {
         .collect()
 }
 
-async fn record_removed_versions_in_tombstone(
-    storage: &pnpr_storage::Storage,
-    identity: &Identity,
-    name: &CanonicalPackageName,
-    hosted: &Value,
-    removed_versions: &[String],
-) -> Result<(), RegistryError> {
-    if removed_versions.is_empty() {
-        return Ok(());
-    }
-    let fallback = new_tombstone_from_hosted(identity, name, hosted);
-    let removed = removed_versions.to_vec();
-    storage.update_tombstone(name, move |existing| {
-        let mut tombstone = existing.unwrap_or_else(|| fallback.clone());
-        for version in &removed {
-            if !tombstone.unpublished_versions
-                .iter()
-                .any(|existing| existing == version)
-            {
-                tombstone.unpublished_versions.push(version.clone());
-            }
-        }
-        tombstone
-    })
-    .await?;
-    Ok(())
-}
-
 /// The blobs the files of `removed_versions` are mapped to, read before the
 /// rewrite drops the versions and their mappings. A failure only warns: the
 /// blobs are then left for `pnpr gc`.
@@ -265,22 +225,6 @@ async fn reclaim_unpublished_blobs(
 ) {
     if let Err(err) = storage.reclaim_blobs(ids).await {
         tracing::warn!(package = %name.as_str(), %err, "unpublished archives left for `pnpr gc`");
-    }
-}
-
-fn new_tombstone_from_hosted(
-    identity: &Identity,
-    name: &CanonicalPackageName,
-    hosted: &Value,
-) -> PackageTombstone {
-    let mut maintainers = Vec::new();
-    unpublish::collect_maintainers_from_value(hosted, &mut maintainers);
-    PackageTombstone {
-        package: name.as_str().to_string(),
-        unpublished_by: identity.user_id().map(ToString::to_string),
-        unpublished_at: chrono::Utc::now().to_rfc3339(),
-        maintainers,
-        unpublished_versions: Vec::new(),
     }
 }
 

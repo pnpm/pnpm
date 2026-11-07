@@ -447,7 +447,7 @@ registries:
         access: [team:<platform-team-id>]
 ```
 
-- pnpr stores the roster in the hosted store. Other replicas follow the
+- pnpr stores the roster in the metadata database. Other replicas follow the
   [replica reload timing](#replica-reloads).
 - If pnpr cannot read a stored roster, that registry's `team:` grants admit
   nobody until a read succeeds. Other access rules are not affected.
@@ -478,7 +478,7 @@ registries:
   The keys themselves stay in the config, because they decide which registry
   serves a name.
 - A change applies at once on the replica that took it. pnpr stores changes in
-  the hosted store. Other replicas follow the [replica reload timing](#replica-reloads).
+  the metadata database. Other replicas follow the [replica reload timing](#replica-reloads).
 - A shared cache in front of pnpr, such as a CDN, can keep serving a package
   that a change makes private. A packument stays until its `max-age`, the
   [`packumentTtl`](#packumentttl), runs out. A tarball carries no `max-age`, so
