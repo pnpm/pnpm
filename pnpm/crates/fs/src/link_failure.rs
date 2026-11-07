@@ -1,6 +1,5 @@
-//! One reading of a failed link for every importer that links a file into
-//! place: the store import tiers, the macOS directory-clone cache, the
-//! injected-dependency syncer, and `pnpm patch-commit`.
+//! One reading of a failed hardlink, reflink, or directory clone, and
+//! what the caller does about it.
 
 use crate::is_cross_device;
 use std::io;
@@ -39,8 +38,9 @@ pub enum LinkFailure {
 /// How an import method answers a failed link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkFallbackPolicy {
-    /// The method is one of a ladder, as `auto` and `clone-or-copy` are: a
-    /// filesystem that cannot link moves every later file to the next
+    /// The caller has a next method to move to: a ladder such as `auto` or
+    /// `clone-or-copy`, or a scratch tree that hardlinks only as a saving.
+    /// A filesystem that cannot link moves every later file to the next
     /// method, down to a copy.
     NextMethod,
     /// The user asked for hardlinks: a failure that costs one file is
@@ -78,7 +78,7 @@ impl LinkFailure {
 
     /// What an importer with `policy` does about this failure.
     ///
-    /// A cross-device link copies under both policies: a store on another
+    /// A cross-device link copies under `CopyOneFile`: a store on another
     /// device than `node_modules` is a placement the user can change, so
     /// the copy is not hidden from a user who asked for hardlinks.
     #[must_use]
@@ -99,7 +99,7 @@ impl LinkFailure {
     }
 }
 
-#[cfg(feature = "test")]
+#[cfg(any(test, feature = "test"))]
 impl LinkFailure {
     /// Every failure, for a test that must answer each.
     pub const ALL: [Self; 5] =
@@ -119,7 +119,7 @@ impl LinkFailure {
 }
 
 /// `EXDEV`, or Windows's `ERROR_NOT_SAME_DEVICE`.
-#[cfg(feature = "test")]
+#[cfg(any(test, feature = "test"))]
 fn cross_device_error() -> io::Error {
     #[cfg(unix)]
     return io::Error::from_raw_os_error(libc::EXDEV);
@@ -130,7 +130,7 @@ fn cross_device_error() -> io::Error {
 }
 
 /// `EPERM`, or Windows's `ERROR_ACCESS_DENIED`.
-#[cfg(feature = "test")]
+#[cfg(any(test, feature = "test"))]
 fn denied_error() -> io::Error {
     #[cfg(unix)]
     return io::Error::from_raw_os_error(libc::EPERM);

@@ -208,7 +208,12 @@ fn sync_copies_only_what_the_source_cannot_share() {
         }
         let error = result.expect_err("the link error surfaces");
         assert!(
-            matches!(&error, super::PatchError::Link { error, .. } if LinkFailure::of(error) == failure),
+            matches!(
+                &error,
+                super::PatchError::Link { error, .. }
+                    if (error.kind(), error.raw_os_error())
+                        == (failure.sample_error().kind(), failure.sample_error().raw_os_error()),
+            ),
             "{failure:?}: {error:?}",
         );
         assert!(!target.join("index.js").exists(), "{failure:?}: nothing was copied");

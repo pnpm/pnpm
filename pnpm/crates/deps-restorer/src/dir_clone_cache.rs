@@ -310,7 +310,10 @@ impl<'install> DirCloneCache<'install> {
 /// that retires an import tier ([`LinkFallback::NextMethod`]) retires the
 /// cache; a canonical slot a concurrent prune removed, a target a
 /// concurrent importer claimed, or a source out of names only sends this
-/// package through the per-file import.
+/// package through the per-file import. A permission refusal is read as
+/// the volume's, as the ladder reads it: a cache kept past one would
+/// populate a canonical slot for every later package only to fail its
+/// clone.
 fn retires_dir_clone(error: &io::Error) -> bool {
     LinkFailure::of(error).fallback(LinkFallbackPolicy::NextMethod) == LinkFallback::NextMethod
 }

@@ -390,9 +390,9 @@ impl Default for ImportState {
 
 /// The explicit `hardlink` method. pnpm's `hardlinkPkg(linkOrCopy)`
 /// copies on any link failure other than `EEXIST`; here
-/// [`LinkFallbackPolicy::CopyOneFile`] decides, so the user gets an error
-/// naming the method instead of a silent whole-install copy. No caching:
-/// the `fs::hard_link` syscall itself is already cheap.
+/// [`LinkFallbackPolicy::CopyOneFile`] decides, so a filesystem that
+/// refuses links is an error rather than a silent whole-install copy. No
+/// caching: the `fs::hard_link` syscall itself is already cheap.
 ///
 /// A mode that does not match the current umask cannot be fixed on the
 /// store inode every name shares, so the file is copied at the desired

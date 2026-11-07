@@ -17,7 +17,7 @@ fn codes() -> Vec<(&'static str, io::Error, LinkFailure)> {
         ("TooManyLinks", io::Error::from(io::ErrorKind::TooManyLinks), LinkFailure::TooManyLinks),
         ("Unsupported", io::Error::from(io::ErrorKind::Unsupported), LinkFailure::Unsupported),
         (
-            "InvalidInput from reflink-copy or ERROR_INVALID_FUNCTION",
+            "InvalidInput from reflink-copy",
             io::Error::from(io::ErrorKind::InvalidInput),
             LinkFailure::Unsupported,
         ),

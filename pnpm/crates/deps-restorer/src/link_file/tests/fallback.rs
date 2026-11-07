@@ -165,6 +165,11 @@ fn desired_mode() -> u32 {
     pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask())
 }
 
+/// What an error carries of the OS code that produced it.
+fn error_code(error: &io::Error) -> (io::ErrorKind, Option<i32>) {
+    (error.kind(), error.raw_os_error())
+}
+
 fn assert_materialized(source: &Path, target: &Path, context: &str) {
     assert_eq!(fs::read(target).unwrap(), fs::read(source).unwrap(), "{context}: content");
     #[cfg(unix)]
@@ -248,7 +253,7 @@ impl Placed<'_> {
     fn assert_failed(&self, result: io::Result<WireImportMethod>, failure: LinkFailure) {
         let context = self.context;
         let error = result.expect_err(context);
-        assert_eq!(LinkFailure::of(&error), failure, "{context}: the error surfaces");
+        assert_eq!(error_code(&error), error_code(&failure.sample_error()), "{context}: surfaces");
         assert!(!self.target.exists(), "{context}: nothing is written");
         assert_eq!(self.logged, 0, "{context}: no method is logged");
     }
