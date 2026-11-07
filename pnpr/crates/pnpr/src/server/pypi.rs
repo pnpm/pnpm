@@ -19,6 +19,7 @@
 pub(super) use publication::{PypiPublication, authorize_upload, verify_upload};
 
 mod management;
+mod metadata;
 mod publication;
 use publication::post_upload;
 
@@ -353,7 +354,9 @@ async fn file_via_upstream(
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let Some(entry) = document.file(filename) else { return not_found() };
+    let Some(entry) = document.file(filename.strip_suffix(".metadata").unwrap_or(filename)) else {
+        return not_found();
+    };
     let bad_entry = |reason: String| {
         RegistryError::UpstreamResponse { url: base.to_string(), reason }.into_response()
     };
@@ -364,6 +367,9 @@ async fn file_via_upstream(
         Ok(url) if is_fetchable_artifact_url(&url) => url,
         _ => return bad_entry(format!("file {filename} has no fetchable HTTP(S) URL")),
     };
+    if filename.ends_with(".metadata") {
+        return metadata::serve(state, upstream, &namespace, key, entry, &url).await;
+    }
     let Some(integrity) = entry.sha256().and_then(sha256_integrity) else {
         return bad_entry(format!("file {filename} has no SHA-256 hash"));
     };

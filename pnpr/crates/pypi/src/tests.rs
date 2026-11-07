@@ -67,6 +67,8 @@ fn document() -> ProjectDocument {
                 requires_python: Some(">=3.9".to_string()),
                 yanked: Yanked::Flag(false),
                 size: Some(12),
+                core_metadata: None,
+                dist_info_metadata: None,
                 upload_time: Some("2026-01-01T00:00:00Z".to_string()),
             },
             ProjectFile {
@@ -76,6 +78,8 @@ fn document() -> ProjectDocument {
                 requires_python: None,
                 yanked: Yanked::Reason("broken <build>".to_string()),
                 size: None,
+                core_metadata: None,
+                dist_info_metadata: None,
                 upload_time: None,
             },
         ],
@@ -294,4 +298,28 @@ fn file_urls_encode_filename_delimiters() {
             .render_html("https://pnpr.test/files/demo-pkg")
             .contains(&format!("{expected}#sha256=aa")),
     );
+}
+
+#[test]
+fn core_metadata_roundtrips_and_renders_boolean_and_legacy_declarations() {
+    for (field, declaration, attribute) in [
+        ("core-metadata", json!(true), Some(r#"data-core-metadata="true""#)),
+        ("core-metadata", json!(false), None),
+        (
+            "dist-info-metadata",
+            json!({"sha256": "a&b"}),
+            Some(r#"data-dist-info-metadata="sha256=a&amp;b""#),
+        ),
+    ] {
+        let mut page = json!({"name": "sample-pkg", "files": [{"filename": "sample_pkg-1.0-py3-none-any.whl"}]});
+        page["files"][0][field] = declaration.clone();
+        let document = ProjectDocument::parse(&serde_json::to_vec(&page).unwrap()).unwrap();
+        let restored = ProjectDocument::parse(&document.to_bytes()).unwrap();
+        assert_eq!(restored.render_json("/files/sample-pkg")["files"][0][field], declaration);
+        let html = restored.render_html("/files/sample-pkg");
+        match attribute {
+            Some(attribute) => assert!(html.contains(attribute), "{html}"),
+            None => assert!(!html.contains("data-core-metadata"), "{html}"),
+        }
+    }
 }

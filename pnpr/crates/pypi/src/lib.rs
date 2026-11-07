@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! The Python package index protocol pnpr speaks.
 //!
 //! A Python index is the **Simple Repository API**: a project list and one
@@ -11,7 +14,10 @@
 pub mod archive;
 pub mod multipart;
 
+pub use core_metadata::CoreMetadata;
 pub use pnpr_package_name::PythonNameError as NameError;
+
+mod core_metadata;
 
 use derive_more::{Display, Error};
 use pep440_rs::Version;
@@ -97,6 +103,10 @@ impl Yanked {
 /// from its own address at render time.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(perfectionist::too_many_struct_fields, reason = "PEP 691 file entry fields")
+)]
 pub struct ProjectFile {
     pub filename: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -113,9 +123,19 @@ pub struct ProjectFile {
     pub size: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub upload_time: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub core_metadata: Option<CoreMetadata>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dist_info_metadata: Option<CoreMetadata>,
 }
 
 impl ProjectFile {
+    fn render_json(&self, file_base: &str) -> Value {
+        let mut entry = serde_json::to_value(self).expect("project file serializes");
+        entry["url"] = json!(file_url(file_base, &self.filename));
+        entry
+    }
+
     /// The file's lowercase hex SHA-256, when the index published one.
     #[must_use]
     pub fn sha256(&self) -> Option<&str> {
@@ -195,24 +215,7 @@ impl ProjectDocument {
     pub fn render_json(&self, file_base: &str) -> Value {
         let files: Vec<Value> = self.files
             .iter()
-            .map(|file| {
-                let mut entry = json!({
-                    "filename": file.filename,
-                    "url": file_url(file_base, &file.filename),
-                    "hashes": file.hashes,
-                    "yanked": file.yanked,
-                });
-                if let Some(requires_python) = &file.requires_python {
-                    entry["requires-python"] = json!(requires_python);
-                }
-                if let Some(size) = file.size {
-                    entry["size"] = json!(size);
-                }
-                if let Some(upload_time) = &file.upload_time {
-                    entry["upload-time"] = json!(upload_time);
-                }
-                entry
-            })
+            .map(|file| file.render_json(file_base))
             .collect();
         json!({
             "meta": { "api-version": API_VERSION },
@@ -243,6 +246,7 @@ impl ProjectDocument {
             if let Some(requires_python) = &file.requires_python {
                 let _ = write!(html, r#" data-requires-python="{}""#, escape_html(requires_python));
             }
+            file.render_metadata_attributes(&mut html);
             match &file.yanked {
                 Yanked::Flag(false) => {}
                 Yanked::Flag(true) => html.push_str(r#" data-yanked="""#),

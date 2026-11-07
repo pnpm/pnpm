@@ -154,6 +154,8 @@ fn verify_distribution(
         requires_python: upload.requires_python,
         yanked: Yanked::Flag(false),
         size: Some(upload.content.len() as u64),
+        core_metadata: None,
+        dist_info_metadata: None,
         upload_time: Some(now_iso()),
     };
     Ok(PypiPublication { key, org, entry, content: upload.content })
