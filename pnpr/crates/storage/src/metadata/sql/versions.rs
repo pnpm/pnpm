@@ -236,3 +236,37 @@ pub(super) fn write_deprecation(
 fn json_text(value: Option<&Value>) -> Result<Option<String>> {
     Ok(value.map(serde_json::to_string).transpose()?)
 }
+
+/// Remove a version, keeping its identity so it is never accepted again.
+pub(super) fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
+    let (catalog, ecosystem, name) = commit.key.params();
+    commit.transaction.execute(
+        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
+         SELECT catalog, ecosystem, name, version, revision_key, ?5 FROM versions
+         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
+         ON CONFLICT DO NOTHING",
+        params![catalog, ecosystem, name, version, to_column(commit.generation)],
+    )?;
+    for table in VERSION_TABLES {
+        commit.transaction.execute(
+            &format!(
+                "DELETE FROM {table}
+                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
+            ),
+            params![catalog, ecosystem, name, version],
+        )?;
+    }
+    Ok(())
+}
+
+/// The tables holding a version's rows, each before the tables its rows
+/// reference. The mappings of its files go with it, which leaves the blobs
+/// nothing else maps to be reclaimed.
+const VERSION_TABLES: [&str; 6] = [
+    "artifact_blobs",
+    "release_records",
+    "accepted_manifests",
+    "readmes",
+    "annotations",
+    "versions",
+];

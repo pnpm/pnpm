@@ -102,7 +102,7 @@ impl Request {
             match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
                 .await
             {
-                Ok(Some(document)) => {
+                Ok(Some(document)) if !document.manifests().is_empty() => {
                     let mut tags = document.tag_names();
                     let link =
                         match self.paginate(&mut tags, &format!("{}/tags/list", key.as_str())) {
@@ -115,7 +115,7 @@ impl Request {
                     }
                     response
                 }
-                Ok(None) => unknown_repository(name).respond(),
+                Ok(_) => unknown_repository(name).respond(),
                 Err(err) => registry_error(err),
             };
         self.caller_scoped(Some(key.as_str()), response)

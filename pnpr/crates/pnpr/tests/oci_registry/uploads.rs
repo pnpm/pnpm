@@ -230,7 +230,9 @@ async fn deleting_a_referenced_blob_is_refused() {
         .oneshot(request)
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["errors"][0]["code"], "DENIED");
     assert_eq!(
         get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))).await.status(),
         StatusCode::OK,

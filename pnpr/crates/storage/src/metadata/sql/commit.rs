@@ -148,6 +148,15 @@ impl Commit<'_> {
         Ok(())
     }
 
+    pub(super) fn delete_state(&self) -> Result<()> {
+        let (catalog, ecosystem, name) = self.key.params();
+        self.transaction.execute(
+            "DELETE FROM packages WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+            params![catalog, ecosystem, name],
+        )?;
+        Ok(())
+    }
+
     /// Commit `bytes` as the package's document when the stored one, read
     /// as `stored`, is what `expected` names, recording `principal` with
     /// every tag it moves. Reports whether the document changed any row, or
@@ -208,6 +217,13 @@ fn apply_whole_document(
     current: Option<&PackageRow>,
     bytes: &[u8],
 ) -> Result<bool> {
+    if bytes.is_empty() {
+        if current.is_none() {
+            return Ok(false);
+        }
+        commit.delete_state()?;
+        return Ok(true);
+    }
     if current.is_some_and(|row| row.state == bytes) {
         return Ok(false);
     }
@@ -265,7 +281,7 @@ fn apply_versions(
         }
     }
     for version in stored.keys() {
-        delete_version(commit, version)?;
+        super::versions::delete_version(commit, version)?;
         changed = true;
     }
     Ok(changed)
@@ -342,40 +358,6 @@ pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
     ))?;
     Ok(ssri::Integrity::from(input).to_string())
 }
-
-/// Remove a version, keeping its identity so it is never accepted again.
-fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
-    commit.transaction.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
-         SELECT catalog, ecosystem, name, version, revision_key, ?5 FROM versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-         ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, version, to_column(commit.generation)],
-    )?;
-    for table in VERSION_TABLES {
-        commit.transaction.execute(
-            &format!(
-                "DELETE FROM {table}
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-            ),
-            params![catalog, ecosystem, name, version],
-        )?;
-    }
-    Ok(())
-}
-
-/// The tables holding a version's rows, each before the tables its rows
-/// reference. The mappings of its files go with it, which leaves the blobs
-/// nothing else maps to be reclaimed.
-const VERSION_TABLES: [&str; 6] = [
-    "artifact_blobs",
-    "release_records",
-    "accepted_manifests",
-    "readmes",
-    "annotations",
-    "versions",
-];
 
 /// The tables holding a package's rows other than its history, each before
 /// the tables its rows reference.
