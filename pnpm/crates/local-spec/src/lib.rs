@@ -320,7 +320,7 @@ fn names_its_own_location(path: &str) -> bool {
 /// 3. A drive prefix left by step 2 stands on its own, in either case,
 ///    so `file:///C:/pkg` reads as `C:/pkg`.
 /// 4. Otherwise, when slashes did follow the protocol, one is restored
-///   unless what remains opens with `~` or `.`, which keeps the path
+///    unless what remains opens with `~` or `.`, which keeps the path
 ///    relative: `file:/./deps/x` is the project's `./deps/x`, not the
 ///    root's `/deps/x`.
 ///
