@@ -99,6 +99,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("deploy_all_files", NotAnInput(OTHER_COMMAND)),
     ("disallow_workspace_cycles", NotAnInput("whether a cycle fails the install")),
     ("dlx_cache_max_age", NotAnInput(OTHER_COMMAND)),
+    ("editor", NotAnInput(OTHER_COMMAND)),
     ("embed_readme", NotAnInput(OTHER_COMMAND)),
     ("enable_global_virtual_store", Recorded { key: "enableGlobalVirtualStore", change: |config| config.enable_global_virtual_store = !config.enable_global_virtual_store }),
     ("enable_modules_dir", Unseen("neither the fast path nor the frozen-tree check sees it, only an install into an empty modules directory applies it")),
