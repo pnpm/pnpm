@@ -3,9 +3,7 @@
 
 use crate::{
     hoist::HoistedDependencies,
-    prune_direct_deps::{
-        PruneDirectDepsError, confined_modules_dir, is_real_dir, remove_extraneous_direct_dep,
-    },
+    prune_direct_deps::{PruneDirectDepsError, is_real_dir, remove_extraneous_direct_dep},
     prune_stale_modules::{direct_deps_of, remove_emptied_scope_dir},
     symlink_direct_dependencies::{importer_root_dir, validate_importer_id},
 };
@@ -16,7 +14,6 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, RemovedRoot, Reporter, RootLog, RootMessage};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
@@ -35,6 +32,8 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
     pub(crate) fn run<Reporter: self::Reporter>(self) -> Result<(), PruneDirectDepsError> {
         let wanted_root_deps = self.wanted_root_deps();
         let manifests_by_dir = self.manifests_by_dir();
+        let modules_dirs =
+            crate::ImporterModulesDirs::from_config(self.config, self.workspace_root);
         let mut importers: Vec<_> = self.wanted_lockfile.importers.iter().collect();
         importers.sort_by_key(|(id, _)| *id);
         for (importer_id, wanted_snapshot) in importers {
@@ -42,6 +41,7 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
                 continue;
             }
             self.prune_importer::<Reporter>(
+                &modules_dirs,
                 importer_id,
                 wanted_snapshot,
                 wanted_root_deps.as_ref(),
@@ -53,6 +53,7 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
 
     fn prune_importer<Reporter: self::Reporter>(
         &self,
+        modules_dirs: &crate::ImporterModulesDirs,
         importer_id: &str,
         wanted_snapshot: &ProjectSnapshot,
         wanted_root_deps: Option<&HashMap<&'a PkgName, &'a ImporterDepVersion>>,
@@ -61,13 +62,12 @@ impl<'a> PruneExtraneousDirectDeps<'a> {
         if validate_importer_id(importer_id).is_err() {
             return Ok(());
         }
-        let modules_dir_name: &OsStr = self.config.modules_dir_name();
         let importer_dir = importer_root_dir(self.workspace_root, importer_id);
-        let raw_modules_dir = importer_dir.join(modules_dir_name);
+        let raw_modules_dir = modules_dirs.of(&importer_dir);
         if !is_real_dir(&importer_dir) || !is_real_dir(&raw_modules_dir) {
             return Ok(());
         }
-        let Some(modules_dir) = confined_modules_dir(&raw_modules_dir, self.workspace_root) else {
+        let Some(modules_dir) = modules_dirs.confined(&raw_modules_dir) else {
             return Ok(());
         };
         let mut pkg_names = pnpm_fs::read_modules_dir(&modules_dir)

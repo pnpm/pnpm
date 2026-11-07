@@ -37,12 +37,11 @@ struct UnplannedDir {
 pub(super) fn remove_orphans(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<u64, LinkHoistedModulesError> {
-    let lockfile_dir = opts.modules_dirs.lockfile_dir();
     let recorded_dirs: BTreeSet<&PathBuf> = opts.previous_dirs
         .iter()
         .filter(|dir| !opts.graph.contains_key(*dir))
         .filter(|dir| !holds_importer(opts, dir))
-        .filter(|dir| confined(dir, lockfile_dir))
+        .filter(|dir| confined(dir, opts.modules_dirs.removal_bound(dir)))
         .collect();
     let unplanned_dirs = unplanned_dirs(opts, &recorded_dirs)?;
     recorded_dirs

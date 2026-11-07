@@ -13,7 +13,10 @@ pub(super) fn unlink_prior_workspace_hoists(
     let modules_dir = &inputs.config.modules_dir;
     crate::prune_stale_modules::prune_workspace_hoists(
         &crate::prune_stale_modules::WorkspaceHoistDirs {
-            workspace_root: inputs.projects.walker_lockfile_dir,
+            modules_dirs: &crate::ImporterModulesDirs::from_config(
+                inputs.config,
+                inputs.projects.walker_lockfile_dir,
+            ),
             private: modules_dir,
             public: modules_dir,
         },
@@ -32,8 +35,11 @@ pub(super) fn unlink_stale_direct_links<Reporter: self::Reporter>(
 ) -> Result<(), HoistedLinkerError> {
     let Some(current_lockfile) = inputs.prior.current_lockfile else { return Ok(()) };
     crate::prune_stale_modules::StaleDirectDepLinks {
-        workspace_root: inputs.projects.symlink_workspace_root,
-        modules_dir_name: inputs.config.modules_dir_name(),
+        workspace_root: inputs.projects.walker_lockfile_dir,
+        modules_dirs: crate::ImporterModulesDirs::from_config(
+            inputs.config,
+            inputs.projects.walker_lockfile_dir,
+        ),
         wanted_lockfile: inputs.graph.lockfile,
         current_lockfile,
         linked: crate::LinkedDirectDeps { included_groups: &ALL_DEPENDENCY_GROUPS, skipped },

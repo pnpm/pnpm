@@ -2,7 +2,7 @@
 
 use super::{
     BuildModules, BuildModulesError, Config, Diagnostic, Display, Error, ExtendedPatchInfo,
-    HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, OsStr, PackageKey,
+    HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, PackageKey,
     PackageMetadata, PatchKeyConflictError, Reporter, ResolvePatchedDependenciesError,
     SkippedSnapshots, SnapshotEntry, direct_dep_names_for_importer, get_patch_info,
     importer_root_dir,
@@ -382,7 +382,7 @@ fn link_held_back_bins(inputs: &BuildPhaseInputs<'_>) -> Result<(), BuildPhaseEr
 fn link_importer_top_level_bins(
     inputs: &BuildPhaseInputs<'_>,
     mutated_slots: bool,
-    modules_dir_name: &OsStr,
+    modules_dirs: &crate::ImporterModulesDirs,
     importer_id: &str,
     importer_snapshot: &pnpm_lockfile::ProjectSnapshot,
     plans: &crate::build_options::HoistedBinPlans,
@@ -411,8 +411,8 @@ fn link_importer_top_level_bins(
     if !relink_direct && peer_locations.is_empty() {
         return Ok(None);
     }
-    let project_dir = importer_root_dir(inputs.directories.top_level_bin_root, importer_id);
-    let modules_dir = project_dir.join(modules_dir_name);
+    let project_dir = importer_root_dir(inputs.directories.workspace_root, importer_id);
+    let modules_dir = modules_dirs.of(&project_dir);
     // Same filter the symlink phase used so the post-build pass sees the
     // same candidate set (skipping installability-skipped deps avoids
     // dangling shims at a slot that was never extracted).

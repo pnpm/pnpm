@@ -8,9 +8,7 @@
 use crate::{
     SkippedSnapshots,
     safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
-    symlink_direct_dependencies::{
-        direct_dep_names_for_importer, importer_root_dir, validate_importer_id,
-    },
+    symlink_direct_dependencies::{direct_dep_names_for_importer, validate_importer_id},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -22,7 +20,6 @@ use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, parse_manifest_bytes};
 use std::{
     collections::HashSet,
-    ffi::OsStr,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -127,10 +124,7 @@ pub fn prune_direct_deps_excluded_by_groups(
     // removal, a name that was skipped last install has no on-disk
     // entry, so removing it is a no-op — no skip set needed.
     let skipped = SkippedSnapshots::new();
-    // Same per-importer `modulesDir` suffix peeling as
-    // [`crate::SymlinkDirectDependencies`], so removal targets exactly
-    // where the linker writes.
-    let modules_dir_name: &OsStr = config.modules_dir_name();
+    let modules_dirs = crate::ImporterModulesDirs::from_config(config, workspace_root);
 
     for (importer_id, snapshot) in &current_lockfile.importers {
         // A malformed importer key is rejected with a typed error by
@@ -140,12 +134,10 @@ pub fn prune_direct_deps_excluded_by_groups(
         {
             continue;
         }
-        // Same canonical containment check as the purge: delete only
-        // through a modules dir that resolves inside the workspace
-        // root, and operate on the canonicalized path so a symlink
-        // swap can't redirect the removals after the check.
-        let modules_dir = importer_root_dir(workspace_root, importer_id).join(modules_dir_name);
-        let Some(modules_dir) = confined_modules_dir(&modules_dir, workspace_root) else {
+        // Operate on the canonicalized path so a symlink swap can't
+        // redirect the removals after the check.
+        let modules_dir = modules_dirs.of_importer_id(importer_id);
+        let Some(modules_dir) = modules_dirs.confined(&modules_dir) else {
             continue;
         };
         prune_importer_links(&modules_dir, snapshot, &old_groups, &new_groups, &skipped)?;
