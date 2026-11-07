@@ -185,7 +185,7 @@ impl OutdatedArgs {
             &state,
             &filters,
             package_patterns,
-            lockfile,
+            lockfile.as_deref(),
         ))
         .await?;
         let root = config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest));

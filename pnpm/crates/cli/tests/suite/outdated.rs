@@ -263,6 +263,59 @@ fn outdated_reports_newer_version_without_lockfile() {
 }
 
 #[test]
+fn outdated_reports_installed_version_when_lockfile_is_disabled() {
+    let (root, workspace, anchor) = setup();
+    append_workspace_yaml_key(&workspace, "lockfile", "false");
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(!workspace.join("pnpm-lock.yaml").exists());
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1), "outdated deps present should exit 1");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("100.1.0"), "report should show the installed version: {stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn recursive_outdated_reports_installed_versions_when_lockfile_is_disabled() {
+    for shared_workspace_lockfile in [true, false] {
+        let (root, workspace, anchor) = setup();
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!(
+                "packages:\n  - packages/*\nlockfile: false\nsharedWorkspaceLockfile: {shared_workspace_lockfile}\n",
+            ),
+        )
+        .expect("write workspace manifest");
+        write_manifest(&workspace, "{}");
+        let project = workspace.join("packages/app");
+        fs::create_dir_all(&project).expect("create workspace project");
+        fs::write(
+            project.join("package.json"),
+            format!(
+                r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+            ),
+        )
+        .expect("write project manifest");
+        pacquet(&workspace, ["install"]).assert().success();
+
+        let output = pacquet(&workspace, ["outdated", "--recursive"])
+            .output()
+            .expect("run recursive outdated");
+        assert_eq!(output.status.code(), Some(1), "outdated deps present should exit 1");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("100.1.0"),
+            "sharedWorkspaceLockfile: {shared_workspace_lockfile} should show the installed version: {stdout}",
+        );
+
+        drop((root, anchor));
+    }
+}
+
+#[test]
 fn outdated_reports_npm_alias_without_lockfile() {
     let (root, workspace, anchor) = setup();
 

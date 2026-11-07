@@ -454,6 +454,18 @@ fn is_root_only_patterns(patterns: &[String]) -> bool {
     patterns.len() == 1 && patterns[0] == "."
 }
 
+/// The current lockfile install records for `project` when it has a dedicated
+/// lockfile.
+pub(crate) fn load_project_current_lockfile(
+    config: &Config,
+    project: &pnpm_workspace::Project,
+) -> Result<Option<pnpm_lockfile::Lockfile>, pnpm_lockfile::LoadLockfileError> {
+    let mut project_config = config.clone();
+    let project_name = super::pipelines::project_manifest_name(project);
+    project_config.anchor_dedicated_project(&project.root_dir, project_name);
+    pnpm_lockfile::Lockfile::load_current_from_install_state_dir(&project_config.install_state_dir)
+}
+
 #[cfg(test)]
 mod tests;
 

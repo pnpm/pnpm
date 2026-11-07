@@ -4,10 +4,14 @@ use super::{
     Reporter, State, collect_outdated, collect_outdated_for_importer_in_run,
     discover_workspace_projects, github_actions, sort_workspace_outdated,
 };
-use crate::cli_args::ecosystem_deps::{
-    collect_ecosystem_outdated, declared_ecosystem_dep_names, ecosystem_project_name,
-    requires_ecosystem_lockfile, select_recursive_and_standalone_projects,
+use crate::cli_args::{
+    ecosystem_deps::{
+        collect_ecosystem_outdated, declared_ecosystem_dep_names, ecosystem_project_name,
+        requires_ecosystem_lockfile, select_recursive_and_standalone_projects,
+    },
+    recursive::load_project_current_lockfile,
 };
+use std::borrow::Cow;
 
 pub(super) struct OutdatedInWorkspace {
     pub(super) package: OutdatedPackage,
@@ -28,10 +32,18 @@ pub(super) fn project_dir(manifest: &PackageManifest) -> &std::path::Path {
         .unwrap_or_else(|| manifest.path())
 }
 
-pub(super) fn loaded_lockfile(state: &State) -> miette::Result<Option<&Lockfile>> {
-    state.lockfile
+/// The wanted lockfile, or else the current lockfile that install records in
+/// the install state directory, which also exists under `lockfile: false`.
+pub(super) fn loaded_lockfile(state: &State) -> miette::Result<Option<Cow<'_, Lockfile>>> {
+    if let Some(lockfile) = state.lockfile
         .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+    {
+        return Ok(Some(Cow::Borrowed(lockfile)));
+    }
+    Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
+        .into_diagnostic()
+        .map(|lockfile| lockfile.map(Cow::Owned))
 }
 
 pub(super) fn isolated_global_config(config: &Config) -> &'static Config {
@@ -95,6 +107,7 @@ pub(super) async fn recursive_workspace_outdated(
 ) -> miette::Result<Vec<OutdatedInWorkspace>> {
     let config = state.config;
     let shared_lockfile = if config.shares_one_lockfile() { loaded_lockfile(state)? } else { None };
+    let shared_lockfile = shared_lockfile.as_deref();
     let project_inputs = recursive_project_inputs(config, selection)?;
     let run = OutdatedRun::new(config, Arc::clone(&state.http_client), query)?
         .with_raw_packages(raw_packages);
@@ -215,7 +228,10 @@ pub(super) fn recursive_project_inputs<'a>(
         let project_lockfile = if config.shares_one_lockfile() {
             None
         } else {
-            Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()?
+            match Lockfile::load_wanted_from_dir(project_dir).into_diagnostic()? {
+                Some(lockfile) => Some(lockfile),
+                None => load_project_current_lockfile(config, project).into_diagnostic()?,
+            }
         };
         project_inputs.push((project_dir, project, project_lockfile));
     }
@@ -339,7 +355,7 @@ impl OutdatedArgs {
             outdated.extend(
                 collect_outdated(
                     &state.manifest,
-                    loaded_lockfile(&state)?,
+                    loaded_lockfile(&state)?.as_deref(),
                     config,
                     &state.http_client,
                     &query,
