@@ -34,7 +34,18 @@ export function getDownloadedNodeVersionFromEnginesRuntime (manifest: ProjectMan
     if (typeof nodeRuntime?.version !== 'string') continue
     const version = nodeRuntime.version.trim()
     if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return undefined
-    return semver.valid(version) ?? semver.minVersion(`${version} ${manifest.engines?.node ?? '*'}`)?.version
+    const runtimeRange = semver.validRange(version)
+    if (runtimeRange == null) return undefined
+    const engineRange = semver.validRange(manifest.engines?.node ?? '*')
+    if (engineRange == null) return semver.minVersion(runtimeRange)?.version
+    const runtimeSets = new semver.Range(runtimeRange).set
+    const engineSets = new semver.Range(engineRange).set
+    const intersections = runtimeSets.flatMap((runtimeSet) => engineSets.map((engineSet) => {
+      const range = [...runtimeSet, ...engineSet].map((comparator) => comparator.value).join(' ')
+      return semver.minVersion(range || '*')
+    })).filter((version): version is semver.SemVer => version != null)
+    if (intersections.length === 0) return semver.minVersion(runtimeRange)?.version
+    return intersections.reduce((minimum, version) => semver.lt(version, minimum) ? version : minimum).version
   }
   return undefined
 }
