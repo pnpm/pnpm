@@ -1,3 +1,5 @@
+-- Large payloads use rowid tables so interior index pages hold only keys.
+
 -- The current generation of each hosted catalog.
 CREATE TABLE IF NOT EXISTS catalogs (
     catalog TEXT NOT NULL PRIMARY KEY,
@@ -15,7 +17,7 @@ CREATE TABLE IF NOT EXISTS packages (
     generation INTEGER NOT NULL,
     state BLOB NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name)
-) STRICT, WITHOUT ROWID;
+) STRICT;
 
 -- Insert-only: a version's artifact integrity. `accepted_generation` is the
 -- catalog generation that accepted it, which is the id of the version's
@@ -53,7 +55,7 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
     PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
     FOREIGN KEY (catalog, ecosystem, name, version, revision_key)
         REFERENCES versions (catalog, ecosystem, name, version, revision_key) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) STRICT;
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
 -- under `profile` and served unchanged at its record route. `digest` is their
@@ -73,7 +75,7 @@ CREATE TABLE IF NOT EXISTS release_records (
     FOREIGN KEY (catalog, ecosystem, name, version, revision_key, profile)
         REFERENCES accepted_manifests (catalog, ecosystem, name, version, revision_key, profile)
         ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) STRICT;
 
 -- Insert-only: the transparency log of each catalog's records of one
 -- ecosystem, one row per entry, sequenced in the transaction that accepts the
@@ -85,7 +87,7 @@ CREATE TABLE IF NOT EXISTS log_entries (
     idx INTEGER NOT NULL,
     entry BLOB NOT NULL,
     PRIMARY KEY (catalog, ecosystem, idx)
-) STRICT, WITHOUT ROWID;
+) STRICT;
 
 -- The tree each log's tiles and checkpoint were integrated to: its size and
 -- its RFC 6962 root. Integration checks the stored tiles against it before it
@@ -111,7 +113,7 @@ CREATE TABLE IF NOT EXISTS readmes (
     PRIMARY KEY (catalog, ecosystem, name, version, revision_key),
     FOREIGN KEY (catalog, ecosystem, name, version, revision_key)
         REFERENCES versions (catalog, ecosystem, name, version, revision_key) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS tags (
     catalog TEXT NOT NULL,

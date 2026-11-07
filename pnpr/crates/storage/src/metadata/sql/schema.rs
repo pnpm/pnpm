@@ -161,7 +161,7 @@ pub(super) fn table_names(script: &str) -> Vec<String> {
 /// The statements of `script`, without its comments. Each runs on its own:
 /// a libSQL client re-renders the statements of a batch, and its rendering
 /// drops the comma between `STRICT` and `WITHOUT ROWID`.
-fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
+pub(super) fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
     let code: String = script
         .lines()
         .filter(|line| !line.trim_start().starts_with("--"))

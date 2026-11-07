@@ -11,6 +11,7 @@ mod concurrency;
 mod libsql;
 mod log;
 mod notes;
+mod payload_benchmark;
 mod publications;
 mod reclaims;
 mod records;

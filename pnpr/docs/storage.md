@@ -126,6 +126,10 @@ connections, so a read never waits for a write. A `sqlite:` URL cannot be
 combined with an `s3:` block. Back the database file up together with the
 hosted store.
 
+The SQLite and libSQL metadata tables use rowid storage for package state,
+accepted manifests, READMEs, release records, and log entries. Large payloads
+stay out of the interior pages used to look up their keys.
+
 ### Schema changes {#metadata-schema-changes}
 
 pnpr creates its tables in an empty database and marks the database with
