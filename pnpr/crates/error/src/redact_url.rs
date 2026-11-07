@@ -154,10 +154,12 @@ pub(super) fn redact_unparsable_url_candidate(candidate: &str) -> Option<String>
 
 pub(super) fn redact_unparsable_url_userinfo(candidate: &str) -> Option<String> {
     let authority_start = candidate.find("://")? + 3;
-    let scan_end = candidate[authority_start..]
-        .find('?')
-        .map_or(candidate.len(), |offset| authority_start + offset);
-    let userinfo_end = candidate[authority_start..scan_end].rfind('@')? + authority_start;
+    let userinfo_end = candidate[authority_start..].rfind('@')? + authority_start;
+    // A `?` or `#` before the `@` belongs to either the password or a query or fragment
+    // that holds a secret, so neither side of the `@` is safe to log.
+    if candidate[authority_start..userinfo_end].contains(['?', '#']) {
+        return Some(format!("{}redacted", &candidate[..authority_start]));
+    }
     let mut redacted = String::with_capacity(candidate.len());
     redacted.push_str(&candidate[..authority_start]);
     redacted.push_str("redacted@");
