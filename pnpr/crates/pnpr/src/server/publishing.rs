@@ -198,7 +198,7 @@ pub(super) async fn publish_package(
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
-    retry::retry_reclaimed(|| publish_attempt(state, identity, registry, raw_name, &body))
+    retry::retry_reclaimed(body, |body| publish_attempt(state, identity, registry, raw_name, body))
         .await
         .unwrap_or_else(IntoResponse::into_response)
 }
@@ -208,10 +208,11 @@ async fn publish_attempt(
     identity: &Identity,
     registry: Option<&str>,
     raw_name: &str,
-    body: &[u8],
+    body: axum::body::Bytes,
 ) -> Result<Response, RegistryError> {
     let name = CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm)?;
-    let mut incoming: Value = serde_json::from_slice(body)?;
+    let mut incoming: Value = serde_json::from_slice(&body)?;
+    drop(body);
     check_body_name(&name, &incoming)?;
     let request = publication_request(identity, &incoming, None, None, Some(&name));
     let notes = single_publish_notes(&mut incoming)?;

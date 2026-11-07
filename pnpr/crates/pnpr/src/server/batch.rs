@@ -93,7 +93,7 @@ async fn serve(
     let key = headers
         .get(IDEMPOTENCY_KEY)
         .and_then(|key| key.to_str().ok());
-    super::publishing::retry::retry_reclaimed(|| publish_batch(state, caller, key, &body))
+    super::publishing::retry::retry_reclaimed(body, |body| publish_batch(state, caller, key, body))
         .await
         .unwrap_or_else(IntoResponse::into_response)
 }
@@ -196,10 +196,11 @@ async fn publish_batch(
     state: &AppState,
     caller: BatchCaller<'_>,
     key: Option<&str>,
-    body: &[u8],
+    body: Bytes,
 ) -> Result<Response, RegistryError> {
     let identity = caller.identity;
-    let mut incoming: Value = serde_json::from_slice(body).map_err(|err| malformed_body(&err))?;
+    let mut incoming: Value = serde_json::from_slice(&body).map_err(|err| malformed_body(&err))?;
+    drop(body);
     let name = publication_name(&incoming)?;
     let request = publication_request(identity, &incoming, key, name, None);
     let mut packages = take_packages(&mut incoming)?;
