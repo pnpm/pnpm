@@ -103,13 +103,14 @@ async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph
  * older layout put elsewhere. A recorded location that leaves the lockfile
  * directory, or names the directory itself, is ignored.
  */
-function previousPackageDirs ({ opts }: HeadlessContext, prevGraph: DependenciesGraph): string[] {
+function previousPackageDirs ({ opts, rootModulesDir }: HeadlessContext, prevGraph: DependenciesGraph): string[] {
+  const isPermittedDir = (dir: string) => isStrictlyInside(dir, opts.lockfileDir) || isStrictlyInside(dir, rootModulesDir)
   const recorded = Object.values(opts.modulesFile?.hoistedLocations ?? {})
     .flat()
     .filter((location) => !path.isAbsolute(location))
     .map((location) => path.join(opts.lockfileDir, location))
     .filter((dir) => isStrictlyInside(dir, opts.lockfileDir))
-  return [...Object.keys(prevGraph), ...recorded]
+  return [...Object.keys(prevGraph).filter(isPermittedDir), ...recorded]
 }
 
 async function hoistWorkspacePackagesToRoot (ctx: HeadlessContext, depGraph: HeadlessDepGraph): Promise<HoistedDependencies> {

@@ -198,9 +198,11 @@ fn filtered_install_resolves_against_projects_missing_from_disk() {
 /// and puts nothing in the directory of a project missing from disk.
 #[test]
 fn filtered_install_links_nothing_into_projects_missing_from_disk() {
-    let full_checkout = filtered_install_after_bump(ProjectThree::OnDisk, InstallMode::Link);
-    let sparse_checkout = filtered_install_after_bump(ProjectThree::OffDisk, InstallMode::Link);
-    assert_eq!(sparse_checkout, full_checkout);
+    for mode in [InstallMode::Link, InstallMode::Hoisted] {
+        let full_checkout = filtered_install_after_bump(ProjectThree::OnDisk, mode);
+        let sparse_checkout = filtered_install_after_bump(ProjectThree::OffDisk, mode);
+        assert_eq!(sparse_checkout, full_checkout);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -213,6 +215,7 @@ enum ProjectThree {
 enum InstallMode {
     LockfileOnly,
     Link,
+    Hoisted,
 }
 
 fn filtered_install_after_bump(project_3_state: ProjectThree, mode: InstallMode) -> String {
@@ -254,6 +257,7 @@ fn filtered_install_after_bump(project_3_state: ProjectThree, mode: InstallMode)
     let mode_args: &[&str] = match mode {
         InstallMode::LockfileOnly => &["--lockfile-only"],
         InstallMode::Link => &[],
+        InstallMode::Hoisted => &["--config.node-linker=hoisted"],
     };
     fixture.run(std::iter::once("install").chain(mode_args.iter().copied()));
 
