@@ -143,7 +143,7 @@ Keys use a deliberately small pattern language, so coverage can be checked
 statically:
 
 | Pattern | Matches |
-| --- | --- |
+|,- |,- |
 | `**` | Every package name. |
 | `@*/*` | Every scoped package, any scope. |
 | `@scope/*` | Every package in one scope. |
@@ -168,7 +168,7 @@ Every one of those fields takes either a single access token or a YAML list of
 them, and the grammar is deliberately small:
 
 | Token | Admits |
-| --- | --- |
+|,- |,- |
 | `$all` | Anyone, authenticated or not. |
 | `$authenticated` | Any logged-in user. |
 | `$anonymous` | Callers with no credentials. |
@@ -201,14 +201,14 @@ registries:
       '@mycompany/*':
         publish: $authenticated
         unpublish: $authenticated
-      # An explicit entry fully decides its names — this opens one
+      # An explicit entry fully decides its names, this opens one
       # package on an otherwise-private registry.
       '@mycompany/open-sdk':
         access: $all
 ```
 
 | Key | Description |
-| --- | --- |
+|,- |,- |
 | `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace, or `<name>` for a registry declared under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems). Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
@@ -253,7 +253,7 @@ registries:
 ```
 
 | Key | Description |
-| --- | --- |
+|,- |,- |
 | `url` | Upstream registry URL. |
 | `public` | Marks an anonymous, world-readable origin (e.g. the public npm registry). A public upstream sends no credential and no custom headers; declaring `auth`, `access`, or `headers` alongside `public: true` is a config error. |
 | `auth` | Server-owned credential for a private origin. `type` is `bearer` or `basic`; provide `token`, or `tokenEnv: true` to read `NPM_TOKEN`, or `tokenEnv: NAME` to read a named environment variable. |
@@ -617,7 +617,7 @@ packageDocuments:
 ```
 
 | Field | Meaning |
-| --- | --- |
+|,- |,- |
 | `splitThreshold` | The size of a package's document with every manifest inline above which only the versions a resolution likely picks keep their manifests. pnpr decides on every read, so a document can go back below it, for example when a publish after a long gap drops the publish times that fall out of the window. Defaults to `64KiB`. |
 | `publishTimeWindow` | How far back from a package's last publish its versions keep their publish times. Defaults to `30d`, which is also the shortest window pnpr accepts. |
 
@@ -639,7 +639,7 @@ releaseRecords:
 ```
 
 | Field | Meaning |
-| --- | --- |
+|,- |,- |
 | `logSigningKey` | The signed-note private key that signs every log's checkpoints, `PRIVATE+KEY+<name>+<key hash>+<key>`, as Go's [`note.GenerateKey`](https://pkg.go.dev/golang.org/x/mod/sumdb/note#GenerateKey) writes one. Its name starts every log's origin: `<name>/npm` for the default organization, and `<name>/npm/~<organization>` for another one. Each log's checkpoints are signed with the same Ed25519 key under the log's origin. Without a key, pnpr records log entries but publishes no logs. Use [environment variable substitution](#environment-variable-substitution) rather than writing the key into the file. |
 | `statementSigningKey` | The signed-note private key, in the same format, that signs the registry's [in-toto statements](https://github.com/in-toto/attestation) about its records in DSSE envelopes. Its `<name>+<key hash>` is each signature's `keyid`. pnpr states that it accepted each logged record under its profile. Without a key, the records' evidence lists no statements. |
 

@@ -46,7 +46,7 @@ An optional first positional argument sets the command name (defaults to `instal
 pacquet add lodash --reporter=ndjson 2>&1 >/dev/null | pnpm-render add
 ```
 
-## Style Guide
+## Style guide
 
 1. Never use blue or grey as font color as they are hard to read in many consoles.
    1. Use dim instead of grey

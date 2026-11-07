@@ -20,7 +20,7 @@
     - [Body](#body)
     - [Footer](#footer)
 
-## Setting Up the Environment
+## Setting up the environment
 
 The repository holds two implementations of the same package manager: the TypeScript pnpm CLI and the Rust `pacquet` port (plus the Rust `pnpr` registry server). Most contributions touch Rust, but the two stacks share one workspace, so set up both.
 
@@ -55,7 +55,7 @@ Rust is now the primary language in this repository, so most contributions need 
 
    `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit` (pinned to `0.1.15` via `cargo install cargo-fixit@0.1.15 --locked`, since `cargo-fixit` has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. It also builds the pinned pnpm rustfmt fork described below.
 
-   Because `cargo-fixit` is built from source, it needs a complete OpenSSL development installation — headers and libraries — which its `openssl-sys` dependency looks for at build time. Without one, `just init` fails while installing `cargo-fixit`, before it reaches the rustfmt step, with `failed to run custom build command for openssl-sys`. Install it first: `sudo dnf install openssl-devel` on Fedora, `sudo apt install libssl-dev pkg-config` on Debian and Ubuntu. If OpenSSL is installed somewhere `openssl-sys` does not look — under a Homebrew prefix, for instance — point it at that existing installation with `OPENSSL_DIR`, for example `export OPENSSL_DIR=$(brew --prefix openssl@3)`. `OPENSSL_DIR` only locates an installation; it is not a substitute for one.
+   Because `cargo-fixit` is built from source, it needs a complete OpenSSL development installation, headers and libraries, which its `openssl-sys` dependency looks for at build time. Without one, `just init` fails while installing `cargo-fixit`, before it reaches the rustfmt step, with `failed to run custom build command for openssl-sys`. Install it first: `sudo dnf install openssl-devel` on Fedora, `sudo apt install libssl-dev pkg-config` on Debian and Ubuntu. If OpenSSL is installed somewhere `openssl-sys` does not look, under a Homebrew prefix, for instance, point it at that existing installation with `OPENSSL_DIR`, for example `export OPENSSL_DIR=$(brew --prefix openssl@3)`. `OPENSSL_DIR` only locates an installation; it is not a substitute for one.
 
 3. Install the dylint tools, which `just init` does not cover, **from source**:
 
@@ -83,7 +83,7 @@ Use `just fmt` to format Rust and TOML, or run the Rust formatter directly:
 
 ```shell
 node pnpm/scripts/rustfmt.mjs --all
-node pnpm/scripts/rustfmt.mjs --all -- --check
+node pnpm/scripts/rustfmt.mjs --all, --check
 ```
 
 Committing a Rust file formats it. The `pre-commit` hook runs the pinned formatter over the `.rs` files in the index and stages what it changed, so a commit is formatted whether or not you ran `just fmt` first. A file that has unstaged changes as well is named and left alone: formatting the working tree and staging the result would commit the part of that file you held back.
@@ -121,12 +121,12 @@ For editors, `--rustfmt` forwards arguments directly to the pinned formatter and
 
 Replace the two paths with your checkout paths. On Windows, use forward slashes or escape backslashes in JSON. Other editors can run the same command with source code on stdin. Install the formatter before enabling format-on-save to avoid the initial build delaying an editor request.
 
-## Working with Git Worktrees
+## Working with Git worktrees
 
 Worktrees let you check out multiple branches simultaneously in separate directories,
 which is useful for working on several issues in parallel without stashing or switching branches.
 This helps when running multiple AI coding agents (e.g. Claude Code) at the
-same time — each agent gets its own isolated worktree, so they can work concurrently without
+same time, each agent gets its own isolated worktree, so they can work concurrently without
 interfering with each other.
 
 ### Setting up a bare-repo layout with worktrees
@@ -134,7 +134,7 @@ interfering with each other.
 Cloning as a **bare** repository lets all worktrees live as children of a single top-level
 directory. That avoids the "one privileged main clone + siblings" asymmetry: every branch is
 just a directory next to the others, and there is no working tree attached to the bare repo
-itself. This is especially handy when you expect to keep many worktrees around long-term —
+itself. This is especially handy when you expect to keep many worktrees around long-term,
 for example, one per in-flight PR, or one per parallel AI agent.
 
 The resulting layout looks like this:
@@ -180,7 +180,7 @@ One-time setup:
    ```
 
    Then wire the `wt` function into your shell config so it's available in every future
-   session. Pick the snippet for your shell — it appends to the right rc file and activates
+   session. Pick the snippet for your shell, it appends to the right rc file and activates
    `wt` in the current session too:
 
    **fish**:
@@ -225,7 +225,7 @@ wt feat/my-feature
 wt 10000
 ```
 
-`wt` creates the new worktree next to the current one — in the bare-repo layout that means it
+`wt` creates the new worktree next to the current one, in the bare-repo layout that means it
 lands as a sibling of `main/`, inside the bare repo directory. Branch names with slashes get
 their slashes replaced with dashes in the directory name (so `feat/my-feature` becomes
 `feat-my-feature/`).
@@ -242,14 +242,14 @@ requested CLI isn't on your `PATH`, so contributors who don't use an agent aren'
 Requires a version of `@zkochan/git-wt` with per-repo hook lookup.
 
 If you only need the worktree path (e.g. to open it in an editor) without switching directories,
-invoke `git-wt` directly — it's also exposed as a native git subcommand:
+invoke `git-wt` directly, it's also exposed as a native git subcommand:
 
 ```shell
 git wt feat/my-feature
 git wt 10000
 ```
 
-## Running Tests
+## Running tests
 
 You can run the tests of the project that you modified by going to the project's directory and running:
 
@@ -269,7 +269,7 @@ If you want to pass options to Jest, use the `pnpm run test` command and append 
 pnpm --filter core run test test/lockfile.ts -t "lockfile has dev deps even when installing for prod only"
 ```
 
-## Submitting a Pull Request (PR)
+## Submitting a pull request (PR)
 
 Before you submit your Pull Request (PR) consider the following guidelines:
 
@@ -277,7 +277,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   cross-links every PR that references an issue on the issue's timeline, so open
   the issue and look at its linked pull requests. If a PR already solves the
   issue, contribute by reviewing or improving that PR instead of opening a
-  competing one — duplicate PRs are closed in favor of the first viable one, and
+  competing one, duplicate PRs are closed in favor of the first viable one, and
   the effort spent on them (yours and the reviewers') is wasted.
 - Make your changes in a new git branch:
 
@@ -286,7 +286,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   ```
 
 - Create your patch, following [code style guidelines](#coding-style-guidelines), and **including appropriate test cases**.
-- Run `pnpm change` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The wording rules are in [Changeset style](AGENTS.md#changeset-style).
+- Run `pnpm change` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release. Write the description for pnpm users and keep it concise, it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The wording rules are in [Changeset style](AGENTS.md#changeset-style).
 - Run the tests that cover your change and ensure they pass, along with the
   linters. You do not need to run the whole suite locally: CI runs it on every
   pull request. For the Rust workspace, see
@@ -327,7 +327,7 @@ That's it. Thank you for your contribution.
 ### AI-assisted contributions
 
 We use AI coding agents ourselves and welcome contributions made with them. But
-you, the contributor, are responsible for what you submit — an agent's output is
+you, the contributor, are responsible for what you submit, an agent's output is
 a draft, not a finished PR. Maintainer review time is the scarcest resource this
 project has, and a stream of unvetted agent-generated PRs consumes it faster
 than any other kind of contribution. Before submitting, make sure that:
@@ -342,8 +342,8 @@ than any other kind of contribution. Before submitting, make sure that:
   agent and the model, e.g.
   `Written by an agent (Claude Code, claude-opus-4-7).`
 
-PRs that appear to be unreviewed agent output — duplicating an existing PR,
-failing to compile, or not addressing the referenced issue — may be closed
+PRs that appear to be unreviewed agent output, duplicating an existing PR,
+failing to compile, or not addressing the referenced issue, may be closed
 without detailed review.
 
 ### After your pull request is merged
@@ -375,20 +375,20 @@ from the main (upstream) repository:
   git pull --ff upstream main
   ```
 
-## Coding Style Guidelines
+## Coding style guidelines
 
 [![js-standard-style](https://raw.githubusercontent.com/standard/standard/master/badge.svg)](https://github.com/standard/standard)
 
 Use the [Standard Style](https://github.com/standard/standard).
 
-## Commit Message Guidelines
+## Commit message guidelines
 
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 
 We have very precise rules over how our git commit messages can be formatted. This leads to **more
 readable messages** that are easy to follow when looking through the **project history**.
 
-### Commit Message Format
+### Commit message format
 
 Each commit message consists of a **header**, a **body** and a **footer**. The header has a special
 format that includes a **type**, a **scope** and a **subject**:

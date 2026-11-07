@@ -8,7 +8,7 @@ document. Depending on what the project uses, pnpm writes either one document
 or two:
 
 | Document | Contents |
-| --- | --- |
+|,- |,- |
 | The **env lockfile** (first, when present) | [Config dependencies] and the pnpm version resolved for the project, under `configDependencies` and `packageManagerDependencies`, with the `packages` and `snapshots` entries they need |
 | The **project lockfile** (last, always present) | The project's own dependency graph: `importers` with their `dependencies`, and the matching `packages` and `snapshots` |
 

@@ -1,14 +1,14 @@
 # @pnpm/napi
 
 Node.js bindings for the pnpm engine, exposing pnpm's
-programmatic API — install, rebuild, dependency resolution, and pack — to a
+programmatic API, install, rebuild, dependency resolution, and pack, to a
 JavaScript host. The reference consumer is [Bit](https://bit.dev), which drives
 pnpm entirely through its programmatic API.
 
 This package binds pnpm's **engine**, and alongside it the pieces of pnpm a
 host would otherwise have to reimplement over that engine: pnpm's terminal
 output (`options.reporter`), its reverse dependency tree (`getDependents` /
-`renderDependents`, what `pnpm why` is built on), and the files it owns —
+`renderDependents`, what `pnpm why` is built on), and the files it owns,
 `pnpm-lock.yaml` and `.modules.yaml` (`readLockfile` / `writeLockfile` /
 `filterLockfileByImporters` / `readModulesManifest`). The lockfile ones
 include pure in-memory transforms: `filterLockfileByImporters` touches no
@@ -25,13 +25,13 @@ string parsing runs once per graph edge).
 See [`index.d.ts`](./index.d.ts) for the full typed contract.
 
 | Export | Purpose |
-| --- | --- |
+|,- |,- |
 | `install(options, onLog?, readPackageHook?, onOutput?)` | Install in-memory importers (single or workspace); `readPackageHook` transforms each resolved dependency manifest (must be synchronous). Pass `options.readPackageHookChecksum` so installs reuse the lockfile while the hook is unchanged. Returns `{ stats, depsRequiringBuild?, storeDir }`. |
 | `rebuild(options, onLog?, selectedNames?, onOutput?)` | Re-run dependency build scripts against a materialized install (frozen path). Of the settings the lockfile records, only the patches have to match the options; nothing is resolved. With `skipIfHasSideEffectsCache`, a package the side-effects cache already holds a build of is restored from the cache instead of rebuilt. |
 | `resolveDependency(wanted, options)` | Resolve an npm-registry specifier to `{ id, manifest, resolvedVia, … }`. |
 | `pack(options, onLog?)` | Build a publishable `.tgz` from a project directory. |
 | `parseBareSpecifier(spec, alias?)` | Split/validate a dependency specifier; `null` when unparsable. |
-| `getDependents(options)` | Every package matching `packages`, each with the reverse tree of what depends on it — the engine side of `pnpm why`. |
+| `getDependents(options)` | Every package matching `packages`, each with the reverse tree of what depends on it, the engine side of `pnpm why`. |
 | `renderDependents(trees, options?)` | Return those trees rendered as `pnpm why` renders its own: `tree`, `parseable`, or `json`. |
 | `readLockfile(options)` / `writeLockfile(options)` | Read and write `pnpm-lock.yaml` (or the current lockfile under the virtual store) with the engine's own parser and emitter. |
 | `filterLockfileByImporters(lockfile, importerIds, options?)` | Narrow a lockfile to the transitive closure of what the named importers reach. |
@@ -41,9 +41,9 @@ See [`index.d.ts`](./index.d.ts) for the full typed contract.
 
 ### Output
 
-Set `options.reporter` and the engine renders pnpm's own terminal output —
+Set `options.reporter` and the engine renders pnpm's own terminal output,
 progress line, packages-diff summary, lifecycle output, the `Done in …`
-footer — with the reporter `pnpm install` itself uses. Without it the call
+footer, with the reporter `pnpm install` itself uses. Without it the call
 prints nothing and `onLog` hands the host the raw event stream to render
 however it likes.
 
@@ -58,8 +58,8 @@ up.
 
 `readLockfile` / `writeLockfile` hand the host the engine's own parser and
 emitter, so it does not carry a second implementation of a file both of them
-own. The JSON crossing the boundary is the file's own shape — `LockfileFile`
-in `@pnpm/lockfile.types` terms — and **top-level keys pnpm does not define
+own. The JSON crossing the boundary is the file's own shape, `LockfileFile`
+in `@pnpm/lockfile.types` terms, and **top-level keys pnpm does not define
 round-trip untouched**, so a host that records its own state beside the
 lockfile can read it, edit its block, and write it back without losing the
 rest. (An install builds a fresh lockfile rather than rewriting the previous
@@ -72,8 +72,8 @@ the named importers keep only the dependency groups asked for, and
 ### Dependents (`pnpm why`)
 
 `getDependents` returns the reverse trees as plain data and
-`renderDependents` returns them rendered as a string — it prints nothing
-itself — mirroring the split between
+`renderDependents` returns them rendered as a string, it prints nothing
+itself, mirroring the split between
 `@pnpm/deps.inspection.tree-builder` and `@pnpm/deps.inspection.list`. The
 walk cannot call back into JavaScript, so that API's `nameFormatter`
 callback has no counterpart here: a host that renames nodes after a
@@ -82,10 +82,10 @@ manifest field asks for the field via
 them back to be rendered.
 
 Errors are plain `Error` objects carrying pnpm's `code` (`ERR_PNPM_*`) and,
-where applicable, `hint` — lifted onto the error by the loader from the engine's
+where applicable, `hint`, lifted onto the error by the loader from the engine's
 structured envelope.
 
-Auth: pass `authHeaderByUri` — a map of nerf-darted registry URI → `Authorization`
+Auth: pass `authHeaderByUri`, a map of nerf-darted registry URI → `Authorization`
 header value (with `""` for the default registry). The host resolves these from
 its `.npmrc` credentials; the engine applies them as-is. The `""` entry is
 pinned to the `registry` / `registries.default` passed alongside it (npmjs when

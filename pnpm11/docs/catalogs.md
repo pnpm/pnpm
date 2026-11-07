@@ -5,7 +5,7 @@ title: Catalogs
 
 "_Catalogs_" are a [workspace feature](./workspaces.md) for defining dependency version ranges as reusable constants. Constants defined in catalogs can later be referenced in `package.json` files.
 
-<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/PuRUk4mV2jc" title="pnpm Catalogs — A New Tool to Manage Dependencies in monorepos" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe>
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/PuRUk4mV2jc" title="pnpm Catalogs, A New Tool to Manage Dependencies in monorepos" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe>
 
 ## The catalog protocol (`catalog:`)
 

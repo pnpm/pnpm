@@ -23,7 +23,7 @@ pnpr cache-gc [OPTIONS]
 Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c`, `--storage`, `--cache`) apply across subcommands.
 
 | Flag | Description |
-| --- | --- |
+|,- |,- |
 | `-c, --config <path>` | Path to a [YAML config](configuration.md). When omitted, the global `config.yaml` in pnpr's config dir is used if it exists, otherwise the bundled default config. |
 | `--listen <addr>` | Address to bind to. Defaults to `127.0.0.1:7677`. |
 | `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. A [metadata database](storage.md#sqlite-metadata) at the default path, `<storage>/.metadata/metadata.sqlite`, moves with it; one anywhere else stays where it is. |
@@ -79,7 +79,7 @@ pnpr verify --skip-hashes
 `verify` reports orphaned blobs and changes nothing; [`gc`](#gc) removes them.
 
 | Flag | Description |
-| --- | --- |
+|,- |,- |
 | `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). |
 
 ### export
@@ -91,7 +91,7 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 ```
 
 | Flag | Description |
-| --- | --- |
+|,- |,- |
 | `--out <dir>` | Destination directory for exported packages and files. Required. |
 | `--include-auth` | Include configured auth files (`users.json`, `tokens.db`) in the output directory (excluded by default). Files are created with restricted (`0600`) permissions. |
 
@@ -108,7 +108,7 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 ```
 
 | Flag | Description |
-| --- | --- |
+|,- |,- |
 | `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). The packages come from the configured metadata database; this directory supplies their blobs. |
 | `--to-bucket <name>` | Destination S3 bucket name. |
 | `--to-region <region>` | Destination S3 AWS region (e.g. `us-east-1`). |
@@ -143,7 +143,7 @@ pnpr import-htpasswd --source /path/to/old/htpasswd
 ```
 
 | Flag | Description |
-| --- | --- |
+|,- |,- |
 | `--source <path>` | Path to the source htpasswd file to import. Required. |
 | `--target <path>` | Path to the destination JSON account file. Defaults to `auth.users.file` from config. |
 | `--dry-run` | Preview imported user counts without writing to target file. |
@@ -213,7 +213,7 @@ commit is first recorded gone, which refuses that commit, and only once it was
 stored longer than `--min-age` ago.
 
 | Flag | Description |
-| --- | --- |
+|,- |,- |
 | `--registry <name>` | A hosted registry to collect, by its config name. Repeat it for more. Defaults to every hosted registry. |
 | `--dry-run` | Report the archives that would be removed without removing them. The report is a snapshot taken without the fence, so it can differ from a real run: it also counts incarnations another run is still removing, which a real run leaves to that run until `gc.lease` has passed, and publishes landing meanwhile can keep archives it lists. |
 | `--min-age <interval>` | Keep an incarnation no commit made live, and an image blob no manifest reaches yet, until it is older than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so a publish or image push still in flight is not refused. `0` collects them all. |
@@ -227,7 +227,7 @@ left behind by per-process secrets or changed configurations, and enforces
 cache size and age limits.
 
 | Flag | Description |
-| --- | --- |
+|,- |,- |
 | `--dry-run` | Report the candidates without deleting anything. |
 | `--max-size <size>` | Maximum total cache size to retain (e.g. `10GB`, `500MB`, or raw bytes). Evicts oldest files first (LRU). Overrides the config value. |
 | `--max-age <interval>` | Maximum file age (e.g. `30d`, `1h`, or bare seconds). Entries older than this are deleted. Overrides the config value. |
@@ -284,7 +284,7 @@ Configuration changes are applied via process restart rather than in-process rel
 pnpr uses standard exit codes:
 
 | Code | Meaning | Description |
-| --- | --- | --- |
+|,- |,- |,- |
 | `0` | Success | The command completed successfully. For the server, indicates clean termination after `SIGINT` or `SIGTERM`. For a maintenance subcommand, indicates all checks and transfers succeeded. |
 | `1` | Error | The command failed. Causes include invalid CLI flags, YAML configuration errors, address binding conflicts (port already in use), missing storage/auth files, or integrity audit failures (such as `pnpr verify` finding missing or corrupted blobs). |
 
