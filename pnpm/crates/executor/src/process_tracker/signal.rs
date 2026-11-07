@@ -43,12 +43,13 @@ pub(super) fn signal(target: i32, stop: Stop) {
     // SAFETY: plain `kill`; ESRCH is harmless when the target exited
     // concurrently.
     let sent = unsafe { libc::kill(target, stop.signal()) } == 0;
+    let error = (!sent).then(std::io::Error::last_os_error);
     tracing::debug!(
         target: "pacquet::process_tracker",
         target_pid = target,
         signal = stop.signal(),
         sent,
-        error = (!sent).then(std::io::Error::last_os_error).map(tracing::field::display),
+        error = error.map(tracing::field::display),
         "signal",
     );
 }
@@ -118,12 +119,13 @@ impl Descendant {
         #[cfg(target_os = "linux")]
         if let Some(pidfd) = &self.pidfd {
             let sent = linux::signal(pidfd, stop.signal());
+            let error = (!sent).then(std::io::Error::last_os_error);
             tracing::debug!(
                 target: "pacquet::process_tracker",
                 pid = self.pid,
                 signal = stop.signal(),
                 sent,
-                error = (!sent).then(std::io::Error::last_os_error).map(tracing::field::display),
+                error = error.map(tracing::field::display),
                 "signal a descendant through its pidfd",
             );
             return;
