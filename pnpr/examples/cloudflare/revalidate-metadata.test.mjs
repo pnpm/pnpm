@@ -19,12 +19,14 @@ function metadata (body = 'original', headers = {}) {
 
 function fixture () {
   const entries = new Map()
+  let writes = 0
   const cache = {
     async match (key) {
       const entry = entries.get(key.url)
       return entry && new globalThis.Response(entry.body, { headers: entry.headers })
     },
     async put (key, response) {
+      writes++
       entries.set(key.url, { body: await response.arrayBuffer(), headers: response.headers })
     },
     async delete (key) { return entries.delete(key.url) },
@@ -34,10 +36,13 @@ function fixture () {
   return {
     entries,
     calls,
+    get writes () { return writes },
     setOrigin (callback) { origin = callback },
-    read (headers = {}, path = '/npm/widget', method = 'GET', selectedCache = cache) {
-      return fetchMetadata(new globalThis.Request(`https://registry.example${path}`, { headers, method }), {
+    async read (headers = {}, path = '/npm/widget', method = 'GET', selectedCache = cache) {
+      const tasks = []
+      const response = await fetchMetadata(new globalThis.Request(`https://registry.example${path}`, { headers, method }), {
         cache: selectedCache,
+        waitUntil: task => tasks.push(task),
         base: '/npm/',
         name: 'widget',
         fetchFromRegistry: async request => {
@@ -45,6 +50,8 @@ function fixture () {
           return origin(request)
         },
       })
+      await Promise.all(tasks)
+      return response
     },
   }
 }
@@ -206,3 +213,80 @@ test('an old fill arriving after a write is revalidated on the next read', async
   await (await pending).body.cancel()
   assert.equal(await (await server.read()).text(), 'new')
 })
+
+
+test('unchanged 304 responses do not rewrite the stored body', async () => {
+  const server = fixture()
+  await (await server.read()).body.cancel()
+  server.setOrigin(() => new globalThis.Response(null, { status: 304, headers: { etag: '"original"' } }))
+  for (let read = 0; read < 3; read++) {
+    assert.equal(await (await server.read()).text(), 'original')
+  }
+  assert.equal(server.writes, 1)
+})
+
+test('a 304 that updates headers preserves them in the stored response', async () => {
+  const server = fixture()
+  await (await server.read()).body.cancel()
+  server.setOrigin(() => new globalThis.Response(null, { status: 304, headers: { 'cache-control': 'public, max-age=10' } }))
+  assert.equal((await server.read()).headers.get('cache-control'), 'public, max-age=10')
+  server.setOrigin(() => new globalThis.Response(null, { status: 304 }))
+  const response = await server.read()
+  assert.equal(response.headers.get('cache-control'), 'public, max-age=10')
+  await response.body.cancel()
+  assert.equal(server.writes, 2)
+})
+
+test('a pending cache write does not delay the response or its body', { timeout: 1000 }, async () => {
+  const tasks = []
+  let finishWrite
+  const response = await fetchMetadata(new globalThis.Request('https://registry.example/npm/widget'), {
+    base: '/npm/',
+    name: 'widget',
+    cache: {
+      async match () {},
+      put (key, stored) {
+        return new Promise(resolve => {
+          finishWrite = async () => {
+            assert.equal(await stored.text(), 'original')
+            resolve()
+          }
+        })
+      },
+    },
+    fetchFromRegistry: async () => metadata(),
+    waitUntil: task => tasks.push(task),
+  })
+  assert.equal(tasks.length, 1)
+  assert.equal(await response.text(), 'original')
+  await finishWrite()
+  await Promise.all(tasks)
+})
+
+
+for (const operation of ['match', 'put', 'delete']) {
+  test(`cache ${operation} errors are reported without losing the registry response`, async context => {
+    const logged = context.mock.method(globalThis.console, 'error', () => {})
+    const failure = new Error(`cache ${operation} failed`)
+    const tasks = []
+    const cache = {
+      async match () {},
+      async put (key, response) { await response.arrayBuffer() },
+      async delete () {},
+      [operation]: async () => { throw failure },
+    }
+    const status = operation === 'delete' ? 403 : 200
+    const response = await fetchMetadata(new globalThis.Request('https://registry.example/npm/widget'), {
+      base: '/npm/',
+      name: 'widget',
+      cache,
+      fetchFromRegistry: async () => status === 200 ? metadata() : new globalThis.Response('denied', { status }),
+      waitUntil: task => tasks.push(task),
+    })
+    assert.equal(response.status, status)
+    assert.equal(await response.text(), status === 200 ? 'original' : 'denied')
+    await Promise.all(tasks)
+    assert.equal(logged.mock.callCount(), 1)
+    assert.equal(logged.mock.calls[0].arguments[1], failure)
+  })
+}

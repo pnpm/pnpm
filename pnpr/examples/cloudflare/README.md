@@ -12,12 +12,13 @@ and mutations, directly to the container:
 ```js
 import { fetchMetadata } from './revalidate-metadata.mjs'
 
-async function handleMetadata (request, base, name) {
+async function handleMetadata (request, ctx, route) {
   return fetchMetadata(request, {
     cache: caches.default,
-    base,
-    name,
+    base: route.base,
+    name: route.name,
     fetchFromRegistry,
+    waitUntil: task => ctx.waitUntil(task),
   })
 }
 ```
@@ -26,6 +27,10 @@ async function handleMetadata (request, base, name) {
 to the container. Set the registry request headers before calling `fetchMetadata`.
 For example, set the deployment Worker's fixed `Accept-Encoding: zstd, gzip`
 before selecting the cache key. Forward the original URL, never the synthetic cache key.
+
+The `waitUntil` callback keeps cache updates alive after the response returns.
+Cache API failures are logged and leave registry reads available.
+Unchanged `304` responses reuse the stored body without rewriting it.
 
 Every metadata read reaches the registry. A stored body supplies its ETag in
 `If-None-Match`. A `304` reuses that body; a `200` replaces it. Access denials,
