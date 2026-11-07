@@ -54,7 +54,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     let Some(candidate) = BuildCandidate::of(context, snapshot_key) else { return Ok(()) };
     let cache_key = side_effects_cache_key(context, snapshot_key, &candidate);
     if already_built::<Reporter>(context, snapshot_key, &candidate, cache_key.as_deref())? {
-        skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate)?;
+        skip_incompatible_optional::<Reporter>(context, snapshot_key, &candidate, None)?;
         return dependency_bins::refresh_private_hoisted_for(context, snapshot_key);
     }
 
@@ -94,7 +94,8 @@ fn build_candidate<Reporter: self::Reporter>(
     // error (`PatchFilePathMissing`).
     // `is_patched` feeds the cache-write gate below
     // (`is_patched || has_side_effects`).
-    let Some(is_patched) = apply_configured_patch::<Reporter>(context, snapshot_key, candidate)?
+    let Some(is_patched) =
+        apply_configured_patch::<Reporter>(context, snapshot_key, candidate, slot_lock.as_ref())?
     else {
         return Ok(());
     };
@@ -321,6 +322,7 @@ fn apply_configured_patch<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
+    slot: Option<&crate::GlobalVirtualStoreSlot>,
 ) -> Result<Option<bool>, BuildModulesError> {
     let Some(patch) = candidate.patch else { return Ok(Some(false)) };
     let patch_file_path = patch.patch_file_path
@@ -335,7 +337,7 @@ fn apply_configured_patch<Reporter: self::Reporter>(
         }
         apply_patch_to_dir(&patched_dir, patch_file_path).map_err(BuildModulesError::PatchApply)?;
     }
-    if skip_incompatible_optional::<Reporter>(context, snapshot_key, candidate)? {
+    if skip_incompatible_optional::<Reporter>(context, snapshot_key, candidate, slot)? {
         return Ok(None);
     }
     Ok(Some(true))

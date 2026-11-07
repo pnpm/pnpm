@@ -10,7 +10,6 @@ use std::{fs, io, path::PathBuf, time::Duration};
 /// The lock directory's name inside the slot directory, next to its
 /// `node_modules`.
 const SLOT_LOCK_DIR: &str = ".pnpm-build.lock";
-const SLOT_STATE_FILE: &str = ".pnpm-slot-state";
 
 fn parse_phase(state: &str) -> io::Result<GlobalVirtualStoreSlotPhase> {
     match state {
@@ -128,7 +127,7 @@ impl GlobalVirtualStoreSlot {
     fn from_path(path: PathBuf, key: &PackageKey, lock: Option<DirLock>) -> Self {
         let package_path = path.join("node_modules").join(key.name.to_string());
         let needs_build_marker = package_path.join(crate::NEEDS_BUILD_MARKER);
-        let state_file = path.join(SLOT_STATE_FILE);
+        let state_file = path.join(crate::GVS_SLOT_STATE_FILE);
         Self { path, package_path, needs_build_marker, state_file, lock }
     }
 
@@ -156,10 +155,7 @@ impl GlobalVirtualStoreSlot {
         }
         let phase = self
             .read_state_file()?
-            .map_or_else(
-                || self.legacy_state(completion_marker, requires_build),
-                |phase| self.reconcile_legacy_marker(phase),
-            )?;
+            .map_or_else(|| self.legacy_state(completion_marker, requires_build), Ok)?;
         Ok(GlobalVirtualStoreSlotState { phase, linked_archive })
     }
 
@@ -168,20 +164,6 @@ impl GlobalVirtualStoreSlot {
             Ok(state) => parse_phase(&state).map(Some),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error),
-        }
-    }
-
-    fn reconcile_legacy_marker(
-        &self,
-        phase: GlobalVirtualStoreSlotPhase,
-    ) -> io::Result<GlobalVirtualStoreSlotPhase> {
-        if matches!(
-            phase,
-            GlobalVirtualStoreSlotPhase::Populated | GlobalVirtualStoreSlotPhase::Built,
-        ) {
-            self.legacy_build_marker_phase(phase)
-        } else {
-            Ok(phase)
         }
     }
 
@@ -238,22 +220,20 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn mark_build_started(&self) -> io::Result<()> {
-        self.write_state("building")?;
-        pnpm_fs::write_atomic(&self.needs_build_marker, b"started")
+        self.write_state("building")
     }
 
     pub fn mark_build_pending(&self) -> io::Result<()> {
-        self.write_state("build-pending")?;
-        pnpm_fs::write_atomic(&self.needs_build_marker, b"")
+        self.write_state("build-pending")
     }
 
     pub fn mark_build_finished(&self) -> io::Result<()> {
         self.ensure_writable()?;
         match fs::remove_file(&self.needs_build_marker) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error),
-        }?;
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
         self.write_state("built")
     }
 

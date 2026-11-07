@@ -382,5 +382,31 @@ pub(crate) fn built_slot_is_complete(directory: &Path) -> Result<bool, BuildModu
                 source,
             })
     };
-    Ok(exists(&marker.with_file_name("package.json"))? && !exists(&marker)?)
+    let complete_manifest = exists(&marker.with_file_name("package.json"))?;
+    if !complete_manifest {
+        return Ok(false);
+    }
+    let state_file = directory
+        .ancestors()
+        .find(|path| {
+            path.file_name()
+                .is_some_and(|name| name == "node_modules")
+        })
+        .and_then(Path::parent)
+        .map(|slot| slot.join(crate::GVS_SLOT_STATE_FILE));
+    if let Some(state_file) = state_file {
+        match fs::read_to_string(&state_file) {
+            Ok(state) => {
+                return Ok(state == "built" || (state == "populated" && !exists(&marker)?));
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(source) => {
+                return Err(BuildModulesError::ReadBuildMarker { path: state_file, source });
+            }
+        }
+    }
+    Ok(!exists(&marker)?)
 }
+
+#[cfg(test)]
+mod tests;

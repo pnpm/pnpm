@@ -12,17 +12,22 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
+    locked_slot: Option<&crate::GlobalVirtualStoreSlot>,
 ) -> Result<bool, BuildModulesError> {
     if !should_check_patched_engines(context, candidate) {
         return Ok(false);
     }
     let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
-    let slot = acquire_slot_for_engine_check(context, snapshot_key)?;
-    if slot_is_mutating(slot.as_ref())? {
+    let owned_slot = if locked_slot.is_none() {
+        acquire_slot_for_engine_check(context, snapshot_key)?
+    } else {
+        None
+    };
+    let slot = locked_slot.or(owned_slot.as_ref());
+    if locked_slot.is_none() && slot_is_mutating(slot)? {
         return Ok(false);
     }
-    let Some(details) =
-        enforce_patched_engines(context, snapshot_key, candidate, optional, slot.as_ref())?
+    let Some(details) = enforce_patched_engines(context, snapshot_key, candidate, optional, slot)?
     else {
         return Ok(false);
     };

@@ -109,6 +109,7 @@ mod prune_extraneous_deps;
 mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
+pub(crate) const GVS_SLOT_STATE_FILE: &str = ".pnpm-slot-state";
 
 /// Cargo's checksum manifest of a vendored package directory. The Cargo
 /// installer imports it with the package's files, and
