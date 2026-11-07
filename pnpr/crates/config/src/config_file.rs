@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogConfig, LogFormat,
     LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PackageDocumentsFile, PathBuf,
-    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile,
+    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile, access::TeamFile,
     default_storage_string, null_default::deserialize_null_default, oidc,
 };
 
@@ -54,9 +54,9 @@ pub(super) struct HostedFile {
     /// no `packages:` entry refines it. Omitted ⇒ `$all`.
     #[serde(default)]
     pub(super) access: Option<AccessSpec>,
-    /// This registry's teams: each key is a team name, each value the list
-    /// of member usernames. Referenced from this registry's access lists as
-    /// `team:<name>` — teams are registry-scoped, never shared across
+    /// This registry's teams: each key is a team ID, each value its name
+    /// and member account IDs. Referenced from this registry's access lists as
+    /// `team:<id>` — teams are registry-scoped, never shared across
     /// registries (YAML anchors cover a shared roster in one file).
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) teams: IndexMap<String, TeamFile>,
@@ -127,7 +127,7 @@ pub(super) struct UpstreamFile {
     #[serde(default)]
     pub(super) access: Option<AccessSpec>,
     /// This registry's teams, exactly as on a hosted registry — referenced
-    /// from `access` and the per-package refinements as `team:<name>`.
+    /// from `access` and the per-package refinements as `team:<id>`.
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) teams: IndexMap<String, TeamFile>,
     /// The names that may be requested through this registry — its namespace —
@@ -523,11 +523,4 @@ pub(super) struct PipelineFeatureFile {
 
 pub(super) fn default_true() -> bool {
     true
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct TeamFile {
-    pub(super) name: String,
-    pub(super) members: AccessSpec,
 }

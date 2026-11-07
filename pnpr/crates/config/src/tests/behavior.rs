@@ -472,7 +472,7 @@ fn typed_token_grammar_is_validated() {
     // and an empty team reference is named as such.
     for (token, needle) in [
         ("group:platform", r#"did you mean "team:platform""#),
-        ("org:corp", "the only typed token is `team:<name>`"),
+        ("org:corp", "the only typed token is `team:<id>`"),
         ("'team:'", "names no team"),
         ("team:a:b", "a team name cannot contain `:`"),
     ] {

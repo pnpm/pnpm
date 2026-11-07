@@ -4,7 +4,7 @@ use super::{
 
 /// One `packages:` map value: `access` / `publish` / `unpublish` are
 /// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`
-/// pseudo-groups, bare usernames, and `team:<name>` references to the owning
+/// pseudo-groups, bare account IDs, and `team:<id>` references to the owning
 /// registry's declared teams), compiled into the owning registry's
 /// [`pnpr_policy::PackageRules`]. An omitted field falls back to the registry-level
 /// default. The map key set doubles as the registry's declared namespace, so
@@ -98,7 +98,7 @@ pub(super) fn declared_teams(teams: &Teams) -> String {
 /// writable after `team:` in a token) and member lists.
 pub(super) fn build_teams(
     registry: &str,
-    file: &IndexMap<String, super::config_file::TeamFile>,
+    file: &IndexMap<String, TeamFile>,
 ) -> Result<Teams, RegistryError> {
     let mut teams = Teams::default();
     for (team, record) in file {
@@ -140,7 +140,7 @@ pub fn compile_access_list(
     AccessSpec::Many(entries).to_access_list(teams)
 }
 
-/// Compile `auth.admins`, rejecting any entry that is not one username.
+/// Compile `auth.admins`, rejecting any entry that is not one account ID.
 pub(super) fn build_admins(names: &[String]) -> Result<BTreeSet<String>, RegistryError> {
     names
         .iter()
@@ -154,9 +154,7 @@ pub(super) fn build_admins(names: &[String]) -> Result<BTreeSet<String>, Registr
         .collect()
 }
 
-/// A team name is only useful spliced into a `team:<name>` token, so it must
-/// survive that grammar: one token, no `:` (which would read as another
-/// prefix), no `$` sigil (reserved for the built-in groups).
+/// Validate the single-token grammar shared by team names and IDs.
 pub fn validate_team_name(team: &str) -> Result<(), String> {
     validate_single_token(team)?;
     if team.contains(':') || team.starts_with('$') {
@@ -215,14 +213,14 @@ pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
                 Err(format!("access token {token:?} is malformed; a team name cannot contain `:`"))
             }
             "team" if !name.is_empty() => Ok(()),
-            "team" => Err(format!("access token {token:?} names no team; write `team:<name>`")),
+            "team" => Err(format!("access token {token:?} names no team; write `team:<id>`")),
             "group" | "groups" => Err(format!(
                 "unknown access token type {kind:?} in {token:?}; teams are declared per \
                  registry — did you mean \"team:{name}\"?",
             )),
             _ => Err(format!(
                 "unknown access token type {kind:?} in {token:?}; the only typed token is \
-                 `team:<name>` (a bare token is a username)",
+                 `team:<id>` (a bare token is an account ID)",
             )),
         };
     }
@@ -251,4 +249,11 @@ pub(super) fn validate_single_token(token: &str) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct TeamFile {
+    pub(super) name: String,
+    pub(super) members: AccessSpec,
 }
