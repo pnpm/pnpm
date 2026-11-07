@@ -38,16 +38,20 @@ export function getDownloadedNodeVersionFromEnginesRuntime (manifest: ProjectMan
     if (runtimeRange == null) return undefined
     const engineRange = semver.validRange(manifest.engines?.node ?? '*')
     if (engineRange == null) return semver.minVersion(runtimeRange)?.version
-    const runtimeSets = new semver.Range(runtimeRange).set
-    const engineSets = new semver.Range(engineRange).set
-    const intersections = runtimeSets.flatMap((runtimeSet) => engineSets.map((engineSet) => {
-      const range = [...runtimeSet, ...engineSet].map((comparator) => comparator.value).join(' ')
-      return semver.minVersion(range || '*')
-    })).filter((version): version is semver.SemVer => version != null)
-    if (intersections.length === 0) return semver.minVersion(runtimeRange)?.version
-    return intersections.reduce((minimum, version) => semver.lt(version, minimum) ? version : minimum).version
+    return minVersionFromRangeIntersection(runtimeRange, engineRange)
   }
   return undefined
+}
+
+function minVersionFromRangeIntersection (runtimeRange: string, engineRange: string): string | undefined {
+  const runtimeSets = new semver.Range(runtimeRange).set
+  const engineSets = new semver.Range(engineRange).set
+  const intersections = runtimeSets.flatMap((runtimeSet) => engineSets.map((engineSet) => {
+    const range = [...runtimeSet, ...engineSet].map((comparator) => comparator.value).join(' ')
+    return semver.minVersion(range || '*')
+  })).filter((version): version is semver.SemVer => version != null)
+  if (intersections.length === 0) return semver.minVersion(runtimeRange)?.version
+  return intersections.reduce((minimum, version) => semver.lt(version, minimum) ? version : minimum).version
 }
 
 export {
