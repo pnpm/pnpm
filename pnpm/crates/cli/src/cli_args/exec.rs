@@ -315,7 +315,7 @@ fn project_extra_env(
     config.prepend_project_node_path::<pnpm_config::Host>(
         &mut env,
         project,
-        &config.modules_dir_name_for(project, project_name),
+        &project.join(config.modules_dir_name_for(project, project_name)),
     );
     env
 }

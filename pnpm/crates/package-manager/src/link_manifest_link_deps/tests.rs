@@ -1,6 +1,7 @@
 use super::{WorkspaceLinks, link_manifest_link_deps};
 use pnpm_catalogs_types::{Catalog, Catalogs};
 use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::SilentReporter;
@@ -11,6 +12,10 @@ use tempfile::tempdir;
 
 fn manifest_at(dir: &std::path::Path, json: serde_json::Value) -> PackageManifest {
     PackageManifest::from_value(dir.join("package.json"), json)
+}
+
+fn modules_dirs(lockfile_dir: &std::path::Path, name: &str) -> ImporterModulesDirs {
+    ImporterModulesDirs::new(lockfile_dir, std::path::Path::new(name), std::ffi::OsStr::new(name))
 }
 
 fn all_dependencies() -> IncludedDependencies {
@@ -47,12 +52,11 @@ fn links_absolute_relative_and_self_reference_specs() {
     );
 
     link_manifest_link_deps::<SilentReporter>(
-        dir.path(),
+        &modules_dirs(dir.path(), "node_modules"),
         &[(project_dir.clone(), &manifest)],
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("linking succeeds");
@@ -121,12 +125,11 @@ fn links_workspace_package_selected_by_plain_range() {
     )]);
 
     link_manifest_link_deps::<SilentReporter>(
-        dir.path(),
+        &modules_dirs(dir.path(), "node_modules"),
         &[(project_dir.clone(), &manifest)],
         None,
         Some(WorkspaceLinks { packages: &workspace_packages, catalogs: &catalogs }),
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("linking succeeds");
@@ -168,12 +171,11 @@ fn relink_replaces_stale_symlink() {
         }),
     );
     link_manifest_link_deps::<SilentReporter>(
-        dir.path(),
+        &modules_dirs(dir.path(), "node_modules"),
         &[(project_dir.clone(), &manifest)],
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("relink succeeds");
@@ -222,12 +224,11 @@ fn lockfile_tracked_alias_is_skipped() {
     );
 
     link_manifest_link_deps::<SilentReporter>(
-        dir.path(),
+        &modules_dirs(dir.path(), "node_modules"),
         &[(project_dir.clone(), &manifest)],
         Some(&importers),
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("pass succeeds");
@@ -260,12 +261,11 @@ fn traversal_alias_is_rejected_without_writes() {
             }),
         );
         let result = link_manifest_link_deps::<SilentReporter>(
-            dir.path(),
+            &modules_dirs(dir.path(), "node_modules"),
             &[(project_dir.clone(), &manifest)],
             None,
             None,
             all_dependencies(),
-            std::ffi::OsStr::new("node_modules"),
             &LinkBinsOptions::default(),
         );
         assert!(
@@ -305,12 +305,11 @@ fn custom_modules_dir_name_is_honored() {
         }),
     );
     link_manifest_link_deps::<SilentReporter>(
-        dir.path(),
+        &modules_dirs(dir.path(), "custom_modules"),
         &[(project_dir.clone(), &manifest)],
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("custom_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("linking succeeds");
@@ -324,61 +323,34 @@ fn custom_modules_dir_name_is_honored() {
     drop(dir);
 }
 
-/// A modules-dir name that is not a single normal component (`.`,
-/// `..`, absolute, separator-bearing, empty) is rejected before any
-/// filesystem write — joined under a project dir it would drop
-/// force-replacing symlinks outside the intended modules directory.
-/// The install call site derives the name from
-/// `Path::file_name()` (which never yields these), so this pins the
-/// helper's own contract for other callers.
 #[test]
-fn non_normal_modules_dir_name_is_rejected_without_writes() {
+fn the_root_project_links_into_the_configured_modules_dir() {
     let dir = tempdir().unwrap();
-    let project_dir = dir.path().join("project");
+    let workspace = dir.path().join("workspace");
     let external = dir.path().join("external-pkg");
-    fs::create_dir_all(&project_dir).unwrap();
+    fs::create_dir_all(&workspace).unwrap();
     fs::create_dir_all(&external).unwrap();
+    let vendor = dir.path().join("vendor");
 
     let manifest = manifest_at(
-        &project_dir,
+        &workspace,
         serde_json::json!({
-            "name": "project",
+            "name": "root",
             "dependencies": { "dep": format!("link:{}", external.display()) },
         }),
     );
-
-    for name in [".", "..", "", "a/../b", "./a", "/abs"] {
-        let result = link_manifest_link_deps::<SilentReporter>(
-            dir.path(),
-            &[(project_dir.clone(), &manifest)],
-            None,
-            None,
-            all_dependencies(),
-            std::ffi::OsStr::new(name),
-            &LinkBinsOptions::default(),
-        );
-        assert!(
-            matches!(result, Err(super::LinkManifestLinkDepsError::InvalidModulesDirName { .. })),
-            "modules dir name {name:?} must be rejected",
-        );
-    }
-    // Nothing was written: no symlink in the project dir, its parent,
-    // or any would-be modules dir.
-    assert!(!project_dir.join("dep").exists());
-    assert!(!dir.path().join("dep").exists());
-    assert!(!project_dir.join("node_modules").exists());
-
     link_manifest_link_deps::<SilentReporter>(
-        dir.path(),
-        &[(project_dir.clone(), &manifest)],
+        &ImporterModulesDirs::new(&workspace, &vendor, std::ffi::OsStr::new("vendor")),
+        &[(workspace.clone(), &manifest)],
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("www/modules"),
         &LinkBinsOptions::default(),
     )
-    .expect("a nested modules dir is a valid name");
-    assert!(project_dir.join("www/modules/dep").exists());
+    .expect("linking succeeds");
+
+    assert_eq!(fs::canonicalize(vendor.join("dep")).unwrap(), external.canonicalize().unwrap());
+    assert!(!workspace.join("vendor").exists());
 
     drop(dir);
 }
@@ -415,12 +387,11 @@ fn bins_of_manifest_linked_deps_are_linked() {
         }),
     );
     link_manifest_link_deps::<SilentReporter>(
-        dir.path(),
+        &modules_dirs(dir.path(), "node_modules"),
         &[(project_dir.clone(), &manifest)],
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("linking succeeds");
@@ -470,12 +441,11 @@ fn reports_link_target_as_linked_from() {
     );
 
     link_manifest_link_deps::<RecordingReporter>(
-        dir.path(),
+        &modules_dirs(dir.path(), "node_modules"),
         &[(project_dir, &manifest)],
         None,
         None,
         all_dependencies(),
-        std::ffi::OsStr::new("node_modules"),
         &LinkBinsOptions::default(),
     )
     .expect("linking succeeds");
