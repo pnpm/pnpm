@@ -1,5 +1,6 @@
 import type { InstallCheckLog } from '@pnpm/core-loggers'
 import type { LogBaseWarn } from '@pnpm/logger'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import * as Rx from 'rxjs'
 import { distinct, filter, map } from 'rxjs/operators'
 
@@ -35,7 +36,8 @@ function formatInstallCheck (
     return autozoom(
       currentPrefix,
       logObj.prefix,
-      formatWarn(logObj.message),
+      // The message names a package from the lockfile, which a contributor can edit.
+      formatWarn(sanitizeInline(logObj.message)),
       { zoomOutCurrent }
     )
   }

@@ -42,6 +42,16 @@ test('reports a repeated install-check message once', async () => {
   expect(outputs).toHaveLength(1)
 })
 
+test('strips control characters from install-check messages', async () => {
+  const prefix = '/home/jane/project'
+  const logs: InstallCheckEvent[] = [
+    { name: 'pnpm:install-check', level: 'warn', prefix, message: 'Unsupported engine for evil\n\u001b[2Jpkg@1.0.0' },
+  ]
+  const outputs = await firstValueFrom(reportInstallChecks(from(logs), { cwd: prefix }).pipe(toArray()))
+
+  expect(await firstValueFrom(outputs[0])).toEqual({ msg: formatWarn('Unsupported engine for evil[2Jpkg@1.0.0') })
+})
+
 test('keeps legacy install-check codes and prefixes', async () => {
   const prefix = '/home/jane/project/packages/app'
   const cwd = '/home/jane/project'
