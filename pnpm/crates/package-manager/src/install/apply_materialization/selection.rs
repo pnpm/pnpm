@@ -6,6 +6,7 @@ use super::super::{
 pub(super) struct SelectMaterializedStateInputs<'a> {
     pub(crate) lockfiles: crate::install::state_options::SelectedLockfiles<'a>,
     pub(crate) projects: crate::install::state_options::SelectedImporters<'a>,
+    pub(super) node_linker: NodeLinker,
     pub(super) workspace_root: &'a Path,
     pub(super) groups: crate::GroupSelection,
     pub(super) install_skipped: &'a crate::SkippedSnapshots,
@@ -79,6 +80,19 @@ pub(super) fn materialized_current_lockfile(
 ) -> Lockfile {
     if inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check {
         crate::filter_lockfile_for_current(wanted, &inputs.groups, inputs.install_skipped)
+    } else if inputs.node_linker == NodeLinker::Hoisted
+        && let Some(requested_ids) = inputs.projects.requested_ids
+    {
+        crate::selected_materialization_closure(
+            wanted,
+            inputs.workspace_root,
+            requested_ids,
+            Some(inputs.projects.real_ids),
+            (!inputs.is_inconsistent).then_some(inputs.lockfiles.current).flatten(),
+            &inputs.groups,
+            &inputs.install_skipped.transient_only(),
+        )
+        .lockfile
     } else {
         crate::merge_filtered_current_lockfile(
             (inputs.projects.requested_ids.is_some() && !inputs.is_inconsistent)

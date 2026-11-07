@@ -87,12 +87,7 @@ pub(super) fn merge_hoisted_locations(
             continue;
         }
         let retained_locations = next.hoisted_locations.get_or_insert_default();
-        let retained = retained_locations.entry(dep_path.clone()).or_default();
-        for location in locations {
-            if !retained.contains(location) {
-                retained.push(location.clone());
-            }
-        }
+        retained_locations.entry(dep_path.clone()).or_insert_with(|| locations.clone());
     }
 }
 pub(super) fn merge_retained_pending_builds(

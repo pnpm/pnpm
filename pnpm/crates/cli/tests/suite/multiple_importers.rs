@@ -251,7 +251,11 @@ fn filtered_install_after_bump(project_3_state: ProjectThree, mode: InstallMode)
             .to_string(),
     )
     .expect("write local-pkg/package.json");
-    fixture.run(["install", "--lockfile-only"]);
+    let mode_args: &[&str] = match mode {
+        InstallMode::LockfileOnly => &["--lockfile-only"],
+        InstallMode::Link => &[],
+    };
+    fixture.run(std::iter::once("install").chain(mode_args.iter().copied()));
 
     if matches!(project_3_state, ProjectThree::OffDisk) {
         fs::remove_dir_all(&project_3).expect("take project-3 off disk");
@@ -268,10 +272,6 @@ fn filtered_install_after_bump(project_3_state: ProjectThree, mode: InstallMode)
             ..Default::default()
         },
     );
-    let mode_args: &[&str] = match mode {
-        InstallMode::LockfileOnly => &["--lockfile-only"],
-        InstallMode::Link => &[],
-    };
     fixture.run(
         ["--filter", "project-1", "--filter", "project-2", "install"]
             .into_iter()

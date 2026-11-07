@@ -71,9 +71,13 @@ export async function lockfileToHoistedDepGraph (
 ): Promise<LockfileToDepGraphResult> {
   let prevGraph!: DependenciesGraph
   if (currentLockfile?.packages != null) {
+    const prevImporterIds = Array.from(new Set([
+      ...opts.importerIds,
+      ...(Object.keys(currentLockfile.importers) as ProjectId[]),
+    ]))
     prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
       ...opts,
-      importerIds: pickResolvableImporterIds(currentLockfile, opts.importerIds),
+      importerIds: pickResolvableImporterIds(currentLockfile, prevImporterIds),
       force: true,
       includeIncompatiblePackages: true,
       skipFetching: true,
