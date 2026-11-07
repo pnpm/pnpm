@@ -210,11 +210,12 @@ fn selected_importer_modules_dirs(
         for importer_id in inputs.graph.trusted_importer_ids {
             let project_dir =
                 super::importer_root_dir(inputs.directories.workspace_root, importer_id);
-            let modules_dir = pnpm_fs::lexical_normalize(&modules_dirs.of(&project_dir));
-            if let Ok(real_dir) = pnpm_fs::realpath_missing(&modules_dir) {
-                dirs.insert(pnpm_fs::lexical_normalize(&real_dir));
+            dirs.insert(pnpm_fs::lexical_normalize(&modules_dirs.of(&project_dir)));
+            // The link pass places a symlinked project's modules directory
+            // under its `std::fs::canonicalize` path, so match that spelling.
+            if let Ok(real_dir) = std::fs::canonicalize(&project_dir) {
+                dirs.insert(pnpm_fs::lexical_normalize(&modules_dirs.of(&real_dir)));
             }
-            dirs.insert(modules_dir);
         }
         dirs
     })
