@@ -14,7 +14,9 @@ use pnpm_deps_restorer::{
 use pnpm_lockfile::{IntegrityTarget, LockfileResolution, is_git_hosted_tarball_url};
 use pnpm_reporter::{Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
-use pnpm_tarball::{FetchTarballForResolution, IntegrityKind, package_mem_cache_key};
+use pnpm_tarball::{
+    FetchTarballForResolution, IntegrityKind, alias_available_cache_entry, package_mem_cache_key,
+};
 use std::{path::Path, sync::Arc};
 
 impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
@@ -228,10 +230,12 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // would otherwise reach `maybe_kickoff_download` while this fetch is in
         // flight and spend a second request on the same archive, which a
         // revision's one-GET protocol does not allow.
-        if let Some(integrity) = tarball.integrity.as_ref() {
-            self.claim_download(package_url, integrity, revision_addressed);
-        }
-        let resolved = FetchTarballForResolution {
+        let claim = self.claim_download_until_settled(
+            package_url,
+            tarball.integrity.as_ref(),
+            revision_addressed,
+        );
+        let fetch = FetchTarballForResolution {
             http_client: &self.ctx.fetching.http_client,
             store: self.ctx.store.resolution_store(),
             package: pnpm_tarball::TarballPackage {
@@ -250,30 +254,42 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             tar_limits: self.ctx.fetching.tar_limits,
             manifest_subdir: tarball.path.as_deref(),
             revision_addressed,
-        }
-        .run::<SilentReporter>(Some(&self.ctx.mem_cache))
-        .await
-        .map_err(|err| Box::new(err) as ResolveError)?;
+        };
+        let resolved = claim
+            .settle(fetch.run::<SilentReporter>(Some(&self.ctx.mem_cache)).await)
+            .map_err(|err| Box::new(err) as ResolveError)?;
         // The read published its extraction under the hash the resolution
         // below records, so the install pass finds it there instead of
         // downloading the archive a second time. Claiming that identity keeps
         // the prefetch path off it too; for an unpinned archive this is the
         // first point at which the hash that names it is known.
         self.claim_download(package_url, &resolved.integrity, revision_addressed);
-        let mut resolution = tarball.clone();
-        if !is_git_hosted_tarball_url(&tarball.tarball) {
-            resolution.integrity = Some(resolved.integrity);
-        } else if tarball.integrity.is_none() {
-            self.share_commit_addressed_archive(
-                package_url,
-                &resolved.integrity,
-                revision_addressed,
-            );
-        }
+        let resolution = self.record_archive_integrity(
+            tarball,
+            package_url,
+            resolved.integrity,
+            revision_addressed,
+        );
         Ok::<_, ResolveError>(ResolvedTarballMetadata {
             resolution: LockfileResolution::Tarball(resolution),
             manifest: resolved.manifest.map(Arc::new),
         })
+    }
+
+    fn record_archive_integrity(
+        &self,
+        tarball: &pnpm_lockfile::TarballResolution,
+        package_url: &str,
+        integrity: ssri::Integrity,
+        revision_addressed: bool,
+    ) -> pnpm_lockfile::TarballResolution {
+        let mut resolution = tarball.clone();
+        if !is_git_hosted_tarball_url(&tarball.tarball) {
+            resolution.integrity = Some(integrity);
+        } else if tarball.integrity.is_none() {
+            self.share_commit_addressed_archive(package_url, &integrity, revision_addressed);
+        }
+        resolution
     }
     /// What a read of `tarball` checks and yields. A hash the read learns
     /// names what the lockfile pins. A pinned hash may name either the
@@ -296,16 +312,11 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         integrity: &ssri::Integrity,
         revision_addressed: bool,
     ) {
-        let Some(archive) = self.ctx.mem_cache
-            .get(&package_mem_cache_key(url, Some(integrity), revision_addressed))
-            .map(|entry| Arc::clone(entry.value()))
-        else {
-            // A concurrent pinned fetch can fail and evict the shared entry.
-            return;
-        };
-        self.ctx.mem_cache
-            .entry(package_mem_cache_key(url, None, revision_addressed))
-            .or_insert(archive);
+        alias_available_cache_entry(
+            &self.ctx.mem_cache,
+            &package_mem_cache_key(url, Some(integrity), revision_addressed),
+            package_mem_cache_key(url, None, revision_addressed),
+        );
     }
 }
 
