@@ -3,7 +3,7 @@
 
 use super::super::{
     AppState, RegistryError,
-    managed_state::{WRITE_ATTEMPTS, store_registry_record},
+    managed_state::{WRITE_ATTEMPTS, read_with_deadline, store_registry_record},
 };
 use pnpr_storage::{RegistryRecord, SCIM_DIRECTORY};
 use serde::{Deserialize, Serialize};
@@ -130,7 +130,7 @@ fn directory_entry(state: &AppState, user_id: &str) -> Result<Option<bool>, Regi
 /// [`is_deprovisioned`] fails closed until a read succeeds. Reports whether the read
 /// succeeded.
 pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimState) -> bool {
-    match read_directory(state).await {
+    match read_with_deadline(read_directory(state)).await {
         Ok((directory, _)) => {
             scim.publish(state, &directory);
             true

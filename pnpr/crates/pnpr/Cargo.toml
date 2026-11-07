@@ -125,7 +125,7 @@ pnpm-testing-utils = { workspace = true }
 pnpr-fixtures = { workspace = true }
 pnpr-libsql = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
 tower = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

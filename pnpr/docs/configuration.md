@@ -498,8 +498,20 @@ See [Admin endpoints](endpoints.md#admin-endpoints) and
 Team rosters, managed access rules, and the [SCIM directory](scim.md) reload
 when a request arrives after the replica's state is 10 seconds old. That
 request starts a background reload and can still use the existing state, so
-a change can take effect later than 10 seconds after it is made. After a
-failed read, pnpr retries on a request arriving at least one second later.
+a change can take effect later than 10 seconds after it is made. The first
+request after startup waits for the initial reload.
+
+Each record read has a five-second deadline. An error or expired deadline
+clears the affected roster, denies access under the affected registry's
+managed rules, or refuses user credentials when the SCIM directory cannot be
+read. A successful read restores the stored state. SCIM reloads independently
+of rosters and rules. Rosters load before rules, so a reload with both phases
+can take up to ten seconds.
+
+After any failed read, pnpr retries on a request arriving at least one second
+after the reload finishes. Reloads share a lock with management writes. These
+read deadlines do not cancel writes or limit the time spent waiting for a
+management write to release the lock.
 
 ## `oci`
 

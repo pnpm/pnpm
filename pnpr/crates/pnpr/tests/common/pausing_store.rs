@@ -10,7 +10,7 @@ use tokio::sync::Notify;
 #[derive(Debug, Default)]
 pub struct PausingStore {
     inner: InMemory,
-    filename: Mutex<Option<String>>,
+    filenames: Mutex<Vec<String>>,
     write_filename: Mutex<Option<String>>,
     pub started: Notify,
     pub resume: Notify,
@@ -22,7 +22,10 @@ impl PausingStore {
     }
 
     pub fn pause(&self, filename: String) {
-        *self.filename.lock().unwrap() = Some(filename);
+        self.filenames
+            .lock()
+            .unwrap()
+            .push(filename);
     }
 }
 
@@ -40,14 +43,15 @@ impl ObjectStore for PausingStore {
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
         let pause = {
-            let mut filename = self.filename.lock().unwrap();
-            let pause = filename
-                .as_ref()
-                .is_some_and(|filename| location.filename() == Some(filename.as_str()));
-            if pause {
-                *filename = None;
-            }
-            pause
+            let mut filenames = self.filenames.lock().unwrap();
+            let position = filenames
+                .iter()
+                .position(|filename| {
+                    location.filename() == Some(filename.as_str()) || location.as_ref() == filename
+                });
+            position
+                .map(|position| filenames.remove(position))
+                .is_some()
         };
         if pause {
             self.started.notify_one();
