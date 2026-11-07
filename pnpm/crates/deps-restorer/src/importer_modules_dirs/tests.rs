@@ -70,3 +70,30 @@ fn removals_inside_a_root_modules_dir_in_the_workspace_are_bound_by_the_workspac
     assert_eq!(dirs.removal_bound(Path::new("/ws/vendor")), Path::new("/ws"));
     assert_eq!(dirs.removal_bound(Path::new("/ws/vendor/.pnpm")), Path::new("/ws"));
 }
+
+#[cfg(windows)]
+#[test]
+fn removal_bounds_use_windows_paths() {
+    let external = ImporterModulesDirs::new(
+        Path::new(r"C:\ws"),
+        Path::new(r"D:\elsewhere\mods"),
+        OsStr::new("mods"),
+    );
+    assert_eq!(
+        external.removal_bound(Path::new(r"D:\elsewhere\mods\.pnpm")),
+        Path::new(r"D:\elsewhere\mods"),
+    );
+    assert_eq!(external.removal_bound(Path::new(r"D:\elsewhere")), Path::new(r"C:\ws"));
+    assert_eq!(external.removal_bound(Path::new(r"C:\ws\packages\foo\mods")), Path::new(r"C:\ws"));
+
+    let containing = ImporterModulesDirs::new(
+        Path::new(r"C:\parent\ws"),
+        Path::new(".."),
+        OsStr::new("node_modules"),
+    );
+    assert_eq!(
+        containing.removal_bound(Path::new(r"C:\parent\ws\packages\foo\node_modules")),
+        Path::new(r"C:\parent\ws"),
+    );
+    assert_eq!(containing.removal_bound(Path::new(r"C:\parent\.pnpm")), Path::new(r"C:\parent"));
+}
