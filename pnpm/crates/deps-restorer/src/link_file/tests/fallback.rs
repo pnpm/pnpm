@@ -196,50 +196,75 @@ fn every_failure_under_every_method() {
     let source = store_entry(tmp.path());
     for failure in LinkFailure::ALL {
         for case in &CASES {
-            let context = format!("{failure:?} under {}", case.name);
-            let target = tmp
-                .path()
-                .join(format!("{failure:?}-{}", case.name));
-            Faulty::set(match case.link {
-                Link::HardLink => Faults { hard_link: Some(failure), ..Faults::default() },
-                Link::Reflink => Faults { reflink: Some(failure), ..Faults::default() },
-            });
-            let tier = case.tier.unwrap_or(LINK_STATE_COPY);
-            let state = state_at(tier);
-            let logged = AtomicU8::new(0);
-
-            let result =
-                state.import::<SilentReporter, Faulty>(case.method, &logged, &source, &target);
-
-            match (case.expect)(failure) {
-                Expect::Fails => {
-                    let error = result.expect_err(&context);
-                    assert_eq!(LinkFailure::of(&error), failure, "{context}: the error surfaces");
-                    assert!(!target.exists(), "{context}: nothing is written");
-                    assert_eq!(logged.load(Ordering::Relaxed), 0, "{context}: no method is logged");
-                }
-                Expect::NextMethod => {
-                    let landed = wire_method(tier_after(case.method, tier));
-                    assert_eq!(result.expect(&context), landed, "{context}");
-                    assert_materialized(&source, &target, &context);
-                    assert_eq!(logged.load(Ordering::Relaxed), log_flag(landed), "{context}");
-                }
-                Expect::CopiesFile => {
-                    assert_eq!(result.expect(&context), WireImportMethod::Copy, "{context}");
-                    assert_copied(&source, &target, &context);
-                    assert_eq!(logged.load(Ordering::Relaxed), LOG_FLAG_COPY, "{context}");
-                }
-            }
-            let expected_tier = match (case.expect)(failure) {
-                Expect::NextMethod => tier_after(case.method, tier),
-                Expect::Fails | Expect::CopiesFile => tier,
-            };
-            assert_eq!(
-                tier_of(&state, case.method),
-                expected_tier,
-                "{context}: the tier is retired only when the filesystem is at fault",
-            );
+            check_case(tmp.path(), &source, failure, case);
         }
+    }
+}
+
+fn check_case(dir: &Path, source: &StoreFile, failure: LinkFailure, case: &Case) {
+    let context = format!("{failure:?} under {}", case.name);
+    let target = dir.join(format!("{failure:?}-{}", case.name));
+    Faulty::set(match case.link {
+        Link::HardLink => Faults { hard_link: Some(failure), ..Faults::default() },
+        Link::Reflink => Faults { reflink: Some(failure), ..Faults::default() },
+    });
+    let tier = case.tier.unwrap_or(LINK_STATE_COPY);
+    let state = state_at(tier);
+    let logged = AtomicU8::new(0);
+
+    let result = state.import::<SilentReporter, Faulty>(case.method, &logged, source, &target);
+
+    let expect = (case.expect)(failure);
+    let logged = logged.load(Ordering::Relaxed);
+    let placed = Placed { source: &source.path, target: &target, logged, context: &context };
+    match expect {
+        Expect::Fails => placed.assert_failed(result, failure),
+        Expect::NextMethod => {
+            placed.assert_landed(result, wire_method(tier_after(case.method, tier)));
+        }
+        Expect::CopiesFile => placed.assert_copied(result),
+    }
+    let expected_tier = match expect {
+        Expect::NextMethod => tier_after(case.method, tier),
+        Expect::Fails | Expect::CopiesFile => tier,
+    };
+    assert_eq!(
+        tier_of(&state, case.method),
+        expected_tier,
+        "{context}: the tier is retired only when the filesystem is at fault",
+    );
+}
+
+/// What one import left behind: the paths, the logged methods, and the
+/// case it ran under.
+struct Placed<'a> {
+    source: &'a Path,
+    target: &'a Path,
+    logged: u8,
+    context: &'a str,
+}
+
+impl Placed<'_> {
+    fn assert_failed(&self, result: io::Result<WireImportMethod>, failure: LinkFailure) {
+        let context = self.context;
+        let error = result.expect_err(context);
+        assert_eq!(LinkFailure::of(&error), failure, "{context}: the error surfaces");
+        assert!(!self.target.exists(), "{context}: nothing is written");
+        assert_eq!(self.logged, 0, "{context}: no method is logged");
+    }
+
+    fn assert_landed(&self, result: io::Result<WireImportMethod>, landed: WireImportMethod) {
+        let context = self.context;
+        assert_eq!(result.expect(context), landed, "{context}");
+        assert_materialized(self.source, self.target, context);
+        assert_eq!(self.logged, log_flag(landed), "{context}");
+    }
+
+    fn assert_copied(&self, result: io::Result<WireImportMethod>) {
+        let context = self.context;
+        assert_eq!(result.expect(context), WireImportMethod::Copy, "{context}");
+        assert_copied(self.source, self.target, context);
+        assert_eq!(self.logged, LOG_FLAG_COPY, "{context}");
     }
 }
 

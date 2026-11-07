@@ -90,7 +90,7 @@ fn inode(path: &Path) -> u64 {
 }
 
 /// The failures the [`Faulty`] import calls on this thread answer with.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 struct Faults {
     hard_link: Option<LinkFailure>,
     reflink: Option<LinkFailure>,
