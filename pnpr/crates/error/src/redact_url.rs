@@ -77,16 +77,24 @@ pub(super) fn split_trailing_punctuation(candidate: &str) -> (&str, &str) {
     (&candidate[..end], &candidate[end..])
 }
 
+/// Malformed userinfo can parse as a host, port, and path
+/// (`postgres://admin:123/secret@db/x`), so the raw-text userinfo scan runs
+/// before parsing, not only when parsing fails.
 pub(super) fn redact_url_candidate(candidate: &str) -> Option<String> {
-    redact_parseable_url_candidate(candidate).or_else(|| redact_unparsable_url_candidate(candidate))
+    let userinfo_redacted = redact_unparsable_url_userinfo(candidate);
+    let target = userinfo_redacted.as_deref().unwrap_or(candidate);
+    let rest_redacted = match url::Url::parse(target) {
+        Ok(url) => redact_parsed_url(url),
+        Err(_) => redact_unparsable_url_query_and_fragment(target),
+    };
+    rest_redacted.or(userinfo_redacted)
 }
 
-pub(super) fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
-    let mut url = url::Url::parse(candidate).ok()?;
+pub(super) fn redact_parsed_url(mut url: url::Url) -> Option<String> {
     let mut changed = redact_url_userinfo(&mut url);
     changed |= redact_url_query(&mut url);
     changed |= redact_url_fragment(&mut url);
-    Some(if changed { url.to_string() } else { candidate.to_string() })
+    changed.then(|| url.to_string())
 }
 
 pub(super) fn redact_url_userinfo(url: &mut url::Url) -> bool {
@@ -134,13 +142,9 @@ pub(super) fn redact_url_fragment(url: &mut url::Url) -> bool {
     true
 }
 
-pub(super) fn redact_unparsable_url_candidate(candidate: &str) -> Option<String> {
+pub(super) fn redact_unparsable_url_query_and_fragment(candidate: &str) -> Option<String> {
     let mut redacted = candidate.to_string();
     let mut changed = false;
-    if let Some(safe_url) = redact_unparsable_url_userinfo(&redacted) {
-        redacted = safe_url;
-        changed = true;
-    }
     if let Some(safe_url) = redact_sensitive_query_values(&redacted) {
         redacted = safe_url;
         changed = true;
@@ -154,7 +158,11 @@ pub(super) fn redact_unparsable_url_candidate(candidate: &str) -> Option<String>
 
 pub(super) fn redact_unparsable_url_userinfo(candidate: &str) -> Option<String> {
     let authority_start = candidate.find("://")? + 3;
-    let userinfo_end = candidate[authority_start..].rfind('@')? + authority_start;
+    // An `@` that starts a path segment is a scoped package name, not the end of userinfo.
+    let userinfo_end = candidate[authority_start..]
+        .rmatch_indices('@')
+        .map(|(offset, _)| authority_start + offset)
+        .find(|&at| candidate.as_bytes()[at - 1] != b'/')?;
     // A `?` or `#` before the `@` belongs to either the password or a query or fragment
     // that holds a secret, so neither side of the `@` is safe to log.
     if candidate[authority_start..userinfo_end].contains(['?', '#']) {
