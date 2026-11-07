@@ -86,3 +86,29 @@ fn seeding_a_moving_revision_discards_old_auth_state() {
     seed_auth(source, directory.path());
     assert!(!tokens.exists());
 }
+
+#[test]
+fn revision_database_uses_the_revisions_config_key() {
+    let directory = tempfile::tempdir().unwrap();
+    for (name, setting) in [("old", ""), ("new", "database: {}\n")] {
+        let source = directory.path().join(name);
+        fs::create_dir_all(source.join("pnpr/.fixtures")).unwrap();
+        fs::write(
+            source.join("pnpr/.fixtures/config.yaml"),
+            format!("auth:\n  users: {{}}\n{setting}"),
+        )
+        .unwrap();
+        let home = directory
+            .path()
+            .join(format!("{name}-home"));
+        let yaml = mock_config(&source.join("target/release/pnpr"), &home);
+        let config: Value = serde_saphyr::from_str(&yaml).unwrap();
+        let (key, absent) =
+            if name == "old" { ("metadata", "database") } else { ("database", "metadata") };
+        assert_eq!(
+            config[key]["url"],
+            format!("sqlite:{}", home.join("metadata.sqlite").display()),
+        );
+        assert!(config.get(absent).is_none());
+    }
+}

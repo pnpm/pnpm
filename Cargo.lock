@@ -6442,6 +6442,7 @@ dependencies = [
  "pnpr-package-name",
  "reqwest",
  "serde",
+ "serde-saphyr",
  "serde_json",
  "sysinfo",
  "tokio",

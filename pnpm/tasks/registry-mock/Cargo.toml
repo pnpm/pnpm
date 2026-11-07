@@ -30,6 +30,7 @@ pnpr-package-name = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde-saphyr = { workspace = true }
 sysinfo = { workspace = true }
 tokio = { workspace = true }
 walkdir = { workspace = true }

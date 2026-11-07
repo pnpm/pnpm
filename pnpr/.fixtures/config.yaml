@@ -1,5 +1,7 @@
 # Test registry-mock configuration for pnpm and pnpr test suites.
 storage: ./storage
+# The benchmark uses this key to select the revision's database configuration format.
+database: {}
 secret: pnpm-registry-mock-secret-key-32
 
 auth:
