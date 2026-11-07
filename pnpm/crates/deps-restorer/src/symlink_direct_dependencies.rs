@@ -6,6 +6,9 @@ use publish::remove_publish_modules_link;
 mod report;
 use report::emit_root_added;
 
+mod entry_bins;
+use entry_bins::link_entry_bins;
+
 mod resolve;
 use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets};
 
@@ -559,39 +562,6 @@ fn link_one_importer<Reporter: self::Reporter>(
 
     link_entry_bins(modules_dir, &entries, symlink, bin_lookup, link_options)
         .map_err(SymlinkDirectDependenciesError::LinkBins)
-}
-
-/// Link the bins of the linked `entries` into `<modules_dir>/.bin`. Each
-/// entry's `target` is its link's destination, so no link is resolved.
-fn link_entry_bins(
-    modules_dir: &Path,
-    entries: &[ResolvedEntry<'_>],
-    symlink: bool,
-    bin_lookup: &crate::PrefetchedBinLookup<'_>,
-    link_options: &LinkBinsOptions,
-) -> Result<HashSet<String>, pnpm_cmd_shim::LinkBinsError> {
-    let pass = crate::BinsDirPass::new(link_options);
-    let linked = if symlink {
-        let deps = resolved_entry_bins(entries);
-        crate::link_bins_dir(modules_dir, crate::BinCandidates::Prefetched(&deps, bin_lookup), pass)
-    } else {
-        let locations: Vec<PathBuf> = entries
-            .iter()
-            .map(|entry| entry.target.clone())
-            .collect();
-        crate::link_bins_dir(modules_dir, crate::BinCandidates::Locations(&locations), pass)
-    };
-    linked.map(|linked| linked.linked_commands)
-}
-
-fn resolved_entry_bins(entries: &[ResolvedEntry<'_>]) -> Vec<crate::PrefetchedDepBin> {
-    entries
-        .iter()
-        .map(|entry| {
-            let snapshot_key = entry.spec.version.resolved_key(entry.name);
-            (entry.name_str.clone(), entry.target.clone(), snapshot_key)
-        })
-        .collect()
 }
 
 #[cfg(test)]
