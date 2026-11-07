@@ -239,29 +239,33 @@ pub fn downloaded_node_version_from_engines_runtime(manifest: &Value) -> Option<
         else {
             continue;
         };
-        if runtime.get("onFail").and_then(Value::as_str) != Some("download") {
-            return None;
-        }
-        let version = runtime
-            .get("version")
-            .and_then(Value::as_str)?
-            .trim();
-        if let Ok(version) = Version::parse(version) {
-            return Some(version.to_string());
-        }
-        let runtime_range = Range::parse(version).ok()?;
-        let engine_range = manifest
-            .get("engines")
-            .and_then(|engines| engines.get("node"))
-            .and_then(Value::as_str)
-            .and_then(|range| Range::parse(range).ok());
-        let version = engine_range
-            .and_then(|engine_range| runtime_range.intersect(&engine_range))
-            .and_then(|range| range.min_version())
-            .or_else(|| runtime_range.min_version())?;
-        return Some(version.to_string());
+        return downloaded_node_version(manifest, runtime);
     }
     None
+}
+
+fn downloaded_node_version(manifest: &Value, runtime: &Value) -> Option<String> {
+    if runtime.get("onFail").and_then(Value::as_str) != Some("download") {
+        return None;
+    }
+    let version = runtime
+        .get("version")
+        .and_then(Value::as_str)?
+        .trim();
+    if let Ok(version) = Version::parse(version) {
+        return Some(version.to_string());
+    }
+    let runtime_range = Range::parse(version).ok()?;
+    let engine_range = manifest
+        .get("engines")
+        .and_then(|engines| engines.get("node"))
+        .and_then(Value::as_str)
+        .and_then(|range| Range::parse(range).ok());
+    let version = engine_range
+        .and_then(|engine_range| runtime_range.intersect(&engine_range))
+        .and_then(|range| range.min_version())
+        .or_else(|| runtime_range.min_version())?;
+    Some(version.to_string())
 }
 
 /// Fold `tool:<version>` / `runtime:<version>` dependency entries back into
