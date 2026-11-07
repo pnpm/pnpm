@@ -9,6 +9,7 @@ use super::{
 };
 use crate::platform_selection::VariantPlatforms;
 
+mod loaded;
 mod post_build_bins;
 
 #[cfg(test)]
@@ -182,7 +183,7 @@ fn finish_bin_links(
     }
 
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
-        finish_cas_bin_links(inputs, build_output, bin_state)?;
+        loaded::finish_cas_bin_links(inputs, build_output, bin_state)?;
         return Ok(());
     }
     finish_dependency_bin_links(inputs, build_output, bin_state)?;
@@ -191,30 +192,6 @@ fn finish_bin_links(
         build_output.mutated_slots,
         &bin_state.refreshed_hoisted_bins,
     )
-}
-
-fn finish_cas_bin_links(
-    inputs: &BuildPhaseInputs<'_>,
-    build_output: &crate::BuildModulesOutput,
-    bin_state: &crate::build_options::BuildBinState,
-) -> Result<(), BuildPhaseError> {
-    let config = inputs.policy.config;
-    let selected = inputs.graph.loaded_snapshots.expect("loaded linker selection");
-    let native_inputs = BuildPhaseInputs {
-        graph: crate::BuildPhaseGraph { snapshots: Some(selected), ..inputs.graph },
-        ..*inputs
-    };
-    finish_dependency_bin_links(&native_inputs, build_output, bin_state)?;
-    if build_output.mutated_slots {
-        crate::cas::refresh_bins(&crate::cas::BinInstall {
-            config,
-            root: inputs.directories.workspace_root,
-            importers: inputs.graph.importers,
-            trusted_importer_ids: inputs.graph.trusted_importer_ids,
-        })
-        .map_err(BuildPhaseError::CasBins)?;
-    }
-    Ok(())
 }
 
 fn finish_dependency_bin_links(
@@ -328,17 +305,7 @@ fn build_modules<'a>(
 ) -> BuildModules<'a> {
     let config = inputs.policy.config;
     BuildModules {
-        cache: crate::BuildCacheContext {
-            side_effects: inputs.cache.side_effects(),
-            engine_name: inputs.cache.engine_name,
-            read: config.side_effects_cache_read()
-                || config.remote_side_effects_cache.is_some(),
-            write: config.side_effects_cache_write(),
-            publisher: shared_side_effects_publisher,
-            store_dir: Some(&config.store_dir),
-            store_index_writer: Some(inputs.cache.store_index_writer),
-            frozen_store: config.frozen_store,
-        },
+        cache: build_cache(inputs, shared_side_effects_publisher),
         directories: crate::BuildLayout {
             link_options: inputs.directories.link_options,
             layout: inputs.directories.layout,
@@ -503,4 +470,27 @@ fn resolved_auto_installed_peers<'a>(
                 })
                 .and_then(|reference| reference.resolve(&alias))
         })
+}
+
+fn build_cache<'a>(
+    inputs: &'a BuildPhaseInputs<'a>,
+    shared_side_effects_publisher: Option<
+        &'a crate::shared_side_effects::SharedSideEffectsPublisher,
+    >,
+) -> crate::BuildCacheContext<'a> {
+    let config = inputs.policy.config;
+    crate::BuildCacheContext {
+        captured: None,
+        side_effects: inputs.cache.side_effects(),
+        engine_name: inputs.cache.engine_name,
+        read: config.side_effects_cache_read()
+            || config.remote_side_effects_cache.is_some(),
+        write: config.side_effects_cache_write(),
+        publisher: shared_side_effects_publisher,
+        store: Some(crate::BuildCacheStore {
+            directory: &config.store_dir,
+            writer: inputs.cache.store_index_writer,
+        }),
+        frozen_store: config.frozen_store,
+    }
 }

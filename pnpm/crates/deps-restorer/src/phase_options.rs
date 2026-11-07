@@ -36,6 +36,7 @@ pub struct LinkLockfiles<'a> {
     /// Restricts per-slot bin linking to this install's materialized
     /// snapshots. `None` keeps rebuild's all-slot behavior.
     pub materialized_snapshots: Option<&'a [PackageKey]>,
+    pub selected_snapshots: Option<&'a [PackageKey]>,
     /// The lockfile the module-resolution sidecars describe. The frozen
     /// path filters to the current install first; the fresh path already
     /// holds a materialization closure.
@@ -51,6 +52,7 @@ pub struct LinkPackageData<'a> {
     /// caller has no prefetch (the fresh-lockfile installer).
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
+    pub cas_paths_by_snapshot: Option<crate::CasPathsBySnapshot>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -158,7 +160,9 @@ pub struct HoistedLinkGraph<'a> {
 #[derive(Clone, Copy)]
 pub struct BuildPhaseGraph<'a> {
     pub trusted_importer_ids: &'a std::collections::HashSet<String>,
-    pub loaded_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    /// The snapshots the loaded linker gave physical directories. `None`
+    /// falls back to the `nodeLinker.excluded` closure.
+    pub loaded_snapshots: Option<&'a [PackageKey]>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,

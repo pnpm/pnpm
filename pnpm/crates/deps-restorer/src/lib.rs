@@ -45,8 +45,9 @@ pub(crate) use pnpm_process as process;
 pub use build_graph::*;
 pub use build_modules::*;
 pub use build_options::{
-    BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
-    BuildSnapshotInputs, CachedSideEffects, PatchedEngineCheck, ScriptPath,
+    BuildCacheContext, BuildCacheStore, BuildGraphInputs, BuildLayout, BuildProgress,
+    BuildScriptOptions, BuildSnapshotInputs, BuiltSideEffects, CachedSideEffects,
+    CapturedBuildSideEffects, PatchedEngineCheck, ScriptPath,
 };
 pub use claimed_commands::ClaimedCommands;
 pub use create_symlink_layout::*;

@@ -1,3 +1,5 @@
+mod builds;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -206,6 +208,20 @@ fn cas_opt_out_materializes_complete_dependency_tree_in_gvs() {
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    let warm_manifest: Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
+    )
+    .unwrap();
+    let excluded = &warm_manifest["packages"]["@pnpm.e2e/pkg-with-1-dep@100.0.0"];
+    assert_eq!(excluded["resolution"], "node");
+    assert!(excluded["files"].is_null());
+    assert!(Path::new(excluded["root"].as_str().unwrap()).is_dir());
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
         .with_args(["store", "prune"])
         .assert()
         .success();
@@ -358,7 +374,7 @@ fn frozen_cas_install_applies_opt_out_changes_and_repairs_missing_manifest() {
 }
 
 #[test]
-fn cas_requires_opt_out_for_builds_and_links_generated_bins_after_building() {
+fn cas_build_cache_miss_materializes_and_links_generated_bins_after_building() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -369,23 +385,32 @@ fn cas_requires_opt_out_for_builds_and_links_generated_bins_after_building() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
-        r#"{"dependencies":{"@pnpm.e2e/has-bin-and-needs-build":"1.0.0"}}"#,
+        r#"{"dependencies":{"@pnpm.e2e/has-bin-and-needs-build":"1.0.0","@pnpm.e2e/hello-world-js-bin":"1.0.0"}}"#,
     )
     .unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
-    yaml.push_str("allowBuilds:\n  '@pnpm.e2e/has-bin-and-needs-build': true\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n  '@pnpm.e2e/install-script-example': true\nnodeLinker:\n  type: loaded\n");
+    yaml.push_str("allowBuilds:\n  '@pnpm.e2e/has-bin-and-needs-build': true\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n  '@pnpm.e2e/install-script-example': true\nsideEffectsCache: true\nnodeLinker:\n  type: loaded\n");
     fs::write(&yaml_path, &yaml).unwrap();
-    let failure = pacquet
+    pacquet
         .with_arg("install")
         .assert()
-        .failure();
-    assert!(String::from_utf8_lossy(&failure.get_output().stderr).contains("nodeLinker.excluded"));
-    fs::write(
-        &yaml_path,
-        format!("{yaml}  excluded:\n    - '@pnpm.e2e/has-bin-and-needs-build'\n"),
-    )
-    .unwrap();
+        .success();
+    let manifest_path = workspace.join("node_modules/.pnpm/.store-manifest.json");
+    let first_manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    let package = &first_manifest["packages"]["@pnpm.e2e/has-bin-and-needs-build@1.0.0"];
+    assert!(Path::new(package["root"].as_str().unwrap()).is_dir());
+    assert!(package["files"].is_null());
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    let package = &manifest["packages"]["@pnpm.e2e/has-bin-and-needs-build@1.0.0"];
+    assert!(Path::new(package["root"].as_str().unwrap()).is_dir());
+    assert!(package["files"].is_null());
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
