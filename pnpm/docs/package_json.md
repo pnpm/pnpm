@@ -52,10 +52,11 @@ In a workspace, these checks apply to every workspace project, even when
 
 A project's `engines.node` is checked against the first of these that applies:
 
-1. The [`nodeVersion`](./settings/cli.md#nodeversion) setting.
+1. The [`nodeVersion`](./settings/cli.md#nodeversion) setting, when it is set.
 1. The Node.js that pnpm downloads for the project through
-   [`devEngines.runtime`](#devenginesruntime): the pinned version, or the
-   lowest version of a pinned range.
+   [`devEngines.runtime`](#devenginesruntime), or through
+   [`engines.runtime`](#enginesruntime) when `devEngines.runtime` names no
+   Node.js version: the pinned version, or the lowest version of a pinned range.
 1. The root project's runtime pin.
 1. The system Node.js.
 
