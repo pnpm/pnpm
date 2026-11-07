@@ -557,35 +557,31 @@ fn link_one_importer<Reporter: self::Reporter>(
             )
         })?;
 
-    // After the symlinks exist, walk them to discover each
-    // direct dep's `package.json` and link declared bins into
-    // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
-    // destination, so the bin pass gets the resolved location for
-    // free.
-    let claimed = if symlink {
-        let deps = resolved_entry_bins(&entries);
-        crate::link_bins_dir(
-            modules_dir,
-            crate::BinCandidates::Prefetched(&deps, bin_lookup),
-            crate::BinsDirPass::new(link_options),
-        )
-        .map_err(SymlinkDirectDependenciesError::LinkBins)?
-        .linked_commands
+    link_entry_bins(modules_dir, &entries, symlink, bin_lookup, link_options)
+        .map_err(SymlinkDirectDependenciesError::LinkBins)
+}
+
+/// Link the bins of the linked `entries` into `<modules_dir>/.bin`. Each
+/// entry's `target` is its link's destination, so no link is resolved.
+fn link_entry_bins(
+    modules_dir: &Path,
+    entries: &[ResolvedEntry<'_>],
+    symlink: bool,
+    bin_lookup: &crate::PrefetchedBinLookup<'_>,
+    link_options: &LinkBinsOptions,
+) -> Result<HashSet<String>, pnpm_cmd_shim::LinkBinsError> {
+    let pass = crate::BinsDirPass::new(link_options);
+    let linked = if symlink {
+        let deps = resolved_entry_bins(entries);
+        crate::link_bins_dir(modules_dir, crate::BinCandidates::Prefetched(&deps, bin_lookup), pass)
     } else {
         let locations: Vec<PathBuf> = entries
             .iter()
             .map(|entry| entry.target.clone())
             .collect();
-        crate::link_bins_dir(
-            modules_dir,
-            crate::BinCandidates::Locations(&locations),
-            crate::BinsDirPass::new(link_options),
-        )
-        .map_err(SymlinkDirectDependenciesError::LinkBins)?
-        .linked_commands
+        crate::link_bins_dir(modules_dir, crate::BinCandidates::Locations(&locations), pass)
     };
-
-    Ok(claimed)
+    linked.map(|linked| linked.linked_commands)
 }
 
 fn resolved_entry_bins(entries: &[ResolvedEntry<'_>]) -> Vec<crate::PrefetchedDepBin> {
