@@ -189,3 +189,35 @@ async fn body_timeouts_do_not_open_the_circuit() {
     }
     server.abort();
 }
+
+#[tokio::test]
+async fn document_fetch_recovers_after_the_circuit_cools_down() {
+    let mut server = mockito::Server::new_async().await;
+    let failed = server
+        .mock("GET", "/document")
+        .with_status(500)
+        .expect(1)
+        .create_async()
+        .await;
+    let upstream = breaking_upstream(server.url(), 1);
+    assert!(matches!(
+        upstream.fetch_document("document", None, 1024).await,
+        Err(RegistryError::UpstreamStatus { status: 500, .. }),
+    ));
+    failed.assert_async().await;
+    failed.remove_async().await;
+    let recovered = server
+        .mock("GET", "/document")
+        .with_body("recovered")
+        .expect(2)
+        .create_async()
+        .await;
+    upstream.breaker.lock().last_failure =
+        std::time::Instant::now().checked_sub(upstream.breaker.fail_timeout);
+    for _ in 0..2 {
+        let result = upstream.fetch_document("document", None, 1024).await.unwrap();
+        let super::FetchOutcome::Ok(document) = result else { panic!("expected a document") };
+        assert_eq!(document.bytes, b"recovered");
+    }
+    recovered.assert_async().await;
+}
