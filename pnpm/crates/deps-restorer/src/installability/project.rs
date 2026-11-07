@@ -42,19 +42,17 @@ pub fn project_host_requirements(
         || requirements.os.is_some()
         || requirements.libc.is_some();
     declares_any.then(|| {
-        let mut effective_manifest = manifest.clone();
-        if let Some(runtime_on_fail) = runtime_on_fail {
+        let node_version = if let Some(runtime_on_fail) = runtime_on_fail {
+            let mut effective_manifest = manifest.clone();
             pnpm_package_manifest::apply_runtime_on_fail_override(
                 &mut effective_manifest,
                 runtime_on_fail,
             );
-        }
-        ProjectHostRequirements {
-            installability: requirements,
-            node_version: pnpm_package_manifest::downloaded_node_version_from_engines_runtime(
-                &effective_manifest,
-            ),
-        }
+            pnpm_package_manifest::downloaded_node_version_from_engines_runtime(&effective_manifest)
+        } else {
+            pnpm_package_manifest::downloaded_node_version_from_engines_runtime(manifest)
+        };
+        ProjectHostRequirements { installability: requirements, node_version }
     })
 }
 
