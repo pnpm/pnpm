@@ -1,11 +1,10 @@
 use super::{
-    AuthType, Config, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, Diagnostic,
-    Display, Error, Method, OtpChallenge, OtpError, OtpSession, Reporter, StatusCode,
-    UnpublishHost, WebAuthFetchOptions, WebAuthRetryOptions, WithOtpError,
+    AuthType, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, Diagnostic, Display,
+    Error, Method, OtpChallenge, OtpError, OtpSession, Reporter, StatusCode, WithOtpError,
     otp_challenge_from_unauthorized_body, read_limited_body, registry_operation_failed,
     send_with_retry, write_error_for_status,
 };
-use crate::cli_args::registry_client::apply_auth_and_otp;
+use crate::cli_args::registry_client::{OtpHost, apply_auth_and_otp};
 
 /// Everything a registry mutation of one package needs. The OTP session is
 /// shared by every mutation of the run, so a partial unpublish (one `PUT`
@@ -53,7 +52,7 @@ impl OtpError for UnpublishHttpError {
 /// the request is retried with the obtained password, while any other 401 is
 /// a plain authentication failure. Every other status is returned for the
 /// caller to classify.
-pub(super) async fn send_mutation<Sys: UnpublishHost, Reporter: self::Reporter>(
+pub(super) async fn send_mutation<Sys: OtpHost, Reporter: self::Reporter>(
     mutation: &mut MutationContext<'_>,
     request: MutationRequest<'_>,
 ) -> miette::Result<reqwest::Response> {
@@ -122,19 +121,6 @@ async fn send_once(
         return Ok(response);
     }
     unauthorized_unpublish(response).await
-}
-
-pub(super) fn web_auth_fetch_options(config: &Config) -> WebAuthFetchOptions {
-    WebAuthFetchOptions {
-        timeout: Some(config.fetch_timeout),
-        retry: Some(WebAuthRetryOptions {
-            factor: Some(f64::from(config.fetch_retry_factor)),
-            max_timeout: Some(config.fetch_retry_maxtimeout),
-            min_timeout: Some(config.fetch_retry_mintimeout),
-            randomize: None,
-            retries: Some(config.fetch_retries),
-        }),
-    }
 }
 
 async fn unauthorized_unpublish(

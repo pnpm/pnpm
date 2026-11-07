@@ -229,6 +229,7 @@ async function deleteDistTag ({
     method: 'DELETE',
     headers: {
       'npm-auth-type': authType,
+      'npm-command': 'dist-tag',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
   })

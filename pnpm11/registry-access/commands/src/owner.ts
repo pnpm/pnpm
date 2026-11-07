@@ -136,6 +136,7 @@ async function ownerAdd (
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
+      'npm-command': 'owner',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify({ user: owner }),
@@ -169,6 +170,7 @@ async function ownerRm (
     authHeaderValue: authHeader,
     method: 'DELETE',
     headers: {
+      'npm-command': 'owner',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
   })

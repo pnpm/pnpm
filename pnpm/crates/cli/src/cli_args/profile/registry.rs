@@ -50,6 +50,7 @@ impl ProfileRegistry<'_> {
         let request = client
             .post(&endpoint)
             .header("content-type", "application/json")
+            .header("npm-command", "profile")
             .body(body_bytes);
         let response = apply_auth_and_otp(request, Some(self.auth_header), self.otp)
             .send()
