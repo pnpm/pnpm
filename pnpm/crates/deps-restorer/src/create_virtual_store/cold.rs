@@ -335,7 +335,7 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             snapshot,
             installed,
             requires_build,
-            force_import: batch.reuse.must_replace(snapshot_key),
+            force_import: batch.reuse.must_replace(snapshot_key)?,
         }),
     ))
 }

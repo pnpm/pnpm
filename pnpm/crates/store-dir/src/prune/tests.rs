@@ -1,6 +1,6 @@
 use crate::{InUse, StoreDir, register_project};
-use pnpm_fs::symlink_dir;
-use std::{fs, path::PathBuf};
+use pnpm_fs::{DirLock, symlink_dir};
+use std::{fs, path::PathBuf, thread, time::Duration};
 use tempfile::tempdir;
 
 /// Helper: lay out a slot under
@@ -47,6 +47,29 @@ fn prune_keeps_everything_when_no_projects() {
         .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
     assert!(slot.exists(), "no-project prune must leave slots intact");
+}
+
+#[test]
+fn pruning_a_slot_waits_for_its_writer_and_removes_a_quarantined_copy() {
+    let store = tempdir().unwrap();
+    let store_dir = StoreDir::new(store.path().to_path_buf());
+    let slot = make_slot(&store_dir.links(), "@", "left-pad", "1.0.0", "deadbeef");
+    let lock =
+        DirLock::acquire(slot.join(".pnpm-build.lock"), Duration::ZERO, Duration::from_mins(30))
+            .expect("acquire slot lock")
+            .expect("slot lock starts free");
+    let slot_to_remove = slot.clone();
+    let prune = thread::spawn(move || super::remove_slot_dir(&slot_to_remove));
+
+    thread::sleep(Duration::from_millis(100));
+    assert!(slot.exists(), "the pruner must wait for the slot writer");
+    drop(lock);
+    prune
+        .join()
+        .expect("join slot prune")
+        .expect("remove unlocked slot");
+
+    assert!(!slot.exists(), "the quarantined slot must be removed");
 }
 
 #[test]

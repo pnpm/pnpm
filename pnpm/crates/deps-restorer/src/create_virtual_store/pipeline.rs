@@ -75,7 +75,7 @@ impl<'a> CreateVirtualStore<'a> {
             check,
         )
         .await?;
-        self.settle_materialized::<Reporter>(wanted, &imported, &output.fetch_failed);
+        self.settle_materialized::<Reporter>(wanted, &imported, &output.fetch_failed)?;
         let handoff = retained_keys.map(|cache_keys| {
             retained_handoff(
                 (prefetch.store_index, prefetch.verified_files_cache),
@@ -94,16 +94,18 @@ impl<'a> CreateVirtualStore<'a> {
         wanted: WantedEntries<'a>,
         imported: &[PackageKey],
         fetch_failed: &HashSet<PackageKey>,
-    ) {
+    ) -> Result<(), CreateVirtualStoreError> {
         if !self.is_hoisted() {
             super::linked_archives::record_linked_archives(
                 self.ctx.linker.layout,
                 (imported, wanted.packages),
                 self.selection.supported_architectures,
                 fetch_failed,
-            );
+            )
+            .map_err(CreateVirtualStoreError::SlotLock)?;
         }
         self.report_added::<Reporter>(imported.len().saturating_sub(fetch_failed.len()));
+        Ok(())
     }
 
     async fn prefetch_and_prepare_store(
