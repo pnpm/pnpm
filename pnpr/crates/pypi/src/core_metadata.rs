@@ -1,5 +1,5 @@
 use crate::{ProjectFile, escape_html};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::BTreeMap, fmt::Write as _};
 
 /// Availability and optional digests of a PEP 658 metadata sidecar.
@@ -36,17 +36,31 @@ impl CoreMetadata {
 impl ProjectFile {
     #[must_use]
     pub fn metadata(&self) -> Option<&CoreMetadata> {
-        self.core_metadata.as_ref().or(self.dist_info_metadata.as_ref())
+        self.core_metadata
+            .as_ref()
+            .or(self.dist_info_metadata.as_ref())
+            .or(self.data_dist_info_metadata.as_ref())
     }
 
     pub(super) fn render_metadata_attributes(&self, html: &mut String) {
-        for (attribute, metadata) in [
-            ("data-core-metadata", &self.core_metadata),
-            ("data-dist-info-metadata", &self.dist_info_metadata),
-        ] {
-            if let Some(value) = metadata.as_ref().and_then(CoreMetadata::html_value) {
-                let _ = write!(html, r#" {attribute}="{}""#, escape_html(&value));
-            }
+        let Some(value) = self.metadata().and_then(CoreMetadata::html_value) else { return };
+        for attribute in ["data-core-metadata", "data-dist-info-metadata"] {
+            let _ = write!(html, r#" {attribute}="{}""#, escape_html(&value));
         }
     }
+}
+
+pub(super) fn deserialize_optional_metadata<'de, Input: Deserializer<'de>>(
+    input: Input,
+) -> Result<Option<CoreMetadata>, Input::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Declaration {
+        Known(CoreMetadata),
+        Unknown(serde::de::IgnoredAny),
+    }
+    Ok(match Declaration::deserialize(input)? {
+        Declaration::Known(metadata) => Some(metadata),
+        Declaration::Unknown(_) => None,
+    })
 }

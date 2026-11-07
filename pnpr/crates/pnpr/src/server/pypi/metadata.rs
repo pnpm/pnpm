@@ -3,9 +3,11 @@ use axum::{
     http::header,
     response::{IntoResponse, Response},
 };
-use pnpm_python_resolver::{matches_published_digest, metadata_url};
+use pnpm_python_resolver::metadata_url;
 use pnpr_pypi::{CoreMetadata, archive::MAX_METADATA_BYTES};
 use pnpr_upstream::{FetchOutcome, Upstream};
+use ssri::{Algorithm, Integrity};
+use std::collections::BTreeMap;
 
 pub(super) async fn serve(
     state: &AppState,
@@ -52,15 +54,29 @@ async fn load(
         return Ok(None);
     };
     if let CoreMetadata::Hashes(hashes) = metadata
-        && !matches_published_digest(&document.bytes, hashes)
+        && !matches_metadata_digest(&document.bytes, hashes)
     {
         return Err(RegistryError::UpstreamResponse {
             url: url.to_string(),
-            reason: "metadata does not match its published SHA-256".to_string(),
+            reason: "metadata has no matching supported digest".to_string(),
         });
     }
     if upstream.caches() {
         storage.write_upstream_document(namespace, key, &document.bytes).await?;
     }
     Ok(Some(document.bytes))
+}
+
+fn matches_metadata_digest(bytes: &[u8], hashes: &BTreeMap<String, String>) -> bool {
+    [Algorithm::Sha512, Algorithm::Sha384, Algorithm::Sha256]
+        .into_iter()
+        .find_map(|algorithm| {
+            hashes
+                .get(&algorithm.to_string())
+                .map(|digest| {
+                    Integrity::from_hex(digest, algorithm)
+                        .is_ok_and(|integrity| integrity.check(bytes).is_ok())
+                })
+        })
+        .unwrap_or(false)
 }

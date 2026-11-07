@@ -15,6 +15,11 @@ async fn metadata_availability_legacy_fallback_and_integrity_are_enforced() {
         ("dist-info-metadata", json!({"sha256": sha256_hex(bytes)}), StatusCode::OK),
         ("core-metadata", json!(false), StatusCode::NOT_FOUND),
         ("core-metadata", Value::Null, StatusCode::NOT_FOUND),
+        ("data-dist-info-metadata", json!(true), StatusCode::OK),
+        ("core-metadata", json!({"sha512": sha512_hex(bytes)}), StatusCode::OK),
+        ("core-metadata", json!({"sha512": sha512_hex(b"different")}), StatusCode::BAD_GATEWAY),
+        ("core-metadata", json!({}), StatusCode::BAD_GATEWAY),
+        ("core-metadata", json!({"unsupported": "digest"}), StatusCode::BAD_GATEWAY),
         ("core-metadata", json!({"sha256": sha256_hex(b"different")}), StatusCode::BAD_GATEWAY),
     ] {
         let page = upstream
@@ -58,7 +63,8 @@ async fn metadata_availability_legacy_fallback_and_integrity_are_enforced() {
                 .await
                 .unwrap();
             assert_eq!(response.status(), status, "{field}: {value}");
-            assert!(status != StatusCode::OK || body_bytes(response.into_body()).await == bytes);
+            let body = body_bytes(response.into_body()).await;
+            assert!(status != StatusCode::OK || body == bytes, "{field}: {value}, body: {body:?}");
         }
         let response = app
             .clone()
@@ -67,7 +73,9 @@ async fn metadata_availability_legacy_fallback_and_integrity_are_enforced() {
             .unwrap();
         let rendered: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-        assert_eq!(rendered["files"][0][field], value);
+        assert_eq!(rendered["files"][0]["core-metadata"], value);
+        assert!(rendered["files"][0].get("dist-info-metadata").is_none());
+        assert!(rendered["files"][0].get("data-dist-info-metadata").is_none());
         page.assert_async().await;
         sidecar.assert_async().await;
         page.remove_async().await;
@@ -127,4 +135,13 @@ async fn metadata_downloads_obey_cache_settings_and_size_limits() {
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     }
     oversized.assert_async().await;
+}
+
+fn sha512_hex(bytes: &[u8]) -> String {
+    ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(bytes)
+        .result()
+        .to_hex()
+        .1
 }

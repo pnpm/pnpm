@@ -426,7 +426,7 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     assert_eq!(page["files"][0]["hashes"]["sha256"], sha256_hex(&wheel));
     assert_eq!(page["files"][0]["requires-python"], ">=3.8");
     assert_eq!(page["files"][0]["core-metadata"]["sha256"], sha256_hex(metadata));
-    assert_eq!(page["files"][0]["dist-info-metadata"]["sha256"], sha256_hex(metadata));
+    assert!(page["files"][0].get("dist-info-metadata").is_none());
 
     // The HTML form is rendered from the same cached page.
     let response = app
@@ -437,11 +437,14 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(html.contains(&format!("/pypi/files/requests/{filename}#sha256=")), "{html}");
 
-    assert!(html.contains(&format!(r#"data-core-metadata="sha256={}""#, sha256_hex(metadata))));
-    assert!(html.contains(&format!(
-        r#"data-dist-info-metadata="sha256={}""#,
-        sha256_hex(metadata)
-    )));
+    assert!(
+        html.contains(&format!(r#"data-core-metadata="sha256={}""#, sha256_hex(metadata))),
+        "{html}",
+    );
+    assert!(
+        html.contains(&format!(r#"data-dist-info-metadata="sha256={}""#, sha256_hex(metadata))),
+        "{html}",
+    );
     for _ in 0..2 {
         let response = app
             .clone()

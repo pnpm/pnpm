@@ -321,7 +321,6 @@ impl Upstream {
         accept: Option<&str>,
         limit: usize,
     ) -> Result<FetchOutcome<FetchedDocument>> {
-        self.ensure_available()?;
         let url = format!(
             "{}/{}",
             self.base.trim_end_matches('/'),

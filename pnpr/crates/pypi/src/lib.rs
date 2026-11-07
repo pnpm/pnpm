@@ -16,8 +16,10 @@ pub mod multipart;
 
 pub use core_metadata::CoreMetadata;
 pub use pnpr_package_name::PythonNameError as NameError;
+pub use project_file::ProjectFile;
 
 mod core_metadata;
+mod project_file;
 
 use derive_more::{Display, Error};
 use pep440_rs::Version;
@@ -93,53 +95,6 @@ impl Yanked {
     #[must_use]
     pub fn is_yanked(&self) -> bool {
         !matches!(self, Yanked::Flag(false))
-    }
-}
-
-/// One distribution file of a project, in the PEP 691 key spelling.
-///
-/// `url` is the file's origin URL as an upstream index published it, and is
-/// absent in a hosted document, where the server derives every file's URL
-/// from its own address at render time.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(perfectionist::too_many_struct_fields, reason = "PEP 691 file entry fields")
-)]
-pub struct ProjectFile {
-    pub filename: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    /// Lowercase hash algorithm name to lowercase hex digest. A file must
-    /// carry a `sha256`.
-    #[serde(default)]
-    pub hashes: BTreeMap<String, String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub requires_python: Option<String>,
-    #[serde(default)]
-    pub yanked: Yanked,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub size: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub upload_time: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub core_metadata: Option<CoreMetadata>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dist_info_metadata: Option<CoreMetadata>,
-}
-
-impl ProjectFile {
-    fn render_json(&self, file_base: &str) -> Value {
-        let mut entry = serde_json::to_value(self).expect("project file serializes");
-        entry["url"] = json!(file_url(file_base, &self.filename));
-        entry
-    }
-
-    /// The file's lowercase hex SHA-256, when the index published one.
-    #[must_use]
-    pub fn sha256(&self) -> Option<&str> {
-        self.hashes.get("sha256").map(String::as_str)
     }
 }
 

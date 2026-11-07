@@ -156,6 +156,7 @@ fn verify_distribution(
         size: Some(upload.content.len() as u64),
         core_metadata: None,
         dist_info_metadata: None,
+        data_dist_info_metadata: None,
         upload_time: Some(now_iso()),
     };
     Ok(PypiPublication { key, org, entry, content: upload.content })

@@ -69,6 +69,7 @@ fn document() -> ProjectDocument {
                 size: Some(12),
                 core_metadata: None,
                 dist_info_metadata: None,
+                data_dist_info_metadata: None,
                 upload_time: Some("2026-01-01T00:00:00Z".to_string()),
             },
             ProjectFile {
@@ -80,6 +81,7 @@ fn document() -> ProjectDocument {
                 size: None,
                 core_metadata: None,
                 dist_info_metadata: None,
+                data_dist_info_metadata: None,
                 upload_time: None,
             },
         ],
@@ -315,11 +317,38 @@ fn core_metadata_roundtrips_and_renders_boolean_and_legacy_declarations() {
         page["files"][0][field] = declaration.clone();
         let document = ProjectDocument::parse(&serde_json::to_vec(&page).unwrap()).unwrap();
         let restored = ProjectDocument::parse(&document.to_bytes()).unwrap();
-        assert_eq!(restored.render_json("/files/sample-pkg")["files"][0][field], declaration);
+        assert_eq!(
+            restored.render_json("/files/sample-pkg")["files"][0]["core-metadata"],
+            declaration,
+        );
         let html = restored.render_html("/files/sample-pkg");
         match attribute {
             Some(attribute) => assert!(html.contains(attribute), "{html}"),
             None => assert!(!html.contains("data-core-metadata"), "{html}"),
         }
     }
+}
+
+#[test]
+fn malformed_optional_metadata_does_not_hide_project_files() {
+    let page = json!({"name": "sample-pkg", "files": [
+        {"filename": "sample_pkg-1.0-py3-none-any.whl", "core-metadata": "invalid"},
+        {"filename": "sample_pkg-2.0-py3-none-any.whl", "core-metadata": {"sha256": null}},
+        {"filename": "sample_pkg-3.0-py3-none-any.whl", "core-metadata": true,
+         "dist-info-metadata": false, "data-dist-info-metadata": false},
+    ]});
+    let document = ProjectDocument::parse(&serde_json::to_vec(&page).unwrap()).unwrap();
+    let rendered = document.render_json("/files/sample-pkg");
+    assert_eq!(
+        rendered["files"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3,
+    );
+    assert!(rendered["files"][0].get("core-metadata").is_none(), "{rendered}");
+    assert!(rendered["files"][1].get("core-metadata").is_none(), "{rendered}");
+    assert_eq!(rendered["files"][2]["core-metadata"], true);
+    let html = document.render_html("/files/sample-pkg");
+    assert!(html.contains(r#"data-dist-info-metadata="true""#), "{html}");
 }
