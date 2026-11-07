@@ -613,6 +613,7 @@ async fn invalid_dist_tag_requests_do_not_change_the_package() {
     for (method, tag, target) in [
         ("PUT", "ghost", Some(json!("9.9.9"))),
         ("PUT", "junk", Some(json!("not a version"))),
+        ("PUT", "numeric", Some(json!(123))),
         ("PUT", "1.x", Some(json!("1.0.0"))),
         ("PUT", "1.0.0", Some(json!("1.0.0"))),
         ("PUT", "v1", Some(json!("1.0.0"))),
@@ -695,6 +696,9 @@ async fn rejected_tag_rewrites_do_not_mark_versions_unpublished() {
         json!({ "latest": "2.0.0", "ghost": "9.9.9" }),
         json!({ "latest": "2.0.0", "1.x": "2.0.0" }),
         json!({ "next": "2.0.0" }),
+        json!({ "latest": 123 }),
+        json!(null),
+        json!([]),
     ] {
         let mut document = before.1.clone();
         document["versions"]

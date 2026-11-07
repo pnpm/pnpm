@@ -135,10 +135,7 @@ async fn update_dist_tag(
     )
     .await
     .map_err(IntoResponse::into_response)?;
-    let version = request.body
-        .map(serde_json::from_slice::<String>)
-        .transpose()
-        .map_err(|err| RegistryError::Json(err).into_response())?;
+    let version = parse_tag_target(request.body).map_err(IntoResponse::into_response)?;
     let storage = hosted_storage(state, Some(&target.org));
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     let change =
@@ -153,6 +150,14 @@ async fn update_dist_tag(
         Ok(TagUpdate::NotFound) => Err(not_found()),
         Err(err) => Err(err.into_response()),
     }
+}
+
+fn parse_tag_target(body: Option<&[u8]>) -> Result<Option<String>, RegistryError> {
+    body.map(serde_json::from_slice::<String>)
+        .transpose()
+        .map_err(|_| RegistryError::BadRequest {
+            reason: "dist-tag target must be a JSON string".to_string(),
+        })
 }
 
 fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOutcome) {

@@ -22,7 +22,10 @@ pub fn validate_document_dist_tags(hosted: &Value, submitted: &Value) -> Result<
             .get("dist-tags")
             .cloned()
             .unwrap_or_else(|| json!({})),
-    )?;
+    )
+    .map_err(|_| RegistryError::BadRequest {
+        reason: "`dist-tags` must be an object mapping tag names to version strings".to_string(),
+    })?;
     let versions = submitted
         .get("versions")
         .and_then(Value::as_object)
