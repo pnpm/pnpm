@@ -42,9 +42,15 @@ pub(super) fn terminate_process(pid: u32, separate_process_group: bool, stop: St
 pub(super) fn signal(target: i32, stop: Stop) {
     // SAFETY: plain `kill`; ESRCH is harmless when the target exited
     // concurrently.
-    unsafe {
-        libc::kill(target, stop.signal());
-    }
+    let sent = unsafe { libc::kill(target, stop.signal()) } == 0;
+    tracing::debug!(
+        target: "pacquet::process_tracker",
+        target_pid = target,
+        signal = stop.signal(),
+        sent,
+        error = (!sent).then(std::io::Error::last_os_error).map(tracing::field::display),
+        "signal",
+    );
 }
 
 /// Signal the group a reaped child led, while it still has a member.
@@ -111,6 +117,12 @@ impl Descendant {
     pub(super) fn signal(&self, stop: Stop) {
         #[cfg(target_os = "linux")]
         if let Some(pidfd) = &self.pidfd {
+            tracing::debug!(
+                target: "pacquet::process_tracker",
+                pid = self.pid,
+                signal = stop.signal(),
+                "signal a descendant through its pidfd",
+            );
             linux::signal(pidfd, stop.signal());
             return;
         }
