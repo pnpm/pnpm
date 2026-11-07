@@ -12,28 +12,41 @@ fn revision_accounts_use_the_revisions_format_and_separate_files() {
     assert_eq!(
         old["htpasswd"]["file"],
         old_home
-            .join("auth/htpasswd")
+            .join("auth")
+            .join("htpasswd")
             .to_str()
             .unwrap(),
     );
     assert_eq!(
         new["users"]["file"],
         new_home
-            .join("auth/users.json")
+            .join("auth")
+            .join("users.json")
             .to_str()
             .unwrap(),
     );
     assert_eq!(
-        fs::read_to_string(old_home.join("auth/htpasswd")).unwrap(),
+        fs::read_to_string(old_home.join("auth").join("htpasswd")).unwrap(),
         PNPR_BENCHMARK_HTPASSWD,
     );
     let accounts: Value =
-        serde_json::from_slice(&fs::read(new_home.join("auth/users.json")).unwrap()).unwrap();
+        serde_json::from_slice(&fs::read(new_home.join("auth").join("users.json")).unwrap())
+            .unwrap();
     assert_eq!(accounts[PNPR_BENCHMARK_USERNAME]["id"], "benchmark-account");
     let hash = accounts[PNPR_BENCHMARK_USERNAME]["password_hash"].as_str().unwrap();
     assert_eq!(format!("{PNPR_BENCHMARK_USERNAME}:{hash}\n"), PNPR_BENCHMARK_HTPASSWD);
-    assert!(!old_home.join("auth/users.json").exists());
-    assert!(!new_home.join("auth/htpasswd").exists());
+    assert!(
+        !old_home
+            .join("auth")
+            .join("users.json")
+            .exists(),
+    );
+    assert!(
+        !new_home
+            .join("auth")
+            .join("htpasswd")
+            .exists(),
+    );
 }
 
 #[test]
@@ -52,7 +65,8 @@ fn mock_config_comes_from_the_binarys_checkout() {
     assert_eq!(config["secret"], "revision-secret");
     assert_eq!(
         config["auth"]["htpasswd"]["file"],
-        home.join("auth/htpasswd")
+        home.join("auth")
+            .join("htpasswd")
             .to_str()
             .unwrap(),
     );
@@ -64,7 +78,10 @@ fn seeding_a_moving_revision_discards_old_auth_state() {
     let directory = tempfile::tempdir().unwrap();
     let source = "auth:\n  users: {}\n";
     seed_auth(source, directory.path());
-    let tokens = directory.path().join("auth/tokens.db");
+    let tokens = directory
+        .path()
+        .join("auth")
+        .join("tokens.db");
     fs::write(&tokens, "incompatible schema").unwrap();
     seed_auth(source, directory.path());
     assert!(!tokens.exists());
