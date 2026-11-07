@@ -10,6 +10,7 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -24,33 +25,22 @@ use std::{
 /// Symlink direct dependencies omitted from the lockfile importer because
 /// `excludeLinksFromLockfile` is enabled. Importer-owned aliases are left to
 /// the lockfile materialization passes so their dedupe decisions are preserved.
-pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
-    workspace_root: &Path,
+pub(crate) fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
+    modules_dirs: &ImporterModulesDirs,
     project_manifests: &[(PathBuf, &PackageManifest)],
     importers: Option<&HashMap<String, ProjectSnapshot>>,
     workspace_links: Option<WorkspaceLinks<'_>>,
     included: IncludedDependencies,
-    modules_dir_name: &std::ffi::OsStr,
     link_options: &LinkBinsOptions,
 ) -> Result<(), LinkManifestLinkDepsError> {
-    // The name must be a relative path of normal components, which
-    // `Config::modules_dir_name` guarantees — but this helper is public,
-    // and joined below it decides where symlinks (which force-replace
-    // squatters) land, so it enforces the contract itself rather than
-    // trusting every caller.
-    let mut components = Path::new(modules_dir_name).components().peekable();
-    let valid_name = components.peek().is_some()
-        && components.all(|component| matches!(component, std::path::Component::Normal(_)));
-    if !valid_name {
-        return Err(LinkManifestLinkDepsError::InvalidModulesDirName {
-            modules_dir_name: modules_dir_name.to_string_lossy().into_owned(),
-        });
-    }
     for (project_dir, manifest) in project_manifests {
         let importer_snapshot = importers.and_then(|importers| {
-            importers.get(&pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+            importers.get(&pnpm_workspace::importer_id_from_root_dir(
+                modules_dirs.lockfile_dir(),
+                project_dir,
+            ))
         });
-        let modules_dir = project_dir.join(modules_dir_name);
+        let modules_dir = modules_dirs.of(project_dir);
         let project = ProjectLinks {
             project_dir,
             modules_dir: &modules_dir,
@@ -65,13 +55,12 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
 }
 
 pub(crate) struct PruneManifestLinkDeps<'a> {
-    pub(crate) workspace_root: &'a Path,
+    pub(crate) modules_dirs: &'a ImporterModulesDirs,
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(crate) importers: Option<&'a HashMap<String, ProjectSnapshot>>,
     pub(crate) workspace_links: Option<WorkspaceLinks<'a>>,
     pub(crate) previously_included: IncludedDependencies,
     pub(crate) new_included: IncludedDependencies,
-    pub(crate) modules_dir_name: &'a std::ffi::OsStr,
     pub(crate) prunable_importer_ids: Option<&'a HashSet<String>>,
 }
 
@@ -81,8 +70,10 @@ pub(crate) fn prune_manifest_link_deps(
     let old_groups = pnpm_deps_restorer::selected_groups(options.previously_included);
     let new_groups = pnpm_deps_restorer::selected_groups(options.new_included);
     for (project_dir, manifest) in options.project_manifests {
-        let importer_id =
-            pnpm_workspace::importer_id_from_root_dir(options.workspace_root, project_dir);
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(
+            options.modules_dirs.lockfile_dir(),
+            project_dir,
+        );
         if options.prunable_importer_ids.is_some_and(|ids| !ids.contains(&importer_id)) {
             continue;
         }
@@ -111,9 +102,7 @@ fn prune_project_manifest_link_deps(
         .dependencies(new_groups.iter().copied())
         .map(|(alias, _)| alias)
         .collect();
-    let modules_dir = project_dir.join(options.modules_dir_name);
-    let Some(modules_dir) =
-        pnpm_deps_restorer::confined_modules_dir(&modules_dir, options.workspace_root)
+    let Some(modules_dir) = options.modules_dirs.confined(&options.modules_dirs.of(project_dir))
     else {
         return Ok(());
     };
@@ -342,20 +331,9 @@ fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
     if path.is_absolute() { path.to_path_buf() } else { project_dir.join(path) }
 }
 
-/// Error type of [`link_manifest_link_deps`].
+/// Error type of the pass that links dependencies `excludeLinksFromLockfile` keeps out of the lockfile.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkManifestLinkDepsError {
-    /// The modules-dir name is not a single normal path component
-    /// (`.`, `..`, empty, absolute, or contains a separator) — joined
-    /// under a project dir it would place symlinks outside the
-    /// intended modules directory.
-    #[display("Refusing to link into invalid modules directory name {modules_dir_name:?}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INVALID_MODULES_DIR_NAME))]
-    InvalidModulesDirName {
-        #[error(not(source))]
-        modules_dir_name: String,
-    },
-
     /// A dependency key that is not a valid npm package name — it
     /// would escape `node_modules/` (or collide with pnpm's layout)
     /// when joined as a directory name.

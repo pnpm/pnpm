@@ -326,7 +326,7 @@ fn project_extra_env(ctx: &RunContext<'_>) -> HashMap<String, String> {
     ctx.config.prepend_project_node_path::<pnpm_config::Host>(
         &mut env,
         ctx.dir,
-        &project_modules_dir_name(ctx),
+        &ctx.dir.join(project_modules_dir_name(ctx)),
     );
     env
 }

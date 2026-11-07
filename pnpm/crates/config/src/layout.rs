@@ -292,26 +292,24 @@ impl Config {
         pnpm_fs::lexical_normalize(&modules_dir)
     }
 
-    /// Put `<project_dir>/<modules_dir_name>` first on the `NODE_PATH` of
-    /// `env`, the environment of that project's scripts and commands, when
-    /// it is a custom modules directory and the project's executables are
+    /// Put `modules_dir`, the modules directory of the project at
+    /// `project_dir`, first on the `NODE_PATH` of `env`, the environment of
+    /// that project's scripts and commands, when it is not
+    /// `<project_dir>/node_modules` and the project's executables are
     /// symlinks, which have no shim to carry the entry. The rest of
     /// `NODE_PATH` is the one `env` sets, or else the inherited one.
     pub fn prepend_project_node_path<Sys: EnvVar>(
         &self,
         env: &mut HashMap<String, String>,
         project_dir: &Path,
-        modules_dir_name: &std::ffi::OsStr,
+        modules_dir: &Path,
     ) {
         let symlinked =
             cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true);
-        if !symlinked || !self.extend_node_path || modules_dir_name == "node_modules" {
+        if !symlinked || !self.extend_node_path || modules_dir == project_dir.join("node_modules") {
             return;
         }
-        let project_node_path = project_dir
-            .join(modules_dir_name)
-            .display()
-            .to_string();
+        let project_node_path = modules_dir.display().to_string();
         if project_node_path.contains(':') {
             return;
         }

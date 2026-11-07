@@ -11,7 +11,7 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Output},
 };
 
@@ -594,16 +594,8 @@ fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDi
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let root_modules_dir = workspace
-        .parent()
-        .expect("workspace parent")
-        .join("vendor");
-    let project_modules_dir = workspace.join("project-1/vendor");
-    let modules_dir = match setting {
-        ModulesDirSetting::Absolute => root_modules_dir.to_string_lossy().replace('\\', "/"),
-        ModulesDirSetting::Climbing => "../vendor".to_string(),
-    };
-    append_workspace_yaml_key(&workspace, "modulesDir", &modules_dir);
+    let (root_modules_dir, project_modules_dir) =
+        set_modules_dir_outside_the_project(&workspace, setting);
     append_workspace_yaml_key(&workspace, "nodeLinker", linker);
     append_workspace_yaml_key(&workspace, "packages", "['project-1']");
     append_workspace_yaml_key(&workspace, "allowBuilds", "{'@pnpm.e2e/generated-bins': true}");
@@ -620,7 +612,11 @@ fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDi
         root_dependencies["@pnpm.e2e/generated-bins"] = "1.0.0".into();
         write_manifest(
             &workspace,
-            &serde_json::json!({ "name": "root", "dependencies": root_dependencies }),
+            &serde_json::json!({
+                "name": "root",
+                "scripts": { "postinstall": "hello-world-js-bin" },
+                "dependencies": root_dependencies,
+            }),
         );
         write_manifest(
             &workspace.join("project-1"),
@@ -639,18 +635,6 @@ fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDi
             .as_str()
             .expect("version")
             .to_string()
-    };
-    let has_bin = |dir: &Path, command: &str| {
-        fs::read_dir(dir.join(".bin"))
-            .into_iter()
-            .flatten()
-            .flatten()
-            .any(|entry| {
-                entry
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with(command)
-            })
     };
     let assert_nothing_outside = |context: &str| {
         assert!(!workspace.join("vendor").exists(), "{context}");
@@ -689,4 +673,127 @@ fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDi
     assert_nothing_outside(&context);
 
     drop((root, mock_instance));
+}
+
+fn has_bin(modules_dir: &Path, command: &str) -> bool {
+    fs::read_dir(modules_dir.join(".bin"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(command)
+        })
+}
+
+/// The root's and project-1's modules directories for `setting`, after
+/// writing it to `pnpm-workspace.yaml`.
+fn set_modules_dir_outside_the_project(
+    workspace: &Path,
+    setting: ModulesDirSetting,
+) -> (PathBuf, PathBuf) {
+    let root_modules_dir = workspace
+        .parent()
+        .expect("workspace parent")
+        .join("vendor");
+    let modules_dir = match setting {
+        ModulesDirSetting::Absolute => root_modules_dir.to_string_lossy().replace('\\', "/"),
+        ModulesDirSetting::Climbing => "../vendor".to_string(),
+    };
+    append_workspace_yaml_key(workspace, "modulesDir", &modules_dir);
+    (root_modules_dir, workspace.join("project-1/vendor"))
+}
+
+#[test]
+fn links_excluded_from_the_lockfile_go_to_a_modules_dir_outside_the_project() {
+    for linker in ["isolated", "hoisted"] {
+        for setting in [ModulesDirSetting::Absolute, ModulesDirSetting::Climbing] {
+            link_with_modules_dir_outside_the_project(linker, setting);
+        }
+    }
+}
+
+fn link_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSetting) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let (root_modules_dir, project_modules_dir) =
+        set_modules_dir_outside_the_project(&workspace, setting);
+    append_workspace_yaml_key(&workspace, "nodeLinker", linker);
+    append_workspace_yaml_key(&workspace, "packages", "['project-1']");
+    append_workspace_yaml_key(&workspace, "excludeLinksFromLockfile", true);
+    fs::create_dir_all(workspace.join("linked")).expect("create the linked package");
+    fs::write(workspace.join("linked/bin.js"), "#!/usr/bin/env node\n").expect("write bin.js");
+    write_manifest(
+        &workspace.join("linked"),
+        &serde_json::json!({ "name": "linked", "version": "1.0.0", "bin": { "linked-bin": "bin.js" } }),
+    );
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "name": "root", "devDependencies": { "linked": "link:./linked" } }),
+    );
+    write_manifest(
+        &workspace.join("project-1"),
+        &serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "devDependencies": { "linked": "link:../linked" },
+        }),
+    );
+
+    for args in [&["install"][..], &["install", "--frozen-lockfile"]] {
+        let context = format!("{linker} {setting:?} {args:?}");
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(root_modules_dir.join("linked/package.json").exists(), "{context}");
+        assert!(has_bin(&root_modules_dir, "linked-bin"), "{context}");
+        assert!(project_modules_dir.join("linked/package.json").exists(), "{context}");
+        assert!(!workspace.join("vendor").exists(), "{context}");
+    }
+
+    let context = format!("{linker} {setting:?} --prod");
+    pacquet_in(&workspace)
+        .with_args(["install", "--prod"])
+        .assert()
+        .success();
+    assert!(!root_modules_dir.join("linked").exists(), "{context}");
+    assert!(!project_modules_dir.join("linked").exists(), "{context}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn the_loaded_linker_links_bins_into_a_modules_dir_outside_the_project() {
+    for setting in [ModulesDirSetting::Absolute, ModulesDirSetting::Climbing] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let (root_modules_dir, _) = set_modules_dir_outside_the_project(&workspace, setting);
+        append_workspace_yaml_key(&workspace, "nodeLinker", "{type: loaded}");
+        append_workspace_yaml_key(&workspace, "allowBuilds", "{'@pnpm.e2e/generated-bins': true}");
+        write_manifest(
+            &workspace,
+            &serde_json::json!({
+                "name": "root",
+                "dependencies": {
+                    "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+                    "@pnpm.e2e/generated-bins": "1.0.0",
+                },
+            }),
+        );
+
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert!(has_bin(&root_modules_dir, "hello-world-js-bin"), "{setting:?}");
+        assert!(has_bin(&root_modules_dir, "cmd1"), "{setting:?}");
+        assert!(!workspace.join("vendor").exists(), "{setting:?}");
+
+        drop((root, mock_instance));
+    }
 }

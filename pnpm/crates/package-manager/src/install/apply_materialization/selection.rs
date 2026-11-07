@@ -124,14 +124,16 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
     // These are importer symlinks, so `virtualStoreOnly` skips them too.
     if !inputs.config.virtual_store_only {
         crate::link_manifest_link_deps::<Reporter>(
-            inputs.workspace_root,
+            &pnpm_deps_restorer::ImporterModulesDirs::from_config(
+                inputs.config,
+                inputs.workspace_root,
+            ),
             inputs.materialized_project_manifests,
             inputs.lockfiles.wanted.and_then(|lockfile| {
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
             inputs.manifest_links.workspace_links,
             inputs.manifest_links.included,
-            inputs.config.modules_dir_name(),
             &crate::shim_link_options(inputs.config, inputs.node_linker),
         )
         .map_err(InstallError::LinkManifestLinkDeps)?;
