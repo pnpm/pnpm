@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::metadata::{Generation, TagChange, TagUpdate};
+use pnpr_storage::metadata::{Generation, TagChange, TagUpdate, validate_dist_tag};
 
 use crate::server::{
     Action, AppState, GENERATION_HEADER, RegistrySource, authorize_package,
@@ -49,18 +49,6 @@ pub(crate) async fn get_dist_tags(
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
-}
-
-fn validate_dist_tag(tag: &str) -> Result<(), RegistryError> {
-    if node_semver::Range::parse(tag).is_ok()
-        || tag.is_empty()
-        || tag
-            .chars()
-            .any(|character| character.is_control() || character.is_whitespace())
-    {
-        return Err(RegistryError::BadRequest { reason: "invalid dist-tag name".to_string() });
-    }
-    Ok(())
 }
 
 /// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or

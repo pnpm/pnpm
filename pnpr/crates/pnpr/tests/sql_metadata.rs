@@ -632,3 +632,31 @@ async fn invalid_dist_tag_requests_do_not_change_the_package() {
         assert_eq!(status, StatusCode::CREATED);
     }
 }
+
+#[tokio::test]
+async fn package_document_writes_validate_dist_tags() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let mut document = publish_doc("sql-pkg", "1.0.0", b"bytes");
+    document["dist-tags"]["latest"] = json!("9.9.9");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, ..) = send(&app, request("GET", "/npm/sql-pkg", &token, None)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    document["dist-tags"]["latest"] = json!("1.0.0");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let before = packument(&app, &token).await;
+    let path = format!("/npm/sql-pkg/-rev/{}", before.1["_rev"].as_str().unwrap());
+    for tags in
+        [json!({ "latest": "9.9.9" }), json!({ "latest": "1.0.0", "1.x": "1.0.0" }), json!({})]
+    {
+        let mut document = before.1.clone();
+        document["dist-tags"] = tags;
+        let (status, ..) = send(&app, request("PUT", &path, &token, Some(&document))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(packument(&app, &token).await, before);
+    }
+}

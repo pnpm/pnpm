@@ -471,6 +471,10 @@ a hosted registry.
 | `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string naming a published version, for example `"1.0.0"`. Names that parse as semver ranges and targets that are missing or unpublished return `400`. Requires `publish`. |
 | `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Removing `latest` while published versions exist returns `400`. Requires `publish`. |
 
+`dist-tags` in publish requests and package-document updates follows the same
+name and target rules. A package-document update cannot remove `latest` while
+published versions remain.
+
 Every key under `versions` and its manifest's `version` must be valid SemVer.
 pnpr rejects an invalid version with `400`.
 

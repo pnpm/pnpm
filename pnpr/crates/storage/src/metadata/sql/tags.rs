@@ -5,11 +5,11 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::Batch,
     commit::{Commit, PackageRow, package_row_from, package_row_query},
-    packument::{ORDINARY, TIME},
+    packument::{ORDINARY, PackumentRows, TIME},
     to_column,
 };
 use crate::{
-    metadata::{TagChange, TagUpdate},
+    metadata::{TagChange, TagUpdate, validate_dist_tag},
     publish::now_iso,
 };
 use pnpr_error::{RegistryError, Result};
@@ -106,6 +106,7 @@ pub(super) fn change_tag(
     if key.ecosystem != Ecosystem::Npm {
         return Ok(TagUpdate::NotFound);
     }
+    validate_dist_tag(&change.tag)?;
     let reads = [package_row_query(key), stored_tags_query(key), tag_target_query(key, change)];
     let (mut batch, results) = Batch::begin_with(connection, &key.catalog, &reads)?;
     let mut results = results.into_iter();
@@ -114,7 +115,8 @@ pub(super) fn change_tag(
     };
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
     validate_target(
-        change,
+        &change.tag,
+        change.target.as_deref(),
         !results
             .next()
             .unwrap_or_default()
@@ -158,12 +160,26 @@ fn tag_target_query<'query>(
     }
 }
 
-fn validate_target(change: &OwnedTagChange, version_exists: bool) -> Result<()> {
-    let reason = match change.target.as_deref() {
-        Some(version) if !version_exists => {
-            format!("dist-tag {:?} target {version:?} is not a published version", change.tag)
+pub(super) fn validate_packument_tags(
+    stored: &BTreeMap<String, String>,
+    rows: &PackumentRows,
+) -> Result<()> {
+    for (tag, target) in &rows.tags {
+        validate_dist_tag(tag)?;
+        validate_target(tag, Some(target), rows.versions.contains_key(target))?;
+    }
+    if stored.contains_key("latest") && !rows.tags.contains_key("latest") {
+        validate_target("latest", None, !rows.versions.is_empty())?;
+    }
+    Ok(())
+}
+
+fn validate_target(tag: &str, target: Option<&str>, has_version: bool) -> Result<()> {
+    let reason = match target {
+        Some(version) if !has_version => {
+            format!("dist-tag {tag:?} target {version:?} is not a published version")
         }
-        None if change.tag == "latest" && version_exists => {
+        None if tag == "latest" && has_version => {
             r#"cannot remove dist-tag "latest" while published versions exist"#.to_string()
         }
         _ => return Ok(()),

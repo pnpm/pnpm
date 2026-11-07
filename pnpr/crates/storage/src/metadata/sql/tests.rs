@@ -157,7 +157,7 @@ pub(super) fn packument(name: &str, versions: &[&str]) -> Value {
     json!({
         "name": name,
         "description": "a package",
-        "dist-tags": { "latest": versions.last().copied().unwrap_or_default() },
+        "dist-tags": versions.last().map_or_else(|| json!({}), |version| json!({ "latest": version })),
         "versions": manifests,
         "time": time,
         "maintainers": [{ "name": "someone" }],
@@ -502,6 +502,35 @@ async fn tag_moves_are_recorded(db: Db) {
     assert_eq!(missing, TagUpdate::NotFound);
 }
 
+async fn invalid_document_tags_leave_metadata_unchanged(db: Db) {
+    let storage = storage(&db);
+    write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
+    let before = read(&storage, "pkg").await;
+    let generation_before = generation(&storage, "pkg").await;
+    for tags in [
+        json!({ "latest": "2.0.0", "ghost": "9.9.9" }),
+        json!({ "latest": "not a version" }),
+        json!({ "latest": "2.0.0", "1.x": "2.0.0" }),
+        json!({ "next": "2.0.0" }),
+        json!({ "latest": "1.0.0" }),
+    ] {
+        let mut document = packument("pkg", &["2.0.0"]);
+        document["dist-tags"] = tags;
+        let bytes = serde_json::to_vec(&document).unwrap();
+        let expected = Some(&HostedDocumentVersion::Unversioned);
+        let error = storage
+            .write_hosted_document_if_current(&npm("pkg"), &bytes, expected, None)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, RegistryError::BadRequest { .. }), "{error:?}");
+        assert_eq!(generation(&storage, "pkg").await, generation_before);
+        assert_eq!(read(&storage, "pkg").await, before);
+    }
+    write(&storage, "pkg", &packument("pkg", &["2.0.0", "3.0.0"])).await;
+    assert_eq!(read(&storage, "pkg").await["dist-tags"]["latest"], "3.0.0");
+    write(&storage, "pkg", &packument("pkg", &[])).await;
+}
+
 async fn invalid_tag_changes_leave_metadata_unchanged(db: Db) {
     let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
@@ -641,6 +670,7 @@ conformance! {
     a_deprecation_rerenders_one_fragment,
     tag_moves_are_recorded,
     invalid_tag_changes_leave_metadata_unchanged,
+    invalid_document_tags_leave_metadata_unchanged,
     a_version_reads_without_the_package_view,
     removing_versions_and_packages,
     a_removed_version_is_never_accepted_again,
