@@ -93,6 +93,14 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
         get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
         StatusCode::OK,
     );
+    let catalog: Value =
+        serde_json::from_slice(&body_bytes(get(&app, "/v2/_catalog").await.into_body()).await)
+            .unwrap();
+    assert_eq!(catalog["repositories"], json!(["acme/app"]));
+    let tags = get(&app, "/v2/acme/app/tags/list").await;
+    assert_eq!(tags.status(), StatusCode::OK);
+    let tags_payload: Value = serde_json::from_slice(&body_bytes(tags.into_body()).await).unwrap();
+    assert_eq!(tags_payload, json!({ "name": "acme/app", "tags": [] }));
 
     let request = Request::delete(format!("/v2/acme/app/manifests/{manifest_digest}"))
         .header(header::AUTHORIZATION, &auth)
@@ -109,6 +117,27 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
     assert_eq!(
         get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
         StatusCode::NOT_FOUND,
+    );
+    let catalog: Value =
+        serde_json::from_slice(&body_bytes(get(&app, "/v2/_catalog").await.into_body()).await)
+            .unwrap();
+    assert_eq!(catalog["repositories"], json!([]));
+    let tags = get(&app, "/v2/acme/app/tags/list").await;
+    assert_eq!(tags.status(), StatusCode::NOT_FOUND);
+    let tags_payload: Value = serde_json::from_slice(&body_bytes(tags.into_body()).await).unwrap();
+    assert_eq!(tags_payload["errors"][0]["code"], "NAME_UNKNOWN");
+
+    let layer_delete = Request::delete(format!("/v2/acme/app/blobs/{}", digest_of(b"layer")))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(layer_delete)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
     );
 }
 

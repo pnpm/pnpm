@@ -658,6 +658,30 @@ async fn another_ecosystem_stores_its_document_whole(db: Db) {
     );
     let tag = TagChange { tag: "latest", target: Some("1.0.0"), principal: None };
     assert_eq!(storage.change_dist_tag(&name, tag).await.unwrap(), TagUpdate::NotFound);
+    let current = storage
+        .read_hosted_document_for_update(&name)
+        .await
+        .unwrap()
+        .unwrap();
+    storage
+        .write_hosted_document_if_current(&name, b"", Some(&current.version), None)
+        .await
+        .unwrap();
+    storage.write_hosted_document_if_current(&name, b"", None, None).await.unwrap();
+    assert!(
+        storage
+            .read_hosted_document(&name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        storage
+            .hosted_package_names()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
 }
 
 conformance! {
