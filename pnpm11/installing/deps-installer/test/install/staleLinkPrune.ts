@@ -65,15 +65,19 @@ test.each(LINKERS)('a removed link: dependency is reported (nodeLinker: %s)', as
   expect(removals(reporter)).toStrictEqual([':lib@1.0.0'])
 })
 
-// The isolated linker and a real `.bin` read the manifest to remove its bins, so
-// a malformed one fails the install there.
-test('a removed link: dependency with a malformed manifest is unlinked (nodeLinker: hoisted)', async () => {
-  const nodeLinker = 'hoisted'
+// With a bin, the link leaves a real `.bin`, so the removal reads the manifest
+// to remove its bins.
+test.each(LINKERS.flatMap((nodeLinker) => [
+  { nodeLinker, withBin: false },
+  { nodeLinker, withBin: true },
+]))('a removed link: dependency with a malformed manifest is unlinked (nodeLinker: $nodeLinker, withBin: $withBin)', async ({ nodeLinker, withBin }) => {
   const { allProjects, importers } = prepareWorkspace({
     '': { name: 'root', dependencies: { lib: 'link:lib' } },
   })
-  writeManifest('lib', { name: 'lib', version: '1.0.0' })
+  writeManifest('lib', { name: 'lib', version: '1.0.0', ...(withBin ? { bin: 'cli.js' } : {}) })
+  fs.writeFileSync('lib/cli.js', '#!/usr/bin/env node\n')
   await mutateModules(importers, testDefaults({ allProjects, nodeLinker }))
+  expect(fs.existsSync('node_modules/.bin')).toBe(withBin)
   fs.writeFileSync('lib/package.json', '{')
 
   allProjects[0].manifest.dependencies = {}

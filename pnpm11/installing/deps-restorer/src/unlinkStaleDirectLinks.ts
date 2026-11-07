@@ -1,13 +1,11 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { removeBinsOfDependency } from '@pnpm/bins.remover'
+import { removeBinsOfDependency, safeReadDependencyManifest } from '@pnpm/bins.remover'
 import { rootLogger } from '@pnpm/core-loggers'
-import { isError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { isProvidedByRoot } from '@pnpm/installing.linking.modules-cleaner'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
-import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 
 import type { HeadlessContext } from './context.js'
@@ -93,21 +91,9 @@ async function unlinkDirectLink (modulesDir: string, alias: string, binsDir: str
   // Unlinking through a symlinked `.bin` would delete files outside the project.
   const version = await isRealDir(binsDir)
     ? (await removeBinsOfDependency(link, { binsDir }))?.version
-    : await readManifestVersion(link)
+    : (await safeReadDependencyManifest(link))?.version
   await unlinkIfSymlink(link)
   return { version }
-}
-
-/** A malformed or missing manifest leaves the version out rather than blocking the unlink. */
-async function readManifestVersion (pkgDir: string): Promise<string | undefined> {
-  try {
-    return (await safeReadPackageJsonFromDir(pkgDir))?.version
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && (err.code === 'ERR_PNPM_BAD_PACKAGE_JSON' || err.code === 'ENOTDIR')) {
-      return undefined
-    }
-    throw err
-  }
 }
 
 async function isRealDir (dir: string): Promise<boolean> {
