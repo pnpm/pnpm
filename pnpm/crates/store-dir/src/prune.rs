@@ -25,6 +25,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use std::time::Duration;
 use std::{
     collections::HashSet,
     fs,
@@ -56,6 +57,14 @@ pub enum PruneError {
     InUseFiles(#[error(source)] io::Error),
     #[diagnostic(transparent)]
     StoreLock(#[error(source)] StoreLockError),
+
+    #[display("Failed to lock unreferenced slot at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_SLOT_LOCK))]
+    SlotLock {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
 
     /// Surface from the read-side of the project registry — stale
     /// entries that can't be unlinked, inaccessible registry dirs,
@@ -307,10 +316,27 @@ fn list_subdirs(dir: &Path) -> Result<Vec<std::ffi::OsString>, PruneError> {
 /// for the actual sweep target — that subtree is known unreachable
 /// at this point, so a recursive remove is safe.
 fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
-    match fs::remove_dir_all(path) {
+    static NEXT_QUARANTINE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    if !path.exists() {
+        return Ok(());
+    }
+    let lock = pnpm_fs::DirLock::acquire_waiting(
+        path.join(".pnpm-build.lock"),
+        Duration::from_mins(10),
+        Duration::from_mins(30),
+    )
+    .map_err(|error| PruneError::SlotLock { path: path.to_path_buf(), error })?;
+    let sequence = NEXT_QUARANTINE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let quarantine = path.with_file_name(format!(".pnpm-prune-{}-{sequence}", std::process::id(),));
+    match fs::rename(path, &quarantine) {
+        Ok(()) => drop(lock),
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(PruneError::RemoveSlot { path: path.to_path_buf(), error }),
+    }
+    match fs::remove_dir_all(&quarantine) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(PruneError::RemoveSlot { path: path.to_path_buf(), error }),
+        Err(error) => Err(PruneError::RemoveSlot { path: quarantine, error }),
     }
 }
 

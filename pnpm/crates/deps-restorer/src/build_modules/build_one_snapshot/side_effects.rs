@@ -81,7 +81,7 @@ pub(super) fn already_built<Reporter: self::Reporter>(
             (&candidate.name, &candidate.version),
         );
     }
-    Ok(rebuild_found_empty_row(context, snapshot_key, cache_key))
+    rebuild_found_empty_row(context, snapshot_key, cache_key)
 }
 /// A rebuild with [`RebuildOptions::skip_if_has_side_effects_cache`]
 /// skips a package whose side-effects row for this cache key is empty.
@@ -97,15 +97,38 @@ fn rebuild_found_empty_row(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     cache_key: Option<&str>,
-) -> bool {
-    let hit = context.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
+) -> Result<bool, BuildModulesError> {
+    let eligible = context.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
         && context.cache.read
-        && cache_key.is_some_and(|key| context.cache.side_effects.has_empty_row(snapshot_key, key))
-        && !context
+        && cache_key.is_some_and(|key| context.cache.side_effects.has_empty_row(snapshot_key, key));
+    if !eligible {
+        return Ok(false);
+    }
+    let needs_build = if context.directories.pkg_roots_by_key.is_none()
+        && context.directories.layout.enable_global_virtual_store()
+    {
+        let slot = crate::GlobalVirtualStoreSlot::acquire_existing(
+            context.directories.layout,
+            snapshot_key,
+        )
+        .map_err(BuildModulesError::SlotLock)?;
+        match slot {
+            Some(slot) => slot
+                .has_build_marker()
+                .map_err(|source| BuildModulesError::ReadBuildMarker {
+                    path: slot.package_path().join(NEEDS_BUILD_MARKER),
+                    source,
+                })?,
+            None => false,
+        }
+    } else {
+        context
             .pkg_roots()
             .all_recorded(snapshot_key)
             .iter()
-            .any(|pkg_dir| pkg_dir.join(NEEDS_BUILD_MARKER).exists());
+            .any(|pkg_dir| pkg_dir.join(NEEDS_BUILD_MARKER).exists())
+    };
+    let hit = !needs_build;
     if hit {
         tracing::debug!(
             target: "pacquet::build",
@@ -114,7 +137,7 @@ fn rebuild_found_empty_row(
             "side-effects cache holds an empty build; skipping the rebuild",
         );
     }
-    hit
+    Ok(hit)
 }
 fn bypasses_side_effects_cache(
     context: &BuildOneSnapshot<'_>,
@@ -207,23 +230,17 @@ fn lock_slot_missing_overlay(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
-) -> Result<Option<Option<pnpm_fs::DirLock>>, BuildModulesError> {
-    if global_slot_carries_overlay(context, snapshot_key, overlay) {
-        return Ok(None);
-    }
-    let lock = if context.directories.pkg_roots_by_key.is_none() {
-        crate::gvs_slot_lock::lock_global_virtual_store_slot(
-            context.directories.layout,
-            snapshot_key,
-        )
-        .map_err(BuildModulesError::SlotLock)?
+) -> Result<Option<Option<crate::GlobalVirtualStoreSlot>>, BuildModulesError> {
+    let slot = if context.directories.pkg_roots_by_key.is_none() {
+        crate::GlobalVirtualStoreSlot::acquire(context.directories.layout, snapshot_key)
+            .map_err(BuildModulesError::SlotLock)?
     } else {
         None
     };
-    if global_slot_carries_overlay(context, snapshot_key, overlay) {
+    if slot.as_ref().is_some_and(|slot| global_slot_carries_overlay(slot, overlay)) {
         return Ok(None);
     }
-    Ok(Some(lock))
+    Ok(Some(slot))
 }
 pub(super) fn materialize_overlay_into_slot<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,

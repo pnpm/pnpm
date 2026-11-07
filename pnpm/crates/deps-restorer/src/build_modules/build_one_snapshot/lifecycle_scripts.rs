@@ -25,7 +25,7 @@ pub(super) fn run_scripts_in_every_copy<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
-    slot_lock: Option<&pnpm_fs::DirLock>,
+    slot_lock: Option<&crate::GlobalVirtualStoreSlot>,
     run: &ScriptRun<'_>,
 ) -> Result<Option<bool>, BuildModulesError> {
     if !run.should_run_scripts {
@@ -64,7 +64,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
-    slot_lock: Option<&pnpm_fs::DirLock>,
+    slot_lock: Option<&crate::GlobalVirtualStoreSlot>,
     run: &ScriptRun<'_>,
 ) -> Result<Option<bool>, BuildModulesError> {
     let result = run_candidate_hooks::<Reporter>(

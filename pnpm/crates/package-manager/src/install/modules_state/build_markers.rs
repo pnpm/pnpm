@@ -122,16 +122,25 @@ pub(super) fn hash_dir_marker(
     if !file_type.is_dir() {
         return MarkerProbe::None;
     }
-    let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
+    if crate::safe_join_modules_dir::safe_join_modules_dir(
         &hash_dir.path().join("node_modules"),
         &snapshot_key.name.to_string(),
-    ) else {
+    )
+    .is_err()
+    {
         return MarkerProbe::Unreadable;
     };
-    if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
-        return MarkerProbe::Found;
+    let slot =
+        match crate::GlobalVirtualStoreSlot::acquire_existing_path(hash_dir.path(), snapshot_key) {
+            Ok(Some(slot)) => slot,
+            Ok(None) => return MarkerProbe::None,
+            Err(_) => return MarkerProbe::Unreadable,
+        };
+    match slot.has_build_marker() {
+        Ok(true) => MarkerProbe::Found,
+        Ok(false) => MarkerProbe::None,
+        Err(_) => MarkerProbe::Unreadable,
     }
-    MarkerProbe::None
 }
 /// The effective Node version participates only when materialization would
 /// run installability checks; constraint-free materialization keys the layout
@@ -156,14 +165,23 @@ pub(super) fn any_slot_build_marker(
     layout: &crate::VirtualStoreLayout,
 ) -> bool {
     for snapshot_key in eligible_snapshots {
-        let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
+        if crate::safe_join_modules_dir::safe_join_modules_dir(
             &layout.slot_dir(snapshot_key).join("node_modules"),
             &snapshot_key.name.to_string(),
-        ) else {
+        )
+        .is_err()
+        {
             return true;
+        }
+        let slot = match crate::GlobalVirtualStoreSlot::acquire_existing(layout, snapshot_key) {
+            Ok(Some(slot)) => slot,
+            Ok(None) => continue,
+            Err(_) => return true,
         };
-        if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
-            return true;
+        match slot.has_build_marker() {
+            Ok(true) => return true,
+            Ok(false) => {}
+            Err(_) => return true,
         }
     }
     false
