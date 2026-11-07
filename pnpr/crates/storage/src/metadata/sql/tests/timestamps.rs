@@ -102,6 +102,7 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
                 ("blobs", "changed_at"),
                 ("artifact_blobs", "mapped_at"),
                 ("staged_archives", "staged_at"),
+                ("removed_packages", "unpublished_at"),
             ] {
                 let mut row = connection.query_one(
                     "SELECT type FROM pragma_table_info(?1) WHERE name = ?2",
@@ -132,9 +133,37 @@ async fn an_invalid_publication_time_refuses_the_write(db: Db) {
     );
 }
 
+async fn unpublish_times_use_integer_milliseconds(db: Db) {
+    let storage = storage(&db);
+    let org = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
+    let before = now_millis();
+    write(&org, "example", &packument("example", &["1.0.0"])).await;
+    assert!(
+        org.remove_package(&npm("example"), Some("publisher")).await
+            .unwrap(),
+    );
+    let tombstone = org
+        .read_tombstone(&npm("example"))
+        .await
+        .unwrap()
+        .unwrap();
+    let unpublished = chrono::DateTime::parse_from_rfc3339(&tombstone.unpublished_at).unwrap();
+    assert!((before..=now_millis()).contains(&unpublished.timestamp_millis()));
+    let adapter = db.adapter();
+    tokio::task::spawn_blocking(move || {
+        adapter.read(ReadSource::Primary, &mut |connection| {
+            assert_timestamp_column(connection, ("removed_packages", "unpublished_at"), before)
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap();
+}
+
 conformance! {
     publication_times_keep_milliseconds_and_normalize_offsets,
     metadata_timestamps_are_integer_milliseconds,
     every_timestamp_column_has_integer_affinity,
     an_invalid_publication_time_refuses_the_write,
+    unpublish_times_use_integer_milliseconds,
 }

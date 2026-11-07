@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS removed_packages (
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     maintainers TEXT NOT NULL,
-    unpublished_at TEXT NOT NULL,
+    unpublished_at INTEGER NOT NULL,
     unpublished_by TEXT,
     PRIMARY KEY (catalog, ecosystem, name)
 ) STRICT, WITHOUT ROWID;
