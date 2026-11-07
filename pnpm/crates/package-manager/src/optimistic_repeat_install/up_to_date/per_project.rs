@@ -47,18 +47,7 @@ pub fn install_already_up_to_date_per_project(
     };
     let (projects, records) =
         recorded_projects(check, &workspace)?.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
-    projects
-        .par_iter()
-        .zip(&records)
-        .try_for_each(|(project, record)| {
-            check_project(check, &workspace, (project, record), &projects)
-        })?;
-    projects
-        .par_iter()
-        .zip(&records)
-        .try_for_each(|(project, record)| {
-            register_fast_path_workspace(&record.config, &project.root_dir)
-        })?;
+    check_and_register_projects(check, &workspace, &projects, &records)?;
     let manifests = projects
         .iter()
         .map(|project| (project.root_dir.as_path(), &project.manifest));
@@ -68,6 +57,26 @@ pub fn install_already_up_to_date_per_project(
         check.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
     )
     .into_workspace(workspace_root.clone()))
+}
+
+fn check_and_register_projects(
+    check: &UpToDateFastPathCheck<'_>,
+    workspace: &ListedWorkspace<'_>,
+    projects: &[Project],
+    records: &[ProjectRecord],
+) -> Result<(), &'static str> {
+    projects
+        .par_iter()
+        .zip(records)
+        .try_for_each(|(project, record)| {
+            check_project(check, workspace, (project, record), projects)
+        })?;
+    projects
+        .par_iter()
+        .zip(records)
+        .try_for_each(|(project, record)| {
+            register_fast_path_workspace(&record.config, &project.root_dir)
+        })
 }
 
 /// The configuration that keeps the per-project fast path off.

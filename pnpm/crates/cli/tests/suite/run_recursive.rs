@@ -53,7 +53,7 @@ fn recursive_run_checks_node_engines_against_each_projects_runtime() {
                 "name": "project-1",
                 "engines": { "node": ">=99.0.0" },
                 "devEngines": { "runtime": { "name": "node", "version": "99.0.0" } },
-                "scripts": { "test": "node -e \"process.stdout.write('ok')\"" },
+                "scripts": { "test": r#"node -e "process.stdout.write('ok')""# },
             }),
         )],
     );
