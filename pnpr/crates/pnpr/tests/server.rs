@@ -535,6 +535,13 @@ async fn await_no_tgz(dir: &std::path::Path, budget: Duration) -> bool {
     }
 }
 
+fn header_of(response: &axum::response::Response, name: impl header::AsHeaderName) -> Option<&str> {
+    response
+        .headers()
+        .get(name)
+        .and_then(|value| value.to_str().ok())
+}
+
 fn foo_packument(upstream_url: &str) -> Value {
     json!({
         "name": "foo",

@@ -240,7 +240,7 @@ async fn a_log_is_served_only_where_one_organization_is_reached() {
         "{}",
         String::from_utf8_lossy(&body_bytes(evidence.into_body()).await),
     );
-    assert_eq!(cache_control.unwrap(), "private, no-store");
+    assert_eq!(cache_control.unwrap(), "no-cache");
     let named = get(&app, "/npm/~acme/-/log/checkpoint", None).await;
     let named_status = named.status();
     let named_cache = named

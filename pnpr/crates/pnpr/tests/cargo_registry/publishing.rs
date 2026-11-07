@@ -102,7 +102,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{wrong}");
     }
-    // The same crate through the named registry, caller-scoped.
+    // The same public crate through the named registry stays cacheable.
     let response = app
         .clone()
         .oneshot(
@@ -113,7 +113,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    assert!(!response.headers().contains_key(header::CACHE_CONTROL));
     // npm-shaped paths mean nothing on the Cargo surface.
     let response = app
         .clone()
