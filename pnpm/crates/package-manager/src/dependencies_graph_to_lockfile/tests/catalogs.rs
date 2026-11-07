@@ -11,6 +11,8 @@ use std::collections::BTreeMap;
 
 #[test]
 fn excluded_catalog_links_keep_workspace_specifiers() {
+    let should_auto_install_peers = false;
+    let should_exclude_links_from_lockfile = true;
     for (name, reference, specifier, retained) in [
         ("default", "catalog:", "workspace:*", true),
         ("named", "catalog:named", "workspace:shared@*", true),
@@ -27,7 +29,15 @@ fn excluded_catalog_links_keep_workspace_specifiers() {
             name.to_string(),
             BTreeMap::from([("shared".to_string(), specifier.to_string())]),
         )]);
-        let mut opts = single_importer_opts(&manifest, &graph, direct, false, true, None, None);
+        let mut opts = single_importer_opts(
+            &manifest,
+            &graph,
+            direct,
+            should_auto_install_peers,
+            should_exclude_links_from_lockfile,
+            None,
+            None,
+        );
         opts.catalogs = &catalogs;
 
         let lockfile = dependencies_graph_to_lockfile(opts);

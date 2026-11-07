@@ -194,7 +194,8 @@ pub(super) fn direct_dep_version(
             let effective_specifier = parse_catalog_protocol(specifier)
                 .and_then(|name| sources.catalogs.get(name))
                 .and_then(|catalog| catalog.get(alias))
-                .map_or(specifier, String::as_str);
+                .map(String::as_str)
+                .unwrap_or(specifier);
             if !effective_specifier.starts_with("workspace:") {
                 return Ok(None);
             }
