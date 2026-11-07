@@ -5,7 +5,7 @@ const ENCODINGS = [null, '', 'identity', 'gzip', 'deflate', 'br', 'zstd', 'zstd,
 /** Requests whose response must come directly from the registry. */
 export function bypassesCache (request) {
   return request.method !== 'GET' ||
-    ['origin', 'if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since'].some(header => request.headers.has(header)) ||
+    ['origin', 'range', 'if-range', 'if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since'].some(header => request.headers.has(header)) ||
     new globalThis.URL(request.url).search !== '' ||
     hasCacheDirective(request.headers, ['no-cache', 'no-store'])
 }
@@ -23,7 +23,7 @@ export function metadataVariant (headers) {
 /** The query distinguishes representations even in caches that ignore fragments. */
 export function metadataKey (origin, base, name, variant) {
   const key = new globalThis.URL(`${base}${name}`, origin)
-  key.searchParams.set('__pnpr_metadata', `v5-${variant.name}`)
+  key.searchParams.set('__pnpr_metadata', `v6-${variant.name}`)
   key.searchParams.set('__pnpr_encoding', variant.encoding ?? 'absent')
   return key.href
 }
@@ -45,7 +45,7 @@ export function matchesMetadata (response, variant) {
 /** Caller-dependent and revalidation-only responses cannot populate a shared cache. */
 export function isShareable (response) {
   const vary = (response.headers.get('vary') ?? '').toLowerCase().split(',').map(value => value.trim())
-  return !hasCacheDirective(response.headers, ['private', 'no-store', 'no-cache']) &&
+  return !response.headers.has('set-cookie') && !hasCacheDirective(response.headers, ['private', 'no-store', 'no-cache']) &&
     vary.every(value => value === '' || value === 'accept' || value === 'accept-encoding')
 }
 

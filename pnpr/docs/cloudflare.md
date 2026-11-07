@@ -322,8 +322,12 @@ evaluate their validators. Put representation selectors in the cache key's path
 or query, never its fragment. When replacing a cache that mixed representations,
 use a new key namespace or purge its entries.
 
-A [cache-policy example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)
-provides these checks for a custom Worker.
+A [revalidating metadata cache example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)
+checks freshness and access with the registry on every read. It reuses stored
+metadata bodies after a `304`, forwards client validators unchanged, and leaves
+tarballs uncached. This avoids regional purges and missed mutation routes. Each
+read still needs an origin round trip. When replacing a caching Worker, remove
+its old metadata and tarball lookup paths and purge any separate CDN cache rules.
 
 **Publishes go through the Worker**, so your plan's request body limit caps
 the size of a package you can publish. It also caps each OCI blob upload

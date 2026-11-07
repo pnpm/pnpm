@@ -53,6 +53,8 @@ for (const [headers, query, method] of [
   [{ 'cache-control': 'max-age=10, No-Cache' }, '', 'GET'],
   [{ 'cache-control': 'no-store' }, '', 'GET'],
   [{ origin: 'https://client.example' }, '', 'GET'],
+  [{ range: 'bytes=0-1' }, '', 'GET'],
+  [{ 'if-range': '"revision"' }, '', 'GET'],
   [{ 'if-none-match': '"revision"' }, '', 'GET'],
   [{ 'if-modified-since': 'Fri, 06 Nov 2026 00:00:00 GMT' }, '', 'GET'],
   [{ 'if-match': '"revision"' }, '', 'GET'],
@@ -78,6 +80,7 @@ for (const headers of [
   { vary: '*' },
   { vary: 'Accept, Origin' },
   { vary: 'Cookie' },
+  { 'set-cookie': 'session=example' },
   { vary: 'Accept, X-Registry-View' },
 ]) {
   test(`does not share restricted responses: ${JSON.stringify(headers)}`, () => {
