@@ -104,7 +104,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let cache_key = format!("tar\t{integrity}\t{}", tarball.tarball);
         let cell = Arc::clone(&self.tar_integrity_cache.entry(cache_key).or_default());
         cell.get_or_try_init(|| async {
-            self.claim_download(&tarball.tarball, integrity, false);
+            let _claim = self.claim_download_until_cached(&tarball.tarball, Some(integrity), false);
             let resolved = FetchTarballForResolution {
                 http_client: &self.ctx.fetching.http_client,
                 store: self.ctx.store.resolution_store(),

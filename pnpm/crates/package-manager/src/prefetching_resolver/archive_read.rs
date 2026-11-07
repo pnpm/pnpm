@@ -228,9 +228,11 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // would otherwise reach `maybe_kickoff_download` while this fetch is in
         // flight and spend a second request on the same archive, which a
         // revision's one-GET protocol does not allow.
-        if let Some(integrity) = tarball.integrity.as_ref() {
-            self.claim_download(package_url, integrity, revision_addressed);
-        }
+        let _claim = self.claim_download_until_cached(
+            package_url,
+            tarball.integrity.as_ref(),
+            revision_addressed,
+        );
         let resolved = FetchTarballForResolution {
             http_client: &self.ctx.fetching.http_client,
             store: self.ctx.store.resolution_store(),
@@ -260,20 +262,32 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // the prefetch path off it too; for an unpinned archive this is the
         // first point at which the hash that names it is known.
         self.claim_download(package_url, &resolved.integrity, revision_addressed);
-        let mut resolution = tarball.clone();
-        if !is_git_hosted_tarball_url(&tarball.tarball) {
-            resolution.integrity = Some(resolved.integrity);
-        } else if tarball.integrity.is_none() {
-            self.share_commit_addressed_archive(
-                package_url,
-                &resolved.integrity,
-                revision_addressed,
-            );
-        }
+        let resolution = self.record_archive_integrity(
+            tarball,
+            package_url,
+            resolved.integrity,
+            revision_addressed,
+        );
         Ok::<_, ResolveError>(ResolvedTarballMetadata {
             resolution: LockfileResolution::Tarball(resolution),
             manifest: resolved.manifest.map(Arc::new),
         })
+    }
+
+    fn record_archive_integrity(
+        &self,
+        tarball: &pnpm_lockfile::TarballResolution,
+        package_url: &str,
+        integrity: ssri::Integrity,
+        revision_addressed: bool,
+    ) -> pnpm_lockfile::TarballResolution {
+        let mut resolution = tarball.clone();
+        if !is_git_hosted_tarball_url(&tarball.tarball) {
+            resolution.integrity = Some(integrity);
+        } else if tarball.integrity.is_none() {
+            self.share_commit_addressed_archive(package_url, &integrity, revision_addressed);
+        }
+        resolution
     }
     /// What a read of `tarball` checks and yields. A hash the read learns
     /// names what the lockfile pins. A pinned hash may name either the

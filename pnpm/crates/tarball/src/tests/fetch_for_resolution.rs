@@ -242,3 +242,111 @@ async fn files_only_slot_rejects_an_oversized_cached_package_json() {
     mock.assert_async().await;
     drop(store_dir_keep);
 }
+
+fn slow_first_attempt_tarball_body(
+    request_started: Arc<tokio::sync::Notify>,
+) -> impl Fn(&mut dyn std::io::Write) -> std::io::Result<()> + Send + Sync + 'static {
+    let first_attempt = std::sync::atomic::AtomicBool::new(true);
+    move |writer| {
+        if first_attempt.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            request_started.notify_one();
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        writer.write_all(FASTIFY_ERROR_TARBALL)
+    }
+}
+
+/// <https://github.com/zkochan/pnpm-tasks/issues/23>
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelled_prefetch_wakes_waiter_to_take_over() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let request_started = Arc::new(tokio::sync::Notify::new());
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .expect(2)
+        .with_chunked_body(slow_first_attempt_tarball_body(Arc::clone(&request_started)))
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+    let client: &'static ThrottledClient = Box::leak(Box::new(ThrottledClient::default()));
+    let auth_headers: &'static AuthHeaders = Box::leak(Box::new(AuthHeaders::default()));
+    let pkg_integrity: &'static ssri::Integrity =
+        Box::leak(Box::new(integrity(FASTIFY_ERROR_INTEGRITY)));
+    let url: &'static str = Box::leak(url.into_boxed_str());
+    let mem_cache: &'static MemCache = Box::leak(Box::new(MemCache::default()));
+    let cache_key = package_mem_cache_key(url, Some(pkg_integrity), false);
+
+    let owner_task = tokio::spawn(async move {
+        ingest(client, auth_headers, url, pkg_integrity, store_path)
+            .run_with_mem_cache::<SilentReporter>(mem_cache)
+            .await
+    });
+    wait_until_claimed(mem_cache, &cache_key).await;
+    request_started.notified().await;
+
+    let waiter_task = tokio::spawn(async move {
+        resolution_read(client, auth_headers, url, pkg_integrity, store_path)
+            .run::<SilentReporter>(Some(mem_cache))
+            .await
+    });
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    owner_task.abort();
+    let _ = owner_task.await;
+
+    let resolved = tokio::time::timeout(Duration::from_secs(5), waiter_task)
+        .await
+        .expect("waiter must not hang after owner cancellation")
+        .expect("join waiter")
+        .expect("waiter takes over the fetch and resolves");
+    let manifest = resolved.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("@fastify/error"));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// <https://github.com/zkochan/pnpm-tasks/issues/23>
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelled_pinned_resolution_read_releases_slot_for_next_caller() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let request_started = Arc::new(tokio::sync::Notify::new());
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .expect(2)
+        .with_chunked_body(slow_first_attempt_tarball_body(Arc::clone(&request_started)))
+        .create_async()
+        .await;
+    let url = format!("{}/pkg.tgz", server.url());
+    let client: &'static ThrottledClient = Box::leak(Box::new(ThrottledClient::default()));
+    let auth_headers: &'static AuthHeaders = Box::leak(Box::new(AuthHeaders::default()));
+    let pkg_integrity: &'static ssri::Integrity =
+        Box::leak(Box::new(integrity(FASTIFY_ERROR_INTEGRITY)));
+    let url: &'static str = Box::leak(url.into_boxed_str());
+    let mem_cache: &'static MemCache = Box::leak(Box::new(MemCache::default()));
+    let cache_key = package_mem_cache_key(url, Some(pkg_integrity), false);
+
+    let read_task = tokio::spawn(async move {
+        resolution_read(client, auth_headers, url, pkg_integrity, store_path)
+            .run::<SilentReporter>(Some(mem_cache))
+            .await
+    });
+    wait_until_claimed(mem_cache, &cache_key).await;
+    request_started.notified().await;
+    read_task.abort();
+    let _ = read_task.await;
+
+    let files = tokio::time::timeout(
+        Duration::from_secs(5),
+        ingest(client, auth_headers, url, pkg_integrity, store_path)
+            .run_with_mem_cache::<SilentReporter>(mem_cache),
+    )
+    .await
+    .expect("subsequent ingest must not hang on a cancelled resolution read")
+    .expect("ingest succeeds after previous owner was cancelled");
+    assert!(files.contains_key("package.json"));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}

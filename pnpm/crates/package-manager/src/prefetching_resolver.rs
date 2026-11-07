@@ -161,6 +161,22 @@ pub struct PrefetchingResolver<Reporter: self::Reporter> {
     _phantom: PhantomData<fn() -> Reporter>,
 }
 
+pub(super) struct DownloadClaimGuard<'a> {
+    spawned_downloads: &'a DashSet<String>,
+    mem_cache: &'a MemCache,
+    key: Option<String>,
+}
+
+impl Drop for DownloadClaimGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(key) = self.key.take()
+            && !self.mem_cache.contains_key(&key)
+        {
+            self.spawned_downloads.remove(&key);
+        }
+    }
+}
+
 impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// Build a wrapper from the install orchestrator's borrowed
     /// references. Clones the necessary `Arc`s up front so the
@@ -288,6 +304,24 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             Some(integrity),
             revision_addressed,
         ))
+    }
+
+    /// Claim `package_url` for a resolve-time read and release the claim on
+    /// drop if the read was cancelled before settling [`MemCache`].
+    fn claim_download_until_cached(
+        &self,
+        package_url: &str,
+        integrity: Option<&ssri::Integrity>,
+        revision_addressed: bool,
+    ) -> Option<DownloadClaimGuard<'_>> {
+        let integrity = integrity?;
+        let key = package_mem_cache_key(package_url, Some(integrity), revision_addressed);
+        let claimed = self.spawned_downloads.insert(key.clone());
+        Some(DownloadClaimGuard {
+            spawned_downloads: &self.spawned_downloads,
+            mem_cache: &self.ctx.mem_cache,
+            key: claimed.then_some(key),
+        })
     }
 
     fn should_skip_prefetch(

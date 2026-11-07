@@ -2,13 +2,12 @@
 //! through the in-memory cache.
 
 use crate::{
-    ArchiveIntegrity, CacheHeaders, CacheValue, CachedTarball, MemCache, RetryOpts, TarballError,
-    TarballPackage, apply_placeholder_manifest,
+    ArchiveIntegrity, CacheClaimGuard, CacheHeaders, CacheSlotClaim, CacheValue, CachedTarball,
+    MemCache, RetryOpts, TarballError, TarballPackage, apply_placeholder_manifest,
     archive_integrity::{ArchiveVerification, IntegrityKind},
     claim_cache_entry,
     download::{AttemptedFetch, fetch_and_extract_conditional},
-    package_mem_cache_key, publish_cache_failure, publish_cached_tarball, read_cas_package_json,
-    read_subdir_manifest, wait_for_cached_tarball,
+    package_mem_cache_key, read_cas_package_json, read_subdir_manifest, wait_for_cached_tarball,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pnpm_package_manifest::PackageBin;
@@ -16,7 +15,7 @@ use pnpm_reporter::Reporter;
 use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter, store_index_key};
 use ssri::Integrity;
 use std::{collections::BTreeMap, sync::Arc};
-use tokio::sync::{Notify, RwLock};
+use tokio::sync::RwLock;
 
 /// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
 /// computed from the downloaded tarball and the bundled manifest read
@@ -195,42 +194,59 @@ impl FetchTarballForResolution<'_> {
             self.package.integrity,
             self.revision_addressed,
         );
-        let (cache_lock, owner_notify) = claim_cache_entry(mem_cache, mem_cache_key);
-        match owner_notify {
-            // A settled slot holds no hash, so it cannot say whether the pin
-            // names the resource or the tar.
-            None if self.kind() == IntegrityKind::ResourceOrTar => {
-                drop(cache_lock);
-                match self.fetch_extracted::<Reporter>(None).await? {
-                    FetchedBody::Extracted(extracted) => extracted.into_resolved(self.kind()),
-                    FetchedBody::NotModified(_) => {
-                        Err(TarballError::HttpStatus(crate::HttpStatusError {
-                            url: self.package.url.to_string(),
-                            status: 304,
-                        }))
+        loop {
+            match claim_cache_entry(mem_cache, &mem_cache_key) {
+                // A settled slot holds no hash, so it cannot say whether the pin
+                // names the resource or the tar.
+                CacheSlotClaim::Existing(cache_lock)
+                    if self.kind() == IntegrityKind::ResourceOrTar =>
+                {
+                    drop(cache_lock);
+                    return match self.fetch_extracted::<Reporter>(None).await? {
+                        FetchedBody::Extracted(extracted) => extracted.into_resolved(self.kind()),
+                        FetchedBody::NotModified(_) => {
+                            Err(TarballError::HttpStatus(crate::HttpStatusError {
+                                url: self.package.url.to_string(),
+                                status: 304,
+                            }))
+                        }
+                    };
+                }
+                CacheSlotClaim::Existing(cache_lock) => {
+                    if let Some(resolved) =
+                        self.take_cached(mem_cache, &mem_cache_key, &cache_lock).await?
+                    {
+                        return Ok(resolved);
                     }
                 }
+                CacheSlotClaim::Claimed(claim) => {
+                    return self.fetch_as_owner::<Reporter>(claim).await;
+                }
             }
-            None => self.take_cached(&cache_lock).await,
-            Some(notify) => self.fetch_as_owner::<Reporter>(cache_lock, notify).await,
         }
     }
 
     async fn take_cached(
         &self,
-        cache_lock: &RwLock<CacheValue>,
-    ) -> Result<ResolvedTarball, TarballError> {
-        let cached = wait_for_cached_tarball(cache_lock, self.package.url).await?;
+        mem_cache: &MemCache,
+        mem_cache_key: &str,
+        cache_lock: &Arc<RwLock<CacheValue>>,
+    ) -> Result<Option<ResolvedTarball>, TarballError> {
+        let Some(cached) =
+            wait_for_cached_tarball(mem_cache, mem_cache_key, cache_lock, self.package.url).await?
+        else {
+            return Ok(None);
+        };
         let integrity =
             self.package.integrity.cloned().expect("a pinned read claims a hashed cache identity");
         let manifest = self.manifest_from_cached(&cached).await?;
-        Ok(ResolvedTarball {
+        Ok(Some(ResolvedTarball {
             integrity,
             tar_integrity: None,
             manifest,
             cache_headers: CacheHeaders::default(),
             final_url: self.package.url.to_owned(),
-        })
+        }))
     }
 
     async fn manifest_from_cached(
@@ -246,32 +262,37 @@ impl FetchTarballForResolution<'_> {
 
     async fn fetch_as_owner<Reporter: self::Reporter>(
         self,
-        cache_lock: Arc<RwLock<CacheValue>>,
-        notify: Arc<Notify>,
+        claim: CacheClaimGuard<'_>,
     ) -> Result<ResolvedTarball, TarballError> {
         match self.fetch_extracted::<Reporter>(None).await {
             Ok(FetchedBody::Extracted(extracted)) => {
-                publish_cached_tarball(
-                    &cache_lock,
-                    &notify,
-                    CachedTarball {
-                        files: Arc::clone(&extracted.body.files),
-                        manifest: extracted.body.root_manifest.clone(),
-                        requires_build: None,
-                        bins: extracted.body.bins.clone(),
-                    },
-                )
-                .await;
-                extracted.into_resolved(self.kind())
+                let cached = CachedTarball {
+                    files: Arc::clone(&extracted.body.files),
+                    manifest: extracted.body.root_manifest.clone(),
+                    requires_build: None,
+                    bins: extracted.body.bins.clone(),
+                };
+                match extracted.into_resolved(self.kind()) {
+                    Ok(resolved) => {
+                        claim.publish_available(cached).await;
+                        Ok(resolved)
+                    }
+                    Err(err) => {
+                        claim.publish_failed(&err).await;
+                        Err(err)
+                    }
+                }
             }
             Ok(FetchedBody::NotModified(_)) => {
-                Err(TarballError::HttpStatus(crate::HttpStatusError {
+                let err = TarballError::HttpStatus(crate::HttpStatusError {
                     url: self.package.url.to_string(),
                     status: 304,
-                }))
+                });
+                claim.publish_failed(&err).await;
+                Err(err)
             }
             Err(err) => {
-                publish_cache_failure(&cache_lock, &notify, &err).await;
+                claim.publish_failed(&err).await;
                 Err(err)
             }
         }
