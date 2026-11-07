@@ -157,6 +157,7 @@ pub(super) async fn send_json<'client>(
         let builder = client
             .request(method.clone(), url)
             .header("content-type", "application/json")
+            .header("npm-command", "access")
             .body(body_bytes.clone());
         apply_auth_and_otp(builder, auth_header, context.otp.as_deref())
     })

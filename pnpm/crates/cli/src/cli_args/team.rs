@@ -263,6 +263,7 @@ async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Re
             let builder = client
                 .put(&url)
                 .header("content-type", "application/json")
+                .header("npm-command", "team")
                 .body(body.clone());
             apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
@@ -287,7 +288,7 @@ async fn team_destroy(context: &TeamContext<'_>, params: &[String]) -> miette::R
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder = client.delete(&url);
+            let builder = client.delete(&url).header("npm-command", "team");
             apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
         .await
@@ -318,6 +319,7 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
             let builder = client
                 .put(&url)
                 .header("content-type", "application/json")
+                .header("npm-command", "team")
                 .body(body.clone());
             apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
@@ -352,6 +354,7 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
             let builder = client
                 .delete(&url)
                 .header("content-type", "application/json")
+                .header("npm-command", "team")
                 .body(body.clone());
             apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })

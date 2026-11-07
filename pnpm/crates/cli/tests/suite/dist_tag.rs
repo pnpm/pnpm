@@ -361,6 +361,7 @@ fn add_sets_a_dist_tag_with_otp() {
     let registry = format!("{}/", server.url());
     let mock = server
         .mock("PUT", "/-/package/pkg/dist-tags/beta")
+        .match_header("npm-command", "dist-tag")
         .match_header("authorization", "Bearer token")
         .match_header("content-type", Matcher::Regex(r"^application/json\b".to_string()))
         .match_header("npm-auth-type", "legacy")
@@ -585,6 +586,7 @@ fn rm_removes_an_existing_dist_tag() {
         .create();
     let delete_mock = server
         .mock("DELETE", "/-/package/pkg/dist-tags/beta")
+        .match_header("npm-command", "dist-tag")
         .match_header("npm-auth-type", "web")
         .with_status(200)
         .create();
