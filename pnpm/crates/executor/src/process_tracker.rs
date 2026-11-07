@@ -144,16 +144,17 @@ impl ProcessTracker {
                 return false;
             }
             state.cancelled = true;
-            state.executions
+            let executions = state.executions
                 .iter()
                 .map(|(&id, execution)| (id, execution.clone()))
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            tracing::debug!(
+                target: "pacquet::process_tracker",
+                executions = ?executions.iter().map(|(id, execution)| (id, execution.describe())).collect::<Vec<_>>(),
+                "cancel",
+            );
+            executions
         };
-        tracing::debug!(
-            target: "pacquet::process_tracker",
-            executions = ?executions.iter().map(|(id, execution)| (id, execution.describe())).collect::<Vec<_>>(),
-            "cancel",
-        );
         #[cfg(unix)]
         grace::stop_gracefully(&self.state, executions);
         #[cfg(not(unix))]
@@ -402,12 +403,9 @@ impl Registration<'_> {
 impl Drop for Registration<'_> {
     fn drop(&mut self) {
         let Some(id) = self.id else { return };
+        let mut state = self.tracker.state.lock().expect("process tracker lock is not poisoned");
+        state.executions.remove(&id);
         tracing::debug!(target: "pacquet::process_tracker", id, "deregister");
-        self.tracker.state
-            .lock()
-            .expect("process tracker lock is not poisoned")
-            .executions
-            .remove(&id);
     }
 }
 

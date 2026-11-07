@@ -105,7 +105,7 @@ fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let graceful = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => { fs.writeFileSync('terminated.txt', ''); process.exit(0) }); fs.writeFileSync('ran.txt', ''); setInterval(() => {}, 1000)""#;
     let stubborn = r#"node -e "const fs = require('fs'); process.on('SIGTERM', () => fs.writeFileSync('terminated.txt', '')); fs.writeFileSync('ran.txt', String(process.pid)); setTimeout(() => process.exit(0), 60000)""#;
-    let fails = r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('../a-graceful/ran.txt') && fs.existsSync('../c-stubborn/ran.txt') ? process.exit(1) : setTimeout(wait, 10); wait()""#;
+    let fails = r#"node -e "const fs = require('fs'); fs.writeFileSync('ran.txt', ''); const wait = () => fs.existsSync('../a-graceful/ran.txt') && fs.existsSync('../c-stubborn/ran.txt') ? process.exit(1) : setTimeout(wait, 10); wait()""#;
     write_workspace(
         &workspace,
         &[("a-graceful", graceful), ("b-fails", fails), ("c-stubborn", stubborn)],
