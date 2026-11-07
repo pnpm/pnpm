@@ -18,14 +18,12 @@
 //! key. A missing file fails the command loudly rather than running with a
 //! partial environment.
 //!
-//! The load runs on the main thread before the startup thread exists, the
-//! only place `std::env::set_var` may run. `--env-file` is this binary's
-//! own option: [`strip_flags`] removes its tokens from the argv a
-//! dispatched pnpm receives (an older pnpm would reject the unknown flag),
-//! and the loaded variables travel by environment inheritance instead.
-//! Tokens past the passthrough point — script arguments after `--`, or
-//! after a `run`/`exec` script name — are left alone (see
-//! `crate::parse_boundary`).
+//! `--env-file` is this binary's own option: [`strip_flags`] removes its
+//! tokens from the argv a dispatched pnpm receives (an older pnpm would
+//! reject the unknown flag), and the loaded variables travel by
+//! environment inheritance instead. Tokens past the passthrough point —
+//! script arguments after `--`, or after a `run`/`exec` script name — are
+//! left alone (see `crate::parse_boundary`).
 
 mod parse;
 
@@ -98,6 +96,11 @@ fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()
         let id = env_key_id(key);
         if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "`node --env-file` makes the pairs real environment variables, so even \
+                          a native dependency's `getenv` sees them"
+            )]
             // SAFETY: `load` runs on the main thread before `run_on_big_stack`
             // spawns the startup thread, so no other thread exists that
             // could access the environment concurrently.

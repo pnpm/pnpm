@@ -14,11 +14,10 @@
 //!   to whatever the caller inherited, so the guard can't leak state
 //!   into unrelated tests or stomp a developer's shell.
 //!
-//! Proper fix is to thread env lookups through dependency injection
-//! (the same TODO already noted inline on each test), at which point
-//! this module goes away. Until then, holding the returned guard is
-//! enough to keep env-mutating tests correct under `cargo test` and
-//! `cargo nextest run` alike.
+//! This is the sanctioned way for a test to write the environment, and
+//! `clippy.toml` leaves no other. Prefer not to: a subject that takes
+//! the value as a parameter, or through an injected capability, needs
+//! neither this guard nor its lock.
 
 use std::{
     env,
@@ -69,10 +68,21 @@ impl EnvGuard {
         EnvGuard { saved, _lock: lock }
     }
 
-    /// Set a variable under the lock the guard holds. Equivalent to
-    /// `unsafe { env::set_var(name, value) }`, but the [`EnvGuard`]
-    /// existence proof tells the reader the call is serialized against
-    /// every other [`EnvGuard`]-using test in this process.
+    /// Like [`Self::snapshot`], but also unsets every named variable,
+    /// so the test sees only what it sets itself and never what the
+    /// developer's shell or CI exports.
+    pub fn scrubbed<Iter>(vars: Iter) -> Self
+    where
+        Iter: IntoIterator<Item = &'static str>,
+    {
+        let guard = Self::snapshot(vars);
+        for (name, _) in &guard.saved {
+            guard.remove(name);
+        }
+        guard
+    }
+
+    /// Set a variable under the lock the guard holds.
     ///
     /// The variable must have been listed in [`Self::snapshot`]'s
     /// `vars` so the `Drop` impl will restore it — otherwise the
@@ -80,22 +90,34 @@ impl EnvGuard {
     /// than re-snapshotting on every `set` because the snapshot-then-
     /// set pattern matches every call site, and the test fixtures
     /// that need it are small.
-    ///
-    /// `name` is taken as `&'static str` to mirror `snapshot`'s
-    /// signature — the set of variables a test touches is fixed at
-    /// compile time.
-    pub fn set(&self, name: &'static str, value: impl AsRef<OsStr>) {
+    pub fn set(&self, name: &str, value: impl AsRef<OsStr>) {
+        #[expect(clippy::disallowed_methods, reason = "the helper the lint points to")]
         // SAFETY: the guard holds `env_mutex`, so no other
         // `EnvGuard`-using test in this process is running
         // concurrently. The variable was named at `snapshot` time,
         // so `Drop` will restore it.
-        unsafe { env::set_var(name, value) };
+        unsafe {
+            env::set_var(name, value);
+        }
+    }
+
+    /// Unset a variable under the lock the guard holds. Carries the
+    /// same obligation as [`Self::set`]: the variable must have been
+    /// named at [`Self::snapshot`] time.
+    pub fn remove(&self, name: &str) {
+        #[expect(clippy::disallowed_methods, reason = "the helper the lint points to")]
+        // SAFETY: as in `set` — the lock is held and `Drop` restores
+        // the variable.
+        unsafe {
+            env::remove_var(name);
+        }
     }
 }
 
 impl Drop for EnvGuard {
     fn drop(&mut self) {
         for (name, prior) in &self.saved {
+            #[expect(clippy::disallowed_methods, reason = "the helper the lint points to")]
             // SAFETY: the `_lock` field is still held for the duration of this
             // `Drop`, so no other env-mutating test in this process is running
             // concurrently. The variables themselves are only read by tests
