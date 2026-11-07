@@ -89,7 +89,11 @@ async fn list_users(
             .map(parse_filter)
             .transpose()?;
         let (directory, _) = read_directory(&state).await?;
-        let accounts = account_names(&state).await?;
+        let ids: Vec<_> = directory.users
+            .keys()
+            .cloned()
+            .collect();
+        let accounts = account_names(&state, &ids).await?;
         let mut matching = Vec::new();
         for (id, user) in &directory.users {
             if user.removed {
@@ -361,9 +365,10 @@ async fn ensure_resource_exists(
 
 async fn account_names(
     state: &AppState,
+    user_ids: &[String],
 ) -> Result<std::collections::HashMap<String, String>, RegistryError> {
     let accounts = state.inner.identity.auth.users
-        .list_accounts()
+        .accounts_by_id(user_ids)
         .await?
         .into_iter()
         .map(|account| (account.id, account.username))

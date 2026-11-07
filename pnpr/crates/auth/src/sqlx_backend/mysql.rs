@@ -14,6 +14,7 @@ pub(crate) struct MysqlDatabase {
     pool: MySqlPool,
 }
 
+mod accounts;
 mod tokens;
 
 pub(crate) type MysqlAuth = SqlAuth<MysqlDatabase>;
@@ -126,6 +127,10 @@ impl AuthSqlBackend for MysqlDatabase {
         rows.into_iter()
             .map(|row| Ok(crate::UserAccount { id: row.try_get(0)?, username: row.try_get(1)? }))
             .collect()
+    }
+
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
+        self.accounts_by_id_impl(user_ids).await
     }
 
     async fn user_count(&self) -> Result<u64> {

@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Accounts and teams now use immutable IDs for permissions and ownership. Renaming preserves an account's grants. Reusing a deleted username or team name no longer inherits its grants. Auth storage and configuration formats have changed; experimental deployments need fresh state.
+Renaming an account preserves its permissions and package ownership. Reusing a deleted username or team name starts with fresh permissions. Authentication storage and configuration formats have changed. Experimental deployments need fresh state.

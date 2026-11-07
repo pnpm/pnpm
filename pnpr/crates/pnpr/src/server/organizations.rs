@@ -247,19 +247,43 @@ pub(super) async fn get_team_members(
     else {
         return not_found();
     };
-    let mut members = Vec::new();
-    for id in &record.members {
-        let name = match state.inner.identity.auth.users.account_name(id).await {
-            Ok(Some(name)) => name,
-            Ok(None) => format!("deleted:{id}"),
-            Err(err) => return err.into_response(),
-        };
-        members.push(json!({ "id": id, "name": name }));
-    }
+    let accounts = match state.inner.identity.auth.users.accounts_by_id(
+        &record.members
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+    .await
+    {
+        Ok(accounts) => accounts,
+        Err(err) => return err.into_response(),
+    };
+    let members = build_team_member_list(&record.members, accounts);
+    (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
+}
+
+fn build_team_member_list(
+    ids: &std::collections::BTreeSet<String>,
+    accounts: Vec<pnpr_auth::UserAccount>,
+) -> Vec<Value> {
+    let names: std::collections::HashMap<_, _> = accounts
+        .into_iter()
+        .map(|account| (account.id, account.username))
+        .collect();
+    let mut members: Vec<_> = ids
+        .iter()
+        .map(|id| {
+            let name = names
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| format!("deleted:{id}"));
+            json!({ "id": id, "name": name })
+        })
+        .collect();
     members.sort_by(|left, right| {
         left["name"]
             .as_str()
             .cmp(&right["name"].as_str())
     });
-    (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
+    members
 }

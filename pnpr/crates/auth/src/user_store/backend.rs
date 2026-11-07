@@ -89,6 +89,22 @@ impl UserBackend for UserStore {
         Ok(accounts)
     }
 
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
+        self.sync_from_disk_if_path()?;
+        let state = self.snapshot();
+        Ok(user_ids
+            .iter()
+            .filter_map(|id| {
+                state.names_by_id
+                    .get(id)
+                    .map(|username| crate::UserAccount {
+                        id: id.clone(),
+                        username: username.clone(),
+                    })
+            })
+            .collect())
+    }
+
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
         self.sync_from_disk_if_path()?;
         Ok(self
@@ -113,22 +129,13 @@ impl UserBackend for UserStore {
         .await
     }
 
-    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
+    async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        let id = username.to_string();
-        self.update(move |users| {
-            match users
-                .values_mut()
-                .find(|account| account.id == id)
-            {
-                Some(stored) if stored.password_hash.as_str() != crate::DELETED_USER_HASH => {
-                    stored.password_hash = hash;
-                    Ok(Change::Write(PasswordChange::Changed))
-                }
-                _ => Ok(Change::Keep(PasswordChange::NoSuchUser)),
-            }
-        })
-        .await
+        self.replace_password_hash(user_id, hash).await
+    }
+
+    async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
+        self.replace_password_hash(user_id, crate::NO_PASSWORD_HASH.to_string()).await
     }
 
     async fn provision_user(&self, username: &str) -> Result<String> {
@@ -230,5 +237,24 @@ impl UserBackend for UserStore {
             }
         }
         Ok(())
+    }
+}
+
+impl UserStore {
+    async fn replace_password_hash(&self, user_id: &str, hash: String) -> Result<PasswordChange> {
+        let id = user_id.to_string();
+        self.update(move |users| {
+            match users
+                .values_mut()
+                .find(|account| account.id == id)
+            {
+                Some(stored) if stored.password_hash.as_str() != crate::DELETED_USER_HASH => {
+                    stored.password_hash = hash;
+                    Ok(Change::Write(PasswordChange::Changed))
+                }
+                _ => Ok(Change::Keep(PasswordChange::NoSuchUser)),
+            }
+        })
+        .await
     }
 }

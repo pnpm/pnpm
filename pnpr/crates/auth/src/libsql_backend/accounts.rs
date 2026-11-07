@@ -5,18 +5,28 @@ use super::{
 impl LibsqlAuth {
     pub(super) async fn list_accounts_impl(&self) -> Result<Vec<crate::UserAccount>> {
         self.pool.read(|conn| async move {
-            let mut rows = conn.query(
+            let rows = conn.query(
                 "SELECT id, username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
                 (),
             )
             .await?;
-            let mut accounts = Vec::new();
-            while let Some(row) = rows.next().await? {
-                accounts.push(crate::UserAccount { id: row.get(0)?, username: row.get(1)? });
-            }
-            Ok(accounts)
+            collect_accounts(rows).await
         })
         .await
+    }
+
+    pub(super) async fn accounts_by_id_impl(
+        &self,
+        user_ids: &[String],
+    ) -> Result<Vec<crate::UserAccount>> {
+        let ids = serde_json::to_string(user_ids)?;
+        self.pool.read(|conn| async move {
+            let rows = conn.query(
+                "SELECT id, username FROM users WHERE id IN (SELECT value FROM json_each(?1)) AND bcrypt_hash <> '!'",
+                params![ids],
+            ).await?;
+            collect_accounts(rows).await
+        }).await
     }
 
     pub(super) async fn provision_account(&self, username: &str) -> Result<String> {
@@ -96,4 +106,12 @@ impl LibsqlAuth {
         self.sync_replica().await?;
         Ok(())
     }
+}
+
+async fn collect_accounts(mut rows: libsql::Rows) -> Result<Vec<crate::UserAccount>> {
+    let mut accounts = Vec::new();
+    while let Some(row) = rows.next().await? {
+        accounts.push(crate::UserAccount { id: row.get(0)?, username: row.get(1)? });
+    }
+    Ok(accounts)
 }

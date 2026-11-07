@@ -68,20 +68,32 @@ impl LibsqlAuth {
         password: &str,
     ) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        let hash = hash.as_str();
+        self.replace_password_hash(username, &hash).await
+    }
+
+    pub(super) async fn replace_password_hash(
+        &self,
+        user_id: &str,
+        hash: &str,
+    ) -> Result<PasswordChange> {
         let updated = retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
                 Ok::<_, RegistryError>(
                     conn.execute(
                         "UPDATE users SET bcrypt_hash = ?2 WHERE id = ?1 AND bcrypt_hash <> '!'",
-                        params![username, hash],
+                        params![user_id, hash],
                     )
                     .await?,
                 )
             })
         })
         .await?;
-        Ok(if updated > 0 { PasswordChange::Changed } else { PasswordChange::NoSuchUser })
+        if updated > 0 {
+            self.sync_replica().await?;
+            Ok(PasswordChange::Changed)
+        } else {
+            Ok(PasswordChange::NoSuchUser)
+        }
     }
 
     pub(super) async fn remove_user_record(&self, username: &str) -> Result<UserRemoval> {

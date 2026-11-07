@@ -8,15 +8,41 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     users.rename_user(&original, "renamed-member").await.unwrap();
     assert_eq!(users.account_id("former-member").await.unwrap(), None);
     assert_eq!(users.account_id("renamed-member").await.unwrap(), Some(original.clone()));
+    assert_eq!(
+        users
+            .accounts_by_id(&[original.clone(), "missing".to_string()])
+            .await
+            .unwrap(),
+        vec![crate::UserAccount { id: original.clone(), username: "renamed-member".to_string() }],
+    );
+    assert!(
+        users
+            .accounts_by_id(&[])
+            .await
+            .unwrap()
+            .is_empty(),
+    );
     assert_eq!(users.add_or_login("renamed-member", "old-password").await.unwrap().1, original);
     assert_eq!(
         users.set_password(&original, "new-password").await.unwrap(),
         PasswordChange::Changed,
     );
     assert_eq!(users.add_or_login("renamed-member", "new-password").await.unwrap().1, original);
+    assert_eq!(users.clear_password(&original).await.unwrap(), PasswordChange::Changed);
+    assert_eq!(
+        users
+            .password_hash("renamed-member")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(crate::NO_PASSWORD_HASH),
+    );
+    assert!(users.add_or_login("renamed-member", "new-password").await.is_err());
+    assert_eq!(users.account_id("renamed-member").await.unwrap(), Some(original.clone()));
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::Removed);
     assert_eq!(users.delete_user(&original).await.unwrap(), UserRemoval::NoSuchUser);
     assert_eq!(users.account_name(&original).await.unwrap(), None);
+    assert_eq!(users.clear_password(&original).await.unwrap(), PasswordChange::NoSuchUser);
     assert_eq!(
         users
             .rename_user(&original, "resurrected")
@@ -27,6 +53,16 @@ pub(crate) async fn assert_account_identity(users: &dyn UserBackend) {
     );
     let (_, replacement) = users.add_or_login("renamed-member", "new-password").await.unwrap();
     assert_ne!(original, replacement);
+    assert_eq!(
+        users
+            .accounts_by_id(&[original.clone(), replacement.clone()])
+            .await
+            .unwrap(),
+        vec![crate::UserAccount {
+            id: replacement.clone(),
+            username: "renamed-member".to_string()
+        }],
+    );
     assert_eq!(
         users.set_password(&original, "stale-write").await.unwrap(),
         PasswordChange::NoSuchUser,

@@ -226,8 +226,51 @@ async fn a_maintainer_update_cannot_forge_an_account_id() {
         send(&fixture.app, "PUT", "/npm/owned-package/-rev/1-fixture", &fixture.member, Some(body))
             .await
             .0,
+        StatusCode::BAD_REQUEST,
+    );
+    let (_, stored) = send(&fixture.app, "GET", "/npm/owned-package", "", None).await;
+    assert_eq!(stored["maintainers"][0]["userId"], fixture.member_id);
+}
+
+#[tokio::test]
+async fn an_admin_can_explicitly_assign_a_reused_name_to_its_new_account() {
+    let fixture = Fixture::new().await;
+    let document = crate::npm::publish_doc("owned-package", "1.0.0", b"first");
+    assert_eq!(
+        send(&fixture.app, "PUT", "/npm/owned-package", &fixture.member, Some(document))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    let (replacement_id, replacement) = fixture.replace_member().await;
+    let owner_update = "/npm/owned-package/-rev/1-fixture";
+    let echoed = json!({"maintainers": [{"name": "member", "userId": fixture.member_id}]});
+    assert_eq!(
+        send(&fixture.app, "PUT", owner_update, &fixture.operator, Some(echoed))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    let next = crate::npm::publish_doc("owned-package", "1.1.0", b"next");
+    assert_eq!(
+        send(&fixture.app, "PUT", "/npm/owned-package", &replacement, Some(next.clone()))
+            .await
+            .0,
+        StatusCode::FORBIDDEN,
+    );
+    let assigned = json!({"maintainers": [{"name": "member", "userId": replacement_id}]});
+    assert_eq!(
+        send(&fixture.app, "PUT", owner_update, &fixture.operator, Some(assigned))
+            .await
+            .0,
         StatusCode::CREATED,
     );
     let (_, stored) = send(&fixture.app, "GET", "/npm/owned-package", "", None).await;
-    assert_ne!(stored["maintainers"][0]["userId"], fixture.member_id);
+    assert_eq!(stored["maintainers"][0]["userId"], replacement_id);
+    assert_eq!(
+        send(&fixture.app, "PUT", "/npm/owned-package", &replacement, Some(next))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
 }

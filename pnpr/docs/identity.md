@@ -14,6 +14,11 @@ relationships. Deleting it revokes its credentials and retains a deleted record
 under a generated name. Registering the original username creates a new ID and
 inherits none of those relationships.
 
+Package maintainer entries include an account `userId` and a display-name
+snapshot. Updating an unchanged entry preserves that ID. To assign a reused
+username to its new account, an authorized maintainer or admin must explicitly
+supply the new `userId` with the current name. A mismatched ID and name are rejected.
+
 Teams also have stable IDs and mutable names:
 
 ```yaml

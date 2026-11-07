@@ -134,6 +134,15 @@ trait AuthSqlBackend: Send + Sync {
         }
         Ok(accounts)
     }
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
+        let mut accounts = Vec::new();
+        for id in user_ids {
+            if let Some(username) = self.account_name(id).await? {
+                accounts.push(crate::UserAccount { id: id.clone(), username });
+            }
+        }
+        Ok(accounts)
+    }
     async fn user_count(&self) -> Result<u64>;
     async fn reconcile_user_counter_overcount(&self) -> Result<bool>;
     async fn insert_user(
@@ -236,6 +245,10 @@ where
         with_auth_timeout(self.timeout, self.db.list_accounts()).await
     }
 
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
+        with_auth_timeout(self.timeout, self.db.accounts_by_id(user_ids)).await
+    }
+
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
         let stored = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?;
         Ok(stored
@@ -258,6 +271,10 @@ where
     async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         self.db.update_password_hash(username, &hash).await
+    }
+
+    async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
+        self.db.update_password_hash(user_id, crate::NO_PASSWORD_HASH).await
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {

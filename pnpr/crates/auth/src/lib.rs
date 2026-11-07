@@ -289,6 +289,17 @@ pub trait UserBackend: Send + Sync {
         Ok(accounts)
     }
 
+    /// Active accounts matching the requested immutable IDs. Missing IDs are omitted.
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<UserAccount>> {
+        let mut accounts = Vec::new();
+        for id in user_ids {
+            if let Some(username) = self.account_name(id).await? {
+                accounts.push(UserAccount { id: id.clone(), username });
+            }
+        }
+        Ok(accounts)
+    }
+
     /// The credential hash of an active login name. Passwordless accounts
     /// contain [`NO_PASSWORD_HASH`]; missing or deleted accounts return `None`.
     async fn password_hash(&self, username: &str) -> Result<Option<String>>;
@@ -299,6 +310,9 @@ pub trait UserBackend: Send + Sync {
 
     /// Replace the password of the account identified by `user_id`.
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange>;
+
+    /// Remove password credentials without changing the account ID or login name.
+    async fn clear_password(&self, user_id: &str) -> Result<PasswordChange>;
 
     /// Disable the account identified by `user_id`, retaining its ID under a
     /// generated deleted name and freeing its login name. Never reassign the ID.

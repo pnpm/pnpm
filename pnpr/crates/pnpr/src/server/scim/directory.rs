@@ -207,9 +207,7 @@ pub(super) async fn clean_up_before_reactivating(
 pub(super) async fn deprovision(state: &AppState, user_id: &str) -> Result<(), RegistryError> {
     let auth = &state.inner.identity.auth;
     auth.revoke_all_tokens(user_id).await?;
-    if auth.users.account_name(user_id).await?.is_some() {
-        auth.users.set_password(user_id, &pnpr_auth::new_principal_id()).await?;
-    }
+    auth.users.clear_password(user_id).await?;
     auth.revoke_all_tokens(user_id).await?;
     state.inner.identity.oidc.revoke_user_sessions(user_id);
     Ok(())

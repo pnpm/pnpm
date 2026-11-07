@@ -167,18 +167,10 @@ async fn bind_maintainer_ids(
                 .iter()
                 .find(|old| old.get("name") == entry.get("name"))
         });
-        let id = match existing
+        let previous_id = existing
             .and_then(|old| old.get("userId"))
-            .and_then(Value::as_str)
-        {
-            Some(id) => id.to_string(),
-            None => state.inner.identity.auth.users
-                .account_id(name)
-                .await?
-                .ok_or_else(|| RegistryError::BadRequest {
-                    reason: format!("unknown maintainer {name:?}"),
-                })?,
-        };
+            .and_then(Value::as_str);
+        let id = maintainer_id(state, name, entry.get("userId"), previous_id).await?;
         entry["userId"] = Value::String(id);
     }
     Ok(())
@@ -187,5 +179,37 @@ async fn bind_maintainer_ids(
 fn update_modified_time(hosted: &mut Value) {
     if let Some(time_obj) = hosted.get_mut("time").and_then(Value::as_object_mut) {
         time_obj.insert("modified".to_string(), json!(chrono::Utc::now().to_rfc3339()));
+    }
+}
+
+async fn maintainer_id(
+    state: &AppState,
+    name: &str,
+    requested: Option<&Value>,
+    previous: Option<&str>,
+) -> Result<String, RegistryError> {
+    let users = &state.inner.identity.auth.users;
+    match requested {
+        Some(Value::String(id)) if Some(id.as_str()) == previous => Ok(id.clone()),
+        Some(Value::String(id)) => {
+            if users.account_name(id).await?.as_deref() != Some(name) {
+                return Err(RegistryError::BadRequest {
+                    reason: format!("maintainer account ID does not match {name:?}"),
+                });
+            }
+            Ok(id.clone())
+        }
+        Some(_) => Err(RegistryError::BadRequest {
+            reason: "maintainer userId must be a string".to_string(),
+        }),
+        None => match previous {
+            Some(id) => Ok(id.to_string()),
+            None => users
+                .account_id(name)
+                .await?
+                .ok_or_else(|| RegistryError::BadRequest {
+                    reason: format!("unknown maintainer {name:?}"),
+                }),
+        },
     }
 }

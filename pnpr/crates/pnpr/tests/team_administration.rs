@@ -283,3 +283,48 @@ async fn deleting_a_member_prevents_reclaiming_its_team_access() {
         StatusCode::UNAUTHORIZED,
     );
 }
+
+#[tokio::test]
+async fn deleted_members_can_be_removed_by_id_after_their_name_is_reused() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path())).await;
+    let root = add_user(&app, "root").await;
+    add_user(&app, "member").await;
+    let former_id = crate::tokens::account_id(&app, "member").await.unwrap();
+    let roster = "/npm/-/team/acme/readers/user";
+    let member = json!({"user": "member"});
+    assert_eq!(
+        send(&app, "PUT", roster, Some(&root), Some(member.clone())).await.0,
+        StatusCode::CREATED,
+    );
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT,
+    );
+    let replacement = add_user(&app, "member").await;
+    let replacement_id = crate::tokens::account_id(&app, "member").await.unwrap();
+    assert_ne!(former_id, replacement_id);
+    assert_eq!(send(&app, "PUT", roster, Some(&root), Some(member)).await.0, StatusCode::CREATED);
+    let ambiguous = json!({"userId": former_id, "user": "member"});
+    assert_eq!(
+        send(&app, "DELETE", roster, Some(&root), Some(ambiguous)).await.0,
+        StatusCode::BAD_REQUEST,
+    );
+    let removal = json!({"userId": former_id});
+    assert_eq!(
+        send(&app, "DELETE", roster, Some(&root), Some(removal.clone())).await.0,
+        StatusCode::NO_CONTENT,
+    );
+    let (_, members) = send(&app, "GET", roster, Some(&root), None).await;
+    assert_eq!(members, json!([{"id": replacement_id, "name": "member"}]));
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&replacement), None).await.0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        send(&app, "DELETE", roster, Some(&root), Some(removal)).await.0,
+        StatusCode::NO_CONTENT,
+    );
+}

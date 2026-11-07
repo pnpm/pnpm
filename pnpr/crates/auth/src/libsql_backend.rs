@@ -216,6 +216,10 @@ impl UserBackend for LibsqlAuth {
         self.list_accounts_impl().await
     }
 
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
+        self.accounts_by_id_impl(user_ids).await
+    }
+
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
         Ok(self
             .stored_hash(username)
@@ -232,12 +236,12 @@ impl UserBackend for LibsqlAuth {
         Ok(creation)
     }
 
-    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
-        let change = self.update_password(username, password).await?;
-        if change == PasswordChange::Changed {
-            self.sync_replica().await?;
-        }
-        Ok(change)
+    async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
+        self.update_password(user_id, password).await
+    }
+
+    async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
+        self.replace_password_hash(user_id, crate::NO_PASSWORD_HASH).await
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {

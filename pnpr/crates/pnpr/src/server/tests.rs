@@ -3,6 +3,7 @@ mod compiler_cache;
 mod npm_errors;
 mod observability;
 mod oidc_groups;
+mod team_members;
 mod web_ui;
 
 use super::{
@@ -191,6 +192,8 @@ pub(super) fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
 /// No client endpoint mints read-only or CIDR-restricted tokens, so the
 /// enforcement tests inject one this way.
 struct OneToken {
+    account_reads: std::sync::atomic::AtomicUsize,
+    bulk_reads: std::sync::atomic::AtomicUsize,
     accounts: std::collections::BTreeSet<String>,
     raw: String,
     record: TokenRecord,
@@ -266,7 +269,13 @@ pub(super) fn app_with_config_and_token(
         })
         .collect();
     accounts.insert(record.user_id.clone());
-    let account = Arc::new(OneToken { accounts, raw: raw.to_string(), record });
+    let account = Arc::new(OneToken {
+        accounts,
+        raw: raw.to_string(),
+        record,
+        account_reads: std::sync::atomic::AtomicUsize::default(),
+        bulk_reads: std::sync::atomic::AtomicUsize::default(),
+    });
     let auth = AuthState {
         users: Arc::clone(&account) as Arc<dyn pnpr_auth::UserBackend>,
         tokens: account,
@@ -876,8 +885,18 @@ impl pnpr_auth::UserBackend for OneToken {
         Ok(self.accounts.contains(name).then(|| name.to_string()))
     }
     async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        self.account_reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Ok(self.accounts.contains(id).then(|| id.to_string()))
     }
+    async fn accounts_by_id(&self, ids: &[String]) -> Result<Vec<pnpr_auth::UserAccount>> {
+        self.bulk_reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(ids
+            .iter()
+            .filter(|id| self.accounts.contains(*id))
+            .map(|id| pnpr_auth::UserAccount { id: id.clone(), username: id.clone() })
+            .collect())
+    }
+
     async fn list_users(&self) -> Result<Vec<String>> {
         Ok(vec![self.record.user_id.clone()])
     }
@@ -895,6 +914,9 @@ impl pnpr_auth::UserBackend for OneToken {
         unreachable!()
     }
     async fn set_password(&self, _id: &str, _password: &str) -> Result<pnpr_auth::PasswordChange> {
+        unreachable!()
+    }
+    async fn clear_password(&self, _id: &str) -> Result<pnpr_auth::PasswordChange> {
         unreachable!()
     }
     async fn delete_user(&self, _id: &str) -> Result<pnpr_auth::UserRemoval> {

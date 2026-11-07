@@ -665,12 +665,12 @@ consumes. Teams are [registry-scoped](configuration.md#teams).
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Returns a JSON array of `{"name": ...}`. The scope may be written with or without a leading `@`. |
-| `GET` | `/-/team/{scope}/{team}/user` | Members of one team, as a JSON array of `{"name": ...}`. |
+| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Returns a JSON array of `{"id": ..., "name": ...}`. The scope may be written with or without a leading `@`. |
+| `GET` | `/-/team/{scope}/{team}/user` | Members of one team, as a JSON array of `{"id": ..., "name": ...}`. |
 | `PUT` | `/-/org/{scope}/team` | Create a team. The body is `{"name": "<team>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
-| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member. The body is `{"user": "<username>"}`. Returns `204`, also when the user was not a member. |
+| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. |
 
 Changes are accepted only on a registry with
 [`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api):

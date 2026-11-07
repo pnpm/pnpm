@@ -139,6 +139,10 @@ impl UserBackend for CanonicalUserBackend {
         Ok(PasswordChange::NoSuchUser)
     }
 
+    async fn clear_password(&self, _user_id: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
     async fn delete_user(&self, _username: &str) -> pnpr::Result<UserRemoval> {
         Ok(UserRemoval::NoSuchUser)
     }

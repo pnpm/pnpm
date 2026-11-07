@@ -25,6 +25,18 @@ struct TeamMember {
     user: String,
 }
 
+#[derive(Deserialize)]
+#[serde(untagged, deny_unknown_fields)]
+enum MemberRemoval {
+    Id {
+        #[serde(rename = "userId")]
+        user_id: String,
+    },
+    Name {
+        user: String,
+    },
+}
+
 /// `PUT /-/org/{scope}/team`.
 pub(super) async fn create_team(
     state: &AppState,
@@ -143,11 +155,7 @@ pub(super) async fn remove_team_member(
 ) -> Response {
     let result = async {
         let registry = admin_roster(state, identity, &target, "remove a team member")?;
-        let user = parse_body::<TeamMember>(body)?.user;
-        let user_id = state.inner.identity.auth.users
-            .account_id(&user)
-            .await?
-            .ok_or(RegistryError::NotFound)?;
+        let (user_id, user) = member_removal(state, body).await?;
         let id = team_id(state, registry, team)?;
         update_team_roster(state, registry, |teams| {
             team_members(teams, &id)?.remove(&user_id);
@@ -163,6 +171,7 @@ pub(super) async fn remove_team_member(
             scope = %target.scope,
             team = %team,
             user = %user,
+            user_id = %user_id,
             "team member removed",
         );
         Ok(StatusCode::NO_CONTENT)
@@ -236,4 +245,21 @@ pub(super) fn team_id(
         .find(|(_, team)| team.name == name)
         .map(|(id, _)| id.clone())
         .ok_or(RegistryError::NotFound)
+}
+
+async fn member_removal(state: &AppState, body: &Bytes) -> Result<(String, String), RegistryError> {
+    let users = &state.inner.identity.auth.users;
+    match parse_body::<MemberRemoval>(body)? {
+        MemberRemoval::Id { user_id } => {
+            let name = users
+                .account_name(&user_id)
+                .await?
+                .unwrap_or_else(|| format!("deleted:{user_id}"));
+            Ok((user_id, name))
+        }
+        MemberRemoval::Name { user } => {
+            let id = users.account_id(&user).await?.ok_or(RegistryError::NotFound)?;
+            Ok((id, user))
+        }
+    }
 }
