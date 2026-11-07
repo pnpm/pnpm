@@ -96,6 +96,13 @@ fn generate_sh_shim_header_carries_the_hardened_helper_line() {
     );
     assert!(
         !is_sh_shim_hardened(&body.replace(
+            SH_SHIM_PATH_PRINTF_LINE,
+            r#"basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')"#,
+        )),
+        "a shim that converts every $link, backslash or not, must be replaced",
+    );
+    assert!(
+        !is_sh_shim_hardened(&body.replace(
             SH_SHIM_CYGPATH_LINE,
             r"    if command -v cygpath > /dev/null 2>&1; then"
         )),
@@ -1040,41 +1047,54 @@ fn the_platform_branch_prefers_the_system_path_converter_and_still_falls_back() 
         write_executable(&decoys.join(helper), "#!/bin/sh\necho '/decoy/win'\n");
     }
 
-    for uname in ["MINGW64_NT-10.0", "Linux 5.15.0 WSL2"] {
+    for version in [MSYS_PROC_VERSION, WSL2_PROC_VERSION] {
         assert_eq!(
-            run_platform_branch(&body, uname, &answering, &decoys),
+            run_platform_branch(&body, version, &answering, &decoys),
             ("/system/win".to_owned(), ".exe".to_owned()),
-            "{uname}: the system converter must win over the one on PATH",
+            "{version}: the system converter must win over the one on PATH",
         );
         assert_eq!(
-            run_platform_branch(&body, uname, &silent, &decoys),
+            run_platform_branch(&body, version, &silent, &decoys),
             ("/decoy/win".to_owned(), ".exe".to_owned()),
-            "{uname}: an empty answer from the system converter must fall back to PATH",
+            "{version}: an empty answer from the system converter must fall back to PATH",
         );
         assert_eq!(
-            run_platform_branch(&body, uname, &absent, &decoys),
+            run_platform_branch(&body, version, &absent, &decoys),
             ("/decoy/win".to_owned(), ".exe".to_owned()),
-            "{uname}: no system converter must fall back to PATH",
+            "{version}: no system converter must fall back to PATH",
         );
     }
     assert_eq!(
-        run_platform_branch(&body, "MINGW64_NT-10.0", &absent, Path::new("")),
+        run_platform_branch(&body, MSYS_PROC_VERSION, &absent, Path::new("")),
         (BRANCH_BASEDIR.to_owned(), ".exe".to_owned()),
         "MSYS with no converter at all must keep the POSIX basedir instead of failing",
     );
     assert_eq!(
-        run_platform_branch(&body, "Linux 5.15.0 WSL2", &absent, Path::new("")),
+        run_platform_branch(&body, WSL2_PROC_VERSION, &absent, Path::new("")),
         (BRANCH_BASEDIR.to_owned(), String::new()),
         "WSL2 with no converter at all must not claim a Windows exe",
+    );
+    assert_eq!(
+        run_platform_branch(&body, LINUX_PROC_VERSION, &answering, &decoys),
+        (BRANCH_BASEDIR.to_owned(), String::new()),
+        "Linux must take no platform branch",
     );
 }
 
 #[cfg(unix)]
 const BRANCH_BASEDIR: &str = "/proj/node_modules/.bin";
 
+#[cfg(unix)]
+const MSYS_PROC_VERSION: &str = "MINGW64_NT-10.0-22631 version 3.5.4-0bc1222b.x86_64 (runneradmin@fv-az1022-449) (gcc version 13.3.0 (GCC) ) 2024-09-05 13:50 UTC";
+#[cfg(unix)]
+const WSL2_PROC_VERSION: &str = "Linux version 5.15.153.1-microsoft-standard-WSL2 (root@941d701f84f1) (gcc (GCC) 11.2.0, GNU ld (GNU Binutils) 2.37) #1 SMP Fri Mar 29 23:14:13 UTC 2024";
+#[cfg(unix)]
+const LINUX_PROC_VERSION: &str = "Linux version 6.8.0-45-generic (buildd@lcy02-amd64-115) (x86_64-linux-gnu-gcc-13 (Ubuntu 13.2.0-23ubuntu4) 13.2.0, GNU ld (GNU Binutils for Ubuntu) 2.42) #45-Ubuntu SMP PREEMPT_DYNAMIC Fri Aug 30 12:02:04 UTC 2024";
+
 /// No test host reports itself as Cygwin or WSL2, and `command -p` searches the
-/// system default path, which a test cannot plant into. So the branch is taken
-/// from `body` and only its system name and its two converters are rewritten:
+/// system default path, which a test cannot plant into. So the detection is
+/// taken from `body` and only its platform file and its two converters are
+/// rewritten: `proc_version` is the platform file's content,
 /// `system_converter` stands in for what `command -p` would reach, and
 /// `callers_path` for what the fallback finds. That the real header reaches
 /// them through `command -p` is what
@@ -1082,17 +1102,19 @@ const BRANCH_BASEDIR: &str = "/proj/node_modules/.bin";
 #[cfg(unix)]
 fn run_platform_branch(
     body: &str,
-    uname: &str,
+    proc_version: &str,
     system_converter: &Path,
     callers_path: &Path,
 ) -> (String, String) {
-    const CASE_HEAD: &str = r#"case "$os" in"#;
-    let start = body.find(CASE_HEAD).expect("the header must select a platform");
+    let tmp = tempfile::tempdir().unwrap();
+    let version_file = tmp.path().join("version");
+    std::fs::write(&version_file, format!("{proc_version}\n")).unwrap();
+    let start = body.find("os=\n").expect("the header must read the platform");
     let end = start
         + body[start..].find("\nesac\n").expect("the platform branch must close")
         + "\nesac\n".len();
     let branch = body[start..end]
-        .replace(CASE_HEAD, r#"case "$fake_uname" in"#)
+        .replace("/proc/version", r#""$version_file""#)
         .replace("command -p cygpath", r#""$system_converter""#)
         .replace("command -p wslpath", r#""$system_converter""#);
     let script = format!(
@@ -1102,7 +1124,7 @@ fn run_platform_branch(
     let output = std::process::Command::new("/bin/sh")
         .arg("-c")
         .arg(&script)
-        .env("fake_uname", uname)
+        .env("version_file", &version_file)
         .env("system_converter", system_converter)
         .env("PATH", callers_path)
         .output()
