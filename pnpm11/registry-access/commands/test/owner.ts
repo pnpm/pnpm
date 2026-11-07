@@ -173,6 +173,7 @@ describe('owner command', () => {
       method: 'PUT',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
       body: JSON.stringify({ user: 'newowner' }),
+      headers: { 'npm-command': 'owner' },
     }).reply(200, { ok: true })
 
     const result = await owner.handler({
@@ -211,6 +212,7 @@ describe('owner command', () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'DELETE',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/owners\/newowner$/,
+      headers: { 'npm-command': 'owner' },
     }).reply(200, { ok: true })
 
     const result = await owner.handler({

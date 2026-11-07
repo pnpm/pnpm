@@ -37,9 +37,10 @@ export function createPackageRequestContext (opts: AccessOptions, packageName: s
   }
 }
 
-export function createJsonWriteHeaders (otp: string | undefined): Record<string, string> {
+export function createAccessWriteHeaders (otp: string | undefined): Record<string, string> {
   return {
     'content-type': 'application/json',
+    'npm-command': 'access',
     ...(otp ? { 'npm-otp': otp } : {}),
   }
 }

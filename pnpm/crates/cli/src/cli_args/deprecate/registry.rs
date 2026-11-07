@@ -123,12 +123,14 @@ pub(super) async fn put_package_meta(
     otp: Option<&str>,
     is_deprecate: bool,
 ) -> miette::Result<()> {
+    let command = if is_deprecate { "deprecate" } else { "undeprecate" };
     let body = serde_json::to_string(package_meta).expect("a struct serializes");
     let (_guard, response) =
         send_with_retry(&context.http_client, url, context.retry_opts, |client| {
             let builder = client
                 .put(url)
                 .header("content-type", "application/json")
+                .header("npm-command", command)
                 .body(body.clone());
             apply_auth_and_otp(builder, auth_header, otp)
         })
@@ -140,7 +142,7 @@ pub(super) async fn put_package_meta(
         return Ok(());
     }
 
-    let action = if is_deprecate { "deprecate" } else { "undeprecate" }.to_string();
+    let action = command.to_string();
     Err(registry_write_error(response, action).await.into())
 }
 

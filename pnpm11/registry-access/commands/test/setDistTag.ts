@@ -36,6 +36,7 @@ describe('setDistTag', () => {
     })
 
     expect(capturedHeaders['npm-auth-type']).toBe('web')
+    expect(capturedHeaders['npm-command']).toBe('dist-tag')
     expect(capturedHeaders['npm-otp']).toBeUndefined()
   })
 

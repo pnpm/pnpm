@@ -94,7 +94,8 @@ fn apply_dist_tag_mutation_headers(
     auth_type: AuthType,
     otp: Option<&str>,
 ) -> RequestBuilder {
-    let builder = builder.header("npm-auth-type", auth_type.header_value());
+    let builder =
+        builder.header("npm-auth-type", auth_type.header_value()).header("npm-command", "dist-tag");
     apply_auth_and_otp(builder, auth_header, otp)
 }
 

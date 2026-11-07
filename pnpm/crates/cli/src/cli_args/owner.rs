@@ -208,6 +208,7 @@ async fn owner_add(context: &OwnerContext<'_>, params: &[String]) -> miette::Res
             let builder = client
                 .put(&endpoint.url)
                 .header("content-type", "application/json")
+                .header("npm-command", "owner")
                 .body(body.clone());
             apply_auth_and_otp(builder, endpoint.auth_header.as_deref(), context.otp.as_deref())
         })
@@ -232,7 +233,7 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder = client.delete(&url);
+            let builder = client.delete(&url).header("npm-command", "owner");
             apply_auth_and_otp(builder, endpoint.auth_header.as_deref(), context.otp.as_deref())
         })
         .await

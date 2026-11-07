@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 
 import {
   type AccessOptions,
-  createJsonWriteHeaders,
+  createAccessWriteHeaders,
   createPackageRequestContext,
   escapePackageName,
   throwRegistryError,
@@ -32,7 +32,7 @@ export async function setStatus (
   const response = await fetchFromRegistry(accessUrl, {
     authHeaderValue: authHeader,
     method: 'POST',
-    headers: createJsonWriteHeaders(otp),
+    headers: createAccessWriteHeaders(otp),
     body: JSON.stringify({ access: normalizedAccess }),
   })
 
@@ -83,7 +83,7 @@ export async function setMfa (
   const response = await fetchFromRegistry(accessUrl, {
     authHeaderValue: authHeader,
     method: 'POST',
-    headers: createJsonWriteHeaders(otp),
+    headers: createAccessWriteHeaders(otp),
     body: JSON.stringify({ publish_requires_tfa: publishRequiresTfa }),
   })
 
@@ -124,7 +124,7 @@ export async function grantAccess (
   const response = await fetchFromRegistry(grantUrl, {
     authHeaderValue: authHeader,
     method: 'PUT',
-    headers: createJsonWriteHeaders(otp),
+    headers: createAccessWriteHeaders(otp),
     body: JSON.stringify({ package: packageName, permissions }),
   })
 
@@ -160,7 +160,7 @@ export async function revokeAccess (
   const response = await fetchFromRegistry(revokeUrl, {
     authHeaderValue: authHeader,
     method: 'DELETE',
-    headers: createJsonWriteHeaders(otp),
+    headers: createAccessWriteHeaders(otp),
     body: JSON.stringify({ package: packageName }),
   })
 
