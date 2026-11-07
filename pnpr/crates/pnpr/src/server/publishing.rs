@@ -198,9 +198,11 @@ pub(super) async fn publish_package(
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
-    retry::retry_reclaimed(body, |body| publish_attempt(state, identity, registry, raw_name, body))
-        .await
-        .unwrap_or_else(IntoResponse::into_response)
+    retry::retry_reclaimed(&state.inner.locks.publish_replays, body, |body| {
+        publish_attempt(state, identity, registry, raw_name, body)
+    })
+    .await
+    .unwrap_or_else(IntoResponse::into_response)
 }
 
 async fn publish_attempt(

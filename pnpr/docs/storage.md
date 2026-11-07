@@ -354,6 +354,9 @@ publish or a batch HTTP publish, pnpr retries the request up to four times. Each
 current permissions and package state again. Continued contention returns
 `409 Conflict`.
 
+Large publish requests also use the cache directory for retries. When too many
+are in progress, another large publish returns `429 Too Many Requests`.
+
 ### Interruptions
 
 - **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no file maps, which are never served; [`pnpr gc`](cli.md#gc) removes them. A publish refused at its commit removes the incarnations it stored itself, unless another publish of the same bytes committed one of them in the meantime. It first records one a commit could still make live as gone, so that commit is refused rather than left pointing at nothing.

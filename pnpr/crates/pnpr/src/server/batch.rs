@@ -93,9 +93,11 @@ async fn serve(
     let key = headers
         .get(IDEMPOTENCY_KEY)
         .and_then(|key| key.to_str().ok());
-    super::publishing::retry::retry_reclaimed(body, |body| publish_batch(state, caller, key, body))
-        .await
-        .unwrap_or_else(IntoResponse::into_response)
+    super::publishing::retry::retry_reclaimed(&state.inner.locks.publish_replays, body, |body| {
+        publish_batch(state, caller, key, body)
+    })
+    .await
+    .unwrap_or_else(IntoResponse::into_response)
 }
 
 /// Who sends a batch, and the registry its npm entries are addressed

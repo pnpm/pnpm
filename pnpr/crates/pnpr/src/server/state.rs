@@ -1,7 +1,7 @@
 use super::{
     AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, ServerMetrics,
     Singleflight, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace,
-    package_responses::processing::PackumentProcessing,
+    package_responses::processing::PackumentProcessing, publishing::retry::ReplayStorage,
 };
 use indexmap::IndexMap;
 use std::sync::Arc;
@@ -67,6 +67,7 @@ pub(super) struct MutationLocks {
     pub(super) packages: StripedLocks,
     pub(super) referrer_migrations: StripedLocks,
     pub(super) publish_concurrency: tokio::sync::Semaphore,
+    pub(super) publish_replays: ReplayStorage,
     /// Release archives being received for staging, each buffered whole. See
     /// [`super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS`].
     pub(super) staged_archive_uploads: tokio::sync::Semaphore,
@@ -99,6 +100,7 @@ impl AppInner {
         let builds = BuildServices::new(&config, &storage)?;
         let proxy = ProxyState::new(&config);
         let identity = IdentityServices::new(&config, auth)?;
+        let publish_replays = ReplayStorage::new(&config.storage.cache_dir);
         Ok(Self {
             storage,
             config,
@@ -111,6 +113,7 @@ impl AppInner {
                 packages: StripedLocks::new(),
                 referrer_migrations: StripedLocks::new(),
                 publish_concurrency: tokio::sync::Semaphore::new(16),
+                publish_replays,
                 staged_archive_uploads: tokio::sync::Semaphore::new(
                     super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS,
                 ),
