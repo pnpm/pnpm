@@ -40,12 +40,10 @@ pub(crate) fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
                 project_dir,
             ))
         });
-        let modules_dir = modules_dirs.of(project_dir);
-        let modules_dir =
-            pnpm_fs::symlinked_dir_real_path(project_dir, &modules_dir).unwrap_or(modules_dir);
         let project = ProjectLinks {
             project_dir,
-            modules_dir: &modules_dir,
+            modules_dir: modules_dirs.of(project_dir),
+            real_modules_dir: std::cell::OnceCell::new(),
             importer_snapshot,
             workspace_links,
             included,
@@ -127,11 +125,23 @@ fn prune_project_manifest_link_deps(
 /// One project's lockfile-excluded linked dependencies and where they are placed.
 struct ProjectLinks<'a> {
     project_dir: &'a Path,
-    modules_dir: &'a Path,
+    modules_dir: PathBuf,
+    real_modules_dir: std::cell::OnceCell<PathBuf>,
     importer_snapshot: Option<&'a ProjectSnapshot>,
     workspace_links: Option<WorkspaceLinks<'a>>,
     included: IncludedDependencies,
     link_options: &'a LinkBinsOptions,
+}
+
+impl ProjectLinks<'_> {
+    /// Where links are written. Looked up on the first link, so a project
+    /// without one costs no filesystem call.
+    fn real_modules_dir(&self) -> &Path {
+        self.real_modules_dir.get_or_init(|| {
+            pnpm_fs::symlinked_dir_real_path(self.project_dir, &self.modules_dir)
+                .unwrap_or_else(|| self.modules_dir.clone())
+        })
+    }
 }
 
 fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
@@ -169,7 +179,7 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
     // component links), so a bin-less link is a no-op.
     if !linked_aliases.is_empty() {
         crate::link_bins_dir(
-            project.modules_dir,
+            project.real_modules_dir(),
             crate::BinCandidates::Aliases(&linked_aliases),
             crate::BinsDirPass::new(project.link_options),
         )
@@ -200,7 +210,7 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     // passes apply, so a crafted alias (`../.git`, an
     // absolute path, a backslash) cannot escape
     // `node_modules/`.
-    let symlink_path = safe_join_modules_dir(project.modules_dir, alias)
+    let symlink_path = safe_join_modules_dir(project.real_modules_dir(), alias)
         .map_err(LinkManifestLinkDepsError::InvalidAlias)?;
     let outcome = symlink_package(&target_path, &symlink_path)
         .map_err(|source| LinkManifestLinkDepsError::Symlink {
