@@ -30,14 +30,14 @@ fn a_manifest_requires_its_engines_and_platforms() {
 #[test]
 fn a_project_runtime_is_resolved_after_the_runtime_on_fail_override() {
     let manifest = json!({
-        "engines": { "node": ">=24" },
-        "devEngines": { "runtime": { "name": "node", "version": "24.0.0" } },
+        "engines": { "node": ">=24.5.0" },
+        "devEngines": { "runtime": { "name": "node", "version": "^24.0.0" } },
     });
 
     let requirements =
         project_host_requirements(&manifest, Some("download")).expect("requirements");
 
-    assert_eq!(requirements.node_version.as_deref(), Some("24.0.0"));
+    assert_eq!(requirements.node_version.as_deref(), Some("24.5.0"));
 }
 
 #[test]

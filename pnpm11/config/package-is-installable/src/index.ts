@@ -34,7 +34,7 @@ export function getDownloadedNodeVersionFromEnginesRuntime (manifest: ProjectMan
     if (typeof nodeRuntime?.version !== 'string') continue
     const version = nodeRuntime.version.trim()
     if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return undefined
-    return semver.valid(version) ?? undefined
+    return semver.valid(version) ?? semver.minVersion(`${version} ${manifest.engines?.node ?? '*'}`)?.version
   }
   return undefined
 }

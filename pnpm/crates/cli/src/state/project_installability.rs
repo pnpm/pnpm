@@ -84,10 +84,11 @@ impl<'a> ProjectHost<'a> {
         requirements: &PackageInstallabilityManifest,
     ) -> Result<Option<LogEvent>, InitStateError> {
         let wanted_engine = requirements.engines.as_ref();
+        let node_engine = wanted_engine.and_then(|engine| engine.node.as_ref());
         let project_node_version = self.config.node_version.is_none()
             && !self.config.skip_runtimes
-            && wanted_engine.and_then(|engine| engine.node.as_ref()).is_some();
-        let node_version = match wanted_engine.and_then(|engine| engine.node.as_ref()) {
+            && node_engine.is_some();
+        let node_version = match node_engine {
             Some(_) if project_node_version => {
                 host_requirements.node_version.as_deref().unwrap_or_else(|| self.node_version())
             }

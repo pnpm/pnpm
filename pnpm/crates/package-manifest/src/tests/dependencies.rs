@@ -337,14 +337,15 @@ fn node_version_does_not_use_a_runtime_that_is_not_downloaded() {
 }
 
 #[test]
-fn node_version_does_not_use_the_minimum_of_a_downloaded_runtime_range() {
+fn node_version_from_a_downloaded_runtime_range_satisfies_the_engine_range() {
     assert_eq!(
         downloaded_node_version_from_engines_runtime(&json!({
+            "engines": { "node": ">=24.5.0" },
             "devEngines": {
-                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "download" },
+                "runtime": { "name": "node", "version": "^24.0.0", "onFail": "download" },
             },
         })),
-        None,
+        Some("24.5.0".to_string()),
     );
 }
 

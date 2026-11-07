@@ -246,7 +246,20 @@ pub fn downloaded_node_version_from_engines_runtime(manifest: &Value) -> Option<
             .get("version")
             .and_then(Value::as_str)?
             .trim();
-        return Some(Version::parse(version).ok()?.to_string());
+        if let Ok(version) = Version::parse(version) {
+            return Some(version.to_string());
+        }
+        let runtime_range = Range::parse(version).ok()?;
+        let engine_range = manifest
+            .get("engines")
+            .and_then(|engines| engines.get("node"))
+            .and_then(Value::as_str)
+            .and_then(|range| Range::parse(range).ok());
+        let version = engine_range
+            .and_then(|engine_range| runtime_range.intersect(&engine_range))
+            .and_then(|range| range.min_version())
+            .or_else(|| runtime_range.min_version())?;
+        return Some(version.to_string());
     }
     None
 }
