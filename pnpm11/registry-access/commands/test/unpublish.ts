@@ -224,6 +224,7 @@ describe('unpublish: OTP challenges', () => {
     await expect(unpublish.handler({ ...OPTS, cliOptions: { force: true, otp: '123456' } }, ['test-pkg']))
       .resolves.toBe('Successfully unpublished all 2 version(s) of test-pkg')
     expect(deleteHeaders['npm-auth-type']).toBe('legacy')
+    expect(deleteHeaders['npm-command']).toBe('unpublish')
     expect(deleteHeaders['npm-otp']).toBe('123456')
   })
 
@@ -277,6 +278,7 @@ describe('unpublish: OTP challenges', () => {
         .resolves.toBe('Successfully unpublished 1 version(s) of test-pkg')
       expect(putOtpHeaders).toEqual([undefined, 'web-token'])
       expect(tarballDeleteHeaders['npm-auth-type']).toBe('web')
+      expect(tarballDeleteHeaders['npm-command']).toBe('unpublish')
       expect(tarballDeleteHeaders['npm-otp']).toBe('web-token')
     } finally {
       restoreTty()

@@ -143,7 +143,7 @@ fn unpublish_args(registry: &str, otp: Option<&str>, params: &[&str]) -> Unpubli
 
 /// A 401 carrying `authUrl` / `doneUrl` starts the web-auth flow, and the
 /// token it yields is sent as `npm-otp` on the retried `DELETE` — still
-/// under `npm-auth-type: web`.
+/// under `npm-auth-type: web` and `npm-command: unpublish`.
 #[tokio::test]
 async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token() {
     web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
@@ -161,6 +161,7 @@ async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token(
     let challenge_mock = server
         .mock("DELETE", "/test-pkg/-rev/3-abc")
         .match_header("npm-auth-type", "web")
+        .match_header("npm-command", "unpublish")
         .match_header("npm-otp", Matcher::Missing)
         .with_status(401)
         .with_body(
@@ -176,6 +177,7 @@ async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token(
     let retry_mock = server
         .mock("DELETE", "/test-pkg/-rev/3-abc")
         .match_header("npm-auth-type", "web")
+        .match_header("npm-command", "unpublish")
         .match_header("npm-otp", "web-token")
         .with_status(200)
         .with_body("{}")

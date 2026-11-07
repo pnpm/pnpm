@@ -103,7 +103,8 @@ async fn send_once(
         send_with_retry(&registry.http_client, request.url, registry.retry_opts, |client| {
             let mut builder = client
                 .request(request.method.clone(), request.url)
-                .header("npm-auth-type", auth_type.header_value());
+                .header("npm-auth-type", auth_type.header_value())
+                .header("npm-command", "unpublish");
             if let Some(json_body) = request.json_body {
                 builder =
                     builder.header("content-type", "application/json").body(json_body.to_owned());
