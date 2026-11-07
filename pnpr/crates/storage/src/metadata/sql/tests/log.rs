@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 const SIGNING_KEY: &str =
     "PRIVATE+KEY+PeterNeumann+c74f20a3+AYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz";
 
-fn record_of(name: &str, version: &str) -> Vec<u8> {
+pub(super) fn record_of(name: &str, version: &str) -> Vec<u8> {
     let record = json!({
         "schema": "pnpr-release-record/1",
         "purl": format!("pkg:npm/{name}@{version}"),

@@ -576,17 +576,62 @@ async fn invalid_tag_changes_leave_metadata_unchanged(db: Db) {
 
 async fn removing_versions_and_packages(db: Db) {
     let storage = storage(&db);
-    let mut initial = packument("pkg", &["1.0.0", "2.0.0"]);
-    initial["versions"]["1.0.0"]["deprecated"] = json!("old");
-    initial["versions"]["2.0.0"]["deprecated"] = json!("old");
-    write(&storage, "pkg", &initial).await;
-    let mut kept = packument("pkg", &["2.0.0"]);
-    kept["versions"]["2.0.0"]["deprecated"] = json!("old");
-    write(&storage, "pkg", &kept).await;
+    let packument_with_dependents = |versions: &[&str]| {
+        let mut document = packument("pkg", versions);
+        for version in versions {
+            document["versions"][version]["deprecated"] = json!("old");
+            document["versions"][version]["_archiveManifest"] =
+                json!({ "profile": "npm-install-manifest/1", "packageJson": "sha512-x" });
+        }
+        document
+    };
+    let mut records = crate::metadata::ReleaseRecords::new();
+    for version in ["1.0.0", "2.0.0"] {
+        records.insert(version.to_string(), log::record_of("pkg", version));
+    }
+    let initial = crate::metadata::BatchDocument {
+        ecosystem: Ecosystem::Npm,
+        name: "pkg".to_string(),
+        bytes: serde_json::to_vec(&packument_with_dependents(&["1.0.0", "2.0.0"])).unwrap(),
+        expected: None,
+        principal: None,
+        records,
+    };
+    let fence = crate::metadata::BlobFence {
+        artifacts: vec![
+            blobs::tgz("pkg", "1.0.0", &blobs::id(b"1.0.0"), 1),
+            blobs::tgz("pkg", "2.0.0", &blobs::id(b"2.0.0"), 1),
+        ],
+        references: Vec::new(),
+    };
+    storage
+        .sql_metadata()
+        .commit_fenced_publication(
+            "",
+            vec![initial],
+            Vec::new(),
+            crate::metadata::PublishNotes::default(),
+            None,
+            fence,
+        )
+        .await
+        .unwrap();
+    let version_tables = [
+        "artifact_blobs",
+        "release_records",
+        "accepted_manifests",
+        "readmes",
+        "annotations",
+        "versions",
+    ];
+    for table in version_tables {
+        assert_eq!(row_count(&storage, table).await, 2, "{table}");
+    }
+    write(&storage, "pkg", &packument_with_dependents(&["2.0.0"])).await;
     let document = read(&storage, "pkg").await;
     assert!(document["versions"].get("1.0.0").is_none());
     assert!(document["time"].get("1.0.0").is_none());
-    for table in ["accepted_manifests", "readmes", "annotations", "versions"] {
+    for table in version_tables {
         assert_eq!(row_count(&storage, table).await, 1, "{table}");
     }
     assert!(
@@ -595,7 +640,10 @@ async fn removing_versions_and_packages(db: Db) {
             .await
             .unwrap(),
     );
-    for table in super::commit::PACKAGE_TABLES {
+    for table in version_tables
+        .into_iter()
+        .chain(["tags", "packages"])
+    {
         assert_eq!(row_count(&storage, table).await, 0, "{table}");
     }
     assert!(
