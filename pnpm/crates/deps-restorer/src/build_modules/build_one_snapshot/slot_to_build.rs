@@ -41,40 +41,51 @@ pub(super) fn slot_to_build(
     else {
         return Ok(None);
     };
-    if !(candidate.patch.is_some() || candidate.should_run_scripts) {
-        return Ok(Some(LockedSlotToBuild {
-            package_dir: pkg_dir,
-            slot: None,
-            dependency_slots: Vec::new(),
-        }));
-    }
-    if context.directories.pkg_roots_by_key.is_some()
+    if !candidate_needs_slot_build(candidate)
+        || context.directories.pkg_roots_by_key.is_some()
         || !context.directories.layout.enable_global_virtual_store()
     {
-        return Ok(Some(LockedSlotToBuild {
-            package_dir: pkg_dir,
-            slot: None,
-            dependency_slots: Vec::new(),
-        }));
+        return Ok(Some(without_global_slot(pkg_dir)));
     }
     if context.directories.layout.hashed_slot_dir(snapshot_key).is_none() {
-        if built_by_an_earlier_install(&input, &pkg_dir.join(NEEDS_BUILD_MARKER))? {
-            return Ok(None);
-        }
-        if !mark_slot_build_started(
-            None,
-            &pkg_dir,
-            snapshot_key,
-            &pkg_dir.join(NEEDS_BUILD_MARKER),
-        )? {
-            return Ok(None);
-        }
-        return Ok(Some(LockedSlotToBuild {
-            package_dir: pkg_dir,
-            slot: None,
-            dependency_slots: Vec::new(),
-        }));
+        return slot_to_build_without_hashed_slot(input, pkg_dir);
     }
+    slot_to_build_with_global_slot(input, pkg_dir)
+}
+
+fn slot_to_build_without_hashed_slot(
+    input: SlotToBuild<'_>,
+    package_dir: PathBuf,
+) -> Result<Option<LockedSlotToBuild>, BuildModulesError> {
+    let marker = package_dir.join(NEEDS_BUILD_MARKER);
+    if built_by_an_earlier_install(&input, &marker)?
+        || !mark_slot_build_started(None, &package_dir, input.snapshot_key, &marker)?
+    {
+        return Ok(None);
+    }
+    Ok(Some(without_global_slot(package_dir)))
+}
+
+fn slot_to_build_with_global_slot(
+    input: SlotToBuild<'_>,
+    package_dir: PathBuf,
+) -> Result<Option<LockedSlotToBuild>, BuildModulesError> {
+    let SlotToBuild { context, snapshot_key, .. } = input;
+    let mut slot_locks = acquire_build_slot_locks(context, snapshot_key)?;
+    let slot = take_package_slot_lock(context.directories.layout, snapshot_key, &mut slot_locks);
+    let marker = package_dir.join(NEEDS_BUILD_MARKER);
+    if built_by_an_earlier_install(&input, &marker)?
+        || !mark_slot_build_started(Some(&slot), &package_dir, snapshot_key, &marker)?
+    {
+        return Ok(None);
+    }
+    Ok(Some(LockedSlotToBuild { package_dir, slot: Some(slot), dependency_slots: slot_locks }))
+}
+
+fn acquire_build_slot_locks(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+) -> Result<Vec<crate::GlobalVirtualStoreSlot>, BuildModulesError> {
     let mut slot_keys = vec![snapshot_key.clone()];
     if let Some(snapshot) = context.graph.snapshots.get(snapshot_key) {
         slot_keys.extend(
@@ -86,27 +97,29 @@ pub(super) fn slot_to_build(
                 .filter(|key| context.directories.layout.hashed_slot_dir(key).is_some()),
         );
     }
-    let mut slot_locks =
-        crate::GlobalVirtualStoreSlot::acquire_ordered(context.directories.layout, slot_keys)
-            .map_err(BuildModulesError::SlotLock)?;
-    let package_slot_path = context.directories.layout.slot_dir(snapshot_key);
+    crate::GlobalVirtualStoreSlot::acquire_ordered(context.directories.layout, slot_keys)
+        .map_err(BuildModulesError::SlotLock)
+}
+
+fn take_package_slot_lock(
+    layout: &crate::VirtualStoreLayout,
+    snapshot_key: &PackageKey,
+    slot_locks: &mut Vec<crate::GlobalVirtualStoreSlot>,
+) -> crate::GlobalVirtualStoreSlot {
+    let package_slot_path = layout.slot_dir(snapshot_key);
     let package_slot_index = slot_locks
         .iter()
         .position(|slot| slot.path() == package_slot_path)
         .expect("the package slot is included in its build lock set");
-    let slot = slot_locks.swap_remove(package_slot_index);
-    let marker = pkg_dir.join(NEEDS_BUILD_MARKER);
-    if built_by_an_earlier_install(&input, &marker)? {
-        return Ok(None);
-    }
-    if !mark_slot_build_started(Some(&slot), &pkg_dir, snapshot_key, &marker)? {
-        return Ok(None);
-    }
-    Ok(Some(LockedSlotToBuild {
-        package_dir: pkg_dir,
-        slot: Some(slot),
-        dependency_slots: slot_locks,
-    }))
+    slot_locks.swap_remove(package_slot_index)
+}
+
+fn candidate_needs_slot_build(candidate: &BuildCandidate<'_>) -> bool {
+    candidate.patch.is_some() || candidate.should_run_scripts
+}
+
+fn without_global_slot(package_dir: PathBuf) -> LockedSlotToBuild {
+    LockedSlotToBuild { package_dir, slot: None, dependency_slots: Vec::new() }
 }
 
 fn mark_slot_build_started(

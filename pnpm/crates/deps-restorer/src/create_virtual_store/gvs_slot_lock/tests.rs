@@ -91,7 +91,7 @@ fn acquire_ordered_locks_slots_in_path_order_and_deduplicates_keys() {
     assert!(
         paths
             .windows(2)
-            .all(|pair| pair[0] < pair[1])
+            .all(|pair| pair[0] < pair[1]),
     );
 }
 

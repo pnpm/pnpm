@@ -179,7 +179,7 @@ impl GlobalVirtualStoreSlot {
                 Err(error)
                     if matches!(
                         error.kind(),
-                        io::ErrorKind::NotFound | io::ErrorKind::DirectoryNotEmpty
+                        io::ErrorKind::NotFound | io::ErrorKind::DirectoryNotEmpty,
                     ) => {}
                 Err(source) => {
                     return Err(GvsSlotLockError { dep_path: key.to_string(), source });

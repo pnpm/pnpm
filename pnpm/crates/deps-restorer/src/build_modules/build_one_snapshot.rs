@@ -88,46 +88,24 @@ fn build_candidate<Reporter: self::Reporter>(
     else {
         return Ok(());
     };
-    let slot_to_build::LockedSlotToBuild {
-        package_dir: pkg_dir,
-        slot: slot_lock,
-        dependency_slots: bin_slot_locks,
-    } = locked_slot;
+    let pkg_dir = &locked_slot.package_dir;
+    let slot_lock = locked_slot.slot.as_ref();
 
-    // Apply the patch before running postinstall hooks. A snapshot
-    // with a patch entry but no resolved `patch_file_path` is a hard
-    // error (`PatchFilePathMissing`).
-    // `is_patched` feeds the cache-write gate below
-    // (`is_patched || has_side_effects`).
-    let Some(is_patched) =
-        apply_configured_patch::<Reporter>(context, snapshot_key, candidate, slot_lock.as_ref())?
+    let Some((is_patched, has_side_effects)) =
+        prepare_candidate::<Reporter>(context, snapshot_key, candidate, optional, &locked_slot)?
     else {
         return Ok(());
     };
 
-    let held_bin_slots = slot_lock
-        .iter()
-        .chain(bin_slot_locks.iter())
-        .collect::<Vec<_>>();
-    let Some(has_side_effects) = run_scripts_in_every_copy::<Reporter>(
+    refresh_private_hoisted_bins(
         context,
         snapshot_key,
-        &pkg_dir,
-        slot_lock.as_ref(),
-        &held_bin_slots,
-        &candidate.script_run(optional),
-    )?
-    else {
-        return Ok(());
-    };
-
-    if is_patched || candidate.should_run_scripts {
-        dependency_bins::refresh_private_hoisted_for(context, snapshot_key)?;
-    }
+        is_patched || candidate.should_run_scripts,
+    )?;
 
     clear_global_virtual_store_build_markers(
         context,
-        slot_lock.as_ref(),
+        slot_lock,
         (candidate.patch.is_some() || candidate.should_run_scripts) && !candidate.build_pending,
         (candidate.patch.is_some() || candidate.should_run_scripts) && candidate.build_pending,
     )?;
@@ -136,13 +114,69 @@ fn build_candidate<Reporter: self::Reporter>(
         context,
         snapshot_key,
         candidate,
-        &pkg_dir,
+        pkg_dir,
         cache_key,
         is_patched,
         has_side_effects,
     );
 
     Ok(())
+}
+
+fn refresh_private_hoisted_bins(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    should_refresh: bool,
+) -> Result<(), BuildModulesError> {
+    if should_refresh {
+        dependency_bins::refresh_private_hoisted_for(context, snapshot_key)?;
+    }
+    Ok(())
+}
+
+fn prepare_candidate<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+    optional: bool,
+    locked_slot: &slot_to_build::LockedSlotToBuild,
+) -> Result<Option<(bool, bool)>, BuildModulesError> {
+    let Some(is_patched) = apply_configured_patch::<Reporter>(
+        context,
+        snapshot_key,
+        candidate,
+        locked_slot.slot.as_ref(),
+    )?
+    else {
+        return Ok(None);
+    };
+    let Some(has_side_effects) =
+        run_candidate_scripts::<Reporter>(context, snapshot_key, candidate, optional, locked_slot)?
+    else {
+        return Ok(None);
+    };
+    Ok(Some((is_patched, has_side_effects)))
+}
+
+fn run_candidate_scripts<Reporter: self::Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+    optional: bool,
+    locked_slot: &slot_to_build::LockedSlotToBuild,
+) -> Result<Option<bool>, BuildModulesError> {
+    let locked_slots = locked_slot.slot
+        .iter()
+        .chain(locked_slot.dependency_slots.iter())
+        .collect::<Vec<_>>();
+    run_scripts_in_every_copy::<Reporter>(
+        context,
+        snapshot_key,
+        &locked_slot.package_dir,
+        locked_slot.slot.as_ref(),
+        &locked_slots,
+        &candidate.script_run(optional),
+    )
 }
 
 fn upload_candidate_side_effects(
