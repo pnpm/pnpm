@@ -57,6 +57,7 @@ fn loaded_cache_miss_builds_once_in_a_temporary_directory_and_loads_from_cas() {
             &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
         )
         .unwrap();
+        dbg!(&manifest);
         let package = manifest["packages"]
             .as_object()
             .unwrap()
@@ -142,6 +143,7 @@ fn loaded_filesystem_packages_are_materialized_without_an_exclusion() {
         &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
     )
     .unwrap();
+    dbg!(&manifest);
     assert!(
         manifest["packages"]
             .as_object()
@@ -221,6 +223,7 @@ fn loaded_incompatible_build_outputs_are_retained_without_rebuilding() {
                 &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
             )
             .unwrap();
+            dbg!(&manifest);
             let package = manifest["packages"]
                 .as_object()
                 .unwrap()
@@ -296,6 +299,7 @@ fn loaded_temporary_builds_preserve_script_authorization_and_ignore_scripts() {
             &fs::read(fixture.workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
         )
         .unwrap();
+        dbg!(&manifest);
         assert!(
             manifest["packages"]
                 .as_object()
@@ -326,6 +330,7 @@ fn loaded_optional_temporary_build_failure_is_omitted_from_the_manifest() {
         &fs::read(fixture.workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
     )
     .unwrap();
+    dbg!(&manifest);
     assert!(
         !manifest["packages"]
             .as_object()
@@ -364,6 +369,7 @@ fn loaded_temporary_build_keeps_excluded_packages_materialized() {
         &fs::read(fixture.workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
     )
     .unwrap();
+    dbg!(&manifest);
     let packages = manifest["packages"].as_object().unwrap();
     assert!(
         packages

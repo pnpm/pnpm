@@ -65,8 +65,12 @@ fn rewrite_links(directory: &Path, source: &Path, target: &Path) -> io::Result<(
         if !entry.file_type().is_symlink() {
             continue;
         }
-        let destination = fs::read_link(entry.path())?;
-        let Ok(relative) = destination.strip_prefix(source) else { continue };
+        let destination = pnpm_fs::read_symlink_dir(entry.path())?;
+        // A junction's target reads back in verbatim `\\?\` form on Windows.
+        let Ok(relative) = dunce::simplified(&destination).strip_prefix(dunce::simplified(source))
+        else {
+            continue;
+        };
         let replacement = target.join(relative);
         #[cfg(windows)]
         let is_directory = {
@@ -76,7 +80,11 @@ fn rewrite_links(directory: &Path, source: &Path, target: &Path) -> io::Result<(
         #[cfg(not(windows))]
         let is_directory = false;
         pnpm_fs::remove_dirent(entry.path())?;
-        pnpm_fs::create_symlink(&replacement, entry.path(), is_directory)?;
+        if is_directory {
+            pnpm_fs::symlink_dir_with_contents(&replacement, &replacement, entry.path())?;
+        } else {
+            pnpm_fs::create_symlink(&replacement, entry.path(), false)?;
+        }
     }
     Ok(())
 }

@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 
 /// The overlays of the row at `cache_key`, with an overlay of the
 /// package's own files for each empty row when
-/// [`super::Rebuilds::restores_empty_builds`] is set.
+/// [`super::Rebuilds::empty_builds`] is [`super::EmptyBuilds::Restore`].
 pub(super) fn restorable_overlays(
     cache_key: &str,
     prefetch: &PrefetchResult,
@@ -13,7 +13,7 @@ pub(super) fn restorable_overlays(
     let maps = prefetch.side_effects_maps.get(cache_key);
     let empty_rows = prefetch.side_effects
         .get(cache_key)
-        .filter(|_| rebuilds.restores_empty_builds)
+        .filter(|_| rebuilds.empty_builds == super::EmptyBuilds::Restore)
         .into_iter()
         .flat_map(|diffs| diffs.iter())
         .filter(|(side_effects_key, diff)| {

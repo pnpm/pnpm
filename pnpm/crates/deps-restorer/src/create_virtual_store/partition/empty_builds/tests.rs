@@ -1,5 +1,8 @@
 use super::restorable_overlays;
-use crate::{AllowBuildPolicy, create_virtual_store::partition::Rebuilds};
+use crate::{
+    AllowBuildPolicy,
+    create_virtual_store::partition::{EmptyBuilds, Rebuilds},
+};
 use pnpm_store_dir::{SideEffectsDiff, SideEffectsOverlay};
 use pnpm_tarball::PrefetchResult;
 use std::{
@@ -37,20 +40,20 @@ fn restores_an_empty_row_from_the_package_files_only_when_asked() {
     let prefetch = prefetch();
     let markers = HashSet::new();
     let allow_build_policy = AllowBuildPolicy::default();
-    for restores_empty_builds in [false, true] {
+    for empty_builds in [EmptyBuilds::Rerun, EmptyBuilds::Restore] {
         let rebuilds = Rebuilds {
             markers: &markers,
             allow_build_policy: &allow_build_policy,
             known_requires_build: None,
             known_bins: None,
-            restores_empty_builds,
+            empty_builds,
         };
         let overlays = restorable_overlays("row", &prefetch, &rebuilds).unwrap();
-        dbg!(restores_empty_builds, &overlays);
+        dbg!(empty_builds, &overlays);
         assert!(overlays["built"].files.contains_key("built.json"));
         assert_eq!(
             overlays.get("empty").map(|overlay| &overlay.files),
-            restores_empty_builds.then(|| &prefetch.cas_paths["row"]),
+            (empty_builds == EmptyBuilds::Restore).then(|| &prefetch.cas_paths["row"]),
         );
     }
 }

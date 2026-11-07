@@ -47,6 +47,7 @@ pnpm-workspace-task-scheduler = { workspace = true }
 
 derive_more = { workspace = true }
 base64 = { workspace = true }
+dunce = { workspace = true }
 futures-util = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
@@ -71,7 +72,6 @@ walkdir = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 
 async-trait = { workspace = true }
-dunce = { workspace = true }
 flate2 = { workspace = true }
 insta = { workspace = true }
 junction = { workspace = true }

@@ -233,13 +233,20 @@ pub(super) struct Rebuilds<'a> {
     pub known_requires_build: Option<&'a RequiresBuildBySnapshot>,
     /// Precalculated bin commands and shebang runtimes from resolution metadata.
     pub known_bins: Option<&'a PackageBins>,
-    /// Restore a row whose build changed no files in its package from the
-    /// package's own files, so the build does not run again. Set for the
-    /// loaded linker only. The other linkers rebuild such a package, so a
-    /// script whose effect lands outside it runs in every project
-    /// (pnpm/pnpm#14717). The loaded linker leaves that to
-    /// `sideEffectsCache.exclude`.
-    pub restores_empty_builds: bool,
+    pub empty_builds: EmptyBuilds,
+}
+
+/// What to do with a side-effects cache row whose build changed no files in
+/// its package.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmptyBuilds {
+    /// Run the build again, so a script whose effect lands outside its
+    /// package runs in every project (pnpm/pnpm#14717).
+    Rerun,
+    /// Restore the package from its own files without running the build.
+    /// The loaded linker uses this and leaves scripts with outside effects
+    /// to `sideEffectsCache.exclude`.
+    Restore,
 }
 
 impl Rebuilds<'_> {

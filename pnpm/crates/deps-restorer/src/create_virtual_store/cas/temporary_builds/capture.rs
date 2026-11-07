@@ -46,7 +46,7 @@ fn insert(
     let base = &fetched.cas_paths_by_pkg_id.as_ref().expect("fetched packages")
         [&super::super::cas_paths_key(key)]
         .cas_paths;
-    // See `partition::Rebuilds::restores_empty_builds`.
+    // See `partition::EmptyBuilds::Restore`.
     let overlay = if diff.is_empty() {
         Some((**base).clone().into())
     } else {
