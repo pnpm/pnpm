@@ -178,8 +178,14 @@ convention.
 Project names are compared PEP 503 normalized, so `My_Package`, `my.package`,
 and `my-package` are one project, and exact `packages:` keys are normalized the
 same way. Proxied files are fetched from the URL the upstream page lists,
-verified against its `sha256`, and cached. The project list at `/pypi/simple/`
-enumerates hosted projects only.
+verified against its `sha256`, and cached. Upstream core-metadata declarations
+(PEP 658/714) are preserved in JSON and HTML pages. Clients can download
+`<filename>.metadata` through the proxy without downloading the distribution.
+Metadata is cached and checked against a published SHA-256, SHA-384, or
+SHA-512 digest when available. Hash declarations without a supported digest
+are not advertised. Legacy metadata declarations are accepted,
+and JSON pages expose them using `core-metadata` for compatibility with pip.
+The project list at `/pypi/simple/` enumerates hosted projects only.
 
 Uploads must be valid wheel, `.tar.gz`, or `.zip` archives. The root
 `METADATA` in a wheel's `.dist-info` directory or the root `PKG-INFO` in a

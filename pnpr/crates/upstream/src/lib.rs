@@ -321,12 +321,23 @@ impl Upstream {
         accept: Option<&str>,
         limit: usize,
     ) -> Result<FetchOutcome<FetchedDocument>> {
-        self.ensure_available()?;
         let url = format!(
             "{}/{}",
             self.base.trim_end_matches('/'),
             relative_path.trim_start_matches('/'),
         );
+        self.fetch_artifact_document(&url, accept, limit).await
+    }
+
+    /// Fetch a bounded document at an absolute artifact URL with the same
+    /// credential scoping and download-host restrictions as artifact downloads.
+    pub async fn fetch_artifact_document(
+        &self,
+        url: &str,
+        accept: Option<&str>,
+        limit: usize,
+    ) -> Result<FetchOutcome<FetchedDocument>> {
+        self.ensure_available()?;
         let mut headers = HeaderMap::new();
         if let Some(accept) = accept
             && let Ok(value) = HeaderValue::from_str(accept)
@@ -334,22 +345,22 @@ impl Upstream {
             headers.insert(header::ACCEPT, value);
         }
         let (response, _guard) =
-            self.get_with_scoped_headers(&url, &headers, Deadline::Whole).await?;
+            self.get_with_scoped_headers(url, &headers, Deadline::Whole).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
-        let response = self.checked(response, &url).await?;
+        let response = self.checked(response, url).await?;
         let final_url = response.url().to_string();
         let body = read_limited_body(response, limit).await
             .map_err(|err| {
                 self.record_body_failure(&err);
-                RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
+                RegistryError::UpstreamResponse { url: url.to_string(), reason: err.to_string() }
             })?;
         if body.truncated {
             self.breaker.record_success();
             return Err(RegistryError::UpstreamResponse {
-                url,
+                url: url.to_string(),
                 reason: format!("response body exceeds the {limit}-byte limit"),
             });
         }
