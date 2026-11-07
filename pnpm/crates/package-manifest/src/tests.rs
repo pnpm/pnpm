@@ -9,9 +9,10 @@ use super::{
     BINDING_GYP, BundleDependencies, InitAuthor, InitOptions, PackageManifest,
     PackageManifestError, ReadmeKind, apply_runtime_on_fail_override,
     convert_dependencies_to_engines_runtime, convert_engines_runtime_to_dependencies,
-    extract_license, files_build_triggers, is_preferred_readme, manifest_opts_out_of_gyp_build,
-    manifest_requires_build, node_version_from_engines_runtime, parse_manifest_bytes,
-    pkg_requires_build, readme_kind, safe_read_package_json_from_dir,
+    downloaded_node_version_from_engines_runtime, extract_license, files_build_triggers,
+    is_preferred_readme, manifest_opts_out_of_gyp_build, manifest_requires_build,
+    node_version_from_engines_runtime, parse_manifest_bytes, pkg_requires_build, readme_kind,
+    safe_read_package_json_from_dir,
 };
 use crate::DependencyGroup;
 use serde_json::json;
