@@ -162,12 +162,10 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     named: (&str, &str),
 ) -> Result<bool, BuildModulesError> {
     let (key, overlay) = cached;
-    tracing::debug!(
-        target: "pacquet::build",
-        ?snapshot_key,
-        cache_key = key,
-        "side-effects cache hit; skipping build",
-    );
+    trace_side_effects_cache_hit(snapshot_key, key);
+    if context.cache.frozen_store && context.directories.layout.enable_global_virtual_store() {
+        return frozen_store_slot_carries_overlay(context, snapshot_key, overlay);
+    }
     let Some(_slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay)? else {
         return Ok(true);
     };
@@ -206,6 +204,16 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     }
     Ok(true)
 }
+
+fn trace_side_effects_cache_hit(snapshot_key: &PackageKey, cache_key: &str) {
+    tracing::debug!(
+        target: "pacquet::build",
+        ?snapshot_key,
+        cache_key,
+        "side-effects cache hit; skipping build",
+    );
+}
+
 /// What materializing a cached overlay into one slot left behind.
 pub(super) enum OverlayOutcome {
     Materialized,
@@ -242,6 +250,18 @@ fn lock_slot_missing_overlay(
     }
     Ok(Some(slot))
 }
+
+fn frozen_store_slot_carries_overlay(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    overlay: &pnpm_store_dir::SideEffectsOverlay,
+) -> Result<bool, BuildModulesError> {
+    let slot =
+        crate::GlobalVirtualStoreSlot::acquire_existing(context.directories.layout, snapshot_key)
+            .map_err(BuildModulesError::SlotLock)?;
+    Ok(slot.as_ref().is_some_and(|slot| global_slot_carries_overlay(slot, overlay)))
+}
+
 pub(super) fn materialize_overlay_into_slot<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     pkg_dir: &Path,

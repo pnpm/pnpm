@@ -61,10 +61,6 @@ pub use frozen_install_options::{
     FrozenInstallDrivers, FrozenInstallSeed, FrozenLockfileInputs, FrozenPlatformOptions,
     FrozenProjectInputs, PriorMaterialization, SharedFetchCaches,
 };
-pub use gvs_slot_lock::{
-    GlobalVirtualStoreSlot, GlobalVirtualStoreSlotPhase, GlobalVirtualStoreSlotState,
-    GvsSlotLockError,
-};
 pub use hoist::*;
 pub use hoisted_dep_graph::*;
 pub use hoisting_limits::*;
@@ -107,7 +103,6 @@ pub use version_policy::*;
 pub use virtual_store_layout::*;
 
 mod custom_fetcher;
-mod gvs_slot_lock;
 mod installed_hoisted_state;
 mod link_pool;
 mod prune_extraneous_deps;

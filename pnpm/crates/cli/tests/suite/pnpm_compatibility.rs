@@ -275,6 +275,7 @@ fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
     files
         .into_iter()
         .filter(|path| path.starts_with("links/") || path.starts_with("v11/links/"))
+        .filter(|path| !path.ends_with("/.pnpm-slot-state"))
         .collect()
 }
 

@@ -31,7 +31,7 @@ pub(super) fn run_scripts_in_every_copy<Reporter: self::Reporter>(
     if !run.should_run_scripts {
         return Ok(Some(false));
     }
-    dependency_bins::refresh(context, snapshot_key)?;
+    dependency_bins::refresh(context, snapshot_key, slot_lock)?;
     dependency_bins::record_mutation(context, snapshot_key)?;
     let other_copies = context
         .pkg_roots()

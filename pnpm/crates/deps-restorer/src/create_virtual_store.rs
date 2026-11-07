@@ -2,10 +2,15 @@ pub(crate) mod cas;
 pub(crate) mod linked_archives;
 pub use cache_keys::lookup_known_bins;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
+pub use gvs_slot_lock::{
+    GlobalVirtualStoreSlot, GlobalVirtualStoreSlotPhase, GlobalVirtualStoreSlotState,
+    GvsSlotLockError,
+};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
 pub use output::{CreateVirtualStoreOutput, SideEffectsOutput, SnapshotPlacement};
 
+mod gvs_slot_lock;
 mod output;
 mod pipeline;
 

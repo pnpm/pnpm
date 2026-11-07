@@ -63,7 +63,7 @@ pub struct GlobalVirtualStoreSlot {
     package_path: PathBuf,
     needs_build_marker: PathBuf,
     state_file: PathBuf,
-    _lock: DirLock,
+    lock: Option<DirLock>,
 }
 
 /// Take the lock of `key`'s slot. `None` only when the global virtual
@@ -77,6 +77,12 @@ impl GlobalVirtualStoreSlot {
         let Some(path) = layout.hashed_slot_dir(key) else {
             return Ok(None);
         };
+        if layout.frozen_store() {
+            return Err(GvsSlotLockError {
+                dep_path: key.to_string(),
+                source: io::Error::new(io::ErrorKind::PermissionDenied, "store is read-only"),
+            });
+        }
         Self::acquire_path(path, key).map(Some)
     }
 
@@ -87,7 +93,20 @@ impl GlobalVirtualStoreSlot {
         let Some(path) = layout.hashed_slot_dir(key) else {
             return Ok(None);
         };
+        if layout.frozen_store() {
+            return Self::open_readonly_path(path, key);
+        }
         Self::acquire_existing_path(path, key)
+    }
+
+    fn open_readonly_path(
+        path: PathBuf,
+        key: &PackageKey,
+    ) -> Result<Option<Self>, GvsSlotLockError> {
+        if !path.is_dir() {
+            return Ok(None);
+        }
+        Ok(Some(Self::from_path(path, key, None)))
     }
 
     pub fn acquire_existing_path(
@@ -103,10 +122,14 @@ impl GlobalVirtualStoreSlot {
     pub fn acquire_path(path: PathBuf, key: &PackageKey) -> Result<Self, GvsSlotLockError> {
         let lock = DirLock::acquire_waiting(&path.join(SLOT_LOCK_DIR), WAIT, ABANDONED_AFTER)
             .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?;
+        Ok(Self::from_path(path, key, Some(lock)))
+    }
+
+    fn from_path(path: PathBuf, key: &PackageKey, lock: Option<DirLock>) -> Self {
         let package_path = path.join("node_modules").join(key.name.to_string());
         let needs_build_marker = package_path.join(crate::NEEDS_BUILD_MARKER);
         let state_file = path.join(SLOT_STATE_FILE);
-        Ok(Self { path, package_path, needs_build_marker, state_file, _lock: lock })
+        Self { path, package_path, needs_build_marker, state_file, lock }
     }
 
     #[must_use]
@@ -225,6 +248,7 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn mark_build_finished(&self) -> io::Result<()> {
+        self.ensure_writable()?;
         match fs::remove_file(&self.needs_build_marker) {
             Ok(()) => Ok(()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -243,6 +267,7 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn record_linked_archive(&self, integrity: &str) -> io::Result<()> {
+        self.ensure_writable()?;
         pnpm_fs::write_atomic(
             &self.path.join(crate::create_virtual_store::linked_archives::LINKED_ARCHIVE_RECORD),
             integrity.as_bytes(),
@@ -250,7 +275,15 @@ impl GlobalVirtualStoreSlot {
     }
 
     fn write_state(&self, state: &str) -> io::Result<()> {
+        self.ensure_writable()?;
         pnpm_fs::write_atomic(&self.state_file, state.as_bytes())
+    }
+
+    fn ensure_writable(&self) -> io::Result<()> {
+        if self.lock.is_none() {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "store is read-only"));
+        }
+        Ok(())
     }
 }
 

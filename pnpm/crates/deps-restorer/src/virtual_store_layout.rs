@@ -91,6 +91,7 @@ pub struct VirtualStoreLayout {
     /// lockfile context, in which case `link:` dependencies inside a
     /// slot are left unlinked exactly as before.
     lockfile_dir: Option<PathBuf>,
+    frozen_store: bool,
 }
 
 impl VirtualStoreLayout {
@@ -115,6 +116,7 @@ impl VirtualStoreLayout {
             gvs_suffixes: None,
             virtual_store_dir_max_length,
             lockfile_dir: None,
+            frozen_store: false,
         }
     }
 
@@ -193,9 +195,10 @@ impl VirtualStoreLayout {
                 gvs_suffixes: None,
                 virtual_store_dir_max_length,
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+                frozen_store: config.frozen_store,
             };
         }
-        Self::global(
+        let mut layout = Self::global(
             package_store_dir,
             virtual_store_dir_max_length,
             engine,
@@ -204,7 +207,9 @@ impl VirtualStoreLayout {
             allow_build_policy,
             lockfile_dir,
             &selected_platform(config),
-        )
+        );
+        layout.frozen_store = config.frozen_store;
+        layout
     }
 
     /// [`Self::new`], with the derived suffix map cached on disk.
@@ -272,6 +277,7 @@ impl VirtualStoreLayout {
             gvs_suffixes: Some(gvs_suffixes),
             virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+            frozen_store: config.frozen_store,
         }
     }
 
@@ -308,6 +314,7 @@ impl VirtualStoreLayout {
                 gvs_suffixes: Some(HashMap::new()),
                 virtual_store_dir_max_length,
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+                frozen_store: false,
             };
         };
         let mut hasher =
@@ -318,6 +325,7 @@ impl VirtualStoreLayout {
             gvs_suffixes: Some(hasher.suffixes(snapshots)),
             virtual_store_dir_max_length,
             lockfile_dir: lockfile_dir.map(Path::to_path_buf),
+            frozen_store: false,
         }
     }
 
@@ -329,6 +337,10 @@ impl VirtualStoreLayout {
     #[must_use]
     pub fn package_store_dir(&self) -> &Path {
         &self.package_store_dir
+    }
+
+    pub(crate) fn frozen_store(&self) -> bool {
+        self.frozen_store
     }
 
     /// Whether this install is running in global-virtual-store mode.

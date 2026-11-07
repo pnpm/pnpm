@@ -56,7 +56,7 @@ use std::{
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum BuildModulesError {
     #[diagnostic(transparent)]
-    SlotLock(#[error(source)] crate::gvs_slot_lock::GvsSlotLockError),
+    SlotLock(#[error(source)] crate::GvsSlotLockError),
 
     #[display("Failed to update the build marker at {}: {source}", path.display())]
     WriteBuildMarker {

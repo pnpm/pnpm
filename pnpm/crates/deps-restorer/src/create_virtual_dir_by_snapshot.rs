@@ -82,7 +82,7 @@ pub enum CreateVirtualDirError {
     ImportIndexedDir(#[error(source)] ImportIndexedDirError),
 
     #[diagnostic(transparent)]
-    SlotLock(#[error(source)] crate::gvs_slot_lock::GvsSlotLockError),
+    SlotLock(#[error(source)] crate::GvsSlotLockError),
 
     #[display("Failed to read the build marker at {path:?}: {source}")]
     ReadBuildMarker {
