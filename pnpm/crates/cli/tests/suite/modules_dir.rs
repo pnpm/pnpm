@@ -837,14 +837,29 @@ fn commands_find_each_projects_modules_dir_outside_the_project() {
             set_modules_dir_outside_the_project(&workspace, setting);
         append_workspace_yaml_key(&workspace, "packages", "['project-1']");
         let project_dir = workspace.join("project-1");
-        for (dir, name) in [(&workspace, "root"), (&project_dir, "project-1")] {
+        // Each project gets its own command: the root's `.bin` is on every
+        // project's `PATH`, so a shared one would hide a missed member `.bin`.
+        for (dir, name, to_workspace) in
+            [(&workspace, "root", "."), (&project_dir, "project-1", "..")]
+        {
+            let tool = workspace.join(format!("{name}-tool"));
+            fs::create_dir_all(&tool).expect("create the tool package");
+            fs::write(tool.join("bin.js"), "#!/usr/bin/env node\n").expect("write bin.js");
+            write_manifest(
+                &tool,
+                &serde_json::json!({
+                    "name": format!("{name}-tool"),
+                    "version": "1.0.0",
+                    "bin": { format!("{name}-tool"): "bin.js" },
+                }),
+            );
             write_manifest(
                 dir,
                 &serde_json::json!({
                     "name": name,
                     "version": "1.0.0",
-                    "scripts": { "greet": "hello-world-js-bin" },
-                    "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+                    "scripts": { "greet": format!("{name}-tool") },
+                    "dependencies": { format!("{name}-tool"): format!("link:{to_workspace}/{name}-tool") },
                 }),
             );
         }
@@ -852,15 +867,13 @@ fn commands_find_each_projects_modules_dir_outside_the_project() {
             .with_arg("install")
             .assert()
             .success();
-        assert_commands_use(&workspace, &root_modules_dir, setting);
-        assert_commands_use(&project_dir, &project_modules_dir, setting);
+        assert_commands_use(&workspace, &root_modules_dir, "root-tool", setting);
+        assert_commands_use(&project_dir, &project_modules_dir, "project-1-tool", setting);
         drop((root, mock_instance));
     }
 }
 
-/// `pnpm root` and `pnpm bin` in `dir` print `modules_dir`, and `pnpm run`
-/// and `pnpm exec` find the commands installed in it.
-fn assert_commands_use(dir: &Path, modules_dir: &Path, setting: ModulesDirSetting) {
+fn assert_commands_use(dir: &Path, modules_dir: &Path, command: &str, setting: ModulesDirSetting) {
     let context = format!("{setting:?} {}", dir.display());
     let real = |path: &str| {
         dunce::canonicalize(path.trim())
@@ -876,7 +889,7 @@ fn assert_commands_use(dir: &Path, modules_dir: &Path, setting: ModulesDirSettin
         dunce::canonicalize(modules_dir.join(".bin")).unwrap(),
         "{context}",
     );
-    for args in [&["run", "greet"][..], &["exec", "hello-world-js-bin"]] {
+    for args in [&["run", "greet"][..], &["exec", command]] {
         pacquet_in(dir)
             .with_args(args)
             .assert()
