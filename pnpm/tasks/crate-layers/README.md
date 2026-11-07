@@ -54,7 +54,7 @@ depends on.
 Each of these tables in `crate-layers.toml` records a number per crate:
 
 | Table | Number |
-|,- |,- |
+| --- | --- |
 | `module_cycles` | The modules in the crate's largest module cycle. |
 | `direct_dependencies` | The workspace crates the crate depends on through normal and build dependencies. |
 | `leaked_dependencies` | The dependencies the crate [leaks](#leaks). |

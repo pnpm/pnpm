@@ -3,7 +3,7 @@
 ## Supported versions
 
 | Version | Supported          |
-|,----- |,---------------- |
+| ------- | ------------------ |
 | 12.x  | :white_check_mark: |
 | 11.x  | :white_check_mark: till 2027 April 30 |
 | 10.x  | :white_check_mark: till 2027 April 30 |

@@ -74,7 +74,7 @@ Everything pnpr reads is cached for every client that follows.
 ## CLI flags
 
 | Flag | Description |
-|,- |,- |
+| --- | --- |
 | `-c, --config <path>` | Path to a verdaccio-shaped YAML config. When omitted, the bundled default is used. |
 | `--listen <addr>` | Address to bind to. Defaults to `127.0.0.1:7677`. |
 | `--storage <path>` | Override the storage directory from the loaded config. |
@@ -176,7 +176,7 @@ A registry that hosts packages on S3 needs `metadata.url` to name a libSQL
 database. pnpr refuses to start without one.
 
 | Key | Required | Description |
-|,- |,- |,- |
+| --- | --- | --- |
 | `bucket` | yes | Bucket the hosted packages are stored in. |
 | `region` | no | AWS S3 needs a real region (e.g. `us-east-1`); Cloudflare R2 uses `auto`. |
 | `endpoint` | no | Custom endpoint for S3-compatible providers. Omit for AWS S3; for R2 it's `https://<account-id>.r2.cloudflarestorage.com`; for MinIO it's e.g. `http://127.0.0.1:9000`. |
@@ -257,7 +257,7 @@ Only one backend may be selected in a config file.
 Database drivers are Cargo-feature gated:
 
 | Backend | Config key | Cargo feature |
-|,- |,- |,- |
+| --- | --- | --- |
 | libsql / Turso | `backend.libsql` | `backend-libsql` (enabled by default) |
 | PostgreSQL | `backend.postgres` | `backend-postgres` |
 | MySQL-compatible | `backend.mysql` | `backend-mysql` |
@@ -279,7 +279,7 @@ backend:
 ```
 
 | Key | Required | Description |
-|,- |,- |,- |
+| --- | --- | --- |
 | `url` | yes | Database URL, `libsql://<db>.turso.io` (Turso) or `http://<host>:<port>` (self-hosted `sqld`). |
 | `authToken` | no | Bearer token for the database. Omit for an unauthenticated local `sqld`. |
 | `replicaPath` | no | Path to a local **embedded replica**. When set, reads (token lookups) hit this local file instead of a network round-trip; writes still go to the primary. Absent ⇒ every read is a remote query. |

@@ -19,7 +19,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    `pnpr@<version>` for pnpr, `get-pnpm@<version>` for get-pnpm:
 
    | Product           | Manifest                         | Tag prefix  |
-   |,--------------- |,------------------------------ |,--------- |
+   | ----------------- | -------------------------------- | ----------- |
    | pnpm (TypeScript) | `pnpm11/pnpm/package.json`       | `v`         |
    | pacquet (Rust)    | `pnpm/npm/pnpm/package.json`     | `v`         |
    | pnpr              | `pnpr/npm/pnpr/package.json`     | `pnpr@`     |

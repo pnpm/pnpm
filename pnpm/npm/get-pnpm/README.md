@@ -129,7 +129,7 @@ These CAs are trusted in addition to the ones Node.js trusts. Node.js 22.19 or 2
 ## Environment variables
 
 | Variable | Description |
-|,- |,- |
+| --- | --- |
 | `PNPM_VERSION` | Version to install when no argument is given. |
 | `PNPM_HOME` | Directory to install pnpm into. |
 | `PNPM_NO_MODIFY_PATH` | Set to `1` for the same as `--no-modify-path`. |

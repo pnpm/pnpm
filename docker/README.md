@@ -11,7 +11,7 @@ Based on `debian:stable-slim` with the pnpm standalone binary. Node.js is **not*
 ## Tags
 
 | Tag                   | Meaning                                                                 |
-|,------------------- |,--------------------------------------------------------------------- |
+| --------------------- | ----------------------------------------------------------------------- |
 | `<version>`           | Exact, immutable (e.g. `11.0.0`). Includes prereleases.                 |
 | `<major>`             | Tracks the latest stable release within that major (e.g. `11`).         |
 | `latest`              | Highest stable pnpm version. Not updated for prereleases.               |

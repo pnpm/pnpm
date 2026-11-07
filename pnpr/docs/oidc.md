@@ -85,7 +85,7 @@ under `groups` when a groups claim is added to the authorization server.
 Use the issuer your provider publishes:
 
 | Provider | Issuer |
-|,- |,- |
+| --- | --- |
 | Google Workspace | `https://accounts.google.com` |
 | Microsoft Entra ID | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
 | Okta org authorization server | `https://<your-org>.okta.com` |
@@ -215,7 +215,7 @@ publish request; its issuer's expiry applies to every request.
 Every block rejects unknown keys.
 
 | Key | Required | Description |
-|,- |,- |,- |
+| --- | --- | --- |
 | `name` | yes | Provider name, used in the `/-/oidc/<name>/` URLs. |
 | `issuer` | yes | The provider's issuer URL. |
 | `audience` | yes | The expected `aud` claim. For browser sign-in, the client ID. |

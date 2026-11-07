@@ -16,7 +16,7 @@ Each ecosystem is served under its own path prefix, however many are
 configured:
 
 | Ecosystem | Prefix |
-|,- |,- |
+| --- | --- |
 | npm | `/npm/` |
 | Cargo | `/cargo/` |
 | Python | `/pypi/` |

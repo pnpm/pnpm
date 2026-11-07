@@ -51,7 +51,7 @@ itself requires.
 ## Ownership
 
 | Component | Owns |
-|,- |,- |
+| --- | --- |
 | CLI registration | Enabled ecosystems, command option translation, shared HTTP context |
 | Native task | Discovery interpretation, manifests, resolution, native lockfile bytes, verified projection preparation |
 | `InstallPlan` | Workspace lock, metadata snapshots, concurrent preparation, settlement barrier, publication order, rollback |
@@ -152,7 +152,7 @@ Both formats use the same body-progress tracker and buffered integrity check.
 HTTP status handling and bounded error-body draining for both formats.
 
 | Responsibility | Single implementation | Native input or exception |
-|,- |,- |,- |
+| --- | --- | --- |
 | Retry settings | `Config::retry_opts` | The npm compatibility helper delegates to it |
 | Metadata retry budget and backoff | `network::retry` | Cargo sparse-index and Python Simple JSON parsing stay native; npm retains its conditional metadata cache and separate body-parse retry contract |
 | Credential selection across metadata redirects | `ThrottledClient::get_bytes_with_secure_auth_and_retry` | Each adapter supplies its credential map and optional Accept header |
@@ -210,7 +210,7 @@ All eleven scenarios passed. Each target received four warmups and 30
 measurements, with the refactor target running first.
 
 | npm-only scenario | Baseline mean (ms) | Refactor mean (ms) |
-|,- |,-: |,-: |
+| --- | ---: | ---: |
 | Fresh install, cold cache/store | 492.12 | 487.22 |
 | Fresh install, hot cache/store | 242.76 | 247.36 |
 | Fresh install, cold cache/hot store | 427.43 | 428.17 |
