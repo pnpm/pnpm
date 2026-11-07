@@ -55,7 +55,7 @@ async fn large_requests_release_the_raw_buffer_and_replay_from_disk() {
         assert_eq!(body.len(), MEMORY_REPLAY_THRESHOLD + 1);
         assert!(body.iter().all(|byte| *byte == b'x'));
         attempts.set(attempts.get() + 1);
-        ready(if attempts.get() == 1 {
+        ready(if attempts.get() < 5 {
             Err(RegistryError::ArchiveReclaimed {
                 package: "example-pkg".to_string(),
                 artifact: "example-pkg-1.0.0.tgz".to_string(),
@@ -66,7 +66,7 @@ async fn large_requests_release_the_raw_buffer_and_replay_from_disk() {
     })
     .await
     .unwrap();
-    assert_eq!(attempts.get(), 2);
+    assert_eq!(attempts.get(), 5);
 }
 
 #[tokio::test]
@@ -129,5 +129,33 @@ async fn a_replay_file_failure_preserves_publishing_within_the_byte_budget() {
     .await
     .unwrap();
     assert_eq!(attempts.get(), 2);
+    assert_eq!(storage.bytes.available_permits(), available);
+}
+
+#[tokio::test]
+async fn outstanding_replay_reads_hold_their_budget_after_request_cleanup() {
+    let temp = TempDir::new().unwrap();
+    let storage = ReplayStorage::new(temp.path());
+    let available = storage.bytes.available_permits();
+    let length = MEMORY_REPLAY_THRESHOLD + 1;
+    let body = Bytes::from(vec![b'x'; length]);
+    let replay = ReplayBody::new(&storage, &body).await.unwrap();
+    let file = match &replay {
+        ReplayBody::File { file, .. } => Arc::clone(file),
+        ReplayBody::Memory { .. } => panic!("large replays use files"),
+    };
+    let (started, waiting) = tokio::sync::oneshot::channel();
+    let (resume, paused) = std::sync::mpsc::channel();
+    let reading = tokio::task::spawn_blocking(move || {
+        started.send(()).unwrap();
+        paused.recv().unwrap();
+        file.read_bytes(length).unwrap()
+    });
+    waiting.await.unwrap();
+    drop(replay);
+    assert_eq!(storage.bytes.available_permits(), available - length);
+    resume.send(()).unwrap();
+    let bytes = reading.await.unwrap();
+    assert_eq!(bytes.as_slice(), body.as_ref());
     assert_eq!(storage.bytes.available_permits(), available);
 }

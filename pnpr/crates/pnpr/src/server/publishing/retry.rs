@@ -1,15 +1,13 @@
 use axum::body::Bytes;
 use pnpr_error::RegistryError;
 use std::{
+    fs::File,
     future::Future,
-    io::Write as _,
+    io::{Read as _, Seek as _, Write as _},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
-use tokio::{
-    io::{AsyncReadExt as _, AsyncSeekExt as _},
-    sync::{OwnedSemaphorePermit, Semaphore},
-};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// The request size in bytes above which replay uses the cache.
 const MEMORY_REPLAY_THRESHOLD: usize = 1024 * 1024;
@@ -68,7 +66,7 @@ pub(in super::super) async fn retry_reclaimed<
 
 enum ReplayBody {
     Memory { body: Bytes, _permit: Option<OwnedSemaphorePermit> },
-    File { file: tokio::fs::File, length: usize, _permit: OwnedSemaphorePermit },
+    File { file: Arc<ReplayFile>, length: usize },
 }
 
 impl ReplayBody {
@@ -85,7 +83,10 @@ impl ReplayBody {
         })
         .await?;
         match stored {
-            Ok(file) => Ok(Self::File { file, length: body.len(), _permit: permit }),
+            Ok(file) => Ok(Self::File {
+                file: Arc::new(ReplayFile { file: Mutex::new(file), _permit: permit }),
+                length: body.len(),
+            }),
             Err(error) => {
                 tracing::warn!(
                     directory = %storage.directory.display(),
@@ -100,21 +101,36 @@ impl ReplayBody {
     async fn read(&mut self) -> Result<Bytes, RegistryError> {
         match self {
             Self::Memory { body, .. } => Ok(body.clone()),
-            Self::File { file, length, .. } => {
-                file.rewind().await?;
-                let mut bytes = Vec::with_capacity(*length);
-                file.read_to_end(&mut bytes).await?;
+            Self::File { file, length } => {
+                let file = Arc::clone(file);
+                let length = *length;
+                let bytes = tokio::task::spawn_blocking(move || file.read_bytes(length)).await??;
                 Ok(Bytes::from(bytes))
             }
         }
     }
 }
 
-fn write_replay(directory: &Path, body: &[u8]) -> std::io::Result<tokio::fs::File> {
+struct ReplayFile {
+    file: Mutex<File>,
+    _permit: OwnedSemaphorePermit,
+}
+
+impl ReplayFile {
+    fn read_bytes(&self, length: usize) -> std::io::Result<Vec<u8>> {
+        let mut file = self.file.lock().expect("the replay file lock was poisoned");
+        file.rewind()?;
+        let mut bytes = vec![0; length];
+        file.read_exact(&mut bytes)?;
+        Ok(bytes)
+    }
+}
+
+fn write_replay(directory: &Path, body: &[u8]) -> std::io::Result<File> {
     std::fs::create_dir_all(directory)?;
     let mut file = tempfile::tempfile_in(directory)?;
     file.write_all(body)?;
-    Ok(tokio::fs::File::from_std(file))
+    Ok(file)
 }
 
 #[cfg(test)]
