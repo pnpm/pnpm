@@ -107,6 +107,7 @@ fn html_response(headers: &HeaderMap, html: String) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, content_type)
+        .header(header::VARY, "Accept")
         .body(Body::from(html))
         .expect("static-shape response always builds")
 }
@@ -115,6 +116,7 @@ fn json_page_response(json: &serde_json::Value) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, JSON_CONTENT_TYPE)
+        .header(header::VARY, "Accept")
         .body(Body::from(serde_json::to_vec(json).expect("static-shape JSON serializes")))
         .expect("static-shape response always builds")
 }

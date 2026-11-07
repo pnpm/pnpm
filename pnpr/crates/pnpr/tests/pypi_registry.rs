@@ -211,14 +211,16 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, wheel);
 
-    // The named form is caller-scoped and points file URLs at itself.
+    // The named form of a public project stays cacheable and points file
+    // URLs at itself.
     let response = app
         .clone()
         .oneshot(get("/pypi/~internal/simple/demo-pkg/", Some(JSON)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    assert!(!response.headers().contains_key(header::CACHE_CONTROL));
+    assert_eq!(response.headers()[header::VARY], "Accept");
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         page["files"][0]["url"],

@@ -42,7 +42,7 @@ async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{registry}");
-        assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+        assert!(!response.headers().contains_key(header::CACHE_CONTROL), "{registry}");
         let config: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
         assert_eq!(config["api"], format!("http://pnpr.test/cargo/~{registry}"));

@@ -67,12 +67,12 @@ pub(super) fn registry_endpoint(
 }
 
 /// The cache headers a response needs so a shared HTTP cache can never replay
-/// an authenticated response to an anonymous caller. A named registry's
-/// responses are always caller-scoped. The default target's are scoped only
-/// when `package` resolves to a source whose effective per-package access
-/// denies anonymous callers, so a URL that answers differently depending on
-/// `Authorization` says so. A publicly-readable resolution stays cacheable:
-/// the path-less base is the hot install path.
+/// an authenticated response to an anonymous caller. A response is scoped
+/// when `package` resolves, through the addressed registry, to a source whose
+/// effective per-package access denies anonymous callers, so a URL that
+/// answers differently depending on `Authorization` says so. A
+/// publicly-readable resolution stays cacheable on both the path-less base
+/// (the hot install path) and a named one.
 pub(super) fn caller_scoped(
     state: &AppState,
     ecosystem: Ecosystem,
@@ -80,10 +80,8 @@ pub(super) fn caller_scoped(
     package: Option<&str>,
     response: Response,
 ) -> Response {
-    if registry.is_some() {
-        return private_no_cache(response);
-    }
-    match (default_registry_target(state, ecosystem), package) {
+    let target = registry.map(str::to_string).or_else(|| default_registry_target(state, ecosystem));
+    match (target, package) {
         (Some(target), Some(package))
             if resolves_to_private_source(state, &target, ecosystem, package) =>
         {
