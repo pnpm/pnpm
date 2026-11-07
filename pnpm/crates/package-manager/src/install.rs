@@ -51,8 +51,7 @@ use crate::{
     InstallWithFreshLockfileError, LockfileVerificationOverride, OptimisticRepeatInstallCheck,
     RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
     emit_initial_package_manifest, install_state::Decision as OptimisticRepeatInstallDecision,
-    link_project_bins, prune_merged_branch_lockfile::prune_merged_branch_lockfile,
-    report_merged_lockfile_conflicts,
+    prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
 };
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;

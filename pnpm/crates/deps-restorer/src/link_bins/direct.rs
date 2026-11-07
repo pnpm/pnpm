@@ -1,9 +1,6 @@
 use super::{build_has_bin_set, pkg_dir_under};
 use crate::PackageManifests;
-use pnpm_cmd_shim::{
-    BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
-    collect_packages_in_modules_dir, link_bins_of_packages,
-};
+use pnpm_cmd_shim::{LinkBinsError, PackageBinSource, ShimTargetCache};
 use pnpm_lockfile::{PackageKey, PackageMetadata};
 use pnpm_package_manifest::{find_parent_publish_manifest, parse_manifest_bytes};
 use std::{
@@ -200,31 +197,4 @@ fn read_existing_publish_manifest(
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(LinkBinsError::ResolvePath { path: target.to_path_buf(), error }),
     }
-}
-/// Link a project's top-level bins while preserving direct-dependency
-/// precedence over every other package present in its `node_modules`.
-pub fn link_project_bins(
-    modules_dir: &Path,
-    direct_dep_names: &[String],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let direct_locations = direct_dep_names
-        .iter()
-        .map(|name| modules_dir.join(name))
-        .collect::<HashSet<_>>();
-    let sources = collect_packages_in_modules_dir::<Host>(modules_dir)?
-        .into_iter()
-        .map(|source| {
-            let origin = if direct_locations.contains(&source.location) {
-                BinOrigin::Direct
-            } else {
-                BinOrigin::Hoisted
-            };
-            source.with_origin(origin)
-        })
-        .collect::<Vec<_>>();
-    if sources.is_empty() {
-        return Ok(());
-    }
-    link_bins_of_packages::<Host>(&sources, &modules_dir.join(".bin"), link_options)
 }

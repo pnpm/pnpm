@@ -391,16 +391,19 @@ fn link_importer_top_level_bins(
     );
     let cached =
         post_build_bins::importer_sources(plans, &modules_dir, &direct_names, hoisted_names);
-    let linked = crate::link_bins::link_top_level_bins_cached(
+    let link_options =
+        post_build_bins::link_options(inputs.directories.link_options, mutated_slots);
+    let linked = crate::link_bins_dir(
         &modules_dir,
-        &direct_names,
-        hoisted_names,
-        &peer_locations,
-        &post_build_bins::link_options(inputs.directories.link_options, mutated_slots),
-        cached.as_ref(),
+        crate::BinCandidates::TopLevel(crate::TopLevelCandidates {
+            direct: &direct_names,
+            hoisted: hoisted_names,
+            peers: &peer_locations,
+        }),
+        crate::BinsDirPass::new(&link_options).with_prepared(cached.as_ref()),
     )
     .map_err(BuildPhaseError::TopLevelBinLink)?;
-    Ok(Some((modules_dir, linked)))
+    Ok(Some((modules_dir, linked.linked_commands)))
 }
 
 /// In hoisted mode, each importer snapshot already carries its retained groups.
