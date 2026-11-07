@@ -1,7 +1,7 @@
 use super::{StoredAccount, UserStore, UserStoreState, Users, persist_users_to_disk};
 use crate::{RegistryError, Result};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -55,29 +55,43 @@ fn merge_hashes(
     hashes: HashMap<String, String>,
     policy: PasswordCollisions,
 ) -> Result<(usize, Vec<String>)> {
+    let mut skeletons: HashSet<_> = users
+        .iter()
+        .filter(|(_, account)| account.password_hash != crate::DELETED_USER_HASH)
+        .map(|(name, _)| crate::validation::username_skeleton_hash(name))
+        .collect();
     let mut merged = 0;
     let mut collisions = Vec::new();
     for (name, hash) in hashes {
-        crate::validation::validate_username(&name)?;
-        if !crate::htpasswd::is_supported_hash(&hash) {
-            return Err(RegistryError::BadRequest {
-                reason: format!("unsupported password hash for {name:?}"),
-            });
+        validate_imported_credentials(&name, &hash)?;
+        let Some(account) = users.get_mut(&name) else {
+            if !skeletons.insert(crate::validation::username_skeleton_hash(&name)) {
+                return Err(crate::validation::confusable_username());
+            }
+            users.insert(name, StoredAccount::new(hash));
+            merged += 1;
+            continue;
+        };
+        if account.password_hash == hash {
+            continue;
         }
-        match users.get_mut(&name) {
-            Some(account) if account.password_hash == hash => {}
-            Some(account) => match policy {
-                PasswordCollisions::Keep => collisions.push(name),
-                PasswordCollisions::Overwrite => {
-                    account.password_hash = hash;
-                    merged += 1;
-                }
-            },
-            None => {
-                users.insert(name, StoredAccount::new(hash));
+        match policy {
+            PasswordCollisions::Keep => collisions.push(name),
+            PasswordCollisions::Overwrite => {
+                account.password_hash = hash;
                 merged += 1;
             }
         }
     }
     Ok((merged, collisions))
+}
+
+fn validate_imported_credentials(name: &str, hash: &str) -> Result<()> {
+    crate::validation::validate_username(name)?;
+    if !crate::htpasswd::is_supported_hash(hash) {
+        return Err(RegistryError::BadRequest {
+            reason: format!("unsupported password hash for {name:?}"),
+        });
+    }
+    Ok(())
 }

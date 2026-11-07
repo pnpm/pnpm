@@ -192,6 +192,23 @@ impl Identity {
         }
     }
 
+    /// Whether the caller belongs to a current team in `directory`.
+    #[must_use]
+    pub fn belongs_to_directory(&self, directory: &TeamDirectory) -> bool {
+        let Self::User { id, memberships, .. } = self else {
+            return false;
+        };
+        let teams = directory.snapshot();
+        memberships
+            .iter()
+            .any(|membership| {
+                membership.directory == *directory && teams.contains_key(&membership.team_id)
+            })
+            || teams
+                .values()
+                .any(|team| team.members.contains(id))
+    }
+
     fn satisfies(&self, token: &AccessToken) -> bool {
         self.satisfies_with_context(token, false)
     }

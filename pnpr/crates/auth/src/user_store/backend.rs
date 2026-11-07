@@ -1,4 +1,6 @@
-use super::{Change, Registration, StoredAccount, UserStore, active_user_count};
+use super::{
+    Change, Registration, StoredAccount, UserStore, active_user_count, check_username_skeleton,
+};
 use crate::{
     PasswordChange, Result, UpsertOutcome, UserBackend, UserCreation, UserRemoval, dummy_verify,
     hash_bcrypt, validation::validate_username,
@@ -21,6 +23,7 @@ impl UserBackend for UserStore {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
+        crate::validation::validate_password(password)?;
         self.sync_from_disk_if_path()?;
 
         let existing_hash = self
@@ -53,6 +56,7 @@ impl UserBackend for UserStore {
             {
                 return Err(RegistryError::TooManyUsers { max });
             }
+            check_username_skeleton(users, &name, None)?;
             let account = StoredAccount::new(hash);
             let id = account.id.clone();
             users.insert(name, account);
@@ -117,12 +121,14 @@ impl UserBackend for UserStore {
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
         validate_username(username)?;
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         let name = username.to_string();
         self.update(move |users| {
             if users.contains_key(&name) {
                 return Ok(Change::Keep(UserCreation::NameTaken));
             }
+            check_username_skeleton(users, &name, None)?;
             users.insert(name, StoredAccount::new(hash));
             Ok(Change::Write(UserCreation::Created))
         })
@@ -130,6 +136,7 @@ impl UserBackend for UserStore {
     }
 
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         self.replace_password_hash(user_id, hash).await
     }
@@ -147,6 +154,7 @@ impl UserBackend for UserStore {
                     reason: format!("username {name:?} is taken"),
                 });
             }
+            check_username_skeleton(users, &name, None)?;
             let account = StoredAccount::new(crate::NO_PASSWORD_HASH.to_string());
             let id = account.id.clone();
             users.insert(name, account);
@@ -192,6 +200,7 @@ impl UserBackend for UserStore {
                     reason: format!("username {name:?} is taken"),
                 });
             }
+            check_username_skeleton(users, &name, Some(&id))?;
             let old = users
                 .iter()
                 .find(|(_, account)| {

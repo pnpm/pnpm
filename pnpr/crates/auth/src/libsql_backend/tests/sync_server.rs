@@ -26,7 +26,7 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
     let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
     let db = Builder::new_local(&primary.path).build().await.unwrap();
     let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited, 4).await.unwrap();
-    backend.add_or_login("alice", "secret").await.unwrap();
+    backend.add_or_login("alice", "secret123").await.unwrap();
     let alice_id = backend
         .account_id("alice")
         .await
@@ -104,7 +104,7 @@ async fn embedded_replica_sets_up_the_schema_on_an_empty_primary() {
     let settings = replica_settings(address, replica_path, None);
     let replica = LibsqlAuth::connect(&settings, MaxUsers::Limited(2)).await.unwrap();
 
-    let (outcome, carol_id) = replica.add_or_login("carol", "secret").await.unwrap();
+    let (outcome, carol_id) = replica.add_or_login("carol", "secret123").await.unwrap();
     assert!(matches!(outcome, UpsertOutcome::Created));
     let token = replica.issue(&carol_id).await.unwrap();
     let owner = replica.lookup(&token).await.unwrap();
@@ -131,7 +131,7 @@ async fn bulk_revocation_refreshes_a_replica_whose_tokens_went_elsewhere() {
     let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
     let db = Builder::new_local(&primary.path).build().await.unwrap();
     let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited, 4).await.unwrap();
-    backend.add_or_login("alice", "secret").await.unwrap();
+    backend.add_or_login("alice", "secret123").await.unwrap();
     let alice_id = backend
         .account_id("alice")
         .await
@@ -186,5 +186,35 @@ async fn retiring_a_passwordless_account_syncs_its_identity() {
     let replacement = replica.provision_user("oidc-member").await.unwrap();
     assert_ne!(id, replacement);
     assert_eq!(replica.account_id("oidc-member").await.unwrap(), Some(replacement));
+    server.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn stale_replicas_distinguish_exact_and_confusable_account_conflicts() {
+    let directory = tempfile::tempdir().unwrap();
+    let (_primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let first = LibsqlAuth::connect(
+        &replica_settings(address, directory.path().join("first/auth.db"), Some(0)),
+        MaxUsers::Unlimited,
+    )
+    .await
+    .unwrap();
+    let second = LibsqlAuth::connect(
+        &replica_settings(address, directory.path().join("second/auth.db"), Some(0)),
+        MaxUsers::Unlimited,
+    )
+    .await
+    .unwrap();
+    let other = second.provision_user("other").await.unwrap();
+    first.provision_user("modern").await.unwrap();
+    let error = second.provision_user("modern").await.unwrap_err();
+    assert!(matches!(error, crate::RegistryError::AdminConflict { .. }), "{error:?}");
+    let error = second.provision_user("rnodern").await.unwrap_err();
+    assert!(matches!(error, crate::RegistryError::BadRequest { .. }), "{error:?}");
+    first.provision_user("scope").await.unwrap();
+    let error = second.rename_user(&other, "scope").await.unwrap_err();
+    assert!(matches!(error, crate::RegistryError::AdminConflict { .. }), "{error:?}");
+    let error = second.rename_user(&other, "scоpe").await.unwrap_err();
+    assert!(matches!(error, crate::RegistryError::BadRequest { .. }), "{error:?}");
     server.abort();
 }

@@ -66,10 +66,14 @@ pub(crate) async fn get_profile(
 /// verify that the prospective maintainer exists before mutating the package
 /// document.
 pub(crate) async fn get_user(
+    AuthedCaller(identity): AuthedCaller,
     State(state): State<AppState>,
     TargetRegistry(_): TargetRegistry,
     Path(path): Path<UserPath>,
 ) -> Response {
+    if let Err(err) = require_caller(&identity, "user lookup") {
+        return private_no_cache(err.into_response());
+    }
     let name = strip_couchdb_user_prefix(&path.user);
     private_no_cache(match active_account_id(&state, name).await {
         Ok(Some(id)) => json_response(

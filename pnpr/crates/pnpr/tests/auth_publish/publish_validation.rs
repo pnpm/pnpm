@@ -9,7 +9,7 @@ use base64::Engine;
 async fn publish_rejects_a_non_semver_version_key_before_storing_anything() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
     for (name, invalid_version) in [("mypkg", "banana"), ("mypkg2", "01.0.0")] {
         let mut body = publish_doc(name, "1.0.0", b"tarball-bytes");
         let mut version = body["versions"]
@@ -46,7 +46,7 @@ async fn publish_rejects_a_non_semver_version_key_before_storing_anything() {
 async fn publish_rejects_a_non_semver_manifest_version_before_storing_anything() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
     for (name, manifest_version) in [
         ("mypkg", Some(json!("banana"))),
         ("mypkg2", Some(json!("01.0.0"))),
@@ -88,7 +88,7 @@ async fn publish_rejects_a_non_semver_manifest_version_before_storing_anything()
 async fn publish_accepts_a_valid_prerelease_version() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
     let body = publish_doc("mypkg", "1.0.0-beta.2", b"tarball-bytes");
 
     let response = app
@@ -121,7 +121,7 @@ async fn republishing_an_existing_version_is_rejected_with_conflict() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = |bytes: &[u8]| {
         let body = serde_json::to_vec(&publish_doc("mypkg", "1.0.0", bytes)).unwrap();
@@ -157,7 +157,7 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Publish 1.0.0 normally.
     let first = Request::put("/npm/mypkg")
@@ -201,7 +201,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -268,7 +268,7 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -329,7 +329,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -395,7 +395,7 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -467,7 +467,7 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -514,7 +514,7 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
         &serde_json::to_vec(&stored).unwrap(),
     );
     let app = router(static_config(moved.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let get = app
         .clone()
@@ -547,7 +547,7 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // PUT to the unpublish route with no prior publish would seed an authoritative
     // version that publish can never overwrite, so it must be rejected.
@@ -579,7 +579,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let manifest = json!({
         "name": "mypkg",
@@ -665,7 +665,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = &npm_tgz("durable-pkg", "1.0.0", b"durable-tarball-bytes");
     let body = publish_doc("durable-pkg", "1.0.0", bytes);
@@ -737,7 +737,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
 async fn publish_rejects_body_name_that_doesnt_match_url() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("other-name", "1.0.0", b"x");
     let request = Request::put("/npm/url-name")
@@ -753,7 +753,7 @@ async fn publish_rejects_body_name_that_doesnt_match_url() {
 async fn publish_rejects_tarball_that_doesnt_match_package() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = b"tarball-bytes";
     let mut body = publish_doc("foo", "1.0.0", bytes);
@@ -779,7 +779,7 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = b"actual-bytes";
     let mut body = publish_doc("bad-pkg", "1.0.0", bytes);
@@ -818,7 +818,7 @@ async fn publish_rejects_shasum_mismatch() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = b"shasum-test-bytes";
     let mut body = publish_doc("shasum-pkg", "1.0.0", bytes);
@@ -853,7 +853,7 @@ async fn publish_rejects_missing_integrity_field() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = b"no-integrity-bytes";
     let mut body = publish_doc("no-int-pkg", "1.0.0", bytes);
@@ -898,7 +898,7 @@ async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes_v1 = b"valid-first-attachment";
     let bytes_v2 = b"second-attachment";
@@ -966,7 +966,7 @@ async fn dist_tag_set_works_with_url_encoded_scoped_path() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Publish @scope/pkg@1.0.0 (literal slash in the URL — pnpm
     // publish uses this form), then set a dist-tag using the
@@ -1015,7 +1015,7 @@ async fn publish_supports_scoped_packages() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = b"scoped-tarball";
     let body = publish_doc("@scope/pkg", "1.0.0", bytes);

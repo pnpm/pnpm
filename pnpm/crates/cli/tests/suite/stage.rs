@@ -404,7 +404,7 @@ fn add_user(registry: &str) -> String {
     let body = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
-        "password": "secret",
+        "password": "secret123",
         "email": "alice@example.com",
         "type": "user",
         "roles": [],

@@ -59,7 +59,8 @@ fn load_config(dir: &Path) -> Config {
 }
 
 async fn app_router(config: Config) -> axum::Router {
-    let auth = crate::tokens::seeded_auth(&config, &[("root", "secret"), ("carol", "secret")]);
+    let auth =
+        crate::tokens::seeded_auth(&config, &[("root", "secret123"), ("carol", "secret123")]);
     router_with_auth(config, auth)
 }
 
@@ -89,7 +90,7 @@ async fn send(
 }
 
 async fn add_user(app: &axum::Router, username: &str) -> String {
-    let body = json!({ "name": username, "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": username, "password": "secret123", "type": "user", "roles": [] });
     let path = format!("/-/user/org.couchdb.user:{username}");
     let (status, payload) = send(app, "PUT", &path, None, Some(body)).await;
     assert_eq!(status, StatusCode::CREATED);

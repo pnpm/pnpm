@@ -377,7 +377,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let registration = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
-        "password": "secret",
+        "password": "secret123",
         "email": "alice@example.test",
         "type": "user",
         "roles": [],

@@ -103,17 +103,19 @@ impl AuthSqlBackend for MysqlDatabase {
             return Ok(());
         }
         let result =
-            sqlx::query("UPDATE users SET username = ? WHERE id = ? AND bcrypt_hash <> '!'")
+            sqlx::query("UPDATE users SET username = ?, username_skeleton_hash = ? WHERE id = ? AND bcrypt_hash <> '!'")
                 .bind(username)
+                .bind(crate::validation::username_skeleton_hash(username))
                 .bind(user_id)
                 .execute(&self.pool)
                 .await;
         match result {
             Ok(result) if result.rows_affected() > 0 => Ok(()),
             Ok(_) => Err(RegistryError::NotFound),
-            Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
-                reason: format!("username {username:?} is taken"),
-            }),
+            Err(err) if is_unique_violation(&err) => Err(crate::validation::username_conflict(
+                username,
+                self.stored_user(username).await?.is_some(),
+            )),
             Err(err) => Err(err.into()),
         }
     }
@@ -169,13 +171,15 @@ impl AuthSqlBackend for MysqlDatabase {
             }
         };
         let id = crate::new_principal_id();
-        let inserted =
-            sqlx::query("INSERT INTO users (username, bcrypt_hash, id) VALUES (?, ?, ?)")
-                .bind(username)
-                .bind(bcrypt_hash)
-                .bind(&id)
-                .execute(&mut *tx)
-                .await;
+        let inserted = sqlx::query(
+            "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?, ?, ?, ?)",
+        )
+        .bind(username)
+        .bind(bcrypt_hash)
+        .bind(&id)
+        .bind(crate::validation::username_skeleton_hash(username))
+        .execute(&mut *tx)
+        .await;
         match inserted {
             Ok(_) => {
                 tx.commit().await?;
@@ -183,7 +187,10 @@ impl AuthSqlBackend for MysqlDatabase {
             }
             Err(err) if is_unique_violation(&err) => {
                 tx.rollback().await?;
-                self.existing_or_cap_reached(username).await
+                match self.stored_user(username).await? {
+                    Some(stored) => Ok(InsertUser::Existing(stored)),
+                    None => Ok(InsertUser::Confusable),
+                }
             }
             Err(err) => Err(err.into()),
         }
@@ -268,7 +275,7 @@ impl AuthSqlBackend for MysqlDatabase {
 impl MysqlDatabase {
     async fn remove_user_record(&self, user_id: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
-        let statement = "UPDATE users SET username = CONCAT('deleted:', id), bcrypt_hash = '!' WHERE id = ? AND bcrypt_hash <> '!'";
+        let statement = "UPDATE users SET username = CONCAT('deleted:', id), username_skeleton_hash = NULL, bcrypt_hash = '!' WHERE id = ? AND bcrypt_hash <> '!'";
         let removed = sqlx::query(statement)
             .bind(user_id)
             .execute(&mut *tx)

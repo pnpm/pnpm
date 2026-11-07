@@ -273,6 +273,7 @@ tokio = { version = "1.54.1", features = ["rt", "rt-multi-thread", "macros", "fs
 toml = { version = "1.2.0" }
 tlog_tiles = { version = "0.2.0" }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["tls12"] }
+unicode-security = "0.1.3"
 url = { version = "2.5.8" }
 walkdir = { version = "2.5.0" }
 webpki-root-certs = { version = "1.0.11" }

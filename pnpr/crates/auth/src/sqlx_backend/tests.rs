@@ -15,6 +15,7 @@ use std::{
 };
 
 struct CanonicalBackend {
+    confusable_insert: bool,
     user: StoredUser,
 }
 
@@ -57,6 +58,9 @@ impl AuthSqlBackend for CanonicalBackend {
         _bcrypt_hash: &str,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
+        if self.confusable_insert {
+            return Ok(InsertUser::Confusable);
+        }
         Ok(InsertUser::Existing(self.user.clone()))
     }
 
@@ -354,6 +358,7 @@ impl AuthSqlBackend for CappedBackend {
 async fn add_or_login_propagates_corrupt_hash_errors() {
     let auth = SqlAuth::new(
         CanonicalBackend {
+            confusable_insert: false,
             user: StoredUser {
                 id: "account-id".to_string(),
                 username: "Alice".to_string(),
@@ -364,16 +369,17 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
         Duration::from_secs(30),
     );
 
-    let err = auth.add_or_login("alice", "secret").await.unwrap_err();
+    let err = auth.add_or_login("alice", "secret123").await.unwrap_err();
 
     assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
 }
 
 #[tokio::test]
 async fn add_or_login_returns_the_immutable_id_for_existing_users() {
-    let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
+    let bcrypt_hash = bcrypt::hash("secret123", 4).unwrap();
     let auth = SqlAuth::new(
         CanonicalBackend {
+            confusable_insert: false,
             user: StoredUser {
                 id: "account-id".to_string(),
                 username: "Alice".to_string(),
@@ -384,7 +390,7 @@ async fn add_or_login_returns_the_immutable_id_for_existing_users() {
         Duration::from_secs(30),
     );
 
-    let outcome = auth.add_or_login("alice", "secret").await.unwrap();
+    let outcome = auth.add_or_login("alice", "secret123").await.unwrap();
 
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
     assert_eq!(outcome.1, "account-id");
@@ -401,14 +407,14 @@ async fn add_or_login_rejects_invalid_usernames_without_db_lookup() {
     let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
 
     for username in ["", " alice", "alice ", "#alice", "alice:admin", "alice\nadmin"] {
-        let err = auth.add_or_login(username, "secret").await.unwrap_err();
+        let err = auth.add_or_login(username, "secret123").await.unwrap_err();
         assert_eq!(
             err.status_code(),
             axum::http::StatusCode::BAD_REQUEST,
             "expected {username:?} to be rejected",
         );
     }
-    let err = auth.add_or_login(&overlong, "secret").await.unwrap_err();
+    let err = auth.add_or_login(&overlong, "secret123").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
 }
@@ -423,7 +429,7 @@ async fn add_or_login_rate_limits_capped_reconciliation() {
     );
 
     for username in ["alice", "bob", "carol"] {
-        let err = auth.add_or_login(username, "secret").await.unwrap_err();
+        let err = auth.add_or_login(username, "secret123").await.unwrap_err();
         assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }));
     }
 
@@ -446,4 +452,41 @@ async fn token_issue_waits_for_slow_backend_write() {
     let token = auth.issue("alice").await.unwrap();
 
     assert!(!token.is_empty());
+}
+
+#[tokio::test]
+async fn provisioning_confusable_names_returns_the_validation_error() {
+    let auth = SqlAuth::new(
+        CanonicalBackend {
+            confusable_insert: true,
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "modern".to_string(),
+                bcrypt_hash: crate::NO_PASSWORD_HASH.to_string(),
+            },
+        },
+        MaxUsers::Unlimited,
+        Duration::from_secs(30),
+    );
+    let error = auth.provision_user("rnodern").await.unwrap_err();
+    assert!(matches!(error, RegistryError::BadRequest { .. }));
+    assert_eq!(error.to_string(), crate::validation::confusable_username().to_string());
+}
+
+#[tokio::test]
+async fn password_policy_rejects_existing_short_credentials() {
+    let auth = SqlAuth::new(
+        CanonicalBackend {
+            confusable_insert: false,
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "member".to_string(),
+                bcrypt_hash: bcrypt::hash("short", 4).unwrap(),
+            },
+        },
+        MaxUsers::Unlimited,
+        Duration::from_secs(30),
+    );
+    let error = auth.add_or_login("member", "short").await.unwrap_err();
+    assert!(matches!(error, RegistryError::BadRequest { .. }));
 }

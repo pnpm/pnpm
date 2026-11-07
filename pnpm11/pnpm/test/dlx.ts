@@ -432,7 +432,7 @@ test('dlx read registry from .npmrc in the current directory', async () => {
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 

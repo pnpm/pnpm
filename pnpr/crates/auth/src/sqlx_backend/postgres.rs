@@ -95,17 +95,19 @@ impl AuthSqlBackend for PostgresDatabase {
             return Ok(());
         }
         let result =
-            sqlx::query("UPDATE users SET username = $2 WHERE id = $1 AND bcrypt_hash <> '!'")
+            sqlx::query("UPDATE users SET username = $2, username_skeleton_hash = $3 WHERE id = $1 AND bcrypt_hash <> '!'")
                 .bind(user_id)
                 .bind(username)
+                .bind(crate::validation::username_skeleton_hash(username))
                 .execute(&self.pool)
                 .await;
         match result {
             Ok(result) if result.rows_affected() > 0 => Ok(()),
             Ok(_) => Err(RegistryError::NotFound),
-            Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
-                reason: format!("username {username:?} is taken"),
-            }),
+            Err(err) if is_unique_violation(&err) => Err(crate::validation::username_conflict(
+                username,
+                self.stored_user(username).await?.is_some(),
+            )),
             Err(err) => Err(err.into()),
         }
     }
@@ -162,10 +164,11 @@ impl AuthSqlBackend for PostgresDatabase {
         };
         let id = crate::new_principal_id();
         let inserted =
-            sqlx::query("INSERT INTO users (username, bcrypt_hash, id) VALUES ($1, $2, $3)")
+            sqlx::query("INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES ($1, $2, $3, $4)")
                 .bind(username)
                 .bind(bcrypt_hash)
                 .bind(&id)
+                .bind(crate::validation::username_skeleton_hash(username))
                 .execute(&mut *tx)
                 .await;
         match inserted {
@@ -175,7 +178,10 @@ impl AuthSqlBackend for PostgresDatabase {
             }
             Err(err) if is_unique_violation(&err) => {
                 tx.rollback().await?;
-                self.existing_or_cap_reached(username).await
+                match self.stored_user(username).await? {
+                    Some(stored) => Ok(InsertUser::Existing(stored)),
+                    None => Ok(InsertUser::Confusable),
+                }
             }
             Err(err) => Err(err.into()),
         }
@@ -260,7 +266,7 @@ impl AuthSqlBackend for PostgresDatabase {
 impl PostgresDatabase {
     async fn remove_user_record(&self, user_id: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
-        let statement = "UPDATE users SET username = 'deleted:' || id, bcrypt_hash = '!' WHERE id = $1 AND bcrypt_hash <> '!'";
+        let statement = "UPDATE users SET username = 'deleted:' || id, username_skeleton_hash = NULL, bcrypt_hash = '!' WHERE id = $1 AND bcrypt_hash <> '!'";
         let removed = sqlx::query(statement)
             .bind(user_id)
             .execute(&mut *tx)

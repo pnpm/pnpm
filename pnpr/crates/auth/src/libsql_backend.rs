@@ -230,8 +230,10 @@ impl UserBackend for LibsqlAuth {
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
         let creation = self.insert_user_for_admin(username, password).await?;
-        if creation == UserCreation::Created {
-            self.sync_replica().await?;
+        self.sync_replica().await?;
+        if creation == UserCreation::NameTaken && self.account_id_by_name(username).await?.is_none()
+        {
+            return Err(crate::validation::confusable_username());
         }
         Ok(creation)
     }
@@ -281,6 +283,7 @@ impl LibsqlAuth {
         hash: &tokio::sync::OnceCell<String>,
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
+        crate::validation::validate_password(password)?;
 
         if let Some(stored) = self.stored_hash(username).await? {
             return self.verify_and_maybe_upgrade(username, password, stored).await;
@@ -330,8 +333,8 @@ impl LibsqlAuth {
         let id_ref = id.as_str();
         let inserted = self.pool.write(|conn| async move {
             let inserted = conn.execute(
-                "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?3)",
-                params![username, hash, id_ref],
+                "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?1, ?2, ?3, ?4)",
+                params![username, hash, id_ref, crate::validation::username_skeleton_hash(username)],
             )
             .await;
             match inserted {
@@ -384,8 +387,8 @@ impl LibsqlAuth {
                 return Ok(Insert::CapFull);
             };
             let inserted = tx.execute(
-                "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?3)",
-                params![username, hash, id_ref],
+                "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?1, ?2, ?3, ?4)",
+                params![username, hash, id_ref, crate::validation::username_skeleton_hash(username)],
             )
             .await;
             match inserted {
@@ -438,8 +441,8 @@ impl LibsqlAuth {
         Err(RegistryError::TooManyUsers { max })
     }
 
-    /// A concurrent writer took the name first: treat the registration as a
-    /// login against whatever they stored.
+    /// Resolve a registration that lost a uniqueness race. Exact names log in;
+    /// confusable names are rejected.
     async fn login_after_lost_insert(
         &self,
         username: &str,
@@ -447,7 +450,7 @@ impl LibsqlAuth {
     ) -> Result<(UpsertOutcome, String)> {
         self.sync_replica().await?;
         let Some(stored) = self.stored_hash(username).await? else {
-            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+            return Err(crate::validation::confusable_username());
         };
         self.verify_and_maybe_upgrade(username, password, stored).await
     }

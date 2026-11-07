@@ -110,6 +110,13 @@ settings apply. Without `auth.users.file`, accounts
 `maxUsers` and `maxUsers: -1` both disable self-registration; set a
 non-negative cap to let new users register.
 
+Passwords must contain at least 8 characters and at most 71 bytes.
+This applies to registration, login, administrator-created accounts, and password changes.
+
+Account creation and renaming reject usernames with the same Unicode confusable
+skeleton as another account. SQL auth databases from earlier releases must be
+recreated for this release.
+
 ## Extensibility model
 
 Custom user and token backends are compiled into pnpr. There is no plugin

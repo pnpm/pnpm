@@ -88,7 +88,7 @@ async fn user_and_token_survive_restart() {
     // adduser pulls a fresh token out of the response body.
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -131,7 +131,7 @@ async fn user_and_token_survive_restart() {
     // The existing username must accept the same password and not
     // be re-registered as a brand-new user.
     let response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -159,7 +159,7 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
 
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -176,7 +176,7 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
         let path = format!("/-/user/org.couchdb.user:{encoded_username}");
         let response = app
             .clone()
-            .oneshot(put_json(&path, adduser_body(username, "secret")))
+            .oneshot(put_json(&path, adduser_body(username, "secret123")))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case} username");
@@ -192,7 +192,7 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
         .await
         .expect("reload after restart");
     // The reloaded htpasswd still logs the user in with the original password.
-    let (_, username) = auth.users.add_or_login("alice", "secret").await.unwrap();
+    let (_, username) = auth.users.add_or_login("alice", "secret123").await.unwrap();
     assert_eq!(Some(username), auth.users.account_id("alice").await.unwrap());
     assert_eq!(std::fs::read_to_string(&htpasswd).unwrap(), original_htpasswd);
 }
@@ -352,13 +352,13 @@ async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
 
     let first = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(first.status(), StatusCode::CREATED);
 
     let second = app
-        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret123")))
         .await
         .unwrap();
     assert_eq!(second.status(), StatusCode::FORBIDDEN);
@@ -369,10 +369,10 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
     let storage = TempDir::new().unwrap();
     let auth_dir = TempDir::new().unwrap();
     let htpasswd = auth_dir.path().join("users");
-    // "test" hashed with SHA-1 in Apache/Verdaccio format
+    // "test-password" hashed with SHA-1 in Apache/Verdaccio format
     pnpr_auth::UserStore::import_password_hashes(
         &htpasswd,
-        [("alice".to_string(), "{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=".to_string())].into(),
+        [("alice".to_string(), "{SHA}eJy+BAeECxwgQcszRS/2Dxm/WMw=".to_string())].into(),
         pnpr_auth::PasswordImport {
             collisions: pnpr_auth::PasswordCollisions::Keep,
             mode: pnpr_auth::ImportMode::Persist,
@@ -393,7 +393,7 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
     // Legacy SHA user logs in via npm adduser / login endpoint
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test-password")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -423,7 +423,7 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
 
     // Subsequent login succeeds with the upgraded hash
     let second_response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test-password")))
         .await
         .unwrap();
     assert_eq!(second_response.status(), StatusCode::CREATED);

@@ -33,6 +33,7 @@ impl LibsqlAuth {
         password: &str,
     ) -> Result<UserCreation> {
         validate_username(username)?;
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         let hash = hash.as_str();
         let id = crate::new_principal_id();
@@ -41,8 +42,8 @@ impl LibsqlAuth {
             self.pool.write(|conn| async move {
                 let tx = conn.transaction().await?;
                 let inserted = tx.execute(
-                    "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?3)",
-                    params![username, hash, id],
+                    "INSERT INTO users (username, bcrypt_hash, id, username_skeleton_hash) VALUES (?1, ?2, ?3, ?4)",
+                    params![username, hash, id, crate::validation::username_skeleton_hash(username)],
                 )
                 .await;
                 match inserted {
@@ -67,6 +68,7 @@ impl LibsqlAuth {
         user_id: &str,
         password: &str,
     ) -> Result<PasswordChange> {
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         self.replace_password_hash(user_id, &hash).await
     }
@@ -109,7 +111,7 @@ async fn remove_user_in_transaction(
     user_id: &str,
 ) -> Result<UserRemoval> {
     let tx = conn.transaction().await?;
-    let statement = "UPDATE users SET username = 'deleted:' || id, bcrypt_hash = '!' WHERE id = ?1 AND bcrypt_hash <> '!'";
+    let statement = "UPDATE users SET username = 'deleted:' || id, username_skeleton_hash = NULL, bcrypt_hash = '!' WHERE id = ?1 AND bcrypt_hash <> '!'";
     let removed = tx.execute(statement, params![user_id]).await?;
     if removed > 0 {
         tx.execute(COUNT_ONE_LESS, ()).await?;

@@ -357,3 +357,21 @@ fn replacing_a_team_name_does_not_transfer_a_sessions_membership() {
     assert!(!old_grant.allows(&session));
     assert!(!new_grant.allows(&session));
 }
+
+#[test]
+fn directory_membership_uses_live_rosters_and_scoped_credentials() {
+    let (_, directory) = team_token("platform", &["account-id"]);
+    assert!(Identity::account("account-id", "renamed").belongs_to_directory(&directory));
+    assert!(!Identity::Anonymous.belongs_to_directory(&directory));
+    assert!(!user("outsider").belongs_to_directory(&directory));
+    let session = Identity::member(
+        "session-id",
+        vec![Membership { directory: directory.clone(), team_id: "platform".to_string() }],
+    );
+    assert!(session.belongs_to_directory(&directory));
+    let (_, other_directory) = team_token("platform", &[]);
+    assert!(!session.belongs_to_directory(&other_directory));
+    directory.replace(Teams::default());
+    assert!(!session.belongs_to_directory(&directory));
+    assert!(!user("account-id").belongs_to_directory(&directory));
+}

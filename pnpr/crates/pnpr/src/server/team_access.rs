@@ -128,7 +128,12 @@ pub(super) fn list_team_packages(
     team: &str,
 ) -> Response {
     let result = (|| {
-        let (registry, hosted) = team_registry(state, identity, target.registry, target.scope)?;
+        let (registry, hosted) = super::organizations::readable_team_registry(
+            state,
+            identity,
+            target.registry,
+            target.scope,
+        )?;
         let id = super::team_mutations::team_id(state, registry, team)?;
         let table = hosted.rules.snapshot();
         let packages: serde_json::Map<_, _> = table

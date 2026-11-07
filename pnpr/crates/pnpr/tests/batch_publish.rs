@@ -78,7 +78,7 @@ async fn batch_publish_writes_every_package_in_one_request() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let bytes_a = &npm_tgz("batch-a", "1.0.0", b"tarball-a");
     let bytes_b = &npm_tgz("batch-b", "2.0.0", b"tarball-b");
@@ -134,7 +134,7 @@ async fn batch_publish_rejects_invalid_semver_versions_before_storing_them() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let archive = npm_tgz("invalid-batch", "banana", b"invalid");
     let body = json!({ "packages": [publish_doc("invalid-batch", "banana", &archive)] });
 
@@ -160,7 +160,7 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let bytes = &npm_tgz("@scope/wire-form", "1.0.0", b"scoped-batch-bytes");
     // `pnpm publish --batch` names attachments by the full scoped name
@@ -266,7 +266,7 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let good = publish_doc("rollback-good", "1.0.0", b"good-bytes");
     let mut bad = publish_doc("rollback-bad", "1.0.0", b"actual-bytes");
@@ -294,7 +294,7 @@ async fn batch_publish_rejects_duplicate_package_names() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let body = json!({
         "packages": [
@@ -319,7 +319,7 @@ async fn batch_publish_rejects_duplicate_package_names() {
 async fn batch_publish_rejects_bodies_without_a_packages_array() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     for body in [json!({}), json!({ "packages": [] }), json!({ "packages": "nope" }), json!([])] {
         let response = app
@@ -335,7 +335,7 @@ async fn batch_publish_rejects_bodies_without_a_packages_array() {
 async fn batch_publish_rejects_entries_without_a_name() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let body = json!({ "packages": [{ "versions": {} }] });
     let response = app
@@ -352,7 +352,7 @@ async fn batch_publish_merges_with_previously_published_versions() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let first = json!({ "packages": [publish_doc("merge-pkg", "1.0.0", b"v1")] });
     let response = app
