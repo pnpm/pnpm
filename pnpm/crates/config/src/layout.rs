@@ -276,7 +276,9 @@ impl Config {
         project_name: Option<&str>,
     ) -> std::path::PathBuf {
         let project_dir = pnpm_fs::lexical_normalize(project_dir);
-        if self.shares_one_lockfile() && !self.is_lockfile_dir(&project_dir) {
+        if self.shares_one_lockfile()
+            && pnpm_fs::lexical_normalize(self.lockfile_dir_for(&project_dir)) != project_dir
+        {
             return pnpm_fs::lexical_normalize(&project_dir.join(self.modules_dir_name()));
         }
         let project_dir = project_dir.as_path();
@@ -297,18 +299,6 @@ impl Config {
                 project_dir.join(raw)
             });
         pnpm_fs::lexical_normalize(&modules_dir)
-    }
-
-    /// Whether `project_dir`, lexically normalized, is the lockfile
-    /// directory of its install. Two spellings of one directory, such as a
-    /// Windows short name and its long form, count as the same.
-    fn is_lockfile_dir(&self, project_dir: &Path) -> bool {
-        let lockfile_dir = pnpm_fs::lexical_normalize(self.lockfile_dir_for(project_dir));
-        lockfile_dir == project_dir
-            || matches!(
-                (pnpm_fs::realpath_missing(&lockfile_dir), pnpm_fs::realpath_missing(project_dir)),
-                (Ok(lockfile_dir), Ok(project_dir)) if lockfile_dir == project_dir,
-            )
     }
 
     /// Put `modules_dir`, the modules directory of the project at
