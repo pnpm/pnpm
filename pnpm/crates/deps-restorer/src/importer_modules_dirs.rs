@@ -84,13 +84,13 @@ impl ImporterModulesDirs {
         self.of(&self.lockfile_dir.join(importer_id))
     }
 
-    /// The directory that removals under `dir` must stay inside: the root's
-    /// modules directory when `dir` is in it and it is configured outside
-    /// the lockfile directory, else the lockfile directory.
+    /// The directory that removals under `dir` must stay inside: the
+    /// lockfile directory for a path inside it, else the root's modules
+    /// directory for a path inside that one, else the lockfile directory.
     #[must_use]
     pub fn removal_bound(&self, dir: &Path) -> &Path {
-        let lockfile_dir = lexical_normalize(&self.lockfile_dir);
-        if !self.root.starts_with(&lockfile_dir) && lexical_normalize(dir).starts_with(&self.root) {
+        let dir = lexical_normalize(dir);
+        if !dir.starts_with(lexical_normalize(&self.lockfile_dir)) && dir.starts_with(&self.root) {
             &self.root
         } else {
             &self.lockfile_dir

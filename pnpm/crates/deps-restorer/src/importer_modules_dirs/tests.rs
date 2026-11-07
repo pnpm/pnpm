@@ -50,6 +50,20 @@ fn removals_inside_the_root_modules_dir_are_bound_by_it() {
 }
 
 #[test]
+fn removals_inside_the_workspace_are_bound_by_it_when_the_root_modules_dir_contains_it() {
+    let dirs = ImporterModulesDirs::new(
+        Path::new("/parent/ws"),
+        Path::new(".."),
+        OsStr::new("node_modules"),
+    );
+    assert_eq!(
+        dirs.removal_bound(Path::new("/parent/ws/packages/foo/node_modules")),
+        Path::new("/parent/ws")
+    );
+    assert_eq!(dirs.removal_bound(Path::new("/parent/.pnpm")), Path::new("/parent"));
+}
+
+#[test]
 fn removals_inside_a_root_modules_dir_in_the_workspace_are_bound_by_the_workspace() {
     let dirs =
         ImporterModulesDirs::new(Path::new("/ws"), Path::new("vendor"), OsStr::new("vendor"));
