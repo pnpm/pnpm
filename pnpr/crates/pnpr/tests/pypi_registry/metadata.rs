@@ -58,10 +58,7 @@ async fn metadata_availability_legacy_fallback_and_integrity_are_enforced() {
                 .await
                 .unwrap();
             assert_eq!(response.status(), status, "{field}: {value}");
-            if status != StatusCode::OK {
-                continue;
-            }
-            assert_eq!(body_bytes(response.into_body()).await, bytes);
+            assert!(status != StatusCode::OK || body_bytes(response.into_body()).await == bytes);
         }
         let response = app
             .clone()
