@@ -204,6 +204,8 @@ CREATE TABLE IF NOT EXISTS publication_outcomes (
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS publication_outcomes_by_key
     ON publication_outcomes (principal, idempotency_key);
+CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at
+    ON publication_outcomes (committed_at);
 
 -- Release notes of a package version (`kind` = 'version', `subject` = the
 -- version) or of a publication (`kind` = 'publication', `ecosystem` and

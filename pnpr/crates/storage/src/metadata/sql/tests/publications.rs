@@ -1,8 +1,9 @@
 //! Atomic publications, their recorded outcomes, and publication lookups.
 
-use super::{Db, npm, packument, read, storage, write};
+use super::{Db, npm, packument, read, schema::execute, storage, write};
 use crate::metadata::{
-    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, ReleaseRecords, SqlMetadata,
+    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, ReleaseRecords,
+    SqlMetadata, sql::adapter::ReadSource,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
@@ -103,6 +104,106 @@ async fn a_retried_request_gets_its_recorded_outcome(db: Db) {
     reused.idempotency_key = "request:digest".to_string();
     let err = commit(database, vec![document("core", &doc)], reused).await.unwrap_err();
     assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
+}
+
+async fn outcome_keys(db: &Db) -> Vec<String> {
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        let mut keys = Vec::new();
+        adapter
+            .read(ReadSource::Primary, &mut |connection| {
+                keys = connection
+                    .query(
+                        "SELECT idempotency_key FROM publication_outcomes ORDER BY idempotency_key",
+                        params![],
+                    )?
+                    .into_iter()
+                    .map(|mut row| row.get::<String>(0))
+                    .collect::<pnpr_error::Result<Vec<_>>>()?;
+                Ok(())
+            })
+            .unwrap();
+        keys
+    })
+    .await
+    .unwrap()
+}
+
+async fn sweep_query_plan(db: &Db) -> Vec<String> {
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        let mut details = Vec::new();
+        adapter
+            .read(ReadSource::Replica, &mut |connection| {
+                details = connection
+                    .query(
+                        "EXPLAIN QUERY PLAN DELETE FROM publication_outcomes WHERE committed_at < ?1",
+                        params![0_i64],
+                    )?
+                    .into_iter()
+                    .map(|mut row| row.get::<String>(3))
+                    .collect::<pnpr_error::Result<Vec<_>>>()?;
+                Ok(())
+            })
+            .unwrap();
+        details
+    })
+    .await
+    .unwrap()
+}
+
+async fn expired_outcomes_are_swept_by_committed_at_index(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    commit(
+        database,
+        vec![document("core", &packument("core", &["1.0.0"]))],
+        request("stale", None),
+    )
+    .await
+    .unwrap();
+    commit(
+        database,
+        vec![document("widgets", &packument("widgets", &["1.0.0"]))],
+        request("retained", None),
+    )
+    .await
+    .unwrap();
+    let plan = sweep_query_plan(&db).await;
+    assert!(
+        plan.iter()
+            .any(|detail| detail.contains("publication_outcomes_by_committed_at")),
+        "{plan:?}",
+    );
+    assert!(
+        !plan
+            .iter()
+            .any(|detail| detail.contains("SCAN publication_outcomes")),
+        "{plan:?}",
+    );
+
+    execute(
+        &db,
+        &["UPDATE publication_outcomes SET committed_at = 0 WHERE idempotency_key = 'request:stale'"],
+    )
+    .await;
+    assert!(
+        database
+            .recorded_outcome("acme", &request("stale", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(outcome_keys(&db).await, ["request:retained", "request:stale"]);
+
+    commit(
+        database,
+        vec![document("extra", &packument("extra", &["1.0.0"]))],
+        request("fresh", None),
+    )
+    .await
+    .unwrap();
+    assert_eq!(outcome_keys(&db).await, ["request:fresh", "request:retained"]);
 }
 
 async fn an_unpublished_member_invalidates_the_recorded_outcome(db: Db) {
@@ -374,6 +475,7 @@ conformance! {
     a_release_record_must_describe_its_version,
     a_batch_commits_every_package_under_one_generation_or_none,
     a_retried_request_gets_its_recorded_outcome,
+    expired_outcomes_are_swept_by_committed_at_index,
     an_unpublished_member_invalidates_the_recorded_outcome,
     publications_are_found_by_id_name_and_member,
     a_version_written_outside_a_publish_request_gets_a_publication,
