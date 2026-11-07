@@ -42,9 +42,16 @@ pub(super) fn terminate_process(pid: u32, separate_process_group: bool, stop: St
 pub(super) fn signal(target: i32, stop: Stop) {
     // SAFETY: plain `kill`; ESRCH is harmless when the target exited
     // concurrently.
-    unsafe {
-        libc::kill(target, stop.signal());
-    }
+    let sent = unsafe { libc::kill(target, stop.signal()) } == 0;
+    let error = (!sent).then(std::io::Error::last_os_error);
+    tracing::debug!(
+        target: "pacquet::process_tracker",
+        target_pid = target,
+        signal = stop.signal(),
+        sent,
+        error = error.map(tracing::field::display),
+        "signal",
+    );
 }
 
 /// Signal the group a reaped child led, while it still has a member.
@@ -111,7 +118,16 @@ impl Descendant {
     pub(super) fn signal(&self, stop: Stop) {
         #[cfg(target_os = "linux")]
         if let Some(pidfd) = &self.pidfd {
-            linux::signal(pidfd, stop.signal());
+            let sent = linux::signal(pidfd, stop.signal());
+            let error = (!sent).then(std::io::Error::last_os_error);
+            tracing::debug!(
+                target: "pacquet::process_tracker",
+                pid = self.pid,
+                signal = stop.signal(),
+                sent,
+                error = error.map(tracing::field::display),
+                "signal a descendant through its pidfd",
+            );
             return;
         }
         signal(self.pid, stop);
@@ -175,7 +191,8 @@ mod linux {
             .ok()
     }
 
-    pub(super) fn signal(pidfd: &OwnedFd, signal: libc::c_int) {
+    /// Whether the signal was sent.
+    pub(super) fn signal(pidfd: &OwnedFd, signal: libc::c_int) -> bool {
         // SAFETY: `pidfd_send_signal` takes the pidfd, the signal, no
         // `siginfo`, and no flags. It fails harmlessly once the process
         // exited.
@@ -186,7 +203,7 @@ mod linux {
                 signal,
                 std::ptr::null::<libc::siginfo_t>(),
                 0,
-            );
+            ) == 0
         }
     }
 }

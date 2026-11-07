@@ -94,6 +94,21 @@ impl RunningExecution {
     }
 }
 
+impl RunningExecution {
+    /// What a trace names the execution by.
+    fn describe(&self) -> String {
+        match self {
+            Self::Process { pid, separate_process_group, .. } => {
+                format!("process {pid} (own group: {separate_process_group})")
+            }
+            #[cfg(unix)]
+            Self::Group { leader } => format!("group {leader}"),
+            #[cfg(not(target_family = "wasm"))]
+            Self::Emulated(_) => "emulated".to_owned(),
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Stop {
     Graceful,
@@ -122,10 +137,6 @@ impl ProcessTracker {
     /// thread of its own kills those still running once the grace has
     /// passed, so the caller does not wait it out. pnpm waits for that thread
     /// before it exits (see [`crate::before_exit`]).
-    #[expect(
-        clippy::must_use_candidate,
-        reason = "clippy does not see the state's interior mutability through its `Arc`; most callers cancel without needing to know whether they were first"
-    )]
     pub fn cancel(&self) -> bool {
         let executions = {
             let mut state = self.state.lock().expect("process tracker lock is not poisoned");
@@ -133,10 +144,16 @@ impl ProcessTracker {
                 return false;
             }
             state.cancelled = true;
-            state.executions
+            let executions = state.executions
                 .iter()
                 .map(|(&id, execution)| (id, execution.clone()))
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            tracing::debug!(
+                target: "pacquet::process_tracker",
+                executions = ?executions.iter().map(|(id, execution)| (id, execution.describe())).collect::<Vec<_>>(),
+                "cancel",
+            );
+            executions
         };
         #[cfg(unix)]
         grace::stop_gracefully(&self.state, executions);
@@ -165,10 +182,21 @@ impl ProcessTracker {
             // A task that starts after the cancellation has done no work yet
             // that a graceful stop would save.
             drop(state);
+            tracing::debug!(
+                target: "pacquet::process_tracker",
+                execution = execution.describe(),
+                "kill an execution registered after the cancellation",
+            );
             execution.kill();
             return Registration { tracker: self, id: None };
         }
         let id = state.next_id;
+        tracing::debug!(
+            target: "pacquet::process_tracker",
+            id,
+            execution = execution.describe(),
+            "register",
+        );
         state.next_id += 1;
         state.executions.insert(id, execution);
         Registration { tracker: self, id: Some(id) }
@@ -278,6 +306,13 @@ impl SpawnedChild<'_> {
     /// exit.
     pub fn wait(&mut self) -> io::Result<crate::process::ExitStatus> {
         let status = self.child.wait()?;
+        tracing::debug!(
+            target: "pacquet::process_tracker",
+            pid = self.child.id(),
+            %status,
+            relayed = self.relay.relayed(),
+            "reaped",
+        );
         // The pid is free for reuse from here on. A bail may still stop the
         // rest of the child's group, which the wait below sits on, but no
         // longer anything by the child's pid.
@@ -368,11 +403,9 @@ impl Registration<'_> {
 impl Drop for Registration<'_> {
     fn drop(&mut self) {
         let Some(id) = self.id else { return };
-        self.tracker.state
-            .lock()
-            .expect("process tracker lock is not poisoned")
-            .executions
-            .remove(&id);
+        let mut state = self.tracker.state.lock().expect("process tracker lock is not poisoned");
+        state.executions.remove(&id);
+        tracing::debug!(target: "pacquet::process_tracker", id, "deregister");
     }
 }
 
