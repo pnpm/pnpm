@@ -16,16 +16,22 @@ pub(super) struct OutdatedCandidate<'a> {
 
 pub(super) fn collect_importer_candidates<'a>(
     manifest: &'a PackageManifest,
-    current_versions: &HashMap<String, Version>,
+    current_versions: &HashMap<String, Option<Version>>,
     engine_deps: &'a [DeclaredEngineDep],
     query: &OutdatedQuery<'_>,
-) -> Vec<OutdatedCandidate<'a>> {
+    catalogs: &Catalogs,
+) -> miette::Result<Vec<OutdatedCandidate<'a>>> {
     let mut candidates = Vec::new();
     for &group in query.include_direct {
         for (alias, bare_specifier) in manifest.dependencies([group]) {
-            if let Some(candidate) =
-                direct_outdated_candidate(alias, group, bare_specifier, current_versions, query)
-            {
+            if let Some(candidate) = direct_outdated_candidate(
+                alias,
+                group,
+                bare_specifier,
+                current_versions,
+                query,
+                catalogs,
+            )? {
                 candidates.push(candidate);
             }
         }
@@ -36,7 +42,7 @@ pub(super) fn collect_importer_candidates<'a>(
             candidates.push(candidate);
         }
     }
-    candidates
+    Ok(candidates)
 }
 
 fn engine_outdated_candidate<'a>(
@@ -58,21 +64,41 @@ fn direct_outdated_candidate<'a>(
     alias: &'a str,
     group: DependencyGroup,
     bare_specifier: &'a str,
-    current_versions: &HashMap<String, Version>,
+    current_versions: &HashMap<String, Option<Version>>,
     query: &OutdatedQuery<'_>,
-) -> Option<OutdatedCandidate<'a>> {
+    catalogs: &Catalogs,
+) -> miette::Result<Option<OutdatedCandidate<'a>>> {
     if !query.matches_name(alias) {
-        return None;
+        return Ok(None);
     }
-    let current = current_versions
-        .get(alias)
-        .cloned()
-        .or_else(|| {
-            pnpm_tool_protocol::is_tool_specifier(bare_specifier)
-                .then(|| min_version_of_spec(alias, bare_specifier))
-                .flatten()
-        })?;
-    Some(OutdatedCandidate { alias, group, bare_specifier, current, is_engine: false })
+    let current = match current_versions.get(alias) {
+        Some(Some(version)) => Some(version.clone()),
+        // A resolution that names no registry version, such as a git or
+        // `file:` one, has nothing to compare against.
+        Some(None) if !pnpm_tool_protocol::is_tool_specifier(bare_specifier) => None,
+        _ => current_version_from_specifier(catalogs, alias, bare_specifier)?,
+    };
+    Ok(current.map(|current| OutdatedCandidate {
+        alias,
+        group,
+        bare_specifier,
+        current,
+        is_engine: false,
+    }))
+}
+
+fn current_version_from_specifier(
+    catalogs: &Catalogs,
+    alias: &str,
+    bare_specifier: &str,
+) -> miette::Result<Option<Version>> {
+    let resolved_specifier = dereference_catalog(catalogs, alias, bare_specifier)?;
+    if resolved_specifier.starts_with("workspace:") {
+        return Ok(None);
+    }
+    let (package_name, specifier) =
+        PackageManifest::resolve_registry_dependency(alias, &resolved_specifier);
+    Ok(min_version_of_spec(package_name, specifier))
 }
 
 pub(super) async fn outdated_dependency(
@@ -125,27 +151,28 @@ fn dereference_catalog<'a>(
     }
 }
 
+/// The version the importer records for each direct dependency in
+/// `include_direct`, or `None` when its resolution names no registry version.
 pub(crate) fn current_versions_from_importer(
     lockfile: Option<&Lockfile>,
     importer_id: &str,
     include_direct: &[DependencyGroup],
-) -> HashMap<String, Version> {
+) -> HashMap<String, Option<Version>> {
     let mut map = HashMap::new();
     let Some(importer) = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id)) else {
         return map;
     };
     for (name, spec) in importer.dependencies_by_groups(include_direct.iter().copied()) {
-        let Some(ver) = spec.version.ver_peer() else {
-            continue;
-        };
-        if let Some(version) = ver
-            .version_semver()
-            .or_else(|| ver.registry_qualified().map(|(_, version)| version))
-        {
-            map.insert(name.to_string(), version.clone());
-        }
+        map.insert(name.to_string(), registry_version(spec));
     }
     map
+}
+
+fn registry_version(spec: &pnpm_lockfile::ResolvedDependencySpec) -> Option<Version> {
+    let ver = spec.version.ver_peer()?;
+    ver.version_semver()
+        .or_else(|| ver.registry_qualified().map(|(_, version)| version))
+        .cloned()
 }
 
 async fn resolve_outdated_target(

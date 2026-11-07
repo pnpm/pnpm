@@ -5,7 +5,8 @@ pub(crate) mod selectors;
 pub(crate) mod standalone;
 
 pub(crate) use selectors::{
-    EcosystemFilterKind, excludes_only, patterns_for_ecosystem, validate_ecosystem_selectors,
+    EcosystemFilterKind, excludes_only, is_purl, patterns_for_ecosystem,
+    validate_ecosystem_selectors,
 };
 pub(crate) use standalone::{
     select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,

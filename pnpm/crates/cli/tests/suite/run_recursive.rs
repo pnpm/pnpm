@@ -5,7 +5,8 @@
 //! process-group tests stay Unix-only, and they say so where they sit.
 
 use crate::_utils::{
-    CHILD_DEADLINE, append_line_script, wait_for_child, wait_for_marker_script, write_marker_script,
+    CHILD_DEADLINE, append_line_script, wait_for_child_with_deadline, wait_for_marker_script,
+    write_marker_script,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -605,7 +606,8 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
     let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
     // The run ending is the proof: these scripts stop only when cancelled,
     // and pnpm waits for the scripts it started.
-    let hold_ms = (CHILD_DEADLINE * 2).as_millis();
+    let cancellation_deadline = CHILD_DEADLINE * 2;
+    let hold_ms = (cancellation_deadline * 2).as_millis();
     let hold_until_cancelled = r#"node -e "const fs = require('fs'); fs.writeFileSync('ran.txt', ''); setTimeout(() => process.exit(0), Number(process.env.HOLD_MS))""#;
     write_workspace(
         &workspace,
@@ -645,7 +647,7 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
         .stderr(fs::File::create(&stderr_path).expect("create the run output"))
         .spawn()
         .expect("spawn pacquet");
-    let status = wait_for_child(&mut run);
+    let status = wait_for_child_with_deadline(&mut run, cancellation_deadline);
     let stderr = fs::read_to_string(&stderr_path).expect("read the run output");
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!status.success(), "the failing project should fail the run");
