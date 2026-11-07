@@ -348,6 +348,12 @@ When publishing packages to an S3 backend, pnpr:
 2. **Uploads the blobs**: pnpr uploads each blob whose bytes the namespace does not hold live yet under its next incarnation; bytes it holds are not uploaded again.
 3. **Commits the metadata**: pnpr commits every package of the publish to the metadata database in one transaction.
 
+Publishes of different packages can upload concurrently. Metadata commits share
+the database's write lock. If archive reclamation races an npm
+publish or a batch HTTP publish, pnpr retries the request up to four times. Each retry checks
+current permissions and package state again. Continued contention returns
+`409 Conflict`.
+
 ### Interruptions
 
 - **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no file maps, which are never served; [`pnpr gc`](cli.md#gc) removes them. A publish refused at its commit removes the incarnations it stored itself, unless another publish of the same bytes committed one of them in the meantime. It first records one a commit could still make live as gone, so that commit is refused rather than left pointing at nothing.

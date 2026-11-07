@@ -93,7 +93,9 @@ async fn serve(
     let key = headers
         .get(IDEMPOTENCY_KEY)
         .and_then(|key| key.to_str().ok());
-    publish_batch(state, caller, key, body).await.unwrap_or_else(IntoResponse::into_response)
+    super::publishing::retry::retry_reclaimed(|| publish_batch(state, caller, key, &body))
+        .await
+        .unwrap_or_else(IntoResponse::into_response)
 }
 
 /// Who sends a batch, and the registry its npm entries are addressed
@@ -194,14 +196,10 @@ async fn publish_batch(
     state: &AppState,
     caller: BatchCaller<'_>,
     key: Option<&str>,
-    body: Bytes,
+    body: &[u8],
 ) -> Result<Response, RegistryError> {
     let identity = caller.identity;
-    let mut incoming: Value = serde_json::from_slice(&body).map_err(|err| malformed_body(&err))?;
-    // The parsed body holds everything the entries need, and the payloads are
-    // decoded out of it below: keep only one copy of a body that may run to
-    // the request limit.
-    drop(body);
+    let mut incoming: Value = serde_json::from_slice(body).map_err(|err| malformed_body(&err))?;
     let name = publication_name(&incoming)?;
     let request = publication_request(identity, &incoming, key, name, None);
     let mut packages = take_packages(&mut incoming)?;
