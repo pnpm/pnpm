@@ -56,11 +56,22 @@ function computeMergedCurrentLockfile (
   const emptyImporters = Object.fromEntries(
     Object.keys(filteredLockfile.importers).map((id) => [id, { specifiers: {} }])
   ) as LockfileObject['importers']
-  if (opts.nodeLinker === 'hoisted' || currentLockfile == null || isEmptyLockfile(currentLockfile)) {
+  if (currentLockfile == null || isEmptyLockfile(currentLockfile)) {
     return {
       ...filteredLockfile,
       importers: {
         ...emptyImporters,
+        ...pick(importerIds, filteredLockfile.importers),
+      },
+    }
+  }
+  if (opts.nodeLinker === 'hoisted') {
+    const existingProjectIds = Object.values(opts.allProjects).map(({ id }) => id)
+    return {
+      ...filteredLockfile,
+      importers: {
+        ...emptyImporters,
+        ...pick(existingProjectIds, currentLockfile.importers),
         ...pick(importerIds, filteredLockfile.importers),
       },
     }
