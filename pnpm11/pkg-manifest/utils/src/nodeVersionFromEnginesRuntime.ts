@@ -48,8 +48,8 @@ function declaredNodeRuntime (
   onFailOverride: RuntimeOnFail | undefined
 ): DeclaredNodeRuntime | undefined {
   if (enginesRuntime == null) return undefined
-  const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
-  const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
+  const runtimes: Array<EngineDependency | null> = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
+  const nodeRuntime = runtimes.find((runtime) => runtime?.name === 'node')
   if (typeof nodeRuntime?.version !== 'string') return undefined
   const version = nodeRuntime.version.trim()
   if (!semver.validRange(version)) return undefined

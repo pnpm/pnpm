@@ -96,10 +96,8 @@ function getProjectNodeVersion (
   if (opts?.skipRuntimes) {
     return opts.nodeVersionFromEnginesRuntime ? undefined : opts.nodeVersion
   }
-  const projectRuntime = getDownloadedNodeVersionFromEnginesRuntime(manifest, opts?.runtimeOnFail)
-  return opts?.nodeVersionFromEnginesRuntime
-    ? projectRuntime ?? opts.nodeVersion
-    : opts?.nodeVersion ?? projectRuntime
+  if (opts?.nodeVersion != null && !opts.nodeVersionFromEnginesRuntime) return opts.nodeVersion
+  return getDownloadedNodeVersionFromEnginesRuntime(manifest, opts?.runtimeOnFail) ?? opts?.nodeVersion
 }
 
 type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir' | 'modulesDirsByProjectName'>

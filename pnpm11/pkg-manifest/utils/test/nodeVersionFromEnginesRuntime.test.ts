@@ -1,5 +1,6 @@
 import { expect, test } from '@jest/globals'
 import { getDownloadedNodeVersionFromEnginesRuntime, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
+import type { ProjectManifest } from '@pnpm/types'
 
 test('getNodeVersionFromEnginesRuntime() keeps the lower bound of a range pnpm downloads', () => {
   expect(getNodeVersionFromEnginesRuntime({
@@ -30,4 +31,10 @@ test('getDownloadedNodeVersionFromEnginesRuntime() falls back to engines.runtime
     devEngines: { runtime: { name: 'node', onFail: 'download' } },
     engines: { runtime: { name: 'node', version: '24.3.0', onFail: 'download' } },
   })).toBe('24.3.0')
+})
+
+test('getDownloadedNodeVersionFromEnginesRuntime() skips null runtime entries', () => {
+  expect(getDownloadedNodeVersionFromEnginesRuntime({
+    devEngines: { runtime: [null, { name: 'node', version: '24.3.0', onFail: 'download' }] },
+  } as unknown as ProjectManifest)).toBe('24.3.0')
 })
