@@ -152,9 +152,9 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
         }
         for (alias, spec) in manifest.dependencies([group]) {
             if link_manifest_dep::<Reporter>(project, group, alias, spec)? {
-                // Bins are (re-)linked for reused symlinks too — the
-                // `.bin` entry may be missing even when the package
-                // link itself is already correct.
+                // Bins are relinked for reused symlinks too. The `.bin`
+                // entry may be missing even when the package link is
+                // already correct.
                 linked_aliases.push(alias.to_string());
             }
         }
