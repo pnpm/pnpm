@@ -13,6 +13,8 @@ pub use blobs::{
     ArtifactBlob, BlobFence, BlobLookup, BlobRef, BlobRow, BlobState, MappedArtifact, PublishBase,
     PublishIncarnation, Uncommitted,
 };
+pub(crate) use dist_tags::validate_dist_tag_target;
+pub use dist_tags::{validate_dist_tag, validate_document_dist_tags};
 pub use notes::{
     MAX_NOTE_BYTES, Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note,
 };
@@ -26,6 +28,7 @@ pub(crate) use sql::{StagedEntry, StagedId};
 pub(crate) use staged::{StagedRecord, StagedState};
 
 mod blobs;
+mod dist_tags;
 mod notes;
 mod publication;
 mod staged;

@@ -6,7 +6,7 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::Batch,
     packument::{Interpretation, ORDINARY, PackumentRows, Readme, VersionRows, decompose},
-    tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows},
+    tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows, validate_packument_tags},
     to_column, to_generation,
 };
 use crate::{
@@ -222,6 +222,7 @@ fn apply_packument(
     principal: Option<&str>,
     records: &ReleaseRecords,
 ) -> Result<bool> {
+    validate_packument_tags(&stored.tags, &rows)?;
     let state = serde_json::to_vec(&rows.state)?;
     let mut changed = stored.row
         .as_ref()

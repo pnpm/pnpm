@@ -5,11 +5,11 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::Batch,
     commit::{Commit, PackageRow, package_row_from, package_row_query},
-    packument::TIME,
+    packument::{ORDINARY, PackumentRows, TIME},
     to_column,
 };
 use crate::{
-    metadata::{TagChange, TagUpdate},
+    metadata::{TagChange, TagUpdate, validate_dist_tag, validate_dist_tag_target},
     publish::now_iso,
 };
 use pnpr_error::Result;
@@ -106,13 +106,22 @@ pub(super) fn change_tag(
     if key.ecosystem != Ecosystem::Npm {
         return Ok(TagUpdate::NotFound);
     }
-    let reads = [package_row_query(key), stored_tags_query(key)];
+    validate_dist_tag(&change.tag)?;
+    let reads = [package_row_query(key), stored_tags_query(key), tag_target_query(key, change)];
     let (mut batch, results) = Batch::begin_with(connection, &key.catalog, &reads)?;
     let mut results = results.into_iter();
     let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
         return Ok(TagUpdate::NotFound);
     };
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
+    validate_dist_tag_target(
+        &change.tag,
+        change.target.as_deref(),
+        !results
+            .next()
+            .unwrap_or_default()
+            .is_empty(),
+    )?;
     if !move_tag(&batch.package(key), &package, &tags, change)? {
         let generation = Some(key.generation(package.generation));
         return Ok(TagUpdate::Committed { generation, moved: false });
@@ -122,6 +131,47 @@ pub(super) fn change_tag(
         .finish()?
         .map(|value| key.generation(value));
     Ok(TagUpdate::Committed { generation, moved: true })
+}
+
+fn tag_target_query<'query>(
+    key: &'query PackageKey,
+    change: &'query OwnedTagChange,
+) -> Query<'query> {
+    let (catalog, ecosystem, name) = key.params();
+    match change.target.as_deref() {
+        Some(target) => query!(
+            "SELECT version FROM versions
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4
+               AND version = ?5 LIMIT 1",
+            catalog,
+            ecosystem,
+            name,
+            ORDINARY,
+            target,
+        ),
+        None => query!(
+            "SELECT version FROM versions
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4 LIMIT 1",
+            catalog,
+            ecosystem,
+            name,
+            ORDINARY,
+        ),
+    }
+}
+
+pub(super) fn validate_packument_tags(
+    stored: &BTreeMap<String, String>,
+    rows: &PackumentRows,
+) -> Result<()> {
+    for (tag, target) in &rows.tags {
+        validate_dist_tag(tag)?;
+        validate_dist_tag_target(tag, Some(target), rows.versions.contains_key(target))?;
+    }
+    if stored.contains_key("latest") && !rows.tags.contains_key("latest") {
+        validate_dist_tag_target("latest", None, !rows.versions.is_empty())?;
+    }
+    Ok(())
 }
 
 /// Point a tag of the package where `change` says, reporting whether it

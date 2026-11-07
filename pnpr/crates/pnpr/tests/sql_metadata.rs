@@ -600,3 +600,126 @@ async fn stale_packuments_cannot_remove_new_versions_or_roll_back_tags() {
     assert!(after["versions"].get("1.1.0").is_some());
     assert_eq!(after["dist-tags"]["latest"], "1.1.0");
 }
+
+#[tokio::test]
+async fn invalid_dist_tag_requests_do_not_change_the_package() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let document = publish_doc("sql-pkg", "1.0.0", b"bytes");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let before = packument(&app, &token).await;
+    for (method, tag, target) in [
+        ("PUT", "ghost", Some(json!("9.9.9"))),
+        ("PUT", "junk", Some(json!("not a version"))),
+        ("PUT", "numeric", Some(json!(123))),
+        ("PUT", "1.x", Some(json!("1.0.0"))),
+        ("PUT", "1.0.0", Some(json!("1.0.0"))),
+        ("PUT", "v1", Some(json!("1.0.0"))),
+        ("PUT", "latest", Some(json!("9.9.9"))),
+        ("DELETE", "latest", None),
+    ] {
+        let path = format!("/npm/-/package/sql-pkg/dist-tags/{tag}");
+        let (status, _, body) = send(&app, request(method, &path, &token, target.as_ref())).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{method} {tag}: {body:?}");
+        assert_eq!(packument(&app, &token).await, before);
+    }
+    for tag in ["next", "beta", "release-1"] {
+        let path = format!("/npm/-/package/sql-pkg/dist-tags/{tag}");
+        let (status, ..) = send(&app, request("PUT", &path, &token, Some(&json!("1.0.0")))).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let (status, ..) = send(&app, request("DELETE", &path, &token, None)).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+}
+
+#[tokio::test]
+async fn package_document_writes_validate_dist_tags() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let mut document = publish_doc("sql-pkg", "1.0.0", b"bytes");
+    document["dist-tags"]["latest"] = json!("9.9.9");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, ..) = send(&app, request("GET", "/npm/sql-pkg", &token, None)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    document["dist-tags"]["latest"] = json!("1.0.0");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let before = packument(&app, &token).await;
+    let path = format!("/npm/sql-pkg/-rev/{}", before.1["_rev"].as_str().unwrap());
+    for tags in
+        [json!({ "latest": "9.9.9" }), json!({ "latest": "1.0.0", "1.x": "1.0.0" }), json!({})]
+    {
+        let mut document = before.1.clone();
+        document["dist-tags"] = tags;
+        let (status, ..) = send(&app, request("PUT", &path, &token, Some(&document))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(packument(&app, &token).await, before);
+    }
+}
+
+#[tokio::test]
+async fn rejected_tag_rewrites_do_not_mark_versions_unpublished() {
+    let tmp = TempDir::new().unwrap();
+    let config = sqlite_config(tmp.path());
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let app = router(config);
+    let token = token(&app).await;
+    for version in ["1.0.0", "2.0.0"] {
+        let document = publish_doc("sql-pkg", version, version.as_bytes());
+        assert_eq!(
+            send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document)))
+                .await
+                .0,
+            StatusCode::CREATED,
+        );
+    }
+    let name = pnpr_package_name::CanonicalPackageName::parse(
+        "sql-pkg",
+        pnpr_package_name::Ecosystem::Npm,
+    )
+    .unwrap();
+    assert!(
+        storage
+            .read_tombstone(&name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let before = packument(&app, &token).await;
+    let path = format!("/npm/sql-pkg/-rev/{}", before.1["_rev"].as_str().unwrap());
+    for tags in [
+        json!({ "latest": "2.0.0", "ghost": "9.9.9" }),
+        json!({ "latest": "2.0.0", "1.x": "2.0.0" }),
+        json!({ "next": "2.0.0" }),
+        json!({ "latest": 123 }),
+        json!(null),
+        json!([]),
+    ] {
+        let mut document = before.1.clone();
+        document["versions"]
+            .as_object_mut()
+            .unwrap()
+            .remove("1.0.0");
+        document["dist-tags"] = tags;
+        let (status, ..) = send(&app, request("PUT", &path, &token, Some(&document))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(packument(&app, &token).await, before);
+        assert!(
+            storage
+                .read_tombstone(&name)
+                .await
+                .unwrap()
+                .is_none(),
+        );
+    }
+    let mut document = before.1.clone();
+    document["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
+    let (status, ..) = send(&app, request("PUT", &path, &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(packument(&app, &token).await.1["versions"]["1.0.0"]["deprecated"], "use 2.0.0");
+}

@@ -30,6 +30,7 @@ base64 = { workspace = true }
 futures-util = { workspace = true }
 getrandom = { workspace = true }
 libsql = { workspace = true, optional = true }
+node-semver = { workspace = true }
 object_store = { workspace = true }
 percent-encoding = { workspace = true }
 reqwest = { workspace = true }

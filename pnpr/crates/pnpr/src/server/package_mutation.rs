@@ -24,7 +24,7 @@ use maintainers::update_package_maintainers;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DocumentWrite, PackageTombstone};
+use pnpr_storage::{DocumentWrite, PackageTombstone, metadata::validate_document_dist_tags};
 
 use super::{
     Action, AppState, RegistrySource, authorize_package, hosted_storage, resolve_write_target,
@@ -131,6 +131,7 @@ fn prepare_packument_rewrite(
             serde_json::json!(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION),
         );
     }
+    validate_document_dist_tags(&hosted, packument).map_err(IntoResponse::into_response)?;
     let removed = detect_removed_versions(&hosted, packument);
     Ok((hosted, removed))
 }
