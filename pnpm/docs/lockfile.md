@@ -18,7 +18,8 @@ contains, so it does not change when the boot document appears.
 
 This page is for tools that read `pnpm-lock.yaml`: vulnerability scanners,
 SBOM generators, dependency graph builders, and dependency update bots. If you
-only use pnpm, you don't need to care about any of this.
+only use pnpm, you don't need to care about any of this. The keys and entries
+inside a document are specified in [Lockfile format](./lockfile-format.md).
 
 A two-document lockfile looks like this:
 
