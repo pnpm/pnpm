@@ -6,5 +6,3 @@ nonword: true
 tokens:
   - '[—–]'
   - '\s--\s'
-exceptions:
-  - '`[^`]*--[^`]*`'
