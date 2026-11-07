@@ -236,6 +236,16 @@ impl TokenBackend for OneToken {
     }
 }
 
+/// Print what the server logs at `warn` and above into the test's captured
+/// output. A 5xx response says only "Internal Server Error", so this is how a
+/// failing test shows the error behind it.
+pub(super) fn capture_server_logs() {
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::WARN)
+        .with_test_writer()
+        .try_init();
+}
+
 pub(super) fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     app_with_config_and_token(Config::static_serve(listen, tmp.path().to_path_buf()), raw, record)
@@ -258,6 +268,7 @@ pub(super) fn app_with_config_and_token(
     raw: &str,
     record: TokenRecord,
 ) -> axum::Router {
+    capture_server_logs();
     let mut accounts: std::collections::BTreeSet<String> = config.routing.hosted
         .values()
         .flat_map(|hosted| {
