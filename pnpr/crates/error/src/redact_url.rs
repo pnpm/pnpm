@@ -84,31 +84,29 @@ pub(super) fn redact_url_candidate(candidate: &str) -> Option<String> {
     let Some(userinfo_end) = find_password_parsed_as_port(candidate) else {
         return redact_parsed_url(url);
     };
+    let authority_start = candidate.find("://")? + 3;
+    // A `?` or `#` before the `@` belongs to either the password or a query or fragment
+    // that holds a secret, so neither side of the `@` is safe to log.
+    if candidate[authority_start..userinfo_end].contains(['?', '#']) {
+        return Some(format!("{}redacted", &candidate[..authority_start]));
+    }
     let redacted = replace_userinfo(candidate, userinfo_end)?;
     Some(redact_url_candidate(&redacted).unwrap_or(redacted))
 }
 
 /// Returns the userinfo `@` of a URL such as `postgres://admin:123/secret@db/x`,
-/// which parses with port `123` and the rest of the password in its path.
+/// which parses with port `123` and the rest of the password after it.
 /// An `@` that starts a path segment is taken for a scoped package name, so
 /// `http://localhost:4873/@scope/pkg` keeps its host.
 pub(super) fn find_password_parsed_as_port(candidate: &str) -> Option<usize> {
     let authority_start = candidate.find("://")? + 3;
-    let rest = &candidate[authority_start..];
-    let prefix_end = rest
-        .find(['?', '#'])
-        .unwrap_or(rest.len());
-    let authority_end = rest[..prefix_end].find('/')?;
-    let authority = &rest[..authority_end];
+    let authority_end = authority_start + candidate[authority_start..].find(['/', '?', '#'])?;
+    let authority = &candidate[authority_start..authority_end];
     let (_, port) = authority.rsplit_once(':')?;
     if authority.contains('@') || !port.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
-    find_last_at_outside_segment_start(
-        candidate,
-        authority_start + authority_end,
-        authority_start + prefix_end,
-    )
+    find_last_at_outside_segment_start(candidate, authority_end, candidate.len())
 }
 
 pub(super) fn find_last_at_outside_segment_start(

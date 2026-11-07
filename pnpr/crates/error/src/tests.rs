@@ -57,6 +57,17 @@ fn log_message_redacts_malformed_password_ending_in_a_slash() {
 }
 
 #[test]
+fn log_message_redacts_port_parsed_passwords_containing_a_query_or_fragment_delimiter() {
+    for (url, expected) in [
+        ("postgres://admin:123/se#cret@db.example/pnpr", "postgres://redacted"),
+        ("postgres://admin:123/se?cret@db.example/pnpr", "postgres://redacted"),
+        ("http://localhost:4873/x#token=a@secret", "http://redacted"),
+    ] {
+        assert_eq!(super::redact_url_credentials(url), expected);
+    }
+}
+
+#[test]
 fn log_message_drops_fragment_containing_an_at_sign() {
     assert_eq!(
         super::redact_url_credentials("https://db.example/pnpr#password=alice@fragment-secret"),
