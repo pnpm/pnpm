@@ -102,7 +102,7 @@ fn push_line(side: &mut String, line: &str) {
 ///
 /// Returns `None` unless the input passes [`is_git_conflicted`]. A file
 /// that only looks conflicted, a stray marker, an unterminated conflict
-///, yields nothing, so the caller keeps reporting it as the broken
+///yields nothing, so the caller keeps reporting it as the broken
 /// lockfile it is instead of merging two documents whose halves were cut
 /// at the wrong lines.
 pub(crate) fn split_git_conflict(file_content: &str) -> Option<(String, String)> {

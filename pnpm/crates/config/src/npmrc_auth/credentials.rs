@@ -440,7 +440,7 @@ impl NpmrcAuth {
     /// value, so both move to the pinned key together. `tokenHelper` is
     /// not an INI-readable key on its own ([`crate::config_types::is_ini_config_key`] mirrors
     /// npm, which has no unscoped form), so the parser never captured it
-    ///, its raw value comes from the parsed credential instead.
+    ///its raw value comes from the parsed credential instead.
     pub(super) fn take_unscoped_raw_values(
         &mut self,
         unscoped: &[&'static str],

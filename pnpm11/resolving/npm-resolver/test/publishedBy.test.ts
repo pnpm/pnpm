@@ -22,7 +22,7 @@ const registriesByScope: RegistriesByScope = {
   default: 'https://registry.npmjs.org/',
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any, the fixtures are arbitrary registry documents */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixtures are arbitrary registry documents */
 const badDatesMeta = loadJsonFileSync<any>(testFixtures.find('bad-dates.json'))
 const isPositiveMeta = loadJsonFileSync<any>(testFixtures.find('is-positive-full.json'))
 const isPositiveAbbreviatedMeta = loadJsonFileSync<any>(testFixtures.find('is-positive.json'))
@@ -638,7 +638,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
 
   // The upgraded full metadata should be persisted to disk so the next
   // install doesn't re-trigger the upgrade fetch.
-  /* eslint-disable @typescript-eslint/no-explicit-any, the test reads arbitrary fields of the cached document */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta?.time).toBeDefined()
@@ -994,7 +994,7 @@ test('the release-age upgrade of a validated mirror records the full etag', asyn
     publishedBy: new Date('2015-06-05T00:00:00.000Z'),
   })
 
-  /* eslint-disable @typescript-eslint/no-explicit-any, the test reads arbitrary fields of the cached document */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -1038,7 +1038,7 @@ test('the release-age upgrade of a freshly fetched packument records the full et
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 
-  /* eslint-disable @typescript-eslint/no-explicit-any, the test reads arbitrary fields of the cached document */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.time != null)
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta.etag).toBeUndefined()
@@ -1110,7 +1110,7 @@ test('a changed full document revalidating an abbreviated mirror is recorded con
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
   expect(getMockAgent().pendingInterceptors()).toHaveLength(0)
-  /* eslint-disable @typescript-eslint/no-explicit-any, the test reads arbitrary fields of the cached document */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document */
   const persistedMeta = await retryLoadJsonFile<any>(cachePath, (meta) => meta.fullEtag === '"new-full-etag"')
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(persistedMeta.etag).toBeUndefined()
@@ -1176,7 +1176,7 @@ test('three installs over a registry without complete publish times download the
       // The mirror write and the mtime renewal after a 304 run in the
       // background. Wait for the upgraded mirror, which also outlasts the
       // renewal, then date it before the cutoff so the install revalidates it.
-      // eslint-disable-next-line no-await-in-loop, each install reads the mirror the previous one left
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
       await retryLoadJsonFile<PackageMeta>(cachePath, (meta) => meta.fullEtag === '"full-etag"')
       fs.utimesSync(cachePath, new Date(0), new Date(0))
     }
@@ -1186,7 +1186,7 @@ test('three installs over a registry without complete publish times download the
       registriesByScope,
       ignoreMissingTimeField: true,
     })
-    // eslint-disable-next-line no-await-in-loop, each install reads the mirror the previous one left
+    // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
     const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
       publishedBy: new Date('2015-07-01T00:00:00.000Z'),
     })
@@ -1262,9 +1262,9 @@ test('a full metadata pick of a document without time revalidates its mirror on 
       // The mirror write and the mtime renewal after a 304 run in the
       // background. Wait for both, then date the mirror before the cutoff so
       // the install revalidates it.
-      // eslint-disable-next-line no-await-in-loop, each install reads the mirror the previous one left
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
       await retryLoadJsonFile<PackageMeta>(cachePath, (meta) => meta.etag === '"full-etag"')
-      // eslint-disable-next-line no-await-in-loop, each install reads the mirror the previous one left
+      // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
       await waitForMtimeAfterEpoch(cachePath)
       fs.utimesSync(cachePath, new Date(0), new Date(0))
     }
@@ -1275,7 +1275,7 @@ test('a full metadata pick of a document without time revalidates its mirror on 
       fullMetadata: true,
       ignoreMissingTimeField: true,
     })
-    // eslint-disable-next-line no-await-in-loop, each install reads the mirror the previous one left
+    // eslint-disable-next-line no-await-in-loop -- each install reads the mirror the previous one left
     const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {
       publishedBy: new Date('2015-07-01T00:00:00.000Z'),
     })
@@ -1304,7 +1304,7 @@ function partialTimeMeta (): PackageMeta {
  * dated it to, polling up to four times 500ms apart. Throws when it has not.
  */
 async function waitForMtimeAfterEpoch (filePath: string): Promise<void> {
-  /* eslint-disable no-await-in-loop, each attempt waits for the previous one to fail */
+  /* eslint-disable no-await-in-loop -- each attempt waits for the previous one to fail */
   for (let attempt = 0; attempt < 4; attempt++) {
     if (fs.statSync(filePath).mtimeMs > 0) return
     await delay(500)

@@ -8,7 +8,7 @@ test('custom resolver intercepts matching packages', async () => {
     canResolve: (wantedDependency: WantedDependency) => {
       return wantedDependency.alias === 'test-package'
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, the test resolver ignores its options
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test resolver ignores its options
     resolve: async (wantedDependency: WantedDependency, _opts: any) => {
       return {
         id: `custom:${wantedDependency.alias}@${wantedDependency.bareSpecifier}`,

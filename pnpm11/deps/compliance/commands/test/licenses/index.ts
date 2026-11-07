@@ -239,7 +239,7 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
   })
 
   for (const packageDir of [path.join(workspaceDir, 'foo'), path.join(workspaceDir, 'bar')]) {
-    // eslint-disable-next-line no-await-in-loop, each project's report is asserted before the next one is generated
+    // eslint-disable-next-line no-await-in-loop -- each project's report is asserted before the next one is generated
     const { output, exitCode } = await licenses.handler({
       ...DEFAULT_OPTS,
       dir: packageDir,
@@ -346,7 +346,7 @@ test('pnpm licenses: reads the lockfile of each project in a workspace with dedi
 
   const storeDir = path.join(workspaceDir, 'store')
   for (const projectDir of [path.join(workspaceDir, 'foo'), path.join(workspaceDir, 'bar')]) {
-    // eslint-disable-next-line no-await-in-loop, the installs share one store, so they run one after another
+    // eslint-disable-next-line no-await-in-loop -- the installs share one store, so they run one after another
     await install.handler({
       ...DEFAULT_OPTS,
       dir: projectDir,
@@ -393,7 +393,7 @@ test('pnpm licenses: keeps packages with the same name and version but different
     const projectDir = path.join(workspaceDir, name)
     fs.mkdirSync(projectDir)
     fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name, dependencies: { local: `file:../${dependency}` } }))
-    // eslint-disable-next-line no-await-in-loop, the installs share one store, so they run one after another
+    // eslint-disable-next-line no-await-in-loop -- the installs share one store, so they run one after another
     await install.handler({
       ...DEFAULT_OPTS,
       dir: projectDir,
@@ -470,7 +470,7 @@ test('pnpm licenses: lists a registry package and a same-named local package fro
     const projectDir = path.join(workspaceDir, name)
     fs.mkdirSync(projectDir)
     fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name, dependencies: { 'is-positive': spec } }))
-    // eslint-disable-next-line no-await-in-loop, the installs share one store, so they run one after another
+    // eslint-disable-next-line no-await-in-loop -- the installs share one store, so they run one after another
     await install.handler({
       ...DEFAULT_OPTS,
       dir: projectDir,
@@ -511,7 +511,7 @@ test('pnpm licenses: lists the installed path of every dedicated lockfile that i
   for (const projectDir of projectDirs) {
     fs.mkdirSync(projectDir)
     fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: path.basename(projectDir), dependencies: { 'is-positive': '3.1.0' } }))
-    // eslint-disable-next-line no-await-in-loop, the installs share one store, so they run one after another
+    // eslint-disable-next-line no-await-in-loop -- the installs share one store, so they run one after another
     await install.handler({
       ...DEFAULT_OPTS,
       dir: projectDir,

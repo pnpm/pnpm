@@ -530,7 +530,7 @@ async function findFirstViolation (
   verifiers: readonly ResolutionVerifier[]
 ): Promise<ResolutionPolicyViolation | undefined> {
   for (const verifier of verifiers) {
-    // eslint-disable-next-line no-await-in-loop, the verifiers run in turn so an entry stops at its first failure
+    // eslint-disable-next-line no-await-in-loop -- the verifiers run in turn so an entry stops at its first failure
     const result = await verifier.verify(resolution, { name, version, nonSemverVersion, registryName })
     if (!result.ok) {
       return { name, version, resolution, code: result.code, reason: result.reason }

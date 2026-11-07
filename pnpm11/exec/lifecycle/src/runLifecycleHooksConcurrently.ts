@@ -187,7 +187,7 @@ async function executeImporterStages (params: ExecuteImporterStagesParams): Prom
       if (manifest.scripts?.preinstall != null) isBuilt = true
       continue
     }
-    // eslint-disable-next-line no-await-in-loop, lifecycle stages of one project run in order
+    // eslint-disable-next-line no-await-in-loop -- lifecycle stages of one project run in order
     if (await runLifecycleHook(stage, manifest, runOpts)) {
       isBuilt = true
     }

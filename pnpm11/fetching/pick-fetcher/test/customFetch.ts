@@ -15,7 +15,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { temporaryDirectory } from 'tempy'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
-/* eslint-disable @typescript-eslint/no-explicit-any, the mocks implement only what each test exercises, and custom resolutions carry arbitrary fields */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the mocks implement only what each test exercises, and custom resolutions carry arbitrary fields */
 
 const testFixtures = fixtures(import.meta.dirname)
 const storeIndex = new StoreIndex(temporaryDirectory())

@@ -178,7 +178,7 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
 /// Abbreviated metadata body, mirroring what a real npm registry
 /// returns under `Accept: application/vnd.npm.install-v1+json`.
 /// Missing per-version `time`, no `_npmUser`, no `dist.attestations`
-///, just the picker-relevant shape.
+///just the picker-relevant shape.
 const ABBREVIATED_BODY: &str = r#"{
     "name": "acme",
     "dist-tags": { "latest": "1.0.0" },

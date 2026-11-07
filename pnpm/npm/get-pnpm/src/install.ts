@@ -161,7 +161,7 @@ export async function installPnpm (
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
   const onSignal = (): void => {
     removeTmpDir()
-    // eslint-disable-next-line n/no-process-exit, a signal listener replaces the default handling, which would have ended the process
+    // eslint-disable-next-line n/no-process-exit -- a signal listener replaces the default handling, which would have ended the process
     process.exit(1)
   }
   for (const signal of signals) {

@@ -30,7 +30,7 @@ pub struct CreateVirtualStoreOutput {
     /// [`NodeLinker::Hoisted`](pnpm_modules_yaml::NodeLinker::Hoisted). Threaded into
     /// [`crate::link_hoisted_modules()`] which materializes the
     /// hoisted `node_modules/` tree directly from these CAS paths
-    ///, there is no virtual store under hoisted, so this is the
+    ///there is no virtual store under hoisted, so this is the
     /// only output that survives into the link phase. `None` for
     /// the isolated and pnp linkers (their slot directories are
     /// the bridge into the link phase instead). Pacquet decouples

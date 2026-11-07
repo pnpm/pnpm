@@ -257,7 +257,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
 /// `allowBuilds` spec as `Err` (here `ERR_PNPM_INVALID_VERSION_UNION`)
 /// instead of swallowing it into `None`, so the strict up-to-date fast
 /// paths fall through to the full install, which reports the real error
-///, rather than short-circuiting to success and hiding it.
+///rather than short-circuiting to success and hiding it.
 #[test]
 fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
     let modules = pnpm_modules_yaml::ModulesLayout {

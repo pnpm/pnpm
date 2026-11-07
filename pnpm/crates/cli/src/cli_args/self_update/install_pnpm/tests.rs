@@ -390,7 +390,7 @@ fn fake_gvs_native_slot(links_dir: &std::path::Path) -> std::path::PathBuf {
 /// `packageManager` delegation installs the engine into the global virtual
 /// store, where the unscoped `pnpm` wrapper sits under the `@` placeholder
 /// scope and its platform package legitimately resolves into a sibling slot
-///, the trust root must widen to `links` instead of the wrapper's own slot.
+///the trust root must widen to `links` instead of the wrapper's own slot.
 #[cfg(unix)]
 #[test]
 fn links_native_binary_from_a_sibling_global_virtual_store_slot() {

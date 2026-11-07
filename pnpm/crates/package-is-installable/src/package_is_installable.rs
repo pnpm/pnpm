@@ -166,7 +166,7 @@ pub fn check_package(
 ///
 /// Side effects (the `pnpm:install-check` warn and
 /// `pnpm:skipped-optional-dependency` emit) are *not* performed here
-///, the caller composes them so log payloads can carry pacquet-
+///the caller composes them so log payloads can carry pacquet-
 /// specific context (`prefix`, `requester`, etc.).
 ///
 /// [`InstallabilityError`] is large (200+ bytes) because it carries the

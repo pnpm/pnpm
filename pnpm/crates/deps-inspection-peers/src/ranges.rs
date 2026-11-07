@@ -35,7 +35,7 @@ impl Interval {
 ///
 /// For a bound [`derived_upper`] built, the suffix is an implementation
 /// detail of prerelease matching. For one the user wrote out it is not
-///, but pnpm drops it too (`semver-range-intersect` renders
+///but pnpm drops it too (`semver-range-intersect` renders
 /// `intersect("<2.0.0-0", ">=1.0.0")` as `>=1.0.0 <2.0.0`), so telling
 /// the two apart here would diverge rather than converge. Only the
 /// rendering loses it: matching compares the parsed version, where the

@@ -73,7 +73,7 @@ impl StoreRelocation {
 /// home-based path and the project root.
 ///
 /// Falls back to `home_default` whenever the algorithm cannot complete
-///, the conservative choice on any error.
+///the conservative choice on any error.
 pub fn resolve_store_dir<Sys: LinkProbe>(
     home_default: PathBuf,
     pnpm_home_dir: &Path,

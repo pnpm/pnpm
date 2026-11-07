@@ -38,15 +38,15 @@ export class DirLock {
   static async acquire (lockPath: string, opts: DirLockOptions): Promise<DirLock | undefined> {
     const deadline = Date.now() + opts.waitMs
     for (;;) {
-      // eslint-disable-next-line no-await-in-loop, the lock is polled one attempt at a time
+      // eslint-disable-next-line no-await-in-loop -- the lock is polled one attempt at a time
       const lock = await DirLock.tryCreate(lockPath)
       if (lock != null) return lock
-      // eslint-disable-next-line no-await-in-loop, inspects the lock this attempt failed to create
+      // eslint-disable-next-line no-await-in-loop -- inspects the lock this attempt failed to create
       const nextAction = await checkLockAttempt(lockPath, opts.abandonedMs)
       if (nextAction === 'unusable') return undefined
       if (nextAction === 'retry') continue
       if (Date.now() >= deadline) return undefined
-      // eslint-disable-next-line no-await-in-loop, waits between polls
+      // eslint-disable-next-line no-await-in-loop -- waits between polls
       await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
     }
   }

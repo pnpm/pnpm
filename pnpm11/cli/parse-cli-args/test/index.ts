@@ -426,7 +426,7 @@ test.each([
     // shouldn't affect its arg parsing. Test both scenarios for good measure.
     const input = [...(testWithCommandFallback ? [] : ['run']), ...testInput.split(' ')]
 
-    // eslint-disable-next-line no-await-in-loop, two variants, asserted one after the other
+    // eslint-disable-next-line no-await-in-loop -- two variants, asserted one after the other
     const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs({
       ...DEFAULT_OPTS,
       fallbackCommand: 'run',

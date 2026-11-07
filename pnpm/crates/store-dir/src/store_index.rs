@@ -49,7 +49,7 @@ enum Backend {
 /// Shared handle to a read-only [`StoreIndex`] that can be cheaply cloned and
 /// sent across blocking tasks. `SQLite`'s `Connection` is `Send` but not
 /// `Sync`, so the `Mutex` gates concurrent reads to a single query at a time
-///, fine for our workload where every caller serializes one short query and
+///fine for our workload where every caller serializes one short query and
 /// then hands off to per-file work without holding the lock.
 pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 

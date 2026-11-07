@@ -267,7 +267,7 @@ pub struct ResolvePeersResult {
 }
 
 /// One importer's input to the multi-importer [`fn@resolve_peers_workspace`]
-///, the lockfile importer id, the importer's `directNodeIdsByAlias`
+///the lockfile importer id, the importer's `directNodeIdsByAlias`
 /// slice, the absolute project root, and the per-importer
 /// `modules_dir` used by the `excludeLinksFromLockfile` link-remap.
 #[derive(Debug, Clone)]

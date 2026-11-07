@@ -54,7 +54,7 @@ pub fn build_deps_graph_for_platform(
 }
 
 /// Build the `DepsGraph` for only the forward closure of `roots`
-///, the union of every snapshot transitively reachable through
+///the union of every snapshot transitively reachable through
 /// `dependencies` + `optional_dependencies` starting from any root.
 ///
 /// `BuildModules` uses this for the side-effects cache READ /

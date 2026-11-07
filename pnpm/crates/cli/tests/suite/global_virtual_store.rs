@@ -592,7 +592,7 @@ fn local_directory_dependency_works_with_global_virtual_store() {
 /// The materialization half is already pinned by
 /// `injected_workspace_dep_with_dedupe_off_materialises_under_gvs` in
 /// `dedupe_injected_deps.rs`; this port covers the half that one does not
-///, `.modules.yaml.injectedDeps` pointing into the GVS.
+///`.modules.yaml.injectedDeps` pointing into the GVS.
 #[test]
 fn injected_local_packages_work_with_global_virtual_store() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

@@ -45,7 +45,7 @@ enum CachedRow {
 
 /// Reconstruct a package's `{filename → CAFS path}` map from the
 /// `SQLite` store index instead of the network. `Ok(None)` on any doubt
-///, no index, no row, unreadable row, failed integrity check, leaving
+///no index, no row, unreadable row, failed integrity check, leaving
 /// the caller to download.
 ///
 /// `verify_store_integrity` matches pnpm's flag of the same name, and

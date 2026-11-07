@@ -200,7 +200,7 @@ pub enum ParseImporterDepVersionError {
 /// rather than a bare semver-with-peer. Mirrors upstream's
 /// `refToRelative` (`deps/path/src/index.ts` at
 /// `pnpm/pnpm@8a80235c7b`, lines 96-110): an `@` before any `(` or `:`
-///, or a leading `@`, means the reference is a full dep-path with
+///or a leading `@`, means the reference is a full dep-path with
 /// the name encoded in front. The shared helper inside
 /// [`crate::SnapshotDepRef`] does the same check; the duplicated copy
 /// here keeps the two parsers self-contained.

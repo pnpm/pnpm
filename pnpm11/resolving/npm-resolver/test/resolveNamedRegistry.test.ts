@@ -17,7 +17,7 @@ import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPacka
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const testFixtures = fixtures(import.meta.dirname)
-/* eslint-disable @typescript-eslint/no-explicit-any, the fixture is an arbitrary registry document */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixture is an arbitrary registry document */
 const ghAcmePrivateMeta = loadJsonFileSync<any>(testFixtures.find('gh-acme-private.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -367,7 +367,7 @@ test('resolveFromNamedRegistry() throws when the specifier names an invalid scop
 test('the same package name served by two registriesByScope does not collide in the in-memory metadata cache', async () => {
   // Both registriesByScope serve `@acme/private`, but point at different tarballs.
   interceptGhAcmePrivate(GH_REGISTRY)
-  /* eslint-disable @typescript-eslint/no-explicit-any, the test rewrites arbitrary fields of the fixture document */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test rewrites arbitrary fields of the fixture document */
   const enterpriseMeta = JSON.parse(JSON.stringify(ghAcmePrivateMeta))
   for (const version of Object.values<any>(enterpriseMeta.versions)) {
     version.dist.tarball = version.dist.tarball.replace('https://npm.pkg.github.com', 'https://npm.enterprise.example.com')

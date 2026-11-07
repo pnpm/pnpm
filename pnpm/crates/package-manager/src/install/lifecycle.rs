@@ -19,7 +19,7 @@ use std::sync::Mutex;
 
 /// Walk every workspace project's `package.json`. Returns `Ok(None)`
 /// when no `pnpm-workspace.yaml` exists in (or above) `workspace_root`
-///, the install isn't a workspace install, so the caller should use
+///the install isn't a workspace install, so the caller should use
 /// the top-level `Install.manifest` as its only importer and pass
 /// `None` for the `workspace:`-spec lookup.
 pub(crate) fn load_workspace_projects(

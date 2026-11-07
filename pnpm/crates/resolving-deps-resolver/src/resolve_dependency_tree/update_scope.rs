@@ -56,7 +56,7 @@ impl VersionLine {
 
 /// The packages a `pacquet update` targets, each mapped to the version
 /// lines its selectors scoped it to or the exact versions its caller named
-///, or to `None` when a selector named no single version, which targets
+///or to `None` when a selector named no single version, which targets
 /// the package at every version. See [`VersionLine`].
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<TargetedVersions>>>);

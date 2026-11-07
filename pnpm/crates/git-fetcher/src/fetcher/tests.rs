@@ -207,7 +207,7 @@ fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
 /// git binary unaffected.
 ///
 /// The shim handles every `git` invocation the fetcher might make
-///, both the shallow path (`init`, `remote add origin`, `fetch
+///both the shallow path (`init`, `remote add origin`, `fetch
 /// --depth 1 origin`, `checkout`, `rev-parse HEAD`) and the
 /// non-shallow `clone`. Each is logged before exit-zero, so both
 /// branches of `should_use_shallow` exercise the same shim.

@@ -18,7 +18,7 @@ impl PkgNameVerPeer {
     ///
     /// `max_length` is `Modules.virtual_store_dir_max_length` (default
     /// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`
-    ///, referenced by name rather than as an intra-doc link because
+    ///referenced by name rather than as an intra-doc link because
     /// `pnpm-lockfile` deliberately does not depend on
     /// `pnpm-modules-yaml`).
     #[must_use]

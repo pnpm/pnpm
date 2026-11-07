@@ -273,7 +273,7 @@ pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
 /// two so the modulo collapses to a mask. 256 picked so each stripe
 /// sees on average `total_files / 256` writes per install; for a 170k-
 /// file install that's ~660 writes per stripe, all on different paths
-///, uncontended pairings dominate.
+///uncontended pairings dominate.
 const NUM_CAS_LOCK_STRIPES: usize = 256;
 const _: () = assert!(
     NUM_CAS_LOCK_STRIPES.is_power_of_two(),

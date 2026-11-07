@@ -17,7 +17,7 @@ pub(crate) struct UpdateClassification {
     pub(crate) unfixable: HashMap<String, Vec<u64>>,
     /// Advisory ids whose `vulnerable_versions` failed to parse. The registry
     /// is untrusted, so a malformed range must not silently drop the advisory
-    ///, it is counted as remaining rather than read as a clean exit.
+    ///it is counted as remaining rather than read as a clean exit.
     pub(crate) unparsable: Vec<u64>,
 }
 

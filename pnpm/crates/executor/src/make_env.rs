@@ -203,7 +203,7 @@ fn is_delegation_marker(key: &str, is_windows: bool) -> bool {
 }
 
 /// Return the slice of `key` after `prefix` when `key` starts with it
-///, case-sensitively on POSIX, case-insensitively on Windows (where
+///case-sensitively on POSIX, case-insensitively on Windows (where
 /// `Command::env` collapses key case). Returns `None` otherwise.
 ///
 /// The Windows branch compares bytes rather than chars so it never

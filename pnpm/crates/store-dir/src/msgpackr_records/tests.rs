@@ -148,7 +148,7 @@ fn decodes_side_effects() {
 }
 
 /// A row pacquet wrote itself, vanilla msgpack via `rmp_serde::to_vec_named`
-///, must decode to the same struct after passing through the
+///must decode to the same struct after passing through the
 /// transcoder. The bytes are *not* guaranteed to be byte-for-byte
 /// identical post-transcode: `CafsFileInfo::checked_at` is written
 /// as `float 64` for msgpackr/pnpm interop, and the transcoder's

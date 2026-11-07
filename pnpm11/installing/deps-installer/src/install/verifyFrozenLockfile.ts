@@ -133,7 +133,7 @@ async function findImporterWithoutProjectManifest (
   const projectIds = new Set(opts.projectIds)
   for (const importerId of Object.keys(lockfile.importers)) {
     if (projectIds.has(importerId)) continue
-    // eslint-disable-next-line no-await-in-loop, the search stops at the first importer without a manifest
+    // eslint-disable-next-line no-await-in-loop -- the search stops at the first importer without a manifest
     if (await isNonEmptyDirWithoutManifest(path.join(opts.lockfileDir, importerId))) return importerId
   }
   return undefined

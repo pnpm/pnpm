@@ -141,7 +141,7 @@ fn min_age_packument_json(name: &str, version: &str, published_at: &str) -> serd
 
 /// Packument with two versions: earlier (`prior_version`) has both
 /// `_npmUser.trustedPublisher` *and* `dist.attestations.provenance`
-///, `get_trust_evidence` only ranks the publisher flag as the
+///`get_trust_evidence` only ranks the publisher flag as the
 /// strongest evidence when the version also ships an attestation,
 /// while current has only `dist.attestations.provenance`. This is the
 /// canonical "trusted-publisher → provenance" downgrade.

@@ -61,7 +61,7 @@ pub struct DependentsOptions {
     /// Importer-id patterns to skip when `project_dirs` is omitted, in
     /// pnpm's `hoistPattern` glob syntax (`*` is the only wildcard). Lets a
     /// host keep its own generated importers, Bit's `.bit_roots` projects
-    ///, out of the answer without reading the lockfile itself to
+    ///out of the answer without reading the lockfile itself to
     /// enumerate the rest.
     pub exclude_project_patterns: Option<Vec<String>>,
     /// `node_modules` directory. Defaults to `<dir>/node_modules`.

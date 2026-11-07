@@ -16,7 +16,7 @@ import { envLockfileDir, executeRecordDecision } from './syncEnvLockfile.js'
 
 export interface PackageManagerHandlingOptions {
   cmd: string | null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, option values have command-specific types
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
   cliOptions: Record<string, any>
   config: Config
   context: ConfigContext
@@ -102,7 +102,7 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
  */
 export async function switchPastUnreadableConfig (
   loadReadable: () => Promise<{ config: Config, context: ConfigContext }>,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, option values have command-specific types
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
   cliOptions: Record<string, any>
 ): Promise<void> {
   if (cliOptions.global || isExecutedByCorepack()) return

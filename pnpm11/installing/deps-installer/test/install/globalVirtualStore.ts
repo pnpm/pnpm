@@ -457,7 +457,7 @@ test('GVS removes an optional dependency whose build failed from its slot', asyn
 
   // A repeat install leaves the package removed.
   for (let attempt = 0; attempt < 2; attempt++) {
-    // eslint-disable-next-line no-await-in-loop, each install must see the store left by the previous one
+    // eslint-disable-next-line no-await-in-loop -- each install must see the store left by the previous one
     await install(manifest, opts)
 
     const hashes = fs.readdirSync(failedVersionDir)

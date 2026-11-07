@@ -233,7 +233,7 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> b
 
 /// Whether [`schedule_tasks`](crate::synchronous::schedule_tasks)'s concurrency limits alone leave at most one
 /// script in flight: every script-running task shares a single limit group
-///, the group is the task name, and that group admits one task at a time.
+///the group is the task name, and that group admits one task at a time.
 fn serialized_by_one_task_limit(graph: &TaskGraph) -> bool {
     let mut limited_group: Option<&str> = None;
     for node in graph

@@ -56,7 +56,7 @@ pub struct StoreDir {
 
     /// Memoised `<root>/files` directory. Resolved lazily on the first
     /// CAS path lookup and reused across every subsequent file write
-    ///, saves one `Path::join` allocation per file on the hot path,
+    ///saves one `Path::join` allocation per file on the hot path,
     /// ~170k on the alotta-files clean install. `OnceLock` so
     /// initialization across rayon threads stays race-free.
     #[serde(skip, default)]

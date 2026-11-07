@@ -138,7 +138,7 @@ function getPackageManagerConflictWarning (legacy: ParsedPackageManager, devEngi
  * forge or rewrite terminal/CI log output.
  */
 function sanitizeManifestValue (value: string): string {
-  // eslint-disable-next-line no-control-regex, matching control characters is the point
+  // eslint-disable-next-line no-control-regex -- matching control characters is the point
   return stripVTControlCharacters(value).replace(/[\u0000-\u001f\u007f]/g, ' ')
 }
 

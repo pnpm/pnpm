@@ -205,7 +205,7 @@ pub struct Config {
     /// disables public hoisting, `Some([])` runs the hoist pass with
     /// no public matches, `Some(non-empty)` is the standard case.
     /// Default is `Some([])` (`'public-hoist-pattern': []`)
-    ///, any non-empty default would write a `publicHoistPattern`
+    ///any non-empty default would write a `publicHoistPattern`
     /// into `.modules.yaml` that the next `pnpm` invocation rejects
     /// with `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`
     /// ([pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750)).
@@ -987,13 +987,13 @@ pub struct Config {
 
     /// Floor in milliseconds for the wait between retries. The
     /// `fetchRetryMintimeout` setting (default `10000`, 10 s). Yaml-only
-    ///, see [`Config::fetch_retries`].
+    ///see [`Config::fetch_retries`].
     #[default(_code = "default_fetch_retry_mintimeout()")]
     pub fetch_retry_mintimeout: u64,
 
     /// Cap in milliseconds on the wait between retries. The
     /// `fetchRetryMaxtimeout` setting (default `60000`, 1 min). Yaml-only
-    ///, see [`Config::fetch_retries`].
+    ///see [`Config::fetch_retries`].
     #[default(_code = "default_fetch_retry_maxtimeout()")]
     pub fetch_retry_maxtimeout: u64,
 
@@ -1711,7 +1711,7 @@ pub struct Config {
     /// them, in which case consumers read catalogs straight from the
     /// workspace manifest. `Some` carries the complete catalog set the
     /// hook produced (existing + injected), so consumers use it as-is
-    ///, the counterpart to pnpm's `config.catalogs` after the
+    ///the counterpart to pnpm's `config.catalogs` after the
     /// `updateConfig` pass.
     pub catalogs: Option<pnpm_catalogs_types::Catalogs>,
 

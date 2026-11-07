@@ -75,9 +75,9 @@ export async function pollForWebAuthToken ({
 
   while (true) {
     throwIfPastDeadline(deadline, Date.now())
-    // eslint-disable-next-line no-await-in-loop, polling waits between attempts on purpose
+    // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
     await sleep(setTimeout, POLL_INTERVAL_MS)
-    // eslint-disable-next-line no-await-in-loop, polling waits between attempts on purpose
+    // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
     const response = await fetchIgnoringErrors({ doneUrl, fetch, fetchOptions })
     if (response == null) continue
 
@@ -89,12 +89,12 @@ export async function pollForWebAuthToken ({
     if (response.status === 202) {
       discardBody(response)
       // Registry is still waiting for authentication.
-      // eslint-disable-next-line no-await-in-loop, polling waits between attempts on purpose
+      // eslint-disable-next-line no-await-in-loop -- polling waits between attempts on purpose
       await waitForRetryAfter({ Date, deadline, response, setTimeout })
       continue
     }
 
-    // eslint-disable-next-line no-await-in-loop, the body decides whether polling continues
+    // eslint-disable-next-line no-await-in-loop -- the body decides whether polling continues
     const body = await readTokenBody(response) as { token?: string } | undefined
     if (body?.token) {
       return body.token
@@ -210,7 +210,7 @@ async function readChunksWithinLimit (reader: WebAuthFetchResponseBodyReader): P
   const chunks: Uint8Array[] = []
   let total = 0
   while (true) {
-    // eslint-disable-next-line no-await-in-loop, stream chunks must be read one after another
+    // eslint-disable-next-line no-await-in-loop -- stream chunks must be read one after another
     const { done, value } = await reader.read()
     if (done) return chunks
     if (value == null) continue

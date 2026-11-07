@@ -36,7 +36,7 @@ export async function checkGlobalBinConflicts (opts: {
   const existingPackages = scanGlobalPackages(opts.globalDir)
   for (const existingPkg of existingPackages) {
     if (opts.shouldSkip(existingPkg)) continue
-    // eslint-disable-next-line no-await-in-loop, the scan stops at the first conflict, so later packages are not read
+    // eslint-disable-next-line no-await-in-loop -- the scan stops at the first conflict, so later packages are not read
     await collectBinsToSkipFromExistingPackage({ existingPkg, conflicting, newBinOwners, binsToSkip })
   }
   return binsToSkip

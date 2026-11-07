@@ -397,7 +397,7 @@ function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, in
 async function runPreResolutionHooks (opts: StrictInstallOptions, ctx: PnpmContext): Promise<void> {
   if (!opts.hooks.preResolution) return
   for (const preResolution of opts.hooks.preResolution) {
-    // eslint-disable-next-line no-await-in-loop, preResolution hooks run one after another, in the order they were registered
+    // eslint-disable-next-line no-await-in-loop -- preResolution hooks run one after another, in the order they were registered
     await preResolution({
       currentLockfile: ctx.currentLockfile,
       wantedLockfile: ctx.wantedLockfile,

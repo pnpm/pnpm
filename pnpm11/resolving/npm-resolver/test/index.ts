@@ -26,7 +26,7 @@ import { temporaryDirectory } from 'tempy'
 import { delay, getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const testFixtures = fixtures(import.meta.dirname)
-/* eslint-disable @typescript-eslint/no-explicit-any, the fixtures are arbitrary registry documents */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixtures are arbitrary registry documents */
 const isPositiveMeta = loadJsonFileSync<any>(testFixtures.find('is-positive.json'))
 const isPositiveMetaWithDeprecated = loadJsonFileSync<any>(testFixtures.find('is-positive-with-deprecated.json'))
 const isPositiveMetaFull = loadJsonFileSync<any>(testFixtures.find('is-positive-full.json'))

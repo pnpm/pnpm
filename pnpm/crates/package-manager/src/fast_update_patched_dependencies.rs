@@ -57,7 +57,7 @@ pub(crate) fn detect_patched_drift(
 ///
 /// Runs after removals have been applied and pruned, so the unused-patch
 /// guard and the rekey plan see the packages a full resolution would see
-///, a patch whose only referent was just removed falls back exactly
+///a patch whose only referent was just removed falls back exactly
 /// like the resolver raising `ERR_PNPM_UNUSED_PATCH` would.
 ///
 /// `false`, a patched package reachable as a peer, an opaque peer

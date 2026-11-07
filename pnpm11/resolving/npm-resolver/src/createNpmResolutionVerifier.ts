@@ -237,7 +237,7 @@ async function verifyVariationsResolution (
 ): Promise<ResolutionVerification> {
   for (const variant of resolution.variants ?? []) {
     if (variant?.resolution) {
-      // eslint-disable-next-line no-await-in-loop, sequential variant verification stops at first violation
+      // eslint-disable-next-line no-await-in-loop -- sequential variant verification stops at first violation
       const result = await verifyResolution(settings, variant.resolution, entry)
       if (!result.ok) return result
     }

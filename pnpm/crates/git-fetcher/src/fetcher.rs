@@ -60,7 +60,7 @@ pub struct GitFetcher<'a> {
     /// Used in log lines, and as the resolution id
     /// [`crate::prepare_package()`] synthesizes its gated dep path from.
     /// Matches the `package_id` the rest of the install dispatcher uses
-    ///, for a git dep, the bare `git+…#<commit>` id.
+    ///for a git dep, the bare `git+…#<commit>` id.
     pub package_id: &'a str,
     /// Name of the package this resolution belongs to, used to say which
     /// dependency a transport failure came from. Unlike

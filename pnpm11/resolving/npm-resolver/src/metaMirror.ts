@@ -197,7 +197,7 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
 export async function legacyMirrorHint (cacheDir: string, metaDir: string, registry: string, pkgName: string): Promise<string | undefined> {
   for (const legacyMirror of getLegacyPkgMirrorPaths(cacheDir, metaDir, registry, pkgName)) {
     try {
-      // eslint-disable-next-line no-await-in-loop, the candidates are probed in order and the first hit wins
+      // eslint-disable-next-line no-await-in-loop -- the candidates are probed in order and the first hit wins
       await fs.access(legacyMirror)
     } catch {
       continue

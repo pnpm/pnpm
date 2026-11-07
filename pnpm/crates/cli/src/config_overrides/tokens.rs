@@ -320,7 +320,7 @@ pub(super) fn parse_bool_or_enum<Value: serde::de::DeserializeOwned>(value: &str
 }
 
 /// An enum setting's kebab-case spelling, for [`Config::explicit_settings`](pnpm_config::Config::explicit_settings)
-///, the form the config files and `pnpm config get` use.
+///the form the config files and `pnpm config get` use.
 pub(super) fn setting_value<Value: serde::Serialize>(value: Value) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or(serde_json::Value::Null)
 }

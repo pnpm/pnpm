@@ -201,15 +201,15 @@ const MAX_QUARANTINE_ATTEMPTS = 100
 async function renameToFreeName (src: string, dest: string): Promise<string | null> {
   for (let attempt = 0; attempt < MAX_QUARANTINE_ATTEMPTS; attempt++) {
     const candidate = attempt === 0 ? dest : `${dest}_${attempt}`
-    // eslint-disable-next-line no-await-in-loop, candidate names are tried in order until one is free
+    // eslint-disable-next-line no-await-in-loop -- candidate names are tried in order until one is free
     if (await pathExistsNoFollow(candidate)) continue
     try {
-      // eslint-disable-next-line no-await-in-loop, a successful rename ends the search, so it must finish before the next candidate
+      // eslint-disable-next-line no-await-in-loop -- a successful rename ends the search, so it must finish before the next candidate
       await fs.promises.rename(src, candidate)
       return candidate
     } catch (err: unknown) {
       // Another process took the name between the check and the rename.
-      // eslint-disable-next-line no-await-in-loop, a taken name moves on to the next candidate, any other failure is rethrown
+      // eslint-disable-next-line no-await-in-loop -- a taken name moves on to the next candidate, any other failure is rethrown
       if (await pathExistsNoFollow(candidate)) continue
       throw err
     }

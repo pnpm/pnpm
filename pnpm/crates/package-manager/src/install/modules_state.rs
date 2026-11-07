@@ -288,7 +288,7 @@ pub(super) fn recorded_allow_builds_differ(
 /// on the up-to-date path and the ignored-builds check still throws, so a
 /// rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not exit 0.
 /// Packages a later policy explicitly denies (`Some(false)`) are excluded
-///, those are silently skipped, never reported, matching a full
+///those are silently skipped, never reported, matching a full
 /// install's `BuildModules`. Newly-allowed packages are handled
 /// by [`has_newly_allowed_ignored_builds`], which skips the fast path.
 ///

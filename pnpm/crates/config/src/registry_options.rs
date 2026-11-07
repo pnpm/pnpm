@@ -219,7 +219,7 @@ impl Config {
     /// A falsy check: `minimumReleaseAge: 0` disables the maturity
     /// cutoff. Disabling it is also what makes `resolutionMode:
     /// lowest-direct` / `time-based` observable for direct dependencies
-    ///, while a cutoff is active the picker always prefers the highest
+    ///while a cutoff is active the picker always prefers the highest
     /// mature version, overriding the lowest-version pick.
     pub fn resolved_minimum_release_age(&self) -> Option<u64> {
         self.minimum_release_age.filter(|&minutes| minutes > 0)
@@ -264,7 +264,7 @@ impl Config {
     /// filtered form rather than verbatim.
     ///
     /// Answered for the most demanding registry, one that carries no `time`
-    ///, because [`Self::requires_full_metadata_for_registry`] can ask for a
+    ///because [`Self::requires_full_metadata_for_registry`] can ask for a
     /// full document at a registry
     /// [`Self::requires_full_metadata_for_resolution`] would have left on
     /// abbreviated metadata, and both have to agree on which mirror that

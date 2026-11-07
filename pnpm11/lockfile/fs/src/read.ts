@@ -300,7 +300,7 @@ async function _readWantedLockfile (
   const lockfileNames = await getWantedLockfileCandidates(opts)
   let result: ReadLockfileResult = { ...NO_LOCKFILE }
   let preMergeImporters: LockfileObject['importers'] | undefined
-  /* eslint-disable no-await-in-loop, the first lockfile candidate that exists wins, so later ones are not read */
+  /* eslint-disable no-await-in-loop -- the first lockfile candidate that exists wins, so later ones are not read */
   for (const lockfileName of lockfileNames) {
     result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
     if (!result.lockfile) continue

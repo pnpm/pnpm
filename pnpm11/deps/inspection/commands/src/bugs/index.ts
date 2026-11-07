@@ -37,7 +37,7 @@ export async function handler (
     ? [await getBugsUrlFromCurrentProject(opts)]
     : await Promise.all(params.map((spec) => getBugsUrlFromRegistry(opts, spec)))
   for (const url of urls) {
-    // eslint-disable-next-line no-await-in-loop, opening the URLs one at a time keeps the browser tabs in the order the packages were given
+    // eslint-disable-next-line no-await-in-loop -- opening the URLs one at a time keeps the browser tabs in the order the packages were given
     await open(url)
   }
 }

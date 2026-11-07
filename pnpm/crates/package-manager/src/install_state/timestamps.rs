@@ -122,7 +122,7 @@ pub(crate) fn validation_baseline_ms(
 ///
 /// The probe is an unnamed temporary file in the directory holding the
 /// workspace state, pnpm's own, on the volume the state write lands on
-///, so nothing else can observe it and it needs no cleanup. The
+///so nothing else can observe it and it needs no cleanup. The
 /// directory is created first because an install may be about to write
 /// the state file for the first time. `None` when the probe cannot be
 /// created or stat'd, leaving the caller with the mtime-derived

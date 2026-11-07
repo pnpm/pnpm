@@ -78,7 +78,7 @@ async function applyReadPackageHooks (
   { manifest, rootDir }: { manifest: ProjectManifest, rootDir: string }
 ): Promise<ProjectManifest> {
   let probed: ProjectManifest = manifest
-  /* eslint-disable no-await-in-loop, each hook receives the manifest returned by the previous one */
+  /* eslint-disable no-await-in-loop -- each hook receives the manifest returned by the previous one */
   for (const hook of hooks) {
     probed = await hook(probed, rootDir)
   }

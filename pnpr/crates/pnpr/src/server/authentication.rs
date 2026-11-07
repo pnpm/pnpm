@@ -108,7 +108,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
 /// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
 /// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
 /// both and surfaces them on `npm token list`, so it must enforce them too
-///, otherwise a token the operator restricted could still publish, or be
+///otherwise a token the operator restricted could still publish, or be
 /// used from any network. Basic-auth and anonymous requests carry no
 /// restriction and are still subject to the per-package access policy in
 /// the handlers; an unknown or revoked bearer token resolves to anonymous.

@@ -97,7 +97,7 @@ pub struct GitFetchContext {
 ///
 /// When `fetch_context` is `Some`, the package is read during
 /// resolution to fill `manifest` (and `integrity`, for a host archive)
-///, see [`GitFetchContext`]. `None` (unit tests, and the resolve-only
+///see [`GitFetchContext`]. `None` (unit tests, and the resolve-only
 /// NAPI entry point) keeps the manifest-less shape.
 ///
 /// Each specifier is resolved at most once per resolver: every later

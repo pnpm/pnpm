@@ -333,11 +333,11 @@ class RequestFailure extends Error {
 async function withRetries<Result> (attempt: () => Promise<Result>): Promise<Result> {
   for (let attemptNo = 1; ; attemptNo++) {
     try {
-      // eslint-disable-next-line no-await-in-loop, each attempt waits for the previous one to fail
+      // eslint-disable-next-line no-await-in-loop -- each attempt waits for the previous one to fail
       return await attempt()
     } catch (err) {
       if (attemptNo >= MAX_ATTEMPTS || !(err instanceof RequestFailure) || !err.retryable) throw err
-      // eslint-disable-next-line no-await-in-loop, the delay is what spaces the attempts out
+      // eslint-disable-next-line no-await-in-loop -- the delay is what spaces the attempts out
       await delay(RETRY_DELAY_MS * attemptNo)
     }
   }
@@ -363,12 +363,12 @@ async function request (
   let currentUrl = url
 
   for (let redirects = 0; ; redirects++) {
-    // eslint-disable-next-line no-await-in-loop, each hop is known only once the previous one answers
+    // eslint-disable-next-line no-await-in-loop -- each hop is known only once the previous one answers
     const response = await fetchHop(currentUrl, { accept, signal, timeoutMs, opts })
     if (!REDIRECT_STATUSES.has(response.status) && response.ok) return response
 
     // Left unread, the body would hold the connection until it is collected.
-    // eslint-disable-next-line no-await-in-loop, the connection is released before the next hop opens one
+    // eslint-disable-next-line no-await-in-loop -- the connection is released before the next hop opens one
     await response.body?.cancel().catch(() => {})
     const target = redirectTarget(response, currentUrl)
     if (redirects >= MAX_REDIRECTS) {

@@ -48,7 +48,7 @@ pub(super) struct CacheFile<'a> {
 /// Read a cached map back, or `None` to derive it instead.
 ///
 /// Length-prefixed pairs, `u32 key_len | key | u32 val_len | value`
-///, rather than JSON: the map runs to thousands of entries and the
+///rather than JSON: the map runs to thousands of entries and the
 /// whole point is to beat the derivation it replaces.
 ///
 /// What comes back off disk is checked against `expected` before it

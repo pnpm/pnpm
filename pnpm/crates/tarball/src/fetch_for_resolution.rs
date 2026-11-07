@@ -384,7 +384,7 @@ impl FetchTarballForResolution<'_> {
     ///
     /// A subdirectory package gets no row. Its key would name the
     /// subpackage while `pkg_files_idx` describes the whole archive
-    ///, the repo's manifest and every repo file, and a row whose
+    ///the repo's manifest and every repo file, and a row whose
     /// key and payload disagree is worse than none: consumers that
     /// trust `PackageFilesIndex.manifest` / `files` to match the key
     /// (bin linking, file materialization) would read the repo.

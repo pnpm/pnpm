@@ -62,7 +62,7 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
     }))
   }
   for (const [registry, group] of packedByRegistry.entries()) {
-    // eslint-disable-next-line no-await-in-loop, a failed registry request stops the publish before the next registry
+    // eslint-disable-next-line no-await-in-loop -- a failed registry request stops the publish before the next registry
     await publishRegistryGroup({ registry, group, opts, publishOptionsByRegistry })
   }
   return packedPkgs.map(({ summary }) => summary)
@@ -90,7 +90,7 @@ async function packPkgsForBatch (pkgs: Project[], opts: BatchPublishOptions): Pr
   const packedByRegistry = new Map<string, PackedPkg[]>()
   const packedPkgs: PackedPkg[] = []
   for (const project of pkgs) {
-    // eslint-disable-next-line no-await-in-loop, projects run their prepublish scripts and pack one at a time, in the order given
+    // eslint-disable-next-line no-await-in-loop -- projects run their prepublish scripts and pack one at a time, in the order given
     const packedPkg = await packPkgForBatch(project, opts)
     const { publishedManifest } = packedPkg
     const { registry } = findRegistryInfo(publishedManifest, opts, getPublishConfigRegistry(publishedManifest.publishConfig, publishedManifest.name))
@@ -128,7 +128,7 @@ async function publishRegistryGroup ({ registry, group, opts, publishOptionsByRe
   }
   if (opts.ignoreScripts) return
   for (const { project } of group) {
-    // eslint-disable-next-line no-await-in-loop, publish scripts run one project at a time, in the order given
+    // eslint-disable-next-line no-await-in-loop -- publish scripts run one project at a time, in the order given
     await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
   }
 }

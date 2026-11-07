@@ -284,7 +284,7 @@ pub(super) fn aliasless_package_name(
 }
 /// The name an alias-less git selector's package is added under: the one
 /// its own manifest declares, or, for a repository that ships no manifest
-///, one synthesized from the repository's host identity.
+///one synthesized from the repository's host identity.
 ///
 /// `None` when neither is available: the repository declares no name and
 /// its URL names a host pacquet cannot read an owner and project out of.

@@ -369,7 +369,7 @@ async function probeLinkCapabilities (dir: string): Promise<{ reflink: boolean, 
 function canReflink (source: string, dest: string): boolean {
   try {
     if (process.platform === 'darwin' || process.platform === 'win32') {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, the native addon is loaded synchronously and only on the platforms that need it
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- the native addon is loaded synchronously and only on the platforms that need it
       const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
       reflinkFileSync(source, dest)
     } else {

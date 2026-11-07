@@ -367,7 +367,7 @@ async function materializePnprLockfile (
   }
   const { ignoredBuilds, stats } = await materializeOrDelegate(
     { ...opts, rootProjectPreinstallRan },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, these install options leave settings such as registriesByScope optional, while HeadlessOptions requires them
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- these install options leave settings such as registriesByScope optional, while HeadlessOptions requires them
     () => headlessInstall(headlessOpts as any)
   )
 

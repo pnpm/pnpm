@@ -21,7 +21,7 @@ export interface MetadataMirror {
 export async function readMetadataMirror (cacheDir: string, pkgName: string): Promise<MetadataMirror> {
   const mirrorPath = path.join(cacheDir, ABBREVIATED_META_DIR, `http%3A+localhost+${REGISTRY_MOCK_PORT}%2Fnpm`, `${pkgName}.jsonl`)
   let lastError: unknown
-  /* eslint-disable no-await-in-loop, each attempt waits for the previous one to find no file */
+  /* eslint-disable no-await-in-loop -- each attempt waits for the previous one to find no file */
   for (let attempt = 0; attempt < 20; attempt++) {
     let raw: string
     try {

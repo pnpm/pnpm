@@ -1109,7 +1109,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 
 const REGISTRY_MIRROR_DIR = path.join(import.meta.dirname, './registry-mirror')
 
-/* eslint-disable @typescript-eslint/no-explicit-any, the metadata is replayed to the mock registry as is */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the metadata is replayed to the mock registry as is */
 const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 const tarballPath = testFixtures.find('is-positive-3.1.0.tgz')

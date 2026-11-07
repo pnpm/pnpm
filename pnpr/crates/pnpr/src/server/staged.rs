@@ -4,7 +4,7 @@
 //! it back instead of making it visible; the staged record is then listed
 //! (`GET /-/stage`), inspected (`GET /-/stage/:id`, `GET
 //! /-/stage/:id/tarball`), and finally approved (`POST /-/stage/:id/approve`
-//!, which replays the held document through the regular publish flow) or
+//!which replays the held document through the regular publish flow) or
 //! rejected (`DELETE /-/stage/:id`, which deletes it). This is the server
 //! half of `pnpm stage`.
 //!

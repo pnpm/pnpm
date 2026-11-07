@@ -109,7 +109,7 @@ async function runHandlersInSequence (handlers: readonly PolicyHandler[], violat
   // throw to short-circuit before later handlers ask for input.
   for (const handler of handlers) {
     if (handler.handleResolutionPolicyViolations) {
-      // eslint-disable-next-line no-await-in-loop, handlers prompt in turn, so each must finish before the next starts
+      // eslint-disable-next-line no-await-in-loop -- handlers prompt in turn, so each must finish before the next starts
       await handler.handleResolutionPolicyViolations(violations)
     }
   }

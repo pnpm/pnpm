@@ -460,7 +460,7 @@ impl Walker<'_> {
     /// [`crate::PeerLinkOptions::lockfile_dir`] are seeded with a node id
     /// rewritten to `link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`
     /// when [`crate::PeerLinkOptions::exclude_links_from_lockfile`] is on
-    ///, keeping the peer-suffix segment stable across machines
+    ///keeping the peer-suffix segment stable across machines
     /// regardless of the absolute path of the external link.
     /// Whether a dependency installed under `alias` can provide a peer:
     /// its alias or its real package name (the two differ for npm-alias

@@ -254,7 +254,7 @@ pub(super) fn refresh_global_shims(
 
 /// Build the registry map (`{ default, ...scoped }`) hashed into the
 /// global cache key, from the trusted package-manager bootstrap registries
-///, never the repo-controlled project registries, so a project `.npmrc`
+///never the repo-controlled project registries, so a project `.npmrc`
 /// can't change the hash-symlink name (which would create duplicate global
 /// `pnpm` groups that `find_global_package` resolves non-deterministically).
 fn registries_for_cache_key(config: &Config) -> Vec<(String, String)> {

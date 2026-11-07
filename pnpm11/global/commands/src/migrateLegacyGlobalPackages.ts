@@ -169,7 +169,7 @@ async function installMigratedGroups (
   let everyPackageMigrated = true
   for (const { alias, selector } of selectors) {
     try {
-      // eslint-disable-next-line no-await-in-loop, groups share the global bin directory, so they are installed one at a time
+      // eslint-disable-next-line no-await-in-loop -- groups share the global bin directory, so they are installed one at a time
       await installGroup({
         opts,
         globalDir: opts.globalPkgDir!,
@@ -313,7 +313,7 @@ async function realpathMissing (targetPath: string): Promise<string> {
   let current = targetPath
   for (;;) {
     try {
-      // eslint-disable-next-line no-await-in-loop, the walk climbs one ancestor at a time, so each step depends on the previous one
+      // eslint-disable-next-line no-await-in-loop -- the walk climbs one ancestor at a time, so each step depends on the previous one
       return path.join(await fs.promises.realpath(current), ...missing.reverse())
     } catch (err: unknown) {
       if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err

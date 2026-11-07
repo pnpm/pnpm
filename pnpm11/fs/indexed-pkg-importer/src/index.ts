@@ -242,7 +242,7 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
 let _cloneFunction: CloneFunction | undefined
 
 function createNativeReflinkClone (): CloneFunction {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, loads the native addon only on the platforms that use it
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- loads the native addon only on the platforms that use it
   const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
   return (fr, to) => {
     try {

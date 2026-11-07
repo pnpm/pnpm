@@ -30,7 +30,7 @@ use std::{
 
 /// Capability: read a process environment variable as a raw
 /// [`OsString`]. Used for env vars whose value is a filesystem path
-///, invalid UTF-8 is preserved verbatim so the path can be passed
+///invalid UTF-8 is preserved verbatim so the path can be passed
 /// to `std::fs` without round-tripping through `String`.
 pub trait EnvVarOs {
     /// Return the value of the named environment variable as an

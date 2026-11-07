@@ -38,16 +38,16 @@ async function writeStreamToFileCapped (
 ): Promise<boolean> {
   let total = 0
   for (;;) {
-    // eslint-disable-next-line no-await-in-loop, stream chunks must be read in order
+    // eslint-disable-next-line no-await-in-loop -- stream chunks must be read in order
     const { done, value } = await reader.read()
     if (done) return true
     total += value.byteLength
     if (total > maxBytes) {
-      // eslint-disable-next-line no-await-in-loop, the loop returns right after the cancellation
+      // eslint-disable-next-line no-await-in-loop -- the loop returns right after the cancellation
       await reader.cancel().catch(() => {})
       return false
     }
-    // eslint-disable-next-line no-await-in-loop, chunks are appended in the order they arrive
+    // eslint-disable-next-line no-await-in-loop -- chunks are appended in the order they arrive
     await file.writeFile(value)
   }
 }

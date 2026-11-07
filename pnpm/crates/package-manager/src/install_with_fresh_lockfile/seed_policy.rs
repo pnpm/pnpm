@@ -59,7 +59,7 @@ pub enum UpdateSeedPolicy {
         max_depth: UpdateDepth,
     },
     /// Withhold only the update targets' pins. `pacquet update <pattern>`
-    ///, a matched name re-resolves while everything else keeps its pin,
+    ///a matched name re-resolves while everything else keeps its pin,
     /// and a selector that pinned an exact version narrows the target to
     /// that version line. Keyed by package name (scope included); see
     /// [`UpdateTargets`].

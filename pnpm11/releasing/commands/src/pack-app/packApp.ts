@@ -265,7 +265,7 @@ async function buildExecutables (opts: PackAppOptions, plan: PackAppPlan): Promi
 
   const ctx: TargetBuildContext = { plan, dir: opts.dir, buildRoot, builderBin, nodeVersion }
   const results: string[] = []
-  /* eslint-disable no-await-in-loop, targets build one at a time so the builders' inherited output does not interleave */
+  /* eslint-disable no-await-in-loop -- targets build one at a time so the builders' inherited output does not interleave */
   for (const target of plan.targets) {
     results.push(await buildTargetExecutable(ctx, target))
   }

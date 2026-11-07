@@ -1,5 +1,5 @@
 //! End-to-end coverage for installs over an **existing** `node_modules`
-//!, the repair, reuse, and divergence scenarios of upstream's
+//!the repair, reuse, and divergence scenarios of upstream's
 //! `deps-restorer` and `deps-installer` suites. Every test installs
 //! once, damages or drifts some part of the on-disk state, installs
 //! again, and asserts the second install converges without rebuilding

@@ -281,7 +281,7 @@ fn gzip_bytes(bytes: &[u8]) -> Vec<u8> {
 /// Real pnpm-published tarball (`@fastify/error@3.3.0`, 4.4 KiB).
 /// Embedded so the retry-success test below has a body that
 /// integrity-checks and extracts successfully on the retry attempt
-///, which is the only way to exercise the post-network steps of
+///which is the only way to exercise the post-network steps of
 /// the retry loop without going to the live registry.
 const FASTIFY_ERROR_TARBALL: &[u8] =
     include_bytes!("../../../tasks/micro-benchmark/fixtures/@fastify+error-3.3.0.tgz");

@@ -96,7 +96,7 @@ export async function cleanupReplacedGlobalInstalls (
 ): Promise<void> {
   const errors: unknown[] = []
   for (const group of opts.groups) {
-    // eslint-disable-next-line no-await-in-loop, Cleanup mutations must settle before the next group starts.
+    // eslint-disable-next-line no-await-in-loop -- Cleanup mutations must settle before the next group starts.
     errors.push(...await cleanupReplacedGlobalInstall(opts, group))
   }
   if (errors.length === 1) throw errors[0]
@@ -133,7 +133,7 @@ async function removeReplacedBins (
   const errors: unknown[] = []
   for (const binName of binNames) {
     if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
-    // eslint-disable-next-line no-await-in-loop, Each removal must settle before cleanup continues.
+    // eslint-disable-next-line no-await-in-loop -- Each removal must settle before cleanup continues.
     await collectFailure(errors, () => removeBin(path.join(opts.globalBinDir, binName)))
   }
   return errors
@@ -376,11 +376,11 @@ async function readHashTarget (hashLink: string): Promise<string | undefined> {
 
 async function restoreGlobalInstall (opts: ActivateGlobalInstallOptions & PreparedGlobalInstall): Promise<void> {
   for (const name of opts.actualBinNames) {
-    // eslint-disable-next-line no-await-in-loop, Rollback mutation must settle before the next step or return.
+    // eslint-disable-next-line no-await-in-loop -- Rollback mutation must settle before the next step or return.
     await removeBin(path.join(opts.globalBinDir, name))
   }
   for (const { original, backup } of opts.savedBinSlots) {
-    // eslint-disable-next-line no-await-in-loop, Rollback mutation must settle before the next step or return.
+    // eslint-disable-next-line no-await-in-loop -- Rollback mutation must settle before the next step or return.
     await fs.promises.rename(backup, original)
   }
   if (opts.oldHashTarget == null) {

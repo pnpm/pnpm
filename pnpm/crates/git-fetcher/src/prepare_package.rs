@@ -295,7 +295,7 @@ fn prepublish_invocation(
 /// it.
 ///
 /// pnpm provides the package manager when the dependency pinned a version
-///, that pin is what its authors test against, or when the host cannot
+///that pin is what its authors test against, or when the host cannot
 /// satisfy what the dependency ships. Otherwise the host's own install is
 /// left to do the job it has always done, which is also what happens when
 /// the shims cannot be written for an unpinned one.

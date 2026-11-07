@@ -208,7 +208,7 @@ struct QuotaFaults {
     claim_slot_first: Option<(String, Vec<u8>)>,
     /// Fails reads of the slot *after* the first, so the pre-check still finds
     /// it free and the failure lands on the re-read that follows a lost create
-    ///, the only point where the loser is charged for what it did not store.
+    ///the only point where the loser is charged for what it did not store.
     fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
     /// Counts writes of the usage document, which is what a reservation and a
     /// release each cost against a hosted store.

@@ -140,7 +140,7 @@ pub(crate) async fn resolve_best_admitted_version(
 }
 
 /// Emit the `pnpm:global` warning for each stale convergence override
-///, the counterpart of pnpm's `globalWarn` emission, parsed by the
+///the counterpart of pnpm's `globalWarn` emission, parsed by the
 /// shared default reporter.
 pub(crate) fn warn_stale_convergence_overrides<Reporter: self::Reporter>(
     stale: &[StaleConvergenceOverride],

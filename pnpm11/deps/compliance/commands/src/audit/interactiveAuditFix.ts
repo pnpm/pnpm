@@ -82,7 +82,7 @@ async function promptForAdvisoriesToFix (choices: AuditFixCheckboxChoice[]): Pro
   } catch (err) {
     if (isError(err) && err.name === 'ExitPromptError') {
       globalInfo('Audit fix canceled')
-      // eslint-disable-next-line n/no-process-exit, canceling the prompt ends the command successfully without applying any fix
+      // eslint-disable-next-line n/no-process-exit -- canceling the prompt ends the command successfully without applying any fix
       process.exit(0)
     }
     throw err

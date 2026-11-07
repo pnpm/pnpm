@@ -14,7 +14,7 @@ use std::{fs, io};
 /// `<scope>/<name>/<version>/<hash>` suffixes per *full* snapshot key
 /// (with the peer-dependency suffix preserved) when GVS is enabled.
 /// Peer-resolved snapshots therefore have to look up by the full key
-///, `slot_dir(key)`, or the GVS lookup misses, falls through to the
+///`slot_dir(key)`, or the GVS lookup misses, falls through to the
 /// legacy flat-name path, and points at a directory that
 /// [`crate::CreateVirtualDirBySnapshot`] never created.
 /// `slot_dir(key.without_peer())` silently drops lifecycle scripts for

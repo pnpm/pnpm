@@ -26,7 +26,7 @@ pub struct DefaultResolver {
 
 impl DefaultResolver {
     /// Build a dispatcher from a chain of resolvers. Order is preserved
-    ///, earlier entries get the first shot at every wanted dependency.
+    ///earlier entries get the first shot at every wanted dependency.
     #[must_use]
     pub fn new(chain: Vec<Box<dyn Resolver>>) -> Self {
         Self { chain }

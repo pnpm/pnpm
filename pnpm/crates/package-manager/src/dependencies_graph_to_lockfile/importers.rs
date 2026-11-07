@@ -85,7 +85,7 @@ pub(super) fn catalog_snapshot_version(
 /// When `exclude_links_from_lockfile` is `true`, a `link:` direct
 /// dependency is omitted from the importer's `specifiers` and
 /// `dependencies` / `devDependencies` / `optionalDependencies` maps
-///, unless its manifest specifier starts with `workspace:`, which
+///unless its manifest specifier starts with `workspace:`, which
 /// still records the resolved workspace-sibling target so the
 /// lockfile stays a complete description of the workspace graph.
 pub(super) fn build_importer(

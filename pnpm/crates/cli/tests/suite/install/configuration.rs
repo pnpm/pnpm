@@ -543,7 +543,7 @@ fn install_fails_on_env_var_in_project_npmrc_registry() {
 ///
 /// Also asserts that the project gets registered under
 /// `<store_dir>/v11/projects/`, mirroring the frozen-lockfile branch
-///, the prune sweep walks that directory to learn which projects
+///the prune sweep walks that directory to learn which projects
 /// still reference the shared store.
 #[cfg(unix)]
 #[test]

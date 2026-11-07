@@ -280,7 +280,7 @@ fn should_install_index_files() {
 
 /// Regression test for the NDJSON `prefix` field. `--reporter=ndjson`
 /// must emit each bunyan envelope with the canonicalized install root
-///, not the relative `"."` that `dir.join("package.json").parent()`
+///not the relative `"."` that `dir.join("package.json").parent()`
 /// produced when `--dir` defaulted to `.`. The downstream consumer
 /// (`@pnpm/cli.default-reporter` running in a separate process) compares
 /// every event's `prefix` to its own `process.cwd()` and prepends a

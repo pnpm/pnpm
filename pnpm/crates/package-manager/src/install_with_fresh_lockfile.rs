@@ -262,7 +262,7 @@ pub(crate) struct FreshLockfileSeeds<'a> {
     /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
     /// with already-pinned `(name, version)` pairs. `Some` on the
     /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
-    ///, the resolver biases toward the seeded versions when they
+    ///the resolver biases toward the seeded versions when they
     /// still satisfy the spec so unrelated dependencies keep their
     /// pins. `None` on the no-lockfile path. Corresponds to the
     /// `update: false` resolver mode.

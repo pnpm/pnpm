@@ -578,7 +578,7 @@ test('rejects a registry-style depPath whose git-host tarball clears the gitHost
     const lockfile = makeLockfile({
       'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: `https://codeload.github.com/org/foo/tar.gz/${GIT_COMMIT}`, gitHosted } as never },
     })
-    // eslint-disable-next-line no-await-in-loop, one case at a time keeps a failure tied to its input
+    // eslint-disable-next-line no-await-in-loop -- one case at a time keeps a failure tied to its input
     await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
       code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
     })
@@ -626,7 +626,7 @@ test('rejects a registry-style depPath backed by a non-http(s) tarball URL', asy
     const lockfile = makeLockfile({
       'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball } as never },
     })
-    // eslint-disable-next-line no-await-in-loop, one case at a time keeps a failure tied to its input
+    // eslint-disable-next-line no-await-in-loop -- one case at a time keeps a failure tied to its input
     await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
       code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
     })

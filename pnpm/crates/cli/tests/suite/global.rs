@@ -691,7 +691,7 @@ fn global_add_ignores_ambient_global_workspace_yaml() {
 
 /// A global install must not inherit the caller project's dependency-graph
 /// configuration. A project `overrides` entry that references a `catalog:`
-///, resolved against the caller's catalogs, which the isolated global
+///resolved against the caller's catalogs, which the isolated global
 /// install does not see, would otherwise fail the install with
 /// `ERR_PNPM_CATALOG_IN_OVERRIDES`. `catalogMode: strict` is included for
 /// the same reason. Regression test for that leak.

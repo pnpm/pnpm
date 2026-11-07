@@ -363,7 +363,7 @@ pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
 /// toward the hard limit. Loaded mirrors keep their file handle open
 /// so version fragments can be read on demand without buffering the
 /// body (see [`load_meta`]), which holds one descriptor per packument
-///, beyond the conservative soft defaults some platforms ship (256
+///beyond the conservative soft defaults some platforms ship (256
 /// on macOS, 1024 on several Linux distros) once a workspace consults
 /// thousands of packuments. Raising the soft limit to the hard limit
 /// needs no privileges; it is the same startup adjustment the Go

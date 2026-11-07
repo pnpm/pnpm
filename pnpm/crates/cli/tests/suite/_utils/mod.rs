@@ -192,7 +192,7 @@ pub fn enable_gvs_in_workspace_yaml(workspace: &Path, extra_yaml: &str) {
 /// The mocked registry publishes `@pnpm.e2e/bravo-dep` at 1.0.0
 /// (2022-02-01), 1.0.1 (2022-02-22), and 1.1.0 (2022-05-01, the `latest`
 /// tag), see `version_publish_time` in `pnpr/crates/pnpr-fixtures/src/lib.rs`
-///, so this cutoff makes 1.1.0 the only immature version.
+///so this cutoff makes 1.1.0 the only immature version.
 #[must_use]
 pub fn bravo_dep_mature_up_to_1_0_1_minimum_release_age() -> u64 {
     minutes_since(1_646_092_800) // 2022-03-01T00:00:00Z

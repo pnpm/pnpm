@@ -88,7 +88,7 @@ impl HostDetection {
 
     /// Wait for the detection. A joined-task failure degrades to the
     /// synthetic fallback host, so the installability checks still run
-    ///, the same degradation [`detect_installability_host`] applies
+    ///the same degradation [`detect_installability_host`] applies
     /// when its own probe task fails.
     pub async fn resolve(self) -> Option<InstallabilityHost> {
         match self {
@@ -134,7 +134,7 @@ fn synthetic_installability_host(engine_strict: bool) -> InstallabilityHost {
 /// paths qualify it differently, and getting it wrong is not obvious
 /// from here. Passing `false` returns `None`, which is what keeps `node
 /// --version` off the critical path of the common unconstrained install
-///, the probe would otherwise serialize against the extraction that
+///the probe would otherwise serialize against the extraction that
 /// dominates a cold install.
 pub async fn detect_installability_host(
     needed: bool,

@@ -129,7 +129,7 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
         },
       },
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, the fixture's package keys are plain strings, not branded DepPaths
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the fixture's package keys are plain strings, not branded DepPaths
   } as any
   const written = await writeWantedLockfile(projectPath, wantedLockfile)
   const loaded = await readWantedLockfile(projectPath, { ignoreIncompatible: false })

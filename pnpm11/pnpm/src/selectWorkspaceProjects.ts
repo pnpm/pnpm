@@ -11,7 +11,7 @@ import { recursiveByDefaultCommands } from './cmd/index.js'
 export interface CommandInvocation {
   cmd: string | null
   cliParams: string[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, option values have command-specific types
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
   cliOptions: Record<string, any>
   workspaceDir: string | undefined
 }

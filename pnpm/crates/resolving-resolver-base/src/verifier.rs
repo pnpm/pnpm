@@ -22,7 +22,7 @@ pub enum ResolutionVerification {
         /// `MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`). The
         /// install command filters violations by code to decide
         /// downstream UX, so the value is part of the public contract
-        ///, verifier crates pin theirs as `&'static str` consts.
+        ///verifier crates pin theirs as `&'static str` consts.
         code: &'static str,
         /// Human-readable explanation rendered in the install error
         /// breakdown. Allowed to allocate.

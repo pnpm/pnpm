@@ -4,7 +4,7 @@ use super::{
 use pretty_assertions::assert_eq;
 
 /// Format matches pnpm's `${platform};${arch};node${major}`
-///, required for the side-effects cache to interop.
+///required for the side-effects cache to interop.
 #[test]
 fn engine_name_matches_pnpm_format() {
     assert_eq!(engine_name(20, Some("darwin"), Some("arm64")), "darwin;arm64;node20");

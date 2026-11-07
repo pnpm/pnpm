@@ -11,10 +11,10 @@ import { pathAbsolute } from 'path-absolute'
 import type { HookContext, Hooks } from './Hooks.js'
 import { type Finders, type Pnpmfile, requirePnpmfile } from './requirePnpmfile.js'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, a constraint matching every function type needs any parameters
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a constraint matching every function type needs any parameters
 type Cook<Hook extends (...args: any[]) => any> = (
   arg: Parameters<Hook>[0],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, the cooked hook forwards whatever extra arguments the caller passes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the cooked hook forwards whatever extra arguments the caller passes
   ...otherArgs: any[]
 ) => ReturnType<Hook>
 
@@ -115,7 +115,7 @@ function buildPnpmfileEntries (opts: {
 async function loadAllPnpmfiles (pnpmfiles: PnpmfileEntry[], prefix: string): Promise<PnpmfileEntryLoaded[]> {
   const entries: PnpmfileEntryLoaded[] = []
   for (const { path: pnpmPath, fallbackPath, includeInChecksum, optional } of pnpmfiles) {
-    // eslint-disable-next-line no-await-in-loop, pnpmfiles must load sequentially to preserve order
+    // eslint-disable-next-line no-await-in-loop -- pnpmfiles must load sequentially to preserve order
     await loadPnpmfileCandidate({ pnpmPath, fallbackPath, includeInChecksum, optional }, prefix, entries)
   }
   return entries

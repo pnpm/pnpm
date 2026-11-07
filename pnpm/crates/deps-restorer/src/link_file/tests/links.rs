@@ -139,7 +139,7 @@ fn dangling_symlink_is_preserved() {
     assert_eq!(std::fs::read_link(&dst).unwrap(), dangling_target, "target unchanged");
 }
 /// Live symlinks (pointing at real files) should still short-circuit
-///, they're legitimate user state, not corruption from an
+///they're legitimate user state, not corruption from an
 /// interrupted install. Observable: we don't remove the link, and
 /// we don't overwrite its target either.
 #[test]

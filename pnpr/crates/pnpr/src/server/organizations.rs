@@ -221,7 +221,7 @@ pub(super) fn readable_team_registry<'a>(
 }
 
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
-///, list the teams of the hosted registry that claims `@{scope}`, in the
+///list the teams of the hosted registry that claims `@{scope}`, in the
 /// shape the pnpm team command consumes: an array of `{"name": ...}`.
 pub(super) fn get_org_teams(
     state: &AppState,

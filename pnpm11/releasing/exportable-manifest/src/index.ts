@@ -140,7 +140,7 @@ async function applyPublishHooks (
 ): Promise<ProjectManifest> {
   let result = manifest
   for (const hook of hooks ?? []) {
-    // eslint-disable-next-line no-await-in-loop, each hook receives the manifest returned by the previous one
+    // eslint-disable-next-line no-await-in-loop -- each hook receives the manifest returned by the previous one
     result = await hook(result, dir) ?? result
   }
   return result
@@ -162,7 +162,7 @@ function combineConverters (...converters: readonly PublishDependencyConverter[]
   return async (depName, depSpec, context) => {
     let bareSpecifier = depSpec
     for (const converter of converters) {
-      // eslint-disable-next-line no-await-in-loop, each converter receives the specifier returned by the previous one
+      // eslint-disable-next-line no-await-in-loop -- each converter receives the specifier returned by the previous one
       bareSpecifier = await converter(depName, bareSpecifier, context)
     }
     return bareSpecifier

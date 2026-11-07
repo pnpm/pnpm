@@ -81,7 +81,7 @@ test('a change below a cycle member moves the whole cycle to new slots', async (
         },
       },
     })
-    // eslint-disable-next-line no-await-in-loop, each install builds on the previous one
+    // eslint-disable-next-line no-await-in-loop -- each install builds on the previous one
     await execPnpm(['install'])
 
     const first = fs.realpathSync('node_modules/@pnpm.e2e/circular-deps-1-of-2')

@@ -423,7 +423,7 @@ pub(super) fn may_prune_stale_importers(prune: &StaleImporterPrune<'_>) -> bool 
         && prune.config.shares_one_lockfile()
 }
 /// Report the projects this install covers depending on each other in a cycle
-///, after the repeat-install short-circuit, because pnpm returns from
+///after the repeat-install short-circuit, because pnpm returns from
 /// "Already up to date" before reaching its own check, and before any
 /// resolution, because a `disallowWorkspaceCycles` failure must not be paid
 /// for.

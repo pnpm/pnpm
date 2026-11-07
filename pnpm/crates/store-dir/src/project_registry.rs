@@ -239,7 +239,7 @@ pub enum GetRegisteredProjectsError {
 /// [`GetRegisteredProjectsError`] variants.
 ///
 /// `ENOENT` on the registry directory itself returns an empty `Vec`
-///, a store that hasn't seen any GVS install yet has no projects
+///a store that hasn't seen any GVS install yet has no projects
 /// dir, and that's not an error.
 pub fn get_registered_projects(
     store_dir: &StoreDir,
@@ -367,7 +367,7 @@ fn is_enoent_or_einval(error: &io::Error) -> bool {
 /// Port of npm `is-subdir`: returns `true` when `inner` is `outer`
 /// itself or any descendant of it. Named `path_contains(outer, inner)`
 /// because the bare `isSubdir` name reads ambiguously at the call site
-///, [`path_contains`] reads unambiguously as "does `outer` contain
+///[`path_contains`] reads unambiguously as "does `outer` contain
 /// `inner`".
 ///
 /// Both paths are compared by their canonical (resolved) form so

@@ -665,7 +665,7 @@ describe('"packageManager" / "devEngines.packageManager" conflict warning', () =
     })
     const warning = warnings.find(w => w.includes('different package managers'))
     expect(warning).toBeDefined()
-    // eslint-disable-next-line no-control-regex, asserts that no control characters are left
+    // eslint-disable-next-line no-control-regex -- asserts that no control characters are left
     expect(warning).not.toMatch(/[\u0000-\u001f\u007f]/)
     expect(warning).toContain('"packageManager" (evi l)')
   })

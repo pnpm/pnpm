@@ -16,7 +16,7 @@ import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPacka
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const testFixtures = fixtures(import.meta.dirname)
-/* eslint-disable @typescript-eslint/no-explicit-any, the fixtures are arbitrary registry documents */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixtures are arbitrary registry documents */
 const jsrRusGreetMeta = loadJsonFileSync<any>(testFixtures.find('jsr-rus-greet.json'))
 const jsrLucaCasesMeta = loadJsonFileSync<any>(testFixtures.find('jsr-luca-cases.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */

@@ -76,7 +76,7 @@ const linkBinsOfPackages = jest.fn<LinkBinsOfPackages>(async (pkgs, globalBinDir
 
   await fs.mkdir(globalBinDir, { recursive: true })
   const writtenPkgNames: string[] = []
-  /* eslint-disable no-await-in-loop, sequential writes make the injected partial failure deterministic */
+  /* eslint-disable no-await-in-loop -- sequential writes make the injected partial failure deterministic */
   for (const command of commands) {
     if (skipMissingBinSources && !existsSync(command.path)) continue
     const slot = path.join(globalBinDir, command.name)

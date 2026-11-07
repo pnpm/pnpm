@@ -254,7 +254,7 @@ fn package_import_method_event_matches_pnpm_wire_shape() {
 /// `pnpm:root` is presence-tagged on `added` / `removed`. The JS
 /// reporter accumulates `added` events and renders them in the
 /// `pnpm:summary` "+N -M" block. Optional fields skip when absent
-///, emitting them as JSON `null` would put `null` in the rendered
+///emitting them as JSON `null` would put `null` in the rendered
 /// version string.
 #[test]
 fn root_event_matches_pnpm_wire_shape() {

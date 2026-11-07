@@ -1,7 +1,7 @@
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import _sortKeys from 'sort-keys'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, an interface such as a manifest satisfies an index signature of any, not of unknown
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- an interface such as a manifest satisfies an index signature of any, not of unknown
 export function sortDirectKeys<Obj extends { [key: string]: any }> (
   obj: Obj
 ): Obj {
@@ -11,7 +11,7 @@ export function sortDirectKeys<Obj extends { [key: string]: any }> (
   })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, an interface such as a manifest satisfies an index signature of any, not of unknown
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- an interface such as a manifest satisfies an index signature of any, not of unknown
 export function sortDeepKeys<Obj extends { [key: string]: any }> (
   obj: Obj
 ): Obj {
@@ -21,7 +21,7 @@ export function sortDeepKeys<Obj extends { [key: string]: any }> (
   })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, an interface such as a manifest satisfies an index signature of any, not of unknown
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- an interface such as a manifest satisfies an index signature of any, not of unknown
 export function sortKeysByPriority<Obj extends { [key: string]: any }> (
   opts: {
     priority: Record<string, number>
