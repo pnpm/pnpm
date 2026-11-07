@@ -217,6 +217,7 @@ impl CreateVirtualDirBySnapshot<'_> {
     ) -> Result<(), CreateVirtualDirError> {
         if !interrupted_build
             && !self.source.force
+            && !self.source.is_mutable
             && let Some(slot) = global_slot
         {
             let populated = slot
