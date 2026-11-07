@@ -119,7 +119,13 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
     bin_slot_locks: &[&crate::GlobalVirtualStoreSlot],
     optional: bool,
 ) -> Result<bool, pnpm_executor::LifecycleScriptError> {
-    let extra_env = extra_env_with_locked_slots(context.scripts.extra_env, bin_slot_locks);
+    let extra_env = extra_env_with_locked_slots(context.scripts.extra_env, bin_slot_locks)
+        .map_err(|source| pnpm_executor::LifecycleScriptError::Spawn {
+            dep_path: snapshot_key.to_string(),
+            stage: "postinstall".to_string(),
+            dir: pkg_dir.display().to_string(),
+            source,
+        })?;
     run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: context.directories.lockfile_dir,
@@ -149,28 +155,21 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
 fn extra_env_with_locked_slots(
     base: &std::collections::HashMap<String, String>,
     slots: &[&crate::GlobalVirtualStoreSlot],
-) -> std::collections::HashMap<String, String> {
+) -> std::io::Result<std::collections::HashMap<String, String>> {
     let mut extra_env = base.clone();
-    let mut held_paths = std::env::var(crate::GVS_LOCKED_SLOT_PATHS_ENV)
-        .ok()
-        .and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
-        .unwrap_or_default();
+    let mut held_paths = crate::inherited_slot_locks()?;
     held_paths.extend(
         slots
             .iter()
-            .map(|slot| {
-                slot.path()
-                    .to_string_lossy()
-                    .into_owned()
-            }),
+            .map(|slot| slot.path().to_path_buf()),
     );
     held_paths.sort();
     held_paths.dedup();
     extra_env.insert(
         crate::GVS_LOCKED_SLOT_PATHS_ENV.to_string(),
-        serde_json::to_string(&held_paths).expect("slot paths serialize to JSON"),
+        crate::encode_slot_lock_paths(&held_paths)?,
     );
-    extra_env
+    Ok(extra_env)
 }
 
 /// The directories a snapshot's build scripts get on `PATH` besides the ones

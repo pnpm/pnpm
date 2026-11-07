@@ -1,8 +1,12 @@
 //! The owner of global virtual store slot state and its cross-process lock.
 
+pub use path_codec::GVS_LOCKED_SLOT_PATHS_ENV;
+pub(crate) use path_codec::{encode_slot_lock_paths, inherited_slot_locks};
+mod path_codec;
 use crate::VirtualStoreLayout;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use path_codec::slot_lock_is_inherited;
 use pnpm_fs::DirLock;
 use pnpm_lockfile::PackageKey;
 use std::{fs, io, path::PathBuf, time::Duration};
@@ -17,7 +21,6 @@ const WAIT: Duration = Duration::from_mins(10);
 /// Comfortably above how long a build can legitimately take, so a holder
 /// that cannot prove it is alive never has its lock stolen mid-build.
 const ABANDONED_AFTER: Duration = Duration::from_mins(30);
-pub const GVS_LOCKED_SLOT_PATHS_ENV: &str = "PNPM_GVS_LOCKED_SLOT_PATHS";
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Failed to lock global virtual store slot for {dep_path}: {source}")]
@@ -192,7 +195,11 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn acquire_path(path: PathBuf, key: &PackageKey) -> Result<Self, GvsSlotLockError> {
-        if inherited_slot_locks().iter().any(|locked| slot_lock_is_inherited(&path, locked)) {
+        let inherited = inherited_slot_locks()
+            .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?;
+        if slot_lock_is_inherited(&path, &inherited)
+            .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?
+        {
             return Err(GvsSlotLockError {
                 dep_path: key.to_string(),
                 source: io::Error::new(
@@ -376,17 +383,6 @@ impl GlobalVirtualStoreSlot {
         }
         Ok(true)
     }
-}
-
-fn inherited_slot_locks() -> Vec<String> {
-    let Ok(value) = std::env::var(GVS_LOCKED_SLOT_PATHS_ENV) else {
-        return Vec::new();
-    };
-    serde_json::from_str(&value).unwrap_or_default()
-}
-
-fn slot_lock_is_inherited(path: &std::path::Path, inherited_path: &str) -> bool {
-    std::path::Path::new(inherited_path) == path
 }
 
 #[cfg(test)]

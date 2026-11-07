@@ -1,7 +1,7 @@
 use super::{GlobalVirtualStoreSlot, GlobalVirtualStoreSlotPhase};
 use crate::VirtualStoreLayout;
 use pnpm_lockfile::SnapshotEntry;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 use tempfile::tempdir;
 
 #[test]
@@ -97,10 +97,55 @@ fn acquire_ordered_locks_slots_in_path_order_and_deduplicates_keys() {
 
 #[test]
 fn nested_install_recognizes_a_slot_held_by_its_parent_build() {
-    let slot_path = std::path::Path::new("/store/links/pkg/1.0.0/hash");
+    let root = tempdir().expect("temporary slot root");
+    let slot_path = root.path().join("slot");
+    std::fs::create_dir(&slot_path).expect("create slot path");
+    #[cfg(unix)]
+    let alias = {
+        let alias = root.path().join("alias");
+        std::os::unix::fs::symlink(&slot_path, &alias).expect("create slot alias");
+        alias
+    };
+    #[cfg(not(unix))]
+    let alias = slot_path.clone();
 
-    assert!(super::slot_lock_is_inherited(slot_path, "/store/links/pkg/1.0.0/hash",));
-    assert!(!super::slot_lock_is_inherited(slot_path, "/store/links/pkg/1.0.0/other-hash",));
+    assert!(
+        super::slot_lock_is_inherited(&alias, std::slice::from_ref(&slot_path))
+            .expect("compare slot paths"),
+    );
+    assert!(
+        !super::slot_lock_is_inherited(&alias, &[root.path().join("other")])
+            .expect("compare distinct slot paths"),
+    );
+}
+
+#[test]
+fn nested_install_slot_paths_round_trip() {
+    let slot_paths = [PathBuf::from("/store/links/package/hash")];
+    let encoded = super::encode_slot_lock_paths(&slot_paths).expect("encode slot paths");
+
+    assert_eq!(
+        super::path_codec::parse_slot_lock_paths(&encoded).expect("decode slot paths"),
+        slot_paths,
+    );
+    assert!(
+        super::path_codec::parse_slot_lock_paths("[").is_err(),
+        "malformed slot data must fail",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn nested_install_slot_paths_preserve_non_utf8_bytes() {
+    use std::os::unix::ffi::OsStringExt;
+
+    let slot_paths = [PathBuf::from(std::ffi::OsString::from_vec(b"/store/\xff".to_vec()))];
+    let encoded = super::encode_slot_lock_paths(&slot_paths).expect("encode slot paths");
+
+    assert_eq!(
+        super::path_codec::parse_slot_lock_paths(&encoded).expect("decode slot paths"),
+        slot_paths,
+    );
 }
 
 #[test]

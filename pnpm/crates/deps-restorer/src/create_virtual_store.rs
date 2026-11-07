@@ -6,6 +6,7 @@ pub use gvs_slot_lock::{
     BuildRequirement, GVS_LOCKED_SLOT_PATHS_ENV, GlobalVirtualStoreSlot,
     GlobalVirtualStoreSlotPhase, GlobalVirtualStoreSlotState, GvsSlotLockError,
 };
+pub(crate) use gvs_slot_lock::{encode_slot_lock_paths, inherited_slot_locks};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
 pub use output::{CreateVirtualStoreOutput, SideEffectsOutput, SnapshotPlacement};
