@@ -1,7 +1,7 @@
 use super::{
-    AuthFile, BTreeSet, BackendFile, Deserialize, Duration, Identity, Interval, LibsqlFile, Path,
-    PathBuf, RegistryError, ScimConfig, SqlBackendFile, build_admins,
-    default_tokens_path_sibling_of, oidc, parse_interval, resolve_relative,
+    AuthFile, BTreeSet, Deserialize, Duration, Identity, Interval, LibsqlFile, Path, PathBuf,
+    RegistryError, ScimConfig, SqlBackendFile, build_admins, default_tokens_path_sibling_of, oidc,
+    parse_interval, resolve_relative,
 };
 
 /// The resolved record-store backend for auth (users + tokens). Unlike
@@ -20,7 +20,7 @@ pub enum BackendConfig {
     Libsql(LibsqlSettings),
     /// `PostgreSQL`: both records live in one shared database.
     Postgres(SqlBackendSettings),
-    /// `MySQL`-compatible database: both records live in one shared database.
+    /// `MySQL` database: both records live in one shared database.
     Mysql(SqlBackendSettings),
 }
 
@@ -70,10 +70,10 @@ impl LibsqlSettings {
     pub const DEFAULT_MAX_CONNECTIONS: u32 = 10;
 }
 
-/// The YAML `backend.postgres:` and `backend.mysql:` blocks. Whole-file
+/// The settings of a `PostgreSQL` or `MySQL` `database:` block. Whole-file
 /// `${ENV}` substitution runs before parsing, so `url` can hold
 /// `${...}` refs and keep credentials out of the committed config.
-#[derive(Clone, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SqlBackendSettings {
     /// Driver connection URL, e.g. `postgres://user:pass@host/db` or
@@ -82,7 +82,7 @@ pub struct SqlBackendSettings {
     /// Maximum connections in the backend pool. Defaults to the
     /// driver's pool default when omitted.
     pub max_connections: Option<u32>,
-    /// Deadline for request-path auth database operations.
+    /// Deadline for database operations.
     pub timeout: Duration,
     /// Deadline for initial auth database connect and schema setup.
     pub startup_timeout: Duration,
@@ -211,7 +211,7 @@ pub struct IdentityConfig {
     pub auth: AuthConfig,
     /// Which record store backs the auth state (users + tokens).
     /// Defaults to [`BackendConfig::Local`] — a JSON account file
-    /// plus `SQLite` token database. The YAML `backend:` block can
+    /// plus `SQLite` token database. The YAML `database:` block can
     /// switch both stores to one shared SQL database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
@@ -261,71 +261,21 @@ pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig 
     }
 }
 
-pub(super) fn build_backend_config(
-    file: Option<BackendFile>,
-    base_dir: &Path,
-) -> Result<BackendConfig, RegistryError> {
-    let Some(file) = file else {
-        return Ok(BackendConfig::Local);
-    };
-    let mut selected = Vec::new();
-    if let Some(settings) = file.libsql {
-        let libsql_settings = build_libsql_settings(settings, base_dir, "backend.libsql")?;
-        selected.push(("libsql", BackendConfig::Libsql(libsql_settings)));
-    }
-    if let Some(settings) = file.postgres {
-        selected.push((
-            "postgres",
-            BackendConfig::Postgres(build_sql_backend_settings("postgres", settings)?),
-        ));
-    }
-    if let Some(settings) = file.mysql {
-        selected.push((
-            "mysql",
-            BackendConfig::Mysql(build_sql_backend_settings("mysql", settings)?),
-        ));
-    }
-    select_backend(selected)
-}
-
-fn select_backend(
-    mut selected: Vec<(&str, BackendConfig)>,
-) -> Result<BackendConfig, RegistryError> {
-    match selected.len() {
-        0 => Err(RegistryError::InvalidConfig {
-            reason: "backend must select exactly one database backend".to_string(),
-        }),
-        1 => Ok(selected.remove(0).1),
-        _ => {
-            let names = selected
-                .into_iter()
-                .map(|(name, _)| name)
-                .collect::<Vec<_>>()
-                .join(", ");
-            Err(RegistryError::InvalidConfig {
-                reason: format!("backend must select exactly one database backend, got {names}"),
-            })
-        }
-    }
-}
-
 pub(super) fn build_sql_backend_settings(
-    backend: &str,
     file: SqlBackendFile,
 ) -> Result<SqlBackendSettings, RegistryError> {
-    let timeout = parse_backend_interval(backend, "timeout", file.timeout.as_ref())?
+    let timeout = parse_backend_interval("timeout", file.timeout.as_ref())?
         .unwrap_or(SqlBackendSettings::DEFAULT_TIMEOUT);
     if timeout.is_zero() {
         return Err(RegistryError::InvalidConfig {
-            reason: format!("backend.{backend}.timeout must be greater than 0"),
+            reason: "database.timeout must be greater than 0".to_string(),
         });
     }
-    let startup_timeout =
-        parse_backend_interval(backend, "startupTimeout", file.startup_timeout.as_ref())?
-            .unwrap_or(SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT);
+    let startup_timeout = parse_backend_interval("startupTimeout", file.startup_timeout.as_ref())?
+        .unwrap_or(SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT);
     if startup_timeout.is_zero() {
         return Err(RegistryError::InvalidConfig {
-            reason: format!("backend.{backend}.startupTimeout must be greater than 0"),
+            reason: "database.startupTimeout must be greater than 0".to_string(),
         });
     }
     Ok(SqlBackendSettings {
@@ -337,14 +287,13 @@ pub(super) fn build_sql_backend_settings(
 }
 
 pub(super) fn parse_backend_interval(
-    backend: &str,
     field: &str,
     raw: Option<&Interval>,
 ) -> Result<Option<Duration>, RegistryError> {
     raw.map(|Interval(value)| {
         parse_interval(value)
             .ok_or_else(|| RegistryError::InvalidConfig {
-                reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
+                reason: format!("database.{field} has an invalid interval {value:?}"),
             })
     })
     .transpose()
@@ -385,4 +334,23 @@ pub(crate) fn build_libsql_settings(
         sync_interval_secs,
         max_connections: file.max_connections,
     })
+}
+
+pub(super) fn build_backend_config(metadata: &crate::MetadataBackend) -> BackendConfig {
+    use crate::MetadataBackend;
+    match metadata {
+        MetadataBackend::Sqlite(_) => BackendConfig::Local,
+        MetadataBackend::Libsql(settings) => {
+            let mut auth = settings.clone();
+            // Independent sync schedules need independent replica files.
+            auth.replica_path = auth.replica_path.map(|path| {
+                let mut path = path.into_os_string();
+                path.push(".auth");
+                PathBuf::from(path)
+            });
+            BackendConfig::Libsql(auth)
+        }
+        MetadataBackend::Postgres(settings) => BackendConfig::Postgres(settings.clone()),
+        MetadataBackend::Mysql(settings) => BackendConfig::Mysql(settings.clone()),
+    }
 }

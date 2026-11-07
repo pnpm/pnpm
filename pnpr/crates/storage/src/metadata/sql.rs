@@ -13,8 +13,7 @@
 //! optional embedded replica.
 //!
 //! Every operation runs on the blocking pool. A write runs in one
-//! transaction that holds the database's write lock from its start, so
-//! commits are serialized and a compare-and-set reads the generation it
+//! serializable transaction. A compare-and-set reads the generation it
 //! replaces inside its own transaction. A write reads everything it compares
 //! with in one [`adapter::Connection::query_all`] as it begins, and decides
 //! in Rust, so a remote database answers it in one round trip and takes the
@@ -47,6 +46,8 @@ mod fence;
 mod libsql;
 mod log;
 mod mappings;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod network;
 mod notes;
 mod packument;
 mod publications;
@@ -141,6 +142,11 @@ impl Expected {
 }
 
 impl SqlMetadata {
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    pub(crate) fn open_network(settings: &pnpr_config::SqlBackendSettings) -> Result<Self> {
+        Ok(Self::with_adapter(network::adapter(settings)?, format!("{settings:?}")))
+    }
+
     /// The version of the schema this pnpr creates and reads. A database
     /// that holds another one is refused.
     pub const SCHEMA_VERSION: &'static str = schema::SCHEMA_VERSION;

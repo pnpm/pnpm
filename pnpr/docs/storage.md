@@ -62,12 +62,12 @@ demand.
 ## Metadata in SQLite {#sqlite-metadata}
 
 pnpr keeps the metadata of every hosted package in an embedded SQLite
-database, by default `<storage>/.metadata/metadata.sqlite`. The `metadata`
+database, by default `<storage>/.metadata/metadata.sqlite`. The `database`
 block names another database by URL:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
-metadata:
+database:
   # Optional. A relative path is resolved against the config file's directory.
   url: sqlite:./metadata.sqlite
 ```
@@ -81,13 +81,12 @@ alongside the hosted store for archives and staged bodies. Transparency log
 tiles and checkpoints, and pipeline run streams also stay in the hosted store.
 
 pnpr keeps metadata only in a database: an `s3:`
-block of a registry that hosts packages needs a [libSQL](#libsql-metadata)
-`url`, and pnpr refuses to start on a
-`metadata` block that still names a `backend`. Earlier releases could keep
+block of a registry that hosts packages needs a [shared database](auth-backends.md), and pnpr refuses to start on a
+`database` block that still names a `backend`. Earlier releases could keep
 each package's metadata as a document beside its archives. pnpr does not read
 those documents. A filesystem store from then starts with empty metadata. An
-`s3:` store from then is refused at startup until `metadata.url` names a
-libSQL database, and then starts with empty metadata. Either way, republish
+`s3:` store from then is refused at startup until `database.url` names a
+shared database, and then starts with empty metadata. Either way, republish
 its packages into a fresh storage directory or bucket prefix: a store in an
 earlier layout is refused.
 
@@ -154,6 +153,16 @@ metadata, as the default `<storage>/.metadata/metadata.sqlite` does, can be
 deleted instead, with its `-wal` and `-shm` files. Before accepting traffic,
 republish packages and recreate managed access settings and staged publishes.
 
+## PostgreSQL and MySQL metadata
+
+Set `database.url` to a `postgres://` or `mysql://` URL to store package
+metadata, accounts, and tokens in the same shared database. Both work with a
+filesystem hosted store or S3. See [Shared database](auth-backends.md) for
+connection settings and the MySQL key-size limit.
+
+Publication writes commit atomically. Concurrent writers retry transaction
+conflicts, and each metadata read sees a committed snapshot.
+
 ## Metadata in libSQL {#libsql-metadata}
 
 Several pnpr instances share one metadata database when its URL names a
@@ -164,7 +173,7 @@ works with an `s3:` block, so archives stay in the bucket:
 ```yaml title="pnpr.yaml"
 s3:
   bucket: my-pnpr-packages
-metadata:
+database:
   url: libsql://my-db.turso.io
   authToken: ${TURSO_AUTH_TOKEN}
   # Optional. Reads views from a local copy instead of the primary.
@@ -233,7 +242,7 @@ s3:
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 
-metadata:
+database:
   # Package metadata of a hosted registry on S3 lives in a libSQL database.
   url: libsql://<your-db>.turso.io
   authToken: ${PNPR_LIBSQL_TOKEN}
@@ -301,7 +310,7 @@ s3:
   region: auto
   endpoint: https://abc123def456.r2.cloudflarestorage.com
 
-metadata:
+database:
   url: libsql://my-pnpr.turso.io
   authToken: ${PNPR_LIBSQL_TOKEN}
 
@@ -384,4 +393,3 @@ are in progress, another large publish returns `429 Too Many Requests`.
 - **Enable bucket versioning**: Enable S3 bucket versioning to protect against accidental object deletion or overwrite.
 - **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr gc` to remove the archives no file maps. Both run while the registry serves.
 - **Backup procedures**: Follow the guidelines in [Backup and restore](backup-and-restore.md) for snapshotting and restoring S3 package data and revision history.
-

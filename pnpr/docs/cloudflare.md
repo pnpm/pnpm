@@ -62,20 +62,19 @@ s3:
   endpoint: https://<account-id>.r2.cloudflarestorage.com
   # Credentials come from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
 
-metadata:
+database:
   url: ${PNPR_LIBSQL_URL}
   authToken: ${PNPR_LIBSQL_TOKEN}
   # Package views are read from a local replica, rebuilt on each start.
   replicaPath: /pnpr/cache/metadata-replica.db
   syncInterval: 10s
 
-backend:
-  libsql:
-    url: ${PNPR_LIBSQL_URL}
-    authToken: ${PNPR_LIBSQL_TOKEN}
-    # Token lookups read a local replica of the Turso database. The replica
-    # lives on the container's ephemeral disk and is rebuilt on each start.
-    replicaPath: /pnpr/cache/auth-replica.db
+database:
+  url: ${PNPR_LIBSQL_URL}
+  authToken: ${PNPR_LIBSQL_TOKEN}
+  # Token lookups read a local replica of the Turso database. The replica
+  # lives on the container's ephemeral disk and is rebuilt on each start.
+  replicaPath: /pnpr/cache/auth-replica.db
 
 secret: ${PNPR_SECRET}
 

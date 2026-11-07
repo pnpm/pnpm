@@ -1,0 +1,24 @@
+[package]
+name = "pnpr-sql"
+version = "0.0.1"
+description = "Shared PostgreSQL and MySQL connection pools"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license-file = "../../LICENSE.md"
+repository.workspace = true
+
+[features]
+backend-postgres = ["sqlx/postgres", "pnpr-error/backend-postgres"]
+backend-mysql = ["sqlx/mysql", "pnpr-error/backend-mysql"]
+
+[dependencies]
+pnpr-config = { workspace = true }
+pnpr-error = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

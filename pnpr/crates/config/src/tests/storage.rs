@@ -43,7 +43,7 @@ s3:
   prefix: packages
   accessKeyId: AKIA-test
   secretAccessKey: secret-test
-metadata:
+database:
   url: libsql://db.example.turso.io
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
@@ -63,10 +63,9 @@ fn s3_block_without_a_bucket_is_a_config_error() {
 fn libsql_backend_block_selects_the_networked_record_store() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  libsql:
-    url: libsql://db.turso.io
-    authToken: tok-secret
+database:
+  url: libsql://db.turso.io
+  authToken: tok-secret
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -82,10 +81,9 @@ backend:
 fn libsql_backend_reads_max_connections() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  libsql:
-    url: http://127.0.0.1:8080
-    maxConnections: 3
+database:
+  url: http://127.0.0.1:8080
+  maxConnections: 3
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -98,10 +96,9 @@ backend:
 fn libsql_backend_rejects_an_empty_pool() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  libsql:
-    url: http://127.0.0.1:8080
-    maxConnections: 0
+database:
+  url: http://127.0.0.1:8080
+  maxConnections: 0
 ";
     let error = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap_err();
     assert!(error.to_string().contains("maxConnections must be greater than 0"), "{error}");
@@ -111,9 +108,8 @@ backend:
 fn libsql_backend_auth_token_is_optional() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  libsql:
-    url: http://127.0.0.1:8080
+database:
+  url: http://127.0.0.1:8080
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -129,18 +125,17 @@ backend:
 fn libsql_backend_resolves_relative_replica_path_against_config_dir() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  libsql:
-    url: libsql://db.turso.io
-    replicaPath: auth-replica.db
-    syncInterval: 15s
+database:
+  url: libsql://db.turso.io
+  replicaPath: auth-replica.db
+  syncInterval: 15s
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
         BackendConfig::Libsql(settings) => {
             assert_eq!(
                 settings.replica_path.as_deref(),
-                Some(Path::new("/etc/pnpr/auth-replica.db")),
+                Some(Path::new("/etc/pnpr/auth-replica.db.auth")),
                 "a relative replicaPath resolves against the config file's directory",
             );
             assert_eq!(settings.sync_interval_secs, Some(15));
@@ -153,16 +148,15 @@ backend:
 fn libsql_backend_keeps_absolute_replica_path() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  libsql:
-    url: libsql://db.turso.io
-    replicaPath: /var/lib/pnpr/auth-replica.db
+database:
+  url: libsql://db.turso.io
+  replicaPath: /var/lib/pnpr/auth-replica.db
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
         BackendConfig::Libsql(settings) => assert_eq!(
             settings.replica_path.as_deref(),
-            Some(Path::new("/var/lib/pnpr/auth-replica.db")),
+            Some(Path::new("/var/lib/pnpr/auth-replica.db.auth")),
         ),
         other => panic!("expected a libsql backend, got {other:?}"),
     }
@@ -172,9 +166,8 @@ backend:
 fn backend_block_rejects_multiple_database_backends() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  libsql:
-    url: libsql://db.turso.io
+database:
+  url: libsql://db.turso.io
   postgres:
     url: postgres://pnpr:secret@db.example/pnpr
 ";
@@ -187,14 +180,13 @@ backend:
 fn libsql_backend_rejects_subsecond_sync_interval() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  libsql:
-    url: libsql://db.turso.io
-    syncInterval: 500ms
+database:
+  url: libsql://db.turso.io
+  syncInterval: 500ms
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("subsecond syncInterval must be rejected");
-    assert!(err.to_string().contains("backend.libsql.syncInterval"), "{err}");
+    assert!(err.to_string().contains("database.syncInterval"), "{err}");
 }
 
 // ----- serde defaults ---------------------------------------------------
@@ -336,7 +328,7 @@ fn an_object_store_without_a_metadata_url_is_refused() {
     let yaml = "storage: /s\ns3:\n  bucket: b\nregistries:\n  local:\n    type: hosted\n";
     let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
     let RegistryError::InvalidConfig { reason } = err else { panic!("{err:?}") };
-    assert!(reason.contains("metadata.url"), "{reason}");
+    assert!(reason.contains("database.url"), "{reason}");
 }
 
 /// An artifact-only tier keeps artifacts in the bucket and reads no package
@@ -363,22 +355,21 @@ fn an_object_store_behind_upstream_registries_needs_no_metadata_url() {
 }
 
 #[test]
-fn a_metadata_backend_is_refused_with_a_pointer_at_the_url() {
+fn a_database_backend_selector_is_refused() {
     for yaml in [
-        "storage: /s\nmetadata:\n  backend: documents\n",
-        "storage: /s\nmetadata:\n  backend: documents\n  url: sqlite:./m.db\n",
-        "storage: /s\nmetadata:\n  backend: sqlite\n",
+        "storage: /s\ndatabase:\n  backend: documents\n",
+        "storage: /s\ndatabase:\n  backend: documents\n  url: sqlite:./m.db\n",
+        "storage: /s\ndatabase:\n  backend: sqlite\n",
     ] {
         let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
         let RegistryError::InvalidConfig { reason } = err else { panic!("{yaml}: {err:?}") };
-        assert!(reason.contains("metadata.backend"), "{yaml}: {reason}");
-        assert!(reason.contains("metadata.url"), "{yaml}: {reason}");
+        assert!(reason.contains("unknown field `backend`"), "{yaml}: {reason}");
     }
 }
 
 #[test]
 fn a_sqlite_url_resolves_against_the_config_directory() {
-    let yaml = "storage: /var/lib/pnpr\nmetadata:\n  url: sqlite:./meta.db\n";
+    let yaml = "storage: /var/lib/pnpr\ndatabase:\n  url: sqlite:./meta.db\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     let expected = PathBuf::from("/etc/pnpr/./meta.db");
     assert_eq!(config.storage.metadata, crate::MetadataBackend::Sqlite(expected));
@@ -386,10 +377,10 @@ fn a_sqlite_url_resolves_against_the_config_directory() {
 
 #[test]
 fn a_metadata_url_is_refused_when_it_cannot_serve() {
-    let with_s3 = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  url: sqlite:./m.db\nregistries:\n  local:\n    type: hosted\n";
-    let no_path = "storage: /s\nmetadata:\n  url: 'sqlite:'\n";
-    let unknown = "storage: /s\nmetadata:\n  url: mysql://db/pnpr\n";
-    let old_path = "storage: /s\nmetadata:\n  path: ./m.db\n";
+    let with_s3 = "storage: /s\ns3:\n  bucket: b\ndatabase:\n  url: sqlite:./m.db\nregistries:\n  local:\n    type: hosted\n";
+    let no_path = "storage: /s\ndatabase:\n  url: 'sqlite:'\n";
+    let unknown = "storage: /s\ndatabase:\n  url: unsupported://db/pnpr\n";
+    let old_path = "storage: /s\ndatabase:\n  path: ./m.db\n";
     for yaml in [with_s3, no_path, unknown, old_path] {
         let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
         assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");
@@ -398,7 +389,7 @@ fn a_metadata_url_is_refused_when_it_cannot_serve() {
 
 #[test]
 fn a_libsql_url_carries_its_replica_settings_with_any_hosted_store() {
-    let yaml = "storage: /s\ns3:\n  bucket: b\nmetadata:\n  url: libsql://db.example.turso.io\n  \
+    let yaml = "storage: /s\ns3:\n  bucket: b\ndatabase:\n  url: libsql://db.example.turso.io\n  \
                 authToken: token\n  replicaPath: ./replica.db\n  syncInterval: 5s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     let crate::MetadataBackend::Libsql(settings) = config.storage.metadata else {
@@ -412,10 +403,10 @@ fn a_libsql_url_carries_its_replica_settings_with_any_hosted_store() {
 
 #[test]
 fn libsql_settings_need_a_libsql_url_and_a_replica_needs_a_sync_interval() {
-    let stray = "storage: /s\nmetadata:\n  url: sqlite:./m.db\n  replicaPath: ./r.db\n";
-    let unbounded = "storage: /s\nmetadata:\n  url: http://127.0.0.1:8080\n  replicaPath: ./r.db\n  \
+    let stray = "storage: /s\ndatabase:\n  url: sqlite:./m.db\n  replicaPath: ./r.db\n";
+    let unbounded = "storage: /s\ndatabase:\n  url: http://127.0.0.1:8080\n  replicaPath: ./r.db\n  \
                      syncInterval: 0s\n";
-    let no_url = "storage: /s\nmetadata:\n  authToken: token\n  replicaPath: ./r.db\n";
+    let no_url = "storage: /s\ndatabase:\n  authToken: token\n  replicaPath: ./r.db\n";
     for yaml in [stray, unbounded, no_url] {
         let err = Config::from_yaml_str(yaml, Path::new("/"), listen(), None).unwrap_err();
         assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{yaml}: {err:?}");

@@ -40,17 +40,16 @@ mod artifacts;
 use artifacts::{parse_artifact_quota, parse_storage_access};
 
 mod backend_config;
-use backend_config::{build_backend_config, build_identity_config};
+use backend_config::build_identity_config;
 
 mod byte_size;
 
 mod config_file;
 use config_file::{
-    ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
-    DefaultRegistryFile, FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile,
-    PipelineFeatureFile, RegistryFile, RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock,
-    RemovedUplinksBlock, RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile,
-    UpstreamFile,
+    ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, ConfigFile, CorsFile, DefaultRegistryFile,
+    FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
+    RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock, RemovedUplinksBlock,
+    RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
 };
 
 mod gc;

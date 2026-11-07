@@ -15,7 +15,7 @@ impl MysqlDatabase {
                 binds.push_bind(id);
             }
             binds.push_unseparated(") AND bcrypt_hash <> '!'");
-            for row in query.build().fetch_all(&self.pool).await? {
+            for row in query.build().fetch_all(&*self.pool).await? {
                 accounts.push(crate::UserAccount {
                     id: row.try_get(0)?,
                     username: row.try_get(1)?,

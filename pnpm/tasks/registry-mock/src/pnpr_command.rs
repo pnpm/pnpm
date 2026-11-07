@@ -163,16 +163,12 @@ fn command_without_pnpr_env(bin: &Path) -> Command {
     cmd
 }
 
-/// The registry-mock config with the metadata `database` named outright,
-/// written beside the build's hosted store. A `pnpr` from another revision, such as the one the integrated benchmark compares against, may
-/// not move its default database along with `--storage`, and every revision
-/// reads a named one. The config is named after the fixture build and its
-/// own contents, so no mock reads a config another checkout wrote for
-/// another build or another fixture config.
+/// Pin the metadata database beside the fixture build's hosted store.
+/// The path includes the config's hash so concurrent configurations stay separate.
 fn runtime_mock_config(database: &Path, config: &str) -> io::Result<PathBuf> {
     let database = std::path::absolute(database)?;
     let url = format!("sqlite:{}", database.display()).replace('\'', "''");
-    let yaml = format!("{config}\nmetadata:\n  url: '{url}'\n");
+    let yaml = format!("{config}\ndatabase:\n  url: '{url}'\n");
     let mut hasher = DefaultHasher::new();
     yaml.hash(&mut hasher);
     let mut path = std::path::absolute(crate::runtime_hosted_storage())?.into_os_string();

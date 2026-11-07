@@ -12,10 +12,17 @@ repository.workspace = true
 
 [features]
 backend-libsql = ["dep:libsql", "dep:pnpr-libsql", "pnpr-error/backend-libsql"]
-backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql"]
-backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres"]
+backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql", "dep:pnpr-sql", "pnpr-sql/backend-mysql"]
+backend-postgres = [
+  "dep:sqlx",
+  "sqlx/postgres",
+  "pnpr-error/backend-postgres",
+  "dep:pnpr-sql",
+  "pnpr-sql/backend-postgres",
+]
 
 [dependencies]
+pnpr-sql = { workspace = true, optional = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-network = { workspace = true }
 p256 = { workspace = true }

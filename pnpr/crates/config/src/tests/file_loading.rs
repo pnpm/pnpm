@@ -393,15 +393,15 @@ fn config_rejects_unknown_fields_across_subsystems() {
         ("auth", "auth:\n  unknownAuth: true\n", "unknown field `unknownAuth`"),
         ("auth.users", "auth:\n  users:\n    unknownHt: true\n", "unknown field `unknownHt`"),
         ("auth.tokens", "auth:\n  tokens:\n    unknownTok: true\n", "unknown field `unknownTok`"),
-        ("backend", "backend:\n  unknownBackend: {}\n", "unknown field `unknownBackend`"),
+        ("backend", "backend:\n  unknownBackend: {}\n", "use database.url"),
         (
             "backend.libsql",
-            "backend:\n  libsql:\n    url: libsql://x\n    unknownLibsql: 1\n",
+            "database:\n  url: libsql://x\n  unknownLibsql: 1\n",
             "unknown field `unknownLibsql`",
         ),
         (
             "backend.postgres",
-            "backend:\n  postgres:\n    url: postgres://x\n    unknownPg: 1\n",
+            "database:\n  url: postgres://x\n  unknownPg: 1\n",
             "unknown field `unknownPg`",
         ),
         ("s3", "s3:\n  bucket: b\n  unknownS3: 1\n", "unknown field `unknownS3`"),
@@ -452,12 +452,11 @@ routes:
 auth:
   users:
     maxUsers: 10
-backend:
-  libsql:
-    url: libsql://test.db
-    authToken: secret
-    replicaPath: ./replica.db
-    syncInterval: 15s
+database:
+  url: libsql://test.db
+  authToken: secret
+  replicaPath: ./replica.db
+  syncInterval: 15s
 registries:
   npm:
     type: hosted
@@ -514,7 +513,7 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
         ),
         (
             "backend.libsql.authToken",
-            "backend:\n  libsql:\n    url: libsql://x\n    authToken: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+            "database:\n  url: libsql://x\n  authToken: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
         (
             "upstream.auth.token",

@@ -44,7 +44,7 @@ async fn tables(db: &Db) -> Vec<String> {
         let mut tables = Vec::new();
         adapter.read(ReadSource::Primary, &mut |connection| {
             tables = connection
-                .query("SELECT name FROM sqlite_master WHERE type = 'table'", params![])?
+                .schema_table_names()?
                 .into_iter()
                 .map(|mut row| row.get::<String>(0))
                 .collect::<Result<Vec<_>>>()?;
@@ -142,9 +142,9 @@ async fn another_version_is_refused(db: Db) {
     execute(
         &db,
         &[
-            schema::MARKER_TABLE,
+            "CREATE TABLE schema_version (version TEXT NOT NULL)",
             &insert,
-            "CREATE TABLE catalogs (catalog TEXT NOT NULL PRIMARY KEY)",
+            "CREATE TABLE catalogs (catalog VARCHAR(512) NOT NULL PRIMARY KEY)",
         ],
     )
     .await;
@@ -160,9 +160,9 @@ async fn an_integer_schema_version_is_refused(db: Db) {
     execute(
         &db,
         &[
-            &format!("CREATE TABLE {MARKER} (version INTEGER NOT NULL) STRICT"),
+            &format!("CREATE TABLE {MARKER} (version INTEGER NOT NULL)"),
             &format!("INSERT INTO {MARKER} (version) VALUES (4)"),
-            "CREATE TABLE catalogs (catalog TEXT NOT NULL PRIMARY KEY)",
+            "CREATE TABLE catalogs (catalog VARCHAR(512) NOT NULL PRIMARY KEY)",
         ],
     )
     .await;
@@ -193,7 +193,6 @@ async fn metadata_tables_without_a_marker_are_refused(db: Db) {
 
 conformance! {
     an_empty_database_initializes,
-    payload_tables_have_rowids,
     a_matching_marker_without_its_tables_is_refused,
     a_matching_version_opens,
     another_version_is_refused,
@@ -222,4 +221,9 @@ fn a_table_is_known_however_its_statement_is_spaced_or_cased() {
     );
     assert_eq!(schema::table_names("CREATE\nTABLE packages (name TEXT);"), ["packages"]);
     assert!(schema::table_names("CREATE INDEX packages_by_name ON packages (name);").is_empty());
+}
+
+mod embedded_layout {
+    use super::payload_tables_have_rowids;
+    embedded_conformance!(payload_tables_have_rowids);
 }

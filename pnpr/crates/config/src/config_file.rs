@@ -246,13 +246,13 @@ pub(super) struct ConfigFile {
     /// S3-compatible object store instead of `storage`.
     #[serde(default)]
     pub(super) s3: Option<S3Settings>,
-    /// pnpr-only block: where the hosted packages' metadata lives.
+    /// The database for accounts, tokens, and package metadata.
     #[serde(default)]
-    pub(super) metadata: Option<crate::storage_config::MetadataFile>,
-    /// pnpr-only block: back the auth record stores (users + tokens)
-    /// with a shared SQL database.
+    pub(super) database: Option<crate::storage_config::DatabaseFile>,
     #[serde(default)]
-    pub(super) backend: Option<BackendFile>,
+    pub(super) backend: Option<serde::de::IgnoredAny>,
+    #[serde(default)]
+    pub(super) metadata: Option<serde::de::IgnoredAny>,
     /// pnpr-only local OSV database settings.
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) osv: OsvFile,
@@ -401,17 +401,6 @@ pub(super) struct AuthFile {
     pub(super) tokens: TokensFile,
     #[serde(default)]
     pub(super) scim: Option<ScimConfig>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct BackendFile {
-    #[serde(default)]
-    pub(super) libsql: Option<LibsqlFile>,
-    #[serde(default)]
-    pub(super) postgres: Option<SqlBackendFile>,
-    #[serde(default)]
-    pub(super) mysql: Option<SqlBackendFile>,
 }
 
 #[derive(Debug, Deserialize)]

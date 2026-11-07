@@ -76,9 +76,10 @@ impl fmt::Display for Stored {
 /// marker and none of the metadata tables; tables of anything else that
 /// shares it, such as pnpr's auth tables, do not count.
 pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
+    connection.lock_schema()?;
     let transaction = WriteTransaction::begin(connection)?;
     let present = transaction
-        .query("SELECT name FROM sqlite_master WHERE type = 'table'", params![])?
+        .schema_table_names()?
         .into_iter()
         .map(|mut row| row.get::<String>(0))
         .collect::<Result<Vec<_>>>()?;
@@ -97,10 +98,10 @@ pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
     if table_names(TABLES).iter().any(|table| has(table)) {
         return Ok(Some(Stored::Unmarked));
     }
-    for statement in statements(TABLES) {
+    for statement in statements(&connection.schema_tables()) {
         transaction.execute(&statement, params![])?;
     }
-    transaction.execute(MARKER_TABLE, params![])?;
+    transaction.execute(connection.schema_marker(), params![])?;
     transaction.execute(
         &format!("INSERT INTO {MARKER} (version) VALUES (?1)"),
         params![SCHEMA_VERSION],

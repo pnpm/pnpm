@@ -2,6 +2,25 @@ use super::{Db, npm, packument, storage};
 use crate::{DocumentWrite, RegistryRecord, SCIM_DIRECTORY};
 use serde_json::json;
 
+async fn record_keys_preserve_case(db: Db) {
+    let storage = storage(&db);
+    let kind = RegistryRecord::TeamRoster;
+    for key in ["example", "Example"] {
+        assert!(storage.create_registry_record(kind, key, key.as_bytes()).await.unwrap());
+    }
+    for key in ["example", "Example"] {
+        assert_eq!(
+            storage
+                .read_registry_record(kind, key)
+                .await
+                .unwrap()
+                .unwrap()
+                .bytes,
+            key.as_bytes(),
+        );
+    }
+}
+
 async fn registry_records_use_current_generations(db: Db) {
     let first = storage(&db);
     let second = storage(&db);
@@ -192,7 +211,11 @@ async fn unpublish_rolls_back_ownership_and_version_bans_together(db: Db) {
         .unwrap()
         .remove("1.0.0");
     let updated = serde_json::to_vec(&document).unwrap();
-    execute(&db, "CREATE TRIGGER refuse_version_removal BEFORE INSERT ON removed_versions BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").await;
+    execute(&db, db.sql(
+        "CREATE TRIGGER refuse_version_removal BEFORE INSERT ON removed_versions BEGIN SELECT RAISE(ABORT, 'injected failure'); END;",
+        "CREATE FUNCTION refuse_removal() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected failure'; END $$; CREATE TRIGGER refuse_version_removal BEFORE INSERT ON removed_versions FOR EACH ROW EXECUTE FUNCTION refuse_removal();",
+        "CREATE TRIGGER refuse_version_removal BEFORE INSERT ON removed_versions FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'injected failure'",
+    )).await;
     assert!(
         first
             .write_hosted_document_if_current(
@@ -226,7 +249,15 @@ async fn unpublish_rolls_back_ownership_and_version_bans_together(db: Db) {
     assert!(
         matches!((&unchanged.version, &stored.version), (crate::HostedDocumentVersion::Generation(left), crate::HostedDocumentVersion::Generation(right)) if left == right),
     );
-    execute(&db, "DROP TRIGGER refuse_version_removal").await;
+    execute(
+        &db,
+        db.sql(
+            "DROP TRIGGER refuse_version_removal",
+            "DROP TRIGGER refuse_version_removal ON removed_versions",
+            "DROP TRIGGER refuse_version_removal",
+        ),
+    )
+    .await;
     assert_eq!(
         first
             .write_hosted_document_if_current(
@@ -290,6 +321,7 @@ async fn unpublish_rolls_back_ownership_and_version_bans_together(db: Db) {
 }
 
 conformance!(
+    record_keys_preserve_case,
     registry_records_use_current_generations,
     staged_records_keep_only_bodies_in_the_object_store,
     unpublish_rolls_back_ownership_and_version_bans_together,

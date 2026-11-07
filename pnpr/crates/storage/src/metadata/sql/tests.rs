@@ -1,7 +1,4 @@
-//! Conformance tests of the SQL metadata backend. [`conformance!`] runs each
-//! test against every adapter: `SQLite`, a libSQL primary, and a libSQL
-//! primary read through an embedded replica of each instance that syncs only
-//! when it must.
+//! Conformance tests shared by every SQL metadata adapter.
 
 #[macro_use]
 mod conformance;
@@ -10,6 +7,8 @@ mod concurrency;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod network_cleanup;
 mod notes;
 mod payload_benchmark;
 mod publications;
@@ -42,6 +41,8 @@ pub(super) struct Db {
 }
 
 enum Adapter {
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    Network(pnpr_config::SqlBackendSettings),
     Sqlite,
     #[cfg(feature = "backend-libsql")]
     Libsql {
@@ -52,6 +53,58 @@ enum Adapter {
 }
 
 impl Db {
+    fn sql<'sql>(&self, embedded: &'sql str, postgres: &'sql str, mysql: &'sql str) -> &'sql str {
+        let _ = (postgres, mysql);
+        match &self.adapter {
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            Adapter::Network(settings) => {
+                if settings.url.starts_with("mysql:") {
+                    mysql
+                } else {
+                    postgres
+                }
+            }
+            _ => embedded,
+        }
+    }
+
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    pub(super) async fn network(variable: &str) -> Self {
+        let url = std::env::var(variable).expect("network database URL is required");
+        let tmp = TempDir::new().unwrap();
+        let name = format!(
+            "metadata_{}",
+            tmp.path()
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .replace(['.', '-'], "")
+                .to_ascii_lowercase(),
+        );
+
+        #[cfg(feature = "backend-postgres")]
+        if variable == "PNPR_TEST_POSTGRES_URL" {
+            let pool = sqlx::PgPool::connect(&url).await.unwrap();
+            sqlx::query(&format!("CREATE DATABASE {name}")).execute(&pool).await.unwrap();
+            pool.close().await;
+        }
+        #[cfg(feature = "backend-mysql")]
+        if variable == "PNPR_TEST_MYSQL_URL" {
+            let pool = sqlx::MySqlPool::connect(&url).await.unwrap();
+            sqlx::query(&format!("CREATE DATABASE {name}")).execute(&pool).await.unwrap();
+            pool.close().await;
+        }
+        let database_url = format!("{}/{name}", url.rsplit_once('/').unwrap().0);
+        let settings = pnpr_config::SqlBackendSettings {
+            url: database_url,
+            max_connections: Some(4),
+            timeout: std::time::Duration::from_secs(30),
+            startup_timeout: std::time::Duration::from_mins(1),
+        };
+        Self::new(tmp, Adapter::Network(settings))
+    }
+
     pub(super) fn sqlite() -> Self {
         Self::new(TempDir::new().unwrap(), Adapter::Sqlite)
     }
@@ -66,6 +119,8 @@ impl Db {
     /// operator's own client would be.
     pub(super) fn adapter(&self) -> Box<dyn super::adapter::Adapter> {
         match &self.adapter {
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            Adapter::Network(settings) => super::network::adapter(settings).unwrap(),
             Adapter::Sqlite => {
                 Box::new(super::sqlite::SqliteAdapter::open(&sqlite_path(&self.tmp)).unwrap())
             }
@@ -120,6 +175,15 @@ fn sqlite_path(tmp: &TempDir) -> std::path::PathBuf {
 /// when a read must see more than it holds.
 pub(super) fn storage(db: &Db) -> Storage {
     match &db.adapter {
+        #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+        Adapter::Network(settings) => {
+            let config = config(&db.tmp);
+            Storage::from_parts(
+                std::sync::Arc::new(crate::Store::new(config.hosted_dir)),
+                crate::Store::new(config.cache_dir),
+                std::sync::Arc::new(super::SqlMetadata::open_network(settings).unwrap()),
+            )
+        }
         Adapter::Sqlite => Storage::from_config(&config(&db.tmp)).unwrap(),
         #[cfg(feature = "backend-libsql")]
         Adapter::Libsql { server, replica } => {
@@ -782,3 +846,6 @@ conformance! {
     an_archive_manifest_record_must_name_a_profile,
     another_ecosystem_stores_its_document_whole,
 }
+
+#[cfg(feature = "backend-mysql")]
+mod on_mysql_limits;

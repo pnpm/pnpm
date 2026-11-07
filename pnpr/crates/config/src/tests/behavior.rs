@@ -186,7 +186,7 @@ fn backend_block_rejects_empty_selection() {
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an empty backend block must not fall back to local");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("exactly one database backend")),
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("use database.url")),
         "expected an InvalidConfig naming the backend selection, got {err:?}",
     );
 }
@@ -202,7 +202,7 @@ backend:
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an unknown backend key must not fall back to local");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("unknown field `sqlite`")),
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("use database.url")),
         "expected an InvalidConfig naming the unknown field, got {err:?}",
     );
 }
@@ -211,16 +211,16 @@ backend:
 fn postgres_backend_block_selects_postgres_record_store() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  postgres:
-    url: postgres://pnpr:secret@db.example/pnpr
-    maxConnections: 12
-    timeout: 5s
-    startupTimeout: 2m
+database:
+  url: postgres://pnpr:secret@db.example/pnpr
+  maxConnections: 12
+  timeout: 5s
+  startupTimeout: 2m
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
         BackendConfig::Postgres(settings) => {
+            assert_eq!(config.storage.metadata, crate::MetadataBackend::Postgres(settings.clone()));
             assert_eq!(settings.url, "postgres://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, Some(12));
             assert_eq!(settings.timeout, Duration::from_secs(5));
@@ -234,13 +234,13 @@ backend:
 fn mysql_backend_block_selects_mysql_record_store() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  mysql:
-    url: mysql://pnpr:secret@db.example/pnpr
+database:
+  url: mysql://pnpr:secret@db.example/pnpr
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
         BackendConfig::Mysql(settings) => {
+            assert_eq!(config.storage.metadata, crate::MetadataBackend::Mysql(settings.clone()));
             assert_eq!(settings.url, "mysql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
             assert_eq!(settings.timeout, super::super::SqlBackendSettings::DEFAULT_TIMEOUT);

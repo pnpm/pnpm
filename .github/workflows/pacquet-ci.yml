@@ -482,6 +482,57 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  metadata-databases:
+    name: Rust CI / Metadata databases
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.rust == 'true' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -ptest"
+          --health-interval 5s --health-timeout 5s --health-retries 24
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rustup
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          install: false
+      - run: pnpm runtime set node 22 --global
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: just,cargo-nextest
+      - name: Install dependencies
+        run: |
+          unset PNPM_HOME XDG_DATA_HOME
+          just install
+      - name: Run metadata conformance
+        env:
+          PNPR_TEST_POSTGRES_URL: postgres://postgres:test@localhost:5432/postgres
+          PNPR_TEST_MYSQL_URL: mysql://root:test@localhost:3306/mysql
+        run: >-
+          pnpm test:rust -p 'pnpr*'
+          --features pnpr/backend-postgres,pnpr/backend-mysql
+          -E 'test(on_postgres::) | test(on_mysql)'
+          --test-threads 8 --run-ignored ignored-only
+
   # The peer convergence and repeat-install oracle harnesses, and the
   # repeat-install read-set test, through pnpm v11 as well as v12, so a resolution, lockfile, or workspace-state change in
   # either stack cannot make them drift apart. Both harnesses also run through
@@ -973,6 +1024,7 @@ jobs:
       - change-check
       - test
       - convergence
+      - metadata-databases
       - npm-wrapper
       - clippy
       - doc

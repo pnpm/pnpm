@@ -115,16 +115,15 @@ fn osv_config_defaults_off_and_resolves_relative_path() {
 fn sql_backend_rejects_zero_startup_timeout() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  mysql:
-    url: mysql://pnpr:secret@db.example/pnpr
-    startupTimeout: 0
+database:
+  url: mysql://pnpr:secret@db.example/pnpr
+  startupTimeout: 0
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero startup timeout must not be accepted");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("backend.mysql.startupTimeout")),
-        "expected an InvalidConfig naming backend.mysql.startupTimeout, got {err:?}",
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("database.startupTimeout")),
+        "expected an InvalidConfig naming database.startupTimeout, got {err:?}",
     );
 }
 
@@ -132,16 +131,15 @@ backend:
 fn sql_backend_rejects_zero_timeout() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  postgres:
-    url: postgres://pnpr:secret@db.example/pnpr
-    timeout: 0
+database:
+  url: postgres://pnpr:secret@db.example/pnpr
+  timeout: 0
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("zero timeout must not be accepted");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("backend.postgres.timeout")),
-        "expected an InvalidConfig naming backend.postgres.timeout, got {err:?}",
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("database.timeout")),
+        "expected an InvalidConfig naming database.timeout, got {err:?}",
     );
 }
 

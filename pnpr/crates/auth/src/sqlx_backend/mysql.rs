@@ -1,17 +1,15 @@
 use super::{
     super::{PasswordChange, TokenRecord, UserRemoval},
-    AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
-    timeout_millis, timeout_seconds, with_auth_timeout,
+    AuthSqlBackend, InsertUser, SqlAuth, StoredUser, sql_max_users, with_auth_timeout,
 };
 use async_trait::async_trait;
 use pnpr_config::{MaxUsers, SqlBackendSettings};
 use pnpr_error::{RegistryError, Result};
-use sqlx::{MySqlConnection, MySqlPool, Row, mysql::MySqlPoolOptions};
-use std::time::Duration;
+use sqlx::{MySqlConnection, MySqlPool, Row};
 
 #[derive(Debug)]
 pub(crate) struct MysqlDatabase {
-    pool: MySqlPool,
+    pool: std::sync::Arc<MySqlPool>,
 }
 
 mod accounts;
@@ -25,51 +23,18 @@ impl SqlAuth<MysqlDatabase> {
         max_users: MaxUsers,
     ) -> Result<Self> {
         let startup_options =
-            mysql_pool_options(settings, settings.startup_timeout, settings.startup_timeout)?;
+            pnpr_sql::mysql_options(settings, settings.startup_timeout, settings.startup_timeout)?;
         let startup_pool =
             with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
                 .await?;
-        let startup_db = MysqlDatabase { pool: startup_pool };
+        let startup_db = MysqlDatabase { pool: std::sync::Arc::new(startup_pool) };
         with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
         startup_db.pool.close().await;
 
-        let pool = mysql_pool_options(settings, settings.timeout, settings.timeout)?
-            .connect_lazy(&settings.url)?;
+        let pool = pnpr_sql::mysql_pool(settings)?;
         let db = MysqlDatabase { pool };
         Ok(SqlAuth::new(db, max_users, settings.timeout))
     }
-}
-
-fn mysql_pool_options(
-    settings: &SqlBackendSettings,
-    session_timeout: Duration,
-    acquire_timeout: Duration,
-) -> Result<MySqlPoolOptions> {
-    let mut options = MySqlPoolOptions::new();
-    if let Some(max_connections) = settings.max_connections {
-        if max_connections == 0 {
-            return Err(invalid_pool_size("mysql"));
-        }
-        options = options.max_connections(max_connections);
-    }
-    let statement_timeout_sql =
-        format!("SET SESSION max_execution_time = {}", timeout_millis(session_timeout));
-    let row_lock_timeout_sql =
-        format!("SET SESSION innodb_lock_wait_timeout = {}", timeout_seconds(session_timeout));
-    let metadata_lock_timeout_sql =
-        format!("SET SESSION lock_wait_timeout = {}", timeout_seconds(session_timeout));
-    options = options.after_connect(move |conn, _meta| {
-        let statement_timeout_sql = statement_timeout_sql.clone();
-        let row_lock_timeout_sql = row_lock_timeout_sql.clone();
-        let metadata_lock_timeout_sql = metadata_lock_timeout_sql.clone();
-        Box::pin(async move {
-            sqlx::query(&statement_timeout_sql).execute(&mut *conn).await?;
-            sqlx::query(&row_lock_timeout_sql).execute(&mut *conn).await?;
-            sqlx::query(&metadata_lock_timeout_sql).execute(conn).await?;
-            Ok(())
-        })
-    });
-    Ok(options.acquire_timeout(acquire_timeout))
 }
 
 #[async_trait]
@@ -77,7 +42,7 @@ impl AuthSqlBackend for MysqlDatabase {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
         let row = sqlx::query("SELECT username, bcrypt_hash, id FROM users WHERE username = ?")
             .bind(username)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&*self.pool)
             .await?;
         row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
             Ok(StoredUser {
@@ -93,7 +58,7 @@ impl AuthSqlBackend for MysqlDatabase {
     async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
         Ok(sqlx::query_scalar("SELECT username FROM users WHERE id = ? AND bcrypt_hash <> '!'")
             .bind(user_id)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&*self.pool)
             .await?)
     }
 
@@ -107,7 +72,7 @@ impl AuthSqlBackend for MysqlDatabase {
                 .bind(username)
                 .bind(crate::validation::username_skeleton_hash(username))
                 .bind(user_id)
-                .execute(&self.pool)
+                .execute(&*self.pool)
                 .await;
         match result {
             Ok(result) if result.rows_affected() > 0 => Ok(()),
@@ -124,7 +89,7 @@ impl AuthSqlBackend for MysqlDatabase {
         let rows = sqlx::query(
             "SELECT id, username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
         )
-        .fetch_all(&self.pool)
+        .fetch_all(&*self.pool)
         .await?;
         rows.into_iter()
             .map(|row| Ok(crate::UserAccount { id: row.try_get(0)?, username: row.try_get(1)? }))
@@ -224,7 +189,7 @@ impl AuthSqlBackend for MysqlDatabase {
         Ok(sqlx::query_scalar(
             "SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
         )
-        .fetch_all(&self.pool)
+        .fetch_all(&*self.pool)
         .await?)
     }
 
@@ -237,7 +202,7 @@ impl AuthSqlBackend for MysqlDatabase {
             sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE id = ? AND bcrypt_hash <> '!'")
                 .bind(bcrypt_hash)
                 .bind(user_id)
-                .execute(&self.pool)
+                .execute(&*self.pool)
                 .await?;
         if updated.rows_affected() > 0 {
             Ok(PasswordChange::Changed)
@@ -257,7 +222,7 @@ impl AuthSqlBackend for MysqlDatabase {
                 .bind(new_hash)
                 .bind(user_id)
                 .bind(old_hash)
-                .execute(&self.pool)
+                .execute(&*self.pool)
                 .await?;
         Ok(updated.rows_affected() > 0)
     }
@@ -267,7 +232,7 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn check_readiness(&self) -> Result<()> {
-        sqlx::query("SELECT 1;").execute(&self.pool).await.map_err(RegistryError::from)?;
+        sqlx::query("SELECT 1;").execute(&*self.pool).await.map_err(RegistryError::from)?;
         Ok(())
     }
 }
@@ -305,7 +270,7 @@ impl MysqlDatabase {
         let inserted = sqlx::query("INSERT INTO auth_counters (name, value) VALUES (?, ?)")
             .bind("users")
             .bind(count)
-            .execute(&self.pool)
+            .execute(&*self.pool)
             .await;
         match inserted {
             Ok(_) => Ok(()),
@@ -319,7 +284,7 @@ impl MysqlDatabase {
 
     async fn actual_user_count(&self) -> Result<i64> {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
-            .fetch_one(&self.pool)
+            .fetch_one(&*self.pool)
             .await?;
         Ok(count.max(0))
     }
@@ -328,7 +293,7 @@ impl MysqlDatabase {
         let count: Option<i64> =
             sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = ?")
                 .bind("users")
-                .fetch_optional(&self.pool)
+                .fetch_optional(&*self.pool)
                 .await?;
         Ok(count)
     }
@@ -342,7 +307,7 @@ impl MysqlDatabase {
         .bind(count)
         .bind(count)
         .bind("users")
-        .execute(&self.pool)
+        .execute(&*self.pool)
         .await?;
         Ok(updated.rows_affected())
     }
