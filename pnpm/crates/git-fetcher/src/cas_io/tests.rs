@@ -45,7 +45,7 @@ fn join_checked_rejects_absolute_paths() {
 #[test]
 fn join_checked_rejects_parent_dir() {
     assert_invalid_input(join_checked(Path::new("/root"), "../escape").unwrap_err());
-    // Even a `..` deep in the path must be refused — otherwise
+    // Even a `..` deep in the path must be refused, otherwise
     // `a/../../escape` would slip through.
     assert_invalid_input(join_checked(Path::new("/root"), "a/../escape").unwrap_err());
 }
@@ -78,14 +78,14 @@ fn cas_path_digest_round_trips_through_write_cas_file() {
 
 #[test]
 fn cas_path_digest_rejects_malformed_paths() {
-    // Shard has wrong length (3 chars vs the required 2) — the
+    // Shard has wrong length (3 chars vs the required 2), the
     // most common "wrong shape" failure mode for a path that
     // accidentally ends up here from outside the CAS layout.
     assert!(cas_path_digest(Path::new("/tmp/foo")).is_none());
     // Non-hex shard.
     assert!(cas_path_digest(&PathBuf::from("/tmp/zz/abc")).is_none());
     // Right shard shape but the stem is far too short to be
-    // half of a sha512 digest — explicitly exercises the
+    // half of a sha512 digest, explicitly exercises the
     // length check so a future refactor can't silently weaken
     // it back to "any non-empty hex string".
     assert!(cas_path_digest(&PathBuf::from("/tmp/ab/cd")).is_none());
@@ -107,7 +107,7 @@ fn synthesize_files_index_recovers_digest_size_and_exec_bit() {
     // The slow path computes `CafsFileInfo` by reading every file,
     // re-hashing, and stat'ing. The fast path must produce the
     // same `(digest, mode-class, size)` triple from the CAS path
-    // alone — anything else and the warm prefetch would miss.
+    // alone, anything else and the warm prefetch would miss.
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
 
@@ -142,7 +142,7 @@ fn synthesize_files_index_recovers_digest_size_and_exec_bit() {
 #[test]
 fn synthesize_files_index_errors_on_malformed_cas_path() {
     // A caller handing us paths that don't match the v11 CAS
-    // layout is a programming error — better to surface it as
+    // layout is a programming error, better to surface it as
     // `InvalidData` than to silently bake a bogus digest into
     // `index.db`.
     let mut bad = HashMap::new();
@@ -174,7 +174,7 @@ fn materialize_into_rejects_traversal() {
 
     let err = materialize_into(&bad, target.path()).unwrap_err();
     assert_invalid_input(err);
-    // The `escape` file must not exist anywhere — neither in the
+    // The `escape` file must not exist anywhere, neither in the
     // target dir nor in its parent.
     assert!(!target.path().join("escape").exists());
     assert!(

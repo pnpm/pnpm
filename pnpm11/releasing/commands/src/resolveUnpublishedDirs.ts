@@ -17,7 +17,7 @@ export type UnpublishedProbeOptions = PreviousChangelogOptions & {
 }
 
 /**
- * The releases in `plan` whose current version the registry does not have — {@link assembleReleasePlan}'s `unpublishedDirs`.
+ * The releases in `plan` whose current version the registry does not have, {@link assembleReleasePlan}'s `unpublishedDirs`.
  *
  * A release is keyed by its manifest name, so `publishedNames` translates it
  * for the probe; without that a renamed project reads as never published and

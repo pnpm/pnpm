@@ -3,7 +3,7 @@
 //!
 //! Pacquet does not yet realpath the start dir (used for
 //! case-insensitive filesystems on Windows / macOS). Tracked as a known
-//! divergence — typical workspace installs on those platforms still
+//! divergence, typical workspace installs on those platforms still
 //! resolve correctly because the upward walk operates on canonical path
 //! components. Revisit if a regression turns up.
 
@@ -79,7 +79,7 @@ pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDi
 }
 
 /// [`crate::projects::belongs_to_workspace`], with `packages:` read from the
-/// workspace manifest the walk just found — and only when the answer turns on
+/// workspace manifest the walk just found, and only when the answer turns on
 /// it, since every command run inside a workspace passes through here.
 fn belongs_to_workspace(workspace_dir: &Path, dir: &Path) -> Result<bool, FindWorkspaceDirError> {
     if !crate::projects::needs_package_patterns(workspace_dir, dir) {
@@ -140,7 +140,7 @@ fn find_workspace_dir_by_walk(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspa
         // [`findUp`]). The first hit at a given level wins, but a
         // misnamed hit raises rather than being silently treated as
         // "no workspace". Check the variants only after confirming the
-        // correct file isn't here — otherwise a project with
+        // correct file isn't here, otherwise a project with
         // `pnpm-workspace.yaml` alongside an accidental `.yml` copy
         // would error instead of working.
         //

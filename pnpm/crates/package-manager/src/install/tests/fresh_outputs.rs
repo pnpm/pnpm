@@ -23,7 +23,7 @@ use text_block_macros::text_block;
 /// runs. The resulting `InstallError::BuildVerifiers` proves:
 ///
 /// 1. `build_resolution_verifiers` actually fires during install.
-/// 2. The error short-circuits the install — no virtual-store
+/// 2. The error short-circuits the install, no virtual-store
 ///    materialization, no registry round-trip.
 ///
 /// The gate's positive / negative `verify_lockfile_resolutions`
@@ -42,14 +42,14 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.install_state_dir = dirs.virtual_store_dir.clone();
-    // Activate the verifier with an invalid exclude entry — the
+    // Activate the verifier with an invalid exclude entry, the
     // version-part-with-wildcard combination is rejected by
     // `create_package_version_policy`.
     config.minimum_release_age = Some(60);
     config.minimum_release_age_exclude = Some(vec!["is-*@1.0.0".to_string()]);
     let config = config.leak();
 
-    // Empty lockfile is enough — the gate runs as soon as
+    // Empty lockfile is enough, the gate runs as soon as
     // `lockfile.is_some()` regardless of the snapshot count.
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"
@@ -122,13 +122,12 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
 
     drop(dirs.dir);
 }
-// ----------------------------------------------------------------------------
 // Fresh-install lockfile generation
 //
-// These tests exercise a *fresh* install — the path that converts the
+// These tests exercise a *fresh* install, the path that converts the
 // resolver's `DependenciesGraph` into a v9 `pnpm-lock.yaml`. Tests that
 // require an existing lockfile (incremental update, repeat install,
-// `--frozen-lockfile`-with-stale-lockfile) stay deferred — see issue
+// `--frozen-lockfile`-with-stale-lockfile) stay deferred, see issue
 // pnpm/pnpm#11813 for the broader scope.
 
 /// Scenario: lockfile has correct format.
@@ -451,7 +450,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         "optionalDependencies entry must propagate to snapshots[<key>].optional",
     );
     // Note: transitive deps that arrive via auto-install-peers
-    // hoisting land at the importer level as non-optional — they're
+    // hoisting land at the importer level as non-optional, they're
     // installed top-level to satisfy a missing peer regardless of
     // whether the consumer was optional (the hoist
     // semantics). Pure transitive optional propagation
@@ -714,7 +713,7 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
 /// project's `node_modules` for an included mismatch (validateModules's
 /// `lockfileDir !== rootDir` guard), and the purge wipes the user's
 /// non-pnpm entries (a vendored dir, custom files). So an included-only
-/// drift keeps the layout consistent — the purge does not run and the
+/// drift keeps the layout consistent, the purge does not run and the
 /// directory is left untouched; relinking adds/removes the right deps.
 #[test]
 fn included_drift_alone_does_not_make_the_layout_inconsistent() {
@@ -770,7 +769,7 @@ fn included_drift_alone_does_not_make_the_layout_inconsistent() {
     ));
 }
 /// A real layout setting (here `nodeLinker`) drifting still makes the
-/// layout inconsistent, so the purge that recreates `node_modules` runs —
+/// layout inconsistent, so the purge that recreates `node_modules` runs,
 /// the included guard above must not suppress genuine layout rebuilds.
 #[test]
 fn layout_drift_still_makes_the_layout_inconsistent() {

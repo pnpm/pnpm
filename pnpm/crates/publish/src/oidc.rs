@@ -1,4 +1,4 @@
-//! OpenID-Connect trusted publishing — fetch a CI id-token, exchange it for a
+//! OpenID-Connect trusted publishing, fetch a CI id-token, exchange it for a
 //! registry auth token, and decide whether to attach provenance.
 //!
 //! Each step is generic over a single `Sys` type parameter carrying only the
@@ -29,13 +29,13 @@ pub(crate) fn truthy_env<Sys: EnvVar>(name: &str) -> Option<String> {
     Sys::var(name).filter(|value| !value.is_empty())
 }
 
-/// Whether the publish is running under GitHub Actions — the `GITHUB_ACTIONS`
+/// Whether the publish is running under GitHub Actions, the `GITHUB_ACTIONS`
 /// environment variable is present and non-empty.
 pub(crate) fn is_github_actions<Sys: EnvVar>() -> bool {
     truthy_env::<Sys>("GITHUB_ACTIONS").is_some()
 }
 
-/// Whether the publish is running under GitLab CI — the `GITLAB_CI`
+/// Whether the publish is running under GitLab CI, the `GITLAB_CI`
 /// environment variable is present and non-empty.
 pub(crate) fn is_gitlab<Sys: EnvVar>() -> bool {
     truthy_env::<Sys>("GITLAB_CI").is_some()

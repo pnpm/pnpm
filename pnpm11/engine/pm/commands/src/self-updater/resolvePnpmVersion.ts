@@ -34,8 +34,8 @@ export interface ResolvedPnpmVersion {
 /**
  * Resolve `pnpm@<bareSpecifier>` to an exact version.
  *
- * Every request goes through the trusted package-manager bootstrap config —
- * the same channel version switching uses — so a repo-controlled `.npmrc` or
+ * Every request goes through the trusted package-manager bootstrap config,
+ * the same channel version switching uses, so a repo-controlled `.npmrc` or
  * workspace manifest cannot redirect the lookup or attach its own
  * credentials to it.
  *
@@ -57,12 +57,12 @@ export type PnpmVersionLookup = (bareSpecifier: string) => Promise<ResolvedPnpmV
  *
  * The split exists for callers that treat an unreachable registry as
  * survivable. They can guard the lookup alone, so a misconfigured
- * `trustPolicyExclude` — or any other bad setting — still surfaces as the
+ * `trustPolicyExclude`, or any other bad setting, still surfaces as the
  * error it is instead of being mistaken for a failed lookup.
  */
 export function prepareResolvePnpmVersion (opts: ResolvePnpmVersionOptions): PnpmVersionLookup {
   // The running version is already on this machine, so hiding it behind the
-  // maturity cutoff protects nothing — it only makes a dist-tag that points
+  // maturity cutoff protects nothing, it only makes a dist-tag that points
   // at it fall back to an older release, downgrading the user (pnpm/pnpm#13883).
   return createPnpmVersionLookup({
     ...opts,

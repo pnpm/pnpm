@@ -72,8 +72,8 @@ pub(super) fn provisioned_tool<'a>(
 /// Split a dlx command word into the package manager it names and the
 /// version specifier it asks for, or `None` when it names something else.
 ///
-/// The bare name is the package manager's own line — `pnx yarn` is
-/// whatever Yarn currently ships — matching how a `dlx` package spec
+/// The bare name is the package manager's own line, `pnx yarn` is
+/// whatever Yarn currently ships, matching how a `dlx` package spec
 /// without a version resolves.
 pub(super) fn parse_package_manager_spec(command: &str) -> Option<(PackageManager, &str)> {
     let (name, version_spec) = split_spec(command);
@@ -137,8 +137,8 @@ pub(super) async fn run_runtime(
     Ok(())
 }
 
-/// Provision `pm` and run `bin` — or the engine's own command, when the
-/// caller named none — with the caller's arguments, propagating the exit
+/// Provision `pm` and run `bin`, or the engine's own command, when the
+/// caller named none, with the caller's arguments, propagating the exit
 /// status the way the rest of dlx does.
 pub(super) async fn run_package_manager<Reporter: self::Reporter + 'static>(
     config: &'static Config,

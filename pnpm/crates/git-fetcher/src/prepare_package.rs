@@ -30,7 +30,7 @@ use std::{
 /// into the install lifecycle), so we don't need to invoke it
 /// separately.
 ///
-/// Note: `prepublishOnly` is intentionally omitted here — neither npm
+/// Note: `prepublishOnly` is intentionally omitted here, neither npm
 /// nor Yarn run it for git-hosted deps.
 const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 
@@ -49,7 +49,7 @@ pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> Option<bool> + Send + Sync);
 pub struct PreparePackageOptions<'a> {
     pub scripts: crate::PrepareScriptOptions<'a>,
     pub allow_build: AllowBuildFn<'a>,
-    /// The package's resolution id — the bare `git+…#<commit>` or
+    /// The package's resolution id, the bare `git+…#<commit>` or
     /// archive URL. The gated dep path is synthesized from it and the
     /// fetched manifest's name, so the policy sees the same
     /// `<name>@<id>` key a lockfile would record.
@@ -290,12 +290,12 @@ fn prepublish_invocation(
 /// that cannot be read counts as unusable, so the dependency gets the one
 /// it asked for rather than a coin flip.
 /// Put the package manager the dependency asks for on the build's `PATH`,
-/// returning the scratch directory its shims live in — the caller keeps
+/// returning the scratch directory its shims live in, the caller keeps
 /// that alive for the prepare, because dropping it takes the shims with
 /// it.
 ///
 /// pnpm provides the package manager when the dependency pinned a version
-/// — that pin is what its authors test against — or when the host cannot
+///that pin is what its authors test against, or when the host cannot
 /// satisfy what the dependency ships. Otherwise the host's own install is
 /// left to do the job it has always done, which is also what happens when
 /// the shims cannot be written for an unpinned one.
@@ -400,7 +400,7 @@ fn probe_host(wanted: &WantedPm) -> bool {
         .as_deref()
         .and_then(|range| node_semver::Range::parse(range).ok());
     // A dependency's scripts reach for any of the package manager's names
-    // — `yarnpkg` as readily as `yarn` — and nothing says two of them on
+    // `yarnpkg` as readily as `yarn`, and nothing says two of them on
     // one host are the same install, so each has to answer for itself.
     shim_names(wanted.pm)
         .all(|name| {
@@ -484,7 +484,7 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
 /// `sub` is a resolution's `path` field, which keeps the leading slash
 /// of the `#path:/packages/foo` specifier it came from. That slash is
 /// rooted at the repo, not the filesystem, so it is stripped before
-/// joining — [`Path::join`] would otherwise discard `root` and treat
+/// joining, [`Path::join`] would otherwise discard `root` and treat
 /// the whole thing as absolute, unlike the `path.join` upstream uses.
 pub(crate) fn safe_join_path(
     root: &Path,

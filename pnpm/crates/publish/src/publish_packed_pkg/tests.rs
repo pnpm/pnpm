@@ -188,7 +188,7 @@ async fn put_publish_reports_a_non_success_status_without_erroring() {
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    // A 5xx is a completed response (`ok: false`), not a transport error — the
+    // A 5xx is a completed response (`ok: false`), not a transport error, the
     // caller inspects `ok` and raises `FailedToPublishError`, matching pnpm.
     let response = put_publish(&client, &url, None, "publish", body(), None, false)
         .await
@@ -650,7 +650,7 @@ fn publish_packed_pkg_error_wraps_option_and_otp_failures() {
 
 /// A host outside CI: no `NPM_ID_TOKEN`, not GitHub Actions, so the OIDC probe
 /// in `create_publish_options` resolves to "not applicable" without touching
-/// the network — and the token exchange (clock) and any registry fetch stay
+/// the network, and the token exchange (clock) and any registry fetch stay
 /// unreachable.
 struct OfflineSys;
 impl Clock for OfflineSys {
@@ -905,7 +905,7 @@ fn registry_for_display_strips_userinfo_and_leaves_a_plain_registry_untouched() 
 fn rejects_a_package_name_that_could_redirect_the_publish_url() {
     // A crafted tarball name that would parse as an absolute (or protocol-relative)
     // URL under `Url::join` must be rejected before it reaches the authenticated
-    // PUT URL — mirroring libnpmpublish's `npa.resolve` name validation.
+    // PUT URL, mirroring libnpmpublish's `npa.resolve` name validation.
     for bad in ["https://evil.com", r"\\evil.com\pkg", "pnpm:evil", "foo/bar", "//evil.com"] {
         let manifest = json!({ "name": bad, "version": "1.0.0" });
         let err = build_publish_document(&manifest, b"x", &registry(), None, "latest", &hashes())

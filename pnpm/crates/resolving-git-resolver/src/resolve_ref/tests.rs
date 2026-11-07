@@ -140,8 +140,8 @@ fn parse_ls_remote_ignores_blank_lines() {
 
 const AUTHENTICATED_REPO: &str = "https://hunter2:x-oauth-basic@github.com/foo/bar.git";
 
-/// The whole `user:pass@` goes, not just one half of it — a GitHub token is
-/// the *user* in `<token>:x-oauth-basic@` — while the part of the URL that
+/// The whole `user:pass@` goes, not just one half of it, a GitHub token is
+/// the *user* in `<token>:x-oauth-basic@`, while the part of the URL that
 /// tells the reader which repository failed stays.
 #[track_caller]
 fn assert_repo_redacted(err: &GitResolveRefError) {

@@ -202,7 +202,7 @@ fn assert_transform_metadata(
 /// A project that publishes from a subdirectory must come back with that
 /// directory on its importer. The server rebuilds each project's manifest from
 /// the request, so a server that ignored `publishConfig` would have the caller
-/// link the project root — and install other code than a local install does.
+/// link the project root, and install other code than a local install does.
 fn assert_publish_directories(
     lockfile: &Lockfile,
     opts: &ResolveProjectsOptions,
@@ -301,8 +301,8 @@ impl PnprClient {
     }
 
     /// Resolve a single project, invoking `on_package` once per resolved
-    /// tarball as its `package` frame streams in — *before* the full
-    /// lockfile arrives — so the caller can begin fetching each tarball
+    /// tarball as its `package` frame streams in, *before* the full
+    /// lockfile arrives, so the caller can begin fetching each tarball
     /// while the server is still resolving. Returns the resolved lockfile
     /// from the terminal `done` frame.
     pub async fn resolve_streaming(

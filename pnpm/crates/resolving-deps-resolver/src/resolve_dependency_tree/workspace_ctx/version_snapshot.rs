@@ -78,7 +78,7 @@ impl WorkspaceTreeCtx {
             })
             .collect();
         // Release before taking the next guard so this function never
-        // holds two of the context's locks at once — `snapshot` takes
+        // holds two of the context's locks at once, `snapshot` takes
         // `packages` before `dependencies_tree`, so overlapping here
         // would create a reversed acquisition order.
         drop(dependencies_tree);
@@ -262,8 +262,8 @@ impl WorkspaceTreeCtx {
 
 impl super::WorkspaceChildrenState {
     /// Record a walk's per-package missing-peer names. The owning
-    /// importer's report is written once per ownership generation —
-    /// its own later hoist waves never refresh it — and replaces any
+    /// importer's report is written once per ownership generation,
+    /// its own later hoist waves never refresh it, and replaces any
     /// provisional report a non-owner's earlier walk left behind. See
     /// the `first_walk_missing_by_pkg` field doc.
     pub(crate) fn record_first_walk_missing(

@@ -2,9 +2,9 @@ use super::{
     Config, Identity, Path, RegistryError, hosted_rules_config, hosted_rules_err, listen, user,
 };
 
-/// A hosted `org` becomes a storage path segment, so a traversal-y value —
+/// A hosted `org` becomes a storage path segment, so a traversal-y value,
 /// including a Windows drive-relative prefix, which `PathBuf::join` treats as
-/// a new path rather than a child — must be rejected at load rather than
+/// a new path rather than a child, must be rejected at load rather than
 /// reach the filesystem.
 #[test]
 fn from_yaml_str_rejects_hosted_org_path_traversal() {
@@ -284,14 +284,14 @@ registries:
 
 #[test]
 fn team_declarations_are_validated() {
-    // A team member list is one username per entry — never a
+    // A team member list is one username per entry, never a
     // space-separated string.
     let split_members = "    teams:\n      platform: { name: platform, members: alice bob }\n";
     // A team name is spliced into `team:<name>` tokens, so a name the
     // grammar cannot express is rejected at declaration.
     let sigil_name = "    teams:\n      $all: { name: platform, members: [alice] }\n";
     let colon_name = "    teams:\n      'a:b': { name: platform, members: [alice] }\n";
-    // A member is a plain username: a built-in group — in any spelling —
+    // A member is a plain username: a built-in group, in any spelling,
     // would silently become a user nobody is named after, and a `team:`
     // reference would be an unsupported nested team.
     let builtin_member = "    teams:\n      platform: { name: platform, members: [$all] }\n";

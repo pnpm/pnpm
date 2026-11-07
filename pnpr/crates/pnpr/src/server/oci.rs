@@ -121,7 +121,7 @@ pub(super) fn routes() -> Router<AppState> {
     router.route_layer(DefaultBodyLimit::disable())
 }
 
-/// `GET /v2/` — the version check every client makes first, and what
+/// `GET /v2/`, the version check every client makes first, and what
 /// `docker login` reads to decide whether its credentials were accepted.
 async fn get_version_check(
     State(state): State<AppState>,

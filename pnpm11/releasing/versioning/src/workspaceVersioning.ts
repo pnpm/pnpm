@@ -91,7 +91,7 @@ interface IntentRefScope {
  * Resolves every intent's package references to participant directories,
  * validating along the way: unknown references and names matching several
  * projects are hard errors, and a release can only be demanded from a
- * participant — otherwise the intent could never be consumed and the file
+ * participant, otherwise the intent could never be consumed and the file
  * would linger forever. A `none` decline is fine for any workspace package.
  */
 export function resolveIntents (

@@ -300,8 +300,8 @@ fn parses_fail_if_no_match_from_yaml_and_applies() {
     assert!(config.fail_if_no_match);
 }
 
-/// The two workspace-cycle knobs are independent keys — one silences the
-/// report, the other promotes it to an error — so a file setting both is
+/// The two workspace-cycle knobs are independent keys, one silences the
+/// report, the other promotes it to an error, so a file setting both is
 /// applied to both fields.
 #[test]
 fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
@@ -350,7 +350,7 @@ fn patches_dir_reads_from_workspace_yaml() {
 }
 
 /// `testPattern` / `changedFilesIgnorePattern` cannot be set from the
-/// global `config.yaml` — pnpm lists both in its excluded keys.
+/// global `config.yaml`, pnpm lists both in its excluded keys.
 #[test]
 fn test_pattern_and_changed_files_ignore_pattern_cleared_as_workspace_only_fields() {
     let yaml = r"
@@ -545,7 +545,7 @@ fn python_settings_parse_apply_and_remain_workspace_only() {
 }
 
 /// The trust boundary follows the fields rather than the spelling, so the
-/// canonical form must refuse everything the older one does — and the message
+/// canonical form must refuse everything the older one does, and the message
 /// has to name the key the file actually wrote.
 #[test]
 fn rejects_workspace_controlled_trust_material_under_the_canonical_spelling() {
@@ -699,7 +699,7 @@ fn inject_workspace_packages_defaults_off_when_absent() {
     assert!(!config.inject_workspace_packages);
 }
 
-/// A positive `workspaceConcurrency` is taken verbatim — same
+/// A positive `workspaceConcurrency` is taken verbatim, same
 /// resolution as `childConcurrency`.
 #[test]
 fn parses_positive_workspace_concurrency_from_yaml_and_applies() {
@@ -746,7 +746,7 @@ fn workspace_and_child_concurrency_are_independent() {
 }
 
 /// `hoistPattern` and `publicHoistPattern` are tri-state via
-/// [`super::super::deserialize_double_option`] — pacquet must distinguish
+/// [`super::super::deserialize_double_option`], pacquet must distinguish
 /// "key missing" (defaults stay) from "explicit null" (hoist
 /// disabled) from "explicit list" (override). This test exercises
 /// all three for both sides plus the `apply_to` plumbing.

@@ -4,7 +4,7 @@ use super::{
     resolve_dependency_tree, resolve_peers,
 };
 
-/// Two parallel peer chains in one importer — each peer resolves
+/// Two parallel peer chains in one importer, each peer resolves
 /// against its own sibling, no cross-pollination. Stands in for
 /// the npm-alias peer case; the real alias case needs `npm:`
 /// plumbing in the stub resolver.
@@ -151,7 +151,7 @@ async fn bad_peer_inside_subtree_records_resolved_from_parent() {
 }
 
 /// A child that declares only peer dependencies is non-leaf while
-/// its `children_by_id` entry stays empty — peers are hoisted to the
+/// its `children_by_id` entry stays empty, peers are hoisted to the
 /// importer rather than walked as edges. It must keep the non-leaf
 /// classification the eager walk picked when it's reached again
 /// through a lazy revisit. Regression for the divergence between
@@ -249,7 +249,7 @@ async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
     .await
     .unwrap();
 
-    // First-walk classification must be non-leaf — `pkg_is_leaf`
+    // First-walk classification must be non-leaf, `pkg_is_leaf`
     // counts a declared peer as a child.
     assert!(
         !tree.packages.get("peer-only@1.0.0").expect("peer-only resolved").is_leaf,
@@ -259,7 +259,7 @@ async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
     resolve_peers(&mut tree, ResolvePeersOptions::default());
 
     // After lazy realization, every occurrence of `peer-only` must
-    // use a Counter NodeId — the same shape the eager walker
+    // use a Counter NodeId, the same shape the eager walker
     // assigned on first visit. A `Leaf` NodeId here would mean
     // `realize_children` misclassified the package and collapsed
     // distinct occurrences, breaking per-call-site state for any
@@ -300,7 +300,7 @@ async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
             }),
         ),
     );
-    // `link:` direct dep — the local resolver normally fills this
+    // `link:` direct dep, the local resolver normally fills this
     // shape; the tests stub it out directly. `name_ver = None`
     // matches the local resolver's behavior (the package name is
     // read from the manifest, not the id).

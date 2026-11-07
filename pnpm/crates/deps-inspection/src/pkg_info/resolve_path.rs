@@ -5,7 +5,7 @@ use pnpm_lockfile::PkgNameVerPeer;
 use super::{EdgeContext, InspectionLayout};
 
 /// A lockfile-derived path component that could escape the directory
-/// it is joined under — the same guard `pnpm licenses` applies before
+/// it is joined under, the same guard `pnpm licenses` applies before
 /// dereferencing store paths built from lockfile keys. Rooted and
 /// prefixed components are rejected by shape, not `is_absolute()`:
 /// on Windows a rooted-but-prefixless `\escape` (or a prefix-only

@@ -4,7 +4,7 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, path::Path};
 
 /// Rewrite the store row for `is-odd@3.0.1` so its bundled manifest
-/// names another package — the state a lockfile pairing an integrity
+/// names another package, the state a lockfile pairing an integrity
 /// with the wrong package, or a registry serving content that doesn't
 /// match its metadata, leaves behind.
 fn make_the_store_row_hold_another_package(store_dir: &Path) {

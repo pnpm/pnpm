@@ -41,7 +41,7 @@ fn declare_pnpr_registry(workspace: &Path, registry_url: &str) {
 }
 
 /// A resolver that claims `@pnpm.e2e/dep-of-pkg-with-1-dep` and resolves
-/// it to `100.1.0` — a version the built-in npm resolver would never pick
+/// it to `100.1.0`, a version the built-in npm resolver would never pick
 /// for the exact `100.0.0` specifier, so its presence in the result
 /// proves the custom resolver ran.
 fn overriding_pnpmfile(registry_url: &str, should_refresh: &str) -> String {
@@ -260,7 +260,7 @@ fn failing_should_refresh_resolution_aborts_the_install() {
 /// Port of upstream's `'custom resolver receives currentPkg on
 /// subsequent installs'` (`installing/deps-installer/test/install/customResolvers.ts`).
 ///
-/// The first install records the npm resolver's pick — a `Registry`
+/// The first install records the npm resolver's pick, a `Registry`
 /// (`{integrity}`-only) lockfile entry. The second install is forced to
 /// re-resolve via `shouldRefreshResolution`; the resolver must receive
 /// that entry as `currentPkg` with the tarball URL re-derived from the

@@ -1,6 +1,6 @@
 //! S3-compatible object-store backend for the **hosted** store.
 //!
-//! The hosted store is pnpr's source of truth — packages published
+//! The hosted store is pnpr's source of truth, packages published
 //! through its API plus the content served in static mode. When the
 //! YAML `s3:` block is present, those authoritative documents and
 //! blobs live in an object store instead of on local disk, so the
@@ -10,7 +10,7 @@
 //! Any S3-compatible endpoint works: AWS S3 (omit `endpoint`),
 //! Cloudflare R2 (`region: auto`, the account endpoint), `MinIO`,
 //! Backblaze B2, Wasabi, etc. The disposable proxy cache and the
-//! resolver `SQLite` stores stay on local disk regardless —
+//! resolver `SQLite` stores stay on local disk regardless,
 //! only the hosted store is pluggable.
 
 mod hosted_backend;
@@ -42,7 +42,7 @@ use tokio::{fs, io::AsyncReadExt as _};
 /// Above this the upload is streamed in parts: a single `put` holds the whole
 /// blob in memory, and an image layer runs to gigabytes. The threshold sits
 /// above the 100 MiB publish body limit so that every artifact addressed by
-/// filename — an npm tarball, a crate, a wheel — still takes the single-put
+/// filename, an npm tarball, a crate, a wheel, still takes the single-put
 /// path and keeps its conditional write.
 const MAX_SINGLE_PUT_BYTES: u64 = 128 * 1024 * 1024;
 

@@ -38,7 +38,7 @@ fn matching_across_all_three_dep_fields_satisfies() {
 /// Same name + specifier moved between fields (`devDependencies` →
 /// `dependencies`) should be caught by the per-field follow-up loop.
 /// The flat-record pre-pass would say "specifiers match" because
-/// they do across the union — but the dep-graph install would be
+/// they do across the union, but the dep-graph install would be
 /// different so we must reject.
 #[test]
 fn dep_moves_between_fields_returns_dep_specifier_mismatch() {

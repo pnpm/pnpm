@@ -8,9 +8,9 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSnapshot {
     /// Direct-dependency specifiers, keyed by alias. The v9 lockfile file
-    /// format does not carry a top-level `specifiers` map — each specifier is
+    /// format does not carry a top-level `specifiers` map, each specifier is
     /// inlined next to its resolved version in the dependency blocks (see
-    /// [`ResolvedDependencySpec`]) — so this field is never serialized. pnpm's
+    /// [`ResolvedDependencySpec`]), so this field is never serialized. pnpm's
     /// in-memory [`ProjectSnapshot`] keeps it for catalog-snapshot construction,
     /// and pacquet does the same; it also still deserializes from older
     /// lockfiles that recorded it.

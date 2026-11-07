@@ -34,7 +34,7 @@ pub fn resolve_install_dir(global_dir: &Path, hash: &str) -> io::Result<Option<P
 /// The directory is a per-group dir named from the pid plus high-resolution
 /// nanos and an atomic counter, and is created with exclusive `create_dir`
 /// (retrying on `AlreadyExists`) rather than `create_dir_all`. This avoids
-/// reusing — or following a pre-existing symlink at — a colliding name when
+/// reusing, or following a pre-existing symlink at, a colliding name when
 /// `global_dir` is shared, so each group's `package.json` / `node_modules`
 /// stay isolated. The parent `global_dir` must already exist.
 pub fn create_install_dir(global_dir: &Path) -> io::Result<PathBuf> {

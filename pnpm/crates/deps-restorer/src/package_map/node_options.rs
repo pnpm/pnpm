@@ -74,7 +74,7 @@ pub(super) fn split_node_options(node_options: &str) -> Vec<String> {
     tokenizer.finish()
 }
 /// Node's `NODE_OPTIONS` tokenizer: whitespace separates tokens, `'`
-/// and `"` quote, and `\` escapes the next character anywhere — so an
+/// and `"` quote, and `\` escapes the next character anywhere, so an
 /// escaped quote does not end a token. The literal text (backslash
 /// included) is preserved so retained tokens round-trip verbatim.
 #[derive(Default)]

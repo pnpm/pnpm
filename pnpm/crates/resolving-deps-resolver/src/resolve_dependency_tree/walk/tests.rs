@@ -209,7 +209,7 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
 }
 
 /// A resolver that hands back no manifest still has to give the package
-/// an identity — see <https://github.com/pnpm/pnpm/issues/13410>.
+/// an identity, see <https://github.com/pnpm/pnpm/issues/13410>.
 mod fallback_manifest {
     use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
     use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, WantedDependency};

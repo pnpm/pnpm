@@ -12,7 +12,7 @@ use pretty_assertions::assert_eq;
 use std::{collections::HashMap, path::PathBuf};
 
 /// A peer-suffixed reference (`b@1.0.0(peer@2.0.0)`) must resolve its
-/// metadata through the peer-stripped `packages:` key (`b@1.0.0`) —
+/// metadata through the peer-stripped `packages:` key (`b@1.0.0`),
 /// lockfile `packages:` keys never carry peer suffixes. Before the
 /// fallback in `lookup_package_metadata`, the walker silently dropped
 /// every peered node and its whole subtree from the graph, so the
@@ -63,7 +63,7 @@ fn walker_resolves_peered_reference_via_peerless_packages_key() {
 /// The hoister collapses every peer variant of one package version onto
 /// a single node keyed by the first snapshot key it sees, so the graph
 /// holds no entry under the other variants' keys. Edges declared against
-/// one of those — an importer's own dependency, or a sibling package's —
+/// one of those, an importer's own dependency, or a sibling package's,
 /// still have to resolve to the copy that node produced.
 #[test]
 fn walker_wires_edges_declared_against_a_collapsed_peer_variant() {
@@ -125,7 +125,7 @@ fn walker_wires_edges_declared_against_a_collapsed_peer_variant() {
 }
 /// Peer variants of an injected directory dependency are exempt from
 /// the collapse (see [`pnpm_real_hoist::pkg_id`]), so the walk has to
-/// keep a location — and a direct-dependency entry — per variant,
+/// keep a location, and a direct-dependency entry, per variant,
 /// where every collapsed package funnels into one.
 #[test]
 fn walker_keeps_file_dep_peer_variants_apart() {

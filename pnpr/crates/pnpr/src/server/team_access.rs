@@ -118,7 +118,7 @@ pub(super) async fn revoke_team_access(
     respond(result.await)
 }
 
-/// `GET /-/team/{scope}/{team}/package` — the declared patterns whose rules
+/// `GET /-/team/{scope}/{team}/package`, the declared patterns whose rules
 /// name the team and that the caller may read, as `{"<pattern>": "read-only"
 /// | "read-write"}`.
 pub(super) fn list_team_packages(

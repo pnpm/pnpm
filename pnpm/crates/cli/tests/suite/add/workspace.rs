@@ -418,7 +418,7 @@ fn a_workspace_add_at_a_dist_tag_keeps_the_local_package_over_a_matching_catalog
 }
 
 /// `workspace:<target>@<range>` installs `<target>` under the name the
-/// selector gave, so the saved specifier has to keep naming the target —
+/// selector gave, so the saved specifier has to keep naming the target,
 /// dropping it would leave a `workspace:` entry pointing at the install
 /// name, which resolves to nothing.
 ///
@@ -462,7 +462,7 @@ fn the_pinned_form_picks_the_highest_workspace_version_by_semver() {
 }
 
 /// The setting is readable from `PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL`
-/// too, not only `pnpm-workspace.yaml` — pnpm exposes every setting
+/// too, not only `pnpm-workspace.yaml`, pnpm exposes every setting
 /// through its env pass.
 #[test]
 fn the_env_var_drives_the_saved_workspace_range() {

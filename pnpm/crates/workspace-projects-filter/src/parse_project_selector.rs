@@ -21,8 +21,8 @@ pub struct ProjectSelector {
     /// production dependencies only. Not produced by parsing.
     pub follow_prod_deps_only: bool,
     /// Overrides how [`Self::parent_dir`] matches, for a selector pnpm
-    /// generates rather than the user writing it. `None` — every parsed
-    /// selector — follows the mode the whole filter pass runs in, which
+    /// generates rather than the user writing it. `None`, every parsed
+    /// selector, follows the mode the whole filter pass runs in, which
     /// `legacyDirFiltering` chooses. Not produced by parsing.
     pub use_glob_dir_filtering: Option<bool>,
     pub traversal: DependencyTraversal,

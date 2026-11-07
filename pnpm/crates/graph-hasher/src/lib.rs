@@ -6,7 +6,7 @@
 //! identical to what pnpm produces. The `object-hash` library uses a
 //! specific recursive bytestream format under the hood
 //! (`object:<N>:<key>:<value>,...` with sorted keys, `string:<utf16_len>:<value>`,
-//! etc.) — pacquet replicates that format here.
+//! etc.), pacquet replicates that format here.
 //!
 //! Reference (object-hash@3.0.0):
 //! - <https://github.com/puleos/object-hash/blob/v3.0.0/index.js>

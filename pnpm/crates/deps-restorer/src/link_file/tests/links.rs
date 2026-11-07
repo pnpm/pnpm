@@ -95,7 +95,7 @@ fn hardlink_shares_contents_with_source() {
     }
 }
 /// Explicit `Hardlink` must surface non-`EXDEV` link-creation errors
-/// instead of silently falling back — matches pnpm's `linkOrCopy`,
+/// instead of silently falling back, matches pnpm's `linkOrCopy`,
 /// which only swallows `EXDEV` (and a couple of other kernel-level
 /// "not permitted" codes, not modelled here). We drive the error
 /// path by pointing at a non-existent source (`NotFound`, which is
@@ -113,7 +113,7 @@ fn explicit_hardlink_surfaces_errors() {
 }
 /// A dangling symlink left behind by an interrupted install is left
 /// alone. Matches pnpm's `linkOrCopy` (`fs/indexed-pkg-importer/src/index.ts`),
-/// which returns on `EEXIST` without inspecting the dirent — the
+/// which returns on `EEXIST` without inspecting the dirent, the
 /// downside is that a dangling symlink survives until something
 /// rewrites the slot, the upside is a single import syscall per file
 /// instead of stat-then-link-then-maybe-unlink. The pre-flight
@@ -139,7 +139,7 @@ fn dangling_symlink_is_preserved() {
     assert_eq!(std::fs::read_link(&dst).unwrap(), dangling_target, "target unchanged");
 }
 /// Live symlinks (pointing at real files) should still short-circuit
-/// — they're legitimate user state, not corruption from an
+///they're legitimate user state, not corruption from an
 /// interrupted install. Observable: we don't remove the link, and
 /// we don't overwrite its target either.
 #[test]
@@ -180,7 +180,7 @@ fn auto_hardlink_tier_call_errors_propagate() {
     );
 }
 /// A fresh `Auto` on Linux hardlinks: same-filesystem tempdir, no
-/// prior downgrades, and the observable is the shared inode — the
+/// prior downgrades, and the observable is the shared inode, the
 /// exact on-disk shape an install's first file gets.
 #[test]
 #[cfg(target_os = "linux")]

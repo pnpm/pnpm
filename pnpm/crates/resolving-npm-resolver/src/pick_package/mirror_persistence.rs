@@ -106,7 +106,7 @@ pub(crate) fn warn_missing_time_once(pkg_name: &str, skipped_check: SkippedTimeC
 /// [`crate::mirror::FULL_META_DIR`] when seeding the full-metadata cache (verifier
 /// tests, integrated benchmark) and [`crate::mirror::ABBREVIATED_META_DIR`] when
 /// seeding the abbreviated cache (resolver tests). Errors are logged
-/// at debug by the install path — a cache-write failure should never
+/// at debug by the install path, a cache-write failure should never
 /// fail an install. Kept public so the rare caller that
 /// constructs a `Package` outside the fetcher (test fixtures, the
 /// integrated benchmark's pre-warmer) can seed the mirror without

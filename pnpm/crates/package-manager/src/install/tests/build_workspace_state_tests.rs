@@ -183,7 +183,7 @@ fn records_every_workspace_project_keyed_by_root_dir() {
 /// pnpm's `createWorkspaceState` records `configDependencies`
 /// verbatim. When pacquet is the install engine for a project that
 /// declares one (the `@pnpm/pacquet` configDependency itself), the
-/// written state must carry the same map — otherwise pnpm's
+/// written state must carry the same map, otherwise pnpm's
 /// `checkDepsStatus` reads a missing value, treats the install as
 /// stale, and reinstalls on every `pnpm run` / `pnpm node`.
 #[test]

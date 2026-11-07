@@ -159,7 +159,7 @@ async fn add_resolves_package_selectors_concurrently() {
             .unwrap();
         // `wait_timeout_while` re-checks the predicate before it
         // reports a timeout, so `timed_out()` means the peers were
-        // still missing when the budget ran out — never that the
+        // still missing when the budget ran out, never that the
         // last one arrived on the deadline.
         if wait.timed_out() {
             requests.barrier_expired = true;

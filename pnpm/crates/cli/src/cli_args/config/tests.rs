@@ -1,6 +1,6 @@
 //! pnpm's tests inject a `_config` / `_context`; pacquet builds a [`Config`]
 //! and sets the public fields the command reads ([`Config::config_dir`],
-//! [`Config::explicit_settings`], [`Config::raw_auth_config`]) — the same
+//! [`Config::explicit_settings`], [`Config::raw_auth_config`]), the same
 //! injection, expressed against pacquet's loaded-config shape.
 
 use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
@@ -32,7 +32,7 @@ fn read_ini(path: &Path) -> IndexMap<String, String> {
     map
 }
 
-// --- config set: INI routing -----------------------------------------------
+// config set: INI routing
 
 #[test]
 fn set_registry_global_writes_auth_ini() {
@@ -115,7 +115,7 @@ fn set_per_registry_auth_project_creates_npmrc() {
     );
 }
 
-// --- config set: YAML routing ----------------------------------------------
+// config set: YAML routing
 
 #[test]
 fn set_pnpm_key_global_writes_config_yaml_as_number() {
@@ -440,7 +440,7 @@ fn set_object_value_with_json_writes_workspace_yaml() {
     );
 }
 
-// --- config set: validation errors -----------------------------------------
+// config set: validation errors
 
 #[test]
 fn set_rejects_deep_property_path() {
@@ -578,7 +578,7 @@ fn delete_clears_every_spelling_of_a_machine_level_key() {
     );
 }
 
-// --- config delete ---------------------------------------------------------
+// config delete
 
 #[test]
 fn delete_last_yaml_key_removes_file() {
@@ -840,7 +840,7 @@ fn delete_missing_params_errors() {
     assert_eq!(miette::Diagnostic::code(&err).unwrap().to_string(), "ERR_PNPM_CONFIG_NO_PARAMS");
 }
 
-// --- config get / list -----------------------------------------------------
+// config get / list
 
 fn config_for_get(explicit: &[(&str, Value)], auth: &[(&str, &str)]) -> Config {
     let mut config = Config { config_dir: Some(PathBuf::from("/config")), ..Config::default() };
@@ -969,8 +969,8 @@ fn list_shows_a_registry_network_concurrency() {
     );
 }
 
-/// `registry` and `@jsr:registry` answer the merged routes — the built-in
-/// defaults when nothing routes them elsewhere — rather than `undefined`.
+/// `registry` and `@jsr:registry` answer the merged routes, the built-in
+/// defaults when nothing routes them elsewhere, rather than `undefined`.
 #[test]
 fn get_registry_and_jsr_answer_the_merged_routes() {
     let config = config_for_get(&[], &[]);
@@ -987,7 +987,7 @@ fn get_registry_and_jsr_answer_the_merged_routes() {
     assert_eq!(listed["registry"], json!("https://registry.npmjs.org/"));
     assert_eq!(listed["@jsr:registry"], json!("https://npm.jsr.io/"));
 
-    // The resolved default — wherever it was routed from — wins over a raw
+    // The resolved default, wherever it was routed from, wins over a raw
     // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
     // view.
     let mut routed = config_for_get(&[], &[("registry", "https://from-npmrc.example.com/")]);
@@ -1217,7 +1217,7 @@ fn list_includes_settings_and_censors_protected() {
     assert_eq!(got_value["storeDir"], json!("~/store"));
 }
 
-// --- security hardening for the INI write path -----------------------------
+// security hardening for the INI write path
 
 #[test]
 fn set_ini_value_with_control_char_is_rejected() {

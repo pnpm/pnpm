@@ -359,10 +359,10 @@ describe('calcGraphNodeHash', () => {
   it('uses the snapshot\'s own engines.runtime pin over an install-wide fallback', () => {
     // A dep that declares `engines.runtime: node@22` carries the
     // desugared `node@runtime:22.11.0` DepPath as `children.node`.
-    // That snapshot's GVS hash has to anchor to its *own* pin —
+    // That snapshot's GVS hash has to anchor to its *own* pin,
     // matching the Node the bin linker spawns for its lifecycle
     // scripts (`bins/linker/src/index.ts`'s per-package
-    // `runtimeHasNodeDownloaded` branch) — instead of the
+    // `runtimeHasNodeDownloaded` branch), instead of the
     // install-wide `nodeVersion` fallback that PR pnpm/pnpm#11689 introduced.
     const graph: DepsGraph<DepPath> = {
       ['pinned@1.0.0' as DepPath]: {
@@ -397,7 +397,7 @@ describe('calcGraphNodeHash', () => {
 
   it('falls back to the install-wide nodeVersion when the snapshot has no own pin', () => {
     // A snapshot whose own children don't include a `node@runtime:`
-    // entry inherits the project-wide pin instead — mirrors the
+    // entry inherits the project-wide pin instead, mirrors the
     // common case where only the root manifest declares
     // `engines.runtime` and every transitive dep falls through.
     const graph: DepsGraph<DepPath> = {
@@ -466,7 +466,7 @@ describe('calcGraphNodeHash', () => {
     )
 
     // The two slots must end up on different paths even though the
-    // install-wide fallback is the same — the engine portion of the
+    // install-wide fallback is the same, the engine portion of the
     // hash diverges via each snapshot's own pin.
     expect(hash22).not.toBe(hash20)
     expect(hash22.startsWith('@/pins-22/1.0.0/')).toBe(true)
@@ -511,7 +511,7 @@ describe('calcGraphNodeHash', () => {
 
     it('gives each project its own slot', () => {
       // Two unrelated projects that both depend on a `./dep` directory
-      // resolve to the same dep path, name, and (absent) version — only
+      // resolve to the same dep path, name, and (absent) version, only
       // the lockfile directory tells them apart.
       const inProjectA = calcGraphNodeHash({ graph, cache: {}, lockfileDir: '/home/user/a' }, pkgMeta)
       const inProjectB = calcGraphNodeHash({ graph, cache: {}, lockfileDir: '/home/user/b' }, pkgMeta)

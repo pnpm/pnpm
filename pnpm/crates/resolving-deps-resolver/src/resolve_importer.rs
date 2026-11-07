@@ -90,7 +90,7 @@ where
 {
     // Both `manifest_hook` and `pnpmfile_hook` live on the workspace ctx
     // (they're workspace-wide, not per-importer). Apply them before
-    // sharing the `Arc` — `resolve_importer_with_workspace` reads through
+    // sharing the `Arc`, `resolve_importer_with_workspace` reads through
     // the shared ctx and can't mutate it after the fact.
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
@@ -157,7 +157,7 @@ where
 /// running any hoist round, forming a barrier: every importer's
 /// initial wave completes first, then per-round required-peer loops
 /// and one optional-peer hoist per round repeat across all importers
-/// until no importer hoists — so an optional-peer pick sees every
+/// until no importer hoists, so an optional-peer pick sees every
 /// importer's resolved versions, not just the importers processed so
 /// far.
 pub(crate) struct ImporterHoistState {

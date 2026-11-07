@@ -18,8 +18,8 @@ use std::collections::{BTreeSet, HashMap};
 
 /// Reject the install when any snapshot's computed virtual-store slot
 /// resolves outside the store root or its package directory. The whole
-/// `snapshots` map is scanned — not just the survivors of the warm-install
-/// skip filter — so a poisoned snapshot that would be skipped as unchanged
+/// `snapshots` map is scanned, not just the survivors of the warm-install
+/// skip filter, so a poisoned snapshot that would be skipped as unchanged
 /// is still rejected before any directory is created.
 ///
 /// Surfaces [`VerifyError::InvalidDependencyAlias`]

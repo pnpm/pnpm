@@ -135,7 +135,7 @@ fn a_document_without_placeholders_keeps_the_error_of_the_text() {
 }
 
 /// The second read resolves the placeholder, so what it cannot read is the
-/// other setting — which the first read already located.
+/// other setting, which the first read already located.
 #[test]
 fn an_error_beside_a_resolved_placeholder_keeps_its_location() {
     let error = parse_settings::<Env, WorkspaceSettings>(
@@ -171,7 +171,7 @@ userAgent: ${PNPM_TEST_HOST}
 }
 
 /// Placeholders the document reads without are decided in groups, so a file
-/// may carry any number of them — in comments here — without exhausting what
+/// may carry any number of them, in comments here, without exhausting what
 /// the second read is allowed to do, and the one setting that needs its own
 /// still resolves.
 #[test]
@@ -230,7 +230,7 @@ ignoreScripts: ${PNPM_TEST_UNSET:-false}
 }
 
 /// The first read stops at the placeholder, which is not the problem, so the
-/// setting the file cannot mean is the one to name — wherever it sits.
+/// setting the file cannot mean is the one to name, wherever it sits.
 #[test]
 fn an_error_after_a_resolved_placeholder_names_the_setting_at_fault() {
     let error = parse_settings::<Env, WorkspaceSettings>(

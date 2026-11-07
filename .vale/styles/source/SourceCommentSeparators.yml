@@ -1,0 +1,7 @@
+extends: existence
+message: "Remove decorative comment separators."
+level: error
+scope: raw
+nonword: true
+tokens:
+  - '(?m)^\s*//[!/ ]?\s*-{6,}\s*$'

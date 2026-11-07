@@ -145,10 +145,10 @@ impl TestRegistry {
     /// Move `tag` to `version`, the way the JS harness's `addDistTag` does.
     /// A fixture package's `latest` is otherwise its highest published
     /// version, which cannot express "the newer version was published after
-    /// the install" — the setup every upstream `--latest` test relies on.
+    /// the install", the setup every upstream `--latest` test relies on.
     ///
     /// Only a registry started over storage of the test's own can be
-    /// re-tagged — see `CommandTempCwd::add_mocked_registry_with_own_storage`;
+    /// re-tagged, see `CommandTempCwd::add_mocked_registry_with_own_storage`;
     /// the process-global instance is shared.
     pub fn set_dist_tag(&self, package: &str, version: &str, tag: &str) {
         let storage = self.storage.as_deref().expect(
@@ -211,7 +211,7 @@ impl TestRegistryInstance {
         let server_url = format!("http://{listen}/");
         // Proxy mode: `@pnpm.e2e` fixtures are served from local storage, while
         // real npm packages (`is-positive`, `is-negative`, etc.) fall through to
-        // the npm upstream — matching how registry-mock served pacquet's tests.
+        // the npm upstream, matching how registry-mock served pacquet's tests.
         let mut config = match mode {
             RegistryMode::Proxy => {
                 let mut config = Config::proxy(listen, storage);

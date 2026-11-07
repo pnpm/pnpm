@@ -35,7 +35,7 @@ impl Config {
     }
 
     /// The registries this config declares, in the shape the `registries`
-    /// setting is written in — what a pnpr server is told about them.
+    /// setting is written in, what a pnpr server is told about them.
     ///
     /// The default registry is not among them: it travels as the request's
     /// own `registry` field.
@@ -45,11 +45,11 @@ impl Config {
     }
 
     /// The registries this config resolves from, merged across every source,
-    /// in the shape the `registries` setting is written in — the view
+    /// in the shape the `registries` setting is written in, the view
     /// `pnpm config get registries` prints. Unlike
     /// [`Self::registry_declarations`], nothing is omitted: the default
-    /// registry is declared as the bare `@` scope, and the built-in routes —
-    /// the `@jsr` scope and the [`BUILTIN_REGISTRIES_BY_PREFIX`] prefixes —
+    /// registry is declared as the bare `@` scope, and the built-in routes,
+    /// the `@jsr` scope and the [`BUILTIN_REGISTRIES_BY_PREFIX`] prefixes,
     /// are declared too, unless the user pointed them elsewhere.
     #[must_use]
     pub fn resolved_registry_declarations(&self) -> IndexMap<String, RegistryDeclaration> {
@@ -132,7 +132,7 @@ impl Config {
     }
 
     /// The `update` settings the CLI acts on, re-joined from
-    /// [`Self::update_config`] — the view `pnpm config get update` prints.
+    /// [`Self::update_config`], the view `pnpm config get update` prints.
     /// `None` when nothing is set.
     #[must_use]
     pub fn resolved_update_settings(&self) -> Option<UpdateSettings> {
@@ -146,7 +146,7 @@ impl Config {
     }
 
     /// The `audit` settings the CLI acts on, re-joined from
-    /// [`Self::audit_level`] and [`Self::audit_config`] — the view
+    /// [`Self::audit_level`] and [`Self::audit_config`], the view
     /// `pnpm config get audit` prints. An empty ignore list reads as unset.
     /// `None` when nothing is set.
     #[must_use]
@@ -219,7 +219,7 @@ impl Config {
     /// A falsy check: `minimumReleaseAge: 0` disables the maturity
     /// cutoff. Disabling it is also what makes `resolutionMode:
     /// lowest-direct` / `time-based` observable for direct dependencies
-    /// — while a cutoff is active the picker always prefers the highest
+    ///while a cutoff is active the picker always prefers the highest
     /// mature version, overriding the lowest-version pick.
     pub fn resolved_minimum_release_age(&self) -> Option<u64> {
         self.minimum_release_age.filter(|&minutes| minutes > 0)
@@ -230,8 +230,8 @@ impl Config {
     ///
     /// The `no-downgrade` trust check reads per-version trust evidence
     /// (`_npmUser` / `dist.attestations`) that the abbreviated packument
-    /// *never* carries — `registrySupportsTimeField` only concerns the
-    /// `time` field — so it always requires the full packument. Time-based
+    /// *never* carries, `registrySupportsTimeField` only concerns the
+    /// `time` field, so it always requires the full packument. Time-based
     /// resolution needs only `time`, which abbreviated metadata carries
     /// when the registry advertises it, so it is gated on
     /// `!registrySupportsTimeField`.
@@ -263,8 +263,8 @@ impl Config {
     /// Whether a full packument, once fetched, is stored and read in pnpm's
     /// filtered form rather than verbatim.
     ///
-    /// Answered for the most demanding registry — one that carries no `time`
-    /// — because [`Self::requires_full_metadata_for_registry`] can ask for a
+    /// Answered for the most demanding registry, one that carries no `time`
+    ///because [`Self::requires_full_metadata_for_registry`] can ask for a
     /// full document at a registry
     /// [`Self::requires_full_metadata_for_resolution`] would have left on
     /// abbreviated metadata, and both have to agree on which mirror that

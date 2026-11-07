@@ -1,7 +1,7 @@
 //! Reading, writing, and narrowing `pnpm-lock.yaml`.
 //!
 //! The lockfile format is byte-stable across pnpm's two stacks, so a host
-//! *can* read it with `@pnpm/lockfile.fs` — but then it carries a v11
+//! *can* read it with `@pnpm/lockfile.fs`, but then it carries a v11
 //! JavaScript parser that has to keep agreeing with a v12 engine's writer
 //! about a file both of them own. These exports hand the host the engine's
 //! own reader and writer instead.
@@ -13,7 +13,7 @@
 //! There is no in-memory-only variant to convert to or from.
 //!
 //! Top-level keys pnpm does not define round-trip untouched, so a host that
-//! records its own state beside the lockfile — Bit's `bit:` block — can
+//! records its own state beside the lockfile, Bit's `bit:` block, can
 //! read, edit, and write the file back without losing it.
 
 use std::{
@@ -32,9 +32,9 @@ use crate::error::to_napi_error;
 /// Which of the two lockfiles an operation addresses.
 #[derive(Debug)]
 enum LockfileKind {
-    /// `<dir>/pnpm-lock.yaml` — what the workspace asks for.
+    /// `<dir>/pnpm-lock.yaml`, what the workspace asks for.
     Wanted,
-    /// `<modulesDir>/.pnpm/lock.yaml` — what the last install actually
+    /// `<modulesDir>/.pnpm/lock.yaml`, what the last install actually
     /// materialized.
     Current,
 }
@@ -87,13 +87,13 @@ pub struct FilterLockfileOptions {
     pub include_dev_dependencies: Option<bool>,
     /// Whether they keep their `optionalDependencies`. Defaults to `true`.
     pub include_optional_dependencies: Option<bool>,
-    /// Dep paths to treat as already visited — the optional dependencies
+    /// Dep paths to treat as already visited, the optional dependencies
     /// this platform did not install. Neither they nor anything reachable
     /// only through them is kept.
     pub skipped: Option<Vec<String>>,
     /// Whether a dependency reference with no `snapshots` entry fails with
     /// `ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY`. Defaults to `false`, which
-    /// drops the reference and keeps walking — what a caller inspecting a
+    /// drops the reference and keeps walking, what a caller inspecting a
     /// possibly-stale lockfile wants.
     pub fail_on_missing_dependencies: Option<bool>,
     /// Whether a `devDependencies` entry of the root importer provides a peer to
@@ -173,7 +173,7 @@ fn into_filter_options(options: Option<FilterLockfileOptions>) -> FilterByImport
 /// are pruned to the transitive closure of what they still depend on.
 /// Every other importer entry is carried through untouched.
 ///
-/// Synchronous — it is a transform over data the caller already holds.
+/// Synchronous, it is a transform over data the caller already holds.
 #[napi]
 pub fn filter_lockfile_by_importers(
     lockfile: serde_json::Value,

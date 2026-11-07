@@ -51,14 +51,14 @@ fn validate_published_version(
 /// the partial-unpublish `PUT`, which otherwise persists the body verbatim.
 /// [`super::super::expected_tarball_dist`] resolves a tarball request to a version by
 /// `dist.tarball` basename and verifies the bytes against that version's string
-/// `dist.integrity`, so letting either drift — while the bytes on disk stay put —
+/// `dist.integrity`, so letting either drift, while the bytes on disk stay put,
 /// breaks installs of that version (`EINTEGRITY`, or a 404/502 redirect).
 ///
 /// For each version in the body, given a hosted packument: changing the
 /// `dist.integrity` or `dist.tarball` basename of an already-published version is
 /// rejected; omitting either is repaired from the hosted value (the round-trip
 /// drops them on retained versions); and a version not already published is
-/// rejected — this endpoint only removes versions, and an added entry could
+/// rejected, this endpoint only removes versions, and an added entry could
 /// collide a basename or seed a tarball-less one. A `PUT` to a package with no
 /// hosted packument is rejected outright (nothing to unpublish, and the write
 /// would seed versions that publish can never overwrite).
@@ -277,7 +277,7 @@ fn tarball_basename_or_version_route(url: &str, pkg: &CanonicalPackageName) -> O
 
 /// Reject a published version whose `dist` isn't an object: a restore needs an
 /// object to write into, so otherwise it would no-op and persist the version
-/// without the field — the stripping this guards against.
+/// without the field, the stripping this guards against.
 pub(super) fn require_object_dist(manifest: &Value, version: &str) -> Option<RegistryError> {
     if manifest.get("dist").is_some_and(Value::is_object) {
         return None;
@@ -287,8 +287,8 @@ pub(super) fn require_object_dist(manifest: &Value, version: &str) -> Option<Reg
     })
 }
 
-/// All fields of a published version manifest — other than `deprecated` and
-/// `dist` (which has dedicated integrity and tarball checks) — are immutable.
+/// All fields of a published version manifest, other than `deprecated` and
+/// `dist` (which has dedicated integrity and tarball checks), are immutable.
 /// Modifications to `dependencies`, `scripts`, `bin`, or any other metadata
 fn check_existing_fields(
     version: &str,
@@ -395,8 +395,8 @@ fn check_no_extra_dist_fields(
     None
 }
 
-/// All fields of a published version manifest — other than `deprecated` and
-/// `dist` (which has dedicated integrity and tarball checks) — are immutable.
+/// All fields of a published version manifest, other than `deprecated` and
+/// `dist` (which has dedicated integrity and tarball checks), are immutable.
 /// Modifications to `dependencies`, `scripts`, `bin`, or any other metadata
 /// must be rejected.
 pub(super) fn check_version_fields_immutable(

@@ -43,20 +43,20 @@ pub enum LinkFileError {
 // the first failure all converge to the same downgraded value without
 // a lock: the loser's exchange fails, it reloads, and it finds the
 // ladder already advanced. Worst case cost on startup is `N` stale
-// attempts per tier where `N` is the rayon thread count — bounded,
+// attempts per tier where `N` is the rayon thread count, bounded,
 // not per-file.
 const LINK_STATE_CLONE: u8 = 0;
 const LINK_STATE_HARDLINK: u8 = 1;
 const LINK_STATE_COPY: u8 = 2;
 
-/// The tier `Auto` starts at, per platform — the head of
+/// The tier `Auto` starts at, per platform, the head of
 /// [`next_auto_tier`]'s ladder.
 #[cfg(any(target_os = "linux", windows))]
 const AUTO_FIRST_TIER: u8 = LINK_STATE_HARDLINK;
 #[cfg(not(any(target_os = "linux", windows)))]
 const AUTO_FIRST_TIER: u8 = LINK_STATE_CLONE;
 
-/// The wire method `Auto` optimistically resolves to on this platform —
+/// The wire method `Auto` optimistically resolves to on this platform,
 /// the ladder head as `pnpm:progress` reports it. Progress events are
 /// emitted before per-file resolution settles, so this is what the
 /// `imported` message's `method` field carries for `Auto` installs.
@@ -73,13 +73,13 @@ pub fn auto_optimistic_wire_method() -> WireImportMethod {
 /// Linux runs hardlink before clone. A reflink is not the cheap tier
 /// there: it materializes a new inode and copies extent bookkeeping
 /// inside the filesystem's metadata trees, where a hardlink is one
-/// directory entry and an nlink bump — measured on the alotta-files
+/// directory entry and an nlink bump, measured on the alotta-files
 /// fixture (39k files, warm store, btrfs), the whole install is 0.48s
 /// hardlinked against 0.85s cloned, with kernel time 3.1s against
 /// 5.3s. On ext4 the two orders behave identically, since `FICLONE`
 /// is unsupported and every ladder ends at the hardlink tier. The
 /// cost hardlinks carry is shared inodes: a package that mutates its
-/// own files at runtime reaches the store copy — the same exposure
+/// own files at runtime reaches the store copy, the same exposure
 /// every ext4 and Windows install runs with, guarded by
 /// `verify-store-integrity`, not by the import tier.
 ///
@@ -119,7 +119,7 @@ fn downgrade_auto_tier(state: &AtomicU8, from: u8) {
 // One-shot "we picked this import method" log, matching pnpm's
 // `packageImportMethodLogger.debug({ method: 'clone' | 'hardlink' | 'copy' })`
 // in `fs/indexed-pkg-importer/src/index.ts`. Emits once per install per
-// method so a reader of the logs can tell which tier actually ran —
+// method so a reader of the logs can tell which tier actually ran,
 // crucial for verifying hardlinks are kicking in on CI runners where
 // reflink isn't available.
 //
@@ -128,7 +128,7 @@ fn downgrade_auto_tier(state: &AtomicU8, from: u8) {
 // pnpm's `createIndexedPackageImporter` builds a fresh closure per
 // install, so a second install that wires up `pnpm:package-import-method`
 // emits afresh. A module-static here would suppress emits on every
-// install after the first in the same process — fine for the one-shot
+// install after the first in the same process, fine for the one-shot
 // CLI today but a footgun for tests and any future embedded use.
 //
 // Each method gets two emits the first time it's used in an install: a
@@ -182,7 +182,7 @@ pub fn link_file<Reporter: self::Reporter>(
 ) -> Result<(), LinkFileError> {
     // Single `stat` short-circuit. If the target resolves to a live
     // file (directly or via a symlink), a prior install placed it
-    // and there's nothing to do — return without paying for the
+    // and there's nothing to do, return without paying for the
     // import syscall (which would overwrite on the `Copy` /
     // `Auto`-fallback-to-copy path, mismatching the no-op contract
     // the test suite locks in).
@@ -194,7 +194,7 @@ pub fn link_file<Reporter: self::Reporter>(
     // the clean-install case (both calls return `NotFound`).
     //
     // For `NotFound` and any other stat error, fall through to the
-    // import call — it will surface the real error or succeed.
+    // import call, it will surface the real error or succeed.
     if fs::metadata(target_link).is_ok() {
         return Ok(());
     }
@@ -204,16 +204,16 @@ pub fn link_file<Reporter: self::Reporter>(
 
 /// Same as [`link_file`] but without the pre-flight `fs::metadata`
 /// stat. Caller guarantees `target_link` is fresh (does not currently
-/// exist) — the import syscall is invoked directly.
+/// exist), the import syscall is invoked directly.
 ///
 /// On the alotta-files fixture this saves ~170k `stat` syscalls per
 /// clean install. The pre-flight stat in [`link_file`] only matters
 /// to preserve the no-op-on-existing-target contract for the
 /// `Copy` / downgraded `Auto`→`Copy` / `CloneOrCopy`→`Copy` paths,
 /// where `fs::copy` would otherwise silently overwrite. When the
-/// caller knows the target is fresh — as is the case for
+/// caller knows the target is fresh, as is the case for
 /// `crate::import_indexed_dir::populate_dir`, which only ever
-/// runs against a directory it just created — that protection is
+/// runs against a directory it just created, that protection is
 /// unneeded.
 ///
 /// A concurrent install (or a sibling rayon worker writing the same
@@ -230,8 +230,8 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
     // package that edits its own files at runtime (postinstall scripts
     // are the usual offender) ends up mutating the shared store copy.
     // Current pnpm's indexed-pkg-importer does not guard against this
-    // either — postinstall handling lives in the script runner, not the
-    // import layer — so there's nothing to gate on here.
+    // either, postinstall handling lives in the script runner, not the
+    // import layer, so there's nothing to gate on here.
     try_import::<Reporter, Host>(method, logged, source_file, target_link)
         .map(|_| ())
         .or_else(|error| recover_from_concurrent_import(error, source_file, target_link))
@@ -309,7 +309,7 @@ fn recover_from_concurrent_import(
         // unlinked the path writes an equivalent
         // content-addressed file and restores its exec bit in
         // turn, so `NotFound` with the dirent actually gone
-        // means another writer finished the job — the same
+        // means another writer finished the job, the same
         // tolerance the bin-shim chmod applies
         // (`chmod_tolerating_removal` in `pnpm-cmd-shim`,
         // pnpm/pnpm#14353).
@@ -397,10 +397,10 @@ fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink>(
     // package's copy is cheap. A source that has run out of names
     // ([`is_too_many_links`]) copies for the same reason: it costs
     // one file, not the install. Everything else surfaces, `EPERM`
-    // included — a filesystem that refuses links would copy every
+    // included, a filesystem that refuses links would copy every
     // package, which is the disk cost `hardlink` was chosen to
     // avoid, so the user gets an error naming the method instead of
-    // a silent whole-install copy. No caching — the `fs::hard_link`
+    // a silent whole-install copy. No caching, the `fs::hard_link`
     // syscall itself is already cheap; pnpm doesn't cache this path
     // either.
     //
@@ -501,7 +501,7 @@ fn is_link_permission_error(err: &io::Error) -> bool {
 /// The source file already carries every name the filesystem will give
 /// it: 1024 on NTFS, 65000 on ext4. Unlike [`is_cross_device`] and
 /// [`is_link_permission_error`], this is a property of one file
-/// rather than of the filesystem, so it must not retire a tier — every
+/// rather than of the filesystem, so it must not retire a tier, every
 /// other file in the install can still be hardlinked, and only this one
 /// has to be materialized another way. Copying is the only thing that
 /// helps, and it is what pnpm's `linkOrCopy` does here.
@@ -537,12 +537,12 @@ fn copy_and_log<Reporter: self::Reporter>(
     Ok(WireImportMethod::Copy)
 }
 
-/// `Auto`'s downgrade chain — hardlink → clone → copy on Linux and Windows,
+/// `Auto`'s downgrade chain, hardlink → clone → copy on Linux and Windows,
 /// clone → hardlink → copy elsewhere (see [`next_auto_tier`] for the
-/// why) — using `state` to skip tiers that have already failed in this
+/// why), using `state` to skip tiers that have already failed in this
 /// process. Factored out so tests can
 /// pass their own `AtomicU8` and exercise the downgrade logic in
-/// isolation — the production path uses a `static` declared inside
+/// isolation, the production path uses a `static` declared inside
 /// [`link_file`]. Only capability / cross-device style failures
 /// downgrade the cached state; other errors propagate immediately so a
 /// one-off `NotFound` on a single file doesn't permanently disable a
@@ -578,7 +578,7 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
 /// one.
 ///
 /// Only the reflink itself may downgrade. Alignment runs after
-/// reflink created the target, so its error is terminal — downgrading
+/// reflink created the target, so its error is terminal, downgrading
 /// on it would re-attempt the next tier against that just-created file
 /// and mask the real error behind `AlreadyExists`.
 fn clone_tier<Reporter: self::Reporter, Sys: FsReflink>(
@@ -630,7 +630,7 @@ fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink>(
 
 /// `CloneOrCopy`'s clone → copy chain with the same per-process cache
 /// as [`auto_link`]. Differs from `Auto` by skipping the hardlink tier
-/// entirely — matches pnpm's `createCloneOrCopyImporter`, which on
+/// entirely, matches pnpm's `createCloneOrCopyImporter`, which on
 /// first reflink failure reassigns its closure directly to `copyPkg`.
 /// Same error-narrowing as [`auto_link`]: only capability failures
 /// downgrade; real errors propagate.

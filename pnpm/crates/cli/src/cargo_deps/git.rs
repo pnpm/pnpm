@@ -41,7 +41,7 @@ const EXCLUDED_DIRECTORIES: [&str; 2] = [".git", "target"];
 /// A git repository at one revision, as `Cargo.lock` spells it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct GitSource {
-    /// The source identifier without the commit fragment — `git+<url>`
+    /// The source identifier without the commit fragment, `git+<url>`
     /// followed by the `rev`, `tag` or `branch` query the manifest asked
     /// for. Cargo reads it back as a source-replacement key.
     id: String,

@@ -86,7 +86,7 @@ fn assert_ran(workspace: &Path, expected: &[&str], all: &[&str]) {
 
 /// A targeted `update <selector>` is pnpm's `installSome`: the project
 /// it was run in does not run its own lifecycle scripts. The workspace
-/// root still does — the selection left it out, so it is mutated as a
+/// root still does, the selection left it out, so it is mutated as a
 /// plain full install, and here root plus the lone member is the whole
 /// workspace, which is what puts the partial mutation under the
 /// `mutation === 'install'` filter.
@@ -102,7 +102,7 @@ fn targeted_update_in_the_only_member_runs_only_the_workspace_root_scripts() {
 }
 
 /// Once a member the command never touched is left over, the mutated
-/// set covers only part of the workspace — the case pnpm materializes
+/// set covers only part of the workspace, the case pnpm materializes
 /// the rest of the workspace for, and where every mutated project runs
 /// its own scripts whatever its mutation. The targeted member runs
 /// them too; only the untouched member stays silent.
@@ -118,7 +118,7 @@ fn targeted_update_in_a_larger_workspace_runs_the_mutated_projects_scripts() {
 }
 
 /// A selector-less `update` is a full install of the project it was
-/// run in, so that project runs its own scripts — and so does the
+/// run in, so that project runs its own scripts, and so does the
 /// unselected workspace root. The workspace members the command never
 /// touched stay silent.
 #[test]
@@ -157,7 +157,7 @@ fn update_at_the_workspace_root_runs_only_the_root_scripts() {
 }
 
 /// `-r` mutates every project, so nothing is left for the workspace
-/// root to be pushed in for — and a targeted update makes all of those
+/// root to be pushed in for, and a targeted update makes all of those
 /// mutations partial. No project runs its own scripts.
 #[test]
 fn recursive_targeted_update_runs_no_project_scripts() {
@@ -185,7 +185,7 @@ fn recursive_bare_update_runs_every_project_scripts() {
 
 /// `add` is `installSome` like a targeted update, and follows the same
 /// rule: in a workspace it leaves the rest of the members untouched
-/// while the root — mutated as a full install — runs its scripts. The
+/// while the root, mutated as a full install, runs its scripts. The
 /// member the `add` ran in runs its own scripts too, because the
 /// mutated set covers only part of the workspace.
 #[test]

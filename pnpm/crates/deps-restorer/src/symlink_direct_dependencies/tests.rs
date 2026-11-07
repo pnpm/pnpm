@@ -44,7 +44,7 @@ fn importer_task_groups_fold_filesystem_name_aliases() {
 #[test]
 fn importer_task_groups_serialize_all_missing_dirs_together() {
     // None of these directories exist, so there is no filesystem
-    // answer to ask for — and no string transform can predict which
+    // answer to ask for, and no string transform can predict which
     // not-yet-created names (case variants, NFC/NFD normalization
     // pairs) the filesystem will later fold together. Every
     // canonicalization failure shares one serial group, on every
@@ -63,7 +63,7 @@ fn importer_task_groups_serialize_all_missing_dirs_together() {
 #[test]
 fn importer_task_groups_fold_unicode_normalization_aliases() {
     // APFS resolves composed and decomposed forms to one directory;
-    // no string transform groups these — only the filesystem's answer.
+    // no string transform groups these, only the filesystem's answer.
     let dir = tempdir().expect("tempdir");
     let nfc = "packages/caf\u{e9}";
     let nfd = "packages/cafe\u{301}";
@@ -184,7 +184,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     .expect("symlink should succeed");
 
     // Both symlinks must land under `node_modules/` for the wire-
-    // shape assertion below to be meaningful — an emit without the
+    // shape assertion below to be meaningful, an emit without the
     // matching FS effect would mask a real regression.
     let fastify_link = modules_dir.join("fastify");
     let dev_dep_link = modules_dir.join("@pnpm.e2e/dev-dep");
@@ -240,8 +240,8 @@ fn emits_pnpm_root_added_per_direct_dependency() {
 /// A malformed importer snapshot can list the same package name
 /// across multiple sections (e.g. both `dependencies` and
 /// `optionalDependencies`). The dedup pass must collapse that to
-/// one entry — first-wins per the caller-supplied
-/// `dependency_groups` order — so we don't race two
+/// one entry, first-wins per the caller-supplied
+/// `dependency_groups` order, so we don't race two
 /// `symlink_package` calls to the same `node_modules/<name>` and
 /// emit two `pnpm:root added` events for the same dep.
 #[test]
@@ -391,7 +391,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     let config = config.leak();
 
     // Materialize the dependee project so the symlink target exists
-    // before we create it. (Platform-uniform — same reasoning as the
+    // before we create it. (Platform-uniform, same reasoning as the
     // single-importer test above.)
     let shared_dir = workspace_root.join("packages/shared");
     fs::create_dir_all(&shared_dir).unwrap();
@@ -482,7 +482,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     drop(dir);
 }
 
-/// An empty `importers` map is a valid (if degenerate) lockfile —
+/// An empty `importers` map is a valid (if degenerate) lockfile,
 /// nothing to link, no events emitted, no error. Each importer is
 /// installed independently ([#431]), so a lockfile with zero
 /// importers produces zero pnpm:root events; pin this so the
@@ -536,7 +536,7 @@ fn empty_importers_is_a_no_op() {
 }
 
 /// A symlink already pointing at its target is "reused", and a reused
-/// symlink is NOT a `pnpm:root added` — so a re-link (e.g. `pacquet add`
+/// symlink is NOT a `pnpm:root added`, so a re-link (e.g. `pacquet add`
 /// over an already-installed project) emits an event only for genuinely
 /// new dependencies, not every previously-linked one.
 #[test]
@@ -670,7 +670,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
     let config = config.leak();
 
     // Materialize the virtual-store targets each importer's symlink
-    // points at — same precondition the single-importer test sets up.
+    // points at, same precondition the single-importer test sets up.
     for store_name in ["fastify@4.0.0", "react@18.0.0"] {
         let real_name = store_name.split('@').next().unwrap();
         let target = virtual_store_dir
@@ -777,7 +777,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
 /// dir, not stay hard-coded to `node_modules`. Otherwise the symlink
 /// stage would write under `<importer>/node_modules/` while
 /// `.modules.yaml` writing and bin linking (which still use
-/// `config.modules_dir`) would target the configured name — two
+/// `config.modules_dir`) would target the configured name, two
 /// inconsistent layouts for the same install. `modulesDir` is one
 /// directory-name applied uniformly under every importer's `rootDir`.
 #[test]

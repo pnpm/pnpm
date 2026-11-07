@@ -45,7 +45,7 @@ impl ReusedNodeAncestry {
 }
 
 /// Walk a reused node's children and record them, unless another occurrence
-/// owns them — then this node's children stay lazy.
+/// owns them, then this node's children stay lazy.
 pub(super) async fn reused_children<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,

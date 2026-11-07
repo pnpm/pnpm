@@ -77,8 +77,8 @@ pub(super) fn validate_fixed_group_lanes(
 }
 
 /// Resolves each configured epic to its lead directory and the set of member
-/// directories its selectors match. The lead — a single named package with a
-/// semver version — is excluded from its own membership. Membership selectors
+/// directories its selectors match. The lead, a single named package with a
+/// semver version, is excluded from its own membership. Membership selectors
 /// match name globs, `./`-prefixed directory globs, and `!`-prefixed negations.
 pub(super) fn resolve_epics(
     refs: &ProjectRefIndex,
@@ -129,7 +129,7 @@ fn compile_epic_selector(selector: &str) -> EpicSelector {
 
 /// Whether a project is an epic member under pnpm's order-dependent selector
 /// rule: each matching selector overrides the previous verdict, so the last
-/// one to match decides — a positive include or a `!` negation — mirroring
+/// one to match decides, a positive include or a `!` negation, mirroring
 /// `@pnpm/config.matcher`, where a later include can re-include a package an
 /// earlier negation excluded.
 fn matches_epic_selectors(selectors: &[EpicSelector], dir: &str, name: &str) -> bool {
@@ -210,7 +210,7 @@ fn assert_fixed_group_fits_epic(
 /// Resolves every intent's package references to participant directories,
 /// validating along the way: unknown references and names matching several
 /// projects are hard errors, and a release can only be demanded from a
-/// participant — otherwise the intent could never be consumed and the file
+/// participant, otherwise the intent could never be consumed and the file
 /// would linger forever. A `none` decline is fine for any workspace package.
 pub(super) fn resolve_intents(
     intents: &[ChangeIntent],

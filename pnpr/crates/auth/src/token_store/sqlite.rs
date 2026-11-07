@@ -3,7 +3,7 @@ use crate::validation::{
     token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql, token_timestamp_to_sql,
 };
 
-/// `tokens` table DDL — shared by every SQL-backed auth store so the
+/// `tokens` table DDL, shared by every SQL-backed auth store so the
 /// backends store the same shape and records can be moved between them.
 pub(crate) const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
     token_hash      CHAR(64) PRIMARY KEY,

@@ -16,7 +16,7 @@ use std::collections::HashSet;
 pub(crate) struct Manifest {
     /// `configDependencies:` clean-specifier entries. Object-form
     /// entries (the legacy `{ tarball?, integrity }` shape) are dropped
-    /// here — they're only consulted to detect a no-op write of an
+    /// here, they're only consulted to detect a no-op write of an
     /// already-present clean specifier.
     pub(crate) config_dependencies: Option<IndexMap<String, String>>,
     /// `allowBuilds:` boolean entries. Consulted to detect a no-op write
@@ -62,7 +62,7 @@ pub(crate) struct SecurityExceptions {
     /// `auditConfig.ignoreGhsas:` list. Consulted to detect a no-op write
     /// of an already-present list.
     pub(crate) legacy_audit_ghsas: Option<Vec<String>>,
-    /// `audit.ignore:` list — the canonical spelling, which wins over
+    /// `audit.ignore:` list, the canonical spelling, which wins over
     /// `auditConfig.ignoreGhsas` when both are present.
     pub(crate) audit: Option<Vec<String>>,
     /// `minimumReleaseAgeExclude:` list. Consulted to detect a no-op write
@@ -120,7 +120,7 @@ struct AuditData {
 
 /// An `allowBuilds` value, tolerant of the string form pnpm also accepts
 /// (a version spec) so decoding a manifest that uses it doesn't fail. Only
-/// the boolean shape is retained — the only shape `pnpm approve-builds`
+/// the boolean shape is retained, the only shape `pnpm approve-builds`
 /// writes.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]

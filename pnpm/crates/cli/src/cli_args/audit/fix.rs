@@ -53,8 +53,8 @@ pub(crate) struct PruneIgnoredGhsasResult {
     pub(crate) retained: Vec<String>,
 }
 
-/// Split `ignored_ghsas` into those still present in `report` — normalized
-/// to their canonical spelling and deduplicated (`retained`) — and those
+/// Split `ignored_ghsas` into those still present in `report`, normalized
+/// to their canonical spelling and deduplicated (`retained`), and those
 /// that aren't, in their original spelling (`pruned`). Mirrors pnpm's
 /// `pruneIgnoredGhsas`.
 pub(crate) fn prune_ignored_ghsas(
@@ -140,7 +140,7 @@ pub(crate) struct PackumentPublishInfo {
     /// the `created` and `modified` metadata keys alongside version keys.
     pub(crate) time: HashMap<String, String>,
     /// Versions the packument marks as deprecated. Deprecated versions are
-    /// excluded from patched-version validation — a deprecated release is
+    /// excluded from patched-version validation, a deprecated release is
     /// not a viable fix even though it exists on the registry. Parsed rather
     /// than kept as raw keys, because the `time` and `versions` maps may spell
     /// the same release differently (`v1.2.3` vs `1.2.3`).
@@ -148,8 +148,8 @@ pub(crate) struct PackumentPublishInfo {
 }
 
 impl PackumentPublishInfo {
-    /// The lowest non-deprecated published version satisfying `range` — the
-    /// version an inferred patched range actually resolves to — paired with
+    /// The lowest non-deprecated published version satisfying `range`, the
+    /// version an inferred patched range actually resolves to, paired with
     /// its `time` key, which the registry may spell in a non-normalized form
     /// (e.g. `v1.2.3`) that the parsed version drops. `None` when no published
     /// version satisfies the range, whether it was never published, skipped,
@@ -254,9 +254,9 @@ fn resolve_minimum_release_age_excludes(
 
 /// The `minimumReleaseAgeExclude` entries needed to keep the age gate from
 /// blocking the patched versions: one `name@version` spec per fixable
-/// advisory whose fix — the version
+/// advisory whose fix, the version
 /// [`PackumentPublishInfo::lowest_non_deprecated_version`] resolves the
-/// patched range to — is younger than `cutoff`. A version published at or
+/// patched range to, is younger than `cutoff`. A version published at or
 /// before the cutoff doesn't need a bypass, and a version whose publish time
 /// is unknown keeps its entry so a genuinely fresh fix stays installable. An
 /// advisory the packument offers no fix for gets no entry. Ports pnpm's
@@ -389,7 +389,7 @@ fn unfixable_ghsa_ids(report: &AuditReport) -> miette::Result<Vec<String>> {
 }
 
 /// Prompt the user to choose which fixable vulnerabilities to fix and return
-/// the chosen subset. `Ok(None)` means "nothing to do" — the prompt was
+/// the chosen subset. `Ok(None)` means "nothing to do", the prompt was
 /// cancelled or no row was selected; an `Err` means the prompt itself failed
 /// (e.g. a non-TTY/CI stdin) and must surface rather than read as a clean
 /// audit. Ports pnpm's `interactiveAuditFix`, with the flat `dialoguer`

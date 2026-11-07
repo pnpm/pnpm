@@ -2,7 +2,7 @@ use super::flow;
 
 /// How the value a key path names is written.
 pub(crate) enum Inline {
-    /// A block body on the following lines — or no such key at all. The
+    /// A block body on the following lines, or no such key at all. The
     /// line-oriented splices in this module apply.
     Block,
     /// An inline value none of the splices can edit: a multi-line flow
@@ -117,9 +117,7 @@ fn inline_value_on_line(text: &str, line_start: usize) -> Option<usize> {
     Some(line_start + colon + 1 + (after.len() - value.len()))
 }
 
-// ---------------------------------------------------------------------------
 // Line-oriented scanning of the block-style YAML pnpm writes.
-// ---------------------------------------------------------------------------
 
 /// A located mapping and its direct child entries.
 pub(super) struct Mapping {
@@ -204,7 +202,7 @@ pub(super) fn is_top_level_block_boundary(content: &str) -> bool {
 /// The mapping-key a structural line declares (`key:` or `key: value`), if any.
 ///
 /// The key/value delimiter is the first `:` that ends the line or is followed
-/// by whitespace — a `:` inside the value, or inside a key (quoted or not,
+/// by whitespace, a `:` inside the value, or inside a key (quoted or not,
 /// e.g. an `allowBuilds` artifact key like `foo@https://example.com/foo.tgz`),
 /// is not the delimiter. Splitting on the first `:` would truncate such keys.
 fn line_key(content: &str) -> Option<String> {
@@ -251,7 +249,7 @@ pub(super) fn comment_start(value: &str) -> Option<usize> {
 }
 
 /// Byte offset of the quote closing the scalar `value` opens with.
-/// `None` when it is never closed, which leaves the value unparsable —
+/// `None` when it is never closed, which leaves the value unparsable,
 /// the caller then treats the whole of it as the value rather than
 /// guessing where a comment might start.
 ///
@@ -325,7 +323,7 @@ pub(super) fn block_end(all: &[Line<'_>], key_idx: usize, hi: usize, base_indent
 }
 
 /// The child indent is whatever the block's first structural line
-/// uses, not a hard-coded two spaces — so a manifest written with a
+/// uses, not a hard-coded two spaces, so a manifest written with a
 /// wider indent is still traversed correctly.
 fn child_indent(
     all: &[Line<'_>],

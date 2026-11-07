@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import spawn from 'cross-spawn'
 
 /**
- * Throws unless the pnpm CLI in `binDir` can execute — a release can install
+ * Throws unless the pnpm CLI in `binDir` can execute, a release can install
  * cleanly and still not run, when its wrapper kept the placeholder bin of a
  * platform package that shipped without a native.
  *
@@ -35,7 +35,7 @@ export function assertPnpmRuns (binDir: string, version: string): void {
   const { status, error, stderr } = result
   if (error == null && status === 0) return
   // A signal leaves `status` null, which macOS produces for a binary its
-  // signature check rejects — the exact shape of an incorrectly signed release.
+  // signature check rejects, the exact shape of an incorrectly signed release.
   const exit = status != null ? `code ${status}` : 'a signal'
   const reason = error != null
     ? error.message

@@ -20,9 +20,9 @@ use std::{
 ///
 /// Diagnostic codes:
 ///
-/// - `ERR_PNPM_PATCH_NOT_FOUND` — the patch file is missing.
-/// - `ERR_PNPM_INVALID_PATCH` — the patch file can't be parsed.
-/// - `ERR_PNPM_PATCH_FAILED` — a hunk wouldn't apply, the target
+/// - `ERR_PNPM_PATCH_NOT_FOUND`, the patch file is missing.
+/// - `ERR_PNPM_INVALID_PATCH`, the patch file can't be parsed.
+/// - `ERR_PNPM_PATCH_FAILED`, a hunk wouldn't apply, the target
 ///   file is missing, or an IO error hit a target path.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum PatchApplyError {
@@ -59,7 +59,7 @@ pub enum PatchApplyError {
 /// Apply a unified-diff patch file to every modified/created/deleted
 /// file inside `patched_dir`.
 ///
-/// Uses [`diffy`] for parsing and applying — pure Rust, no subprocess,
+/// Uses [`diffy`] for parsing and applying, pure Rust, no subprocess,
 /// no Node, cross-platform. Running `patch` or `git apply` directly
 /// would be simpler, but `patch` is not available on Windows and
 /// `git apply` is hard to execute on a subdirectory of an existing
@@ -262,7 +262,7 @@ impl FileApply<'_> {
         let original = String::from_utf8_lossy(&bytes).into_owned();
         let updated = match tolerant::apply(&original, text_patch) {
             Ok(updated) => updated,
-            // File is already in the post-patch state — reverse applies
+            // File is already in the post-patch state, reverse applies
             // cleanly. If the patch requested a mode change that is not yet
             // reflected, or the target is still a symlink, re-write atomically
             // to break store hardlinks and safely isolate without mutating inodes in-place.
@@ -327,7 +327,7 @@ impl FileApply<'_> {
 
     /// A "new file" patch (`--- /dev/null`) means the target is expected NOT
     /// to exist. Refusing to overwrite matches `patch`'s and `git apply`'s
-    /// behavior — silently clobbering a real file would be a data-loss
+    /// behavior, silently clobbering a real file would be a data-loss
     /// footgun if the patch was authored against the wrong base.
     ///
     /// Idempotency exception: if the target already contains exactly the
@@ -390,7 +390,7 @@ impl FileApply<'_> {
     }
 
     /// A delete block that carries hunks is validated against the file on
-    /// disk before unlinking — a stale or wrong-target patch would otherwise
+    /// disk before unlinking, a stale or wrong-target patch would otherwise
     /// silently delete the wrong file. `diffy::apply` on such a patch
     /// produces the empty string when every hunk matches.
     ///

@@ -76,7 +76,7 @@ fn parse_bulk_advisories(
 
 /// Corrects inferred `patched_versions` ranges against the registry: the
 /// inference from `vulnerable_versions` is purely syntactic, so the inferred
-/// minimum may not be a viable fix — it may never have been published, been
+/// minimum may not be a viable fix, it may never have been published, been
 /// skipped, been yanked, or been deprecated. When the inferred range is
 /// satisfiable, it is narrowed to the lowest non-deprecated published version
 /// (e.g. `>=4.17.24` becomes `>=4.18.1` when 4.17.24 does not exist and

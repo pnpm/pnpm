@@ -1,7 +1,7 @@
 use super::{LogLevel, Serialize};
 
 /// `pnpm:package-manifest` payload. The bunyan-envelope `level` is a
-/// fixed outer field; the rest is a presence-tagged union — pnpm
+/// fixed outer field; the rest is a presence-tagged union, pnpm
 /// keys on whether `initial` or `updated` is present rather than
 /// using a `status` discriminator. `#[serde(untagged)]` matches
 /// that shape; `#[serde(flatten)]` keeps `prefix` adjacent to
@@ -14,7 +14,7 @@ pub struct PackageManifestLog {
 }
 
 /// `pnpm:package-manifest` discriminated payload. The `Value` carries
-/// the entire on-disk `package.json` body — pnpm's reporter doesn't
+/// the entire on-disk `package.json` body, pnpm's reporter doesn't
 /// pick fields out, it threads the manifest through to consumers
 /// like the audit pipeline that need the full thing.
 #[derive(Debug, Clone, Serialize)]
@@ -132,16 +132,16 @@ pub struct SkippedOptionalParent {
 /// Package identifier carried on a [`SkippedOptionalDependencyLog`].
 /// Two shapes, depending on `reason`:
 ///
-/// - [`SkippedOptionalPackage::Installed`] — `{ id, name, version }`
+/// - [`SkippedOptionalPackage::Installed`], `{ id, name, version }`
 ///   for `build_failure` / `fetch_failure` / `unsupported_engine` /
 ///   `unsupported_platform`.
-/// - [`SkippedOptionalPackage::ResolutionFailure`] —
+/// - [`SkippedOptionalPackage::ResolutionFailure`],
 ///   `{ name?, version?, bareSpecifier }` for `resolution_failure`.
 ///   Emitted by the deps resolver's skipped-optional sink when an
 ///   optional dependency's resolution failure drops the edge.
 ///
 /// `#[serde(untagged)]` so each variant serializes as its own object
-/// shape — a union of two `package: { ... }` types.
+/// shape, a union of two `package: { ... }` types.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum SkippedOptionalPackage {

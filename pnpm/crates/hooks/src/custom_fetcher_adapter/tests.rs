@@ -178,8 +178,8 @@ async fn empty_picker_returns_none() {
     assert!(result.is_none());
 }
 
-/// A `canFetch` answer that is not a resolution object — the reply shape a
-/// worker sends when a fetcher's `canFetch` is gone by the time it is called —
+/// A `canFetch` answer that is not a resolution object, the reply shape a
+/// worker sends when a fetcher's `canFetch` is gone by the time it is called,
 /// must not blank the resolution for the fetchers behind it, and must leave the
 /// locked integrity restorable.
 #[tokio::test]

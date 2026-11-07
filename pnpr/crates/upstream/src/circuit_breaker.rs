@@ -3,13 +3,13 @@ use super::{Duration, Instant, Mutex};
 /// Verdaccio's `max_fails` / `fail_timeout` circuit breaker. After
 /// `max_fails` consecutive failures the upstream is considered down and
 /// requests short-circuit, until `fail_timeout` elapses since the last
-/// failure — a single probe is then allowed through, and its success
+/// failure, a single probe is then allowed through, and its success
 /// resets the breaker or its failure restarts the cooldown.
 ///
 /// The half-open probe is gated by the cooldown window itself: admitting
 /// a probe advances `last_failure` to now, so concurrent callers in that
 /// window stay short-circuited and a recovering upstream sees one probe
-/// rather than a stampede. Crucially this can't *stick* — a probe whose
+/// rather than a stampede. Crucially this can't *stick*, a probe whose
 /// request is cancelled or dropped before it reports back lets the
 /// window lapse, after which the next caller probes. A sticky in-flight
 /// flag would deadlock the breaker on a cancelled request.
@@ -67,7 +67,7 @@ impl CircuitBreaker {
         // Admit this probe and re-arm the cooldown so the next caller is
         // held back for another `fail_timeout`. If the probe never reports
         // back (cancelled mid-request), the window lapses and the
-        // following caller probes — the breaker can't deadlock.
+        // following caller probes, the breaker can't deadlock.
         state.last_failure = Some(Instant::now());
         true
     }

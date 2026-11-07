@@ -51,7 +51,7 @@ impl BodyVerification {
 /// The extractor runs on a blocking thread fed through a channel. It
 /// removes the content coding, hashes the decoded resource, and extracts
 /// it, so what is held in memory is the queued chunks plus the
-/// extractor's own bounded batch — never the archive.
+/// extractor's own bounded batch, never the archive.
 ///
 /// `seed` is the part of the body already pulled off the socket; the
 /// caller has reported it to `progress`.
@@ -255,7 +255,7 @@ where
     // path will ever fill: past the threshold below the body is
     // handed to the streaming extractor, so reserving for a larger
     // advertised size would be reserving for bytes that never land
-    // here — and would let a server's claim, rather than its body,
+    // here, and would let a server's claim, rather than its body,
     // decide the size of an allocation.
     let reserve =
         inputs.expected_size.map(|size| size.min(STREAM_EXTRACT_COMPRESSED_THRESHOLD as u64));

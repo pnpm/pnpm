@@ -2,7 +2,7 @@
 //! [`crate::ThrottledClient::for_installs`].
 //!
 //! [`ProxyConfig`] holds the resolved `(https_proxy, http_proxy, no_proxy)`
-//! triple — typically built by `pnpm-config` from the `.npmrc` keys
+//! triple, typically built by `pnpm-config` from the `.npmrc` keys
 //! `https-proxy`, `http-proxy`, `proxy` (legacy), `no-proxy` and
 //! `noproxy`, plus the env-var fallback cascade. [`NoProxyMatcher`] and
 //! the URL helpers are private to the crate; they're invoked from the
@@ -53,7 +53,7 @@ pub struct ProxyConfig {
 /// The setting takes either a host-list string or the literal `true`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NoProxySetting {
-    /// `no-proxy=true` — bypass every proxy regardless of host.
+    /// `no-proxy=true`, bypass every proxy regardless of host.
     Bypass,
     /// Comma-separated host list, trimmed and empties dropped. Match
     /// semantics are reverse-dot-segment-prefix.
@@ -84,7 +84,7 @@ pub enum ProxyError {
 /// authority so values like `proxy.example:8080` round-trip as a proxy
 /// URL. Any other parse failure surfaces as [`ProxyError::InvalidProxy`].
 ///
-/// A successful first parse is only accepted if the URL has a host —
+/// A successful first parse is only accepted if the URL has a host,
 /// Rust's `Url::parse` is permissive enough to accept
 /// `proxy.example:8080` as a valid URL with scheme `proxy.example` and
 /// path `8080`, which is not what pnpm (or anyone) means by a proxy

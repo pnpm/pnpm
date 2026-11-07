@@ -237,7 +237,7 @@ impl StartedGate {
     }
 }
 
-/// `<name>@<version>:<integrity>` — the package-id shape the GVS hash
+/// `<name>@<version>:<integrity>`, the package-id shape the GVS hash
 /// incorporates.
 fn full_pkg_id(name: &str, version: &str, integrity: &Integrity) -> String {
     format!("{name}@{version}:{integrity}")
@@ -319,7 +319,7 @@ fn prune_unexpected_siblings<Reporter: self::Reporter>(
 /// Remove a stale `.pnpm-config` entry (or optional-subdep sibling).
 /// These are directory symlinks/junctions created by
 /// [`pnpm_fs::force_symlink_dir`], so they're unlinked via
-/// [`pnpm_fs::remove_symlink_dir`] rather than recursively deleted —
+/// [`pnpm_fs::remove_symlink_dir`] rather than recursively deleted,
 /// `remove_dir_all` is the wrong primitive for a link and behaves
 /// inconsistently across platforms. A real directory left by an older
 /// layout falls back to a recursive remove. A genuine failure (anything

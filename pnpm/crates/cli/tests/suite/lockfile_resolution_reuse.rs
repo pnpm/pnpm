@@ -94,7 +94,7 @@ fn compatible_package_range_update_skips_resolution() {
 /// resolution attempt against it fails fast with a connection refusal.
 fn dead_registry_url() -> String {
     // Bind to an ephemeral port, read it, then drop the listener so the
-    // port is (almost certainly) free again — anything that connects to
+    // port is (almost certainly) free again, anything that connects to
     // it gets refused.
     let listener =
         TcpListener::bind(("127.0.0.1", 0)).expect("bind an ephemeral port to learn a free one");
@@ -110,7 +110,7 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
     let AddMockedRegistry { mock_instance, npmrc_path, .. } = npmrc_info;
 
     // Trust the lockfile so the post-resolution verifier doesn't fetch
-    // each entry's metadata from the registry — that verification is a
+    // each entry's metadata from the registry, that verification is a
     // separate concern from resolution reuse, and it would hit the dead
     // registry regardless of whether resolution was reused, masking what
     // this test proves.
@@ -168,7 +168,7 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
     .expect("rewrite package.json with a widened range");
 
     // Succeeds only because the unchanged subtree is reused from the
-    // lockfile — re-resolving either package would hit the dead registry.
+    // lockfile, re-resolving either package would hit the dead registry.
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -181,13 +181,13 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
 /// one produced by resolving the same manifest entirely from scratch.
 ///
 /// The discriminating test above proves reuse *fires*; this proves it's
-/// *correct* — that reusing an unchanged subtree yields the same tree a
+/// *correct*, that reusing an unchanged subtree yields the same tree a
 /// fresh resolve would, so reuse can never silently drift the resolution.
 ///
 /// Compared **byte-for-byte**: the writer sorts every lockfile map by its
 /// rendered key, so build-insertion order cannot leak into the file. A
 /// reuse build and a fresh build of the same manifest therefore emit
-/// identical bytes — this is the byte-stability guarantee from
+/// identical bytes, this is the byte-stability guarantee from
 /// [#12117](https://github.com/pnpm/pnpm/issues/12117).
 #[test]
 fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
@@ -258,7 +258,7 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
 /// * `pkg-b` deps `parent` plus `dep-of-pkg-with-1-dep` directly. The
 ///   test bumps that direct dep; `target`'s snapshot also depends on
 ///   it, so pkg-b's transitive edge to `target` (depth 1) is denied
-///   reuse by the changed-direct-dep gate and resolves fresh — with
+///   reuse by the changed-direct-dep gate and resolves fresh, with
 ///   the same wanted key pkg-a already cached.
 ///
 /// Importers resolve in order, so pkg-a's cache entry exists when
@@ -267,7 +267,7 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
 /// deterministic rather than a race.
 ///
 /// `target`'s dep `@pnpm.e2e/abc` wants peers nothing in the subtree
-/// provides, so auto-install-peers suffixes `target` — the corrupted
+/// provides, so auto-install-peers suffixes `target`, the corrupted
 /// instance is then visible as a distinct bare-key `{}` snapshot rather
 /// than colliding with the healthy suffixed one.
 #[test]
@@ -577,7 +577,7 @@ fn an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not() {
     );
 
     // Patching a locked package renames its snapshot, which the rewrite
-    // does without asking the registry anything — the tarball it patches
+    // does without asking the registry anything, the tarball it patches
     // is already in the store.
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");

@@ -40,7 +40,7 @@ async fn network_error_display_includes_reqwest_inner_chain() {
 
     // Reqwest's wrapper already includes the URL in `(...)`; the
     // leaf reason appears after the wrapper, separated by `: `.
-    // Assert there *is* a non-empty frame after that — without
+    // Assert there *is* a non-empty frame after that, without
     // `walk_reqwest_chain`, this is exactly what got dropped.
     let leaf_section = rendered
         .split_once("error sending request for url (")
@@ -56,7 +56,7 @@ async fn network_error_display_includes_reqwest_inner_chain() {
         "leaf should be joined with `: ` per walk_reqwest_chain, got: {rendered:?}",
     );
 
-    // Structural form for completeness — `#[error(source)]` should
+    // Structural form for completeness, `#[error(source)]` should
     // expose the reqwest::Error so miette / `Error::source` can
     // walk into it independently of our flattened Display.
     assert!(
@@ -130,7 +130,7 @@ store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: Non
 /// registry serving a tarball that isn't what its metadata says, leaves
 /// a store row whose `package.json` names another package. Reusing it
 /// would install that other package under this name, so the read fails
-/// instead — pnpm's `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE`.
+/// instead, pnpm's `ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE`.
 #[tokio::test]
 async fn store_row_holding_another_package_fails_the_read() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
@@ -894,7 +894,7 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
 }
 
 /// 404 is in pnpm's no-retry set. `expect(1)` makes the test fail if
-/// the retry loop fires a second request — that would mean we're
+/// the retry loop fires a second request, that would mean we're
 /// spinning on a permanently-missing tarball.
 #[tokio::test]
 async fn fails_fast_on_404() {

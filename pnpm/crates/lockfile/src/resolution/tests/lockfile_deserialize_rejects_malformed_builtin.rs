@@ -88,7 +88,7 @@ fn to_lockfile_form_keeps_a_pnpr_url_when_the_layout_is_undeclared() {
 }
 
 /// Under the Artifactory layout the npm-layout URL is the one pnpm cannot
-/// rebuild, so it has to survive verbatim — the inverse of the default.
+/// rebuild, so it has to survive verbatim, the inverse of the default.
 #[test]
 fn to_lockfile_form_keeps_the_npm_layout_url_on_an_artifactory_registry() {
     let tarball = format!("{ARTIFACTORY_REGISTRY}@acme/widget/-/widget-1.2.3.tgz");
@@ -139,7 +139,7 @@ fn to_lockfile_form_keeps_the_artifactory_url_when_include_tarball_url_is_set() 
 
 /// A registry declared to behave like registry.npmjs.org gets its leniency:
 /// the percent-encoded scoped path is reconstructible there too. Undeclared,
-/// the same URL must survive — the registry may serve only the encoded path.
+/// the same URL must survive, the registry may serve only the encoded path.
 /// See <https://github.com/pnpm/pnpm/issues/13534>.
 #[test]
 fn to_lockfile_form_drops_the_encoded_scoped_path_only_when_the_registry_is_declared_npm() {

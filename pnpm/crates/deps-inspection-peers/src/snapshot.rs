@@ -176,7 +176,7 @@ pub(super) fn satisfies(version: &str, range: &str) -> bool {
     }
     // pnpm asks semver for `includePrerelease`, which drops the rule
     // that a prerelease only satisfies a comparator carrying a
-    // prerelease of its own `major.minor.patch` — `node-semver`'s Rust
+    // prerelease of its own `major.minor.patch`, `node-semver`'s Rust
     // port applies that rule unconditionally. What is left is the plain
     // bound check, and ordering still holds: `18.3.0-canary` satisfies
     // `^18.0.0`, while `2.0.0-beta.1` stays below `>=2.0.0`.

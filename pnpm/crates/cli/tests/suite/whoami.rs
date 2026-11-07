@@ -20,7 +20,7 @@ fn pacquet_at(workspace: &Path) -> Command {
 }
 
 /// The nerf-darted `.npmrc` auth-key prefix (`//host:port/path/`) for a
-/// registry URL — its scheme dropped and a single trailing slash kept.
+/// registry URL, its scheme dropped and a single trailing slash kept.
 fn nerf(registry: &str) -> String {
     let without_scheme = registry
         .strip_prefix("http://")

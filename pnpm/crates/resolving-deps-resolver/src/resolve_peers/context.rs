@@ -31,7 +31,7 @@ use std::{
 pub(super) struct ParentRef {
     pub(super) version: Arc<str>,
     /// `None` for top-level deps that were already installed. Pacquet
-    /// doesn't surface those yet — `None` only appears on the
+    /// doesn't surface those yet, `None` only appears on the
     /// importer-level cycle-break fallback, where the `name@version`
     /// form of the peer-id is the only useful representation.
     pub(super) node_id: Option<NodeId>,
@@ -41,7 +41,7 @@ pub(super) struct ParentRef {
 }
 
 /// `name → ParentRef` map propagated down the walk. Entries are indexed
-/// by both the package's real name and its alias when the two differ —
+/// by both the package's real name and its alias when the two differ,
 /// `react-dom@npm:next` resolves a `peerDependencies.react-dom`
 /// requirement against the alias and `peerDependencies.next` against
 /// the real name.
@@ -103,7 +103,7 @@ impl<Element: PartialEq> SharedChain<Element> {
 ///
 /// Each entry keeps the link it is keyed on alive. Addresses are only
 /// unique among live allocations, so a dropped link could otherwise
-/// hand its address — and its answer — to whatever was allocated there
+/// hand its address, and its answer, to whatever was allocated there
 /// next.
 pub(super) struct ChainSuffixMemo<Element> {
     answers: HashMap<usize, (Arc<SharedChainLink<Element>>, bool)>,

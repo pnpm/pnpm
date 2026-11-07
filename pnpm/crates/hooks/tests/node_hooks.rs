@@ -64,7 +64,7 @@ module.exports = {
     pnpmfile_path
 }
 
-// --- Custom fetcher integration tests ---
+// - Custom fetcher integration tests
 
 fn write_custom_fetchers_pnpmfile(dir: &std::path::Path) -> std::path::PathBuf {
     let pnpmfile_path = dir.join(".pnpmfile.cjs");

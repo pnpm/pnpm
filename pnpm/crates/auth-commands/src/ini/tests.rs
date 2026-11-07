@@ -1,8 +1,8 @@
 use super::{IniSettings, encode_value};
 
 /// One `auth.ini` line holding `key = value`, quoted the way the writer
-/// quotes it, so a test can start from a file an earlier `pnpm login` — or a
-/// hand edit — could have left behind.
+/// quotes it, so a test can start from a file an earlier `pnpm login`, or a
+/// hand edit, could have left behind.
 fn line(key: &str, value: &str) -> String {
     format!("{}={}\n", encode_value(key), encode_value(value))
 }
@@ -62,9 +62,9 @@ fn a_value_with_a_newline_survives_a_removal_as_one_line() {
 }
 
 // `encode_value` and `decode_value` must be inverses for every value shape
-// the `ini` package quotes — `=`, an already-`"`-wrapped value (else the
+// the `ini` package quotes, `=`, an already-`"`-wrapped value (else the
 // quotes are stripped on read), leading/trailing whitespace (else trimmed),
-// and a leading `[` — not just newlines.
+// and a leading `[`, not just newlines.
 #[test]
 fn quotes_every_ambiguous_value_shape_for_a_faithful_round_trip() {
     for value in [

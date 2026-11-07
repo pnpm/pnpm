@@ -77,7 +77,7 @@ where
         fetch_options,
         // A plain `FnMut` returning an `async move` block (not an `AsyncFnMut`),
         // so the produced future is a concrete type with an ordinary `Send`
-        // obligation — see `with_otp_handling`'s `Operation` bound.
+        // obligation, see `with_otp_handling`'s `Operation` bound.
         move |challenge_otp: Option<String>| {
             // The web-auth-provided OTP (a fresh challenge) takes precedence
             // over any statically configured one.

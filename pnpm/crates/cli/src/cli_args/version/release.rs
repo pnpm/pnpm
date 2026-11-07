@@ -196,7 +196,7 @@ impl PlannedWorkspaceRelease {
             // A full (unfiltered) run garbage-collects the intent files an
             // empty plan leaves behind: declined ("none"-only) intents and
             // files a merge resurrected after every named package had already
-            // consumed them. A filtered run must not — "nothing pending in
+            // consumed them. A filtered run must not, "nothing pending in
             // this scope" is no reason to delete prose belonging to packages
             // outside the filter.
             if !args.dry_run && self.unfiltered {

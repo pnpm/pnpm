@@ -560,9 +560,7 @@ fn foo_packument(upstream_url: &str) -> Value {
     })
 }
 
-// --------------------------------------------------------------------
 // Registry routing (RFC: registries for pnpr).
-// --------------------------------------------------------------------
 
 /// Mock a one-version packument plus its tarball for `pkg` on `server`,
 /// returning the tarball bytes.
@@ -594,8 +592,8 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
     body
 }
 
-/// Build a config with two public upstream registries — `corp` claiming `@corp/*`
-/// and a pattern-less `npmjs` catch-all — and a `main` router over them,
+/// Build a config with two public upstream registries, `corp` claiming `@corp/*`
+/// and a pattern-less `npmjs` catch-all, and a `main` router over them,
 /// aliased by the path-less base.
 fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);

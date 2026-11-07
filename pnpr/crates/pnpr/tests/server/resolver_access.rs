@@ -187,7 +187,7 @@ async fn authenticated_resolve_preserves_git_dependencies() {
 }
 
 /// Mirrors the YAML rule at the programmatic layer: an upstream reachable
-/// without an `access:` gate may not send custom headers — any header can
+/// without an `access:` gate may not send custom headers, any header can
 /// carry a credential, and an ungated `/~<name>/` would let every caller
 /// spend it.
 #[tokio::test]
@@ -211,7 +211,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
 
     // The resolver surface stays reachable. `/-/ping` and the capability
     // handshake answer 200; `/-/pnpr/v0/verify-lockfile` is mounted and gated,
-    // so an anonymous request is a 401 rather than a 404 (route absent) — that
+    // so an anonymous request is a 401 rather than a 404 (route absent), that
     // distinction is the point of the assertion.
     let ping = app
         .clone()
@@ -362,7 +362,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         .as_str()
         .unwrap()
         .to_string();
-    // The `/~<prefix>/`-addressed twins answer too — they must not depend on
+    // The `/~<prefix>/`-addressed twins answer too, they must not depend on
     // the (absent) registry segment routes.
     for path in [
         "/-/whoami",
@@ -449,8 +449,8 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
 
-    // The registry tier has a pnpr protocol of its own — the cross-ecosystem
-    // publish transaction — so the handshake answers, and reports no resolver.
+    // The registry tier has a pnpr protocol of its own, the cross-ecosystem
+    // publish transaction, so the handshake answers, and reports no resolver.
     let handshake = app
         .clone()
         .oneshot(

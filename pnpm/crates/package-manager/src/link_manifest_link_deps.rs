@@ -164,9 +164,9 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
         }
         for (alias, spec) in manifest.dependencies([group]) {
             if link_manifest_dep::<Reporter>(project, group, alias, spec)? {
-                // Bins are (re-)linked for reused symlinks too — the
-                // `.bin` entry may be missing even when the package
-                // link itself is already correct.
+                // Bins are relinked for reused symlinks too. The `.bin`
+                // entry may be missing even when the package link is
+                // already correct.
                 linked_aliases.push(alias.to_string());
             }
         }
@@ -204,8 +204,8 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     else {
         return Ok(false);
     };
-    // The alias is a raw `package.json` object key — an
-    // unvalidated string. Route the join through the same
+    // The alias is an unvalidated raw `package.json` object key.
+    // Route the join through the same
     // package-name validity check the lockfile-driven
     // passes apply, so a crafted alias (`../.git`, an
     // absolute path, a backslash) cannot escape
@@ -322,8 +322,8 @@ fn dependency_type_of(group: DependencyGroup) -> DependencyType {
 }
 
 /// `true` when the importer snapshot resolves `alias` in any of the
-/// non-peer dependency groups — i.e. the lockfile knows the dep and
-/// the lockfile-driven passes own its materialization.
+/// non-peer dependency groups. The lockfile knows the dep, and the
+/// lockfile-driven passes own its materialization.
 pub(crate) fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
         .into_iter()
@@ -336,8 +336,8 @@ pub(crate) fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> boo
 
 /// Resolve a `link:` payload against the project directory. An
 /// absolute payload is used as-is; a relative one (including the
-/// self-reference `link:.`) is anchored at the project dir — the same
-/// semantics pnpm applies to `link:` specifiers in a manifest.
+/// self-reference `link:.`) is anchored at the project dir. This
+/// matches pnpm's semantics for `link:` specifiers in a manifest.
 fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
     let path = Path::new(target);
     if path.is_absolute() { path.to_path_buf() } else { project_dir.join(path) }
@@ -346,8 +346,8 @@ fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
 /// Error type of the pass that links dependencies `excludeLinksFromLockfile` keeps out of the lockfile.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkManifestLinkDepsError {
-    /// A dependency key that is not a valid npm package name — it
-    /// would escape `node_modules/` (or collide with pnpm's layout)
+    /// A dependency key that is not a valid npm package name would
+    /// escape `node_modules/` (or collide with pnpm's layout)
     /// when joined as a directory name.
     #[diagnostic(transparent)]
     InvalidAlias(#[error(source)] InvalidDependencyAliasError),

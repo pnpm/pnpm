@@ -197,11 +197,11 @@ backend:
     assert!(err.to_string().contains("backend.libsql.syncInterval"), "{err}");
 }
 
-// ----- serde defaults ---------------------------------------------------
+// serde defaults
 
 #[test]
 fn yaml_with_no_storage_uses_default_storage_string() {
-    // `storage:` is absent entirely — `default_storage_string`
+    // `storage:` is absent entirely, `default_storage_string`
     // supplies `"./storage"`, which `resolve_relative` then joins
     // to the config-file's parent dir.
     let yaml = "cors: {}\n";

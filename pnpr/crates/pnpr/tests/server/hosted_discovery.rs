@@ -193,7 +193,7 @@ async fn starved_upstream_still_counts_toward_the_search_total() {
 /// `/~<name>/...` (RFC "registries", implementation point 7): dist-tag
 /// read/add/remove, whoami, search, the version manifest, and the whole
 /// unpublish flow. The registry here is deliberately *not* reachable from any
-/// default target — without the registry-addressed surface these operations
+/// default target, without the registry-addressed surface these operations
 /// would be impossible for it.
 #[tokio::test]
 async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_version_manifest()
@@ -359,7 +359,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
 
     // The unpublish flow: PUT back a packument without the version, delete
     // its tarball (the unencoded scoped 7-segment form), then delete the
-    // package — all through the registry.
+    // package, all through the registry.
     let current = app
         .clone()
         .oneshot(
@@ -428,7 +428,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
 
 /// Path-less responses resolved to a private registry carry the same
 /// `Cache-Control: private, no-store` / `Vary: Authorization` headers the
-/// `/~<name>/` surface applies — same content, same defense against a shared
+/// `/~<name>/` surface applies, same content, same defense against a shared
 /// HTTP cache. A public resolution stays cacheable.
 #[tokio::test]
 async fn pathless_private_registry_responses_carry_private_cache_headers() {
@@ -517,7 +517,7 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
 
 /// A per-package ACL that denies anonymous callers makes the path-less
 /// response vary by `Authorization` even when the source registry itself is
-/// public, so it must carry the private-cache headers — otherwise a shared
+/// public, so it must carry the private-cache headers, otherwise a shared
 /// HTTP cache could replay an authenticated 200 to an anonymous caller.
 #[tokio::test]
 async fn pathless_acl_gated_package_carries_private_cache_headers() {

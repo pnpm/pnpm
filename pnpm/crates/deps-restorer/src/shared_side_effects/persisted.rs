@@ -234,8 +234,8 @@ pub(super) async fn store_holds(path: &Path, digest: &str) -> Result<bool, Strin
     // reparse point instead of the file it names.
     #[cfg(windows)]
     options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
-    // Whatever turned the open away — absent, a directory, a symlink
-    // `O_NOFOLLOW` refused, a permission error — names something the caller
+    // Whatever turned the open away, absent, a directory, a symlink
+    // `O_NOFOLLOW` refused, a permission error, names something the caller
     // cannot reuse, and its fallback is a verified download that reports any
     // real fault itself. A failure once the file is open is different: that
     // one is reported below, since the store handed over a file it then could

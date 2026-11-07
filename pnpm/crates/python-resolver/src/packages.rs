@@ -211,7 +211,7 @@ impl Excluded {
 /// Only the names a failure prints are kept. A page lists every release a
 /// distribution ever published, and reading one is not a reason to hold
 /// that many versions for a message that names [`NAMED_RELEASES`] of
-/// them — least of all on a server answering requests.
+/// them, least of all on a server answering requests.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Releases {
     count: usize,

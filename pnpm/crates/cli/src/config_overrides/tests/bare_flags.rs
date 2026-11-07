@@ -229,7 +229,7 @@ fn a_setting_flag_does_not_swallow_the_command_it_precedes() {
 }
 
 /// A setting is stripped from argv before clap runs, so one spelled like
-/// a *global* option would claim that option on every command line — a
+/// a *global* option would claim that option on every command line, a
 /// command's own option is left for clap instead, and can collide.
 #[test]
 fn no_bare_setting_flag_shadows_a_global_option() {

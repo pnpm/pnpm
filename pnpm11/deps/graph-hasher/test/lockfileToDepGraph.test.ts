@@ -238,7 +238,7 @@ describe('lockfileToDepGraph with variations resolution', () => {
   const muslVariantIntegrity = 'sha256-musl=='
   const darwinVariantIntegrity = 'sha256-darwin=='
 
-  // Always-explicit selectors — don't rely on process.platform / host libc so
+  // Always-explicit selectors, don't rely on process.platform / host libc so
   // these tests produce the same result on glibc, musl, macOS, and Windows CI.
   const linuxGlibcSelector = { os: ['linux'], cpu: ['x64'], libc: ['glibc'] }
   const linuxMuslSelector = { os: ['linux'], cpu: ['x64'], libc: ['musl'] }
@@ -259,7 +259,7 @@ describe('lockfileToDepGraph with variations resolution', () => {
       type: 'variations' as const,
       variants: [
         {
-          // Linux default (glibc) — variant has no libc marker.
+          // Linux default (glibc), variant has no libc marker.
           targets: [{ os: 'linux', cpu: 'x64' }],
           resolution: variantResolution(glibcVariantIntegrity),
         },

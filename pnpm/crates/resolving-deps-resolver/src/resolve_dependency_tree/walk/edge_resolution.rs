@@ -30,8 +30,8 @@ where
     let current_is_optional = wanted.optional.unwrap_or(false) || edge.parent_optional;
 
     // The edge's recorded snapshot key in the prior lockfile, if any.
-    // Feeds both subtree reuse (below) and — when the edge re-resolves
-    // anyway — the `currentPkg` payload custom resolvers receive.
+    // Feeds both subtree reuse (below) and, when the edge re-resolves
+    // anyway, the `currentPkg` payload custom resolvers receive.
     let prior_key = edge.reuse.prior_key(ctx, &wanted);
 
     // **Lockfile-resolution reuse.** When the prior lockfile already
@@ -98,7 +98,7 @@ where
 /// and stores the `Arc<ResolveResult>` on `ctx.resolved_by_wanted`;
 /// every later caller for the same wanted dep clones the `Arc` and
 /// skips the chain entirely. Concurrent first-callers can both miss the
-/// cache and run `resolver.resolve` in parallel — the resolver's own
+/// cache and run `resolver.resolve` in parallel, the resolver's own
 /// per-cache-key semaphore (`pick_package::fetch_locker`) already
 /// coalesces those into a single network fetch, so the doubled work is
 /// bounded to in-memory packument lookups + semver matching, and the
@@ -229,7 +229,7 @@ pub(super) fn edge_opts<'c>(
 /// The overlay's view for this edge joins the cache key: the same range
 /// can legitimately pick different versions under levels that resolved
 /// different siblings. The view keeps each candidate name (alias, `npm:`
-/// inner target, folded `jsr:` name) paired with its versions — the
+/// inner target, folded `jsr:` name) paired with its versions, the
 /// picker consults the overlay per name, so a flat union of versions
 /// could collide two overlays that distribute the same versions across
 /// different names. Empty for almost every edge, so the dedup keeps
@@ -305,7 +305,7 @@ pub(super) struct ResolvedEdge {
 
 /// Build (or look up) the `ResolvedPackage` envelope. Child traversal is
 /// claimed first, and a later deterministically-better occurrence
-/// replaces the shared `children_by_id` entry — plus, since the two are
+/// replaces the shared `children_by_id` entry, plus, since the two are
 /// two halves of one manifest reading, the envelope's peer dependencies.
 pub(super) fn seed_pending(
     ctx: &TreeCtx,
@@ -401,7 +401,7 @@ pub(in super::super) fn closes_cycle(ancestor_ids: &[Arc<str>], id: &str) -> boo
 /// so a single non-optional path flips it back to `false`.
 ///
 /// The envelope's peer split follows the occurrence that owns the package's
-/// children, which this level's settlement decides — see
+/// children, which this level's settlement decides, see
 /// [`fn@super::level_walk::install_owner_peer_dependencies`]. Seeding only has to fill a package
 /// nothing has resolved yet.
 pub(super) fn register_seeded_package(

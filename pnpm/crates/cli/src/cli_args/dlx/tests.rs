@@ -626,7 +626,7 @@ fn get_bin_name_errors_on_ambiguous_bins() {
 
 /// A dlx-installed runtime (`pnpm dlx node@runtime:<version>`) is recorded
 /// in the cache manifest as `engines.runtime` by the manifest writer's
-/// round-trip, not under `dependencies` — the installed package must still
+/// round-trip, not under `dependencies`, the installed package must still
 /// be found there.
 #[test]
 fn get_bin_name_finds_a_runtime_recorded_as_engines_runtime() {

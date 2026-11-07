@@ -577,7 +577,7 @@ fn global_remove_unsticks_a_group_whose_node_modules_was_deleted() {
     drop(root);
 }
 
-/// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`. An
+/// `pacquet add -g pnpm` is rejected, pnpm is managed via `self-update`. An
 /// `npm:` alias installs pnpm under another name, but the package still carries
 /// pnpm's own `pnpm` bin, so it is rejected the same way. A comma-separated
 /// group is a request to install each of its tokens, so pnpm hiding inside one
@@ -620,7 +620,7 @@ fn global_add_pnpm_is_rejected() {
     drop(root);
 }
 
-/// `pnpm update -g pnpm` is rejected — pnpm is managed via `self-update`. The
+/// `pnpm update -g pnpm` is rejected, pnpm is managed via `self-update`. The
 /// interactive form goes through its own selection path, so it is covered too.
 #[cfg(unix)]
 #[test]

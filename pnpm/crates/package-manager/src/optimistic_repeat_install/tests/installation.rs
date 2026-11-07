@@ -220,7 +220,7 @@ fn returns_skipped_when_a_package_extension_injects_a_local_file_dependency() {
 }
 /// A local file dependency injected via a packageExtension's
 /// optionalDependencies does not bail when optionals are excluded from
-/// the install — they aren't installed, so their contents can't be stale.
+/// the install, they aren't installed, so their contents can't be stale.
 #[test]
 fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded() {
     let (dir, config, manifest) = setup_fresh_install_with_config(
@@ -278,7 +278,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
     assert_eq!(decision, Decision::UpToDate);
 }
 /// Specs the git, remote-tarball, and registry resolvers claim must not
-/// bail — matching them would disable the fast path for every project
+/// bail, matching them would disable the fast path for every project
 /// with git dependencies.
 #[test]
 fn returns_up_to_date_when_specs_are_not_local_paths() {
@@ -288,7 +288,7 @@ fn returns_up_to_date_when_specs_are_not_local_paths() {
         "1.0.0",
         concat!(
             r#""dependencies":{"foo":"user/repo","bar":"github:user/repo","#,
-            // `quux` is a git shorthand whose committish ends in .tgz — it
+            // `quux` is a git shorthand whose committish ends in .tgz, it
             // must not be mistaken for a local tarball.
             r#""baz":"https://example.com/pkg.tgz","qux":"~1.2.3","quux":"user/repo#release.tgz"}"#,
         ),
@@ -317,7 +317,7 @@ fn returns_skipped_when_config_disabled() {
     let config = config.leak();
 
     // Even though the state file is missing (would also skip), the
-    // disabled-config branch is checked first — that's the reason
+    // disabled-config branch is checked first, that's the reason
     // string we assert on.
     let decision = check(
         workspace_root,
@@ -762,7 +762,7 @@ fn returns_skipped_when_package_extensions_drift() {
 }
 /// Drift in `dedupeDirectDeps` invalidates the cached state. The
 /// setting steers which symlinks each non-root workspace project's
-/// `node_modules/` ends up with — flipping it changes the on-disk
+/// `node_modules/` ends up with, flipping it changes the on-disk
 /// shape, so the fast path can't reuse the previous install.
 #[test]
 fn returns_skipped_when_dedupe_direct_deps_drifts() {
@@ -810,7 +810,7 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
 /// consume during install (e.g. `packageExtensions`,
 /// `excludeLinksFromLockfile`) does NOT trip the settings-drift gate.
 /// Pacquet ignores those fields because its install pipeline
-/// doesn't react to them — invalidating the fast path on a value
+/// doesn't react to them, invalidating the fast path on a value
 /// pacquet can't actually consume would force a redundant reinstall
 /// every time a user runs `pacquet install` after `pnpm install` in
 /// the same project, which is the scenario the vlt benchmark

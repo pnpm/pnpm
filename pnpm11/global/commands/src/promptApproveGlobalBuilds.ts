@@ -17,7 +17,7 @@ export interface PromptApproveGlobalBuildsOptions {
  * the same install machinery as a real interactive approval, which is
  * what e2e tests need to reproduce regressions in this code path.
  *
- * Not for production use — pnpm has no UI to opt into "approve every
+ * Not for production use, pnpm has no UI to opt into "approve every
  * pending build" silently, by design.
  */
 const AUTO_APPROVE_FOR_TESTS_ENV = 'PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS'
@@ -31,14 +31,14 @@ const AUTO_APPROVE_FOR_TESTS_ENV = 'PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS'
  * workspace-context fields (`workspaceDir`, `allProjects`,
  * `selectedProjectsGraph`, `workspacePackagePatterns`) are explicitly
  * cleared so that the install run by approve-builds in GVS mode operates
- * only on the install directory — otherwise it would treat the global
+ * only on the install directory, otherwise it would treat the global
  * packages dir as a workspace and discover sibling install directories as
  * workspace projects.
  *
  * `modulesDir` is left undefined so that downstream consumers compute it
  * relative to `lockfileDir`. Passing an absolute value here would be
  * forwarded as-is to `install.handler`, which treats `modulesDir` as a
- * path relative to `lockfileDir` and joins it again — producing a
+ * path relative to `lockfileDir` and joins it again, producing a
  * doubled path on Windows (path.join does not collapse an embedded
  * absolute path).
  */

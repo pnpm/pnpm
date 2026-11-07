@@ -222,7 +222,7 @@ impl Walker<'_> {
             }
         };
         // No spec means the first walk never recorded children for this
-        // package id — defensive empty case.
+        // package id, defensive empty case.
         let children_spec = self.tree.children_by_id
             .get(&pkg_id)
             .map_or_else(|| Arc::new(Vec::new()), Arc::clone);
@@ -277,7 +277,7 @@ impl Walker<'_> {
 
     /// Reuse the first walk's classification (persisted on
     /// [`crate::resolved_tree::ResolvedPackage::is_leaf`] by `pkg_is_leaf`).
-    /// Defaults to non-leaf when the package isn't in `packages` — same shape
+    /// Defaults to non-leaf when the package isn't in `packages`, same shape
     /// as the eager walker's `manifest == None` arm, and `NodeId::next()`
     /// keeps occurrences distinct so a later visit can still observe
     /// per-call-site state.

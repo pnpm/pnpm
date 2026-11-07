@@ -215,7 +215,7 @@ impl StagePaths {
         }
     }
 
-    /// Only `NotFound` is benign here — `PermissionDenied` and other
+    /// Only `NotFound` is benign here, `PermissionDenied` and other
     /// transient I/O failures must surface, otherwise the user's nested
     /// deps get silently clobbered when the directory is removed.
     fn existing_modules_kind(
@@ -350,7 +350,7 @@ pub(super) fn is_modules_dir_collision(error: &io::Error) -> bool {
 }
 /// Combined post-failure cleanup for steps 4 and 5: restore the
 /// preserved `node_modules/` if it was moved, then rimraf the
-/// staging directory — but only if the restore actually ran.
+/// staging directory, but only if the restore actually ran.
 /// Leaving the staging tree and any merge backup on disk after a
 /// failed restore retains every remaining copy of the preserved data.
 pub(super) fn finalize_stage_cleanup_after_failure(
@@ -442,7 +442,7 @@ pub(super) fn leak_stage(stage: &Path, stage_modules: &Path, preserved_modules: 
 }
 /// Build a sibling path next to `target` that is unique within the
 /// process. Mirrors pnpm's `fastPathTemp(newDir)` from the `path-temp`
-/// package — same parent (so the final rename stays on one filesystem)
+/// package, same parent (so the final rename stays on one filesystem)
 /// and a base name derived from the target so leaked staging dirs are
 /// recognisable. Uniqueness across concurrent calls comes from PID +
 /// wall-clock nanos + an atomic counter; we only need a process-local

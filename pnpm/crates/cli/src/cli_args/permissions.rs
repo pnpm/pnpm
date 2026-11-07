@@ -211,7 +211,7 @@ struct SkillsReview {
     /// The `skills` decision per package, overriding the all-or-nothing one
     /// the package selection would write.
     skills_by_package: BTreeMap<String, SkillsPermission>,
-    /// The `skills.dirs` answer, or empty when the user picked none —
+    /// The `skills.dirs` answer, or empty when the user picked none,
     /// recording nothing keeps the detected directories.
     dirs: Vec<String>,
 }

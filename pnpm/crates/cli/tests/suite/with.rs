@@ -357,7 +357,7 @@ fn concurrent_engine_installs_all_succeed_on_a_cold_cache() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
 
-    // Every child is spawned before any of them is waited on — that
+    // Every child is spawned before any of them is waited on, that
     // overlap is the whole point, since a serial run never races.
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let mut children = Vec::with_capacity(CONCURRENCY);

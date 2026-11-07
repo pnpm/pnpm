@@ -8,7 +8,7 @@ use pnpm_network::normalize_registry_url;
 impl WorkspaceSettings {
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
-    /// Path-valued settings are resolved against `base_dir` if relative —
+    /// Path-valued settings are resolved against `base_dir` if relative,
     /// anchored at the workspace root where the yaml was found, matching pnpm.
     /// `scriptShell` is the exception; see [`Self::resolve_script_shell`].
     pub fn apply_to(mut self, config: &mut Config, base_dir: &Path) {
@@ -138,7 +138,7 @@ impl WorkspaceSettings {
 
         // Applied AFTER `hoist_pattern` assignment so a yaml that sets
         // both `hoist: false` and `hoistPattern: ["..."]` still
-        // disables — `hoist: false` wins.
+        // disables, `hoist: false` wins.
         if !config.hoist {
             config.hoist_pattern = None;
         }
@@ -432,7 +432,7 @@ impl WorkspaceSettings {
 
     /// Overlay this file's proxy keys onto the merged view and re-resolve.
     ///
-    /// A key named here occupies it even when the value reads as unset —
+    /// A key named here occupies it even when the value reads as unset,
     /// see the [`crate::proxy_keys`] module docs.
     pub(crate) fn apply_proxy_to(
         &self,

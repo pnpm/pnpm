@@ -310,7 +310,7 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
 
 /// Build a fake `DependenciesGraphNode` for a package resolved from a
 /// local directory (`file:<dir>`). The local resolver keys these by
-/// `<name>@file:<dir>` and leaves `name_ver` as `None` — the name lives
+/// `<name>@file:<dir>` and leaves `name_ver` as `None`, the name lives
 /// in the fetched manifest only.
 fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
     let id_text = format!("file:{directory}");

@@ -1,4 +1,4 @@
-//! `pnpm list` / `ls` / `ll` / `la` — list installed packages.
+//! `pnpm list` / `ls` / `ll` / `la`, list installed packages.
 
 pub(in crate::cli_args) mod recursive;
 pub(crate) mod render;
@@ -205,7 +205,7 @@ impl ListArgs {
                 .await
                 .map(Some);
         }
-        // Multiple installs — try to narrow to a single one via
+        // Multiple installs, try to narrow to a single one via
         // params, matching against top-level aliases of each
         // install group.
         let matching_install_dirs =

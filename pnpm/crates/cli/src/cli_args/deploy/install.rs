@@ -33,8 +33,8 @@ fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: Depl
 
 /// The lockfile a legacy deploy install reads and writes.
 ///
-/// The deployed project is not one of the source workspace's importers —
-/// the deploy hook rewrites the copied manifest — so its resolution must
+/// The deployed project is not one of the source workspace's importers.
+/// The deploy hook rewrites the copied manifest, so its resolution must
 /// not be seeded from the workspace lockfile. Plain `pnpm-lock.yaml`
 /// whatever the branch settings say, for the same reason: they describe
 /// that workspace's resolution, and pnpm's deploy reads and writes the

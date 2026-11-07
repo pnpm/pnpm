@@ -227,7 +227,7 @@ fn run_age_excludes(original: Option<&str>, excludes: &[&str]) -> Option<String>
     fs::read_to_string(&path).ok()
 }
 
-// --- generic top-level field set/delete (pnpm config set / delete) ---
+// - generic top-level field set/delete (pnpm config set / delete)
 
 fn run_update_field(
     original: Option<&str>,
@@ -311,7 +311,7 @@ mod remove_unused_catalogs {
         assert_eq!(out, None, "an emptied manifest file must be deleted");
     }
 
-    /// TS: `same pkg with different version` — the same package name may
+    /// TS: `same pkg with different version`, the same package name may
     /// be referenced per catalog; each referenced entry survives.
     #[test]
     fn keeps_the_same_package_in_each_referenced_catalog() {
@@ -324,7 +324,7 @@ mod remove_unused_catalogs {
         assert_eq!(out.as_deref(), Some(original));
     }
 
-    /// TS: `update catalogs and remove catalog` — one write both merges
+    /// TS: `update catalogs and remove catalog`, one write both merges
     /// updated entries and drops the unreferenced ones.
     #[test]
     fn updates_catalogs_and_cleans_up_in_one_write() {

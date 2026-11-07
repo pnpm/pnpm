@@ -76,7 +76,7 @@ pub fn is_head_detached<Sys: RunCommand>(cwd: &Path) -> bool {
         .is_ok_and(|output| output.success && output.stdout.trim() == "HEAD")
 }
 
-/// The branches that contain HEAD, sorted, or empty when git cannot answer —
+/// The branches that contain HEAD, sorted, or empty when git cannot answer,
 /// a repository without commits, or no repository at all.
 ///
 /// Remote-tracking branches count under their branch name, because a CI
@@ -135,7 +135,7 @@ fn branch_name_of_ref(ref_name: &str) -> Option<&str> {
 enum HeadBranch {
     Branch(String),
     Detached,
-    /// Could not determine — ask `git symbolic-ref` instead.
+    /// Could not determine, ask `git symbolic-ref` instead.
     Unknown,
     /// The git metadata is there but must not be read, and asking git is
     /// no safer: it opens the same path with none of the guards below.
@@ -204,7 +204,7 @@ fn branch_of_head(head: &str) -> HeadBranch {
     }
 }
 
-/// Both files this reads — the `gitdir:` pointer and a `HEAD` ref — are a
+/// Both files this reads, the `gitdir:` pointer and a `HEAD` ref, are a
 /// single short line. The cap sits far above either and far below a size
 /// worth reading into memory.
 const MAX_GIT_METADATA_BYTES: u64 = 8 * 1024;
@@ -216,8 +216,8 @@ enum GitMetadata {
     /// not find it either but knows where else to look.
     Absent,
     /// Something is at the path that must not be read. Asking git instead
-    /// is no safer — it opens the same path with none of the guards in
-    /// [`read_git_metadata_file`] — so this is a dead end, not a fallback.
+    /// is no safer, it opens the same path with none of the guards in
+    /// [`read_git_metadata_file`], so this is a dead end, not a fallback.
     Refused,
 }
 
@@ -233,7 +233,7 @@ fn read_git_metadata_file(path: &Path) -> GitMetadata {
     options.read(true);
     // A FIFO planted at the path would block a plain `open` until a writer
     // appears; `O_NONBLOCK` makes the open return immediately and is a
-    // no-op for regular files. `O_NOFOLLOW` refuses a symlink outright —
+    // no-op for regular files. `O_NOFOLLOW` refuses a symlink outright,
     // git writes neither. (Windows directory entries cannot be named
     // pipes, so the plain open is safe there.)
     #[cfg(unix)]
@@ -244,8 +244,8 @@ fn read_git_metadata_file(path: &Path) -> GitMetadata {
     let mut file = match options.open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return GitMetadata::Absent,
-        // Everything else — a symlink `O_NOFOLLOW` turned away, a
-        // permission error, a device that cannot be opened this way —
+        // Everything else, a symlink `O_NOFOLLOW` turned away, a
+        // permission error, a device that cannot be opened this way,
         // names something git would have to get past too.
         Err(_) => return GitMetadata::Refused,
     };

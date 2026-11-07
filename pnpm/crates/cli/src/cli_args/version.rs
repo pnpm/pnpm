@@ -104,7 +104,7 @@ impl VersionArgs {
         self.git.tag_version_prefix.as_deref().unwrap_or(&config.tag_version_prefix)
     }
 
-    /// Apply an npm-style bump — `pnpm version <major|minor|…|x.y.z>` — to
+    /// Apply an npm-style bump, `pnpm version <major|minor|…|x.y.z>`, to
     /// the package at `dir`, or to every selected workspace package when
     /// `recursive`. Mirrors the TypeScript handler: git-tree check, per-
     /// package bump with `preversion`/`version` hooks, a commit and tag for
@@ -229,7 +229,7 @@ impl VersionArgs {
 
     /// Bump one package's manifest, running its `preversion` and `version`
     /// lifecycle hooks around the write. Both the write and the hooks are
-    /// skipped on a dry run. Returns `None` — bumping nothing — when the
+    /// skipped on a dry run. Returns `None`, bumping nothing, when the
     /// manifest has no name or no version.
     fn bump_package_version<Reporter: pnpm_reporter::Reporter>(
         &self,

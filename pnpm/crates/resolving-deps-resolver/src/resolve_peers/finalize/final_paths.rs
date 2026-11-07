@@ -195,7 +195,7 @@ impl Walker<'_> {
     /// package *names*, of which a workspace has far fewer than the
     /// occurrences contributing to them, and rendering one costs an
     /// allocation (`PkgName` holds scope and bare name separately). Two
-    /// package ids can share a name — different versions of one package — so
+    /// package ids can share a name, different versions of one package, so
     /// the fold unions their edges.
     pub(super) fn peer_name_graph(&self) -> BTreeMap<String, BTreeSet<&str>> {
         let mut edges_of_pkg: HashMap<&str, BTreeSet<&str>> = HashMap::default();
@@ -230,7 +230,7 @@ impl Walker<'_> {
     }
 
     /// Strongly-connected components of the peer graph (node → resolved
-    /// peers, restricted to peers that themselves carry peers — peerless
+    /// peers, restricted to peers that themselves carry peers, peerless
     /// peers can't close a cycle). Iterative Tarjan, returning the SCCs
     /// in reverse-topological order plus a `NodeId → SCC index` map.
     ///

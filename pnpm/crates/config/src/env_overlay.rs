@@ -74,7 +74,7 @@ macro_rules! tri_array_field {
     };
 }
 // Env vars cannot express the "explicit null clears" state that
-// yaml supports (an empty value reads as unset — see `read_env`),
+// yaml supports (an empty value reads as unset, see `read_env`),
 // so a present env var always lands as `Some(Some(s))`, never
 // `Some(None)`. Same limitation as `tri_array_field!`.
 macro_rules! tri_string_field {
@@ -92,7 +92,7 @@ impl TrustedSettings {
     /// Build the settings `PNPM_CONFIG_*` env vars give.
     ///
     /// Env vars are read for the full schema, not just config-file
-    /// keys — `PNPM_CONFIG_HOIST=false`, `PNPM_CONFIG_NODE_LINKER=hoisted`
+    /// keys, `PNPM_CONFIG_HOIST=false`, `PNPM_CONFIG_NODE_LINKER=hoisted`
     /// etc. all work (no [`WorkspaceSettings::clear_workspace_only_fields`]
     /// call). Apply the returned settings via [`Self::apply_to`] *after*
     /// `pnpm-workspace.yaml` so env vars win over yaml.
@@ -414,8 +414,8 @@ impl WorkspaceSettings {
         // pnpm applies this env var on presence alone (`!= null`) and
         // assigns the raw value without validation, so presence always
         // overrides the other config layers: an empty value assigns an
-        // empty string — falsy there, the gate is off — and an
-        // unrecognized value is truthy — the check runs but matches no
+        // empty string, falsy there, the gate is off, and an
+        // unrecognized value is truthy, the check runs but matches no
         // action. `value` filters empty values, so read the raw one.
         if let Some(s) = reader.value_allow_empty("VERIFY_DEPS_BEFORE_RUN") {
             settings.verify_deps_before_run = Some(if s.is_empty() {

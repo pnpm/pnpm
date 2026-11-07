@@ -8,7 +8,7 @@ use super::{Line, lines, top_level_key_line};
 /// The blanks belong to the scalar when the content above them climbs out to
 /// a keep-chomping header: walking up, each line that is less indented than
 /// everything seen so far either is that header or becomes the new bar to
-/// clear. A top-level line that is not a header ends the search — a scalar's
+/// clear. A top-level line that is not a header ends the search, a scalar's
 /// body is always indented past its own key.
 pub(super) fn blanks_belong_to_kept_scalar(text: &str, line_start: usize) -> bool {
     let all = lines(&text[..line_start]);
@@ -34,7 +34,7 @@ pub(super) fn blanks_belong_to_kept_scalar(text: &str, line_start: usize) -> boo
 }
 
 /// Whether `content` declares a block scalar that keeps its trailing line
-/// breaks. Only the value position counts — a `|+` inside an ordinary
+/// breaks. Only the value position counts, a `|+` inside an ordinary
 /// scalar, inside a comment, or inside a quoted key is text.
 fn is_kept_chomping_header(content: &str) -> bool {
     let mut line = content.trim_start();
@@ -136,7 +136,7 @@ fn opens_kept_chomping_scalar(value: &str) -> bool {
             .all(|char| char == '+' || char.is_ascii_digit())
 }
 
-/// Leading-space count of `content`, whatever the line holds — unlike
+/// Leading-space count of `content`, whatever the line holds, unlike
 /// [`structural_indent`](crate::edit::scanning::structural_indent), which reads a comment or a blank as unindented.
 /// Block scalar bodies can hold both.
 fn indent_width(content: &str) -> usize {
@@ -179,7 +179,7 @@ pub(crate) fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bo
 }
 
 /// Whether `text`'s final line is blank, by the same trimmed-content test
-/// [`blank_run_start`] and [`has_blank_before`] use — so a whitespace-only
+/// [`blank_run_start`] and [`has_blank_before`] use, so a whitespace-only
 /// separator counts as one too.
 pub(super) fn ends_with_blank_line(text: &str) -> bool {
     lines(text)

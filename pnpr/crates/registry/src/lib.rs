@@ -1,17 +1,17 @@
 //! Registries: the routing graph and its static validation.
 //!
 //! A **registry** is an addressable npm-registry surface exposed at
-//! `https://<pnpr>/~<name>/`. There are two concrete kinds — a pnpr-hosted
-//! registry and a single-origin upstream registry — plus one composite, a
+//! `https://<pnpr>/~<name>/`. There are two concrete kinds, a pnpr-hosted
+//! registry and a single-origin upstream registry, plus one composite, a
 //! **router**, an ordered list of concrete registries behind one URL.
 //!
 //! The model is governed by one invariant: **provenance is declared, never
 //! inferred.** Every concrete registry declares the package-name patterns it
-//! serves — its namespace — and that namespace is enforced on the registry
+//! serves, its namespace, and that namespace is enforced on the registry
 //! itself, on every path to it: an unclaimed name is a definitive not-found
 //! before storage or the upstream is consulted, whether the request came
 //! through a router or addressed the registry directly. A router selects the
-//! first listed source whose patterns claim the name — authoritatively. It can
+//! first listed source whose patterns claim the name, authoritatively. It can
 //! order competing claims, but it can never assign a name to a registry that does
 //! not claim it, so no configuration can express a cross-origin fall-through:
 //! a selected source's "not found" or "unavailable" is final. There is no
@@ -20,7 +20,7 @@
 //! Because selection is first-source-in-order, source order is load-bearing: a
 //! misordered router is the one way a configuration mistake could silently send
 //! a private scope to a public origin. [`Registries::validate`] rejects that class
-//! at config load (and reload) — shadowed/unreachable sources, duplicate
+//! at config load (and reload), shadowed/unreachable sources, duplicate
 //! sources and patterns, and sources that are unknown, self-referential, or
 //! not concrete. The check is static because [`PackagePattern`]'s coverage
 //! relation is decidable for this deliberately small glob language.
@@ -46,7 +46,7 @@ use std::fmt;
 ///
 /// A concrete registry's `patterns` are its declared namespace: the names it
 /// serves and accepts publishes for, and the claim routers derive their
-/// selection from. An empty list claims every name — the catch-all in any
+/// selection from. An empty list claims every name, the catch-all in any
 /// router.
 #[derive(Debug, Clone)]
 pub enum Registry {
@@ -55,7 +55,7 @@ pub enum Registry {
     /// scoped to the registry's own storage namespace (its optional `org`).
     Hosted { patterns: Vec<PackagePattern> },
     /// Exactly one external origin. One URL, one credential generation, one
-    /// cache namespace — not a chain and not a set of endpoints.
+    /// cache namespace, not a chain and not a set of endpoints.
     Upstream { patterns: Vec<PackagePattern> },
     /// An ordered list of concrete registries. A package resolves to the first
     /// source whose declared patterns claim it.
@@ -68,7 +68,7 @@ impl Registry {
     }
 
     /// A concrete registry's declared namespace; `None` for a router (a router
-    /// has no namespace of its own — it derives one from its sources).
+    /// has no namespace of its own, it derives one from its sources).
     fn patterns(&self) -> Option<&[PackagePattern]> {
         match self {
             Registry::Hosted { patterns } | Registry::Upstream { patterns } => Some(patterns),
@@ -102,7 +102,7 @@ pub enum Resolved<'a> {
     /// No declared namespace claims this package: the addressed concrete
     /// registry's patterns don't cover it, or none of a router's sources claim
     /// it. A definitive `404` on reads and a rejection on writes, answered
-    /// before storage or any upstream is consulted — never a fall-through.
+    /// before storage or any upstream is consulted, never a fall-through.
     Unclaimed,
     /// The addressed registry id is not defined.
     UnknownRegistry,
@@ -114,7 +114,7 @@ pub enum Resolved<'a> {
 pub struct Registries {
     entries: IndexMap<String, Registry>,
     /// The registry the path-less base URL (`https://<pnpr>/`) aliases. `None`
-    /// disables the path-less base entirely — clients must address a registry.
+    /// disables the path-less base entirely, clients must address a registry.
     default_registry: Option<String>,
     defaults: IndexMap<Ecosystem, String>,
     /// The ecosystem of every concrete registry that is not npm. A concrete
@@ -291,7 +291,7 @@ impl Registries {
     /// declared namespace at the registry itself. A concrete registry resolves
     /// to itself only when it serves the ecosystem and its patterns claim the
     /// package; a router resolves to the first source of that ecosystem whose
-    /// patterns claim it (authoritatively — an unclaimed package is
+    /// patterns claim it (authoritatively, an unclaimed package is
     /// [`Resolved::Unclaimed`], never a fall-through). Sources of another
     /// ecosystem are invisible to the request, so one router can front every
     /// ecosystem while each protocol's requests only ever reach origins that
@@ -452,7 +452,7 @@ impl Registries {
                 validate_namespace(name, patterns)
             }
             Registry::Router { sources } => {
-                // A router with no sources can never serve any package —
+                // A router with no sources can never serve any package,
                 // every request through it is a 404. That's only ever a
                 // config mistake (a hosted/upstream registry was likely
                 // intended), so reject it.

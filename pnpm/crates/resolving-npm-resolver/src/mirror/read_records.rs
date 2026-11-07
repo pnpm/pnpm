@@ -93,7 +93,7 @@ pub(super) fn read_mirror_records(
 }
 
 /// Rebase the relative spans and reject any that fall outside the file
-/// — a truncated or hand-edited mirror reads as a miss rather than
+///a truncated or hand-edited mirror reads as a miss rather than
 /// handing out garbage fragments later.
 pub(super) fn absolute_spans(
     versions: Vec<(String, u64, u32)>,

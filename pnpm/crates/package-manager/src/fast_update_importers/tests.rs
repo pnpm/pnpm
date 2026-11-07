@@ -430,8 +430,8 @@ fn try_prune_stale_importers(
     )
 }
 
-/// The importer depends on `foo@1.0.0` directly, while `baz` — reached
-/// through `qux` — resolves `foo` as a peer at the version `qux`
+/// The importer depends on `foo@1.0.0` directly, while `baz`, reached
+/// through `qux`, resolves `foo` as a peer at the version `qux`
 /// provides, `1.2.0`.
 const WITH_PEER_ON_ANOTHER_VERSION: &str = r"
 lockfileVersion: '9.0'
@@ -495,7 +495,7 @@ snapshots:
 ";
 
 /// `foo` is a workspace sibling `baz` resolves as a peer. A link has no
-/// `name@version` for a suffix segment to be compared against — the
+/// `name@version` for a suffix segment to be compared against, the
 /// segment carries the filename-safe form of the link path instead.
 const WITH_PEER_ON_REMOVABLE_LINK: &str = r"
 lockfileVersion: '9.0'

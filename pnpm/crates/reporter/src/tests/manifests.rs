@@ -7,7 +7,7 @@ use super::{
 /// `updated`. The JS reporter checks `'initial' in log` to dispatch,
 /// so the wire shape must carry exactly one of the two keys (never
 /// both, never neither). The payload value is the entire
-/// `package.json` body — pnpm threads it through unchanged.
+/// `package.json` body, pnpm threads it through unchanged.
 #[test]
 fn package_manifest_event_matches_pnpm_wire_shape() {
     let manifest = serde_json::json!({

@@ -3,7 +3,7 @@ use super::{
     read_long_pkg_info,
 };
 
-// --- parseable ---------------------------------------------------------------
+// parseable
 
 pub(crate) struct RenderParseableOptions {
     pub long: bool,
@@ -73,7 +73,7 @@ fn parseable_project_line(project: &ProjectHierarchy, long: bool) -> String {
 }
 
 /// One package's parseable line: its path, and under `--long` the
-/// specifier it resolves as — including the `npm:` alias form.
+/// specifier it resolves as, including the `npm:` alias form.
 fn parseable_node_line(node: &DependencyNode, long: bool) -> String {
     if !long {
         return plain(&node.package.path);
@@ -116,7 +116,7 @@ pub(super) fn flatten<'a>(
     packages
 }
 
-// --- JSON --------------------------------------------------------------------
+// JSON
 
 pub(crate) fn render_json(projects: &[ProjectHierarchy], long: bool) -> String {
     let arr: Vec<Value> = projects

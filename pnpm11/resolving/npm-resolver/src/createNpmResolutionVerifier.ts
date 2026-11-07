@@ -58,7 +58,7 @@ export interface CreateNpmResolutionVerifierOptions {
    * (some self-hosted registries strip it), the verifier can't apply
    * the maturity cutoff, and the trust check has no publish order to
    * walk. Set this to `true` to mirror the resolver's warn-and-skip
-   * behavior for both — the verifier passes the entry with a one-time
+   * behavior for both, the verifier passes the entry with a one-time
    * `globalWarn`, instead of failing closed. Defaults to `false` so
    * the verifier stays stricter than the resolver only when the user
    * has explicitly opted in to the skip on the resolver side. Scoped
@@ -71,7 +71,7 @@ export interface CreateNpmResolutionVerifierOptions {
    * `'no-downgrade'` rejects a lockfile entry whose version has weaker
    * trust evidence (no attestations) than an earlier-published version
    * had. This mirrors the resolver-time `failIfTrustDowngraded` check
-   * applied during fresh resolution — the verifier catches the same
+   * applied during fresh resolution, the verifier catches the same
    * supply-chain signal on entries that bypassed resolution (peek-path,
    * frozen lockfile, etc.).
    */
@@ -104,7 +104,7 @@ export interface CreateNpmResolutionVerifierOptions {
    * (`{ get, set }` over `PackageMeta`). When provided, the verifier
    * consults it before fetching: a name the resolver already pulled
    * during the same install yields the cached packument instead of a
-   * fresh disk/network round-trip. Optional — frozen-install paths and
+   * fresh disk/network round-trip. Optional, frozen-install paths and
    * unit tests don't have a resolver running alongside, in which case
    * the verifier falls back to its own fetch chain.
    */
@@ -205,7 +205,7 @@ async function verifyResolution (
 
   // URL/git-keyed entries are deliberate non-registry deps. They can still
   // carry a semver `version` copied from the resolved manifest, so the
-  // semver guard below isn't enough on its own — the registry policies and
+  // semver guard below isn't enough on its own, the registry policies and
   // the tarball-URL binding don't apply to them, and a registry lookup
   // would 404.
   if (entry.nonSemverVersion != null) return { ok: true }
@@ -296,7 +296,7 @@ async function verifyAgainstRegistry (
   // A registry entry that pins an explicit tarball URL must point at the
   // artifact the registry's own metadata lists. Otherwise a trusted
   // `name@version` could front bytes from an attacker-chosen URL (with a
-  // matching integrity for those bytes). This binding is unconditional —
+  // matching integrity for those bytes). This binding is unconditional,
   // it does not depend on `minimumReleaseAge`/`trustPolicy` and isn't
   // narrowed by their exclude lists, since it guards integrity rather
   // than maturity/trust. Registry entries with no tarball URL reconstruct
@@ -327,8 +327,8 @@ async function runPolicyChecks (
 
 // Snapshot the exclude lists (sorted, deduped) and require an exact
 // match in `canTrustPastCheck`: cache identity == policy identity.
-// Any change to either exclude list — adding, removing, or
-// substituting an entry — invalidates the cached run. This is
+// Any change to either exclude list, adding, removing, or
+// substituting an entry, invalidates the cached run. This is
 // stricter than a pure correctness check would require (adding to
 // either list is more permissive and the cached pass would still
 // hold), but it makes the cache contract trivial to reason about and
@@ -383,7 +383,7 @@ function canTrustPastCheck (current: VerifierPolicy, cached: Record<string, unkn
     // Missing-time tolerance: a cached run that failed closed on an
     // absent `time` field accepted a subset of what today's tolerant
     // policy accepts, so it stays trustworthy. Turning the tolerance
-    // off invalidates it — entries the past run waved through are the
+    // off invalidates it, entries the past run waved through are the
     // ones today's policy exists to reject. Older records (no field)
     // read as intolerant, which is the safe direction.
     !(cached.minimumReleaseAgeIgnoreMissingTime === true && !current.minimumReleaseAgeIgnoreMissingTime)
@@ -404,9 +404,9 @@ function cachedRunEnforcedUnconditionalChecks (cached: Record<string, unknown>, 
 
 function cachedMinimumReleaseAgeCovers (current: VerifierPolicy, cached: Record<string, unknown>): boolean {
   // Maturity: a previously cached run under a larger cutoff
-  // (stricter window) is trustworthy under a smaller current one —
+  // (stricter window) is trustworthy under a smaller current one,
   // its set of accepted versions is a subset of today's. The
-  // reverse — tightening the cutoff — invalidates the cached run:
+  // reverse, tightening the cutoff, invalidates the cached run:
   // versions that passed before may now be in-window. Non-number
   // cached values come from an older record shape and aren't trusted.
   const past = cached.minimumReleaseAge
@@ -468,11 +468,11 @@ async function runAgeCheck (
 }
 
 /**
- * No source — attestation, local mirror, or full metadata — surfaced a
+ * No source, attestation, local mirror, or full metadata, surfaced a
  * publish timestamp for this version. What
  * `minimumReleaseAgeIgnoreMissingTime` opts out of is a registry that
  * cannot date its releases, so the skip is granted only when the
- * packument carries no usable `time` map at all — the same shape the
+ * packument carries no usable `time` map at all, the same shape the
  * resolver's `pickMatchingVersionFinal` warns and skips on, so the
  * verifier can't be stricter than fresh resolution. A packument that
  * does date every version it lists is instead telling us this pin is
@@ -511,7 +511,7 @@ async function reportMissingPublishTime (
  * provenance on the current version is not sufficient to clear a
  * downgrade. A package could have shipped earlier versions under a
  * `trustedPublisher` with provenance (the higher-rank evidence) and
- * then dropped back to plain provenance for the version we're verifying —
+ * then dropped back to plain provenance for the version we're verifying,
  * `failIfTrustDowngraded` correctly flags that, and a "has any
  * attestation → pass" shortcut would silently miss it.
  */

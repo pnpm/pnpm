@@ -17,7 +17,7 @@ pub(crate) struct UpdateClassification {
     pub(crate) unfixable: HashMap<String, Vec<u64>>,
     /// Advisory ids whose `vulnerable_versions` failed to parse. The registry
     /// is untrusted, so a malformed range must not silently drop the advisory
-    /// — it is counted as remaining rather than read as a clean exit.
+    /// Count it as remaining instead of treating it as a clean exit.
     pub(crate) unparsable: Vec<u64>,
 }
 
@@ -138,7 +138,7 @@ fn persist_age_excludes(
 }
 
 /// Every still-installed package name, regardless of how its lockfile
-/// key is shaped, plus the subset whose key parses as semver — the only
+/// key is shaped, plus the subset whose key parses as semver, the only
 /// ones a vulnerable range can be checked against.
 fn installed_packages(updated: &Lockfile) -> InstalledPackages {
     let mut installed = InstalledPackages { names: HashSet::new(), versions: HashMap::new() };
@@ -169,7 +169,7 @@ pub(crate) struct InstalledPackages {
 /// its package is gone, or every installed semver version of it escapes the
 /// vulnerable range. It stays **remaining** when a vulnerable version is still
 /// installed, when the package survives only under non-semver keys (`file:` /
-/// git / tarball — unverifiable), when its range is `>=0.0.0` / `*` and the
+/// git / tarball, unverifiable), when its range is `>=0.0.0` / `*` and the
 /// package is still installed, or when its range was unparsable. The
 /// conservative bias keeps `audit --fix update` from reporting a clean state
 /// it can't prove.

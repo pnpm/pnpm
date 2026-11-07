@@ -6,7 +6,7 @@ use std::{io, path::Path};
 /// Counterpart of the TypeScript CLI's `readModulesDir`: dot-prefixed
 /// entries (`.bin`, `.pnpm`, `.ignored`, tool caches such as `.cache`)
 /// and plain files are not packages and are left out. A symlinked
-/// *package* is reported like any other — a `link:` dependency is a
+/// *package* is reported like any other, a `link:` dependency is a
 /// package as far as this enumeration goes, and callers that must
 /// distinguish them inspect the entry themselves. A symlinked *scope
 /// container* is not, since the names below it reach their target
@@ -27,7 +27,7 @@ pub fn read_modules_dir(modules_dir: &Path) -> io::Result<Vec<String>> {
         };
         if name.starts_with('@') {
             // Names below a symlinked scope container reach their target
-            // through the symlink, wherever it points — a caller that deletes
+            // through the symlink, wherever it points, a caller that deletes
             // what it enumerates follows it out of `modules_dir`. pnpm only
             // ever symlinks the packages inside a scope, never the scope
             // itself, so skipping costs nothing.

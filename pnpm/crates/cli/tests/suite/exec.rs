@@ -201,7 +201,7 @@ fn exec_runs_binary_from_node_modules_bin() {
 }
 
 /// From a plain subdirectory of a project the command runs where the user
-/// stands, while the executable comes from the project — pnpm's `exec`
+/// stands, while the executable comes from the project, pnpm's `exec`
 /// takes its working directory from `cliOptions.dir ?? process.cwd()` and
 /// its `PATH` from the project.
 #[cfg(unix)]

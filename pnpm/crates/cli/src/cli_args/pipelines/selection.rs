@@ -100,7 +100,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
     let scope = workspace_scope(cfg, &selection, root_selector);
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
-    // every plan shape below — a `PerProject` plan installs each selected
+    // every plan shape below, a `PerProject` plan installs each selected
     // project separately, and those child installs must not each report
     // the workspace again. The unnarrowed install reports its own scope
     // from inside the installer, where the workspace walk it already does

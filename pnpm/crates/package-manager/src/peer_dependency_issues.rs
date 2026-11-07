@@ -4,7 +4,7 @@
 //! resolved ends by applying `peerDependencyRules` to the issues its
 //! resolution left behind, then either failing the install
 //! (`strictPeerDependencies`) or logging them for the reporter. An
-//! install that did not resolve — a frozen or up-to-date-lockfile run —
+//! install that did not resolve, a frozen or up-to-date-lockfile run,
 //! reports nothing, so `pnpm peers check` is what answers for a tree
 //! nobody re-resolved.
 
@@ -22,13 +22,13 @@ use std::{
 use crate::InstallError;
 
 /// Report the peer-dependency issues of the lockfile an install just
-/// resolved. `None` — every install that skipped resolution — reports
+/// resolved. `None`, every install that skipped resolution, reports
 /// nothing.
 ///
 /// `peer_issue_importer_ids` is the resolution's own verdict: the
 /// importers it left an issue under. Only those are walked, so a
 /// workspace the resolution found clean costs nothing here. The
-/// lockfile stays the report's source — it carries the resolved
+/// lockfile stays the report's source, it carries the resolved
 /// versions the resolver's parent chains leave out.
 ///
 /// `installed_importer_ids` scopes the verdict to the projects this run

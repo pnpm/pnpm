@@ -56,7 +56,7 @@ fn isolated_included() -> IncludedDependencies {
 }
 
 /// Run the fast-path check in single-project mode with no loaded
-/// lockfile and no catalogs — the shape every pre-content-check test
+/// lockfile and no catalogs, the shape every pre-content-check test
 /// exercises.
 fn check(
     workspace_root: &std::path::Path,
@@ -366,7 +366,7 @@ fn setup_fresh_install_with_config(
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
     // Seed `pnpm-lock.yaml` so the single-project branch's lockfile
-    // gate passes — most tests run in single-project mode (no
+    // gate passes, most tests run in single-project mode (no
     // `pnpm-workspace.yaml`) and would otherwise short-circuit on
     // the missing-lockfile reason regardless of what they intend
     // to exercise.

@@ -212,7 +212,7 @@ fn scope_reporting_state() -> ReporterState {
     })
 }
 
-// --- embedder reporting options ---------------------------------------
+// embedder reporting options
 
 fn ignored_scripts(names: &[&str]) -> LogEvent {
     LogEvent::IgnoredScripts(IgnoredScriptsLog {

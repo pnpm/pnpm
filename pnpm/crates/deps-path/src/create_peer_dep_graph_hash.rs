@@ -5,7 +5,7 @@ use crate::peer_id::PeerId;
 /// Build the peer-suffix that appended to a `pkgIdWithPatchHash` produces
 /// a full depPath.
 ///
-/// `max_length` is the `peersSuffixMaxLength` (default 1000) — the cap
+/// `max_length` is the `peersSuffixMaxLength` (default 1000), the cap
 /// is applied to the *body* (segments joined), not the wrapped form,
 /// so the comparison `dirName.length > maxLength` happens before the
 /// leading `(` is prepended.

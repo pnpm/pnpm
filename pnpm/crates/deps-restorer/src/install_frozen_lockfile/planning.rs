@@ -182,7 +182,7 @@ impl<'a> FrozenInputs<'a> {
         // Reject a lockfile whose dependency names, aliases, or
         // virtual-store slots would escape the project or the store once
         // joined into a filesystem path. Runs before any materialization
-        // and before the warm-install skip filter, and unconditionally —
+        // and before the warm-install skip filter, and unconditionally,
         // so it is not bypassed by `trustLockfile`, which disables the
         // resolution-verification fan-out where the offline name check
         // would otherwise run. The slot-containment half needs the
@@ -299,7 +299,7 @@ pub(super) struct SkipSetPlan {
 /// `pnpm:skipped-optional-dependency` from being re-emitted for a
 /// known-skipped package.
 ///
-/// A read error (corrupt yaml, permissions) degrades to an empty seed —
+/// A read error (corrupt yaml, permissions) degrades to an empty seed,
 /// `.modules.yaml` is a cache artifact, not an authoritative source.
 pub(super) fn seed_skip_set(
     config: &pnpm_config::Config,
@@ -327,7 +327,7 @@ pub(super) fn seed_skip_set(
     }
 }
 /// Detecting the host is what costs a `node --version`, so it is skipped
-/// entirely for the common constraint-free lockfile — otherwise the
+/// entirely for the common constraint-free lockfile, otherwise the
 /// probe serializes against the extraction that dominates a cold
 /// install.
 ///
@@ -356,14 +356,14 @@ pub(super) struct HostDetectionInputs<'a> {
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) needs_installability_check: bool,
 }
-/// The global-virtual-store layout needs the engine name — and so the
-/// host — synchronously, but otherwise the detection stays pending and
+/// The global-virtual-store layout needs the engine name, and so the
+/// host, synchronously, but otherwise the detection stays pending and
 /// is only resolved once the skip-set computation needs the host, so the
 /// probe runs under the store-side warm-cache prefetch instead of
 /// serializing before it. A detection the install entry point already
 /// spawned (before the lockfile parse) is adopted so its head start
 /// counts; an early detection a constraint-free lockfile turns out not
-/// to need is dropped — the probe finishes in the background and its
+/// to need is dropped, the probe finishes in the background and its
 /// result goes unused.
 pub(super) async fn detect_host(
     inputs: HostDetectionInputs<'_>,
@@ -442,7 +442,7 @@ impl EngineNamePlan {
 /// `node: runtime:<version>` dependency, and anchoring the GVS hash and the
 /// side-effects-cache key prefix to that pinned Node is what keeps
 /// pinned and non-pinned installs on one host from splitting the shared
-/// store. Otherwise the name is derived from the host — synchronously
+/// store. Otherwise the name is derived from the host, synchronously
 /// when it is already detected, through
 /// [`EngineNamePlan::pending_slot`] while a detection is in flight, and
 /// through [`EngineNamePlan::deferred`] when no detection was needed at

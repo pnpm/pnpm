@@ -226,8 +226,8 @@ fn is_manifest_basename(name: &OsStr) -> bool {
 /// Strip the pattern's leading `../` components, walking `workspace_root`
 /// up one directory for each. wax globs cannot express parent traversal,
 /// so a pattern such as `../shared/*` only matches when the walk starts
-/// from the ancestor it names. `None` — the traversal climbs past the
-/// filesystem root — matches nothing.
+/// from the ancestor it names. `None`, the traversal climbs past the
+/// filesystem root, matches nothing.
 pub(super) fn split_parent_prefix<'root, 'pattern>(
     workspace_root: &'root Path,
     pattern: &'pattern str,
@@ -357,7 +357,7 @@ const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**
 
 /// Prunes every path with a dot-prefixed component, so a wildcard cannot
 /// descend into `.git`, `.cache`, and friends. Applied only to patterns that
-/// do not name a dot component themselves — see [`positional_dot_ignores`].
+/// do not name a dot component themselves, see [`positional_dot_ignores`].
 const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
 
 mod ancestors;

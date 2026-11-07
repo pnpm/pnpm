@@ -31,7 +31,7 @@ export async function checkGlobalBinConflicts (opts: {
   )
   if (conflicting.size === 0) return binsToSkip
 
-  // Some bins already exist — find out if they belong to packages being replaced
+  // Some bins already exist, find out if they belong to packages being replaced
   // (in which case it's fine) or to other packages (conflict).
   const existingPackages = scanGlobalPackages(opts.globalDir)
   for (const existingPkg of existingPackages) {
@@ -116,7 +116,7 @@ function resolveBinConflict (
 
 // Whether a bin named `name` already occupies a slot in `globalBinDir`. On
 // Windows the `node` runtime bin is linked as `<name>.exe` (with no bare
-// `<name>` file), so that flavor is checked too — otherwise an existing
+// `<name>` file), so that flavor is checked too, otherwise an existing
 // `node.exe` would not be detected as a conflict and could be silently
 // overwritten.
 function binSlotExists (globalBinDir: string, name: string): boolean {

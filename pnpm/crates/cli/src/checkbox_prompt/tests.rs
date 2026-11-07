@@ -194,8 +194,8 @@ fn the_active_row_cyan_survives_the_rows_own_resets() {
 }
 
 /// The page scrolls to keep the cursor on it. When the rows directly
-/// above the cursor are separators — a group's heading and column
-/// header — they scroll on with it, so a group is never shown without
+/// above the cursor are separators, a group's heading and column
+/// header, they scroll on with it, so a group is never shown without
 /// its title.
 #[test]
 fn the_page_follows_the_cursor_and_keeps_the_headings_above_it() {

@@ -146,8 +146,8 @@ fn migrated_keys_are_reported_through_a_utf8_bom() {
     drop(root);
 }
 
-/// Both emit sites resolve the root manifest the way pnpm does — the
-/// workspace root when there is one, the current directory otherwise —
+/// Both emit sites resolve the root manifest the way pnpm does, the
+/// workspace root when there is one, the current directory otherwise,
 /// so a run from a workspace package names the root's keys and never
 /// the package's own.
 #[test]
@@ -690,7 +690,7 @@ fn a_global_pnpmfile_runs_before_the_project_pnpmfile() {
 
 /// The global pnpmfile is excluded from `pnpmfileChecksum`, matching the
 /// `includeInChecksum: false` entry pnpm's `requireHooks` pushes for it.
-/// Editing it must therefore leave the lockfile's checksum alone — the field
+/// Editing it must therefore leave the lockfile's checksum alone, the field
 /// answers for the project's pnpmfiles, and claiming otherwise would let a
 /// user-level file silently decide whether a lockfile is still current.
 #[test]

@@ -32,7 +32,7 @@ pub(super) struct Placeholder {
 /// The placeholders of `text` that may stand in for what a setting is written
 /// as, in the order they appear.
 ///
-/// A placeholder qualifies only when it resolves to a bare token — ASCII
+/// A placeholder qualifies only when it resolves to a bare token, ASCII
 /// letters, digits, `-`, `_`, and `.`. A variant name, a boolean, and a
 /// number each are one; a URL, a path, an unresolved placeholder, and an
 /// empty expansion are not. That bounds what resolving one can do twice over:

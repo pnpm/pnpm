@@ -7,7 +7,7 @@ use super::{
 ///
 /// The npm-shaped slice pacquet exposes today calls
 /// [`Resolver::resolve`] with four [`WantedDependency`] fields
-/// populated — `alias`, `bare_specifier`, `optional`, and `injected` (see
+/// populated, `alias`, `bare_specifier`, `optional`, and `injected` (see
 /// the `WantedDependency` literals in [`extend_tree`] and the recursive
 /// arm of [`fn@resolve_node_seed`]). Anything else stays at `Default::default()`,
 /// so a tuple over those four fields uniquely identifies a wanted
@@ -15,7 +15,7 @@ use super::{
 ///
 /// `optional` is part of the key because the npm resolver's
 /// `pick_package` toggles between the abbreviated and full packument
-/// based on `wanted.optional` — caching by `(alias, bare_specifier)`
+/// based on `wanted.optional`, caching by `(alias, bare_specifier)`
 /// alone would let an optional caller satisfy itself with a
 /// non-optional caller's abbreviated result, losing the
 /// `libc`/`cpu`/`os` filter inputs that mode supplies.
@@ -48,7 +48,7 @@ use super::{
 /// consuming importer's directory*. Without `project_dir` in the key,
 /// the first importer to resolve `(@scope/lib, ^1.0.0)` would
 /// seed the workspace-wide cache with its own relative path and every
-/// other importer would reuse it verbatim — e.g. a root resolving to
+/// other importer would reuse it verbatim, e.g. a root resolving to
 /// `link:packages/lib` would hand `packages/app` the same string,
 /// which from `packages/app` points at the non-existent
 /// `packages/app/packages/lib`.
@@ -78,9 +78,9 @@ pub(in super::super) type WantedKeyFields = (
     bool,
 );
 
-/// A [`WantedKeyFields`] tuple with its hashes fixed at construction —
+/// A [`WantedKeyFields`] tuple with its hashes fixed at construction,
 /// the full one, and a consumer-scope-less one for
-/// [`SharedWorkspaceWantedKey`] — so an edge's key is hashed once
+/// [`SharedWorkspaceWantedKey`], so an edge's key is hashed once
 /// however many maps and derived keys carry it. Cloning is cheap.
 #[derive(Debug, Clone)]
 pub(in super::super) struct WantedKey(Arc<WantedKeyInner>);
@@ -112,7 +112,7 @@ impl WantedKey {
         &self.0.fields
     }
 
-    /// Field-wise equality without the consumer-scope slot — the
+    /// Field-wise equality without the consumer-scope slot, the
     /// equality [`SharedWorkspaceWantedKey`] shares between importers.
     pub(super) fn scopeless_eq(&self, other: &Self) -> bool {
         let left = &self.0.fields;
@@ -153,7 +153,7 @@ impl Hash for WantedKey {
 /// and the per-edge key lookups made that walk one of the hottest
 /// spots of a large workspace's resolution. The paths that reach these
 /// keys come from one canonical config-derived source per importer, so
-/// this wrapper compares and hashes the underlying `OsStr` — a plain
+/// this wrapper compares and hashes the underlying `OsStr`, a plain
 /// byte comparison. That is *stricter* than component equality
 /// (`a//b` ≠ `a/b` here), which for a dedup cache can only cost an
 /// extra identical resolution, never conflate two different paths.
@@ -222,9 +222,9 @@ impl Hash for SharedWorkspaceWantedKey {
 /// of the consuming project directory.
 ///
 /// Every field is invariant across the [`ResolveOptions`] variants one
-/// importer's walk hands the resolver — the depth split changes only
+/// importer's walk hands the resolver, the depth split changes only
 /// the version pick, and the per-edge overrides change only
-/// `project_dir` / `current_pkg` / the overlay — so [`TreeCtx`](crate::TreeCtx) builds
+/// `project_dir` / `current_pkg` / the overlay, so [`TreeCtx`](crate::TreeCtx) builds
 /// this once per importer and every edge shares it.
 /// [`Self::matches_options`] backs the debug assertion pinning that
 /// invariance.
@@ -256,7 +256,7 @@ impl WorkspaceResolutionOptionsKey {
         }
     }
 
-    /// Whether the importer-wide key still describes `options` — the
+    /// Whether the importer-wide key still describes `options`, the
     /// per-importer invariance the shared cache relies on, asserted at
     /// the key's use site in debug builds.
     #[cfg(debug_assertions)]

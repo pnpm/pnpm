@@ -2,19 +2,19 @@
 //!
 //! Three call sites converge on this module:
 //!
-//! - [`pick_package_from_meta`] — given a parsed
+//! - [`pick_package_from_meta`], given a parsed
 //!   [`RegistryPackageSpec`] and a [`Package`] packument, pick the
 //!   single [`PackageVersion`] that wins (or `Ok(None)` when no
 //!   version satisfies). Applies the `minimumReleaseAge` filter
 //!   (`publishedBy`) ahead of the per-spec branch.
 //! - [`pick_version_by_version_range`] /
-//!   [`pick_lowest_version_by_version_range`] — choose the
+//!   [`pick_lowest_version_by_version_range`], choose the
 //!   highest/lowest version in `meta.versions` satisfying a range
 //!   string, biased by an optional [`VersionSelectors`] preference
 //!   table. The high-side variant skips deprecated versions wherever it
 //!   is free to choose one, retrying within the winning dist-tag target
 //!   or preference group.
-//! - [`filter_pkg_metadata_by_publish_date`] — derive a packument
+//! - [`filter_pkg_metadata_by_publish_date`], derive a packument
 //!   that contains only versions published at or before a cutoff,
 //!   plus rewritten `dist-tags` pointing to the highest within-cutoff
 //!   version per tag. Implements the `minimumReleaseAge` policy.
@@ -147,7 +147,7 @@ pub enum PickPackageFromMetaError {
     },
     /// `ERR_PNPM_MISSING_TIME`: `minimumReleaseAge` is active, the
     /// packument has no per-version `time`, and `modified` is
-    /// missing/invalid or past the cutoff — the picker can't decide
+    /// missing/invalid or past the cutoff, the picker can't decide
     /// which versions are mature.
     #[display(r#"The metadata of {pkg_name} is missing the "time" field"#)]
     #[diagnostic(code(ERR_PNPM_MISSING_TIME))]
@@ -172,8 +172,8 @@ pub enum PickPackageFromMetaError {
 ///
 /// Returns:
 ///
-/// - `Ok(Some(version))` — the picked version's (shared) manifest.
-/// - `Ok(None)` — no version satisfies the spec. The orchestrator
+/// - `Ok(Some(version))`, the picked version's (shared) manifest.
+/// - `Ok(None)`, no version satisfies the spec. The orchestrator
 ///   layer above propagates this as "resolver returned nothing,"
 ///   not as an error.
 pub fn pick_package_from_meta<PickFn>(
@@ -187,7 +187,7 @@ where
 {
     assert_meta_names_requested_package(meta, spec)?;
     // "Owned-after-filter" shape: when publishedBy is active and a
-    // maturity filter applies, swap `meta` for the filtered view —
+    // maturity filter applies, swap `meta` for the filtered view,
     // otherwise borrow the input through.
     let view: PublishedByView;
     let meta_ref: &Package = match opts.published_by {
@@ -217,7 +217,7 @@ where
             if !meta_now.versions.contains_key(&version) {
                 // The picked string names a version the packument
                 // doesn't carry (a dangling dist-tag, an exact spec
-                // for an unpublished version) — nothing to retry.
+                // for an unpublished version), nothing to retry.
                 return Ok(None);
             }
             undecodable_excluded = Some(without_version(meta_now, &version));
@@ -269,7 +269,7 @@ fn manifest_under_requested_name(
 /// The packument the maturity filter leaves to pick from.
 ///
 /// A view that needs full metadata reports the missing-time error, which
-/// signals the orchestrator to upgrade the fetch — unless the packument's
+/// signals the orchestrator to upgrade the fetch, unless the packument's
 /// own `modified` proves no version is newer than the cutoff. That check is
 /// inclusive (`<=`) to match the per-version filter in
 /// [`filter_pkg_metadata_by_publish_date`]: a version published exactly at the
@@ -314,13 +314,13 @@ where
     }
 }
 
-/// Clone `meta` minus one version — the retry step when a picked
+/// Clone `meta` minus one version, the retry step when a picked
 /// version's fragment turns out to be undecodable. Slots move without
 /// hydrating.
 fn without_version(meta: &Package, version: &str) -> Package {
     Package {
         name: meta.name.clone(),
-        // Tags pointing at the removed version go with it — the
+        // Tags pointing at the removed version go with it, the
         // latest-tag fast path would otherwise re-pick the version
         // this clone exists to exclude.
         dist_tags: meta.dist_tags
@@ -344,8 +344,8 @@ pub struct PickVersionByVersionRangeOptions<'a> {
     pub version_range: &'a str,
     pub preferred_version_selectors: Option<&'a VersionSelectors>,
     /// Neither [`pick_version_by_version_range`] nor
-    /// [`pick_lowest_version_by_version_range`] reads it — the
-    /// filtering already happened in [`pick_package_from_meta`] —
+    /// [`pick_lowest_version_by_version_range`] reads it, the
+    /// filtering already happened in [`pick_package_from_meta`],
     /// but the field stays on the options so a custom picker (e.g.
     /// the min-release-age picker) can branch on it.
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,

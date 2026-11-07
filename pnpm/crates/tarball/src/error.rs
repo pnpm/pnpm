@@ -8,8 +8,8 @@ use std::{error::Error as StdError, io, path::PathBuf, sync::Arc};
 use zune_inflate::errors::InflateDecodeErrors;
 
 /// Every URL below is rendered through [`redact_url_for_display`]: a
-/// tarball URL can carry inline `user:pass@` credentials — typed on the
-/// command line for `pnpm add <url>`, or declared in a manifest — and an
+/// tarball URL can carry inline `user:pass@` credentials, typed on the
+/// command line for `pnpm add <url>`, or declared in a manifest, and an
 /// error message ends up in terminal scrollback and CI logs. Network
 /// errors also remove the request URL from the reqwest source chain.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -173,7 +173,7 @@ pub enum TarballError {
         source: zip::result::ZipError,
     },
 
-    /// Per-entry I/O failure during zip extraction — `try_reserve`
+    /// Per-entry I/O failure during zip extraction, `try_reserve`
     /// for the entry's payload, the body read, or any other
     /// [`std::io::Error`] surfaced from the zip iterator.
     /// Kept separate from [`TarballError::ReadTarballEntries`] so

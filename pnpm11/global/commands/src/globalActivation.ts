@@ -84,7 +84,7 @@ export async function activateGlobalInstall (
     await fs.promises.rm(prepared.backupDir, { recursive: true, force: true })
   } catch (err) {
     // Activation is already committed, so a leftover backup directory
-    // must not fail the command — but it points at a filesystem problem
+    // must not fail the command, but it points at a filesystem problem
     // worth surfacing.
     globalWarn(`Failed to remove the global bin backup directory at ${prepared.backupDir}: ${getErrorMessage(err)}`)
   }

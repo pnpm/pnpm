@@ -337,8 +337,8 @@ importers:
 }
 
 /// The declared text is what the resolver read. When the lockfile entry
-/// carries something else — an override replaced the declaration before
-/// resolution — the entry is not the update's to move (pnpm/pnpm#12115).
+/// carries something else, an override replaced the declaration before
+/// resolution, the entry is not the update's to move (pnpm/pnpm#12115).
 #[test]
 fn a_declaration_an_override_replaced_is_left_alone() {
     let mut lockfile = lockfile(

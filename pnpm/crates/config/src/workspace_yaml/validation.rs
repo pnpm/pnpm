@@ -44,7 +44,7 @@ impl WorkspaceSettings {
     }
 
     /// The `tasks` section feeds the task-graph builder of `pnpm -r run`,
-    /// which reads it without further checks — a malformed entry has to be
+    /// which reads it without further checks, a malformed entry has to be
     /// rejected here rather than surface as a scheduling bug far from the
     /// setting that produced it.
     pub(super) fn validate_tasks(&self) -> Result<(), LoadWorkspaceYamlError> {
@@ -58,7 +58,7 @@ impl WorkspaceSettings {
     /// One task's settings: a non-positive concurrency, a group name that
     /// cannot be a slot directory, a non-integer `priority`, or an empty
     /// `dependsOn` entry is a hard error. A field this version does not
-    /// read is not — see [`Self::take_unknown_task_settings`].
+    /// read is not, see [`Self::take_unknown_task_settings`].
     pub(super) fn validate_task(
         task: &str,
         settings: &TaskSettings,
@@ -138,8 +138,8 @@ impl WorkspaceSettings {
     /// Reject every remote side-effects field a committed file may not set.
     ///
     /// A workspace declares which organization and packages are eligible and
-    /// nothing else: the rest describes the act of signing — which key signs,
-    /// what provenance the signature attests, and whether to publish at all —
+    /// nothing else: the rest describes the act of signing, which key signs,
+    /// what provenance the signature attests, and whether to publish at all,
     /// so it belongs to the machine holding the key. Letting a repository set
     /// `publish` would turn a key the machine holds for its own builds into a
     /// signing oracle any clone could aim at a registry of its choosing.
@@ -218,7 +218,7 @@ impl WorkspaceSettings {
     /// under the project-file rules: refused values, keys naming no setting
     /// any supported pnpm reads, kebab-case spellings of known settings, and
     /// the `tasks` entries' own unknown fields.
-    /// Reporting is the caller's job — how severe an unrecognized key is
+    /// Reporting is the caller's job, how severe an unrecognized key is
     /// depends on whether the running pnpm is the project's pinned version,
     /// which only the CLI layer knows.
     pub fn collect_key_issues(&mut self, text: &str) {
@@ -264,7 +264,7 @@ impl WorkspaceSettings {
     /// would report, answered without parsing the file a second time.
     ///
     /// Serde keeps no record of the keys it dropped, so collecting them means
-    /// re-reading the document — which costs as much as the parse that
+    /// re-reading the document, which costs as much as the parse that
     /// produced the settings, on every command, to find nothing in the
     /// overwhelmingly common case of a file that is correct.
     ///

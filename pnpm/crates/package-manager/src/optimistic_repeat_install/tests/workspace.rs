@@ -215,7 +215,7 @@ fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
     }
 }
 
-/// `link:` dependencies are symlinked — changes inside them flow
+/// `link:` dependencies are symlinked, changes inside them flow
 /// through without a reinstall, so they don't invalidate the fast path.
 #[test]
 fn returns_up_to_date_when_a_project_has_only_link_dependencies() {
@@ -643,7 +643,7 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
-/// Drift in `preferWorkspacePackages` invalidates the cached state —
+/// Drift in `preferWorkspacePackages` invalidates the cached state,
 /// the condition the optimistic-repeat-install gate checks here.
 #[test]
 fn returns_skipped_when_prefer_workspace_packages_drift() {

@@ -14,8 +14,8 @@
 //! [`strip_cr_from_extended_headers`] and
 //! [`drop_context_no_newline_markers`].
 //!
-//! The file is modeled as `split('\n')` throughout — the same
-//! representation `patch-package` uses — so a line's own ending is
+//! The file is modeled as `split('\n')` throughout, the same
+//! representation `patch-package` uses, so a line's own ending is
 //! whatever the surrounding text carried: untouched CRLF lines keep
 //! their `\r`, replacement lines take the patch's LF, and a file
 //! without a final newline keeps that shape through the round trip.
@@ -78,7 +78,7 @@ const VALUE_EXTENDED_HEADERS: [&str; 9] = [
 /// patch saved with CRLF line endings each of those values keeps its `\r`
 /// and then fails the match it feeds: `invalid file mode: 100644`, an
 /// unparsable rename path, or an invalid `diff --git` fallback. Hunk
-/// lines are left alone — a `\r` there is content both `patch-package` and
+/// lines are left alone, a `\r` there is content both `patch-package` and
 /// [`diffy`] preserve, and an LF patch for a CRLF file relies on it.
 pub(super) fn strip_cr_from_extended_headers(text: String) -> String {
     if !text.contains('\r') {
@@ -112,7 +112,7 @@ pub(super) fn strip_cr_from_extended_headers(text: String) -> String {
 ///
 /// Hunks are located against the unpatched file and only then spliced
 /// in, so one hunk's edits can't shift another out from under its own
-/// match — the recorded line numbers all address the same baseline.
+/// match, the recorded line numbers all address the same baseline.
 ///
 /// The error carries `diffy`'s wording so the diagnostic a failed patch
 /// produces stays the same whichever matcher rejected it.
@@ -129,7 +129,7 @@ pub(super) fn apply(original: &str, patch: &Patch<'_, str>) -> Result<String, St
                 // against the unpatched file, so a patch whose hunks
                 // overlap can shift one past the end. JavaScript's
                 // `splice` clamps too, and a patch file is untrusted
-                // input — an out-of-range index must not panic.
+                // input, an out-of-range index must not panic.
                 let at = to_usize(to_isize(index) + offset).min(lines.len());
                 offset += to_isize(insert.len()) - to_isize(delete);
                 lines.splice(at..(at + delete).min(lines.len()), insert);
@@ -171,7 +171,7 @@ fn fuzzing_offsets() -> impl Iterator<Item = isize> {
 
 /// A run of consecutive same-kind lines within a hunk, holding each
 /// line without its ending. `ends_file` marks the run whose last line
-/// carried the `\ No newline at end of file` annotation — the pre-image
+/// carried the `\ No newline at end of file` annotation, the pre-image
 /// (for a deletion) or post-image (for an insertion) ends there without
 /// a final newline.
 struct Part<'a> {

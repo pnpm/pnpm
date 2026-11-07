@@ -7,7 +7,7 @@
 //! multiplexed by a monotonic request id so concurrent calls (the resolver
 //! resolves dependencies in parallel) can be in flight at once.
 //!
-//! Protocol — one JSON object per line:
+//! Protocol, one JSON object per line:
 //! - request:  `{"id": N, "hook": "readPackage", "payload": <value>}`
 //! - query:    `{"id": N, "query": "hasHooks"}`     (does the module export `hooks`?)
 //! - log:      `{"id": N, "log": "message"}`        (a `context.log(...)` call)
@@ -39,7 +39,7 @@ use tokio::{
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Floor for a `fetch` that was handed native tarball callbacks. Such a
-/// call is not waiting on the pnpmfile's own code — it is waiting on the
+/// call is not waiting on the pnpmfile's own code, it is waiting on the
 /// downloads and extractions the installer runs on its behalf, which a
 /// hook-sized budget would abort mid-archive.
 const CALLBACK_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
@@ -49,7 +49,7 @@ const CALLBACK_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
 /// Callers fan out far wider: the resolver runs `readPackage` once per
 /// resolved package, all at once, which on a large install is thousands
 /// of requests. One worker is one Node process, so writing them all at
-/// once buys no throughput — it only makes each request queue behind the
+/// once buys no throughput, it only makes each request queue behind the
 /// rest while its [`HOOK_TIMEOUT`] runs, until a batch of fast hooks
 /// fails the install on a timeout none of them caused.
 const MAX_IN_FLIGHT_REQUESTS: usize = 16;
@@ -106,8 +106,8 @@ enum WorkerError {
 type PendingMap = Arc<StdMutex<HashMap<u64, Pending>>>;
 
 /// Removes the pending entry on drop. Covers every exit from
-/// [`NodeWorker::request`] — send failure, timeout, and cancellation of
-/// the caller's future — so a request the worker never answers cannot
+/// [`NodeWorker::request`], send failure, timeout, and cancellation of
+/// the caller's future, so a request the worker never answers cannot
 /// leak its entry. Removal is idempotent: a delivered reply has already
 /// removed the entry in [`dispatch::dispatch_line`].
 struct PendingEntryGuard {

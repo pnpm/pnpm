@@ -100,7 +100,7 @@ where
         });
     }
     // Refuse to overwrite a hand-written non-string (parent-scoped object)
-    // override value with a scalar — that would corrupt config.
+    // override value with a scalar, that would corrupt config.
     if let Some((selector, _)) = entries
         .iter()
         .find(|(selector, _)| manifest.non_scalar_overrides.contains(*selector))
@@ -133,10 +133,10 @@ fn first_control_char_override<'a>(entries: &[(&'a str, &'a str)]) -> Option<&'a
 }
 
 /// Set `dir`'s `pnpm-workspace.yaml` audit ignore list to `ghsas` (the
-/// complete desired list), targeting whichever spelling the manifest uses —
+/// complete desired list), targeting whichever spelling the manifest uses,
 /// the canonical `audit.ignore` wins over the deprecated
 /// `auditConfig.ignoreGhsas`, matching the reader's precedence, and the
-/// shadowed deprecated list is removed when both are present — creating the
+/// shadowed deprecated list is removed when both are present, creating the
 /// file plus an `auditConfig:` block when neither is present.
 /// Preserves the rest of the document's formatting and writes the file back
 /// only when something actually changed. Used by `pnpm audit --ignore` /

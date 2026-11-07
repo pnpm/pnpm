@@ -64,8 +64,8 @@ impl PackageManifest {
         if let Some(version) = options.pinned_pnpm_version {
             // The pin is written twice on purpose: pnpm reads
             // `devEngines.packageManager`, corepack reads only the legacy
-            // `packageManager` field. The two must agree — pnpm warns and
-            // ignores the legacy field when they disagree — and corepack
+            // `packageManager` field. The two must agree, pnpm warns and
+            // ignores the legacy field when they disagree, and corepack
             // rejects everything but an exact version, so neither carries a
             // range.
             fields.insert(

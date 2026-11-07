@@ -14,7 +14,7 @@ use std::{
 /// path component by component, and on a workspace-scale graph the
 /// interner's hashing dominated the sort. Byte equality is stricter
 /// than component equality, which for node identity can only split a
-/// node the caller spelled two ways — the callers here key their
+/// node the caller spelled two ways, the callers here key their
 /// graphs by one canonical `PathBuf` per project.
 #[derive(Debug, Clone, Copy)]
 pub struct PathNode<'graph>(pub &'graph Path);
@@ -100,7 +100,7 @@ where
         }
         // Breaking a cycle removes its members one by one, so an earlier
         // member's removal can drop a later member to degree zero right
-        // before that member is removed too — filter those out of the
+        // before that member is removed too, filter those out of the
         // zero-degree set instead of adding them to the order twice.
         let mut next = std::mem::take(&mut sweep.next);
         next.retain(|&id| !sweep.removed[id]);
@@ -263,7 +263,7 @@ impl<'graph, Node: Eq + Hash + Clone> Interner<'graph, Node> {
 
 /// The longest of the shortest cycles running from `start` back to itself
 /// through nodes not yet removed, or empty when there is none. The walk
-/// stays inside `start`'s strongly connected component — no cycle through
+/// stays inside `start`'s strongly connected component, no cycle through
 /// `start` can leave it.
 fn find_cycle(
     start: usize,

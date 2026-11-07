@@ -98,8 +98,8 @@ fn oversized_git_metadata_is_not_read() {
     assert_eq!(get_current_branch::<GitFails>(&worktree), None);
 }
 
-/// A `HEAD` that is not a plain file — a symlink here, a FIFO or a device
-/// in the cases this stands in for — is never opened, so a repository
+/// A `HEAD` that is not a plain file, a symlink here, a FIFO or a device
+/// in the cases this stands in for, is never opened, so a repository
 /// cannot make the read block or balloon.
 #[cfg(unix)]
 #[test]

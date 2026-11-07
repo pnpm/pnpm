@@ -28,7 +28,7 @@
 //!
 //! Concurrency: the post-cache-miss flow is serialized per mirror path
 //! so concurrent picks for the same package coalesce
-//! into a single network fetch — the rest wait, then re-check the
+//! into a single network fetch, the rest wait, then re-check the
 //! in-memory cache that the winner just populated and short-circuit
 //! without hitting the registry. This is done via
 //! [`PackumentFetchLocker`], which owns per-key semaphores and is
@@ -223,7 +223,7 @@ async fn pick_from_metadata<Cache: PackageMetaCache>(
     // disk-backed pick below reads the current mirror.
     let mut disk_meta: Option<Arc<Package>> = None;
 
-    // Re-check in-memory cache after acquiring the permit — the
+    // Re-check in-memory cache after acquiring the permit, the
     // previous permit holder may have just populated it.
     if let Some(result) = state.cached_pick(ctx, spec, opts).await? {
         return Ok(result);

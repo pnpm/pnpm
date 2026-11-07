@@ -111,7 +111,7 @@ use std::{
 
 /// The bundled default YAML config. Other crates can
 /// pull this in directly when they need pnpr's defaults
-/// (upstreams, package routing) without reading a file from disk —
+/// (upstreams, package routing) without reading a file from disk,
 /// e.g. test mocks that want to run with the standard `**` -> `npmjs`
 /// routing applied.
 pub const DEFAULT_CONFIG_YAML: &str = include_str!("../config.yaml");
@@ -263,7 +263,7 @@ pub struct RoutingConfig {
     /// upstream registries are backed by [`Self::upstreams`]; hosted registries by
     /// [`Self::hosted`]; each declares the package-name patterns it serves,
     /// and a router selects the first of its sources whose patterns claim the
-    /// name. Built and validated at config load — a misordered or
+    /// name. Built and validated at config load, a misordered or
     /// self-referential router fails startup rather than serving the wrong
     /// origin.
     pub registries: Registries,
@@ -363,8 +363,8 @@ pub struct PublicRoute {
 /// State of the npm-registry surface. There is no YAML toggle for it:
 /// the surface is served iff at least one registry is declared under
 /// `registries:` (no registries ⇒ nothing to serve), minus the per-tier
-/// `--disable-registry` CLI override. A dedicated type — rather than a
-/// bare `bool` on [`Config`] — so finer-grained registry sub-features
+/// `--disable-registry` CLI override. A dedicated type, rather than a
+/// bare `bool` on [`Config`], so finer-grained registry sub-features
 /// (e.g. disabling `publish` for a read-only mirror) can be added here
 /// without changing the config shape.
 #[derive(Debug, Clone)]
@@ -431,7 +431,7 @@ pub struct OsvConfig {
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:7677";
-    /// Default packument TTL — five minutes.
+    /// Default packument TTL, five minutes.
     pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
 }
 

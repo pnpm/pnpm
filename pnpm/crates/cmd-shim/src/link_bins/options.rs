@@ -1,12 +1,12 @@
 use std::{ffi::OsString, path::PathBuf};
 
-/// Options shared by every bin one linking call writes — pnpm's
+/// Options shared by every bin one linking call writes, pnpm's
 /// `LinkBinOptions`.
 #[derive(Debug, Default, Clone)]
 pub struct LinkBinsOptions {
     /// Compare full shim contents after replacing a target's interpreter or native binary.
     pub force: bool,
-    /// pnpm's `extraNodePaths` — see [`super::link_bins_of_packages`].
+    /// pnpm's `extraNodePaths`, see [`super::link_bins_of_packages`].
     pub extra_node_paths: Vec<String>,
     /// pnpm's `preferSymlinkedExecutables`: on Unix, materialize each
     /// bin as a relative symlink to the target file instead of a shell

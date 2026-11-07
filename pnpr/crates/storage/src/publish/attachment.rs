@@ -9,7 +9,7 @@ use serde_json::Value;
 pub struct PendingAttachment {
     pub filename: String,
     pub payload: AttachmentPayload,
-    /// `_attachments.<filename>.length` — the declared byte count of
+    /// `_attachments.<filename>.length`, the declared byte count of
     /// the *decoded* tarball, used to catch truncated uploads.
     pub declared_length: Option<u64>,
     /// `_attachments.<filename>.integrity`: the integrity of a staged
@@ -21,7 +21,7 @@ pub struct PendingAttachment {
 #[derive(Debug)]
 pub enum AttachmentPayload {
     /// Base64-encoded, taken verbatim from the publish body. We hold it as
-    /// an owned `String` rather than decoding it eagerly — the streaming
+    /// an owned `String` rather than decoding it eagerly, the streaming
     /// write path consumes it directly and the decoded bytes never have to
     /// live in memory.
     Inline(String),

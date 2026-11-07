@@ -214,8 +214,8 @@ fn assert_borders_aligned(table: &str) {
 // Enabling `tabled`'s `ansi` feature makes it size a colored cell by its
 // visible glyphs, not its escape bytes; without it the columns and borders
 // drift apart. Feed a modern-style table the kind of ANSI-colored cells the
-// `outdated` renderers emit — a highlighted version segment, a dim group
-// label, bright-blue headers — and confirm every vertical border lands on the
+// `outdated` renderers emit, a highlighted version segment, a dim group
+// label, bright-blue headers, and confirm every vertical border lands on the
 // same column. Coloring the cells directly (`owo_colors` unconditional
 // styling) rather than forcing the global color override keeps the test free
 // of process-global state, so it can't leak into or be perturbed by other

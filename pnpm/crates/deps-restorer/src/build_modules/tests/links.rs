@@ -5,12 +5,12 @@ use pretty_assertions::assert_eq;
 use std::{collections::HashMap, path::PathBuf};
 use tempfile::tempdir;
 
-// --- bin_dirs_in_all_parent_dirs ----------------------------------------
+// bin_dirs_in_all_parent_dirs
 
 /// Top-level hoisted package: the helper must produce one entry per
 /// ancestor `node_modules/.bin` from `pkg_root` up to (and including)
 /// `lockfile_dir`. A `pkgRoot` of `<lockfile>/node_modules/foo`
-/// produces three paths — the package's own `node_modules/.bin`, the
+/// produces three paths, the package's own `node_modules/.bin`, the
 /// synthetic `<modules>/node_modules/.bin` from the dirname loop step,
 /// and the final `<lockfile>/node_modules/.bin` push after the loop
 /// exits. Synthetic entries don't exist on disk and are harmless to
@@ -31,7 +31,7 @@ fn bin_dirs_top_level_hoisted_pkg() {
 }
 /// Conflict-nested package: a package living under
 /// `<lockfile>/node_modules/parent/node_modules/child` produces five
-/// entries — its own bin, parent's, the synthetic `<modules>/node_modules/.bin`,
+/// entries, its own bin, parent's, the synthetic `<modules>/node_modules/.bin`,
 /// the synthetic intermediate (`<parent>/node_modules/node_modules/.bin`),
 /// and the final lockfile-root push. The two synthetic intermediates
 /// fall out of the dirname-loop's per-step push but never resolve to
@@ -53,7 +53,7 @@ fn bin_dirs_nested_hoisted_pkg() {
     );
 }
 /// A snapshot key absent from the override map (the walker decided
-/// not to record it — pre-skipped, optional skip) returns `None` so
+/// not to record it, pre-skipped, optional skip) returns `None` so
 /// `BuildModules`'s per-snapshot loop can short-circuit instead of
 /// attempting to `cd` into a path the caller never produced.
 #[test]

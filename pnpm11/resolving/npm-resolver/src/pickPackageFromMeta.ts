@@ -162,7 +162,7 @@ export interface PublishedByView {
   /**
    * The cutoff could not be applied: the metadata is abbreviated, so there
    * are no per-version timestamps to filter on. Whether that is fatal is the
-   * caller's call — the pick needs full metadata to honor the cutoff, while a
+   * caller's call, the pick needs full metadata to honor the cutoff, while a
    * caller reasoning about a pick that already succeeded knows the versions
    * cleared the cutoff some other way.
    */
@@ -176,7 +176,7 @@ export interface PublishedByView {
  * regardless of their age.
  *
  * Every consumer of the cutoff goes through here so they agree on what the
- * policy admits — a baseline that filters differently from the pick would
+ * policy admits, a baseline that filters differently from the pick would
  * misreport why a version was chosen.
  */
 export function applyPublishedByPolicy (

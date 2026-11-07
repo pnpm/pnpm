@@ -3,9 +3,9 @@
 //!
 //! The request classes share the pool:
 //!
-//! * **Latency** ([`crate::UNPRIORITIZED`]) — packument and other
+//! * **Latency** ([`crate::UNPRIORITIZED`]), packument and other
 //!   metadata fetches that gate resolution progress. Served FIFO.
-//! * **Background** ([`crate::BACKGROUND`]) — metadata fetches whose
+//! * **Background** ([`crate::BACKGROUND`]), metadata fetches whose
 //!   deadline is the end of the install rather than the next
 //!   resolution step (the lockfile-verification fan-out). Served FIFO,
 //!   but only when no latency-class request is queued, so a bulk
@@ -13,7 +13,7 @@
 //!   fetches. It cannot be starved: the latency queue drains when
 //!   resolution finishes, and the throughput class only outranks it
 //!   inside its reserve.
-//! * **Throughput** (any other priority) — tarball downloads, ranked
+//! * **Throughput** (any other priority), tarball downloads, ranked
 //!   by their estimated pipeline work so the most expensive archives
 //!   claim freed slots first (the longest-processing-time-first
 //!   scheduling argument; see
@@ -21,15 +21,15 @@
 //!   the per-connection bandwidth measurements behind it).
 //!
 //! Neither class may starve the other. Strictly preferring latency
-//! work was measured to *serialize* a cold fresh install — during the
+//! work was measured to *serialize* a cold fresh install, during the
 //! resolution burst no tarball ever got a slot, so the download
 //! pipeline started only after resolution finished, costing the whole
 //! resolve/fetch overlap. Instead the throughput class is guaranteed a
-//! reserved share of the pool (half, rounded up — but never all of
+//! reserved share of the pool (half, rounded up, but never all of
 //! it): when downloads hold
 //! fewer than the reserve, a freed slot goes to the largest pending
 //! download even while metadata is queued; beyond the reserve, queued
-//! metadata wins. Both directions are work-conserving — either class
+//! metadata wins. Both directions are work-conserving, either class
 //! may use the whole pool while the other has nothing pending.
 
 use std::{
@@ -270,7 +270,7 @@ fn release(state_arc: &Arc<Mutex<SemState>>, released: Class) {
             }
             Err(mut returned) => {
                 // The receiver was dropped before the send, so this
-                // permit was never observed — disarm it and offer the
+                // permit was never observed, disarm it and offer the
                 // slot to the next waiter. (Dropping it armed would
                 // re-enter `release` and deadlock on `state_arc`.)
                 returned.armed = false;

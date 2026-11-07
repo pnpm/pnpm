@@ -151,7 +151,7 @@ fn artifact_override_is_independent_from_the_resolver_override() {
 #[test]
 fn nothing_to_serve_is_a_config_error() {
     // No registries (⇒ no registry surface) and the resolver disabled leaves
-    // only `/-/ping` and the account endpoints — a misconfiguration.
+    // only `/-/ping` and the account endpoints, a misconfiguration.
     let yaml = "resolver:\n  enabled: false\n";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("a server with no surface enabled must error");
@@ -279,7 +279,7 @@ fn resolve_cli_when_only_cli_supplied() {
 
 #[test]
 fn resolve_cli_wins_over_default_path() {
-    // Both paths exist. CLI must take priority — the auto-discovered
+    // Both paths exist. CLI must take priority, the auto-discovered
     // path is a *fallback*, not a merge target.
     //
     // Storage paths are derived from `tmp` so they're absolute on
@@ -534,7 +534,7 @@ packages:
     );
 
     // A *bare* `packages:` (YAML null) and an empty block are the same
-    // removed key and must be rejected identically — a plain `Option`
+    // removed key and must be rejected identically, a plain `Option`
     // would map null to "absent" and let it slip through.
     for stub in ["packages:\n", "packages: {}\n", "packages: ~\n"] {
         let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");

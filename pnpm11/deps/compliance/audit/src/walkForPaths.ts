@@ -190,7 +190,7 @@ function recordPath (paths: AuditPathIndex, name: string, version: string, joine
   if (!isDev) info.dev = false
   if (!isOptional) info.optional = false
   if (info.paths.length >= MAX_PATHS_PER_FINDING && !exceedCap) return
-  // Dedupe — the same joined trail can be produced when a package appears in
+  // Dedupe, the same joined trail can be produced when a package appears in
   // both `dependencies` and `optionalDependencies` of the same parent, or via
   // equivalent peer-suffix variants.
   if (info.paths.includes(joined)) return

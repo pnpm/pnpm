@@ -28,7 +28,7 @@ interface ProbedDependencies {
  *
  * The hooks run over the manifest on disk carrying the requested declarations, rather than
  * over the manifest this run has already put through them, and what they produced is judged
- * against those declarations — which is what a selector naming no version of its own has in
+ * against those declarations, which is what a selector naming no version of its own has in
  * place of a request. A difference the overrides alone account for leaves the request
  * standing.
  *

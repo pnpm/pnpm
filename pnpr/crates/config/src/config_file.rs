@@ -26,7 +26,7 @@ pub(super) struct PublicRouteFile {
 
 /// Disk shape of one `registries:` entry, discriminated by an internal `type:` tag
 /// (`hosted` / `upstream` / `router`). The tag selects exactly one kind, so
-/// "declared none or more than one" is unrepresentable — no runtime count check.
+/// "declared none or more than one" is unrepresentable, no runtime count check.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(super) enum RegistryFile {
@@ -56,7 +56,7 @@ pub(super) struct HostedFile {
     pub(super) access: Option<AccessSpec>,
     /// This registry's teams: each key is a team ID, each value its name
     /// and member account IDs. Referenced from this registry's access lists as
-    /// `team:<id>` — teams are registry-scoped, never shared across
+    /// `team:<id>`, teams are registry-scoped, never shared across
     /// registries (YAML anchors cover a shared roster in one file).
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) teams: IndexMap<String, TeamFile>,
@@ -68,8 +68,8 @@ pub(super) struct HostedFile {
     /// point the admin API may change. Omitted ⇒ `config`.
     #[serde(default)]
     pub(super) rules_managed_by: Management,
-    /// The names this registry serves and accepts publishes for — its
-    /// namespace — with optional per-package `access`/`publish`/`unpublish`
+    /// The names this registry serves and accepts publishes for, its
+    /// namespace, with optional per-package `access`/`publish`/`unpublish`
     /// rules as values (`{}` or null ⇒ the registry defaults). The most
     /// specific matching key wins; key order carries no meaning. Omitted ⇒
     /// every name, default rules.
@@ -81,7 +81,7 @@ pub(super) struct HostedFile {
     pub(super) tarballs: Option<TarballFormat>,
 }
 
-/// Disk shape of an `upstream:` registry — one external origin. Mirrors an
+/// Disk shape of an `upstream:` registry, one external origin. Mirrors an
 /// upstream's tuning knobs plus `public` (an anonymous, no-credential origin)
 /// and `access` (which pnpr callers may reach a private one).
 #[derive(Debug, Deserialize)]
@@ -126,11 +126,11 @@ pub(super) struct UpstreamFile {
     /// non-`public` upstream (otherwise no one could be authorized to use it).
     #[serde(default)]
     pub(super) access: Option<AccessSpec>,
-    /// This registry's teams, exactly as on a hosted registry — referenced
+    /// This registry's teams, exactly as on a hosted registry, referenced
     /// from `access` and the per-package refinements as `team:<id>`.
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) teams: IndexMap<String, TeamFile>,
-    /// The names that may be requested through this registry — its namespace —
+    /// The names that may be requested through this registry, its namespace,
     /// with optional per-package `access` refinements as values (`{}` or null
     /// ⇒ the registry default; a `publish`/`unpublish` value is a config
     /// error, since no write can land on an upstream). Omitted ⇒ every name.
@@ -357,7 +357,7 @@ pub(super) struct RemovedUplinksBlock;
 #[derive(Debug, Default)]
 pub(super) struct RemovedUpstreamsBlock;
 
-/// `Some` whenever the key is present — including a key with no value
+/// `Some` whenever the key is present, including a key with no value
 /// (YAML null), which `Option<IgnoredAny>` would map to `None` and let
 /// slip past the loud rejection. The value itself is consumed and
 /// discarded; only presence matters.
@@ -468,11 +468,11 @@ pub(super) struct OsvFile {
 }
 
 /// Disk shape of the `resolver:` feature block. The field and the whole-block
-/// defaults are both `enabled: true`, so omitting the block — or writing
-/// `resolver:` with no body — keeps the surface on.
+/// defaults are both `enabled: true`, so omitting the block, or writing
+/// `resolver:` with no body, keeps the surface on.
 /// `deny_unknown_fields` so a typo like `resolver: { enable: false }`
 /// (note: `enable`, not `enabled`) is a loud config error rather than
-/// silently leaving the surface enabled — the toggle scopes which
+/// silently leaving the surface enabled, the toggle scopes which
 /// endpoints are exposed, so a silent default-on is a security footgun.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

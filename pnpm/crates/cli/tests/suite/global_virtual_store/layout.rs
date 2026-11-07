@@ -275,7 +275,7 @@ fn virtual_store_only_suppresses_hoisting_even_with_explicit_hoist_pattern() {
 }
 
 /// A `virtualStoreOnly` install must leave the project in a state a
-/// following ordinary install completes rather than purges — the empty
+/// following ordinary install completes rather than purges, the empty
 /// hoist patterns it records are deliberate, not drift.
 ///
 /// Pacquet-only: upstream encodes this as the `!modules.virtualStoreOnly`
@@ -490,7 +490,7 @@ fn virtual_store_type_selects_where_packages_are_materialized() {
 /// a previous install left: `pnpm run` finds the file by existence, so
 /// a map kept across a dependency change would describe a `node_modules`
 /// that has moved on. A repeat install with nothing to do never reaches
-/// the link phase and so leaves the file alone, which is harmless —
+/// the link phase and so leaves the file alone, which is harmless,
 /// with the setting off nothing reads it, and it still matches the
 /// installed tree.
 #[test]

@@ -542,7 +542,7 @@ fn link_existing_dependency_writes_override_only() {
 
     // The install succeeded despite the registry-spec devDependency, which is
     // only possible because the in-memory override rewrote it to the local
-    // `link:` — confirm the symlink was created rather than a registry fetch.
+    // `link:`, confirm the symlink was created rather than a registry fetch.
     let linked = workspace.join("node_modules").join("target-project");
     assert!(
         fs::symlink_metadata(&linked).is_ok_and(|meta| meta.file_type().is_symlink()),

@@ -119,7 +119,7 @@ fn install_leaves_incompatible_edges_on_their_own_resolution() {
 
     // 101.0.0 does not satisfy ^100.0.0, so the edge keeps its own
     // resolution (the highest of ^100.0.0) and no staleness warning
-    // fires — 101.0.0 is outside every declared range.
+    // fires, 101.0.0 is outside every declared range.
     write_manifest(&workspace, "^100.0.0");
     add_overrides(&workspace, &format!("overrides:\n  \"{DEP}@\": 101.0.0\n"));
 

@@ -33,7 +33,7 @@ export interface DownloadExecutableOptions {
   /**
    * Whether the registry's signature over the checksum has to check out;
    * `true` unless set. Waiving it is for a registry that carries no npm
-   * signatures — one that re-published the package — and accepts that the
+   * signatures, one that re-published the package, and accepts that the
    * checksum then comes from the same host as the bytes it vouches for.
    */
   verifySignature?: boolean
@@ -45,7 +45,7 @@ export interface DownloadExecutableOptions {
  * The narrow half of {@link downloadPnpm}, for a caller that already knows the
  * exact version and already has whatever else it needs: no dist-tag lookup (so
  * no packument download), no `dist/` tree, no directory to assemble. Corepack
- * is the case it exists for — it unpacks the `pnpm` package itself but installs
+ * is the case it exists for, it unpacks the `pnpm` package itself but installs
  * none of its dependencies, so the executable has to arrive separately.
  *
  * The download is checked against the checksum the registry published for it,
@@ -117,7 +117,7 @@ async function fetchExecutable (
 }
 
 /**
- * The codes Windows fails a rename with when the destination is held open —
+ * The codes Windows fails a rename with when the destination is held open,
  * which is what a concurrent call executing the copy it just placed looks like.
  * POSIX replaces the destination instead, so a failure there is a real one.
  */
@@ -129,8 +129,8 @@ const DESTINATION_IN_USE = new Set(['EPERM', 'EACCES', 'EBUSY'])
  *
  * A lost race is not assumed from the failure alone: the copy already there has
  * to hold the same bytes as the one just verified, or this call has no idea
- * what it would be reporting success for. Anything else — no permission on the
- * directory, a directory or an unrelated file at `destPath` — is a failure.
+ * what it would be reporting success for. Anything else, no permission on the
+ * directory, a directory or an unrelated file at `destPath`, is a failure.
  */
 function place (staged: string, destPath: string): void {
   try {

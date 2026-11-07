@@ -52,7 +52,7 @@ impl WorkspaceSettings {
     ///
     /// The inverse of [`Self::apply_to`]: applying the result to a default
     /// [`Config`] reproduces `config`'s settings. Defaults are therefore
-    /// present as values, not as `None` — `None` here means "pnpm has no
+    /// present as values, not as `None`, `None` here means "pnpm has no
     /// such setting to report", which is true of exactly two groups:
     ///
     /// - Keys that name a shape only a file has, whose resolved form

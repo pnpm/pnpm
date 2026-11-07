@@ -49,7 +49,7 @@ pub(crate) type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest
 /// Outcome of [`crate::check_optimistic_repeat_install`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Decision {
-    /// The install is fully up to date — emit "Already up to date"
+    /// The install is fully up to date, emit "Already up to date"
     /// and exit before any of the install setup runs.
     UpToDate,
     /// Fall through to the full install path. `reason` is a short
@@ -64,7 +64,7 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// against, which importer ids and relative local `pnpm.overrides`
     /// targets are named from too. The directory containing
     /// `pnpm-workspace.yaml` (or the project root when no workspace
-    /// manifest exists — same fallback as
+    /// manifest exists, same fallback as
     /// [`Install::run`](crate::Install::run)), unless the configuration
     /// pins the lockfile somewhere else.
     pub workspace_root: &'a Path,
@@ -76,24 +76,24 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// function rediscovering it) so the same walk seeds the regular
     /// install path on the fall-through.
     pub project_manifests: DeclaredManifests<'a>,
-    /// `true` when a `pnpm-workspace.yaml` drives the install — that
+    /// `true` when a `pnpm-workspace.yaml` drives the install, that
     /// selects the workspace branch, which keys the manifest and
     /// lockfile comparisons off `lastValidatedTimestamp`. `false` (no
     /// workspace manifest) selects the single-project branch, which
-    /// additionally requires `pnpm-lock.yaml` to exist on disk —
+    /// additionally requires `pnpm-lock.yaml` to exist on disk,
     /// `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` is raised otherwise, which
-    /// resolves to not-up-to-date — and keys its comparisons off the
+    /// resolves to not-up-to-date, and keys its comparisons off the
     /// lockfile mtimes instead.
     pub is_workspace_install: bool,
     /// The wanted lockfile (`None` once loaded when `pnpm-lock.yaml`
     /// is absent or empty). Consulted only by the modified-manifests
-    /// content re-check; the pure-mtime fast path never parses it —
+    /// content re-check; the pure-mtime fast path never parses it,
     /// which is why it arrives lazily, so the common repeat-install
     /// run skips the YAML parse entirely. A separately bounded byte
     /// scan only runs when lockfile metadata changed. When absent and
     /// `<install_state_dir>/lock.yaml` exists, the current lockfile
-    /// stands in as the wanted one — it records exactly what the
-    /// previous install materialized — and `pnpm-lock.yaml` is
+    /// stands in as the wanted one, it records exactly what the
+    /// previous install materialized, and `pnpm-lock.yaml` is
     /// regenerated from it before the check reports up-to-date.
     pub lockfile: MaybeLazyLockfile<'a>,
     /// Catalogs from the workspace manifest or an `updateConfig`

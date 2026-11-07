@@ -1526,7 +1526,7 @@ test('pnpm recursive run with a regex selector keeps a failure when a later matc
       scripts: {
         // The selector matches both, and they run one after the other
         // (see workspaceConcurrency below), so `check:b` both starts and
-        // settles after `check:a` has failed — the ordering in which its
+        // settles after `check:a` has failed, the ordering in which its
         // 'running' and 'passed' writes would each erase that failure.
         'check:a': 'exit 1',
         'check:b': 'exit 0',

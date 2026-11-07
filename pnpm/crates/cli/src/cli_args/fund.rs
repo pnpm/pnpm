@@ -1,4 +1,4 @@
-//! `pnpm fund` — list the funding URLs of the installed dependencies, or
+//! `pnpm fund`, list the funding URLs of the installed dependencies, or
 //! open the funding URL of one of them. Mirrors `npm fund`.
 
 mod funding;

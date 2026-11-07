@@ -125,7 +125,7 @@ fn import_method_names_round_trip_through_the_install_parser() {
 }
 
 /// End-to-end through the real resolver: a project `.npmrc` cascade must
-/// surface in the projection. Asserts only the fixture's own keys — the
+/// surface in the projection. Asserts only the fixture's own keys, the
 /// process environment and user config may add entries, never remove
 /// these.
 #[test]

@@ -125,7 +125,7 @@ fn settle_one_seed(
 ) -> Option<FrontierNode> {
     let NodeSeed::Pending(mut pending) = seed else { return None };
     let claim = pending.claim.take();
-    // Linked nodes don't walk their manifest's deps — see
+    // Linked nodes don't walk their manifest's deps, see
     // [`NodeKind::Link`]. They get an empty `Realized` map: a linked
     // node has no children of its own here.
     match pending.kind {
@@ -254,7 +254,7 @@ pub(super) fn record_walked_children(
 }
 
 /// The edge one seed contributes to its parent's children. `None` for
-/// a seed the walk dropped — a cycle re-entry or a skipped optional.
+/// a seed the walk dropped, a cycle re-entry or a skipped optional.
 pub(super) fn seeded_dep(seed: &NodeSeed) -> Option<DirectDep> {
     match seed {
         NodeSeed::Done(dep) => dep.clone(),
@@ -321,7 +321,7 @@ pub(in super::super) fn level_aliases(seeds: &[NodeSeed]) -> HashSet<String> {
 
 /// The `(name → versions)` additions one resolved level contributes
 /// to its children's preferred-versions overlay. Linked nodes carry no
-/// `name_ver` and contribute nothing — they're skipped in the fold.
+/// `name_ver` and contribute nothing, they're skipped in the fold.
 pub(in super::super) fn level_versions(
     ctx: &TreeCtx,
     seeds: &[NodeSeed],

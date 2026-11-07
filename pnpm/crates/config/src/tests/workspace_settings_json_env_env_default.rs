@@ -32,7 +32,7 @@ pub fn json_env_env_default_wins_over_workspace_yaml_default() {
 /// End-to-end: a scoped env JSON entry overrides a repo-controlled
 /// `pnpm-workspace.yaml` scoped registry in the main cascade, and the
 /// token is pinned to the env-declared host. Asserts
-/// `config.registries_by_scope["@scope"]` — not just auth headers — so a regression
+/// `config.registries_by_scope["@scope"]`, not just auth headers, so a regression
 /// that breaks routing while leaving auth-header pinning intact is caught.
 #[test]
 pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
@@ -164,7 +164,7 @@ pub fn workspace_yaml_proxy_false_disables_an_environment_proxy() {
 }
 
 /// `proxy` and `https-proxy` are separate keys, and the more specific one
-/// wins regardless of which file set it — so a repo yaml turning proxying
+/// wins regardless of which file set it, so a repo yaml turning proxying
 /// off does not drop the user's `https-proxy`.
 #[test]
 pub fn workspace_yaml_proxy_false_yields_to_an_npmrc_https_proxy() {
@@ -431,7 +431,7 @@ pub fn gvs_enabled_exposes_hoisted_dependencies_through_node_path_and_the_esm_lo
 }
 
 /// Run from a workspace package, `NODE_PATH` must point at the
-/// workspace root's virtual store — the one that exists — not at the
+/// workspace root's virtual store, the one that exists, not at the
 /// package directory's (pnpm/pnpm#13912).
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
@@ -457,7 +457,7 @@ pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {
 }
 
 /// The hoisted `nodeLinker` turns the setting on unless the user
-/// configured it — but, like pnpm, the derived `true` exports no
+/// configured it, but, like pnpm, the derived `true` exports no
 /// `NODE_PATH`: pnpm computes `extraEnv` before its `nodeLinker`
 /// switch, and the hoisted layout has no hidden store to expose.
 #[test]
@@ -559,7 +559,7 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
 
 /// `PNPM_CONFIG_WORKSPACE_DIR` must steer `Config::current`'s
 /// path-anchoring just like it steers
-/// [`pnpm_workspace::find_workspace_dir`] — otherwise the
+/// [`pnpm_workspace::find_workspace_dir`], otherwise the
 /// virtual store would land in the cwd while the per-importer
 /// `SymlinkDirectDependencies` writes land under the env-var
 /// path, producing two `node_modules` layouts for the same
@@ -747,7 +747,7 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
     .expect("write global config.yaml");
 
     let project = tempdir().unwrap();
-    // Empty workspace yaml — present so the workspace block fires,
+    // Empty workspace yaml, present so the workspace block fires,
     // but it doesn't redeclare `virtualStoreDir`.
     fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\n")
         .expect("write workspace yaml");
@@ -793,7 +793,7 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
 
 /// Workspace-only keys in the global `config.yaml` are silently
 /// ignored, matching pnpm. A `nodeLinker: hoisted` in the global
-/// yaml would change the installer's layout strategy if applied —
+/// yaml would change the installer's layout strategy if applied,
 /// pnpm rejects it, and pacquet must too.
 #[test]
 pub fn global_config_yaml_workspace_only_keys_are_ignored() {
@@ -847,7 +847,7 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
     assert_eq!(config.lockfile, defaults.lockfile);
 }
 
-/// `PNPM_CONFIG_*` overrides `pnpm-workspace.yaml` — the env
+/// `PNPM_CONFIG_*` overrides `pnpm-workspace.yaml`, the env
 /// var is applied after yaml in pnpm's reader cascade. Without
 /// this ordering a CI override via env var couldn't beat a
 /// committed yaml setting, which is the whole reason to expose

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// `BTreeMap` (not `HashMap`) keeps iteration order stable across
 /// runs, which matters because the deps-resolver consults these to
-/// break version ties — a flapping order would let identical inputs
+/// break version ties, a flapping order would let identical inputs
 /// produce different lockfile picks.
 pub type PreferredVersions = BTreeMap<String, VersionSelectors>;
 

@@ -29,8 +29,8 @@ impl StripedLocks {
     /// Lock the stripes owning every name in `names`, held until the
     /// returned guards are dropped. Stripes are locked in ascending
     /// index order (duplicates collapsed), so two overlapping
-    /// batch publishes — or a batch publish racing a single-package
-    /// publish — can't deadlock on lock order.
+    /// batch publishes, or a batch publish racing a single-package
+    /// publish, can't deadlock on lock order.
     pub(crate) async fn lock_many(&self, names: &[&str]) -> Vec<tokio::sync::MutexGuard<'_, ()>> {
         let mut indices: Vec<usize> = names
             .iter()

@@ -56,7 +56,7 @@ fn lockfile_diff_covers_importers_and_snapshots() {
     );
 }
 
-/// An identical lockfile is not a change — the equality short-circuit and
+/// An identical lockfile is not a change, the equality short-circuit and
 /// the per-alias walk have to agree on that.
 #[test]
 fn identical_lockfiles_yield_an_empty_diff() {
@@ -180,7 +180,7 @@ fn group_move_is_reported_even_when_version_is_unchanged() {
     let diff = diff_importer(".", Some(&old), Some(&new), ImporterDiffKey::Specifier);
     assert!(!diff.is_empty(), "a dev -> prod move must register as a change: {diff:?}");
     // pnpm merges every group's diff into one alias-keyed map, so the move
-    // is one verdict — the last group's — not an addition contradicted by a
+    // is one verdict, the last group's, not an addition contradicted by a
     // removal of the same alias.
     assert_eq!(diff.added, vec![]);
     assert_eq!(diff.removed, vec![("is-positive".to_string(), "^1.0.0".to_string())]);

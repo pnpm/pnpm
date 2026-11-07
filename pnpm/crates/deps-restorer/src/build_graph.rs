@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 /// `InstallFrozenLockfile::run`. Presence of a key here makes
 /// the snapshot a build candidate even when `requires_build` is false.
 ///
-/// `dependency_groups` are the groups this install includes — the
+/// `dependency_groups` are the groups this install includes, the
 /// `--prod` / `--dev` / `--no-optional` selection. A package reachable
 /// only through an excluded group never enters the graph, so its
 /// lifecycle scripts do not run. `None` walks every group.
@@ -117,8 +117,8 @@ fn collect_root_dep_paths(
 ) -> Vec<PackageKey> {
     let groups = dependency_groups.unwrap_or(&ALL_ROOT_DEPENDENCY_GROUPS);
     let mut seen: HashSet<PackageKey> = HashSet::new();
-    // `link:` deps don't live in the virtual store — they're per-importer
-    // directory symlinks — so they are not snapshot roots. For aliased deps,
+    // `link:` deps don't live in the virtual store, they're per-importer
+    // directory symlinks, so they are not snapshot roots. For aliased deps,
     // the snapshot key uses the alias's own (name, suffix), not the
     // importer-map key.
     let mut roots: Vec<PackageKey> = importers
@@ -145,7 +145,7 @@ fn collect_root_dep_paths(
 
 /// Per-walk invariant inputs to [`get_subgraph_to_build`]. Bundled
 /// into a struct so the recursive call doesn't have to thread eight
-/// arguments through every level — the three mutable accumulators
+/// arguments through every level, the three mutable accumulators
 /// stay as `&mut` params (one each because they're typed differently).
 struct GetSubgraphCtx<'a> {
     children: &'a HashMap<PackageKey, Vec<PackageKey>>,
@@ -158,7 +158,7 @@ struct GetSubgraphCtx<'a> {
 /// packages whose subtree (including themselves) contains a build candidate.
 ///
 /// A node is a candidate when `requires_build` is set OR when an entry
-/// for the peer-stripped key is present in `patches` — *unless* the
+/// for the peer-stripped key is present in `patches`, *unless* the
 /// node is in `skipped`, in which case its virtual-store slot was never
 /// created so neither the requires-build nor patch path can run.
 ///
@@ -203,7 +203,7 @@ fn get_subgraph_to_build(
 /// is dropped from the build graph entirely: a child reachable only via a
 /// skipped edge doesn't enter the build graph either. Gated *before* the
 /// recursion so a skipped optional doesn't drag its transitive deps into the
-/// walk via an edge that should not be followed — which is why a skipped node
+/// walk via an edge that should not be followed, which is why a skipped node
 /// is still marked walked.
 fn enters_build_graph(
     dep_path: &PackageKey,

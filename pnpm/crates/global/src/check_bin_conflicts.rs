@@ -48,7 +48,7 @@ pub enum CheckGlobalBinConflictsError {
 /// during linking (legitimately owned by a package being kept), or a
 /// [`GlobalBinConflictError`] when a true conflict is found.
 ///
-/// `should_skip` selects existing groups to ignore — add passes "any group
+/// `should_skip` selects existing groups to ignore, add passes "any group
 /// whose aliases overlap the new ones"; update passes "the group being
 /// replaced".
 pub fn check_global_bin_conflicts(
@@ -189,7 +189,7 @@ fn conflict_display(alias: &str, manifest_name: &str) -> String {
 /// Whether a bin named `name` already occupies a slot in `global_bin_dir`.
 /// On Windows a directly linked `node` runtime and every context-aware shim
 /// occupy `<name>.exe` with no bare `<name>` file, so that flavor is checked
-/// too — otherwise such an entry would not be detected as a conflict.
+/// too, otherwise such an entry would not be detected as a conflict.
 #[must_use]
 pub fn bin_slot_exists(global_bin_dir: &Path, name: &str) -> bool {
     if global_bin_dir.join(name).exists() {

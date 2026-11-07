@@ -198,7 +198,7 @@ fn insert_workspace_package(
 /// assembled.
 ///
 /// Pure in-memory: no file I/O, no read-failure warnings, no lockfile
-/// or importer traversal. Every project — root and siblings alike —
+/// or importer traversal. Every project, root and siblings alike,
 /// reuses the [`PackageManifest`] reference already loaded for the
 /// install dispatch.
 pub(super) fn build_projects_map(

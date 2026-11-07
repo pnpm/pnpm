@@ -450,7 +450,7 @@ test('dlx builds the packages passed via --allow-build', async () => {
 // opt in to the builds without retrying with `--allow-build=<pkg>`.
 //
 // Without a TTY (and without the test escape hatch below), the prompt is
-// skipped and dlx proceeds with build scripts skipped — same behavior
+// skipped and dlx proceeds with build scripts skipped, same behavior
 // as `pnpm add -g` in CI.
 test('dlx does not error on ignored builds in non-interactive mode', async () => {
   prepareEmpty()
@@ -465,7 +465,7 @@ test('dlx does not error on ignored builds in non-interactive mode', async () =>
     dlxCacheMaxAge: Infinity,
   }, ['@pnpm.e2e/has-bin-and-needs-build'])
 
-  // Cache is populated even though build scripts were skipped — the
+  // Cache is populated even though build scripts were skipped, the
   // package is installed so the bin can run if it does not depend on
   // the skipped script.
   const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')

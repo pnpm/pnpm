@@ -10,7 +10,7 @@ use super::{
 use crate::{Config, workspace_yaml::LoadWorkspaceYamlError};
 
 /// Generate a per-test unit struct implementing [`EnvVar`] from a
-/// `&[(&str, &str)]` literal — saves each cascade test from spelling
+/// `&[(&str, &str)]` literal, saves each cascade test from spelling
 /// out an `impl EnvVar` block. Avoids touching the real process
 /// environment so cascade tests don't need
 /// [`pnpm_testing_utils::env_guard::EnvGuard`]'s global lock.
@@ -51,7 +51,7 @@ fn scoped_auth_token<'a>(auth: &'a NpmrcAuth, uri: &str, scope: &str) -> Option<
         .map(|creds| creds.auth_token.as_deref())
 }
 
-// --- TLS + local-address tests ---
+// - TLS + local-address tests
 
 /// Same self-signed cert as `crates/network/src/tests.rs`; loaded from
 /// the shared fixture under `crates/network/tests/fixtures/test-ca.pem`
@@ -59,7 +59,7 @@ fn scoped_auth_token<'a>(auth: &'a NpmrcAuth, uri: &str, scope: &str) -> Option<
 const TEST_CA_PEM: &str = include_str!("../../../network/tests/fixtures/test-ca.pem");
 
 /// Like [`static_env!`] but also overrides [`EnvVar::vars`] so the fake
-/// can be enumerated — required by [`NpmrcAuth::from_url_scoped_env`],
+/// can be enumerated, required by [`NpmrcAuth::from_url_scoped_env`],
 /// which matches `npm_config_//…` / `pnpm_config_//…` vars by prefix.
 macro_rules! static_env_with_vars {
     ($name:ident, $entries:expr) => {

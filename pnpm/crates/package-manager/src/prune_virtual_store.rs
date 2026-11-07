@@ -66,7 +66,7 @@ fn cache_expired(pruned_at: &str, max_age_minutes: u64, now: SystemTime) -> bool
 /// key; other on-disk entries are surplus and removed, except regular
 /// lockfiles and their temporary files, which may have concurrent writers.
 ///
-/// `snapshot_keys` are the wanted lockfile's `snapshots:` keys — the
+/// `snapshot_keys` are the wanted lockfile's `snapshots:` keys, the
 /// peer-suffixed dep paths that name the per-package subdirectories of
 /// the virtual store. `skipped` is the union of snapshots dropped from
 /// the install (`--no-optional`, installability, fetch failure); their
@@ -97,7 +97,7 @@ pub fn prune_virtual_store<'a>(
 /// resolve to a strict descendant of `modules_dir`. The sweep deletes
 /// directories, and `virtual_store_dir` can come from repo-controlled
 /// workspace config, so a path that escapes `node_modules` (via `..`, an
-/// absolute location, or a symlink) — or that *is* `node_modules` itself —
+/// absolute location, or a symlink), or that *is* `node_modules` itself,
 /// is refused to avoid destructive deletes outside the managed tree.
 ///
 /// Paths are resolved to a symlink-free, absolute form so symlinked
@@ -206,7 +206,7 @@ fn is_lockfile_name(name: &str) -> bool {
 }
 
 /// `rimraf` a surplus virtual-store entry, returning whether the entry is
-/// gone afterwards. A removal failure is logged and swallowed — a leftover
+/// gone afterwards. A removal failure is logged and swallowed, a leftover
 /// entry is less harmful than aborting the install, and the next sweep
 /// retries. A `false` return lets the caller keep its removed count
 /// accurate (it must not count an entry a swallowed error left behind).

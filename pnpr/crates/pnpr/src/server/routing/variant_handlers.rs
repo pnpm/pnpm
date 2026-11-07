@@ -13,7 +13,7 @@ pub(super) struct ScopedVariantPath {
 }
 
 /// `GET {base}/@{scope}/{pkg}/{version-or-tag}`, or
-/// `GET {base}/{pkg}@{version}/variants/{tag}` — an unscoped package's
+/// `GET {base}/{pkg}@{version}/variants/{tag}`, an unscoped package's
 /// platform variant, which has the same shape.
 pub(super) async fn get_scoped_version_manifest_or_variant(
     State(state): State<AppState>,
@@ -44,7 +44,7 @@ pub(super) async fn get_scoped_version_manifest_or_variant(
     serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version).await
 }
 
-/// `GET {base}/@{scope}/{pkg}@{version}/variants/{tag}` — a scoped package's
+/// `GET {base}/@{scope}/{pkg}@{version}/variants/{tag}`, a scoped package's
 /// platform variant.
 pub(super) async fn get_scoped_variant_tarball(
     State(state): State<AppState>,

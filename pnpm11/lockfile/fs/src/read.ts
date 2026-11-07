@@ -92,8 +92,8 @@ export async function readWantedLockfile (
  * Read the wanted lockfile in its on-disk shape ({@link LockfileFile}),
  * skipping the conversion to the in-memory {@link LockfileObject}.
  *
- * Use this when the caller needs the exact serialized form — e.g. to
- * forward the lockfile to a server that speaks the on-disk format —
+ * Use this when the caller needs the exact serialized form, e.g. to
+ * forward the lockfile to a server that speaks the on-disk format,
  * rather than the in-process representation.
  */
 export async function readWantedLockfileFile (

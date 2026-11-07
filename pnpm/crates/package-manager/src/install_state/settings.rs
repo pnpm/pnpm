@@ -48,9 +48,9 @@ use std::path::Path;
 /// key absent from the recorded state as `undefined`. So the reverse
 /// scenario (pacquet wrote the state, pnpm reads it next) stays on the
 /// fast path only for keys whose pnpm-resolved value is also
-/// `undefined`. Every key pnpm resolves to a concrete default —
+/// `undefined`. Every key pnpm resolves to a concrete default,
 /// `excludeLinksFromLockfile` (`false`), `minimumReleaseAge` (`1440`),
-/// `minimumReleaseAgeIgnoreMissingTime` (`true`) — must therefore be
+/// `minimumReleaseAgeIgnoreMissingTime` (`true`), must therefore be
 /// written by [`current_settings`] and compared here, or pnpm would
 /// report drift and re-run a (no-op) install on every command after a
 /// pacquet install. `enableGlobalVirtualStore` is `undefined` by
@@ -300,7 +300,7 @@ impl SettingsComparison<'_> {
 
 /// Build the [`WorkspaceStateSettings`] that today's install would
 /// write. Shared with `install::build_workspace_state` so the
-/// freshness check sees the same byte shape the writer produced —
+/// freshness check sees the same byte shape the writer produced,
 /// when one side grows a field, the other automatically does too.
 pub(crate) fn current_settings(
     config: &Config,
@@ -379,7 +379,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         minimum_release_age_ignore_missing_time: Some(
             config.minimum_release_age_ignore_missing_time,
         ),
-        // The resolved form pnpm records — see
+        // The resolved form pnpm records, see
         // `WorkspaceStateSettings::minimum_release_age_strict`.
         minimum_release_age_strict: config.minimum_release_age_strict.or_else(|| {
             config.resolved_minimum_release_age_strict().then_some(true)
@@ -390,7 +390,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         registry_routes: Some(recorded_registry_routes(config)),
         side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // pnpm records the raw config value, which stays `undefined`
-        // until the user configures the setting — `explicit_settings` is
+        // until the user configures the setting, `explicit_settings` is
         // how pacquet tells its resolved default apart from a real
         // `trustPolicy: off`.
         trust_policy: config.explicit_settings

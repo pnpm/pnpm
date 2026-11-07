@@ -483,7 +483,7 @@ fn manifest(name: &str) -> PackageManifest {
     manifest
 }
 
-/// A metadata record whose value the package-map builder never inspects —
+/// A metadata record whose value the package-map builder never inspects,
 /// only the `packages:` key it is filed under matters.
 fn package_metadata() -> PackageMetadata {
     PackageMetadata {

@@ -44,15 +44,15 @@ pub(super) struct TimeBasedCutoff {
 /// Resolve every importer's direct dependencies and derive the
 /// `time-based` publish-date cutoff for transitive deps.
 ///
-/// Each direct dependency's publish date comes from its packument, or —
-/// against a registry whose abbreviated metadata omits publish times —
+/// Each direct dependency's publish date comes from its packument, or,
+/// against a registry whose abbreviated metadata omits publish times,
 /// from `recorded_time`, the date the lockfile's `time:` section
 /// recorded for it. The cutoff is the newest of those dates plus an
 /// hour, clamped by `maximum_published_by`.
 ///
 /// Only the direct deps' publish date is read here, so the throwaway
 /// resolves warm the resolver's packument cache for the real walk that
-/// follows. Resolver errors are ignored here — the real walk surfaces
+/// follows. Resolver errors are ignored here, the real walk surfaces
 /// them.
 pub(super) async fn compute_time_based_cutoff<Chain>(
     resolver: &Chain,

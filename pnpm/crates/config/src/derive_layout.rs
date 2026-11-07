@@ -43,7 +43,7 @@ impl Config {
         // resolution help moves to the environment: expose the virtual
         // store's hidden `node_modules` to every spawned child process.
         // `install_state_dir` is already anchored at the workspace root
-        // by the re-anchor above — pnpm builds this from
+        // by the re-anchor above, pnpm builds this from
         // `lockfileDir ?? dir` to the same effect
         // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
         // `true` fires.
@@ -137,7 +137,7 @@ impl Config {
         // Build the per-URI auth-header lookup. Credentials were already
         // pinned to their source file's registry by `rescope_unscoped`,
         // so this is independent of the final `config.registry` (which
-        // yaml may have overridden) — the security boundary holds even
+        // yaml may have overridden), the security boundary holds even
         // when the workspace points the default registry elsewhere.
         std::mem::take(npmrc_auth).build_auth_headers(self)?;
 

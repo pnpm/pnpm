@@ -1,8 +1,8 @@
 //! The hosted document each surface keeps per package, and the publish that
 //! records a blob in one.
 //!
-//! A hosted registry keeps one document per package — an npm packument, a
-//! crate's index entries, a Python project's file list — in its metadata,
+//! A hosted registry keeps one document per package, an npm packument, a
+//! crate's index entries, a Python project's file list, in its metadata,
 //! beside the blobs it serves. Publishing a blob and recording it in the
 //! document has to be one operation: a blob no document mentions is
 //! invisible, and a document entry with no blob behind it is a broken
@@ -161,8 +161,8 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
 }
 
 /// Publish one blob: store `bytes` as `filename` under `key` in the hosted
-/// namespace `org` and record `addition` — the document holding just that
-/// blob's entry — in the project's document, as one commit.
+/// namespace `org` and record `addition`, the document holding just that
+/// blob's entry, in the project's document, as one commit.
 ///
 /// Writers of the same key on this instance are serialized by the package
 /// lock; `refuse` rejects a document the publish must not land on (an entry

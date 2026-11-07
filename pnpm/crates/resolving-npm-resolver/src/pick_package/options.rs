@@ -14,7 +14,7 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// it needs `time` and trust evidence for every entry.
     pub full_metadata: bool,
     /// Asked instead of `opts.request.optional || ctx.full_metadata` when the
-    /// caller can answer per `(registry, optional)` — a registry that declares
+    /// caller can answer per `(registry, optional)`, a registry that declares
     /// `supportsTimeField` or `serverType: pnpr` needs no full metadata when
     /// the others do. The mirror path and cache key below are already keyed by
     /// registry, so two registries may disagree within one install.
@@ -60,7 +60,7 @@ pub struct MetadataRequestContext<'a, Cache: PackageMetaCache> {
     /// registry resolvers coalesce against the same in-flight set.
     pub fetch_locker: &'a PackumentFetchLocker,
     /// Root of the on-disk metadata mirror. `None` disables every
-    /// disk path — the orchestrator goes straight to the network.
+    /// disk path, the orchestrator goes straight to the network.
     pub cache_dir: Option<&'a Path>,
     pub http: crate::MetadataHttpClient<'a>,
 }
@@ -78,7 +78,7 @@ pub struct MetadataCachePolicy {
     ///
     /// Reachable when the registry-served packument omits `time`
     /// even after a full-metadata fetch (rare; the official npm
-    /// registry always populates `time` for full responses) — the
+    /// registry always populates `time` for full responses), the
     /// opt-in stays for parity with the resolver option flag.
     pub ignore_missing_time_field: bool,
 }
@@ -136,7 +136,7 @@ impl PackagePickPolicy<'_> {
 
 #[derive(Clone, Copy)]
 pub struct MetadataPickRequest {
-    /// `true` skips the cache write-back on a 200 response — used when
+    /// `true` skips the cache write-back on a 200 response, used when
     /// the install is a pure dry-run (`--lockfile-only`, frozen
     /// lockfile, etc.).
     pub dry_run: bool,
@@ -146,7 +146,7 @@ pub struct MetadataPickRequest {
     /// `true` forces this pick to use the full packument because
     /// the dependency carries `optionalDependencies`-specific
     /// fields (`libc`, `cpu`, `os`) the abbreviated form drops
-    /// some of — see [pnpm/pnpm#9950](https://github.com/pnpm/pnpm/issues/9950).
+    /// some of, see [pnpm/pnpm#9950](https://github.com/pnpm/pnpm/issues/9950).
     /// Combined with [`PickPackageContext::full_metadata`] via OR:
     /// either knob set to `true` makes the pick request full
     /// metadata.
@@ -156,7 +156,7 @@ pub struct MetadataPickRequest {
     /// fast path is skipped, and the in-memory cache is bypassed too.
     /// The fast path now promotes disk-loaded packuments into the
     /// in-memory cache, so an entry there can no longer be assumed to
-    /// come from this install's own fresh network fetch — on a shared
+    /// come from this install's own fresh network fetch, on a shared
     /// resolver it might be disk-sourced, which would short-circuit the
     /// revalidation. Backs the `--update-checksums` flag.
     pub update_checksums: bool,

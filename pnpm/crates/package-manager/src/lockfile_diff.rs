@@ -24,7 +24,7 @@ pub struct LockfileDiff {
     pub updated_packages: Vec<SnapshotDiff>,
 }
 
-/// Dependency changes within a single snapshot — an importer's direct
+/// Dependency changes within a single snapshot, an importer's direct
 /// dependencies or one `snapshots:` entry's dependency wiring.
 #[derive(Debug)]
 pub struct SnapshotDiff {
@@ -42,8 +42,8 @@ pub struct SnapshotDiff {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImporterDiffKey {
     /// The manifest specifier. A real install rewrites the lockfile
-    /// whenever a specifier changes — even when it still resolves to the
-    /// same version — so `install --dry-run` previews by specifier.
+    /// whenever a specifier changes, even when it still resolves to the
+    /// same version, so `install --dry-run` previews by specifier.
     Specifier,
     /// The resolved version. Deduplication rewrites peer-resolved
     /// versions while the specifiers stay put, so `dedupe --check`
@@ -70,8 +70,8 @@ enum AliasChange {
 /// groups.
 ///
 /// pnpm folds every group's diff into one alias-keyed map, so an alias
-/// that only moves between groups — `devDependencies` to `dependencies`,
-/// say — yields the last group's single verdict rather than an addition
+/// that only moves between groups, `devDependencies` to `dependencies`,
+/// say, yields the last group's single verdict rather than an addition
 /// and a removal that contradict each other. Merging in pnpm's group
 /// order therefore decides which verdict wins.
 #[derive(Default)]
@@ -126,7 +126,7 @@ impl LockfileDiff {
 }
 
 /// Diff the existing lockfile (`old`) against the freshly-resolved one
-/// (`new`). A `None` `new` yields an empty diff — there is nothing a real
+/// (`new`). A `None` `new` yields an empty diff, there is nothing a real
 /// install would produce to compare against.
 #[must_use]
 pub fn diff_lockfiles(
@@ -164,8 +164,8 @@ pub fn diff_lockfiles(
     diff
 }
 
-/// Diff the v9 `snapshots:` map — the peer-aware dependency wiring a real
-/// install rewrites — by key set and by `dependencies` /
+/// Diff the v9 `snapshots:` map, the peer-aware dependency wiring a real
+/// install rewrites, by key set and by `dependencies` /
 /// `optionalDependencies`. Mirrors pnpm's `dedupeDiffCheck`, which diffs its
 /// depPath-keyed `packages` snapshots the same way. Results are sorted.
 fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut LockfileDiff) {
@@ -175,8 +175,8 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
     for (key, new_entry) in new_snapshots.into_iter().flatten() {
         match old_snapshots.and_then(|snapshots| snapshots.get(key)) {
             None => diff.added_packages.push(key.to_string()),
-            // The equality check keeps the common case — a snapshot both
-            // lockfiles wire identically — off the per-alias path, which
+            // The equality check keeps the common case, a snapshot both
+            // lockfiles wire identically, off the per-alias path, which
             // allocates a map per dependency group on both sides.
             Some(old_entry) if snapshot_wiring_differs(old_entry, new_entry) => {
                 let entry_diff = diff_snapshot_entry(key.to_string(), old_entry, new_entry);
@@ -210,7 +210,7 @@ fn snapshot_wiring_differs(old: &SnapshotEntry, new: &SnapshotEntry) -> bool {
 }
 
 /// Diff one `snapshots:` entry's dependency wiring, over `dependencies` /
-/// `optionalDependencies` only — pnpm's `PACKAGE_SNAPSHOT_DEP_FIELDS`.
+/// `optionalDependencies` only, pnpm's `PACKAGE_SNAPSHOT_DEP_FIELDS`.
 fn diff_snapshot_entry(key: String, old: &SnapshotEntry, new: &SnapshotEntry) -> SnapshotDiff {
     let mut changes = AliasChanges::default();
     changes.merge(&dep_refs(old.dependencies.as_ref()), &dep_refs(new.dependencies.as_ref()));
@@ -243,7 +243,7 @@ fn diff_importer(
     changes.into_diff(id.to_string())
 }
 
-/// The importer dependency groups, in pnpm's `DEPENDENCIES_FIELDS` order —
+/// The importer dependency groups, in pnpm's `DEPENDENCIES_FIELDS` order,
 /// which decides the winner for an alias that moves between them.
 const IMPORTER_GROUPS: [ImporterGroup; 3] =
     [ImporterGroup::Optional, ImporterGroup::Prod, ImporterGroup::Dev];

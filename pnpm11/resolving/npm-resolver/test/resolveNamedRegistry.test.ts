@@ -24,7 +24,7 @@ const ghAcmePrivateMeta = loadJsonFileSync<any>(testFixtures.find('gh-acme-priva
 const GH_REGISTRY = 'https://npm.pkg.github.com/'
 const ENTERPRISE_REGISTRY = 'https://npm.enterprise.example.com/'
 
-// The `@github` scope is not routed to GitHub Packages — so public
+// The `@github` scope is not routed to GitHub Packages, so public
 // `@github/*` npm installs are not hijacked. The `gh:` prefix resolves via
 // the built-in `gh` named-registry alias instead.
 const registriesByScope = {
@@ -81,7 +81,7 @@ test('resolveFromNamedRegistry() resolves a scoped package published to GitHub P
     alias: '@acme/private',
   })
 
-  // The resolve function writes the cache asynchronously — wait briefly before reading.
+  // The resolve function writes the cache asynchronously, wait briefly before reading.
   const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+npm.pkg.github.com/@acme/private.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta).toMatchObject({
     name: '@acme/private',
@@ -92,7 +92,7 @@ test('resolveFromNamedRegistry() resolves a scoped package published to GitHub P
 
 test('resolveFromNamedRegistry() reaches the public registry through the built-in npmjs: alias when the default registry is elsewhere', async () => {
   // The point of the alias: `registry` is an internal proxy here, so nothing
-  // else in the project would reach npmjs. `npm:` cannot do this — it is the
+  // else in the project would reach npmjs. `npm:` cannot do this, it is the
   // alias protocol and resolves through whatever `registry` points at.
   const slash = '%2F'
   const pool = getMockAgent().get('https://registry.npmjs.org')
@@ -230,7 +230,7 @@ test('resolveFromNamedRegistry() looks up the auth header by the named registry 
   )
 
   // The resolver must ask for credentials for the configured GitHub Packages URL
-  // (not the default npm registry) — this is what makes `//npm.pkg.github.com/:_authToken=...`
+  // (not the default npm registry), this is what makes `//npm.pkg.github.com/:_authToken=...`
   // entries in a `.npmrc` take effect for `gh:` specifiers.
   expect(calls).toContain(GH_REGISTRY)
   expect(resolveResult).toMatchObject({
@@ -252,7 +252,7 @@ test('resolveFromNamedRegistry() honours a user-defined named registry from conf
     }),
   })
 
-  // `work:` is a user-defined alias — parsing and the URL lookup come from
+  // `work:` is a user-defined alias, parsing and the URL lookup come from
   // the resolver's merged named-registriesByScope map, not the scope registriesByScope.
   const resolveResult = await resolveFromNamedRegistry(
     { alias: '@acme/private', bareSpecifier: 'work:^2.0.0' },
@@ -316,7 +316,7 @@ test('resolveFromNamedRegistry() returns null for specifiers whose prefix is not
     registriesByScope,
   })
 
-  // No fetch mock is registered — the test would fail if the resolver tried to hit the network.
+  // No fetch mock is registered, the test would fail if the resolver tried to hit the network.
   await expect(resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: '^1.0.0' }, {})).resolves.toBeNull()
   await expect(resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'npm:@acme/private@1.0.0' }, {})).resolves.toBeNull()
   await expect(resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'jsr:@acme/private' }, {})).resolves.toBeNull()
@@ -355,7 +355,7 @@ test('resolveFromNamedRegistry() throws when the specifier names an invalid scop
     registriesByScope,
   })
 
-  // Scope without a package name is always a bug — refuse with a specific error code.
+  // Scope without a package name is always a bug, refuse with a specific error code.
   await expect(resolveFromNamedRegistry({ bareSpecifier: 'gh:@acme' }, {})).rejects.toMatchObject({
     code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME',
   })
@@ -395,7 +395,7 @@ test('the same package name served by two registriesByScope does not collide in 
   })
 
   // Resolving the same name from the enterprise registry must use that
-  // registry's own metadata — not the cached gh packument, whose tarball would
+  // registry's own metadata, not the cached gh packument, whose tarball would
   // point at the wrong host (a cross-registry confusion bug if the in-memory
   // cache key omitted the registry).
   const workResult = await resolveFromNamedRegistry({ alias: '@acme/private', bareSpecifier: 'work:2.0.0' }, {})
@@ -427,10 +427,10 @@ test('resolveFromNamedRegistry() preserves vulnerability-avoidance range selecto
     {
       preferredVersions: {
         '@acme/private': {
-          // The target's own lockfile pin — dropped so it can't hold the
+          // The target's own lockfile pin, dropped so it can't hold the
           // target at its old version.
           '2.0.0': { selectorType: 'version', weight: 1_000_000 },
-          // Vulnerability penalty on 2.1.0 — must survive so the targeted
+          // Vulnerability penalty on 2.1.0, must survive so the targeted
           // update lands on 2.0.0 instead of the vulnerable latest.
           '>=2.1.0': { selectorType: 'range', weight: -1000 },
         },

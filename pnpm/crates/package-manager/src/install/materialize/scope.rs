@@ -178,8 +178,8 @@ pub(in crate::install) fn initial_materialization_ids(
             .collect(),
     }
 }
-/// pnpm's headless installer announces itself whenever it is entered — also
-/// on a cold `node_modules` and on subset (`--filter`) installs — not only
+/// pnpm's headless installer announces itself whenever it is entered, also
+/// on a cold `node_modules` and on subset (`--filter`) installs, not only
 /// when nothing needs to be materialized.
 ///
 /// `importing_only` gets upstream's `ignorePackageManifest` wording instead;

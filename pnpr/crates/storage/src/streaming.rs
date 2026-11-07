@@ -51,8 +51,8 @@ pub enum BlobStreamError {
 }
 
 /// Stream an upstream response to the client while teeing it into `write`
-/// and hashing it. The client receives bytes as they arrive — it does not
-/// wait for the whole download to land and verify first — and the cache entry
+/// and hashing it. The client receives bytes as they arrive, it does not
+/// wait for the whole download to land and verify first, and the cache entry
 /// is promoted only once the declared SRI matches the full body.
 ///
 /// Integrity failures terminate the body with a stream error and abandon the
@@ -182,7 +182,7 @@ async fn finish_tee(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<Te
 }
 
 /// Promote a fully-streamed, SRI-matched blob to the cache, logging (not
-/// failing — the client already has the bytes) if the rename can't complete.
+/// failing, the client already has the bytes) if the rename can't complete.
 async fn finalize(write: Option<BlobWrite>, on_cached: Option<Box<dyn FnOnce(PathBuf) + Send>>) {
     let Some(write) = write else { return };
     let final_path = write.final_path().to_path_buf();

@@ -94,7 +94,7 @@ impl InstallArgs {
     /// cannot change that answer
     /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
     ///
-    /// `false` means "not decided" — the caller proceeds with the full
+    /// `false` means "not decided", the caller proceeds with the full
     /// install path, which re-runs the same check cheaply and
     /// reproduces any error with its established shape. The
     /// `pacquet::install` trace says why the path was not taken.

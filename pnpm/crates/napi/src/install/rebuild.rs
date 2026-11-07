@@ -33,7 +33,7 @@ fn run_rebuild_blocking(
     renderer: Option<NativeRenderer>,
     selected_names: Option<Vec<String>>,
 ) -> napi::Result<()> {
-    // Restores the previous sink and renderer on drop — including on a
+    // Restores the previous sink and renderer on drop, including on a
     // panic in `run_install_inner`, which unwinds this dedicated thread.
     let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     let rebuild_options =
@@ -58,7 +58,7 @@ pub(super) fn rebuild_options(
         pending_projects: Vec::new(),
         // The embedder rebuilds the lockfile it just installed or restored,
         // so of the settings it records only the patches, which change the
-        // build output, have to match the configuration — as in pnpm v11's
+        // build output, have to match the configuration, as in pnpm v11's
         // `rebuild`. Comparing the rest, like `pnpmfileChecksum`, fails a
         // rebuild of a lockfile resolved with other `readPackage` hooks or
         // settings.

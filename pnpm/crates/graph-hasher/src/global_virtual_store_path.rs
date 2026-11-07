@@ -1,4 +1,4 @@
-//! Global-virtual-store directory naming — the GVS hash computation
+//! Global-virtual-store directory naming, the GVS hash computation
 //! and path formatting.
 
 use crate::{
@@ -21,12 +21,12 @@ use std::{
 /// Two snapshots that resolve to the same package contents (identical
 /// `fullPkgId`s and identical recursive children) hash to the same
 /// value and therefore share one directory under
-/// `<store>/links/<name>/<version>/` — which is how pnpm and pacquet
+/// `<store>/links/<name>/<version>/`, which is how pnpm and pacquet
 /// avoid re-extracting the same tarball once per peer-context.
 ///
 /// `engine` is the candidate `ENGINE_NAME`-shaped string
 /// (`<platform>-<arch>-node<major>`). It is included in the hash
-/// payload only when the snapshot transitively requires a build —
+/// payload only when the snapshot transitively requires a build,
 /// pure-JS subgraphs hash with `engine = null` so their GVS
 /// directories survive Node.js upgrades. The gating is driven by:
 ///
@@ -37,7 +37,7 @@ use std::{
 /// `project` scopes the slot to one project instead of sharing it
 /// across every project in the store. Callers pass `Some(lockfile_dir)`
 /// for a snapshot resolved from a local directory and `None` for
-/// everything else — see
+/// everything else, see
 /// [`local_directory_scope`](../../../../package-manager/src/virtual_store_layout.rs).
 pub fn calc_graph_node_hash<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
@@ -93,7 +93,7 @@ where
 /// at all.
 ///
 /// Unlike [`calc_graph_node_hash`], this doesn't walk a dependency
-/// graph — it hashes a single `{ id: full_pkg_id, deps: {} }` node and
+/// graph, it hashes a single `{ id: full_pkg_id, deps: {} }` node and
 /// wraps it in the `{ engine: null, deps }` payload. The env-installer
 /// uses it for the platform-specific optional subdeps of a config
 /// dependency, which are installed one level deep with no further
@@ -113,7 +113,7 @@ pub fn calc_leaf_global_virtual_store_path(full_pkg_id: &str, name: &str, versio
 /// (`<name>@<version>:<integrity>`). Folding the subdeps into the
 /// parent's hash is what keeps a parent pinned to one version from
 /// colliding on the same leaf directory when a subdep version changes
-/// underneath it — without this, changing a subdep while keeping the
+/// underneath it, without this, changing a subdep while keeping the
 /// parent pinned would silently overwrite the previous sibling
 /// symlinks.
 #[must_use]

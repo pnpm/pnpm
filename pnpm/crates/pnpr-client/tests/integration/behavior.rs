@@ -410,7 +410,7 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
 
 /// A client describes its whole configuration, including scopes a given
 /// resolve never reaches. Declaring a registry this pnpr does not serve is
-/// therefore not an error by itself — only fetching from one is.
+/// therefore not an error by itself, only fetching from one is.
 #[tokio::test]
 async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
     let registry = TestRegistry::start();

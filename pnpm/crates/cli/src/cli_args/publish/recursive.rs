@@ -1,4 +1,4 @@
-//! `pacquet publish --recursive` — publish every selected workspace package.
+//! `pacquet publish --recursive`, publish every selected workspace package.
 //!
 //! Selects the workspace projects the `--filter` selectors pick, drops the
 //! private / unnamed / already-published ones (unless `--force`), then
@@ -269,7 +269,7 @@ impl PublishArgs {
         }
     }
     /// The selected projects that should be published: those with a name
-    /// and version, not private, and — unless `--force` — not already on
+    /// and version, not private, and, unless `--force`, not already on
     /// their registry.
     ///
     /// The already-published probes are independent registry reads, so
@@ -328,8 +328,8 @@ impl PublishArgs {
 /// A package's `(published name, version)` when it is eligible to be published,
 /// or `None` when it should be skipped before any registry lookup: an unnamed,
 /// unversioned, or private package is never published recursively. The name is
-/// the one the registry knows — the `publishConfig.name` rename, when the
-/// project has one — since it is only used to address the registry.
+/// the one the registry knows, the `publishConfig.name` rename, when the
+/// project has one, since it is only used to address the registry.
 pub(super) fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
     if manifest
         .get("private")
@@ -343,8 +343,8 @@ pub(super) fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
     Some((published_name(manifest).unwrap_or(name), version))
 }
 
-/// Whether `name@version` already exists on its target registry. Any failure —
-/// a 404 for a brand-new package, a transient network error — is treated as
+/// Whether `name@version` already exists on its target registry. Any failure,
+/// a 404 for a brand-new package, a transient network error, is treated as
 /// "not published" (a failed resolve means the version is absent, so the
 /// publish proceeds).
 async fn is_already_published(

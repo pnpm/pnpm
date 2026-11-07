@@ -1,4 +1,4 @@
-//! Integration tests for `PUT /npm/-/pnpr/v0/publish` — the batch
+//! Integration tests for `PUT /npm/-/pnpr/v0/publish`, the batch
 //! publish endpoint `pnpm publish --batch` talks to. Static-mode (no
 //! upstream) to keep the tests hermetic.
 
@@ -165,7 +165,7 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     let bytes = &npm_tgz("@scope/wire-form", "1.0.0", b"scoped-batch-bytes");
     // `pnpm publish --batch` names attachments by the full scoped name
     // + version, same as libnpmpublish: `@scope/name-version.tgz`. The
-    // submitted `dist.tarball` uses that scoped filename too — the
+    // submitted `dist.tarball` uses that scoped filename too, the
     // 5-segment form every libnpmpublish-based client sends.
     let body = json!({
         "packages": [{
@@ -260,7 +260,7 @@ async fn anonymous_batch_publish_is_rejected() {
 
 /// The batch is all-or-nothing: when one package's tarball fails the
 /// integrity check, packages staged before it must not become
-/// visible — no packument, no tarball, no `*.tmp.*` leftovers.
+/// visible, no packument, no tarball, no `*.tmp.*` leftovers.
 #[tokio::test]
 async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
     let tmp = TempDir::new().unwrap();

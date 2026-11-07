@@ -322,7 +322,7 @@ fn is_positive_store_row(store_dir: &Path) -> pnpm_store_dir::PackageFilesIndex 
 
 /// Assert the store kept the patched `index.js` as a side-effects overlay
 /// rather than overwriting the pristine one it shares with every other
-/// project. The overlay's cache key ends in `;patch=<hash>` — pacquet
+/// project. The overlay's cache key ends in `;patch=<hash>`, pacquet
 /// composes it in `pnpm_graph_hasher::calc_dep_state`, and the row it
 /// hangs off is keyed by the peer- and patch-free `is-positive@1.0.0`.
 fn assert_patched_side_effects_cached(store_dir: &Path, patch_hash: &str) {

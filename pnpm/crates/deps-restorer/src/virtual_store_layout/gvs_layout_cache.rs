@@ -22,7 +22,7 @@ const MAX_ENTRY_BYTES: u64 = 4096;
 ///
 /// The fingerprint changes with every lockfile edit, engine change
 /// and build-policy change, so filing entries under it would leave
-/// a snapshot-sized file behind in the user's cache for each — and
+/// a snapshot-sized file behind in the user's cache for each, and
 /// nothing prunes them. Naming the file after the project instead
 /// and keeping the fingerprint *inside* it means the newest entry
 /// replaces the previous one, at the cost of not being able to
@@ -47,14 +47,14 @@ pub(super) struct CacheFile<'a> {
 
 /// Read a cached map back, or `None` to derive it instead.
 ///
-/// Length-prefixed pairs — `u32 key_len | key | u32 val_len | value`
-/// — rather than JSON: the map runs to thousands of entries and the
+/// Length-prefixed pairs, `u32 key_len | key | u32 val_len | value`
+///rather than JSON: the map runs to thousands of entries and the
 /// whole point is to beat the derivation it replaces.
 ///
 /// What comes back off disk is checked against `expected` before it
 /// is trusted, because a suffix decides where a package is linked
-/// from. Nothing here re-derives a hash — that is the work being
-/// avoided — but two things are cheap and rule out the ways a wrong
+/// from. Nothing here re-derives a hash, that is the work being
+/// avoided, but two things are cheap and rule out the ways a wrong
 /// map does damage:
 ///
 ///   * every snapshot the caller holds must be present. A file
@@ -74,7 +74,7 @@ pub(super) struct CacheFile<'a> {
 /// Neither check says the digest is *this* snapshot's, because
 /// establishing that means computing it, which is the work being
 /// skipped. An entry can therefore still name another slot of the
-/// same `name@version` — one some other project in the shared store
+/// same `name@version`, one some other project in the shared store
 /// derived, carrying that project's child links rather than this
 /// lockfile's. What stops the install from adopting it is
 /// downstream: `slot_contents_complete` probes every child link the
@@ -90,8 +90,8 @@ pub(super) fn load(
     // file, and it has to be read before any of it can be checked.
     // The read is therefore bounded by what a legitimate map for
     // *these* snapshots could need. Nothing observable changes when
-    // the bound is hit — an over-long file fails validation below
-    // either way — so this only caps the memory a preseeded one can
+    // the bound is hit, an over-long file fails validation below
+    // either way, so this only caps the memory a preseeded one can
     // make an install allocate.
     let path = cache_path(file.cache_dir, file.lockfile_dir);
     // A hostile checkout can point `cacheDir` at a directory it
@@ -160,7 +160,7 @@ pub(super) struct Expected<'a> {
 }
 
 impl Expected<'_> {
-    /// `<scope>/<name>/<version>/` — the part of a slot suffix that
+    /// `<scope>/<name>/<version>/`, the part of a slot suffix that
     /// follows from the snapshot key alone, leaving only the graph
     /// hash unverified. `None` for a key the caller does not hold,
     /// which fails the entry.

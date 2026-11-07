@@ -1,5 +1,5 @@
 //! Ports of the TypeScript `optionalDependencies` install suite
-//! (`installing/deps-installer/test/install/optionalDependencies.ts`) —
+//! (`installing/deps-installer/test/install/optionalDependencies.ts`),
 //! see `plans/TEST_PORTING.md`.
 
 pub use _utils::*;
@@ -13,7 +13,7 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{fs, io, path::Path};
 
 /// Nothing at `path` at all. `Path::exists` follows links, so it also reports
-/// `false` for a link whose target is missing — an excluded dependency that was
+/// `false` for a link whose target is missing, an excluded dependency that was
 /// wrongly linked would pass a plain `!exists()` check.
 fn is_absent(path: &Path) -> bool {
     match fs::symlink_metadata(path) {
@@ -679,8 +679,8 @@ fn only_optional_only_and_not_installable_package_is_skipped() {
 
 /// TS: `not installing optional deps` (`deps-restorer/test/index.ts:323`):
 /// a headless install with the optional group excluded skips the optional
-/// dependency entirely — as the root's own optional and as the transitive
-/// optional of `pkg-with-good-optional` — while regular dependencies
+/// dependency entirely, as the root's own optional and as the transitive
+/// optional of `pkg-with-good-optional`, while regular dependencies
 /// install.
 #[test]
 fn headless_install_without_optional_deps() {
@@ -849,8 +849,8 @@ fn headless_install_skips_unfetchable_optional_dependency() {
 /// TS: `optional dependency is hardlinked to the store if it does not
 /// require a build` (`optionalDependencies.ts:665`). Upstream asserts the
 /// `pnpm:progress` `method: hardlink` emission; the port asserts the
-/// observable outcome — the materialized file shares an inode with the
-/// store — on both the fresh and the frozen path.
+/// observable outcome, the materialized file shares an inode with the
+/// store, on both the fresh and the frozen path.
 #[cfg(unix)]
 #[test]
 fn optional_dependency_is_hardlinked_to_the_store_if_it_does_not_require_a_build() {
@@ -1013,7 +1013,7 @@ fn fail_on_failing_postinstall_when_package_is_both_optional_and_non_optional() 
 }
 
 /// Rewrite `pnpm-workspace.yaml` with the harness anchors plus
-/// `supportedArchitectures` and `extra` — upstream drives the
+/// `supportedArchitectures` and `extra`, upstream drives the
 /// architecture change through configuration, which also invalidates the
 /// repeat-install fast path the way a config edit does for pnpm.
 fn write_arch_workspace_yaml(workspace: &Path, os: &str, cpu: &str, extra: &str) {

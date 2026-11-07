@@ -44,11 +44,11 @@ use std::{
 ///   importer's `rootDir` as the event prefix (a per-project emit).
 ///
 /// The virtual store dir (`config.virtual_store_dir()`) stays singular
-/// across the install — only the per-project `node_modules/` and its
+/// across the install, only the per-project `node_modules/` and its
 /// symlinks fan out. By default `pnpm_config::default_install_state_dir`
 /// anchors it at `<workspace_root>/node_modules/.pnpm` (matching pnpm),
 /// but the actual location is whatever the resolved `Config` field
-/// holds — `pnpm-workspace.yaml`'s `virtualStoreDir` can move it.
+/// holds, `pnpm-workspace.yaml`'s `virtualStoreDir` can move it.
 #[must_use]
 pub struct SymlinkDirectDependencies<'a, DependencyGroupList>
 where
@@ -68,7 +68,7 @@ where
     pub package_bins: Option<&'a crate::PackageBins>,
 
     /// Per-snapshot `requiresBuild` flags from the same prefetch,
-    /// gating [`Self::package_manifests`] — see
+    /// gating [`Self::package_manifests`], see
     /// [`crate::BinCandidates::Prefetched`].
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
 
@@ -185,8 +185,8 @@ impl ImporterPass<'_> {
     ) -> Result<crate::ClaimedCommands, SymlinkDirectDependenciesError> {
         // Sorted so the fallible upfront validation below rejects a
         // hostile lockfile on a deterministic importer. `pnpm:root`
-        // event order is not pinned — the per-importer work runs on
-        // rayon, matching pnpm's `Promise.all` over importers — so
+        // event order is not pinned, the per-importer work runs on
+        // rayon, matching pnpm's `Promise.all` over importers, so
         // consumers key events off their `prefix`, never their order.
         let mut keys: Vec<&str> = self.graph.importers
             .keys()
@@ -222,7 +222,7 @@ impl ImporterPass<'_> {
     }
 
     /// `dedupeDirectDeps` short-circuits when there is no root importer
-    /// or only one importer total — there's nothing to dedupe against.
+    /// or only one importer total, there's nothing to dedupe against.
     fn root_dedupe_targets(&self, keys: &[&str]) -> Option<BTreeMap<String, PathBuf>> {
         let dedupe = self.context.config.dedupe_direct_deps
             && self.graph.importers.contains_key(".")
@@ -242,11 +242,11 @@ impl ImporterPass<'_> {
 
     /// Reject importer keys that would escape the workspace root. A
     /// malformed (or hostile) lockfile could otherwise make `Path::join`
-    /// create `node_modules` outside the workspace — `Path::join`
+    /// create `node_modules` outside the workspace, `Path::join`
     /// discards the base when the RHS is absolute, and `..` components
     /// are otherwise permitted. Importer ids the caller declared as
     /// projects (see [`crate::DirectLinkPolicy::trusted_importer_ids`])
-    /// skip the check — an explicitly-configured project may live
+    /// skip the check, an explicitly-configured project may live
     /// outside the lockfile dir. Validated before any importer links, so
     /// a rejected lockfile writes nothing.
     fn validate_importer_ids(&self, keys: &[&str]) -> Result<(), SymlinkDirectDependenciesError> {
@@ -313,7 +313,7 @@ impl ImporterPass<'_> {
 /// the hoist pass populates it, so its dedupe naturally covers both
 /// kinds; pacquet runs hoist *after* this step, so the caller
 /// pre-computes the hoist plan and feeds the public-side targets here.
-/// Direct deps win on collision — a root direct dep won't be silently
+/// Direct deps win on collision, a root direct dep won't be silently
 /// overwritten by a hoist plan entry that resolves to a different slot.
 fn root_dedupe_targets(
     layout: &VirtualStoreLayout,
@@ -342,7 +342,7 @@ fn root_dedupe_targets(
 /// lockfile dir: absolute paths, Windows drive prefixes, backslash
 /// separators, and `..` traversal segments. `.` (the root importer) and any
 /// ordinary POSIX-relative sub-path are accepted. Callers that turn an
-/// importer key into an on-disk path — via [`importer_root_dir`] — must run
+/// importer key into an on-disk path, via [`importer_root_dir`], must run
 /// this first when the key comes from an untrusted lockfile.
 pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDependenciesError> {
     let unsafe_path = || SymlinkDirectDependenciesError::UnsafeImporterPath {
@@ -350,7 +350,7 @@ pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDepend
     };
 
     // `.` is the canonical root importer key. An empty string is
-    // non-standard — pnpm never writes one — and conflating it with
+    // non-standard, pnpm never writes one, and conflating it with
     // `.` would mask malformed lockfiles, so reject it explicitly.
     if importer_id == "." {
         return Ok(());
@@ -381,7 +381,7 @@ pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDepend
     // a trailing `/`). Pnpm only ever writes canonical relative keys,
     // and a non-canonical key is not just malformed: two distinct keys
     // like `packages/a` and `packages/./a` resolve to one directory,
-    // and the importers now link concurrently — aliased keys would
+    // and the importers now link concurrently, aliased keys would
     // race their symlink and `.bin` writes against each other.
     for segment in importer_id.split('/') {
         if segment == ".." || segment == "." || segment.is_empty() {
@@ -401,7 +401,7 @@ pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDepend
 /// saw, without re-implementing the filter logic in two places.
 ///
 /// `link_only` mirrors the [`crate::DirectLinkPolicy::link_only`]
-/// flag — when `true`, only `link:` workspace siblings survive the
+/// flag, when `true`, only `link:` workspace siblings survive the
 /// filter (used by the hoisted-linker re-link pass; the regular
 /// deps live as real directories under
 /// `<importer>/node_modules/<alias>` already and don't need the
@@ -429,7 +429,7 @@ where
         .filter(|(name, spec)| match spec.version.resolved_key(name) {
             Some(resolved) => !skipped.contains(&resolved),
             // `link:` deps have no virtual-store slot and so cannot be
-            // in `skipped` — keep them.
+            // in `skipped`, keep them.
             None => true,
         })
         .filter(
@@ -539,7 +539,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     let entries = dedupe_resolved_entries(entries, dedupe_against);
 
     // `prefix` for the `pnpm:root` envelope: the project's `rootDir`
-    // so the reporter can scope progress to the right project —
+    // so the reporter can scope progress to the right project,
     // `lockfileDir` is reserved for the install-wide stage / summary
     // events.
     let prefix = project_dir.to_string_lossy().into_owned();

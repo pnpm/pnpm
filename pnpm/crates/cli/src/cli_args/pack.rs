@@ -1,4 +1,4 @@
-//! `pacquet pack` — create a tarball from a package.
+//! `pacquet pack`, create a tarball from a package.
 //!
 //! The single-project work lives in [`pnpm_pack::pack_archives`]; this module
 //! maps the resolved [`Config`] and CLI flags onto
@@ -102,7 +102,7 @@ pub struct PackArgs {
     #[clap(long = "variant", value_name = "TARGET")]
     pub variant: Vec<String>,
 
-    /// gzip compression level (`0`–`9`) for the tarball.
+    /// gzip compression level (`0` to `9`) for the tarball.
     #[clap(long = "pack-gzip-level", value_parser = clap::value_parser!(u32).range(0..=9))]
     pub pack_gzip_level: Option<u32>,
 

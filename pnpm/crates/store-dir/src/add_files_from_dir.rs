@@ -74,7 +74,7 @@ pub enum AddFilesFromDirError {
 /// recorded as a [`SYMLINK_MODE`] entry instead of being followed. Other
 /// symlinks are followed when they stay inside the package.
 ///
-/// Cycle-safe: `WalkCtx.visited` is a *recursion-stack* set —
+/// Cycle-safe: `WalkCtx.visited` is a *recursion-stack* set,
 /// each canonical directory path is inserted when we descend
 /// into it and removed when we return. A symlink pointing back
 /// at an ancestor of the current branch finds the ancestor's

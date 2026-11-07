@@ -37,7 +37,7 @@ export interface WorkspaceManifestPolicyUpdates {
 
 /**
  * What the install command asks of each registered policy handler.
- * Both hooks are optional — a handler that only wants to abort can
+ * Both hooks are optional, a handler that only wants to abort can
  * skip `pickManifestUpdates`; a handler that only wants to persist
  * can skip `handleResolutionPolicyViolations`.
  */
@@ -46,7 +46,7 @@ interface PolicyHandler {
    * Runs between `resolveDependencyTree` and `resolvePeers`. Throw to
    * abort the install before any lockfile / package.json /
    * modules-dir mutation. Receives the full violations list across
-   * every policy — handlers filter by `code` for their own.
+   * every policy, handlers filter by `code` for their own.
    */
   handleResolutionPolicyViolations?: (violations: readonly PolicyViolation[]) => Promise<void>
   /**
@@ -87,7 +87,7 @@ export interface PolicyHandlersOptions {
 /**
  * Composes the per-policy handlers the install command needs for the
  * current opts. Returns `undefined` only when no handler reports
- * activity — saves the install command an empty no-op call at every
+ * activity, saves the install command an empty no-op call at every
  * checkpoint when no policies are configured.
  */
 export function setupPolicyHandlers (opts: PolicyHandlersOptions): PolicyHandlersPlan | undefined {
@@ -124,7 +124,7 @@ function mergeManifestUpdates (
   for (const handler of handlers) {
     const patch = handler.pickManifestUpdates?.(violations)
     if (patch == null) continue
-    // Shallow merge — handlers own disjoint fields by convention,
+    // Shallow merge, handlers own disjoint fields by convention,
     // so there's no collision policy to encode here yet.
     for (const [key, value] of Object.entries(patch)) {
       if (value == null) continue
@@ -142,14 +142,14 @@ function mergeManifestUpdates (
  * install versions newer than the cutoff and auto-persists them to
  * `minimumReleaseAgeExclude`. Strict mode + an interactive TTY
  * surfaces the full set of immature picks (direct AND transitive) at
- * once via a confirm prompt — the install proceeds if the user
+ * once via a confirm prompt, the install proceeds if the user
  * approves, otherwise it aborts before touching the lockfile or
  * package.json (pnpm/pnpm#10488). Strict mode in CI or any other non-TTY
  * context aborts hard with the same violation list so the failure
  * pinpoints every offending entry, not just the first one the
  * resolver picked.
  *
- * Strict mode combined with `--no-save` is rejected up-front — the
+ * Strict mode combined with `--no-save` is rejected up-front, the
  * approval prompt promises persistence the install command's
  * `opts.save !== false` gate would block, leaving the lockfile
  * holding approved-but-unlisted immature picks that the next install

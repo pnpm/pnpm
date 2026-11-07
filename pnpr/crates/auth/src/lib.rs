@@ -363,11 +363,11 @@ pub trait TokenBackend: Send + Sync {
 
     /// Resolve a raw token back to its account ID. `Ok(None)` means the
     /// token was never issued, was revoked, or expired; `Err` means the backing
-    /// store failed — never conflate the two, or a store outage reads as
+    /// store failed, never conflate the two, or a store outage reads as
     /// "not authenticated".
     async fn lookup(&self, raw: &str) -> Result<Option<String>>;
 
-    /// Resolve a raw token to its full record — the account ID plus the
+    /// Resolve a raw token to its full record, the account ID plus the
     /// `readonly`, `cidr_whitelist`, and `expires_at` restrictions that
     /// [`Self::lookup`] drops. Returns `Ok(None)` for a token that was never
     /// issued, was revoked, or expired.
@@ -405,7 +405,7 @@ pub trait TokenBackend: Send + Sync {
     /// deleted record so a higher layer can confirm the revocation.
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>>;
 
-    /// Remove a token by its raw value — the `DELETE /-/user/token/:tok`
+    /// Remove a token by its raw value, the `DELETE /-/user/token/:tok`
     /// (npm logout) path puts the bearer token verbatim in the URL, so
     /// this hashes first and defers to [`Self::revoke_by_key`].
     async fn revoke_by_raw(&self, raw: &str) -> Result<Option<TokenRecord>> {
@@ -427,7 +427,7 @@ pub trait TokenBackend: Send + Sync {
 /// Bcrypt cost factor used for new password hashes. Cost 10 is what
 /// verdaccio uses by default and matches Apache `htpasswd -B`'s
 /// default, so files written here verify cleanly against either
-/// tool. ~50–100 ms per hash on modern hardware — slow enough to
+/// tool. ~50 to 100 ms per hash on modern hardware, slow enough to
 /// frustrate offline cracking, cheap enough that adduser doesn't
 /// feel sluggish.
 const DEFAULT_BCRYPT_COST: u32 = 10;

@@ -120,7 +120,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
 }
 
 /// An importer id the caller declared as one of the install's own
-/// projects bypasses the unsafe-path rejection — Bit's nested capsule
+/// projects bypasses the unsafe-path rejection, Bit's nested capsule
 /// installs pass a project at `..`, whose `node_modules` lives outside
 /// the lockfile dir by design. Ids NOT in the trusted set must still
 /// be rejected.

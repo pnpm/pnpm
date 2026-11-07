@@ -23,7 +23,7 @@ pub(super) fn force_symlink(
 /// Lexical "does the existing link resolve to the wanted target?"
 /// check: resolve the existing link's contents to an absolute path
 /// (using `link`'s parent dir when the contents are relative), then
-/// compare lexically against `wanted`. Single-level — does not follow
+/// compare lexically against `wanted`. Single-level, does not follow
 /// chained symlinks.
 ///
 /// Both sides pass through [`fn@crate::lexical_normalize`] before

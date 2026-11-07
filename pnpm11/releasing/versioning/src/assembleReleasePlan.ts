@@ -42,7 +42,7 @@ export interface DependencyUpdate {
 
 export interface PlannedRelease {
   name: string
-  /** Workspace-relative project directory — the engine's unit of identity. */
+  /** Workspace-relative project directory, the engine's unit of identity. */
   dir: string
   rootDir: string
   currentVersion: string
@@ -50,7 +50,7 @@ export interface PlannedRelease {
   bumpType: ReleaseBumpType
   /**
    * The intent files this release consumes for this package: the pending ones,
-   * plus — when the release graduates the package off a lane — the
+   * plus, when the release graduates the package off a lane, the
    * ones the ledger recorded against the lane's prerelease versions.
    */
   intents: ChangeIntent[]
@@ -82,7 +82,7 @@ export interface AssembleReleasePlanOptions {
   snapshotSuffix?: string
   /**
    * Enforce that every internal production dependency uses the `workspace:`
-   * protocol — a prerequisite for actually releasing. The release path
+   * protocol, a prerequisite for actually releasing. The release path
    * (`pnpm version -r`) sets this; read-only callers (`pnpm change status`)
    * leave it off so a diagnostic never fails on an unmigrated dependency.
    */
@@ -362,7 +362,7 @@ function toPlannedRelease (plan: PlanState, dir: string, pkgState: BumpState): P
 
 /**
  * A published `package@version` identifies exactly one artifact, so two
- * projects that share a name cannot both release the same version — the
+ * projects that share a name cannot both release the same version, the
  * registry would reject the second publish, and the name-keyed ledger entry
  * would collide. Caught here, before any manifest is written, naming both
  * directories.

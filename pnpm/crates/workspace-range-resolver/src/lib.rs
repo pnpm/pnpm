@@ -1,5 +1,5 @@
 //! Picks the best workspace-sibling version for one of the `workspace:`
-//! range tokens — `*`, `^`, `~`, the empty string, or an arbitrary
+//! range tokens, `*`, `^`, `~`, the empty string, or an arbitrary
 //! semver range.
 
 use node_semver::{Range, Version};

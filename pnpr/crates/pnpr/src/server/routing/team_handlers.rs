@@ -49,11 +49,9 @@ pub(super) struct TeamPath {
     pub(super) team: String,
 }
 
-// --------------------------------------------------------------------
 // Orgs and teams.
-// --------------------------------------------------------------------
 
-/// `GET {base}/-/org/{scope}/team` — the teams of the registry claiming
+/// `GET {base}/-/org/{scope}/team`, the teams of the registry claiming
 /// `scope`.
 async fn get_teams(
     State(state): State<AppState>,
@@ -64,7 +62,7 @@ async fn get_teams(
     private_no_cache(get_org_teams(&state, &identity, registry.as_deref(), &path.scope))
 }
 
-/// `GET {base}/-/org/{scope}/package` — the packages of the registry claiming
+/// `GET {base}/-/org/{scope}/package`, the packages of the registry claiming
 /// `scope`.
 async fn get_org_package_list(
     State(state): State<AppState>,

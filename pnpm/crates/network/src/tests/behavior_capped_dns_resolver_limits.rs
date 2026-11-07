@@ -121,7 +121,7 @@ fn no_proxy_matcher_leading_dot_matches_subdomains() {
 fn no_proxy_matcher_empty_entries_never_match() {
     // Trailing/leading commas in `.npmrc` already get filtered in the
     // config layer's `parse_no_proxy`, but a malformed `List(vec![""])`
-    // must still fail to match — defense in depth at the matcher.
+    // must still fail to match, defense in depth at the matcher.
     let matcher = NoProxyMatcher::from(Some(&list(&[""])));
     let got = matcher.matches_host("anything.example");
     assert!(!got, "matcher={matcher:?} host=anything.example expected miss, got match");
@@ -268,7 +268,7 @@ fn for_installs_with_invalid_proxy_url_errors() {
 
 #[test]
 fn for_installs_with_socks_proxy_url_builds() {
-    // Smoke test that the `socks` reqwest feature is wired correctly —
+    // Smoke test that the `socks` reqwest feature is wired correctly,
     // a socks URL must not be rejected at parse time, and the client
     // must build.
     let proxy = ProxyConfig {
@@ -483,7 +483,7 @@ fn for_installs_with_valid_ca_pem_builds() {
 
 #[test]
 fn for_installs_with_multiple_ca_pems_builds() {
-    // Same cert twice — exercises the `for` loop over `tls.ca`.
+    // Same cert twice, exercises the `for` loop over `tls.ca`.
     let tls = TlsConfig {
         ca: vec![TEST_CA_PEM.to_string(), TEST_CA_PEM.to_string()],
         ..TlsConfig::default()
@@ -499,7 +499,7 @@ fn for_installs_with_multiple_ca_pems_builds() {
 
 #[test]
 fn for_installs_strict_ssl_false_relaxes_verification() {
-    // `danger_accept_invalid_certs(true)` is a builder-level toggle —
+    // `danger_accept_invalid_certs(true)` is a builder-level toggle,
     // we can't observe it directly without a self-signed-cert HTTPS
     // server, and mockito speaks plain HTTP only. Asserting the
     // client builds is the best we can do here.
@@ -515,7 +515,7 @@ fn for_installs_strict_ssl_false_relaxes_verification() {
 
 #[test]
 fn for_installs_strict_ssl_default_is_true() {
-    // No explicit `strict_ssl` — `apply_tls` should leave the
+    // No explicit `strict_ssl`, `apply_tls` should leave the
     // builder's default cert verification untouched (which is the
     // same as strict_ssl=true). Asserting the client builds is the
     // best we can do without a server; the absence of
@@ -545,7 +545,7 @@ fn for_installs_local_address_pinned() {
 
 #[test]
 fn for_installs_with_malformed_client_identity_errors() {
-    // PKCS#8 PEM parser rejects garbage — surfaces as
+    // PKCS#8 PEM parser rejects garbage, surfaces as
     // `InvalidClientIdentity`.
     let tls = TlsConfig {
         cert: Some("not a real cert".to_string()),
@@ -565,11 +565,11 @@ fn for_installs_with_malformed_client_identity_errors() {
     assert!(is_invalid, "err={err:?}: expected Tls(InvalidClientIdentity)");
 }
 
-// --- Per-registry routing tests ---
+// - Per-registry routing tests
 
 #[test]
 fn for_installs_builds_per_registry_clients() {
-    // Two per-registry overrides — one per host — plus an empty
+    // Two per-registry overrides, one per host, plus an empty
     // override that `from_map` drops. The constructor should
     // produce a client per non-empty override.
     use crate::RegistryTls;
@@ -601,7 +601,7 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
     // URLs that don't. The semaphore is still shared, so the two
     // calls can interleave under concurrency.
     //
-    // We can't compare `Client` instances directly — reqwest's
+    // We can't compare `Client` instances directly, reqwest's
     // `Client` doesn't implement `PartialEq`. Compare the underlying
     // pointer instead: `&Client` is what the guard derefs to, and two
     // distinct builds produce two distinct `Client` allocations.
@@ -720,7 +720,7 @@ async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode()
 
 #[tokio::test]
 async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
-    // The common case — no per-registry overrides at all. The lookup
+    // The common case, no per-registry overrides at all. The lookup
     // short-circuits and `acquire_for_url` always returns the
     // default client.
     let throttled = ThrottledClient::new_for_installs();
@@ -734,7 +734,7 @@ async fn acquire_for_url_falls_back_to_default_when_no_overrides() {
 #[test]
 fn for_installs_with_pkcs1_client_key_builds() {
     // rustls's `Identity::from_pem` accepts PKCS#1, PKCS#8, and EC keys.
-    // This test pins that contract — if a future change narrows the
+    // This test pins that contract, if a future change narrows the
     // accepted key formats, this build will fail with a clear
     // `InvalidClientIdentity`.
     let tls = TlsConfig {

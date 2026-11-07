@@ -313,8 +313,8 @@ async fn temp_dir(download: &IngestTarballToStore<'_>) -> Result<Value, FetchErr
 ///
 /// Each callback answers for one transport, so the URL has to name that
 /// transport and no other. Without the positive test on the remote
-/// side, a scheme neither fetcher handles — `ftp:`, `data:`, a bare
-/// path — counts as remote and fails deep in the HTTP client instead of
+/// side, a scheme neither fetcher handles, `ftp:`, `data:`, a bare
+/// path, counts as remote and fails deep in the HTTP client instead of
 /// here.
 fn callback_location(
     callback: &FetcherCallback,

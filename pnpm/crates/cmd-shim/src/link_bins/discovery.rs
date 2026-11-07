@@ -44,7 +44,7 @@ where
 /// Add the packages under one `@scope/` directory.
 ///
 /// Only `NotFound` (and a `@`-prefixed file, which is not a scope directory)
-/// is plausibly skippable — a concurrent scope-dir delete. Other errors,
+/// is plausibly skippable, a concurrent scope-dir delete. Other errors,
 /// `PermissionDenied`, `EIO` or an `AppArmor` deny, would silently drop every
 /// bin under this scope, so they surface as `ReadModulesDir`, matching the
 /// policy the per-`modules_dir` read uses.

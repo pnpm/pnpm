@@ -80,7 +80,7 @@ test('throws with the verifier-supplied code and reason on a single failure', as
 })
 
 test('propagates a verifier throw (registry fetch failure) instead of folding it into a batch', async () => {
-  // A verifier throws — rather than returning a violation — when it can't reach
+  // A verifier throws, rather than returning a violation, when it can't reach
   // the registry to verify an entry. That transport error must surface as-is
   // (the install aborts with the registry's own error), not be turned into a
   // lockfile-verification batch.
@@ -223,7 +223,7 @@ test('does not collapse same (name, version) with different resolutions', async 
   // (npm registry vs. a URL-keyed tarball whose snapshot copied the same
   // semver `version` from its manifest). If the dedup key were just
   // `name@version` one would silently overwrite the other and a
-  // protocol-scoped verifier would short-circuit on the survivor —
+  // protocol-scoped verifier would short-circuit on the survivor,
   // letting the real entry skip the gate.
   const npmResolution = tarballResolution('sha512-a')
   const directTarballResolution = { integrity: 'sha512-b', tarball: 'https://example.com/foo.tgz' }
@@ -324,13 +324,13 @@ test('skips the verifier when the cache holds an unchanged lockfile + matching p
       return { ok: true }
     }, exampleSlot(60))
 
-    // First call has no cache record yet — verifier runs.
+    // First call has no cache record yet, verifier runs.
     await verifyLockfileResolutions(lockfile, [counting], {
       cacheDir, lockfilePath,
     })
     expect(calls).toBe(1)
 
-    // Second call against the same lockfile + policy — cache short-circuit.
+    // Second call against the same lockfile + policy, cache short-circuit.
     await verifyLockfileResolutions(lockfile, [counting], {
       cacheDir, lockfilePath,
     })
@@ -419,7 +419,7 @@ test('does not write a cache record when verification rejects', async () => {
       })
     ).rejects.toThrow()
 
-    // No record was written — a rejecting verification must rerun next install.
+    // No record was written, a rejecting verification must rerun next install.
     const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
     await expect(fs.promises.access(cacheFile)).rejects.toThrow()
   } finally {
@@ -706,7 +706,7 @@ test('accepts valid scoped and unscoped dependency aliases', async () => {
 })
 
 test('registry-qualified entries are verified separately, each with its own registry name', async () => {
-  // Same name, version, and resolution — only the registry differs. Deduping
+  // Same name, version, and resolution, only the registry differs. Deduping
   // on anything less than the full identity would verify one and skip the
   // other entirely.
   // Registry-qualified keys only exist in 12.0, so the fixture has to declare

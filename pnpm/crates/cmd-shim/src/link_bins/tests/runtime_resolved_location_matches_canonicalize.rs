@@ -7,7 +7,7 @@ use super::{
 
 /// A caller-supplied resolved location and the canonicalize fallback
 /// must derive the same shim `NODE_PATH` for a package reached through
-/// a virtual-store-style symlink — the lexical fast path is only sound
+/// a virtual-store-style symlink, the lexical fast path is only sound
 /// while this holds.
 #[cfg(unix)]
 #[test]

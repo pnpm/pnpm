@@ -53,7 +53,7 @@ fn multi_importer_lockfile_emits_workspace_children() {
     );
 }
 
-/// Tree membership does not depend on `hoist_workspace_packages` —
+/// Tree membership does not depend on `hoist_workspace_packages`,
 /// pnpm v11's `hoist()` attaches every importer unconditionally, and
 /// the knob only controls root-level name links for the workspace
 /// packages themselves. Gating membership on it silently dropped
@@ -101,7 +101,7 @@ fn hoist_workspace_packages_false_keeps_workspace_children() {
 ///
 /// [`hoist`] always builds the `.` root with empty `peer_names`, so the
 /// guard is unreachable from the public entry point. This drives
-/// [`build_hoist_ident_map`] directly with a root that declares a peer —
+/// [`build_hoist_ident_map`] directly with a root that declares a peer,
 /// the shape a per-importer hoisting root would take once those land.
 #[test]
 fn build_hoist_ident_map_skips_root_peer_names() {

@@ -621,7 +621,7 @@ fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
     let patched = tempdir().unwrap();
     let target = patched.path().join("partial.txt");
     // Two lines on disk. The patch below claims to delete the file
-    // but only removes the first line — `diffy::apply` applies the
+    // but only removes the first line, `diffy::apply` applies the
     // single hunk and returns the unpatched tail (`stay\n`), which
     // is non-empty, so the implementation must error.
     fs::write(&target, "going away\nstay\n").unwrap();

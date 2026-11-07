@@ -7,7 +7,7 @@
 //! Upstream points these at real repositories on github.com. Here each
 //! test builds its own repo on disk and installs it over `git+file://`
 //! ([`GitRepoFixture`]), so the git install path runs end to end without
-//! reaching the network — the same technique upstream's own
+//! reaching the network, the same technique upstream's own
 //! `createGitPreparePackage` uses. What that trades away is the *host*
 //! identity: a `github:`/`gitlab:`/`bitbucket:` spec resolves to the
 //! host's archive URL (a `gitHosted: true` tarball resolution), while a
@@ -144,7 +144,7 @@ fn install_from_a_git_repo() {
     assert_eq!(resolution.repo, repo.file_url());
     assert_eq!(resolution.path, None);
     // A non-host git dep with no alias records the bare `git+...#<commit>`
-    // ref in the importer, not `is-negative@git+...` — byte-for-byte what
+    // ref in the importer, not `is-negative@git+...`, byte-for-byte what
     // pnpm 11 writes.
     assert_eq!(importer_version(&lockfile, ".", "is-negative"), repo.git_url_at(&commit));
 
@@ -268,7 +268,7 @@ fn lockfile_only_from_a_git_repo_with_submodules_does_not_fetch_submodules() {
 
 /// No pnpm version computes an integrity for a git checkout, yet
 /// lockfiles in the wild record one. Installing must not choke on it, and
-/// must not write it back — nothing verifies a git checkout against a
+/// must not write it back, nothing verifies a git checkout against a
 /// hash. See <https://github.com/pnpm/pnpm/issues/13042>.
 #[test]
 fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
@@ -331,7 +331,7 @@ fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
 /// (`fromRepo.ts:61`).
 ///
 /// The alias is the point: the manifest and the importer entry key on
-/// `say-hi`, while the package resolves to `hi` — so the importer's
+/// `say-hi`, while the package resolves to `hi`, so the importer's
 /// version keeps the `hi@` prefix, the `pnpm:root` event reports both
 /// names, and both of the package's bins are linked under their own
 /// names rather than the alias.
@@ -392,7 +392,7 @@ fn install_from_a_git_repo_with_a_different_name_via_named_installation() {
 /// TS: `from a github repo with different name` (`fromRepo.ts:105`).
 ///
 /// Same shape as the named-installation case, reached through a
-/// manifest that already declares the alias rather than through `add` —
+/// manifest that already declares the alias rather than through `add`,
 /// upstream keeps both because the two entered the installer by
 /// different routes.
 #[test]
@@ -430,7 +430,7 @@ fn install_from_a_git_repo_with_a_different_name() {
 /// TS: `re-adding a git repo with a different tag` (`fromRepo.ts:276`).
 ///
 /// Each tag is a distinct commit, so re-adding must re-resolve to the
-/// second one and leave exactly one `packages:` entry behind — a stale
+/// second one and leave exactly one `packages:` entry behind, a stale
 /// entry for the first tag would mean the old commit is still installed.
 #[test]
 fn re_adding_a_git_repo_with_a_different_tag() {
@@ -740,7 +740,7 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
 }
 
 /// A git specifier names a repository, not a package, so the name the
-/// peer is matched on lives only in the repo's own manifest — read
+/// peer is matched on lives only in the repo's own manifest, read
 /// during resolution, early enough for the hoist that
 /// `resolvePeersFromWorkspaceRoot` runs
 /// (<https://github.com/pnpm/pnpm/issues/13351>).

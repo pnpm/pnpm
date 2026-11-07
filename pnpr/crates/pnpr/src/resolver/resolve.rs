@@ -3,7 +3,7 @@
 //! Writes a throwaway project, resolves it lockfile-only (so
 //! `node_modules` is never linked and no tarball is fetched), then reads
 //! the produced lockfile back. pnpr serves no files, so the store is
-//! never populated with package contents — the client fetches every
+//! never populated with package contents, the client fetches every
 //! tarball itself.
 
 use std::{
@@ -75,9 +75,9 @@ struct Workspace<'a> {
 /// tarball downloads happen later from upstream URLs or an upstream's
 /// `/~<name>/` registry endpoint.
 ///
-/// A request is reconstructed as a real workspace in the temp dir — a
+/// A request is reconstructed as a real workspace in the temp dir, a
 /// `package.json` per requested project and, when there are members, a
-/// `pnpm-workspace.yaml` listing their dirs — so pacquet's install path
+/// `pnpm-workspace.yaml` listing their dirs, so pacquet's install path
 /// discovers and resolves every importer in one pass, producing a lockfile
 /// keyed by the same POSIX importer dirs the client sent.
 pub async fn resolve(
@@ -201,7 +201,7 @@ async fn write_importer_manifests<'a>(
 ///
 /// The temp dir starts empty and the caller already rejected byte-equal dirs,
 /// so an existing `package.json` means two importer dirs addressed the same
-/// directory — `packages/Foo` and `packages/foo` on a case-insensitive
+/// directory, `packages/Foo` and `packages/foo` on a case-insensitive
 /// filesystem. Creating the file exclusively lets the host's own path
 /// semantics catch that, which a string comparison here cannot do portably.
 async fn write_importer_manifest(

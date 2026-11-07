@@ -638,7 +638,7 @@ fn lookalike_package_does_not_shadow_the_global_bin() {
 }
 
 /// `globalShims: false` in the global config.yaml disables dispatch
-/// immediately — no relinking required.
+/// immediately, no relinking required.
 #[cfg(unix)]
 #[test]
 fn global_shims_setting_off_disables_dispatch() {
@@ -778,7 +778,7 @@ fn write_lockfile_verified_record(root: &TempDir, project: &Path) {
 }
 
 /// A `pnpm-workspace.yaml` in an ancestor of the pnpm home must not
-/// influence dispatch — only `<home>/pnpm-workspace.yaml` itself may.
+/// influence dispatch, only `<home>/pnpm-workspace.yaml` itself may.
 #[cfg(unix)]
 #[test]
 fn ancestors_of_the_pnpm_home_cannot_set_the_mode() {
@@ -1034,7 +1034,7 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
 }
 
 /// `globalShims: false` turns every context-aware shim off, so a shim
-/// added under it would sit on `PATH` doing nothing — and recording the
+/// added under it would sit on `PATH` doing nothing, and recording the
 /// opt-in would replace that off switch with a record that turns the
 /// built-in runtime shims back on. The command says so instead.
 #[test]
@@ -1055,7 +1055,7 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     let stderr = String::from_utf8_lossy(&refused.stderr);
     assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{stderr}");
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
-    // Nothing was linked at all — not the bare shim, not a Windows
+    // Nothing was linked at all, not the bare shim, not a Windows
     // flavor, not the dispatcher beside them.
     let global_bin = root
         .path()
@@ -1080,7 +1080,7 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
 }
 
 /// Removing a shim the record never held changes nothing, so it writes
-/// nothing — spelling the built-in defaults into the user's
+/// nothing, spelling the built-in defaults into the user's
 /// configuration is not what `pnpm shim rm` was asked to do.
 #[test]
 fn removing_a_shim_that_was_never_recorded_leaves_the_config_alone() {
@@ -1266,7 +1266,7 @@ fn adding_a_shim_over_another_package_s_bin_is_refused() {
 }
 
 /// Nothing installed the package behind the shim, so a project that
-/// neither pins nor depends on it has nothing to run — and the shim says
+/// neither pins nor depends on it has nothing to run, and the shim says
 /// so instead of falling through to whatever else is on `PATH`.
 #[cfg(unix)]
 #[test]

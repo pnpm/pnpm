@@ -13,7 +13,7 @@ use std::{
 };
 
 struct FakeProbe {
-    /// Whether the anonymous HEAD of the archive URL succeeds — the
+    /// Whether the anonymous HEAD of the archive URL succeeds, the
     /// public/private axis of the repo under test.
     archive_ok: bool,
     calls: Mutex<Vec<String>>,
@@ -55,7 +55,7 @@ impl GitCommandRunner for FakeRunner {
     }
 }
 
-/// Stands in for a git that cannot reach the remote at all — a machine
+/// Stands in for a git that cannot reach the remote at all, a machine
 /// without the host's CA certificates, without an SSH key, offline.
 struct UnreachableRunner {
     stderr: String,

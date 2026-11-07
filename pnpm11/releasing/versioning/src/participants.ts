@@ -119,7 +119,7 @@ function resolveInternalDep (
  * Decides whether a dependency entry points at a workspace package. Aliased
  * specs targeting somewhere else (`npm:`, `file:`, git URLs, ...) are external
  * even when the alias collides with a workspace package name; a plain semver
- * range or `catalog:` entry on a workspace name is internal — it is exactly
+ * range or `catalog:` entry on a workspace name is internal, it is exactly
  * the declaration the workspace-protocol check must reject.
  */
 function internalDepTargetName (alias: string, spec: string, refs: ProjectRefIndex): string | null {

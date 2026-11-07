@@ -1,9 +1,9 @@
-//! `pacquet doctor` — diagnose the pnpm installation and the environment it
+//! `pacquet doctor`, diagnose the pnpm installation and the environment it
 //! runs in.
 //!
 //! The checks are the ones that predict whether an install will work on this
-//! machine and how fast it will be, plus one live check — an offline `file:`
-//! install — that drives the resolve/store/link path end to end. The release
+//! machine and how fast it will be, plus one live check, an offline `file:`
+//! install, that drives the resolve/store/link path end to end. The release
 //! pipeline runs this same command against a freshly published version before
 //! moving its dist-tags, so what gates a release is what ships to users.
 
@@ -185,7 +185,7 @@ fn check_versions() -> CheckResult {
 }
 
 /// Report the Node.js that lifecycle scripts will run under. pacquet is a
-/// native binary, so Node is not required for pnpm itself to work — its
+/// native binary, so Node is not required for pnpm itself to work, its
 /// absence is worth reporting, not failing on.
 fn node_version() -> Option<String> {
     let output = Command::new("node")
@@ -216,7 +216,7 @@ fn check_install_method() -> CheckResult {
     CheckResult::pass(title, "pnpm")
 }
 
-/// Check the global executables directory — where the CLI links binaries and
+/// Check the global executables directory, where the CLI links binaries and
 /// which must be on `PATH` for them to run. The layout moved between majors
 /// (v10 links into `PNPM_HOME` directly, v11 into `PNPM_HOME/bin`), so accept
 /// whichever candidate `PATH` actually contains.

@@ -333,8 +333,8 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
     );
 }
 
-/// A record another replica removed — a rejection, or an approval that
-/// finished — is not one to write back.
+/// A record another replica removed, a rejection, or an approval that
+/// finished, is not one to write back.
 #[tokio::test]
 async fn a_removed_staged_record_is_not_replaced() {
     let (store, _staging) = store_with_prefix("");

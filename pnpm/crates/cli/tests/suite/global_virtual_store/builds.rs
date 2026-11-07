@@ -17,8 +17,8 @@ use std::{
 /// TS: `GVS hashes are engine-agnostic for packages not in allowBuilds`
 /// (`globalVirtualStore.ts:132`).
 ///
-/// The hash of a package covers the engine only when the package — or
-/// something in its dependency closure — is allowed to build. Allowing
+/// The hash of a package covers the engine only when the package, or
+/// something in its dependency closure, is allowed to build. Allowing
 /// the *transitive* dep therefore has to change the *parent's* hash.
 #[test]
 fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
@@ -291,7 +291,7 @@ fn gvs_reinstall_builds_a_built_slot_with_nothing_cached() {
     drop((root, mock_instance));
 }
 
-/// TS: `GVS: approve-builds scenario — install with no builds, then
+/// TS: `GVS: approve-builds scenario, install with no builds, then
 /// reinstall with allowBuilds` (`globalVirtualStore.ts:290`). The
 /// hash-directory move is what makes approval safe: the unbuilt slot stays
 /// intact and the built one is a sibling.
@@ -563,7 +563,7 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
 
 /// TS: `GVS rebuilds successfully after simulated build failure cleanup`
 /// (`globalVirtualStore.ts:367`). With the hash directory gone the warm
-/// fast path must not fire — the install re-fetches, re-imports and
+/// fast path must not fire, the install re-fetches, re-imports and
 /// re-builds into a fresh slot.
 #[test]
 fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {

@@ -85,7 +85,7 @@ export function gitHostedStoreIndexKey (pkgId: string, opts: { built: boolean })
  * Pick the store index key for a tarball-shaped resolution.
  *
  * Git-hosted tarballs (`resolution.gitHosted === true`) are addressed by
- * `gitHostedStoreIndexKey(pkgId, { built })` — their cached content depends
+ * `gitHostedStoreIndexKey(pkgId, { built })`, their cached content depends
  * on whether build scripts ran during fetch (`preparePackage`), so the
  * `built` dimension is part of the key. The integrity-only key would
  * collapse the built/not-built variants into one slot.
@@ -94,7 +94,7 @@ export function gitHostedStoreIndexKey (pkgId: string, opts: { built: boolean })
  * `storeIndexKey(integrity, pkgId)`.
  *
  * Resolutions that have neither flag fall through to
- * `gitHostedStoreIndexKey` — these are typically lockfile entries written
+ * `gitHostedStoreIndexKey`, these are typically lockfile entries written
  * by older pnpm versions that lacked integrity.
  */
 export function pickStoreIndexKey (
@@ -517,8 +517,8 @@ function immutableSqliteUri (dbPath: string): string {
 /**
  * Whether the running Node.js can open a `file:...?immutable=1` SQLite URI.
  *
- * `node:sqlite` only passes `SQLITE_OPEN_URI` to SQLite — so the `immutable=1`
- * query is honored rather than treated as part of a literal filename — starting
+ * `node:sqlite` only passes `SQLITE_OPEN_URI` to SQLite, so the `immutable=1`
+ * query is honored rather than treated as part of a literal filename, starting
  * in v22.15.0 (22.x line), v23.11.0 (23.x line), and every v24+. On older
  * runtimes the URI is opened as a literal path and fails with a cryptic
  * "unable to open database file"; we detect that up front to give actionable

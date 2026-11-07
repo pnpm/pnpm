@@ -723,7 +723,7 @@ test('override narrows auto-installed peer dep range on subsequent install', asy
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
   const project = prepareEmpty()
 
-  // Step 1: install without override — auto-installs peer-c@1.0.1
+  // Step 1: install without override, auto-installs peer-c@1.0.1
   const manifest = {
     dependencies: {
       '@pnpm.e2e/wants-peer-c-1': '1.0.0',
@@ -1294,7 +1294,7 @@ test('a root dependency does not override the peers provided inside a self-conta
   // regular dependencies of closure-plugins). The root project additionally
   // depends on the incompatible closure-peer-x@2.0.0. With autoInstallPeers
   // enabled, the peers resolved inside the subtree are also attached to the
-  // root project so other subtrees can reuse them — but they must not be
+  // root project so other subtrees can reuse them, but they must not be
   // peer-resolved again in the root context, where closure-peer-x@2.0.0 is
   // the nearest provider, or the subtree's peer graph gets a mix of both
   // versions.

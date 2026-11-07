@@ -251,7 +251,7 @@ impl ConfigOverrides {
         Argv: Iterator<Item = (usize, OsString)>,
     {
         // The token after a `--<setting> <value>` pair's flag, when the
-        // setting claims it — see [`claims_as_value`]. `None` when the
+        // setting claims it, see [`claims_as_value`]. `None` when the
         // flag ends argv, the token is already the child's, or it is
         // not a value the setting takes, all of which leave the
         // valueless flag for clap to report.
@@ -280,9 +280,9 @@ impl ConfigOverrides {
                 self.record_raw_config(key, value);
                 self.set(key, value);
             }
-            // A flag whose value is missing — because it ends argv, or
+            // A flag whose value is missing, because it ends argv, or
             // because the token after it is one the setting does not
-            // take — goes back in place for clap to report; see
+            // take, goes back in place for clap to report; see
             // [`classify`].
             ConfigToken::ValueFollows(key) => match following(key) {
                 Some(value) => {

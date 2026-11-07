@@ -11,8 +11,8 @@ import type { GraphEdits } from './tryComposeFastUpdates.js'
 /**
  * Remove every optional dependency a widened `ignoredOptionalDependencies`
  * now ignores, from importers and packages alike, recording the severed
- * edges in `edits` for the shared epilogue. `false` — a narrowed list, a
- * new exclusion, or a previous configuration that ignores by default — leaves
+ * edges in `edits` for the shared epilogue. `false`, a narrowed list, a
+ * new exclusion, or a previous configuration that ignores by default, leaves
  * the caller on the full-resolution path, because only a resolution can bring
  * packages back.
  */

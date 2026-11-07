@@ -8,7 +8,7 @@ use crate::server::publishing::add_npm_notices;
 use axum::response::IntoResponse;
 use pnpr_storage::publish::now_iso;
 
-/// `POST /-/stage/:id/approve` — claim the record, publish the held document
+/// `POST /-/stage/:id/approve`, claim the record, publish the held document
 /// through the regular validate → stage → commit flow, then drop the record.
 pub(super) async fn serve_staged_approve(
     state: &AppState,
@@ -69,7 +69,7 @@ pub(super) async fn claim_for_approval(
 ///
 /// A claim from the future is live: replicas time their claims by their own
 /// clocks, and one running ahead must not have its claim read as expired by
-/// one running behind. An unparsable timestamp is expired instead — a value
+/// one running behind. An unparsable timestamp is expired instead, a value
 /// pnpr cannot read must not be able to hold a stage forever.
 pub(super) fn approval_claim_is_live(since: &str) -> bool {
     let Ok(started) = chrono::DateTime::parse_from_rfc3339(since) else {

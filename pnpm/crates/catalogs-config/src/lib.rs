@@ -1,6 +1,6 @@
 //! Normalizes the two surface forms `pnpm-workspace.yaml` supports for
-//! defining the default catalog — `catalog:` at the top level vs.
-//! `catalogs.default` nested under the named catalogs — into the
+//! defining the default catalog, `catalog:` at the top level vs.
+//! `catalogs.default` nested under the named catalogs, into the
 //! single flat [`Catalogs`] map every resolver consumer expects.
 
 use derive_more::{Display, Error};
@@ -9,7 +9,7 @@ use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_workspace::WorkspaceManifest;
 
 /// Raised when the workspace manifest defines the default catalog
-/// twice — once via the top-level `catalog:` shorthand and once via
+/// twice, once via the top-level `catalog:` shorthand and once via
 /// the explicit `catalogs.default` key.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[non_exhaustive]

@@ -43,7 +43,7 @@ pub struct UpToDateFastPathCheck<'a> {
     pub dependency_groups: Vec<DependencyGroup>,
     pub node_linker: NodeLinker,
     /// The CLI-merged effective `supportedArchitectures` (yaml plus
-    /// `--cpu` / `--os` / `--libc`) — the fast path must not report
+    /// `--cpu` / `--os` / `--libc`), the fast path must not report
     /// "Already up to date" when a flag changed the target platforms.
     pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
 }
@@ -51,7 +51,7 @@ pub struct UpToDateFastPathCheck<'a> {
 /// What an up-to-date install reports about the workspace it covered.
 #[derive(Debug)]
 pub struct UpToDateWorkspace {
-    /// The workspace root — the reporter `prefix` for the "Already up to
+    /// The workspace root, the reporter `prefix` for the "Already up to
     /// date" emission.
     pub root: PathBuf,
     /// How many projects the workspace has, or `None` when there is no
@@ -156,7 +156,7 @@ fn already_up_to_date(
     // The lockfile the install wrote sits at its `lockfileDir`, which
     // both `sharedWorkspaceLockfile: false` and an explicit pin move away
     // from the discovered workspace root. The workspace *state* keeps its
-    // own root, which only a pin moves — `state_root` below.
+    // own root, which only a pin moves, `state_root` below.
     let lockfile_root = lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
     let state_root = check.config.lockfile_dir.as_deref().unwrap_or(workspace_root);
     let state = load_fast_path_state(check.config, &lockfile_root, state_root)?;
@@ -294,7 +294,7 @@ fn fast_path_workspace_context(
     Some((workspace_manifest, catalogs))
 }
 
-/// The wanted lockfile, read on first use — or a stand-in that never reads
+/// The wanted lockfile, read on first use, or a stand-in that never reads
 /// one when the install is configured without a lockfile.
 fn lazy_wanted_lockfile(config: &Config, lockfile_root: &Path) -> LazyLockfile {
     if config.lockfile {

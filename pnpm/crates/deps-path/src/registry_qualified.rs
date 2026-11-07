@@ -51,7 +51,7 @@ pub fn shadows_reserved_version_prefix(name: &str) -> bool {
 }
 
 /// Whether `name` is syntactically usable as a named-registry alias in a
-/// registry-qualified dep path. Does not check the reserved list —
+/// registry-qualified dep path. Does not check the reserved list,
 /// see [`shadows_reserved_version_prefix`] for that.
 #[must_use]
 pub fn is_well_formed_registry_name(name: &str) -> bool {
@@ -61,7 +61,7 @@ pub fn is_well_formed_registry_name(name: &str) -> bool {
 }
 
 /// Parse the version slot of a registry-qualified dep path
-/// (`<registryName>:<version>`, e.g. `work:1.0.0`) — the form used for
+/// (`<registryName>:<version>`, e.g. `work:1.0.0`), the form used for
 /// packages resolved from a named registry since lockfile format 12.0.
 /// Returns `None` for every other version form (plain semver, `file:`,
 /// `runtime:`, git/tarball URLs, ...).

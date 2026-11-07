@@ -70,7 +70,7 @@ pub(super) fn read_env_lockfile(root_dir: &Path) -> miette::Result<Option<EnvLoc
         })
 }
 
-/// Switch straight to the version the env lockfile records — unless its
+/// Switch straight to the version the env lockfile records, unless its
 /// entries don't satisfy the bootstrap rules (resolutions carrying
 /// tarball URLs written by an earlier pnpm, say). Those are not an
 /// error: they are discarded and re-resolved afresh through the trusted

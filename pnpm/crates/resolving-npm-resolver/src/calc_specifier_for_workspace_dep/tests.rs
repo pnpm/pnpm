@@ -225,7 +225,7 @@ fn pinned_keeps_the_operator_for_other_non_semver_versions() {
     }
 }
 
-/// `Off` still renders a `workspace:` specifier — declining to use one
+/// `Off` still renders a `workspace:` specifier, declining to use one
 /// at all is the caller's decision, not this function's.
 #[test]
 fn off_renders_the_pinned_shape() {

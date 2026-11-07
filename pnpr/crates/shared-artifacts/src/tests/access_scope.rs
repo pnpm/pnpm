@@ -4,7 +4,7 @@ use super::{
 };
 
 /// Matching a tag set is order-independent, so two orderings are the same
-/// constraint and must not be two slots — otherwise a publisher reopens the
+/// constraint and must not be two slots, otherwise a publisher reopens the
 /// swap by listing the same tags the other way round.
 #[tokio::test]
 async fn tag_order_does_not_open_a_second_slot() {
@@ -459,7 +459,7 @@ async fn a_recovery_that_cannot_remove_its_artifact_keeps_the_scopes_it_retook()
         .create_object(&variant, serde_json::to_vec(&ours.envelope).unwrap())
         .await
         .unwrap();
-    // Taken while this publication was written off, so the recovery loses — but
+    // Taken while this publication was written off, so the recovery loses, but
     // only after retaking the scope that sorts before it.
     store
         .create_object(

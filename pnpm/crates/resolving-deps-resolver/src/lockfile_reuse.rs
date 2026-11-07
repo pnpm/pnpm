@@ -166,7 +166,7 @@ fn importer_dep<'a>(
 ///   `peerDependencies` / `peerDependenciesMeta` / `engines` / `cpu` /
 ///   `os` / `libc` / `hasBin` so `extract_peer_dependencies`
 ///   and the leaf classifier behave identically to a fresh resolve.
-///   `dependencies` are deliberately omitted — the children come from
+///   `dependencies` are deliberately omitted, the children come from
 ///   the snapshot graph, not this manifest.
 pub(crate) fn synthesize_reused_result(
     lockfile: &Lockfile,

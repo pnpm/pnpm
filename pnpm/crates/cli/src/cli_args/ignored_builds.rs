@@ -16,7 +16,7 @@ pub struct IgnoredBuildsArgs {}
 pub(crate) struct IgnoredBuildsScan {
     /// The `allowBuilds` keys of the packages whose build scripts were
     /// ignored, deduplicated in first-seen order. `None` when there is no
-    /// `.modules.yaml` or it records no `ignoredBuilds` field at all — the
+    /// `.modules.yaml` or it records no `ignoredBuilds` field at all, the
     /// "cannot identify as no `node_modules` found" signal.
     pub names: Option<Vec<String>>,
     pub modules_dir: PathBuf,

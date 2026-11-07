@@ -4,13 +4,13 @@
 //! The OTP / web-auth tests need a fake for every web-auth capability. This
 //! crate keeps the fake's mutable pieces per-test: the [`web_auth_fake`] macro
 //! expands, inside a `#[test]` body, to fn-local `thread_local!` statics and a
-//! `reset`, plus — one per named argument — a `FakeHost` (implementing every
+//! `reset`, plus, one per named argument, a `FakeHost` (implementing every
 //! web-auth capability), the recording / strict reporters, and the `set_*` /
 //! `infos` / `warns` config functions.
 //!
-//! The stateless pieces — [`InputResponse`], [`SleepBehavior`],
+//! The stateless pieces, [`InputResponse`], [`SleepBehavior`],
 //! [`FetchScript`], [`FakeOtpError`], and the response builders
-//! [`ok_202`], [`ok_token`], [`web_auth_body`] — carry no mutable state, so
+//! [`ok_202`], [`ok_token`], [`web_auth_body`], carry no mutable state, so
 //! they stay ordinary `pub` items shared across every test.
 
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -46,7 +46,7 @@ pub enum InputResponse {
     Cancelled,
 }
 
-/// How the `Sleep` fake advances the fake clock when awaited — left alone,
+/// How the `Sleep` fake advances the fake clock when awaited, left alone,
 /// or jumped forward by a fixed number of milliseconds to drive the web-auth
 /// poll past its deadline.
 #[derive(Clone, Copy)]
@@ -65,7 +65,7 @@ pub type FetchScript = Box<dyn FnMut() -> Result<WebAuthFetchResponse, WebAuthFe
 /// and `reset`, which clears every static back to its default. Call
 /// `reset()` first in each test: because the statics live inside the test
 /// function, every test gets its own storage and concurrently running tests
-/// never race on the scenario — the "state in a `static` inside the `#[test]`
+/// never race on the scenario, the "state in a `static` inside the `#[test]`
 /// body" rule of the "Dependency injection for tests" section of
 /// `pnpm/CODE_STYLE_GUIDE.md`.
 ///
@@ -73,20 +73,20 @@ pub type FetchScript = Box<dyn FnMut() -> Result<WebAuthFetchResponse, WebAuthFe
 /// helper is emitted unused and none needs an `#[allow(dead_code)]`. Name
 /// exactly the ones the scenario uses:
 ///
-/// - `FakeHost` — the unit host implementing all web-auth capabilities
+/// - `FakeHost`, the unit host implementing all web-auth capabilities
 ///   over the statics, i.e. the `Sys` provider the flow runs against.
-/// - `RecordingReporter` — captures every `pnpm:global` message for `infos` /
-///   `warns` to read; `UnexpectedReporter` — panics on any emission, for a
+/// - `RecordingReporter`, captures every `pnpm:global` message for `infos` /
+///   `warns` to read; `UnexpectedReporter`, panics on any emission, for a
 ///   scenario that expects none.
 /// - `set_stdin_tty` / `set_stdout_tty` / `set_time` / `set_sleep_behavior` /
-///   `set_input` / `set_fetch` — script one capability's behavior.
-/// - `infos` / `warns` — the captured `pnpm:global` messages at that level.
+///   `set_input` / `set_fetch`, script one capability's behavior.
+/// - `infos` / `warns`, the captured `pnpm:global` messages at that level.
 ///
 /// A mistyped helper name is rejected with a `compile_error!` listing the
 /// valid names.
 ///
-/// The generated items reference this crate's stateless helpers —
-/// [`InputResponse`], [`SleepBehavior`], [`FetchScript`] — through `$crate`,
+/// The generated items reference this crate's stateless helpers,
+/// [`InputResponse`], [`SleepBehavior`], [`FetchScript`], through `$crate`,
 /// and everything else through absolute paths, so a caller needs only to
 /// import the macro, not any of the items it names.
 #[macro_export]
@@ -206,7 +206,7 @@ macro_rules! web_auth_fake {
             }
         }
 
-        /// Never resolves on its own — in these tests the web-auth poll always
+        /// Never resolves on its own, in these tests the web-auth poll always
         /// wins or times out before any Enter keypress.
         struct PendingEnterHandle {
             rx: ::tokio::sync::oneshot::Receiver<()>,
@@ -254,7 +254,7 @@ macro_rules! web_auth_fake {
     };
 
     (@helper UnexpectedReporter) => {
-        /// Panics on any log event — the strict reporter for a test that
+        /// Panics on any log event, the strict reporter for a test that
         /// expects no emission at all.
         struct UnexpectedReporter;
 

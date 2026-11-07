@@ -217,7 +217,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
 ) -> Result<(), InstallError> {
     // What this run installed: a `--filter`ed install acts only on its
     // selection, every other one on the whole workspace. The lockfile
-    // can hold more — importers a filtered run left alone, or ones
+    // can hold more, importers a filtered run left alone, or ones
     // `pruneLockfileImporters` has yet to drop.
     let installed_importer_ids =
         inputs.projects.importers.requested_ids.unwrap_or(inputs.projects.importers.real_ids);

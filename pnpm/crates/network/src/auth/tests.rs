@@ -111,7 +111,7 @@ fn a_slow_token_helper_does_not_block_a_second_registry_lookup() {
     // lookup has finished (or a generous deadline). If the resolution cache
     // lock were held across the subprocess, the fast lookup would block on
     // that lock, the flag would never flip, and the slow helper would run
-    // for the full deadline — so the fast lookup completing promptly proves
+    // for the full deadline, so the fast lookup completing promptly proves
     // the lock is released while a helper runs.
     static FAST_DONE: AtomicBool = AtomicBool::new(false);
     fn runner(command: &[String]) -> std::io::Result<TokenHelperOutput> {
@@ -160,7 +160,7 @@ fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
     }
 
     // A static token sits at the host root; a failing helper at the deeper
-    // path prefix must NOT fall back to it — the most-specific key owns the
+    // path prefix must NOT fall back to it, the most-specific key owns the
     // decision, exactly as a resolved helper would.
     let auth = AuthHeaders::from_parts_with_token_helpers(
         std::iter::once(("//reg.com/".to_owned(), "Bearer root-token".to_owned())).collect(),
@@ -190,8 +190,8 @@ fn a_url_header_overlays_only_its_request_route() {
 }
 
 /// Records every `(url, package)` it is asked about and answers with a
-/// fixed header, so a test can assert the hook — not the client
-/// credentials — drove the lookup.
+/// fixed header, so a test can assert the hook, not the client
+/// credentials, drove the lookup.
 #[derive(Default)]
 struct RecordingHook {
     calls: AtomicUsize,
@@ -249,7 +249,7 @@ fn record_route_is_a_noop_without_a_hook() {
 fn route_hook_suppresses_inline_url_basic_auth() {
     // A bare `AuthHeaders` would synthesize a `Basic` header from inline
     // `user:pass@`; with a hook attached the inline credential must not
-    // leak through — the hook (returning None here) owns the decision.
+    // leak through, the hook (returning None here) owns the decision.
     let hook = Arc::new(RecordingHook::default());
     let hooked = AuthHeaders::default().with_route_hook(hook as Arc<dyn UpstreamRouteHook>);
     assert_eq!(hooked.for_url("https://user:pass@reg.com/pkg"), None);
@@ -350,7 +350,7 @@ fn hide_auth_information_keeps_the_scheme_and_masks_the_credential() {
     // A short token could be guessed from a prefix, so none of it survives.
     assert_eq!(hide_auth_information("Bearer short-token"), "Bearer [hidden]");
     assert_eq!(hide_auth_information("Basic Zm9vOmJhcg=="), "Basic [hidden]");
-    // No scheme to report — the whole value is a credential.
+    // No scheme to report, the whole value is a credential.
     assert_eq!(hide_auth_information("bare-token"), "[hidden]");
 }
 
@@ -620,7 +620,7 @@ fn basic_auth_in_url_wins_over_package_scope_auth() {
 
 /// A credential with no URI has no registry it was authored for, so it
 /// is dropped rather than attached to whichever registry the config
-/// happens to resolve to — repository config can move that registry.
+/// happens to resolve to, repository config can move that registry.
 #[test]
 fn unkeyed_creds_are_dropped_rather_than_bound_to_the_default_registry() {
     let headers = build(&[("", "Bearer default-token"), ("//reg.com/", "Bearer scoped-token")]);

@@ -156,7 +156,7 @@ pub fn parse_shebang_from_bytes(bytes: &[u8]) -> Option<ScriptRuntime> {
 /// `^#!\s*(?:/usr/bin/env(?:\s+-S\s*)?)?\s*([^ \t]+)(.*)$`.
 ///
 /// `args` is captured **including the leading whitespace** that
-/// separates it from `prog` — everything from after `prog`'s end of
+/// separates it from `prog`, everything from after `prog`'s end of
 /// match to end of line. Preserving the leading whitespace is what
 /// produces byte-identical shim text (e.g. the double space between
 /// `$basedir/sh` and `-e` in the rendered exec line).

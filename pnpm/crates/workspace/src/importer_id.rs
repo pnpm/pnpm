@@ -16,8 +16,8 @@ pub fn importer_id_from_root_dir(lockfile_dir: &Path, project_dir: &Path) -> Str
     if project_dir == lockfile_dir {
         return ".".to_string();
     }
-    // The overwhelmingly common shape — the project directly under the
-    // root, both spelled cleanly — needs no `diff_paths` walk over the
+    // The overwhelmingly common shape, the project directly under the
+    // root, both spelled cleanly, needs no `diff_paths` walk over the
     // two paths' long shared prefix: the suffix is the id. A suffix
     // carrying dot components (or a raw form that disagrees with its
     // components, like a trailing separator) takes the full math below.

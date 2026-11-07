@@ -988,7 +988,7 @@ fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
 }
 
 /// A deploy install resolves the deployed project, not the workspace, and
-/// never saves the workspace lockfile — so it has not merged the branch
+/// never saves the workspace lockfile, so it has not merged the branch
 /// lockfiles and must not delete them.
 #[test]
 fn legacy_deploy_keeps_the_workspace_branch_lockfiles() {

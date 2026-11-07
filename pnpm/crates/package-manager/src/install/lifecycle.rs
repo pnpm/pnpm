@@ -19,7 +19,7 @@ use std::sync::Mutex;
 
 /// Walk every workspace project's `package.json`. Returns `Ok(None)`
 /// when no `pnpm-workspace.yaml` exists in (or above) `workspace_root`
-/// — the install isn't a workspace install, so the caller should use
+///the install isn't a workspace install, so the caller should use
 /// the top-level `Install.manifest` as its only importer and pass
 /// `None` for the `workspace:`-spec lookup.
 pub(crate) fn load_workspace_projects(
@@ -79,8 +79,8 @@ pub(crate) fn checked_projects_opts(
 
 /// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for
 /// the selected project-level dependency loader. pnpm adds it only once it
-/// links and builds, which is why `pnpm:devPreinstall` — running before the
-/// file exists — takes the plain [`Config::extra_env_with_node_options`].
+/// links and builds, which is why `pnpm:devPreinstall`, running before the
+/// file exists, takes the plain [`Config::extra_env_with_node_options`].
 pub(super) fn project_lifecycle_extra_env(
     config: &Config,
     node_linker: NodeLinker,
@@ -112,11 +112,11 @@ pub(super) fn project_lifecycle_extra_env(
 /// Whether the delegating CLI claims to have run the hook already.
 ///
 /// Only the exact `true` the TypeScript CLI writes counts. Every other
-/// value — unset, empty, `false` — runs the hook, so a stray assignment
+/// value, unset, empty, `false`, runs the hook, so a stray assignment
 /// in someone's environment cannot silently suppress it.
 ///
-/// The marker reaches no process this install spawns — [`build_env`]
-/// drops it — so a nested `pnpm install` started from a lifecycle script
+/// The marker reaches no process this install spawns, [`build_env`]
+/// drops it, so a nested `pnpm install` started from a lifecycle script
 /// still runs its own hook.
 ///
 /// [`build_env`]: pnpm_executor::build_env
@@ -130,13 +130,13 @@ pub(super) fn root_preinstall_already_ran() -> bool {
     std::env::var(ROOT_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
 }
 
-/// Run one of the root project's pre-resolution hooks — `run` is
+/// Run one of the root project's pre-resolution hooks, `run` is
 /// [`pnpm_executor::run_dev_preinstall_hook`] or
 /// [`pnpm_executor::run_root_preinstall_hook`].
 ///
 /// `pnpm:devPreinstall` exists so a workspace can prepare state that
-/// resolution or linking depends on — next.js creates the placeholder
-/// `next` bin its other packages link against — and `preinstall` so a
+/// resolution or linking depends on, next.js creates the placeholder
+/// `next` bin its other packages link against, and `preinstall` so a
 /// guard can refuse the install before it changes anything, so both run
 /// from the lockfile directory before either, and only for the root
 /// project.

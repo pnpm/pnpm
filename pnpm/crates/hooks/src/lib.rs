@@ -141,7 +141,7 @@ pub trait PnpmfileHooks: Send + Sync {
     ///
     /// Returns the (possibly modified) manifest. A hook that throws, or returns
     /// something other than a package manifest object, yields a [`HookError`] so
-    /// the install fails loudly — a bad `readPackage` hook aborts resolution.
+    /// the install fails loudly, a bad `readPackage` hook aborts resolution.
     async fn read_package(
         &self,
         pkg: Value,
@@ -182,8 +182,8 @@ pub trait PnpmfileHooks: Send + Sync {
     ///
     /// Called with `(manifest, dir, context)`, mirroring pnpm's cooked
     /// `beforePacking(pkg, dir, context)` signature. Returns the
-    /// (possibly modified) manifest; a hook that returns nothing — and
-    /// the default no-op — leaves `manifest` unchanged. A throwing hook
+    /// (possibly modified) manifest; a hook that returns nothing, and
+    /// the default no-op, leaves `manifest` unchanged. A throwing hook
     /// yields a [`HookError`] and aborts packing.
     async fn before_packing(
         &self,
@@ -321,7 +321,7 @@ pub trait CustomFetcher: Send + Sync {
     /// Calls the fetcher hook. The returned JSON envelope is interpreted by the
     /// installer:
     ///
-    /// - `{ "delegate": <resolution> }` — rewrites the lockfile resolution and
+    /// - `{ "delegate": <resolution> }`, rewrites the lockfile resolution and
     ///   falls through to the built-in fetch path for the rewritten value.
     /// - A built-in fetch result containing `filesMap` is reused directly.
     /// - Any other shape fails the install (`custom_fetcher_failed`).
@@ -341,7 +341,7 @@ pub trait CustomFetcher: Send + Sync {
 }
 
 /// A custom resolver exported from a pnpmfile. The pnpmfile interface's
-/// methods are all optional — the `has_*` accessors report which ones the
+/// methods are all optional, the `has_*` accessors report which ones the
 /// underlying resolver actually implements, so callers can skip the
 /// corresponding calls for absent methods.
 #[async_trait]

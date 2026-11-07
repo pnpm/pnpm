@@ -1,4 +1,4 @@
-//! `pacquet store` — read and act on the content-addressable store.
+//! `pacquet store`, read and act on the content-addressable store.
 //!
 //! `status` and `add` are the two subcommands that reach past the store
 //! directory's own bookkeeping: `status` re-hashes what the store expanded

@@ -357,7 +357,7 @@ cargo:
 }
 
 /// The variables are named for the setting they configure, and the names that
-/// matched the older spelling keep working — a machine set up before the rename
+/// matched the older spelling keep working, a machine set up before the rename
 /// is not something a `pnpm install` should start ignoring.
 ///
 /// Every suffix is covered because they do not share a parsing path: `PUBLISH`
@@ -437,7 +437,7 @@ fn the_remote_tier_reads_both_environment_spellings() {
 }
 
 /// A malformed JSON variable is reported by name, so it has to be the name the
-/// reader actually set — pointing at the spelling they did not use sends them
+/// reader actually set, pointing at the spelling they did not use sends them
 /// looking for a variable that is not in their environment.
 #[test]
 fn malformed_json_names_the_environment_variable_that_was_set() {

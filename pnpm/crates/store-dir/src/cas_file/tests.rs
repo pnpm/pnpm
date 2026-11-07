@@ -65,7 +65,7 @@ fn cas_file_path_by_mode_suffix_matches_write_side() {
 ///   `ensure_file`'s `AlreadyExists` → `verify_or_rewrite` path
 ///   (the `O_CREAT|O_EXCL` open returns `EEXIST`, `verify_or_rewrite`
 ///   byte-compares the existing file against the buffer and returns
-///   `Ok(())` once they match — so the existing CAS blob is left
+///   `Ok(())` once they match, so the existing CAS blob is left
 ///   in place), and the cache is unchanged;
 /// * a later write of different content still succeeds whether it
 ///   lands in the same shard or a new one.
@@ -87,7 +87,7 @@ fn shard_cache_populates_on_first_write_and_skips_mkdir_thereafter() {
     assert!(store_dir.shard_already_ensured(hash_a[0]));
     assert!(path_a.is_file());
 
-    // Second write of identical content — same hash, same path.
+    // Second write of identical content, same hash, same path.
     let crate::WrittenFile { file: path_b, hash: hash_b, .. } =
         store_dir.write_cas_file(b"hello world", false).unwrap();
     assert_eq!(hash_a, hash_b);
@@ -103,7 +103,7 @@ fn shard_cache_populates_on_first_write_and_skips_mkdir_thereafter() {
 }
 
 /// The streaming writer must land the same bytes at the same
-/// hash-derived path as the buffer-based writer — the two are used
+/// hash-derived path as the buffer-based writer, the two are used
 /// interchangeably by tarball extraction, so any divergence in path,
 /// hash, or on-disk content splits the CAS.
 #[test]
@@ -163,7 +163,7 @@ fn write_cas_file_from_reader_matches_write_cas_file() {
 }
 
 /// A live entry already at the target path is kept (same inode), and
-/// the temp file the stream wrote is cleaned out of `files/` — leaking
+/// the temp file the stream wrote is cleaned out of `files/`, leaking
 /// it would accumulate one orphan per warm large-entry extraction.
 #[test]
 fn write_cas_file_from_reader_keeps_existing_live_entry_and_removes_temp() {
@@ -228,7 +228,7 @@ fn write_cas_file_from_reader_replaces_same_length_corrupt_entry() {
 
 /// The streamed repair of a corrupt blob must keep the inode, so
 /// hard-linked copies in other projects' `node_modules` are healed by
-/// the same write (pnpm/pnpm#3445) — the same guarantee
+/// the same write (pnpm/pnpm#3445), the same guarantee
 /// `ensure_cas_file` gives the buffered writer.
 #[cfg(unix)]
 #[test]
@@ -302,9 +302,9 @@ fn write_cas_file_from_reader_removes_temp_when_shard_creation_fails() {
 }
 
 /// A reader that ends short of `expected_size` (a truncated archive)
-/// must fail without committing anything to a content-addressed path —
+/// must fail without committing anything to a content-addressed path,
 /// the partial blob would be correctly addressed but must not enter
-/// the store — and without leaking its temp file.
+/// the store, and without leaking its temp file.
 #[test]
 fn write_cas_file_from_reader_rejects_short_reader_without_committing() {
     use tempfile::tempdir;
@@ -369,7 +369,7 @@ fn cas_file_path_by_mode_rejects_invalid_hex() {
     let store_dir = StoreDir::new("STORE_DIR");
     assert_eq!(store_dir.cas_file_path_by_mode("", 0o644), None);
     assert_eq!(store_dir.cas_file_path_by_mode("a", 0o644), None);
-    // Exactly two hex chars is still rejected — it would resolve to
+    // Exactly two hex chars is still rejected, it would resolve to
     // the shard directory itself (files/XX/), which is not a file.
     assert_eq!(store_dir.cas_file_path_by_mode("ab", 0o644), None);
     assert_eq!(store_dir.cas_file_path_by_mode("zz", 0o644), None);

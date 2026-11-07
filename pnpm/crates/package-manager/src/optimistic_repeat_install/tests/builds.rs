@@ -377,7 +377,7 @@ fn returns_skipped_when_allow_builds_drift() {
 /// `allowBuilds` is the one field where pnpm and pacquet round-trip
 /// an empty configured value differently: pnpm writes `Some({})` for
 /// an empty allow-list, while pacquet's [`current_settings`] writes
-/// `None`. The comparison must treat the two as equivalent —
+/// `None`. The comparison must treat the two as equivalent,
 /// otherwise the cross-package-manager scenario rejects the fast path
 /// on every iteration where pnpm wrote the state. The read side
 /// coerces an absent value to an empty map to match.

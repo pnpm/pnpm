@@ -1,6 +1,6 @@
 //! Shared request-retry policy for registry network access.
 //!
-//! pnpm wraps every registry request — metadata *and* tarball — in
+//! pnpm wraps every registry request, metadata *and* tarball, in
 //! `@zkochan/retry` with one retry-timeout budget sourced from the
 //! `fetch-retries` family of settings. This module is pacquet's single
 //! home for that budget and its exponential-backoff math, so the
@@ -8,9 +8,9 @@
 //! all share one [`RetryOpts`] type and one algorithm.
 //!
 //! [`send_with_retry`] is the one-HTTP-round-trip helper the metadata
-//! fetchers and pnpr use. The tarball path keeps its own loop — its
+//! fetchers and pnpr use. The tarball path keeps its own loop, its
 //! retry boundary wraps the whole fetch + integrity + decode + extract
-//! pipeline, not just a single request — but reuses [`RetryOpts`].
+//! pipeline, not just a single request, but reuses [`RetryOpts`].
 //!
 //! Reading a response body can fail *after* [`send_with_retry`] has
 //! handed back a `200`, outside its loop; [`retry_async`] is the
@@ -34,18 +34,18 @@ use crate::{
 /// `delay = min(min_timeout * factor.pow(attempt), max_timeout)`
 ///
 /// `attempt` is zero-indexed, so the first post-failure wait is
-/// `min_timeout`. `retries` is the number of *retries* — total
+/// `min_timeout`. `retries` is the number of *retries*, total
 /// attempts is `retries + 1`.
 ///
 /// # Pathological configurations
 ///
-/// We don't sanitize these here because pnpm doesn't either — the
+/// We don't sanitize these here because pnpm doesn't either, the
 /// config plumbing is meant to be byte-equivalent to upstream. The
 /// total number of attempts is always bounded by `retries`, so even a
 /// degenerate `delay_for` only removes the backoff:
 ///
 /// * `factor == 0` keeps the first wait at `min_timeout` (`0u32.pow(0)
-///   == 1`), but every subsequent wait is `0` — i.e. no backoff
+///   == 1`), but every subsequent wait is `0`, i.e. no backoff
 ///   between retries. Same as pnpm.
 /// * `factor == 1` waits `min_timeout` between every attempt. Same as
 ///   pnpm.
@@ -109,8 +109,8 @@ pub fn should_retry_status(status: StatusCode) -> bool {
 /// transport errors and retryable responses ([`should_retry_status`])
 /// under `retry_opts`'s exponential backoff.
 ///
-/// Returns the final [`Response`] of *any* status — including 304, 404,
-/// and non-retryable 4xx — paired with the [`ThrottledClientGuard`]
+/// Returns the final [`Response`] of *any* status, including 304, 404,
+/// and non-retryable 4xx, paired with the [`ThrottledClientGuard`]
 /// whose permit was held for the winning attempt. The caller inspects
 /// the status (`error_for_status`, 304/404 short-circuits, ...) and keeps
 /// the guard alive through body streaming; dropping it earlier would
@@ -131,7 +131,7 @@ pub async fn send_with_retry<'client>(
         .await
 }
 
-/// [`send_with_retry`] queueing at an explicit `priority` — the way a
+/// [`send_with_retry`] queueing at an explicit `priority`, the way a
 /// caller opts its requests into the [`crate::BACKGROUND`] class.
 pub async fn send_with_retry_at_priority<'client>(
     http_client: &'client ThrottledClient,
@@ -231,8 +231,8 @@ fn warn_retry_error(
     );
 }
 
-/// Run `attempt` — a full "issue the request, then read and parse its
-/// body" round trip — retrying under `retry_opts`'s exponential
+/// Run `attempt`, a full "issue the request, then read and parse its
+/// body" round trip, retrying under `retry_opts`'s exponential
 /// backoff whenever it fails with an error `is_retryable` accepts and
 /// retries remain.
 ///
@@ -240,8 +240,8 @@ fn warn_retry_error(
 /// pnpm's metadata fetch nests two retry layers: the shared network
 /// library retries the request ([`send_with_retry`] here), and the
 /// resolver re-runs the *whole* fetch when reading or parsing the
-/// response body fails — "error decoding response body" from a
-/// mid-stream reset, or broken JSON — via a second `@zkochan/retry`
+/// response body fails, "error decoding response body" from a
+/// mid-stream reset, or broken JSON, via a second `@zkochan/retry`
 /// operation. The `attempt` closure issues the request *and* consumes
 /// its body,
 /// so `is_retryable` should accept only body-read/parse failures:

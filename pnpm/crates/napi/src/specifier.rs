@@ -1,9 +1,9 @@
-//! `parseBareSpecifier` — split/validate a dependency specifier.
+//! `parseBareSpecifier`, split/validate a dependency specifier.
 //!
 //! Replaces Bit's use of `@pnpm/resolving.npm-resolver`'s `parseBareSpecifier`
 //! (which Bit calls only through `isValidVersionSpecifier`). The pacquet
 //! equivalent is [`pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency`],
-//! which never fails — it treats any unrecognized input as a bare specifier —
+//! which never fails, it treats any unrecognized input as a bare specifier,
 //! so this wrapper returns `None` for the empty string, matching the "not a
 //! valid specifier" signal the JS consumer relies on.
 

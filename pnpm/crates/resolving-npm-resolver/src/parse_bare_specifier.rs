@@ -3,7 +3,7 @@
 //! Routes a raw bare specifier (`"^1.0.0"`, `"latest"`,
 //! `"npm:lodash@^4"`, `"https://registry.npmjs.org/foo/-/foo-1.0.0.tgz"`)
 //! to a [`RegistryPackageSpec`] the npm picker can consume, or `None`
-//! when no npm-shaped interpretation applies — that's the signal to the
+//! when no npm-shaped interpretation applies, that's the signal to the
 //! resolver chain to try the next resolver in the chain.
 //!
 //! The sibling [`parse_jsr_specifier_to_registry_package_spec`] routes
@@ -179,7 +179,7 @@ pub struct NamedRegistryPackageSpec {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseNamedRegistrySpecifierError {
-    /// Package name that is not a valid npm package name — a missing
+    /// Package name that is not a valid npm package name, a missing
     /// or empty scope/name segment, path separators inside the name,
     /// or anything else `validate-npm-package-name` rejects. Always a
     /// configuration bug, refused so the user gets an immediate,
@@ -267,7 +267,7 @@ fn split_named_registry_body(
         let alias = package_alias.filter(|alias| !alias.is_empty())?;
         return Some((alias.to_string(), Some(body.to_string())));
     }
-    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
+    // `<alias>:@<owner>/<name>[@<version_selector>]`, scoped package.
     if body.starts_with('@') {
         let last_at = body.rfind('@').expect("body starts with '@'");
         if last_at == 0 {
@@ -275,13 +275,13 @@ fn split_named_registry_body(
         }
         return Some((body[..last_at].to_string(), Some(body[last_at + 1..].to_string())));
     }
-    // `<alias>:<tag>` paired with a scoped alias — body is a version
+    // `<alias>:<tag>` paired with a scoped alias, body is a version
     // selector (tag/dist-tag). Mirrors GitHub Packages, where the package is
     // always scoped and a bare body is a tag.
     if let Some(alias) = package_alias.filter(|alias| alias.starts_with('@')) {
         return Some((alias.to_string(), Some(body.to_string())));
     }
-    // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
+    // `<alias>:<name>[@<version_selector>]`, unscoped package in body.
     match body.rfind('@') {
         Some(index) if index >= 1 => {
             Some((body[..index].to_string(), Some(body[index + 1..].to_string())))
@@ -356,7 +356,7 @@ fn parse_revision_selector(
 
 /// Mirrors JS's `encodeURIComponent(s) === s` check, rejecting
 /// anything not safe to embed in a URL segment. The unreserved
-/// set is `A-Z a-z 0-9 - _ . ! ~ * ' ( )` — anything else (including
+/// set is `A-Z a-z 0-9 - _ . ! ~ * ' ( )`, anything else (including
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
 fn is_valid_dist_tag(selector: &str) -> bool {

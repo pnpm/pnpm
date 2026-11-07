@@ -56,7 +56,7 @@ pub(super) fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> b
 ///
 /// Resolution prefers a version already in the graph over a higher one
 /// from the registry, so reusing what is present is what it would
-/// record — for a widened range as much as for one the locked version
+/// record, for a widened range as much as for one the locked version
 /// cannot satisfy at all.
 ///
 /// `None` when the pick cannot be read off the lockfile:

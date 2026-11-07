@@ -90,7 +90,7 @@ pub enum NodeResolverError {
 /// One instance per install. Owns the throttled HTTP client (so the
 /// asset-list fetch contends with the rest of the install for the
 /// same socket budget) and the `nodeDownloadMirrors` map a user may
-/// have configured. `offline` is honored on every resolve — the
+/// have configured. `offline` is honored on every resolve, the
 /// resolver fails fast rather than spinning a request that's going
 /// to time out behind a proxy.
 pub struct NodeResolver {
@@ -232,7 +232,7 @@ impl NodeResolver {
     ///
     /// An exact stable-release specifier is its own resolution, so the
     /// release-index fetch is skipped for it and existence is proven by
-    /// the asset-list fetch that follows —
+    /// the asset-list fetch that follows,
     /// [`resolve_impl`](Self::resolve_impl) maps that fetch's failure
     /// back to the canonical not-found error.
     async fn pick_node_version(
@@ -392,7 +392,7 @@ impl NodeResolver {
 /// The concrete version an exact stable-release specifier names, when
 /// the specifier is already in canonical `X.Y.Z` form. Such a specifier
 /// needs no release-index lookup: the index would resolve it to itself.
-/// Prereleases are excluded — on the `release` channel they never
+/// Prereleases are excluded, on the `release` channel they never
 /// exist, so routing them through the index keeps the canonical
 /// not-found error path.
 fn exact_release_version(parsed: &NodeSpecifier) -> Option<String> {
@@ -413,7 +413,7 @@ struct PickedNodeVersion {
     mirror: String,
     release_channel: String,
     /// `true` when the pick came from
-    /// [`exact_release_version`] — the release index was never
+    /// [`exact_release_version`], the release index was never
     /// consulted, so the version's existence is still unproven.
     resolved_without_index: bool,
 }

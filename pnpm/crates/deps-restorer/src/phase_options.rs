@@ -43,7 +43,7 @@ pub struct LinkPackageData<'a> {
     pub package_manifests: &'a PackageManifests,
     pub package_bins: Option<&'a PackageBins>,
     /// Per-snapshot `requiresBuild` flags from the store-index prefetch,
-    /// gating the importer bin pass's use of `package_manifests` — see
+    /// gating the importer bin pass's use of `package_manifests`, see
     /// [`crate::BinCandidates::Prefetched`]. `None` when the
     /// caller has no prefetch (the fresh-lockfile installer).
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
@@ -199,7 +199,7 @@ impl<'a> BuildPhaseCache<'a> {
 
 #[derive(Clone, Copy)]
 pub struct BuildPhaseDirectories<'a> {
-    /// `lockfileDir` — the project root. Threaded to
+    /// `lockfileDir`, the project root. Threaded to
     /// `BuildModules` as `lockfile_dir`, where it sets each script's
     /// `INIT_CWD` and the lifecycle log prefix.
     pub workspace_root: &'a Path,

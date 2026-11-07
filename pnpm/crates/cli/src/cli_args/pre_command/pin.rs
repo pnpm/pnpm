@@ -217,7 +217,7 @@ fn check_package_manager(
     emit: fn(&LogEvent),
 ) -> miette::Result<()> {
     // `download` reaches this function only when the switch it asks for
-    // cannot happen, which leaves the mismatch unresolved — as strict a
+    // cannot happen, which leaves the mismatch unresolved, as strict a
     // failure as `error`.
     let should_error = matches!(on_fail, PmOnFail::Error | PmOnFail::Download);
     if pm.name.is_empty() {

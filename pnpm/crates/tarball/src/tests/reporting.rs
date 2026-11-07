@@ -168,7 +168,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
 /// different `package_id`s. The first uses `SilentReporter`
 /// (modelling the prefetcher). The second uses the recording
 /// reporter (modelling the install pass) and hits the
-/// immediate-`Available` branch — the only event captured must be
+/// immediate-`Available` branch, the only event captured must be
 /// a single `found_in_store` for the install pass's `package_id`.
 #[tokio::test]
 async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
@@ -194,7 +194,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         .mock("GET", "/pkg.tgz")
         .with_status(200)
         .with_body(FASTIFY_ERROR_TARBALL)
-        // exactly one network hit — the second requester must reuse
+        // exactly one network hit, the second requester must reuse
         // the in-memory cache without going to the network.
         .expect(1)
         .create_async()

@@ -398,7 +398,7 @@ fn link_or_copy<Sys: FsHardLink>(source_path: &Path, target_path: &Path) -> io::
     }
 }
 
-/// The target may hold an inode that [`extend_files_map`] skips — a
+/// The target may hold an inode that [`extend_files_map`] skips, a
 /// FIFO, a socket, a device. No diff can see it, so it is never
 /// scheduled for removal, and creating over it fails with `EEXIST`.
 /// Clear that path and retry once instead of failing the sync.

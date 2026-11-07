@@ -16,7 +16,7 @@ const FILE_TYPES = new Set(['0', '\0'])
  * is all an npm tarball holds beyond directories, and the parse stays streaming
  * so the archive never lands in memory.
  *
- * `dest` is created exclusively — an existing file, or a symlink planted at
+ * `dest` is created exclusively, an existing file, or a symlink planted at
  * that path, fails the write rather than being followed.
  *
  * @param tarball Path to the gzipped archive.

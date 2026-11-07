@@ -266,7 +266,7 @@ impl UnpublishArgs {
 
 /// Remove `versions` from the packument, re-point the dist-tags that
 /// referenced them, `PUT` the updated document back, then delete the
-/// orphaned tarballs (a 404 there is fine — some registries clean tarballs
+/// orphaned tarballs (a 404 there is fine, some registries clean tarballs
 /// up on the packument update themselves).
 async fn unpublish_versions<Sys: OtpHost, Reporter: self::Reporter>(
     mutation: &mut MutationContext<'_>,
@@ -374,7 +374,7 @@ fn versions_matching_range(versions: &Map<String, Value>, range: &str) -> Vec<St
     }
 }
 
-/// The highest remaining semver version — the new `latest` after the old
+/// The highest remaining semver version, the new `latest` after the old
 /// one is unpublished.
 fn highest_version(versions: &Map<String, Value>) -> Option<String> {
     versions

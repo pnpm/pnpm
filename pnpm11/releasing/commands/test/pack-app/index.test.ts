@@ -172,7 +172,7 @@ describe('pack-app command', () => {
       pnpm: { app: { entry: 'from-config.cjs' } },
     }))
     fs.writeFileSync(path.join(tempDir, 'from-config.cjs'), 'module.exports = {}')
-    // With entry from config but no target, we hit MISSING_TARGET — that's
+    // With entry from config but no target, we hit MISSING_TARGET, that's
     // enough to verify the entry was picked up from pnpm.app.entry.
     await expect(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
@@ -187,7 +187,7 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     // A bad-target in the config should reach parseTarget and surface
-    // INVALID_TARGET — proves the config list was consulted.
+    // INVALID_TARGET, proves the config list was consulted.
     await expect(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
@@ -198,7 +198,7 @@ describe('pack-app command', () => {
     // Config says targets = [bad-target]. If the CLI list were merged in, the
     // bad config entry would still hit parseTarget and throw INVALID_TARGET.
     // With an unresolvable node version, validation passes but the later
-    // version lookup fails — we only assert that INVALID_TARGET never fires.
+    // version lookup fails, we only assert that INVALID_TARGET never fires.
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
       name: 'test-app',
       pnpm: { app: { entry: 'entry.cjs', targets: ['bad-target'] } },

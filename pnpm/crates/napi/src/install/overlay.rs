@@ -117,7 +117,7 @@ fn build_dependencies_overlay(
         // Both of these installs are defined in terms of the lockfile, so an
         // ambient `lockfile: false` must not disable it underneath them.
         // `enableModulesDir: false` writes the lockfile while skipping
-        // `node_modules`, so it runs through the lockfile-only path — which
+        // `node_modules`, so it runs through the lockfile-only path, which
         // requires the lockfile to be enabled, or the install fails with an
         // opaque `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`. A
         // fetch-shaped install reads the lockfile as its only input, and

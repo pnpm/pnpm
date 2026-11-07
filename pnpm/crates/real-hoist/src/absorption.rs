@@ -12,17 +12,17 @@ pub(super) enum AbsorbDecision {
     /// Root's name slot is free, but this candidate's ident is not
     /// the one currently preferred for its name (see
     /// [`build_hoist_ident_map`](crate::preferences::build_hoist_ident_map)). The candidate stays under its
-    /// parent this pass; a later pass — after the preferred ident
+    /// parent this pass; a later pass, after the preferred ident
     /// either claims the slot or is shifted out in
-    /// [`hoist_into_root`](crate::hoist_into_root) — may reconsider it. Mirrors upstream's
+    /// [`hoist_into_root`](crate::hoist_into_root), may reconsider it. Mirrors upstream's
     /// `hoistedIdent === node.ident` gate in `getNodeHoistInfo` at
     /// [hoist.ts:387][prefer-gate].
     ///
     /// [prefer-gate]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L387
     Defer,
     /// Root already holds a node with this locator (the same
-    /// package was reachable through another parent path — possibly
-    /// as a decoupled copy — and got hoisted earlier). The duplicate
+    /// package was reachable through another parent path, possibly
+    /// as a decoupled copy, and got hoisted earlier). The duplicate
     /// edge in the current parent just needs to be removed; the
     /// root's copy represents the subtree from here on. Mirrors
     /// upstream's same-locator merge in `hoistGraph` at
@@ -30,7 +30,7 @@ pub(super) enum AbsorbDecision {
     ///
     /// [merge]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L521
     SameNode,
-    /// Root's name slot is taken by a different locator — a version
+    /// Root's name slot is taken by a different locator, a version
     /// conflict. The child stays under its current parent.
     Conflict,
     /// Hoisting would shadow a peer dependency one of the
@@ -56,7 +56,7 @@ pub(super) enum AbsorbDecision {
     PathShadow,
     /// The subtree of the current hoist root resolves this name
     /// through an ancestor directory (a provider hoisted above the
-    /// root earlier — see [`get_used_dependencies`](crate::get_used_dependencies)), and the
+    /// root earlier, see [`get_used_dependencies`](crate::get_used_dependencies)), and the
     /// candidate is a different version. Taking the root's name slot
     /// would shadow those resolutions, so the candidate stays
     /// nested. Ports the `usedDependencies` gate in upstream's
@@ -64,7 +64,7 @@ pub(super) enum AbsorbDecision {
     ///
     /// [used-gate]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L492-L497
     UsedShadow,
-    /// The candidate sits beneath a hoisting border — its parent (or
+    /// The candidate sits beneath a hoisting border, its parent (or
     /// a higher ancestor) has a name listed in
     /// `opts.hoisting_limits` for the root locator. A bordered node's
     /// descendants stay nested beneath it rather than hoisting to the
@@ -125,7 +125,7 @@ fn refuse_shadowed(
     // Used-dependency refusal: the root's subtree already
     // resolves this name from an ancestor directory; a different
     // version must not take the root's slot (and a same-version
-    // dedup stays allowed — it resolves identically).
+    // dedup stays allowed, it resolves identically).
     if matches!(decision, AbsorbDecision::Free | AbsorbDecision::SameNode)
         && used
             .get(&child.name)
@@ -136,7 +136,7 @@ fn refuse_shadowed(
 
     // "Filled by parent" refusal: when a nearer ancestor's
     // node_modules already carries a different version of this
-    // name, both hoisting and dedup-removal are wrong — either
+    // name, both hoisting and dedup-removal are wrong, either
     // way the requires at this position would start resolving to
     // the nearer, conflicting copy. Applies to `SameNode` too:
     // even if the root already holds this exact package, the
@@ -167,7 +167,7 @@ pub(super) enum ChildStep {
     /// The edge was removed at this parent; there is nothing to descend into.
     Dropped,
     /// The child stays in the graph and must be walked. `path` is its
-    /// ancestor path computed from its *new* position — the load-bearing
+    /// ancestor path computed from its *new* position, the load-bearing
     /// detail: the recursion path always reflects the child's current
     /// position in the result graph, so peer checks deeper down see
     /// ancestors that are actually ancestors. `moved` reports whether
@@ -184,7 +184,7 @@ pub(super) fn apply_decision(
     root_index: &mut HashMap<String, RcByPtr<HoisterResult>>,
 ) -> ChildStep {
     let root = ctx.root;
-    // Root's direct children are already at root — no movement happens, and
+    // Root's direct children are already at root, no movement happens, and
     // their ancestor path is `[root]`.
     if Rc::ptr_eq(node, root) {
         return ChildStep::Descend { path: path_for_children.to_vec(), moved: false };
@@ -236,12 +236,12 @@ pub(super) fn apply_decision(
 /// Implements two of the three peer guards upstream's
 /// `getNodeHoistInfo` runs:
 ///
-/// * **Root-shadow** — the candidate's own name appears in
+/// * **Root-shadow**, the candidate's own name appears in
 ///   `root.peer_names`. The root expects to *receive* this name as
 ///   a peer from its own parent, so promoting the candidate into
 ///   the root's name slot would change peer resolution for
 ///   anything that sees the root.
-/// * **Ancestor-path mismatch** — for each peer name `P` in
+/// * **Ancestor-path mismatch**, for each peer name `P` in
 ///   `candidate.peer_names`, walk the candidate's ancestors from
 ///   deepest (immediate parent) toward the root. The first
 ///   ancestor that has a direct dep named `P` (and doesn't itself
@@ -258,7 +258,7 @@ fn would_shadow_peer(
 ) -> bool {
     // Root-shadow guard. Pacquet's wrapper builds the `.` root with
     // empty `peer_names` (it's a `Workspace`-kind node), so in
-    // practice this check never fires today — kept for parity with
+    // practice this check never fires today, kept for parity with
     // upstream and to stay correct if a future caller hands in a
     // root with declared peers.
     if root.peer_names.contains(&candidate.name) {
@@ -274,7 +274,7 @@ fn would_shadow_peer(
             let Some(provider) = nearest_peer_provider(peer_name, ancestor_path) else {
                 return false;
             };
-            // Compare the provider's locator (identity is too strict — decoupled
+            // Compare the provider's locator (identity is too strict, decoupled
             // copies of one package are distinct allocations) against root's
             // current slot for the same name. Root carrying this exact provider
             // means promoting the candidate doesn't change resolution; a
@@ -287,8 +287,8 @@ fn would_shadow_peer(
 /// direct dependency, if any.
 ///
 /// The walk goes deepest-first so the closest provider wins. An ancestor
-/// that merely passes the peer through — its own `peer_names` includes the
-/// name and it has no direct dep for it — is walked past, since the actual
+/// that merely passes the peer through, its own `peer_names` includes the
+/// name and it has no direct dep for it, is walked past, since the actual
 /// provider is then a parent of that ancestor.
 fn nearest_peer_provider(
     peer_name: &str,

@@ -42,7 +42,7 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     /// Write only if the stored document is still at `version`. A backend
     /// without compare-and-set reports [`DocumentWrite::Written`]
-    /// unconditionally — it serializes writers by another means.
+    /// unconditionally, it serializes writers by another means.
     async fn write_document_if_current(
         &self,
         name: &CanonicalPackageName,
@@ -50,7 +50,7 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
         version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite>;
 
-    // --- Archives ----------------------------------------------------------
+    // Archives
     //
     // A namespace's archives are stored by key (see [`crate::BlobId::key`]),
     // never by a public file name. A key is written only with the bytes its
@@ -109,20 +109,20 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// `std::fs` and needs a real path.
     fn local_scratch_root(&self) -> &Path;
 
-    // --- Records ---------------------------------------------------------
+    // Records
     //
     // The store also holds what the registry itself keeps beside the packages:
     // staged publishes waiting for approval, pipeline run records. Each such
-    // kind owns a reserved namespace of the hosted store — a dot-prefixed
-    // segment beside `packages/` — and addresses its records by a key within
+    // kind owns a reserved namespace of the hosted store, a dot-prefixed
+    // segment beside `packages/`, and addresses its records by a key within
     // it. `Storage` names the namespaces; a backend only maps a namespace and
     // key onto a path or an object key.
 
     async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>>;
 
     /// Write a record where nothing is stored yet, reporting `false` when the
-    /// key is taken. Records that must not be rewritten — an approved-once
-    /// staged publish, an append-only run record — are created this way, so a
+    /// key is taken. Records that must not be rewritten, an approved-once
+    /// staged publish, an append-only run record, are created this way, so a
     /// second writer is told rather than overwriting the first.
     async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool>;
 
@@ -130,8 +130,8 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     ///
     /// This is what makes a staged approval exclusive: the approving replica
     /// rewrites the record it read, and a replica whose copy is no longer what
-    /// the store holds — because another approval claimed it, or a rejection
-    /// removed it — gets [`DocumentWrite::Conflict`] instead of acting on a
+    /// the store holds, because another approval claimed it, or a rejection
+    /// removed it, gets [`DocumentWrite::Conflict`] instead of acting on a
     /// record that has moved on.
     async fn replace_record_if_current(
         &self,

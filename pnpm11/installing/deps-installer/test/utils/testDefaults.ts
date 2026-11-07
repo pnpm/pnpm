@@ -26,7 +26,7 @@ export function testDefaults<ExtraOptions> (
      * silently exercises the default registry instead.
      *
      * Typed as the replacement's name rather than `never` so the compiler
-     * prints the fix — `not assignable to type '... & "renamed: use
+     * prints the fix, `not assignable to type '... & "renamed: use
      * registriesByScope"'`.
      */
     registries?: 'renamed: use registriesByScope'

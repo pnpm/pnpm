@@ -153,7 +153,7 @@ pub(crate) struct WorkspaceTreeStorage {
     /// Reverse index over `dependencies_tree`: every occurrence node
     /// recorded for a `pkgIdWithPatchHash`. Keeps
     /// [`fn@make_non_owner_nodes_lazy`] proportional to the package's
-    /// own occurrences — scanning the whole tree per recorded package
+    /// own occurrences, scanning the whole tree per recorded package
     /// made lockfile-reuse walks quadratic in workspace size.
     nodes_by_pkg_id: Mutex<HashMap<Arc<str>, Vec<NodeId>>>,
     /// See [`SyncLog`].
@@ -170,7 +170,7 @@ pub(crate) struct WorkspaceChildrenState {
     pub(super) specs_by_id: RwLock<HashMap<Arc<str>, Arc<Vec<DependencySpec>>>>,
     /// Package ids whose children have already been speculatively
     /// resolved. A package is warmed once, however many occurrences of
-    /// it a level seeds — see [`fn@warm_children_resolutions`].
+    /// it a level seeds, see [`fn@warm_children_resolutions`].
     ///
     /// [`fn@warm_children_resolutions`]: super::walk::warm_children_resolutions
     warmed_by_id: Mutex<HashSet<Arc<str>>>,
@@ -248,7 +248,7 @@ pub(super) struct WorkspaceResolutionCache {
     /// Hook-processed workspace results indexed by their canonical target and
     /// rendered consumer link, so importers that render the same `link:` reuse
     /// one hook pass. `resolved_by_wanted` keeps its project-scoped entry for
-    /// these too — this map is what a *different* importer hits.
+    /// these too, this map is what a *different* importer hits.
     pub(super) resolved_workspace_final_by_wanted:
         Mutex<HashMap<WorkspaceFinalWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
     /// Per-key admission locks for concurrent first callers of
@@ -286,7 +286,7 @@ pub(crate) struct WorkspacePreferredVersions {
     preferred_version_roots: Mutex<HashSet<String>>,
     /// `pkgIdWithPatchHash → (name, version)` for packages whose
     /// resolution carries no `name_ver` but was wanted through a
-    /// non-path `workspace:` specifier — the workspace-project versions
+    /// non-path `workspace:` specifier, the workspace-project versions
     /// [`WorkspaceTreeCtx::run_preferred_versions`] folds for such packages. Keyed
     /// by package id so the fold stays reachability-gated.
     workspace_manifest_identities: Mutex<HashMap<String, (String, String)>>,
@@ -350,7 +350,7 @@ pub(super) struct WorkspaceResolutionPolicy {
     pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
     /// The install's `autoInstallPeers` setting. It widens which of a
     /// resolved package's `dependencies` its own `peerDependencies`
-    /// shadow — see [`peer_shadowed_dependencies`].
+    /// shadow, see [`peer_shadowed_dependencies`].
     ///
     /// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
     pub(super) auto_install_peers: bool,
@@ -374,7 +374,7 @@ struct OwnerMissingRecord {
 /// A map whose readers want a whole-map snapshot rather than a lookup,
 /// paired with the last snapshot handed out. Every hoist round of every
 /// importer takes one of these, so rebuilding per read is quadratic in
-/// workspace size — the cached `Arc` collapses a round of reads that
+/// workspace size, the cached `Arc` collapses a round of reads that
 /// changed nothing into one projection.
 ///
 /// Writers reach the map through [`Self::map_mut`], which drops the

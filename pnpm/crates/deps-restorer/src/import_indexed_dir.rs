@@ -46,7 +46,7 @@ pub struct ImportIndexedDirOpts<'a> {
     /// `dir_path/node_modules/` across the re-import so nested
     /// dependencies survive the rebuild. Required by the hoisted
     /// linker, whose orphan-removal and insert passes are
-    /// interleaved across the package tree — a nested `node_modules/`
+    /// interleaved across the package tree, a nested `node_modules/`
     /// installed by a sibling pass must not be clobbered when the
     /// parent package is re-imported.
     pub keep_modules_dir: bool,
@@ -230,7 +230,7 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
     // The marker-present short-circuit (and the non-directory dirent left as-is)
     // import nothing, so they skip the sweep, keeping warm installs free of the
-    // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
+    // per-install `xattr` cost, exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
         // A private target stages even when the target is absent, so that a
@@ -348,7 +348,7 @@ fn existing_dirent_kind(path: &Path) -> Result<Option<fs::FileType>, ImportIndex
 ///
 /// The importer that creates the directory populates it; the others heal
 /// what is there, because a slot that exists is either finished, being
-/// filled right now, or left behind by an importer that died mid-file —
+/// filled right now, or left behind by an importer that died mid-file,
 /// and the three are indistinguishable from the outside.
 pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
@@ -381,7 +381,7 @@ pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
 }
 
 /// Create `dir_path`, reporting whether this call is the one that created
-/// it. `create_dir_all` cannot answer that — it succeeds either way.
+/// it. `create_dir_all` cannot answer that, it succeeds either way.
 fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
     if let Some(parent) = dir_path.parent() {
         pnpm_fs::create_dir_all_with_retry(parent)
@@ -465,7 +465,7 @@ fn clear_forced_non_dir_target(
 ///
 /// On Unix `fs::remove_file` unlinks any non-directory inode (regular
 /// file, symlink-to-anywhere, fifo, socket). On Windows it rejects
-/// directory symlinks and junctions with `ERROR_ACCESS_DENIED` — the OS
+/// directory symlinks and junctions with `ERROR_ACCESS_DENIED`, the OS
 /// treats those as directory-shaped and they have to go through
 /// `remove_dir` instead. The link's own type decides, not its target's,
 /// so a dangling junction left behind by a deleted target is unlinked

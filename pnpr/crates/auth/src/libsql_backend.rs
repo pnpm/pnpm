@@ -2,7 +2,7 @@
 //!
 //! Backs both [`UserBackend`] and [`TokenBackend`] with one shared
 //! database reached over the network, so several stateless pnpr
-//! replicas observe a consistent set of users and tokens — the
+//! replicas observe a consistent set of users and tokens, the
 //! prerequisite for running the registry as more than a single
 //! instance.
 //!
@@ -13,8 +13,8 @@
 //! the natural next optimization (see
 //! [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199)).
 //!
-//! The SQL is identical to the local backend — the `tokens` table reuses
-//! [`super::token_store::sqlite::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
+//! The SQL is identical to the local backend, the `tokens` table reuses
+//! [`super::token_store::sqlite::TOKENS_TABLE_SQL`] verbatim, so a database can be migrated
 //! between the two. Users, which the local backend keeps in a JSON account
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
@@ -78,7 +78,7 @@ impl LibsqlAuth {
     ///
     /// With `replicaPath` set, the database is an embedded replica (see
     /// [`pnpr_libsql::open`]), so reads hit the local file. Without it, every
-    /// read is a remote query against the primary — always fresh, but a
+    /// read is a remote query against the primary, always fresh, but a
     /// network round-trip on the auth hot path.
     ///
     /// The whole startup, the initial sync included, runs under one
@@ -157,7 +157,7 @@ impl LibsqlAuth {
         .await
     }
 
-    /// Current number of registered users — read under the
+    /// Current number of registered users, read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         self.pool.read(|conn| async move {

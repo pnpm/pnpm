@@ -42,7 +42,7 @@ struct ListedDep {
 }
 
 /// The install directories with a direct-dependency alias matching
-/// `params` (any alias when `params` is empty — a group with no
+/// `params` (any alias when `params` is empty, a group with no
 /// dependencies never matches, mirroring the TypeScript
 /// `findGlobalInstallDirs`). Used by `pnpm ls -g --depth <n>` to narrow
 /// the listing to one install group.
@@ -279,7 +279,7 @@ fn leaf_label(dep: &ListedDep) -> String {
     format!("{}{}", dep.name, gray(&format!("@{}", dep.version)))
 }
 
-// --- archy tree renderer ----------------------------------------------------
+// archy tree renderer
 
 struct TreeNode {
     label: String,
@@ -356,7 +356,7 @@ fn child_frames(prefix: &str, last: bool, parent: bool) -> (String, String) {
     (format!("{prefix}{branch}\u{2500}{stem} "), child_prefix)
 }
 
-// --- helpers ---------------------------------------------------------------
+// helpers
 
 fn read_dep_manifest(dep: &ListedDep) -> Option<Value> {
     crate::read_package_json(&dep.location)

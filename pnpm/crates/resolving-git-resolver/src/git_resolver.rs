@@ -40,7 +40,7 @@ pub type ProbeFuture<'a> = Pin<Box<dyn Future<Output = bool> + Send + 'a>>;
 /// proves the exact URL to be recorded anonymously fetchable, so a
 /// recorded archive URL is valid by construction. On probe failure the
 /// resolution falls back to `type: git` over the canonical HTTPS URL,
-/// which every machine with access to the repo can fetch — a false
+/// which every machine with access to the repo can fetch, a false
 /// negative (private repo, host throttling past the retries) costs
 /// archive speed on one dependency, never correctness.
 pub trait GitProbe: Send + Sync {
@@ -97,7 +97,7 @@ pub struct GitFetchContext {
 ///
 /// When `fetch_context` is `Some`, the package is read during
 /// resolution to fill `manifest` (and `integrity`, for a host archive)
-/// — see [`GitFetchContext`]. `None` (unit tests, and the resolve-only
+///see [`GitFetchContext`]. `None` (unit tests, and the resolve-only
 /// NAPI entry point) keeps the manifest-less shape.
 ///
 /// Each specifier is resolved at most once per resolver: every later
@@ -200,7 +200,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                     // own, and the install pass refuses a tarball
                     // resolution without one
                     // (`tarball_url_and_integrity`). The bytes were
-                    // just hashed to extract them, so record that —
+                    // just hashed to extract them, so record that,
                     // same field upstream writes for a git dep.
                     tarball.integrity = Some(resolved.integrity);
                 }
@@ -213,7 +213,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 };
                 // No archive endpoint to read, so the working tree is
                 // the only source of the name, and there is nothing to
-                // hash — the commit anchors the content.
+                // hash, the commit anchors the content.
                 let manifest = read_git_manifest(GitManifestQuery {
                     source_cache: &ctx.source_cache,
                     repo: &git.repo,
@@ -235,7 +235,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
     /// Companion to [`Self::resolve_impl`].
     ///
     /// Claims every dep the parser recognises, but returns an empty
-    /// [`LatestInfo`] (git has no uniform "latest" notion — a host's
+    /// [`LatestInfo`] (git has no uniform "latest" notion, a host's
     /// tag list would be the closest proxy and the protocols disagree).
     async fn resolve_latest_impl(
         &self,
@@ -284,7 +284,7 @@ async fn read_archive(
             index_writer: ctx.store_index_writer.clone(),
         },
         // A git host's archive URL is the package's only identifier at
-        // this point — its name is what this fetch is here to learn —
+        // this point, its name is what this fetch is here to learn,
         // and such archives carry no scoped-registry auth or pinned hash.
         package: pnpm_tarball::TarballPackage {
             integrity_kind: pnpm_tarball::IntegrityKind::Resource,
@@ -377,7 +377,7 @@ fn ref_resolution_error(
     Box::new(GitResolveError::new(specifier, repo, &ls_remote.to_string())) as ResolveError
 }
 
-/// Pick between a tarball and a git resolution — see [`GitProbe`] for
+/// Pick between a tarball and a git resolution, see [`GitProbe`] for
 /// the rule and its fail-safe direction.
 async fn pick_resolution<Probe: GitProbe + ?Sized>(
     spec: &HostedPackageSpec,

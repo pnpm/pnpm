@@ -94,7 +94,7 @@ fn archives_become_platform_variants_with_sri_integrities() {
 }
 
 /// zpm's Linux archive is a static musl build, so it must stay usable on
-/// a glibc host — until a release actually ships both, at which point the
+/// a glibc host, until a release actually ships both, at which point the
 /// two have to be told apart.
 #[test]
 fn the_musl_constraint_is_recorded_only_when_a_glibc_build_exists() {

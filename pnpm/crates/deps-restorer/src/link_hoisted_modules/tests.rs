@@ -802,7 +802,7 @@ fn no_prev_graph_still_installs() {
     );
 }
 
-/// Orphan removal tolerates errors silently — matches upstream's
+/// Orphan removal tolerates errors silently, matches upstream's
 /// `tryRemoveDir` EPERM/EBUSY swallowing. We can't easily provoke
 /// a permission error in a test, but a non-existent directory in
 /// `prev_graph` (e.g. one already removed by another process)
@@ -849,7 +849,7 @@ fn orphan_already_removed_is_tolerated() {
 }
 
 /// Pins fail-fast on internal inconsistency between the hierarchy
-/// and graph — the walker keeps the two in sync, but a
+/// and graph, the walker keeps the two in sync, but a
 /// future bug there shouldn't yield a partial install layout.
 #[test]
 fn hierarchy_entry_missing_from_graph_errors() {
@@ -892,7 +892,7 @@ fn hierarchy_entry_missing_from_graph_errors() {
     }
 }
 
-/// One `pnpm:progress imported` per imported node — the event the
+/// One `pnpm:progress imported` per imported node, the event the
 /// default reporter counts as `added`, and the only source of that
 /// counter under `nodeLinker: hoisted`.
 #[test]

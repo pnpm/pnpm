@@ -248,7 +248,7 @@ fn reads_a_rooted_path_the_same_way_on_every_host() {
 
 /// The resolver strips the slashes after a protocol and then keeps a
 /// dot, tilde or drive prefix relative, so `file:/./deps/x` resolves
-/// from the project rather than the filesystem root — `pnpm install`
+/// from the project rather than the filesystem root, `pnpm install`
 /// records it as `file:deps/x`. Anchoring shares that normalization
 /// rather than repeating part of it.
 #[test]

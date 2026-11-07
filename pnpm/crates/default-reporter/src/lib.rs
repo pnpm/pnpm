@@ -107,7 +107,7 @@ pub fn force_append_only() {
 }
 
 /// Route all reporter output (warnings, progress, the summary) to stderr
-/// instead of stdout — pnpm's `useStderr`, set for the commands in its
+/// instead of stdout, pnpm's `useStderr`, set for the commands in its
 /// `COMMANDS_WITH_STDERR_REPORTER` whose stdout is a machine-readable
 /// value. TTY detection and terminal width follow the selected stream.
 /// Call once before the first event.
@@ -128,7 +128,7 @@ pub fn set_summary_scope(scope: SummaryScope) {
 }
 
 /// Declare that the running command reports the workspace scope it
-/// selected — pnpm's `COMMANDS_THAT_REPORT_SCOPE` gate. Call once before
+/// selected, pnpm's `COMMANDS_THAT_REPORT_SCOPE` gate. Call once before
 /// the first event; ignored if already set.
 pub fn set_reports_scope(reports_scope: bool) {
     let _ = REPORTS_SCOPE.set(reports_scope);
@@ -143,20 +143,20 @@ pub fn set_hide_added_pkgs_progress(hide_added_pkgs_progress: bool) {
 }
 
 /// Stream lifecycle script output line by line instead of collecting it
-/// into a collapsible block — pnpm's `--stream`. Call once before the
+/// into a collapsible block, pnpm's `--stream`. Call once before the
 /// first event.
 pub fn stream_lifecycle_output() {
     let _ = STREAM_LIFECYCLE_OUTPUT.set(true);
 }
 
 /// Hold each script's streamed output until it exits, then print the run
-/// as one block — pnpm's `--aggregate-output`. Call once before the first
+/// as one block, pnpm's `--aggregate-output`. Call once before the first
 /// event.
 pub fn aggregate_output() {
     let _ = AGGREGATE_OUTPUT.set(true);
 }
 
-/// Drop the project prefix from streamed script output lines — pnpm's
+/// Drop the project prefix from streamed script output lines, pnpm's
 /// `--reporter-hide-prefix`. Call once before the first event.
 pub fn hide_lifecycle_prefix() {
     let _ = HIDE_LIFECYCLE_PREFIX.set(true);
@@ -432,13 +432,13 @@ impl Sink {
     /// The differ redraws by moving the cursor up from the end of its frame, so
     /// it can only reach lines that are still on screen. A frame taller than
     /// the terminal has scrolled its top away, and every later redraw then
-    /// stops at the top of the screen — overwriting output above the frame
+    /// stops at the top of the screen, overwriting output above the frame
     /// instead of updating it (pnpm/pnpm#14270). Committing the overflow keeps
     /// the frame within the terminal, at the cost of no longer being able to
     /// revise what was committed.
     fn commit_overflow(&mut self, lines: &[&str]) {
         if lines.len() <= self.viewport.committed_lines {
-            // The frame no longer reaches past what was committed — an error
+            // The frame no longer reaches past what was committed, an error
             // frame replaces it rather than extending it. Render it whole,
             // below.
             self.viewport.committed_lines = 0;
@@ -454,9 +454,9 @@ impl Sink {
             .map(|line| rendered_rows(line, self.viewport.columns))
             .sum();
         let (first_visible, frame_rows) = self.viewport.first_visible_line(lines, max_rows);
-        // A frame taller than the terminal has scrolled its own top away —
+        // A frame taller than the terminal has scrolled its own top away,
         // whether because a line outgrew the screen or because the window shrank
-        // under it — so no cursor move reaches back into it, and growing the
+        // under it, so no cursor move reaches back into it, and growing the
         // window again does not bring it back. Start afresh below instead,
         // reprinting rather than revising, and leave the commit for the next
         // frame, whose layout is one this differ laid out itself.
@@ -514,7 +514,7 @@ fn reporter_options(append_only: bool) -> state::ReporterOptions {
 }
 
 /// The output terminal's `(columns, rows)`, when it has them. Measured on the
-/// stream the reporter writes to, and on Windows as well as Unix — a frame is
+/// stream the reporter writes to, and on Windows as well as Unix, a frame is
 /// fitted to the terminal it is drawn on wherever pnpm runs.
 fn terminal_size() -> Option<(usize, Option<usize>)> {
     let term = if is_stderr_output() { Term::stderr() } else { Term::stdout() };
@@ -551,8 +551,8 @@ impl TerminalViewport {
     /// The topmost line that still fits within `max_rows`, and the rows the
     /// frame from there down occupies.
     ///
-    /// The last line always stays in the frame — there would be nothing left to
-    /// redraw otherwise — so the walk upwards starts one line above it.
+    /// The last line always stays in the frame, there would be nothing left to
+    /// redraw otherwise, so the walk upwards starts one line above it.
     fn first_visible_line(&self, lines: &[&str], max_rows: usize) -> (usize, usize) {
         let mut first_visible = lines.len() - 1;
         let mut frame_rows = rendered_rows(lines[first_visible], self.columns);

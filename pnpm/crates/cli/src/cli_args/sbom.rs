@@ -1,4 +1,4 @@
-//! `pacquet sbom` — generate a Software Bill of Materials.
+//! `pacquet sbom`, generate a Software Bill of Materials.
 //!
 //! Ports pnpm's `sbom` command
 //! (`pnpm11/deps/compliance/commands/src/sbom/sbom.ts`).
@@ -295,7 +295,7 @@ impl SbomArgs {
 
     /// A workspace whose projects keep their own lockfiles has no one
     /// lockfile to walk, so a run that spans several of them merges
-    /// their lockfiles — and their virtual stores — first.
+    /// their lockfiles, and their virtual stores, first.
     fn merged_state(&self, state: State) -> miette::Result<(State, Option<Vec<PathBuf>>)> {
         let spans_several_projects =
             state.config.recursive || self.split || selectors_narrow_the_run(state.config);

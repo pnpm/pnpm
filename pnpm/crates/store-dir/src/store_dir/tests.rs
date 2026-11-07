@@ -106,7 +106,7 @@ fn init_rejects_non_directory_files_path() {
     std::fs::write(v11.join("files"), b"i am not a directory").unwrap();
 
     let store = StoreDir::new(tempdir.path());
-    // Don't pin the exact ErrorKind — platforms differ
+    // Don't pin the exact ErrorKind, platforms differ
     // (`NotADirectory` on Linux, `AlreadyExists` / `Uncategorized`
     // elsewhere). `expect_err` asserting that *an* error surfaced
     // is enough; the caller has already wired it through `warn!`.

@@ -66,7 +66,7 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     );
 
     // A GitHub `github:` dependency is downloaded from codeload.github.com, yet
-    // the same key a clone of the repo would use approves it — no commit hash.
+    // the same key a clone of the repo would use approves it, no commit hash.
     assert_eq!(policy.check("foo@https://codeload.github.com/org/foo/tar.gz/abc123"), Some(true));
     assert_eq!(
         policy.check("foo@https://codeload.github.com/org/foo/tar.gz/def456(react@19.0.0)"),
@@ -100,7 +100,7 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     assert_eq!(policy.check("qux@https://codeload.github.com/org/extra/qux/tar.gz/abc123"), None);
     assert_eq!(policy.check("quux@https://bitbucket.org/org/extra/quux/get/abc123.tar.gz"), None);
     // A URL on a claimed download host that does not match that host's tarball
-    // pattern is rejected outright — it must not fall through to the generic
+    // pattern is rejected outright, it must not fall through to the generic
     // GitLab matcher and produce the host's trusted repo key.
     assert_eq!(
         policy.check("bar@https://bitbucket.org/org/bar/-/archive/abc123/bar-abc123.tar.gz"),
@@ -165,7 +165,7 @@ fn allow_via_version_union() {
     assert_eq!(policy.check("qar@2.0.0"), Some(true));
     assert_eq!(policy.check("qar@1.1.0"), None);
 }
-/// `from_config` propagates `expand_package_version_specs` errors —
+/// `from_config` propagates `expand_package_version_specs` errors,
 /// an invalid version union in `Config.allow_builds` surfaces as
 /// `ERR_PNPM_INVALID_VERSION_UNION` rather than silently dropping
 /// the rule.
@@ -199,7 +199,7 @@ fn empty_config_denies_all() {
 /// (`postinstall: echo hello && echo world && exit 1`).
 ///
 /// Unix-gated because the script is POSIX shell syntax. The
-/// cmd-on-Windows path picks a different shell —
+/// cmd-on-Windows path picks a different shell,
 /// `pnpm_executor::select_shell` (tested in the executor crate's
 /// `shell::tests`) covers the shell-selection branches in isolation.
 #[cfg(unix)]
@@ -223,7 +223,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     let snapshots = HashMap::from([(pkg_key.clone(), optional_snapshot)]);
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
     // `dangerouslyAllowAllBuilds` so the policy lets the failing
-    // script through to actually run — this test exercises the
+    // script through to actually run, this test exercises the
     // build-failure path, not the policy gate.
     let policy = policy_from_specs([], true);
 
@@ -325,7 +325,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 #[test]
 pub(super) fn fail_when_failing_postinstall_is_required() {
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
-    // `optional: false` — the ALL-paths-optional fold concluded the
+    // `optional: false`, the ALL-paths-optional fold concluded the
     // dep is required.
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
@@ -704,7 +704,7 @@ async fn upload_error_does_not_interrupt_install() {
         let _ = fs::set_permissions(pkg_dir.join("unreadable"), fs::Permissions::from_mode(0o644));
     }
 }
-// --- pkg_root_for_key ---------------------------------------------------
+// pkg_root_for_key
 
 /// Without an override map (the isolated linker), the helper falls
 /// through to `virtual_store_dir_for_key` and returns

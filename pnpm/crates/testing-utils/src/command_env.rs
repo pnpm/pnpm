@@ -55,7 +55,7 @@ fn ambient_pnpm_config_vars() -> impl Iterator<Item = OsString> {
 /// Whether `name` steers the pnpm under test: either spelling of the
 /// `pnpm_config_` / `npm_config_` prefixes, the context-aware shim kill
 /// switch and preparation marker, or the lifecycle event a parent
-/// `pnpm run` sets. `PNPM_HOME` is deliberately not one of them — the
+/// `pnpm run` sets. `PNPM_HOME` is deliberately not one of them, the
 /// suites spawn the ambient pnpm for their compatibility checks.
 fn is_pnpm_config_var(name: &str) -> bool {
     const PREFIXES: [&str; 2] = ["pnpm_config_", "npm_config_"];

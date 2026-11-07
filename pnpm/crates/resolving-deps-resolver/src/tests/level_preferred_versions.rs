@@ -8,7 +8,7 @@ use pnpm_resolving_resolver_base::{
 use pretty_assertions::assert_eq;
 
 /// Stub that records, per `(alias, range)`, the overlay's preferred
-/// versions for the probe package `pinned` at resolve time — the
+/// versions for the probe package `pinned` at resolve time, the
 /// name a real picker would merge the overlay under.
 struct OverlayRecordingResolver {
     table: HashMap<(String, String), ResolveResult>,

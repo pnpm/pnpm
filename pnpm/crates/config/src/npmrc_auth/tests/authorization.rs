@@ -7,11 +7,11 @@ use super::{
 #[test]
 fn ignores_non_auth_keys() {
     // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` via the
-    // SmartDefault expression on `Config::store_dir` —
+    // SmartDefault expression on `Config::store_dir`,
     // `default_store_dir::<Host, _, _, _>(crate::home_dir,
-    // env::current_dir)` — to compute `store_dir`. Both values come
+    // env::current_dir)`, to compute `store_dir`. Both values come
     // from the real process environment, but no other test in this
-    // crate mutates them anymore — the per-branch tests in
+    // crate mutates them anymore, the per-branch tests in
     // `defaults::tests` and `lib::tests` drive `default_store_dir`
     // through the dependency-injection seam (pnpm/pacquet#339,
     // pnpm/pnpm#11708, pnpm/pacquet#343) with fake `Sys` providers,
@@ -244,8 +244,8 @@ fn auth_pair_base64_keys_to_basic_header() {
     );
 }
 
-/// An `_auth` spelled without its `=` padding — as a shell pipeline or a
-/// hand-written `.npmrc` leaves it — reaches the registry canonically
+/// An `_auth` spelled without its `=` padding, as a shell pipeline or a
+/// hand-written `.npmrc` leaves it, reaches the registry canonically
 /// encoded, not verbatim (pnpm/pnpm#14257).
 #[test]
 fn unpadded_auth_pair_base64_is_canonically_re_encoded() {
@@ -262,7 +262,7 @@ fn unpadded_auth_pair_base64_is_canonically_re_encoded() {
 }
 
 /// A value that decodes only once its trailing garbage is thrown away is
-/// not a credential — pnpm's `atob` rejects it, so pacquet must too.
+/// not a credential, pnpm's `atob` rejects it, so pacquet must too.
 #[test]
 fn auth_pair_base64_with_a_suffix_after_its_padding_is_rejected() {
     let ini = format!("//reg.com/:_auth={}garbage\n", base64_encode("alice:p@ss"));
@@ -276,8 +276,8 @@ fn auth_pair_base64_with_a_suffix_after_its_padding_is_rejected() {
     );
 }
 
-/// Padding with nothing to pad is not base64 — the answer `atob` gives
-/// it — so it fails as an undecodable value rather than as a credential
+/// Padding with nothing to pad is not base64, the answer `atob` gives
+/// it, so it fails as an undecodable value rather than as a credential
 /// that decoded but carries no separator.
 #[test]
 fn auth_pair_base64_of_only_padding_is_rejected_as_invalid_base64() {
@@ -292,7 +292,7 @@ fn auth_pair_base64_of_only_padding_is_rejected_as_invalid_base64() {
     );
 }
 
-/// An `_auth` left empty — the shape an unresolved `${VAR}` leaves —
+/// An `_auth` left empty, the shape an unresolved `${VAR}` leaves,
 /// names no credential, so it is skipped instead of failing the load.
 #[test]
 fn empty_auth_pair_base64_supplies_no_header() {
@@ -421,7 +421,7 @@ fn cascade_disabling_tokens_on_the_scheme_keys_fall_through_to_env() {
     }
 }
 
-/// Only the lowercase tokens are special — pnpm's INI scalars produce
+/// Only the lowercase tokens are special, pnpm's INI scalars produce
 /// `false` / `null` verbatim, so any other spelling is a hostname.
 #[test]
 fn cascade_capitalised_disabling_tokens_are_proxy_hosts() {
@@ -656,7 +656,7 @@ fn json_env_rejects_unsupported_auth_field() {
 
 #[test]
 fn json_env_error_does_not_leak_url_credentials() {
-    // The URL key carries userinfo and a query-string token — both common
+    // The URL key carries userinfo and a query-string token, both common
     // places to embed secrets. The rejection error must not surface them.
     static_env!(
         Env,

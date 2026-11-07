@@ -86,7 +86,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
 const STRUCTURED_CONFIG_FILE_KEYS: &[&str] = &["macos-backup", "named-registries", "registries"];
 
 /// Keys present in `pnpmTypes` but excluded from the global config file
-/// (`excludedPnpmKeys` in `configFileKey.ts`) — CLI flags and workspace-only
+/// (`excludedPnpmKeys` in `configFileKey.ts`), CLI flags and workspace-only
 /// settings.
 const EXCLUDED_PNPM_KEYS: &[&str] = &[
     "auto-install-peers",

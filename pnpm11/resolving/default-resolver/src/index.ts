@@ -241,14 +241,14 @@ export type ResolutionVerifierFactoryOptions =
 /**
  * Companion to {@link createResolver}. Collects the resolver-specific
  * verifier factories (today: npm) into a list. The npm verifier is
- * always present — it enforces the tarball-URL binding regardless of
- * policy configuration — so the list is non-empty.
+ * always present, it enforces the tarball-URL binding regardless of
+ * policy configuration, so the list is non-empty.
  *
  * Future protocols (jsr, git, attestation, etc.) plug in here by pushing
  * their own `ResolutionVerifier` onto the list. Each verifier handles
  * its own protocol short-circuit inside `verify` (returns `{ ok: true }`
  * for resolutions outside its scope), so dispatch happens naturally at
- * the install side — no combinator needed.
+ * the install side, no combinator needed.
  */
 export function createResolutionVerifiers (
   fetchFromRegistry: FetchFromRegistry,

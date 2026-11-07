@@ -408,13 +408,13 @@ test('ignoreMissingTimeField=true skips maturity check when full metadata has no
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
   // No `time` field means no positive evidence latest is immature, so the raw
-  // tag survives — matching the pick, which skipped the maturity check too.
+  // tag survives, matching the pick, which skipped the maturity check too.
   expect(resolveResult!.latest).toBe('3.1.0')
 })
 
 test('ignoreMissingTimeField=true still upgrades abbreviated→full when time is missing', async () => {
   // With ignoreMissingTimeField=true, pnpm should still re-fetch full metadata
-  // when abbreviated metadata lacks time — only falling back to skip+warn if
+  // when abbreviated metadata lacks time, only falling back to skip+warn if
   // even the full metadata has no time field. Here the full response DOES have
   // time, so the maturity check must run (and pick the old 1.0.0, not latest).
   const recentAbbreviated = {
@@ -476,7 +476,7 @@ test('ignoreMissingTimeField=true skips maturity check from disk-cached metadata
   const cachePath = path.join(cacheDir2, 'is-positive.jsonl')
   fs.writeFileSync(cachePath, `${JSON.stringify({})}\n${JSON.stringify(metaWithoutTime)}`, 'utf8')
 
-  // No mock agent intercepts — test would fail if a network request fired.
+  // No mock agent intercepts, test would fail if a network request fired.
 
   const { resolveFromNpm } = createResolveFromNpm({
     storeDir: temporaryDirectory(),
@@ -547,7 +547,7 @@ test('falls through to the registry fetch when cached abbreviated meta lacks tim
 test('falls through to the registry fetch even with default ignoreMissingTimeField on the version-spec cache path', async () => {
   // Companion to the test above: same scenario but with the default
   // ignoreMissingTimeField (false). MISSING_TIME from cached abbreviated
-  // meta should never escape the catch — resolution falls through to the
+  // meta should never escape the catch, resolution falls through to the
   // registry fetch and succeeds with full (time-bearing) metadata.
   const cacheDir = temporaryDirectory()
   const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
@@ -589,7 +589,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
   // returns 304 Not Modified on the conditional fetch, pnpm reuses the
   // cached abbreviated metadata. Abbreviated metadata has no per-version
   // `time` field by registry spec, so the minimumReleaseAge check would
-  // fall back to its warn-and-skip path — silently bypassing the maturity
+  // fall back to its warn-and-skip path, silently bypassing the maturity
   // guarantee even though the registry HAS the time data in full metadata.
   //
   // The fix: after a 304, if the cached metadata is abbreviated and the
@@ -633,7 +633,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  // The maturity check ran properly thanks to the upgrade — picked 1.0.0, not 3.x.
+  // The maturity check ran properly thanks to the upgrade, picked 1.0.0, not 3.x.
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 
   // The upgraded full metadata should be persisted to disk so the next
@@ -653,7 +653,7 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
   const headers = JSON.stringify({ etag: '"mtime-shortcut-test"', modified: isPositiveAbbreviatedMeta.modified })
   fs.writeFileSync(cachePath, `${headers}\n${JSON.stringify(isPositiveAbbreviatedMeta)}`, 'utf8')
 
-  // No mock agent intercepts — the test verifies no network request is made.
+  // No mock agent intercepts, the test verifies no network request is made.
   // If a request were attempted, it would fail.
 
   const { resolveFromNpm } = createResolveFromNpm({

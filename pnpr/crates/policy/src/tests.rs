@@ -42,7 +42,7 @@ fn token_parsing_maps_builtins_and_usernames() {
     assert_eq!(AccessToken::from("$owners"), AccessToken::Owners);
     assert_eq!(AccessToken::from("admin"), AccessToken::User("admin".to_string()));
     // Only the `$`-sigiled spellings are built-ins. The alias spellings
-    // verdaccio accepted are plain usernames here — YAML loading rejects
+    // verdaccio accepted are plain usernames here, YAML loading rejects
     // them before they reach this constructor, and a programmatic caller
     // just gets a username that matches nobody (deny-safe).
     assert_eq!(AccessToken::from("@all"), AccessToken::User("@all".to_string()));
@@ -128,7 +128,7 @@ fn team_token(team: &str, members: &[&str]) -> (AccessToken, TeamDirectory) {
 
 #[test]
 fn bare_tokens_are_usernames_not_team_names() {
-    // `platform` as a bare token admits only the user of that name — team
+    // `platform` as a bare token admits only the user of that name, team
     // membership is reachable exclusively through a `team:` token.
     let list = list("platform");
     assert!(list.allows(&user("platform")));
@@ -138,7 +138,7 @@ fn bare_tokens_are_usernames_not_team_names() {
 
 #[test]
 fn mixed_token_list_is_a_union() {
-    // `[$authenticated, admin]` — any logged-in user OR (redundantly)
+    // `[$authenticated, admin]`, any logged-in user OR (redundantly)
     // the `admin` name; satisfied by any authenticated caller.
     let list = AccessList::from_tokens(["$authenticated", "admin"]);
     assert!(list.allows(&user("carol")));

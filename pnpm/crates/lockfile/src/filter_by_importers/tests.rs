@@ -168,7 +168,7 @@ fn an_excluded_group_is_emptied_and_its_edges_are_not_walked() {
     assert!(has_alias(importer.dependencies.as_ref(), "prod-dep"));
 }
 
-/// Importers the caller did not select keep their entries verbatim — the
+/// Importers the caller did not select keep their entries verbatim, the
 /// filter narrows the package graph, not the workspace.
 #[test]
 fn unselected_importers_are_carried_through_untouched() {

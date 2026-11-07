@@ -34,7 +34,7 @@ export interface MemoizeFetchMetadataOptions {
  * encoded body, up to tens of MB, per package.
  *
  * Because that swap lands a turn after the request settles, both settlement
- * paths write back only while the entry is still their own promise — a `clear`
+ * paths write back only while the entry is still their own promise, a `clear`
  * (or a retry that already replaced the entry) must not be undone by a request
  * that was in flight when it happened.
  *

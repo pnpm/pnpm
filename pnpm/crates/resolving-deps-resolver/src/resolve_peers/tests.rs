@@ -337,7 +337,7 @@ mod locked_peer_provider_preferences {
     }
 }
 
-/// A graph node carrying nothing but its identity — enough for the
+/// A graph node carrying nothing but its identity, enough for the
 /// pending-edge tests, which only read and write `children`.
 fn graph_node(dep_path: &DepPath) -> crate::dependencies_graph::DependenciesGraphNode {
     crate::dependencies_graph::DependenciesGraphNode {
@@ -388,14 +388,14 @@ impl Default for PeerCycleShape {
 /// A ring of `ring_len` packages (`ring00 → ring01 → … → ring00`), with
 /// a consumer of peer `w` hanging off the `wc_members`. Each entry in
 /// `entries` is a direct dep
-/// `(alias, ring index it points at, its own w version)` — the
+/// `(alias, ring index it points at, its own w version)`, the
 /// per-entry `w` keeps one entry's untruncated ring verdicts from
 /// plainly matching another's, which is what forces the walk onto the
 /// cycle-verdict cache. Everything realizes lazily from
 /// `children_by_id`, the way production trees reach the peer walk.
 ///
 /// The shape matters: `ring00` re-entered through the full lap has its
-/// `ring01` edge cut — no `w` in that subtree — while `ring00` reached
+/// `ring01` edge cut, no `w` in that subtree, while `ring00` reached
 /// under a `ring02` entry keeps `ring01` and resolves `w`. Same
 /// package, same `p` context, different truncation, different verdict:
 /// the pair a cycle-verdict cache must never merge.
@@ -473,7 +473,7 @@ fn ring_member_edges(
         if index.is_multiple_of(2) {
             if index != 0 {
                 // Every even member also re-enters the ring's entry, so one
-                // lap re-enters the cycle many times — each re-entry a
+                // lap re-enters the cycle many times, each re-entry a
                 // truncated verdict whose subtree the cache can skip.
                 edges.push(child_edge("home", &ring_id(0)));
             }
@@ -481,8 +481,8 @@ fn ring_member_edges(
         }
     }
     if shape.wc_members.contains(&index) {
-        // A `wc` member consumes `w`, so its untruncated verdicts —
-        // and every keyless cached item covering it — carry the
+        // A `wc` member consumes `w`, so its untruncated verdicts,
+        // and every keyless cached item covering it, carry the
         // entry's own `w` and never transfer across entries.
         edges.push(child_edge("wc", "wc@1.0.0"));
     }

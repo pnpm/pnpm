@@ -343,9 +343,9 @@ fn pre_command_plan_skips_the_env_lockfile_sync_for_a_compatible_extra_entry() {
 fn pre_command_plan_records_a_pin_whose_specifier_the_lockfile_no_longer_matches() {
     let root = TempDir::new().expect("tmp dir");
     write_dev_engine_manifest(root.path(), PNPM_VERSION);
-    // The locked version still satisfies the pin — so there is nothing to
+    // The locked version still satisfies the pin, so there is nothing to
     // switch to, and the lockfile the switch lookup already read is the one
-    // the sync decision reuses — but it was resolved from a wider specifier.
+    // the sync decision reuses, but it was resolved from a wider specifier.
     write_lockfile(root.path(), &locked_package_manager(">=0.0.0", PNPM_VERSION));
 
     let plan = pre_command_plan_from_input(
@@ -490,7 +490,7 @@ fn range_around_the_running_pnpm() -> (String, String) {
 
 /// The install family records the pin from its own pipeline whether or not
 /// version switching is on, so every other command has to record it there
-/// too — otherwise the two rewrite each other forever (pnpm/pnpm#14575).
+/// too, otherwise the two rewrite each other forever (pnpm/pnpm#14575).
 #[test]
 fn pre_command_plan_records_a_pin_when_version_switching_is_turned_off() {
     let root = TempDir::new().expect("tmp dir");
@@ -579,7 +579,7 @@ fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
     );
 
     // `pmOnFail` overrides the manifest's own `onFail`, so the pin the
-    // manifest asked to ignore is enforced — and recorded — after all.
+    // manifest asked to ignore is enforced, and recorded, after all.
     let plan = pre_command_plan_from_input(
         &pre_command_input(root.path()),
         &config_overrides(&["--config.pm-on-fail=warn"]),

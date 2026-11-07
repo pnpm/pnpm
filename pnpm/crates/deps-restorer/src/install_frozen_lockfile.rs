@@ -153,7 +153,7 @@ pub enum InstallFrozenLockfileError {
     /// Wraps any error `compute_skipped_snapshots` surfaces from the
     /// installability pass:
     ///
-    /// - `InstallabilityError::InvalidNodeVersion` — the resolved
+    /// - `InstallabilityError::InvalidNodeVersion`, the resolved
     ///   `current_node_version` isn't a parseable exact semver.
     ///   Pacquet falls back to a synthetic `99999.0.0` when
     ///   `node --version` fails, so this is currently unreachable
@@ -215,7 +215,7 @@ pub struct InstallFrozenLockfileOutput {
     /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`
     /// is on (the default).
     pub ignored_builds: Vec<String>,
-    /// Dep paths whose build `--ignore-scripts` deferred — see
+    /// Dep paths whose build `--ignore-scripts` deferred, see
     /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
     /// them into `.modules.yaml.pendingBuilds`.
     pub deferred_builds: Vec<String>,
@@ -302,7 +302,7 @@ impl<'a> InstallFrozenLockfile<'a> {
     /// Returns an [`InstallFrozenLockfileOutput`] carrying the
     /// `HoistedDependencies` map produced by the hoist pass plus
     /// the install-time `SkippedSnapshots` set. The caller
-    /// (`Install::run`) feeds both into `.modules.yaml` —
+    /// (`Install::run`) feeds both into `.modules.yaml`,
     /// `hoistedDependencies` lets a later install observe the same
     /// hoist decisions, and `skipped` lets the next install seed
     /// the installability re-check against the previously skipped
@@ -377,7 +377,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         // await the join handle at the end of `run`, so the final
         // batch flushes once every queued row from both phases has
         // been processed. A writer open / task failure is degraded
-        // to a `warn!` and the install still succeeds — pacquet's
+        // to a `warn!` and the install still succeeds, pacquet's
         // existing best-effort stance on cache writes.
         // Under `frozenStore` the store is opened read-only, so the
         // writer is replaced with a drain-and-drop stub that never opens

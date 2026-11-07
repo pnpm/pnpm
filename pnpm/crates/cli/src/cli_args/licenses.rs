@@ -252,7 +252,7 @@ async fn record_license(
     }
 }
 
-/// Every collected package, in name order — the table lists packages
+/// Every collected package, in name order, the table lists packages
 /// rather than grouping them by license.
 fn sorted_license_infos(
     results_by_license: &IndexMap<String, BTreeMap<String, LicenseInfo>>,

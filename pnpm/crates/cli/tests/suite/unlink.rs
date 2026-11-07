@@ -14,7 +14,7 @@ fn write_manifest(workspace: &Path, manifest: &serde_json::Value) {
 /// (`packages/first`, `packages/second`) that both depend on `pkg`, plus a
 /// `link:` override redirecting `pkg` to a local directory. Returns the two
 /// project dirs. Callers run `unlink` *before* any install, so the link is
-/// stripped and never materialized — the reinstall re-resolves `pkg` from the
+/// stripped and never materialized, the reinstall re-resolves `pkg` from the
 /// registry.
 fn scaffold_dedicated_link_workspace(workspace: &Path, pkg: &str) -> (PathBuf, PathBuf) {
     let local_target = workspace.join("local-dep");
@@ -261,7 +261,7 @@ fn dislink_alias_works() {
 /// End-to-end: a `link:` override redirects a registry dependency to a local
 /// directory, so installing produces a symlink in `node_modules` and a
 /// `link:` resolution in the lockfile. After `unlink`, the override is gone
-/// and the reinstall re-resolves the dependency from the registry — the
+/// and the reinstall re-resolves the dependency from the registry, the
 /// lockfile records the registry version instead of the link.
 #[test]
 fn unlink_restores_registry_package_in_lockfile() {
@@ -382,7 +382,7 @@ fn recursive_unlink_with_dedicated_lockfiles_reinstalls_each_project() {
 }
 
 /// `pnpm --filter <project> unlink` strips the override and reinstalls only the
-/// selected project — the unselected project's dedicated lockfile is never
+/// selected project, the unselected project's dedicated lockfile is never
 /// created.
 #[test]
 fn filtered_unlink_with_dedicated_lockfiles_reinstalls_only_selected_project() {

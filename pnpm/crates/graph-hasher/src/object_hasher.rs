@@ -33,7 +33,7 @@ pub fn hash_object_without_sorting(value: &Value, encoding: HashEncoding) -> Str
 /// Only `Object` is checked for emptiness; non-object, non-null
 /// inputs (Bool / Number / String / Array) are unreachable in
 /// practice for this caller (`packageExtensions` is always a map),
-/// but we hash them anyway rather than panic — pacquet's hasher
+/// but we hash them anyway rather than panic, pacquet's hasher
 /// already handles them.
 #[must_use]
 pub fn hash_object_nullable_with_prefix(value: &Value) -> Option<String> {
@@ -58,7 +58,7 @@ pub(crate) fn digest_base64(bytes: &[u8]) -> String {
     BASE64.encode(Sha256::digest(bytes))
 }
 
-/// The same, hex-encoded — [`HashEncoding::Hex`]'s output.
+/// The same, hex-encoded, [`HashEncoding::Hex`]'s output.
 #[must_use]
 pub(crate) fn digest_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
@@ -81,12 +81,12 @@ pub fn hash_object_with_encoding(value: &Value, encoding: HashEncoding, sort: bo
 
 /// Recursive bytestream serializer mirroring the `typeHasher` dispatch
 /// in object-hash@3.0.0 with `respectType: false`. Only the type
-/// arms pacquet actually feeds in are implemented here — `Value` is
+/// arms pacquet actually feeds in are implemented here, `Value` is
 /// the union of String / Number / Bool / Null / Array / Object,
 /// which covers every input pacquet's graph-hasher and the
 /// [`hash_object`] callers ever pass. Anything else would either
 /// be unreachable for pacquet or require porting object-hash's Date /
-/// Set / Map / Buffer arms — explicitly not in scope here.
+/// Set / Map / Buffer arms, explicitly not in scope here.
 fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
     match value {
         Value::Null => {
@@ -100,7 +100,7 @@ fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
             out.extend_from_slice(if *b { b"true" } else { b"false" });
         }
         Value::Number(n) => {
-            // index.js:327-329 — `number:<n.toString()>`. JS
+            // index.js:327-329, `number:<n.toString()>`. JS
             // `Number.prototype.toString()` for integers gives the
             // plain decimal repr; for floats it produces the
             // shortest round-trippable form. Pacquet's cache-key
@@ -114,7 +114,7 @@ fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
             // can diverge from JS's "shortest round-trippable"
             // (ECMA-262 §7.1.12.1). If a caller ever passes a
             // non-integer in the hot path, the divergence would
-            // break cross-tool cache-key parity — add the
+            // break cross-tool cache-key parity, add the
             // JS-compatible float formatter (e.g. the `ryu` crate
             // gated on a check) before that lands.
             out.extend_from_slice(b"number:");
@@ -126,7 +126,7 @@ fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
     }
 }
 
-/// index.js:257-291 — `array:<N>:` then each entry.
+/// index.js:257-291, `array:<N>:` then each entry.
 ///
 /// object-hash *does* sort arrays in the unordered case, but pacquet does not
 /// currently feed arrays through this path, so the simpler "ordered" variant
@@ -141,7 +141,7 @@ fn serialize_array(out: &mut Vec<u8>, arr: &[Value], sort: bool) {
     }
 }
 
-/// index.js:225-255 — `object:<N>:<key>:<value>,...`, sorted iff
+/// index.js:225-255, `object:<N>:<key>:<value>,...`, sorted iff
 /// `unorderedObjects` (i.e. `sort = true`). Each key is dispatched through
 /// `_string` and each value through the normal dispatcher.
 fn serialize_object(out: &mut Vec<u8>, map: &serde_json::Map<String, Value>, sort: bool) {

@@ -1,8 +1,8 @@
-//! `pacquet login` / `pacquet adduser` — the `LoginArgs::run` adapter.
+//! `pacquet login` / `pacquet adduser`, the `LoginArgs::run` adapter.
 //!
-//! These tests drive the real command end-to-end through dispatch —
+//! These tests drive the real command end-to-end through dispatch,
 //! config-directory resolution, the `ThrottledClient` construction, and the
-//! `login` call — against a local mock registry.
+//! `login` call, against a local mock registry.
 //!
 //! The non-interactive guard lives on the CLASSIC (username / password)
 //! fallback, the only path that prompts on the terminal. A spawned `pacquet`

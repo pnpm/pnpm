@@ -35,7 +35,7 @@ fn prune_is_noop_without_links_dir() {
 }
 
 /// `prune()` does nothing destructive when no projects are
-/// registered — pacquet doesn't know which slots are still
+/// registered, pacquet doesn't know which slots are still
 /// referenced, so the safe stance is "keep everything". Mirrors
 /// upstream's `if (projects.length === 0) { return }` branch.
 #[test]

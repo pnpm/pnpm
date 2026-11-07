@@ -284,7 +284,7 @@ fn an_exact_tasks_entry_under_the_selector_name_keeps_it_one_task() {
 #[test]
 fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
     // `app` depends on `lib`; only `app` is requested, so `lib` gets no
-    // requested tasks of its own — but `app#build`'s `^build` edge still
+    // requested tasks of its own, but `app#build`'s `^build` edge still
     // pulls `lib#build` in, keeping the graph (and so a cache key built
     // over it) identical to what an unnarrowed run resolves.
     let projects =

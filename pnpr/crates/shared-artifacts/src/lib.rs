@@ -65,8 +65,8 @@ const PUBLICATION_FINISH_RETRIES: usize = 8;
 /// How long a publication may hold its registration before reclamation treats
 /// it as gone.
 ///
-/// A publication that cannot unregister itself — every retry of the write
-/// failing — would otherwise hold the gate forever, and reclamation is what
+/// A publication that cannot unregister itself, every retry of the write
+/// failing, would otherwise hold the gate forever, and reclamation is what
 /// gives back the scopes a failed publication claimed. The bound is far longer
 /// than a publication that is merely slow, since expiring a live one lets a
 /// collector run beside it.

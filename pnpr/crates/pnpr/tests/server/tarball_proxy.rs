@@ -225,7 +225,7 @@ async fn upstream_endpoint_tarball_is_verified_and_cached_per_upstream() {
         } } },
     });
     // The packument and verified tarball are cached in the upstream's private
-    // namespace, so two tarball requests hit the upstream exactly once each —
+    // namespace, so two tarball requests hit the upstream exactly once each,
     // the second is served from the private cache, never re-fetched.
     let packument_mock = upstream
         .mock("GET", "/foo")
@@ -273,7 +273,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     // The public `**` route proxies through the default `npmjs` upstream to the
     // public upstream; a separate access-bearing `corp` upstream serves a
     // *different* upstream at `/~corp/`. After the private `/~corp/foo` tarball
-    // is cached, the public `/foo` request must still serve the public bytes —
+    // is cached, the public `/foo` request must still serve the public bytes,
     // proving the private upstream's cache is namespaced, not shared.
     let mut public_upstream = mockito::Server::new_async().await;
     let mut private_upstream = mockito::Server::new_async().await;
@@ -347,8 +347,8 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
 
 /// Repointing a registry's `url:` must abandon the previous origin's cache: the
 /// namespace is keyed by the origin, so a warm entry fetched from the old
-/// upstream — packument or tarball, including via the cache-first tarball
-/// path — can never answer for the new one under the same registry name.
+/// upstream, packument or tarball, including via the cache-first tarball
+/// path, can never answer for the new one under the same registry name.
 #[tokio::test]
 async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     let mut old_origin = mockito::Server::new_async().await;
@@ -392,7 +392,7 @@ async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     assert_eq!(primed.status(), StatusCode::OK);
     assert_eq!(body_bytes(primed.into_body()).await, old_bytes);
 
-    // Same storage, same registry name, new `url:` — the fresh entries must come
+    // Same storage, same registry name, new `url:`, the fresh entries must come
     // from the new origin, not the still-fresh cache of the old one.
     let app = router(config_for(&new_origin.url(), tmp.path().to_path_buf()));
     let repointed = app
@@ -420,7 +420,7 @@ async fn upstream_endpoint_cache_false_streams_without_caching() {
         } } },
     });
     // A `cache: false` upstream endpoint persists nothing, so each request
-    // re-fetches the packument and tarball — the mocks are hit twice.
+    // re-fetches the packument and tarball, the mocks are hit twice.
     let packument_mock = upstream
         .mock("GET", "/foo")
         .with_body(packument.to_string())
@@ -578,7 +578,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     // A cache hit must still be OSV-screened on the tarball's *resolved*
     // version, not just the filename-carried one. Here version 1.0.0 declares
     // a non-canonical tarball basename `foo-0.0.1.tgz`, so the request filename
-    // resolves to 1.0.0 — and a cached tarball for a now-blocked 1.0.0 must not
+    // resolves to 1.0.0, and a cached tarball for a now-blocked 1.0.0 must not
     // slip past on the filename's unblocked "0.0.1".
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"cached vulnerable tarball";
@@ -708,7 +708,7 @@ async fn upstream_5xx_maps_to_bad_gateway() {
 #[tokio::test]
 async fn unreachable_upstream_maps_to_service_unavailable() {
     // Port 0 is never a listening port, so connecting to it is refused
-    // outright — exercising the `is_connect()` branch of the status
+    // outright, exercising the `is_connect()` branch of the status
     // mapping without depending on DNS. Probing for a free ephemeral
     // port instead would race: the suite's mockito servers bind ephemeral
     // ports throughout the run and can claim the probed one before the
@@ -734,7 +734,7 @@ async fn tarball_filename_for_other_package_is_rejected() {
     // A non-canonical filename is admitted only when the package's own
     // packument declares that basename in some version's `dist.tarball` (the
     // preserved-upstream-basename case). `foo`'s packument declares only
-    // `foo-1.0.0.tgz`, so another package's filename is a definitive 404 —
+    // `foo-1.0.0.tgz`, so another package's filename is a definitive 404,
     // never fetched, never cached under `foo`.
     let mut upstream = mockito::Server::new_async().await;
     upstream
@@ -775,7 +775,7 @@ async fn tarball_filename_for_other_package_is_rejected() {
 /// canonical `<name>-<version>.tgz` shape (e.g. esprima-fb's zero-padded
 /// `3001.0001.0000-dev-harmony-fb`). The rewrite preserves that basename in
 /// the served packument, so the serve path must accept it back and bind it
-/// to the declaring version's integrity — otherwise the version is
+/// to the declaring version's integrity, otherwise the version is
 /// un-fetchable through the very URL this server advertised.
 #[tokio::test]
 async fn non_canonical_upstream_tarball_basename_is_served() {

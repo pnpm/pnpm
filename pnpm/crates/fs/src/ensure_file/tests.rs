@@ -90,8 +90,8 @@ fn existing_target_with_wrong_content_is_overwritten_atomically() {
 }
 
 /// Repairing a corrupt CAS blob with `ensure_cas_file` must keep the
-/// inode so hard-linked copies — other projects' `node_modules`
-/// entries importing the same blob — are healed by the same write
+/// inode so hard-linked copies, other projects' `node_modules`
+/// entries importing the same blob, are healed by the same write
 /// (pnpm/pnpm#3445). `ensure_file`'s rename repair would swap the
 /// inode and leave the linked copy corrupt.
 #[cfg(unix)]
@@ -107,7 +107,7 @@ fn cas_repair_preserves_inode_and_heals_hard_links() {
     let ino_before = fs::metadata(&path).unwrap().ino();
 
     // Editing through the hard link corrupts the store blob in place,
-    // changing its size (an appended line) — the size-mismatch branch.
+    // changing its size (an appended line), the size-mismatch branch.
     fs::write(&linked, b"hacked from another project").unwrap();
 
     ensure_cas_file(&path, b"original", None).expect("in-place repair");
@@ -244,8 +244,8 @@ fn create_exclusive_temp_file_yields_distinct_open_files() {
     assert_eq!(fs::read(&path_a).unwrap(), b"payload");
 }
 
-/// A symlink at the target path — which on Unix returns `EEXIST`
-/// from `open(O_CREAT|O_EXCL)` just like a regular file would —
+/// A symlink at the target path, which on Unix returns `EEXIST`
+/// from `open(O_CREAT|O_EXCL)` just like a regular file would,
 /// must be scrubbed and replaced with a real regular file even
 /// when its target's bytes match what we were about to write.
 /// Leaving the symlink in place would fool downstream

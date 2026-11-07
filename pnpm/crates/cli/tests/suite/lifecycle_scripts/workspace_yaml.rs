@@ -37,7 +37,7 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
 
 /// Set the `allowBuilds:` block, replacing any block a previous
 /// phase wrote. pnpm v11 (and pacquet) read build approval from
-/// `pnpm-workspace.yaml`, not from `package.json#pnpm` — this
+/// `pnpm-workspace.yaml`, not from `package.json#pnpm`, this
 /// mirrors upstream tests passing `allowBuilds` through
 /// `testDefaults`. An empty `entries` withdraws every approval.
 pub fn allow_builds(workspace: &Path, entries: &[(&str, bool)]) {

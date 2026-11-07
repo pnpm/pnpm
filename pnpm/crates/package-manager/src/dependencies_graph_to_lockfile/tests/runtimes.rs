@@ -13,7 +13,7 @@ use serde_json::json;
 use std::collections::BTreeMap;
 
 /// With several unkeyable nodes, the reported failure must be the first
-/// one in the graph's own iteration order — the parallel node fan-out
+/// one in the graph's own iteration order, the parallel node fan-out
 /// folds its results in that order.
 #[test]
 fn the_first_unkeyable_node_in_graph_order_is_the_reported_one() {

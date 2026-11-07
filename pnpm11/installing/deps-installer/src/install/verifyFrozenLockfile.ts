@@ -53,7 +53,7 @@ export async function checkProjectsAgainstLockfile (run: MutationRun, frozenLock
   // `--frozen-lockfile` (the CI default) means "fail if pnpm-lock.yaml is
   // out of sync." Treat its absence as a sync failure even when the
   // synthesized snapshot from node_modules/.pnpm/lock.yaml would satisfy
-  // the manifest — the developer needs to commit the regenerated file.
+  // the manifest, the developer needs to commit the regenerated file.
   if (frozenLockfile && !ctx.existsWantedLockfile &&
     Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
     throw createNoLockfileError()

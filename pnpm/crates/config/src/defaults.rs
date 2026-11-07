@@ -164,8 +164,8 @@ pub fn default_modules_dir() -> PathBuf {
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
 /// file) from. Threads this crate's [`EnvVar`] / [`GetHomeDir`] seam
-/// into [`pnpm_config_dir::config_dir`] — the shared resolver, also
-/// used by the registry server — under the `pnpm` leaf.
+/// into [`pnpm_config_dir::config_dir`], the shared resolver, also
+/// used by the registry server, under the `pnpm` leaf.
 pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
@@ -314,7 +314,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
     60_000
 }
 
-/// The CLI's user-facing release version — the same value
+/// The CLI's user-facing release version, the same value
 /// `pnpm --version` prints. Single source of truth so the CLI
 /// version string and the default `User-Agent` (`default_user_agent`)
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
@@ -427,7 +427,7 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
     match option {
         None => default_workspace_concurrency_with_parallelism(parallelism),
         Some(n) if n > 0 => n as u32,
-        // `unsigned_abs` instead of `(-n) as u32` — the latter
+        // `unsigned_abs` instead of `(-n) as u32`, the latter
         // panics in debug builds on `n == i32::MIN` (negation
         // overflow); the former returns `i32::MAX as u32 + 1`
         // safely.
@@ -478,7 +478,7 @@ pub fn is_unsafe_perm_posix(uid: u32) -> bool {
     uid != 0
 }
 
-/// Safe wrapper around `libc::getuid` — contains the `unsafe`
+/// Safe wrapper around `libc::getuid`, contains the `unsafe`
 /// FFI block internally so the caller doesn't need to propagate
 /// `unsafe`.
 #[cfg(all(unix, not(target_os = "cygwin")))]

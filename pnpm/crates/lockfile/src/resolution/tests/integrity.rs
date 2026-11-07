@@ -5,8 +5,8 @@ use super::{
     undeclared_form,
 };
 
-/// An `integrity: ''` entry — what an edited lockfile carries when the hash
-/// is emptied instead of deleted — parses into an SRI with zero hashes. It
+/// An `integrity: ''` entry, what an edited lockfile carries when the hash
+/// is emptied instead of deleted, parses into an SRI with zero hashes. It
 /// pins nothing, so `checkable_integrity` reports it as absent while the raw
 /// accessor still shows what the lockfile said.
 #[test]

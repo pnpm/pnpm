@@ -1,9 +1,7 @@
 use super::{AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome};
 use crate::validation::validate_username;
 
-// ---------------------------------------------------------------
 // htpasswd I/O
-// ---------------------------------------------------------------
 
 /// Parse bcrypt and Apache `{SHA}` credentials for import.
 pub fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
@@ -158,9 +156,7 @@ pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
     }
 }
 
-// ---------------------------------------------------------------
 // bcrypt helpers
-// ---------------------------------------------------------------
 
 const DUMMY_BCRYPT_BODY: &str = "L6Bc/AlTQHyd9liGgGEZyOFLPHNgyxeEPfgYfBCVxJ7JIlwxyVU3u";
 
@@ -169,13 +165,13 @@ pub(super) async fn dummy_verify(password: &str, cost: u32) {
     let _ = verify_bcrypt(password.to_string(), dummy_hash).await;
 }
 
-/// Hash a password off the reactor — bcrypt at cost 10 takes
-/// ~50–100 ms and stalls every other async task on the same thread
+/// Hash a password off the reactor, bcrypt at cost 10 takes
+/// ~50 to 100 ms and stalls every other async task on the same thread
 /// if run inline.
 pub(super) async fn hash_bcrypt(password: String, cost: u32) -> Result<String> {
     tokio::task::spawn_blocking(move || {
         let parts = bcrypt::non_truncating_hash_with_result(&password, cost)?;
-        // Format as $2y$ for maximum cross-tool compatibility —
+        // Format as $2y$ for maximum cross-tool compatibility,
         // Apache's `htpasswd -B` writes $2y$, GNU coreutils tools
         // accept it, and bcrypt::verify reads any of $2a/$2b/$2y.
         Ok(parts.format_for_version(bcrypt::Version::TwoY))

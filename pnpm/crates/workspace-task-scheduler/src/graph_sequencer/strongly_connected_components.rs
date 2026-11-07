@@ -41,8 +41,8 @@ impl StronglyConnectedComponents {
 
     /// Whether a cycle through `node` can exist: it shares a non-trivial
     /// component with another node, or loops onto itself. Removals since
-    /// [`Self::compute`] can make this a false positive — the search then
-    /// comes back empty, exactly as it would have without the filter —
+    /// [`Self::compute`] can make this a false positive, the search then
+    /// comes back empty, exactly as it would have without the filter,
     /// but never a false negative, because removals only take cycles away.
     pub(super) fn may_lie_on_cycle(&self, node: usize, adjacency: &[Vec<usize>]) -> bool {
         self.component_size[self.component_of[node]] >= 2 || adjacency[node].contains(&node)

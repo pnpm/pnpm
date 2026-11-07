@@ -1,9 +1,9 @@
-//! `pnpm pipeline` — run a named set of workspace tasks the way a CI run
+//! `pnpm pipeline`, run a named set of workspace tasks the way a CI run
 //! would: affected-since-base selection as a pre-pass, the task graph in
 //! dependency order without bailing, cached task results restored instead
 //! of re-run, and a machine-readable account of what happened.
 //!
-//! Proof of concept for the `pnpm ci` RFC (pnpm/rfcs — "pnpm as the CI
+//! Proof of concept for the `pnpm ci` RFC (pnpm/rfcs, "pnpm as the CI
 //! engine"), with the task cache of pnpm/rfcs#22 as a local tier and an
 //! optional remote one. The command name is `pipeline` because `pnpm ci`
 //! is already the clean-install command.

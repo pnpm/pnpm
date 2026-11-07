@@ -82,7 +82,7 @@ where
 /// and silently break peer-resolved slots; parse from the left
 /// instead, skipping a leading `@` that belongs to a scoped package.
 ///
-/// Returns `None` only when the slot name fails to parse — there's no
+/// Returns `None` only when the slot name fails to parse, there's no
 /// filesystem probe for the resolved candidate. The slot's own package
 /// directory is an invariant of [`crate::create_virtual_dir_by_snapshot`];
 /// the downstream [`link_bins_excluding`] handles `NotFound` from its own
@@ -164,7 +164,7 @@ where
 }
 /// The entries of a `node_modules`-shaped directory, or `None` when it
 /// does not exist. Only `NotFound` is plausibly skippable (a concurrent
-/// delete); other errors — permission denied, EIO, `AppArmor` deny — would
+/// delete); other errors, permission denied, EIO, `AppArmor` deny, would
 /// make the bins under the directory silently disappear, so they
 /// surface.
 pub(super) fn read_modules_entries<Sys: FsReadDir>(

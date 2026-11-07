@@ -1,7 +1,7 @@
 //! A specifier naming a local path means "this path, relative to the file
 //! it is written in". pnpm reads such specifiers from files that do not sit
-//! in the project consuming them — `pnpm-workspace.yaml` holds the catalogs
-//! and the `overrides` map — so the path has to be re-anchored before the
+//! in the project consuming them, `pnpm-workspace.yaml` holds the catalogs
+//! and the `overrides` map, so the path has to be re-anchored before the
 //! resolver, which reads every specifier relative to the importing project,
 //! can see it.
 //!
@@ -12,8 +12,8 @@
 //! shape that can only be a local path, and
 //! [`LocalSpec::parse_workspace_path`] claims a relative `workspace:` path.
 //!
-//! The shape tests themselves — [`is_local_filesystem_specifier`] and the
-//! two predicates behind it — live here rather than in the local resolver
+//! The shape tests themselves, [`is_local_filesystem_specifier`] and the
+//! two predicates behind it, live here rather than in the local resolver
 //! so a caller can ask what a specifier is without depending on the code
 //! that resolves it.
 
@@ -55,7 +55,7 @@ pub struct LocalSpec {
 
 impl LocalSpec {
     /// Parse a `link:` / `file:` specifier whose relative path is written
-    /// from `base_dir`. Returns `None` for any other shape — semver ranges,
+    /// from `base_dir`. Returns `None` for any other shape, semver ranges,
     /// tarball URLs, npm-alias specs, `catalog:` and `workspace:`
     /// specifiers, and bare paths carrying no protocol.
     ///
@@ -78,7 +78,7 @@ impl LocalSpec {
     /// protocol, so a bare `./x.tgz` moves with its declaring file the
     /// way `file:./x.tgz` does.
     ///
-    /// Without a protocol, only a path-prefixed specifier is claimed —
+    /// Without a protocol, only a path-prefixed specifier is claimed,
     /// `./`, `../`, `/`, `~/`. Every other shape reaches a resolver
     /// before the local one, and re-anchoring rewrites a specifier into
     /// a path-shaped one, which would move it onto the local resolver:
@@ -171,7 +171,7 @@ impl LocalSpec {
 
 /// Whether a bare specifier's shape can only mean a local file or
 /// directory: the `link:` / `file:` protocols, a path-prefixed spec
-/// (`./`, `../`, `~/`, absolute POSIX paths, and Windows drive paths —
+/// (`./`, `../`, `~/`, absolute POSIX paths, and Windows drive paths,
 /// including drive-relative ones like `C:dir`), or a bare tarball file
 /// name.
 ///
@@ -190,8 +190,8 @@ pub fn is_local_filesystem_specifier(bare: &str) -> bool {
     if is_filespec(bare) {
         return true;
     }
-    // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
-    // named-registry prefix — belongs to its own resolver, tarball-shaped
+    // Any other protocol, a `git+ssh:` / `https:` URL, an `npm:` alias, a
+    // named-registry prefix, belongs to its own resolver, tarball-shaped
     // path or not.
     if bare.contains(':') {
         return false;
@@ -238,8 +238,8 @@ pub fn is_tarball_filename(bare: &str) -> bool {
 }
 
 /// Render a path that carries no protocol, keeping it unambiguously
-/// local. Re-anchoring can drop a leading `./` — `./libs/x` measured
-/// from the workspace root renders as `libs/x` — and a bare
+/// local. Re-anchoring can drop a leading `./`, `./libs/x` measured
+/// from the workspace root renders as `libs/x`, and a bare
 /// `<segment>/<segment>` reads as a hosted-git shorthand instead, so
 /// the prefix goes back on.
 ///
@@ -274,13 +274,13 @@ fn without_protocol(path: String) -> String {
 /// different question: what a specifier *could* name, rather than which
 /// resolver reaches it first. The chain runs the local path resolver
 /// last, so every shape that is merely path-*like* has already been
-/// claimed by then — a slash-free `repo.tgz` resolves as a dist-tag,
+/// claimed by then, a slash-free `repo.tgz` resolves as a dist-tag,
 /// and `user/repo.tgz` as a hosted-git shorthand. Only a path-prefixed
 /// specifier lands on the local resolver, and only those move.
 ///
 /// A `<letter>:` prefix is declined with them: a single-letter named
 /// registry is well-formed, so `c:pkg@1` is a registry specifier as
-/// much as a drive path. Nothing is lost by that — a drive path names
+/// much as a drive path. Nothing is lost by that, a drive path names
 /// the same place from every directory, and a drive-relative one is
 /// measured from process state no caller here can see.
 fn bare_path_is_unambiguous(specifier: &str) -> bool {
@@ -320,7 +320,7 @@ fn names_its_own_location(path: &str) -> bool {
 /// 3. A drive prefix left by step 2 stands on its own, in either case,
 ///    so `file:///C:/pkg` reads as `C:/pkg`.
 /// 4. Otherwise, when slashes did follow the protocol, one is restored
-///    — unless what remains opens with `~` or `.`, which keeps the path
+///    unless what remains opens with `~` or `.`, which keeps the path
 ///    relative: `file:/./deps/x` is the project's `./deps/x`, not the
 ///    root's `/deps/x`.
 ///
@@ -357,7 +357,7 @@ pub fn normalize_specifier(bare: &str) -> String {
 }
 
 /// Replace `\` with `/` to normalize the path. `link:` / `file:`
-/// specifiers must use forward slashes regardless of host OS — the
+/// specifiers must use forward slashes regardless of host OS, the
 /// lockfile and pacquet's downstream consumers expect that shape.
 fn normalize_path(path: &Path) -> String {
     let display = path.display().to_string();

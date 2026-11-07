@@ -204,7 +204,7 @@ fn injected_workspace_dep_with_children_stays_link_after_remove() {
 /// peer dependency (`@pnpm.e2e/foo`) that `a` provides. `b`'s injected
 /// resolution then depends on `a`'s peer context, so its importer entry
 /// is the peer-suffixed `file:packages/b(@pnpm.e2e/foo@100.0.0)` and
-/// must *not* collapse to `link:../b` — a plain link would strip the
+/// must *not* collapse to `link:../b`, a plain link would strip the
 /// peer context and change the trust-relevant lockfile identity. The
 /// peer-suffixed form must also survive a `remove` that re-resolves the
 /// whole workspace. Behavioral analog of the peer-suffixed single-project
@@ -503,7 +503,7 @@ fn injected_workspace_dep_with_dedupe_off_writes_file_arm() {
 /// segment for a `file:` directory dep has no semver to fill it: pnpm's
 /// `nameVerFromPkgSnapshot` yields `undefined`, which its
 /// `formatGlobalVirtualStorePath` renders as the literal `undefined`
-/// segment. Pacquet must do the same — emitting the raw `file:packages/b`
+/// segment. Pacquet must do the same, emitting the raw `file:packages/b`
 /// version would put a `:` (and an embedded `/`) into the slot path,
 /// which Windows rejects with `ERROR_INVALID_NAME`. Regression test for
 /// pnpm/pnpm#12038.
@@ -564,7 +564,7 @@ fn injected_workspace_dep_with_dedupe_off_materialises_under_gvs() {
         "packages/a/node_modules/b should resolve to a materialised GVS slot (pnpm/pnpm#12038)",
     );
 
-    // The slot path must not embed the raw `file:` version — that is
+    // The slot path must not embed the raw `file:` version, that is
     // the `ERROR_INVALID_NAME` shape on Windows.
     #[cfg(unix)]
     {

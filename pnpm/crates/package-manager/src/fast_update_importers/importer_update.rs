@@ -199,7 +199,7 @@ pub(super) fn retarget_names_a_snapshot(
     }
     snapshots.is_some_and(|snapshots| snapshots.contains_key(recorded))
 }
-/// Whether the lockfile records no dependency of this project — the
+/// Whether the lockfile records no dependency of this project, the
 /// shape a project it has never seen arrives in, alongside an absent
 /// entry.
 pub(super) fn records_no_dependencies(importer: &ProjectSnapshot) -> bool {

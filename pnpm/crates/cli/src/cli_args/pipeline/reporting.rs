@@ -30,7 +30,7 @@ impl StatusCounts {
 
 /// The selection pre-pass: changed projects since the merge base, plus
 /// their transitive dependents. It is an optimization, not the
-/// correctness boundary — any doubt about attribution (the merge base
+/// correctness boundary, any doubt about attribution (the merge base
 /// cannot be resolved, or the diff touches the workspace root, whose
 /// files feed every project) falls through to the full graph.
 /// `--dry-run` prints the plan instead of running it.

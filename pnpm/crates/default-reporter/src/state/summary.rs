@@ -7,7 +7,7 @@ use super::{
 use std::fmt::Write as _;
 
 impl ReporterState {
-    // --- summary ----------------------------------------------------------
+    // summary
 
     pub(super) fn on_root(&mut self, message: &pnpm_reporter::RootMessage) {
         use pnpm_reporter::RootMessage;

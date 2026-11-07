@@ -624,7 +624,7 @@ fn outdated_recursive_reads_dedicated_project_lockfiles() {
 }
 
 /// A dependency-free manifest is reported as up to date (exit 0) even
-/// when there is no lockfile — the no-lockfile error only fires for a
+/// when there is no lockfile, the no-lockfile error only fires for a
 /// manifest that actually declares dependencies. Ports pnpm's "should
 /// return empty when there is no lockfile and no dependencies".
 #[test]

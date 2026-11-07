@@ -20,7 +20,7 @@ use std::{error::Error, fmt};
 ///
 /// A [`miette::Report`] captures the installed hook when it is built,
 /// so this has to run before the first one is created. A hook that is
-/// already installed is left alone — the first caller wins.
+/// already installed is left alone, the first caller wins.
 pub fn install_report_handler() {
     let _ = miette::set_hook(Box::new(|_| {
         Box::new(CollapsingHandler { inner: MietteHandlerOpts::new().build() })
@@ -71,7 +71,7 @@ struct Collapsed<'a> {
 /// Owned rather than borrowed because [`Error::source`] hands the
 /// renderer a `&(dyn Error + 'static)`, which a chain borrowed from
 /// the report could not satisfy. A level's message is all miette
-/// prints for it — the causes below the head render as text, not as
+/// prints for it, the causes below the head render as text, not as
 /// nested reports.
 #[derive(Debug)]
 struct Cause {

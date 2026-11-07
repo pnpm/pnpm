@@ -76,7 +76,7 @@ pub(in super::super) struct RecordedChildrenContext {
 
 impl RecordedChildrenContext {
     /// Whether a walk under `other` would re-resolve what the prior
-    /// lockfile pinned for this recording — the churn reuse exists to
+    /// lockfile pinned for this recording, the churn reuse exists to
     /// avoid, and which leaves the occurrences that realized the
     /// pinned subtree pointing at children the record no longer holds.
     ///
@@ -93,7 +93,7 @@ impl RecordedChildrenContext {
 pub(in super::super) struct ChildrenOwnerClaim {
     pub(in super::super) owner: ChildrenOwner,
     pub(in super::super) owns_children: bool,
-    /// The shadowed-dependency set in force for the package id — this
+    /// The shadowed-dependency set in force for the package id, this
     /// occurrence's when it won the claim, the standing owner's when it
     /// lost. See [`ChildrenOwnerEntry::peer_shadowed`].
     pub(in super::super) peer_shadowed: Arc<HashSet<String>>,
@@ -376,7 +376,7 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
             continue;
         }
         // An occurrence already reading the owner's children needs no
-        // rewrite — and must not report one, since the signal makes the
+        // rewrite, and must not report one, since the signal makes the
         // discovery engine rebuild from scratch. In a peer-heavy graph
         // most occurrences of a package are already lazy.
         if let Some(node) = tree.get_mut(&node_id)

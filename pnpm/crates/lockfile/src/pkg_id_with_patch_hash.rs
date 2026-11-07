@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// format is fixed by the on-disk contract, so no validating constructor is
 /// appropriate here.
 ///
-/// Modelled on `pnpm_modules_yaml::DepPath` — the closest existing
+/// Modelled on `pnpm_modules_yaml::DepPath`, the closest existing
 /// peer in pacquet, a sibling brand under the same rules. Bare-text
 /// link rather than an intra-doc link because `pnpm-lockfile` doesn't
 /// depend on `pnpm-modules-yaml` and adding the dep just for a

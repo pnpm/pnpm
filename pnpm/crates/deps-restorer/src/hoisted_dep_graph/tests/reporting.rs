@@ -47,7 +47,7 @@ fn walker_single_root_dep_emits_one_node() {
     );
 }
 /// Required (non-optional) package on an unsupported platform
-/// proceeds with a warning rather than erroring — for the
+/// proceeds with a warning rather than erroring, for the
 /// required-incompatible case `package_is_installable` returns
 /// `true` (only `engineStrict + engine mismatch` and
 /// `InvalidNodeVersion` actually throw). The
@@ -62,7 +62,7 @@ fn walker_emits_required_dep_with_unsupported_platform_as_warning() {
     packages.insert(dep_key("a", "1.0.0"), metadata_with_os("darwin"));
 
     let mut snapshots = HashMap::new();
-    // optional: false — `package_is_installable`
+    // optional: false, `package_is_installable`
     // returns `true` (warn but proceed) rather than `false`.
     snapshots.insert(dep_key("a", "1.0.0"), SnapshotEntry::default());
 

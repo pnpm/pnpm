@@ -30,7 +30,7 @@ use std::fs;
 /// - install succeeds.
 /// - `pnpm-lock.yaml` carries `settings.injectWorkspacePackages: true`.
 /// - The workspace resolutions are recorded as `file:` (not `link:`)
-///   inside the importer entries — that's the byte-level signal that
+///   inside the importer entries, that's the byte-level signal that
 ///   the global flag took effect.
 /// - The virtual-store directory layout matches the upstream count:
 ///   eight slots, accounting for `is-negative`, two `is-positive`
@@ -136,7 +136,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // (the workspace dir), not relative to each consumer project. So
     // `project-2`'s recorded dep on project-1 reads
     // `file:project-1(...)` even though project-2 lives a directory
-    // away. The ref is the plain `file:` form — the `<name>@<ref>`
+    // away. The ref is the plain `file:` form, the `<name>@<ref>`
     // alias form is reserved for renamed deps, and here the alias
     // equals the package name.
     let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
@@ -193,7 +193,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // hoist target `node_modules/` (default `hoistPattern: ["*"]`
     // privately hoists every transitive to `<vs>/node_modules/`).
     // Empirically matches pnpm v11.4.0 with the same
-    // `enableGlobalVirtualStore: false` config — pnpm produces the
+    // `enableGlobalVirtualStore: false` config, pnpm produces the
     // same nine entries on the equivalent fixture.
     let dot_pnpm = workspace.join("node_modules/.pnpm");
     let entries: Vec<String> = fs::read_dir(&dot_pnpm)
@@ -247,13 +247,13 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
 
 /// `dependenciesMeta[<name>].injected = true` opts a single workspace
 /// dep into the `file:` resolution shape even when the global
-/// `injectWorkspacePackages` setting is off — the per-dep variant of
+/// `injectWorkspacePackages` setting is off, the per-dep variant of
 /// the same fixture, with the workspace-level flag unset.
 ///
 /// Two-project workspace: project-2 depends on project-1 via
 /// `workspace:1.0.0`, with `dependenciesMeta.project-1.injected =
 /// true`. The lockfile must record project-1 as a `file:` resolution
-/// inside project-2's importer block — proving the per-dep flag
+/// inside project-2's importer block, proving the per-dep flag
 /// flowed all the way from manifest read to resolver output, even
 /// with the workspace-level `injectWorkspacePackages` unset.
 #[test]
@@ -351,7 +351,7 @@ fn dependencies_meta_injected_per_dep_overrides_global_off() {
     );
 
     // `lockfile.settings.injectWorkspacePackages` stays absent / false
-    // — this is the per-dep branch, not the global one.
+    // this is the per-dep branch, not the global one.
     assert!(
         !lockfile.contains("injectWorkspacePackages: true"),
         "global `injectWorkspacePackages` must remain off in the lockfile settings; \

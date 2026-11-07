@@ -236,8 +236,8 @@ fn names_manifest(patched_dir: &Path, written: &str) -> bool {
 /// The path a patch header names, spelled the way [`apply_patch_to_dir`]
 /// resolves it: `.` segments dropped, separators normalized to `/`.
 ///
-/// `None` for a path that call would refuse — one that is absolute or
-/// climbs out of the package — so the preview never reports as written a
+/// `None` for a path that call would refuse, one that is absolute or
+/// climbs out of the package, so the preview never reports as written a
 /// path the apply will reject.
 ///
 /// [`apply_patch_to_dir`]: super::apply_patch_to_dir

@@ -37,9 +37,9 @@ export interface PublishedAtLookupContext {
    * Per-(registry+name) memo of the abbreviated metadata fetch.
    * Abbreviated is what the resolver populates by default, so on a
    * non-frozen install the conditional GET hits the disk mirror at
-   * ~zero cost. Stores only the two fields the shortcut reads —
+   * ~zero cost. Stores only the two fields the shortcut reads,
    * package-level `modified` plus the set of currently-listed version
-   * names — so the multi-hundred-KB packument can be GC'd as soon as
+   * names, so the multi-hundred-KB packument can be GC'd as soon as
    * the fetch returns (the cache only needs to dedupe network/disk
    * round-trips, not full document storage).
    */
@@ -57,7 +57,7 @@ export interface PublishedAtLookupContext {
    */
   localMetaCache: Map<string, Promise<PublishedAtTimeMap | undefined>>
   /**
-   * Per-(registry+name) memo of the full-metadata network fetch — only
+   * Per-(registry+name) memo of the full-metadata network fetch, only
    * issued when both the abbreviated-modified shortcut and the
    * attestation endpoint fail to yield a timestamp.
    */
@@ -83,13 +83,13 @@ interface AbbreviatedMetaProjection {
 /**
  * Result of an abbreviated-metadata fetch. The fetch error is carried as a
  * value rather than rejected so the per-install cache can hold a single
- * resolved promise — a cached rejection would surface as an unhandled
+ * resolved promise, a cached rejection would surface as an unhandled
  * rejection and be shared across every caller of the same key. The
  * tarball-URL check rethrows this error; the age shortcut ignores it and
  * falls back to per-version lookups.
  *
  * Modeled as a discriminated union so a result carries exactly one of `meta`
- * or `error` — never both, never neither.
+ * or `error`, never both, never neither.
  */
 type AbbreviatedMetaResult =
   | { meta: AbbreviatedMetaProjection, error?: undefined }
@@ -137,14 +137,14 @@ export function fetchFullMetaForTrust (
     if (shared != null) {
       cachedPromise = Promise.resolve(projectTrustMeta(shared))
     } else {
-      // Don't swallow the fetch rejection here — `runTrustCheck` lets it
+      // Don't swallow the fetch rejection here, `runTrustCheck` lets it
       // propagate so the registry's own fetch error aborts the install. The
       // cache still holds the rejected promise so repeat verifier calls for
       // the same (registry, name) within one install don't refetch a
       // known-failing endpoint.
       //
-      // The full document — dependency maps, scripts,
-      // READMEs for every version — would otherwise stay resident in this
+      // The full document, dependency maps, scripts,
+      // READMEs for every version, would otherwise stay resident in this
       // map for the entire install, which on multi-thousand-entry
       // workspaces OOMs CI runners with a 2GB heap (see pnpm/pnpm#11860).
       cachedPromise = fetchFullMetadataCached(context.fetchOpts, name, {
@@ -166,7 +166,7 @@ export function fetchFullMetaForTrust (
 //   • `versions[v]._npmUser.trustedPublisher`
 //   • `versions[v].dist.attestations.provenance`
 // The shape is still a valid `PackageMeta` so the downstream consumer
-// doesn't have to special-case it — only the bulk fields (dependency
+// doesn't have to special-case it, only the bulk fields (dependency
 // graph, scripts, README, etc.) are dropped.
 function projectTrustMeta (meta: PackageMeta): PackageMeta {
   const versions: Record<string, PackageInRegistry> = {}
@@ -189,8 +189,8 @@ function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
   // reads them; cast away the unsoundness so callers see the same nominal
   // shape without the per-version dependency graph / scripts / README bulk
   // carrying through. `_npmUser` is similarly narrowed to just
-  // `trustedPublisher` and `approver` — the only sub-fields the trust check
-  // inspects — so we don't keep maintainer name/email PII resident in the
+  // `trustedPublisher` and `approver`, the only sub-fields the trust check
+  // inspects, so we don't keep maintainer name/email PII resident in the
   // cache.
   const approver = manifest._npmUser?.approver
   const trustedPublisher = manifest._npmUser?.trustedPublisher
@@ -219,7 +219,7 @@ function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
  *    resolver already fetches by default; it's a small document with
  *    a package-level last-modified time but no per-version timestamps.
  *    If `modified` is older than the policy cutoff, every version in
- *    this package was published at least that long ago — return the
+ *    this package was published at least that long ago, return the
  *    `modified` timestamp as a conservative upper bound and skip the
  *    rest of the chain. Costs one conditional GET that the resolver
  *    has usually already paid for.
@@ -229,7 +229,7 @@ function projectTrustManifest (manifest: PackageInRegistry): PackageInRegistry {
  * 3. **npm attestation endpoint.** Small payload, just this version's
  *    Sigstore-anchored timestamp. Wins on cold cache when the package
  *    was published with provenance.
- * 4. **Full metadata fetch.** Last resort — only paid when the
+ * 4. **Full metadata fetch.** Last resort, only paid when the
  *    abbreviated shortcut can't decide, the local full mirror is
  *    cold, and there's no attestation.
  */
@@ -274,7 +274,7 @@ async function resolvePublishedAt (
 
 /**
  * Returns the abbreviated metadata's `modified` timestamp **iff** it
- * proves the gate would pass — i.e. modified is strictly older than
+ * proves the gate would pass, i.e. modified is strictly older than
  * the policy cutoff *and* the pinned version still exists in the
  * package's current versions map.
  *
@@ -314,7 +314,7 @@ export function fetchAbbreviatedMeta (
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
   if (cachedPromise == null) {
     // Fast path: the resolver's per-install LRU already holds this
-    // packument from its own pickPackage pass — abbreviated or full.
+    // packument from its own pickPackage pass, abbreviated or full.
     const shared = readSharedMeta(context.sharedMetaCache, registry, name)
     const sharedProjection = shared != null ? projectSharedMeta(shared) : undefined
     if (sharedProjection != null) {
@@ -354,7 +354,7 @@ function readSharedMeta (
   name: string
 ): PackageMeta | undefined {
   if (cache == null) return undefined
-  // Prefer a full entry — it carries every field the abbreviated form
+  // Prefer a full entry, it carries every field the abbreviated form
   // does, plus `time` and per-version trust evidence the trust check
   // needs. The resolver only populates a full key when the install ran
   // with `minimumReleaseAge` configured, otherwise the bare key holds
@@ -369,7 +369,7 @@ function readSharedMetaForTrust (
   name: string
 ): PackageMeta | undefined {
   if (cache == null) return undefined
-  // Abbreviated meta is rejected for the trust check — it lacks
+  // Abbreviated meta is rejected for the trust check, it lacks
   // per-version `time` and per-version trust evidence.
   return readSharedFullMeta(cache, registry, name)
 }
@@ -400,7 +400,7 @@ function validateSharedMeta (meta: PackageMeta | undefined, name: string): Packa
 }
 
 // Project the abbreviated packument down to the few fields the verifier
-// actually reads — package-level `modified`, plus a per-version map of
+// actually reads, package-level `modified`, plus a per-version map of
 // `dist.tarball` (whose keys double as the version-existence set for the
 // `tryAbbreviatedModifiedShortcut` check and the tarball-URL binding). The
 // resolver populates the abbreviated mirror with every version's

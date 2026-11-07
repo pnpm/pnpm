@@ -1,4 +1,4 @@
-//! `--env-file <path>` — dotenv files layered into the process environment.
+//! `--env-file <path>`, dotenv files layered into the process environment.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

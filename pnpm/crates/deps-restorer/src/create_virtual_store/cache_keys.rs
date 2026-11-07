@@ -43,7 +43,7 @@ pub(super) fn derive_cache_keys(
 }
 /// Sorted + deduplicated so `prefetch_cas_paths` doesn't redo identical
 /// SELECT + integrity-check work for peer variants of one package.
-/// Derived leniently over the whole lockfile — the superset over what
+/// Derived leniently over the whole lockfile, the superset over what
 /// the plan pass will keep merely prefetches a few rows nothing reads.
 pub(super) fn prefetch_keys(
     cache_keys: &HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
@@ -61,8 +61,8 @@ pub(super) fn prefetch_keys(
 }
 /// Build the store-index cache key for a snapshot.
 ///
-/// Returns `Err` for missing metadata — a condition the install would
-/// fail on anyway — so the orchestrator can short-circuit *before* the
+/// Returns `Err` for missing metadata, a condition the install would
+/// fail on anyway, so the orchestrator can short-circuit *before* the
 /// warm rayon batch runs; otherwise a malformed lockfile does up to
 /// ~6 s of warm-batch linking before the actual error fires.
 ///
@@ -98,7 +98,7 @@ pub(super) fn snapshot_cache_key(
             // bypass the CAFS entirely (the directory-fetcher returns
             // source-path entries; no `write_cas_file` happens, no
             // `PackageFilesIndex` row is written). There is therefore
-            // no warm-cache key to recover the install from — every
+            // no warm-cache key to recover the install from, every
             // install re-walks the source dir (the source may have
             // changed since the last install). Returning `Ok(None)`
             // routes the snapshot
@@ -111,7 +111,7 @@ pub(super) fn snapshot_cache_key(
             // row under the same `gitHostedStoreIndexKey` shape as
             // the git-hosted tarball path. Returning the key here
             // lets the warm prefetch reuse a previous install's
-            // clone + checkout + prepare + packlist work — without
+            // clone + checkout + prepare + packlist work, without
             // this, every git install cold-paths regardless of
             // whether the snapshot is already in `index.db`. `built`
             // tracks `!ignore_scripts`; `derive_cache_keys` also applies
@@ -148,7 +148,7 @@ pub(super) fn snapshot_cache_key(
         LockfileResolution::Variations(variations) => {
             variant_cache_key(variations, variant_platforms, &pkg_id, !ignore_scripts)
         }
-        // Custom resolutions have no built-in warm-cache key — the
+        // Custom resolutions have no built-in warm-cache key, the
         // cold path consults the pnpmfile custom fetchers, and the
         // delegated resolution (unknowable here) determines the row
         // that gets written.
@@ -201,12 +201,12 @@ pub(super) fn integrity_equal(
 /// everything that identifies the slot's contents must be inside its
 /// graph-hash path. That rules out:
 ///
-/// - slots that need a build or patch marker — the canonical copy must
+/// - slots that need a build or patch marker, the canonical copy must
 ///   stay plain pre-build CAS content;
 /// - mutable local sources, which reuse one slot for changing contents;
 /// - forced re-imports, whose existing slot is known stale;
 /// - any resolution without a checkable integrity, and any whose
-///   integrity does not identify the bytes the slot holds — see
+///   integrity does not identify the bytes the slot holds, see
 ///   [`integrity_identifies_content`].
 pub(crate) fn dir_clone_cacheable(
     packages: &HashMap<PackageKey, PackageMetadata>,
@@ -225,7 +225,7 @@ pub(crate) fn dir_clone_cacheable(
             .is_some()
 }
 /// Whether a resolution's recorded `integrity` pins the bytes the
-/// canonical slot would hold — the slot path hashes that integrity and
+/// canonical slot would hold, the slot path hashes that integrity and
 /// nothing else, so anything it fails to pin can be served stale.
 ///
 /// A `file:` tarball's bytes change under the project's control while

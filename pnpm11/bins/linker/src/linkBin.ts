@@ -109,7 +109,7 @@ export async function linkBin (cmd: CommandInfo, binsDir: string, opts: LinkBinO
 
 // Skip if the existing bin already references the correct target.
 // This avoids redundant I/O on warm installs and EACCES on read-only stores.
-// We verify the target path — not just existence — so that conflict resolution
+// We verify the target path, not just existence, so that conflict resolution
 // changes or provider swaps still get the bin rewritten.
 async function isBinCorrectlyLinked (ctx: BinLinkContext): Promise<boolean> {
   try {

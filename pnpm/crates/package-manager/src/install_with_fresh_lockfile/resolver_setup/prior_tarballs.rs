@@ -11,7 +11,7 @@ use std::collections::HashMap;
 /// (they key by `gitHostedStoreIndexKey`, not the integrity) and just
 /// re-fetch. Empty on a first install.
 ///
-/// Keyed by `pkg_id` — the bare specifier — rather than
+/// Keyed by `pkg_id`, the bare specifier, rather than
 /// `resolution.tarball`, because that is what the resolver looks a
 /// dependency up by. The two differ once an immutable response has
 /// redirected: the lockfile then records the post-redirect URL while the

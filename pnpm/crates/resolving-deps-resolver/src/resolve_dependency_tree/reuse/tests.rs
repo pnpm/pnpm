@@ -150,7 +150,7 @@ mod real_package_name_of {
     #[test]
     fn parses_scoped_real_name_from_npm_alias_without_version() {
         // Only one `@` (the scope marker) at index 0, which the
-        // `idx >= 1` guard skips — the whole `rest` is the name.
+        // `idx >= 1` guard skips, the whole `rest` is the name.
         assert_eq!(
             real_package_name_of(Some("foo"), Some("npm:@scope/pkg")).as_deref(),
             Some("@scope/pkg"),
@@ -168,7 +168,7 @@ mod real_package_name_of {
     fn returns_alias_for_npm_range_form() {
         // `foo@npm:^1.0.0`: the body after `npm:` is a semver range,
         // not a name. The install alias `foo` is the real package
-        // name — without this branch, the range string itself would
+        // name, without this branch, the range string itself would
         // be returned as the name and update targeting would miss.
         assert_eq!(real_package_name_of(Some("foo"), Some("npm:^1.0.0")).as_deref(), Some("foo"));
     }
@@ -176,7 +176,7 @@ mod real_package_name_of {
     #[test]
     fn returns_alias_for_npm_range_form_with_complex_range() {
         // The `npm:<range>` form supports any valid semver range in
-        // the body — `>=1.0.0 <2.0.0`, `~1.2.3`, `1.x`, etc.
+        // the body, `>=1.0.0 <2.0.0`, `~1.2.3`, `1.x`, etc.
         assert_eq!(
             real_package_name_of(Some("foo"), Some("npm:>=1.0.0 <2.0.0")).as_deref(),
             Some("foo"),
@@ -208,7 +208,7 @@ mod real_package_name_of {
     #[test]
     fn returns_none_for_unparsable_jsr_specifier() {
         // A `jsr:` specifier that the parser rejects (here: missing scope)
-        // must not fall back to the install alias — otherwise a broken
+        // must not fall back to the install alias, otherwise a broken
         // jsr dep could match an update target by alias and wrongly be
         // treated as one.
         assert_eq!(real_package_name_of(Some("foo"), Some("jsr:foo@^1.0.0")).as_deref(), None);
@@ -252,7 +252,7 @@ mod is_update_target {
         version.parse().expect("parse version")
     }
 
-    /// The scope of a `--depth Infinity` update — the default, under
+    /// The scope of a `--depth Infinity` update, the default, under
     /// which every node is judged by name alone.
     fn unlimited(reuse: &UpdateReuseScope) -> UpdateScope<'_> {
         UpdateScope { reuse, max_depth: UpdateDepth::UNLIMITED }
@@ -354,7 +354,7 @@ mod is_update_target {
 
     #[test]
     fn a_pinned_selector_matches_an_edge_with_no_locked_version() {
-        // Nothing to judge the line against yet, so the name decides —
+        // Nothing to judge the line against yet, so the name decides,
         // as it does in pnpm's version-less `updateMatching` calls.
         assert!(is_update_target(
             unlimited(&except_line("foo", "1.2.3")),

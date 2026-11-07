@@ -37,7 +37,7 @@ fn registries(entries: Vec<(&str, Registry)>, default_registry: Option<&str>) ->
     Registries::new(map, default_registry.map(str::to_string))
 }
 
-// --- PackagePattern::parse -------------------------------------------------
+// PackagePattern::parse
 
 #[test]
 fn parses_recognized_shapes() {
@@ -80,7 +80,7 @@ fn rejects_exact_pattern_that_is_not_a_package_name() {
 
 /// A `@<scope>/*` pattern whose scope request parsing (`CanonicalPackageName::parse`)
 /// would reject is a claim no valid package name can ever match. It must be a
-/// config error rather than a dead pattern — a mistyped private-scope claim
+/// config error rather than a dead pattern, a mistyped private-scope claim
 /// that never matches would silently let the names it was meant to cover land
 /// on a later (often public) router source.
 #[test]
@@ -96,7 +96,7 @@ fn rejects_scope_pattern_whose_scope_is_not_a_valid_scope() {
     }
 }
 
-// --- PackagePattern::matches -----------------------------------------------
+// PackagePattern::matches
 
 #[test]
 fn matches_by_shape() {
@@ -125,7 +125,7 @@ fn scoped_patterns_require_a_name_segment() {
     }
 }
 
-// --- PackagePattern::covers ------------------------------------------------
+// PackagePattern::covers
 
 #[test]
 fn covers_relation() {
@@ -175,7 +175,7 @@ fn covers_agrees_with_matches_on_malformed_scoped_exacts() {
     assert!(pattern("@acme/*").covers(&pattern("@acme/foo")));
 }
 
-// --- resolution ------------------------------------------------------------
+// resolution
 
 #[test]
 fn pattern_less_concrete_registry_resolves_to_itself_for_any_name() {
@@ -283,7 +283,7 @@ fn resolve_default_without_target_is_unknown() {
     assert_eq!(registry.resolve_default(Ecosystem::Npm, "react"), Resolved::UnknownRegistry);
 }
 
-// --- validation ------------------------------------------------------------
+// validation
 
 #[test]
 fn valid_config_passes() {
@@ -344,7 +344,7 @@ fn rejects_source_shadowed_by_broader_scope() {
 
 #[test]
 fn allows_narrower_source_before_broader() {
-    // `@acme/foo` exact before `@acme/*` is fine — the exact claims strictly
+    // `@acme/foo` exact before `@acme/*` is fine, the exact claims strictly
     // less, so the scope source is still reachable for every other name.
     let registry = registries(
         vec![
@@ -377,7 +377,7 @@ fn allows_sibling_scopes_before_any_scoped() {
 fn rejects_partially_shadowed_source() {
     // The later source stays reachable through `plainpkg` (which `@*/*` cannot
     // cover), but its `@secret/foo` claim is swallowed by the earlier `@*/*`
-    // source. That one pattern must be rejected by name — otherwise requests
+    // source. That one pattern must be rejected by name, otherwise requests
     // for `@secret/foo` silently go to the public upstream instead of the
     // private registry, and the whole-source unreachability check never fires.
     let registry = registries(
@@ -418,7 +418,7 @@ fn rejects_identical_claim_across_two_sources() {
     );
 }
 
-/// Namespaces that overlap in both directions can't be saved by reordering —
+/// Namespaces that overlap in both directions can't be saved by reordering,
 /// either order leaves one source's claim dead, so both orders are rejected.
 #[test]
 fn rejects_bidirectionally_overlapping_sources_in_either_order() {
@@ -533,7 +533,7 @@ fn rejects_router_with_no_sources() {
     );
 }
 
-// --- Ecosystems -------------------------------------------------------------
+// Ecosystems
 
 #[test]
 fn registries_are_npm_unless_declared_otherwise() {
@@ -651,7 +651,7 @@ fn an_ecosystem_needs_a_concrete_registry() {
     ));
 }
 
-// --- image repository patterns ---------------------------------------------
+// image repository patterns
 
 fn image_pattern(raw: &str) -> PackagePattern {
     PackagePattern::parse(raw, Ecosystem::Oci).expect("image pattern parses")

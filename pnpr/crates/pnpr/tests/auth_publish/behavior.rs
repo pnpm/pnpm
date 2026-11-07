@@ -8,7 +8,7 @@ use pnpr_fixtures::MockConfigPresets;
 async fn anonymous_request_to_protected_package_returns_401() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
-    // The fixture publishes @pnpm.e2e/needs-auth — but our access
+    // The fixture publishes @pnpm.e2e/needs-auth, but our access
     // policy still requires auth for it because the package name
     // matches the `@pnpm.e2e/needs-auth` policy rule.
     let response = app
@@ -53,7 +53,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
         .await
         .unwrap();
     let mut packument = body_json(get.into_body()).await;
-    // A present-but-non-string integrity must be rejected — otherwise it slips
+    // A present-but-non-string integrity must be rejected, otherwise it slips
     // past the string-only immutability check and breaks tarball serving.
     packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(null);
     let request = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
@@ -155,7 +155,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
 #[tokio::test]
 async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
     // A metadata-only PUT that sends a non-object (e.g. `null`) for a hosted
-    // version must not overwrite — and thereby erase the `dist` of — that
+    // version must not overwrite, and thereby erase the `dist` of, that
     // version. The hosted manifest is kept untouched.
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
@@ -222,7 +222,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
 #[tokio::test]
 async fn metadata_put_cannot_inject_a_tarball_less_version() {
     // A metadata-only PUT must not be able to add a brand-new version entry
-    // with no attachment — that would advertise a version with no hosted
+    // with no attachment, that would advertise a version with no hosted
     // tarball (installs 404) and block a later real publish of it (409).
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
@@ -288,7 +288,7 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
 }
 
 /// When the same tarball filename exists in both stores, `open_hosted_blob`
-/// serves the hosted copy — a stale proxied copy can't shadow it.
+/// serves the hosted copy, a stale proxied copy can't shadow it.
 #[tokio::test]
 async fn hosted_tarball_is_preferred_over_a_cached_copy() {
     let tmp = TempDir::new().unwrap();

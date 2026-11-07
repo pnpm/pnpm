@@ -152,7 +152,7 @@ pub struct FetchFullMetadataOptions<'a> {
     /// instead of a body.
     pub etag: Option<&'a str>,
     /// Optional `If-Modified-Since` header value. Same role as
-    /// [`Self::etag`] — gives the registry a chance to short-circuit
+    /// [`Self::etag`], gives the registry a chance to short-circuit
     /// the body re-download.
     pub modified: Option<&'a str>,
     pub http: crate::MetadataHttpClient<'a>,
@@ -317,14 +317,14 @@ async fn send_once<'a>(
     })
 }
 
-/// Convert a stored `modified` value — the packument's ISO-8601
-/// `time.modified` — to the HTTP-date form `If-Modified-Since` requires
+/// Convert a stored `modified` value, the packument's ISO-8601
+/// `time.modified`, to the HTTP-date form `If-Modified-Since` requires
 /// (RFC 9110 §8.8.3), the same conversion the TypeScript CLI applies with
 /// `toUTCString()`. A date without a time is midnight UTC, as JavaScript's
 /// `Date` reads it. A value already in HTTP-date form is kept. `None` when
 /// the value parses as none of these, or names a time outside the years
 /// 1970 to 9999 that an HTTP date can carry, so it is dropped instead of
-/// sent — a recipient must ignore a malformed `If-Modified-Since` anyway.
+/// sent, a recipient must ignore a malformed `If-Modified-Since` anyway.
 fn to_http_date(value: &str) -> Option<String> {
     let time: chrono::DateTime<chrono::Utc> =
         if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(value) {

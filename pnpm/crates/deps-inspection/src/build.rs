@@ -30,7 +30,7 @@ use super::{
     search::Searcher,
 };
 
-/// One project's categorized dependency hierarchy — the input of the
+/// One project's categorized dependency hierarchy, the input of the
 /// `list` renderers.
 #[derive(Debug, Default)]
 pub struct DependenciesHierarchy {
@@ -139,8 +139,8 @@ fn hierarchy_for_project(
 
     // Unsaved (extraneous) dependencies: packages present in the
     // project's modules dir but absent from its lockfile entry. They
-    // are irrelevant while searching — they are not in the lockfile
-    // graph and cannot contain paths to the search target — and they
+    // are irrelevant while searching, they are not in the lockfile
+    // graph and cannot contain paths to the search target, and they
     // are not workspace projects, which is all `only_projects` lists.
     if opts.search.is_none() && !opts.only_projects {
         hierarchy.unsaved_dependencies =
@@ -218,7 +218,7 @@ pub fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
 
 /// The on-disk directory of a lockfile importer key, spelled with the
 /// platform's separators, or `None` for a key that cannot be safely
-/// joined (absolute, drive-prefixed, or `..`-traversing — a malformed or
+/// joined (absolute, drive-prefixed, or `..`-traversing, a malformed or
 /// hostile lockfile).
 #[must_use]
 pub fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
@@ -246,7 +246,7 @@ fn read_unsaved_dependencies(
 }
 
 /// The alias keys of an importer's `dependencies`, `devDependencies`,
-/// and `optionalDependencies` — always spanning all three groups
+/// and `optionalDependencies`, always spanning all three groups
 /// regardless of the include filter, matching the TypeScript CLI's
 /// `getAllDirectDependencies`.
 fn saved_direct_dep_names(importer: &ProjectSnapshot) -> HashSet<String> {

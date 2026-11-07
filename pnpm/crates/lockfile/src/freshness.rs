@@ -65,7 +65,7 @@ pub struct ResolutionSettingsCheck<'a> {
 /// The value is not a plain config read: pnpm records a checksum only
 /// when a loaded pnpmfile exports a `hooks` object, so computing it can
 /// mean evaluating the pnpmfile. Callers that already know the
-/// pnpmfiles are unchanged — or that have no pnpmfile to speak of —
+/// pnpmfiles are unchanged, or that have no pnpmfile to speak of,
 /// say so with [`PnpmfileChecksumCheck::Skip`] instead of inventing a
 /// value, since passing `Current(None)` would fail every install in a
 /// project whose lockfile legitimately records one.
@@ -240,7 +240,7 @@ pub enum StalenessReason {
 
     /// The lockfile's `(patch_hash=...)` depPath suffixes disagree with its
     /// own `patchedDependencies` map. Unlike every other reason here this
-    /// one is not drift against the config — it is the lockfile
+    /// one is not drift against the config, it is the lockfile
     /// contradicting itself, which only a hand edit or an incorrectly
     /// resolved merge conflict produces. See
     /// [`check_patched_dep_paths`](crate::check_patched_dep_paths).

@@ -9,7 +9,7 @@ pub(super) struct LockfileEdgeReach<'lock> {
     /// including chains through skipped parents.
     pub(super) reachable: HashSet<&'lock PackageKey>,
     /// Skip candidates (incompatible when checked as optional) with a
-    /// non-optional inbound edge from an installed source — an
+    /// non-optional inbound edge from an installed source, an
     /// importer or a non-skipped snapshot. The fail / warn dispatch
     /// wins for these.
     pub(super) required: HashSet<&'lock PackageKey>,

@@ -76,7 +76,7 @@ pub fn create_hex_hash_from_file(path: &Path) -> io::Result<String> {
 /// Compute the sha256 hex digest of `input` and truncate to the first
 /// 32 hex characters (16 bytes of entropy).
 ///
-/// The truncation is part of the on-disk contract — anything written
+/// The truncation is part of the on-disk contract, anything written
 /// into a path with this hash (project-registry slugs, virtual-store
 /// dirnames that overflowed `virtualStoreDirMaxLength`, etc.) must use
 /// the same 32-char length so pacquet and pnpm produce the same
@@ -101,7 +101,7 @@ pub fn create_short_hash(input: &str) -> String {
 /// `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
 ///
 /// The caller is responsible for pre-escaping the source string (parens
-/// → underscores, scoped-name slashes → `+`, etc) — this helper only
+/// → underscores, scoped-name slashes → `+`, etc), this helper only
 /// applies the final length/case decision so the escape rules can stay
 /// where the structured input lives.
 #[must_use]

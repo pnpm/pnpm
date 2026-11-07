@@ -370,7 +370,7 @@ fn should_skip_invocation(
 }
 
 /// pnpm treats `--global` as an opt-out of the project's package manager
-/// and runtime pins — a global install does not belong to the project.
+/// and runtime pins, a global install does not belong to the project.
 pub(crate) fn is_global(command: &CliCommand) -> bool {
     // `pnpm link` with no arguments links the current project into the
     // global directory.
@@ -378,7 +378,7 @@ pub(crate) fn is_global(command: &CliCommand) -> bool {
         || matches!(command, CliCommand::Link(args) if args.package_paths.is_empty())
 }
 
-/// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup` —
+/// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup`,
 /// they either predate the project's pins (`setup`), inspect pnpm itself
 /// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).

@@ -147,7 +147,7 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
 
 /// A `node_modules` that is itself a symlink resolving outside the
 /// workspace root fails the containment check, so nothing behind it is
-/// touched — the same refusal the purge applies.
+/// touched, the same refusal the purge applies.
 #[test]
 fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
     let dir = tempdir().unwrap();

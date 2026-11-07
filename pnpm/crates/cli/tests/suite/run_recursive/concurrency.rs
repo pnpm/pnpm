@@ -1,6 +1,6 @@
 //! The scripts a `/pattern/` selector matches in one package run
 //! concurrently when the run's concurrency allows it, as they do in
-//! pnpm 11 — <https://github.com/pnpm/pnpm/issues/14933>.
+//! pnpm 11, <https://github.com/pnpm/pnpm/issues/14933>.
 
 use super::{CommandExtra, CommandTempCwd, Duration, fs, json, write_workspace};
 use assert_cmd::assert::OutputAssertExt;
@@ -46,8 +46,8 @@ fn overlapping_scripts() -> serde_json::Value {
     })
 }
 
-/// `--parallel` implies `--recursive`, so this bare invocation — the one
-/// the issue reported — is a recursive run.
+/// `--parallel` implies `--recursive`, so this bare invocation, the one
+/// the issue reported, is a recursive run.
 #[test]
 fn parallel_run_runs_regexp_scripts_of_one_package_concurrently() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

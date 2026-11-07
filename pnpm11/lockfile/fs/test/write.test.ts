@@ -104,7 +104,7 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
   // Cache-key contract: callers need a hash of the *as-saved* lockfile,
   // not the in-memory write object. Those two diverge specifically
   // because YAML drops `undefined` on serialize. To exercise that drop,
-  // the fixture has to actually carry an explicit `undefined` —
+  // the fixture has to actually carry an explicit `undefined`,
   // `settings.dedupePeers` here, the same field install-time code
   // produces. Without this, the test would happily pass against a writer
   // that returned a near-canonical-but-still-divergent object.
@@ -134,7 +134,7 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
   const written = await writeWantedLockfile(projectPath, wantedLockfile)
   const loaded = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
   expect(written).toEqual(loaded)
-  // Verify the canonicalization actually dropped the undefined field —
+  // Verify the canonicalization actually dropped the undefined field,
   // toEqual is lenient about undefined-vs-missing, so check explicitly.
   expect('dedupePeers' in (written.settings ?? {})).toBe(false)
 })
@@ -624,8 +624,8 @@ await writeWantedLockfileAtomic(process.env.LOCKFILE_PATH, 'key: ' + 'x'.repeat(
     env: { ...process.env, LOCKFILE_PATH: path.join(projectPath, WANTED_LOCKFILE) },
     stdio: ['ignore', 'ignore', 'inherit'],
   })
-  // Interrupt once the temp file exists. Killing earlier — while the child
-  // is still building the write's payload — would pass without exercising
+  // Interrupt once the temp file exists. Killing earlier, while the child
+  // is still building the write's payload, would pass without exercising
   // the cleanup, as there would be no temp file to remove.
   const exited = once(child, 'exit')
   try {

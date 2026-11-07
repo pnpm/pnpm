@@ -176,7 +176,7 @@ pub(crate) fn resolve_bool_override(force_on: bool, force_off: bool, config: boo
 impl InstallArgs {
     /// The install args for a reinstall triggered by an out-of-band change to
     /// the install inputs. Forces a fresh resolution so the changed
-    /// inputs re-resolve rather than reusing — or failing against — the
+    /// inputs re-resolve rather than reusing, or failing against, the
     /// stale lockfile.
     pub(crate) fn for_reresolving_install() -> Self {
         Self {
@@ -408,8 +408,8 @@ pub(crate) struct PnprLockfilePolicy {
     /// The *effective* `preferFrozenLockfile` (the CLI tri-state already
     /// resolved against `config.prefer_frozen_lockfile`, exactly as the
     /// local `Install` resolves it); forwarded to `/-/pnpr/v0/resolve`. `false`
-    /// forces the server to re-resolve. Resolving here — rather than
-    /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
+    /// forces the server to re-resolve. Resolving here, rather than
+    /// sending the raw CLI override, keeps a yaml `preferFrozenLockfile:
     /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
     pub(crate) prefer_frozen: bool,
     /// Refresh registry artifacts while retaining every locked package
@@ -419,7 +419,7 @@ pub(crate) struct PnprLockfilePolicy {
     /// Regenerate derived lockfile metadata while retaining compatible pins.
     pub(crate) fix: bool,
     /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
-    /// resolves only — returning the lockfile without fetching files —
+    /// resolves only, returning the lockfile without fetching files,
     /// after which [`install_via_pnpr`] writes the lockfile and skips
     /// materialization, mirroring pnpm's resolve + write, fetch nothing,
     /// link nothing. See

@@ -166,7 +166,7 @@ pub fn check_package(
 ///
 /// Side effects (the `pnpm:install-check` warn and
 /// `pnpm:skipped-optional-dependency` emit) are *not* performed here
-/// — the caller composes them so log payloads can carry pacquet-
+///the caller composes them so log payloads can carry pacquet-
 /// specific context (`prefix`, `requester`, etc.).
 ///
 /// [`InstallabilityError`] is large (200+ bytes) because it carries the
@@ -227,7 +227,7 @@ pub fn package_is_installable(
 /// [`inferred_platform`]).
 ///
 /// This is the check for a package described by a lockfile row rather than by
-/// a manifest — no engines are recorded per snapshot, so only the platform is
+/// a manifest, no engines are recorded per snapshot, so only the platform is
 /// evaluated. The `optional` gate stays at the call site: pnpm leaves out only
 /// an optional dependency it cannot install.
 ///

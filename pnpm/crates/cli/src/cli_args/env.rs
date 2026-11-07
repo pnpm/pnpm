@@ -1,4 +1,4 @@
-//! `pacquet env` — the deprecated Node.js-only front end to
+//! `pacquet env`, the deprecated Node.js-only front end to
 //! [`super::runtime`], kept because pnpm still ships it.
 
 use super::{add::AddRequest, global::handle_global_add, registry_client::build_registry_client};
@@ -84,8 +84,8 @@ pub enum EnvError {
 
 /// What [`EnvArgs`] resolved its parameters to.
 ///
-/// The subcommands need different resources — the global config and
-/// the install pipeline versus a registry client — so parsing is split
+/// The subcommands need different resources, the global config and
+/// the install pipeline versus a registry client, so parsing is split
 /// from running and the dispatcher picks the path.
 #[derive(Debug)]
 pub enum EnvSubcommand {
@@ -173,7 +173,7 @@ impl EnvArgs {
     /// Oldest first, so the newest version ends up next to the prompt.
     ///
     /// An absent selector reads as the empty one, which the mirror
-    /// resolver treats as `latest` — a bare `pnpm env list` prints the
+    /// resolver treats as `latest`, a bare `pnpm env list` prints the
     /// newest version alone, not the whole index. Verified against the
     /// TypeScript CLI, which passes `''` rather than `undefined`.
     pub async fn run_list(version_spec: Option<String>, config: &Config) -> miette::Result<String> {

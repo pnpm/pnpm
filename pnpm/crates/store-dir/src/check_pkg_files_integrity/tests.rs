@@ -311,7 +311,7 @@ fn careful_path_dedups_by_digest_within_a_single_entry() {
 /// The proof: plant the file, run a successful first verify against
 /// it (populates the cache), then *delete* the file and run a
 /// second verify. If the cache short-circuits the second call, it
-/// returns `passed: true` despite the missing file — that's the
+/// returns `passed: true` despite the missing file, that's the
 /// observable signal that the stat was skipped. Real installs
 /// don't delete files mid-install, so this artificial setup is
 /// purely a test handle for the dedup behaviour.
@@ -400,7 +400,7 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
 }
 
 /// A symlink at a blob path fails verification (its target's bytes are
-/// not the store's), but only a *directory* may be scrubbed — the
+/// not the store's), but only a *directory* may be scrubbed, the
 /// symlink itself must survive, like every other non-directory dirent.
 #[test]
 #[cfg(unix)]
@@ -426,7 +426,7 @@ fn careful_path_fails_but_keeps_symlink_at_cafs_path() {
 }
 
 /// A blob the verifier cannot open reports a miss like a mismatch
-/// would, and the failure may be transient — so the file must survive
+/// would, and the failure may be transient, so the file must survive
 /// for the concurrent installs that may be importing from it.
 #[test]
 #[cfg(unix)]
@@ -485,8 +485,8 @@ fn re_hashing_a_file_is_tallied() {
 }
 
 /// Only hashing is tallied. A file the index says is untouched never
-/// opens, and an entry no verifier can hash — unknown algo, missing
-/// file — must not land in a tally the install reports as time spent
+/// opens, and an entry no verifier can hash, unknown algo, missing
+/// file, must not land in a tally the install reports as time spent
 /// hashing.
 #[test]
 fn the_tally_covers_hashing_only() {
@@ -523,7 +523,7 @@ fn the_tally_covers_hashing_only() {
     assert_eq!(recorded, VerifiedFileIntegrity { files: 0, duration: Duration::ZERO });
 }
 
-/// Plants a directory where a CAFS blob belongs (store corruption —
+/// Plants a directory where a CAFS blob belongs (store corruption,
 /// stray `mkdir -p` or interrupted write) to exercise
 /// `scrub_directory_at_cafs_path`: a directory is the one dirent the
 /// re-fetch's rename cannot replace, so the verifier removes it.
@@ -573,7 +573,7 @@ impl CafsFileInfo {
 }
 
 /// `None` distinguishes "this package never had a cache entry written"
-/// from "cache configured but empty for this key" — the importer treats
+/// from "cache configured but empty for this key", the importer treats
 /// the former as a regular non-built import.
 #[test]
 fn no_side_effects_yields_none() {

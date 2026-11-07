@@ -63,7 +63,7 @@ export function translateRegistrySettings (settings: OptionsFromRootManifest): v
  * routes reach it. The lookups are the inverse of the routes, because a scope
  * resolves to exactly one registry while a registry serves many.
  *
- * The older shape — a map whose values are all strings — is the scope lookup
+ * The older shape, a map whose values are all strings, is the scope lookup
  * already, and is left in place as it stands.
  */
 function readRegistryDeclarations (declarations: PnpmSettings['registries']): RegistryLookups {
@@ -223,7 +223,7 @@ function addPrefixRoute (
  * A misspelled field would otherwise sit there doing nothing, and a credential
  * field would sit in a committed file. Both are refused here rather than by
  * the yaml parser, which renders the offending source line verbatim under its
- * errors — printing the very credential being refused.
+ * errors, printing the very credential being refused.
  */
 function assertKnownRegistryFields (declaration: RegistryDeclaration, registry: string, settingPath: string): void {
   for (const field of Object.keys(declaration)) {

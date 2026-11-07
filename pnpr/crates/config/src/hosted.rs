@@ -1,7 +1,7 @@
 use super::{Deserialize, PackageRules, TeamDirectory};
 
 /// A resolved hosted registry: the `org` namespace it serves and its
-/// `packages:` rules — the namespace it claims plus the per-package
+/// `packages:` rules, the namespace it claims plus the per-package
 /// `access` / `publish` / `unpublish` policies, with the registry-level
 /// `access:` as the default an entry's omitted fields fall back to.
 #[derive(Debug, Clone)]

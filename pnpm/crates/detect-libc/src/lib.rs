@@ -85,7 +85,7 @@ pub fn host_platform() -> &'static str {
 }
 
 /// Map `std::env::consts::ARCH` to Node's `process.arch` naming.
-/// Mappings below mirror what Node itself emits on each target —
+/// Mappings below mirror what Node itself emits on each target,
 /// anything left as passthrough (e.g. `arm`, `s390x`, `riscv64`)
 /// already matches between the two naming schemes.
 #[must_use]

@@ -51,7 +51,7 @@ pub(super) fn rewrite_dist_tarball(
     public_url: &str,
 ) {
     // Every string `dist.tarball` must be rewritten to a route on *this*
-    // server, where integrity and OSV are enforced — never passed through.
+    // server, where integrity and OSV are enforced, never passed through.
     let version = value
         .get("version")
         .and_then(Value::as_str)
@@ -278,7 +278,7 @@ pub(super) fn rewrite_revision_tarball(
 /// segment, with any `?query`/`#fragment` stripped. This basename is the
 /// trust key shared by the rewritten public URL ([`rewrite_tarball_urls`])
 /// and the serve-time version match (`expected_tarball_dist`), so both
-/// must derive it identically — including for query-bearing URLs (signed
+/// must derive it identically, including for query-bearing URLs (signed
 /// CDN links), where the query is not part of the route path a client
 /// later requests. Returns `None` for a URL whose path ends in `/`.
 #[must_use]

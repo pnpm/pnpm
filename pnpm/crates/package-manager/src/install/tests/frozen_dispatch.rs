@@ -19,7 +19,7 @@ use text_block_macros::text_block;
 /// [`crate::InstallPackageBySnapshotError::NoMatchingPlatformVariant`]
 /// from the cold-batch dispatcher. Variant selection happens
 /// before any network fetch, so the bogus URL on the variant is
-/// never read — the test stays hermetic.
+/// never read, the test stays hermetic.
 #[tokio::test]
 async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
     let dirs = InstallDirs::new();
@@ -136,7 +136,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
 /// but with `skip_runtimes: true`. The `--no-runtime` filter
 /// iterates importer-direct deps, builds `node@runtime:22.0.0`
 /// from `(alias, version)`, sees the `@runtime:` substring, and
-/// adds the snapshot to the skip set — so variant selection
+/// adds the snapshot to the skip set, so variant selection
 /// never runs and the unmatchable-platform variant doesn't fail
 /// the install.
 #[tokio::test]
@@ -235,7 +235,7 @@ discovered_workspace: None
     .await
     .expect("--no-runtime should skip the unmatchable runtime entry and let the rest of the install succeed");
 
-    // The runtime slot must NOT exist under the virtual store —
+    // The runtime slot must NOT exist under the virtual store,
     // the snapshot was filtered out by the skip set.
     //
     // Use `symlink_metadata` rather than `Path::exists()` so a
@@ -268,7 +268,7 @@ discovered_workspace: None
 /// Asserts:
 ///
 /// 1. `Install::run` returns `Err(InstallError::LockfileVerification(...))`
-///    with the inner `VerifyError::MinimumReleaseAgeViolation` —
+///    with the inner `VerifyError::MinimumReleaseAgeViolation`,
 ///    i.e. the verifier code path actually ran and returned a
 ///    violation, the wiring is correct, and the dispatch maps the
 ///    inner code to the per-policy variant rather than collapsing
@@ -301,7 +301,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     config.minimum_release_age = Some(60 * 24 * 365 * 100);
     let config = config.leak();
 
-    // The integrity hash here is placeholder text — the gate fails
+    // The integrity hash here is placeholder text, the gate fails
     // before the tarball is fetched, so checksum verification never
     // runs and the value doesn't have to match the mock's actual
     // payload. The lockfile only needs to deserialize.
@@ -386,7 +386,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     );
 
     // The gate must short-circuit before any virtual-store
-    // materialization — no slot, no project-side symlink.
+    // materialization, no slot, no project-side symlink.
     let slot = dirs.project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
     assert!(!slot.exists(), "the gate must fail before any virtual-store materialization");
     assert!(
@@ -564,7 +564,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    // Same legacy-layout opt-out as the sibling skip test — the seed
+    // Same legacy-layout opt-out as the sibling skip test, the seed
     // helper writes the flat-name slot shape.
     config.enable_global_virtual_store = false;
     config.store_dir = dirs.store_dir.clone().into();
@@ -683,7 +683,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
     let lockfile: Lockfile = serde_saphyr::from_str(PARTIAL_INSTALL_LOCKFILE)
         .expect("parse partial-install fixture lockfile");
 
-    // Seed exactly as the auto-frozen test does — if dispatch did go
+    // Seed exactly as the auto-frozen test does, if dispatch did go
     // frozen, the skip cache would carry the install to success.
     std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
     lockfile
@@ -783,7 +783,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     // A sibling `link:` dependency keeps the lockfile non-empty without
-    // requiring registry fetches — the gate fires on the eligibility
+    // requiring registry fetches, the gate fires on the eligibility
     // checks alone, materialization is never reached so the
     // (non-existent) link target doesn't matter.
     manifest.add_dependency("sibling", "link:../sibling", DependencyGroup::Prod).unwrap();

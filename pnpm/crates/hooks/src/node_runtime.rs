@@ -131,7 +131,7 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         // Gate on the loaded module exporting `hooks`, mirroring pnpm's
         // `entries.some(entry => entry.hooks != null)`. The checksum
         // value itself is a pure hash of the pnpmfile's normalized
-        // bytes — only this gate needs to consult the evaluated module.
+        // bytes, only this gate needs to consult the evaluated module.
         let worker = self.worker().await.ok()?;
         if !worker.has_hooks().await {
             return None;
@@ -270,9 +270,9 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
         )
         .await?;
         let can_fetch = response.get("value").is_some_and(is_js_truthy);
-        // A worker that answers without a `resolution` — the reply shape for a
+        // A worker that answers without a `resolution`, the reply shape for a
         // fetcher whose `canFetch` went missing between capability probe and
-        // call — leaves the caller's resolution untouched rather than blanking
+        // call, leaves the caller's resolution untouched rather than blanking
         // it for every fetcher behind this one.
         let resolution = response
             .get("resolution")

@@ -105,7 +105,7 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
 ///
 /// A caller that resolves placeholders itself, rather than taking the whole
 /// substituted string, reads them from here so it agrees with
-/// [`env_replace_lossy`] about what a placeholder is — an unfinished `${`
+/// [`env_replace_lossy`] about what a placeholder is, an unfinished `${`
 /// among them, which is text rather than the opening of one.
 #[must_use]
 pub fn placeholder_ranges(text: &str) -> Vec<std::ops::Range<usize>> {

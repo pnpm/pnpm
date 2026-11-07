@@ -565,8 +565,8 @@ fn parses_pnpm_10_patched_dependencies_entries() {
 /// Regression test for <https://github.com/pnpm/pnpm/issues/11775>.
 /// An injected workspace package's snapshot can hold a `link:<path>`
 /// value in its `dependencies:` map when the dep is a workspace
-/// sibling. The shape is valid — a `link:` reference resolves to
-/// `null` at use time — so pacquet's parser must accept it.
+/// sibling. The shape is valid, a `link:` reference resolves to
+/// `null` at use time, so pacquet's parser must accept it.
 #[test]
 fn parses_link_dep_in_injected_snapshot() {
     let lockfile_text = text_block! {

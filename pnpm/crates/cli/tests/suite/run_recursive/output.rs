@@ -347,7 +347,7 @@ fn ndjson_reporter_reports_recursive_lifecycle_failure_as_a_record() {
 
 /// Port of upstream's `run --reporter-hide-prefix should hide prefix`
 /// (`pnpm/test/monorepo/index.ts`): only the script's own output loses
-/// the prefix — the command echo and the `Done` line keep theirs.
+/// the prefix, the command echo and the `Done` line keep theirs.
 #[test]
 fn reporter_hide_prefix_drops_the_prefix_from_streamed_script_output() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -385,7 +385,7 @@ fn reporter_hide_prefix_drops_the_prefix_from_streamed_script_output() {
 }
 
 /// `--parallel` expands to `--stream` in pnpm's `run` shorthand table,
-/// so a parallel run is prefixed even without the flag — otherwise the
+/// so a parallel run is prefixed even without the flag, otherwise the
 /// interleaved output of concurrent projects is unattributable.
 #[test]
 fn parallel_implies_stream() {
@@ -439,7 +439,7 @@ fn recursive_run_inherits_stdio_without_stream() {
 }
 
 /// Two independent projects can have their scripts in flight at once, so
-/// output is piped and prefixed even without `--stream` — inherited
+/// output is piped and prefixed even without `--stream`, inherited
 /// terminal output would interleave them mid-line.
 #[test]
 fn recursive_run_pipes_stdio_when_tasks_can_interleave() {
@@ -559,7 +559,7 @@ fn aggregate_output_keeps_each_project_in_one_block() {
 }
 
 /// `--use-stderr` moves the reporter's own output to stderr, leaving
-/// stdout to the command — here, the scripts' streamed lines still reach
+/// stdout to the command, here, the scripts' streamed lines still reach
 /// stderr with it, since the reporter is what prints them.
 #[test]
 fn use_stderr_diverts_reporter_output() {

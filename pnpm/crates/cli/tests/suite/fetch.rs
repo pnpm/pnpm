@@ -15,7 +15,7 @@ fn pacquet_at(workspace: &Path) -> Command {
 /// Direct dependency from each group, so a test can assert which groups
 /// the `--prod` / `--dev` flags fetch. Each is a leaf package (no
 /// transitive deps), so it only ever reaches `node_modules` as that
-/// group's direct dependency — never hoisted in on another's behalf.
+/// group's direct dependency, never hoisted in on another's behalf.
 const PROD_DEP: &str = "@pnpm.e2e/foo";
 const DEV_DEP: &str = "@pnpm.e2e/bar";
 const OPTIONAL_DEP: &str = "@pnpm.e2e/qar";

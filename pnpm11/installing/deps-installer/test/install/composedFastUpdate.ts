@@ -237,7 +237,7 @@ test('an override moving a cataloged package falls back', async () => {
   subject.importers['.' as ProjectId].specifiers.bar = 'catalog:'
 
   // The catalog entry records the version the importer resolved to, so the
-  // move would have to carry it along — which only the catalog rewrite does.
+  // move would have to carry it along, which only the catalog rewrite does.
   expect(await tryComposeFastUpdates(subject, {
     drift: { overrides: true },
     workspacePackages: new Map(),
@@ -278,7 +278,7 @@ test('an override on a cataloged package is left to the resolver', async () => {
   }, options)
 
   // The override replaces the `catalog:` specifier outright, so the entry is
-  // not moved but dropped — a rewrite that only moves packages around cannot
+  // not moved but dropped, a rewrite that only moves packages around cannot
   // express it.
   const written = project.readLockfile()
   expect(written.catalogs).toBeUndefined()

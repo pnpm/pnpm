@@ -61,7 +61,7 @@ fn plan(mut argv: Vec<OsString>) -> miette::Result<(Vec<OsString>, bool)> {
 /// top-level subcommand, or `None` otherwise.
 ///
 /// `with current` is only the sugar when `with` sits at the subcommand
-/// position — `pnpm [global-opts] with current ...`. A `with current`
+/// position, `pnpm [global-opts] with current ...`. A `with current`
 /// appearing later as data for another command (`pnpm exec with current
 /// ...`) must be left alone: the rewrite only applies when the parsed
 /// command is `with` with first param `current`.

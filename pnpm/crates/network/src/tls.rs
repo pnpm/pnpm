@@ -57,7 +57,7 @@ pub struct TlsConfig {
     pub cert: Option<String>,
 
     /// PEM-encoded client private key. Paired with [`Self::cert`] when
-    /// both are set — concatenated and handed to reqwest's
+    /// both are set, concatenated and handed to reqwest's
     /// `Identity::from_pem` (rustls single-buffer form). Accepts
     /// PKCS#1, PKCS#8, and EC PEM keys (the same surface Node's
     /// `tls` exposes to pnpm). Set from `.npmrc`'s `key` key.
@@ -75,7 +75,7 @@ pub struct TlsConfig {
     /// `ClientBuilder::local_address`. pnpm passes the value as a
     /// bare string with no validation. Pacquet parses it as
     /// [`IpAddr`] in the config layer and silently drops anything
-    /// that doesn't parse — mirroring pnpm's parity policy of letting
+    /// that doesn't parse, mirroring pnpm's parity policy of letting
     /// the network layer surface the failure when (and if) the value
     /// actually gets used at connect time.
     pub local_address: Option<IpAddr>,
@@ -85,7 +85,7 @@ pub struct TlsConfig {
 /// when configured TLS material is invalid.
 ///
 /// pnpm does not define `ERR_PNPM_INVALID_CERT` / `ERR_PNPM_INVALID_KEY`
-/// error codes — invalid PEM surfaces as a raw `tls.createSecureContext`
+/// error codes, invalid PEM surfaces as a raw `tls.createSecureContext`
 /// throw. Pacquet reports the same failure up-front because reqwest's
 /// `Identity::from_pem` returns the error there. Diagnostic messages
 /// are plain prose; no code attribute is emitted so reviewers can see
@@ -99,7 +99,7 @@ pub struct TlsConfig {
 #[non_exhaustive]
 pub enum TlsError {
     /// `Identity::from_pem` rejected the concatenated `cert` +
-    /// `key` PEM pair. Rustls accepts PKCS#1, PKCS#8, and EC keys —
+    /// `key` PEM pair. Rustls accepts PKCS#1, PKCS#8, and EC keys,
     /// landing here means the bytes aren't a valid PEM in any of
     /// those formats (corrupt, base64-mangled, missing the
     /// `-----BEGIN…-----` armor, etc.).
@@ -139,14 +139,14 @@ impl<Value> Default for PerRegistryMap<Value> {
 }
 
 /// `(ca, cert, key)` triple for a single registry override. Each field
-/// is post-`\n`-expansion / post-file-read PEM string — the parser in
+/// is post-`\n`-expansion / post-file-read PEM string, the parser in
 /// `pnpm-config::npmrc_auth` normalizes both shapes (`:ca=` inline
 /// and `:cafile=<path>` file-read) into the same `Option<String>` slot
 /// so the network layer sees one form.
 ///
 /// Why `Option<String>` for `ca` (not `Vec<String>` like
 /// [`TlsConfig::ca`]): the per-registry parser stores a single
-/// string per `(uri, field)` slot — multi-cert bundles arrive as one
+/// string per `(uri, field)` slot, multi-cert bundles arrive as one
 /// PEM string with embedded `-----END CERTIFICATE-----` delimiters,
 /// which `reqwest::Certificate::from_pem` accepts.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]

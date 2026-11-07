@@ -165,7 +165,7 @@ impl AuditArgs {
     }
 
     /// The advisories a fix flow acts on. `None` when the interactive
-    /// prompt was cancelled or selected nothing — there is nothing to fix.
+    /// prompt was cancelled or selected nothing, there is nothing to fix.
     fn select_advisories(
         &self,
         filtered: BTreeMap<String, AuditAdvisory>,

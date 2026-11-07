@@ -105,7 +105,7 @@ function buildWorkspaceFilters (
   // them. Each has to mean "the project whose directory is the workspace
   // root", which only glob matching says. Left to follow the pass,
   // `legacyDirFiltering`'s subtree matching would read them as "every
-  // project below the root" — including the root's descendants instead
+  // project below the root", including the root's descendants instead
   // of the root, and excluding them instead of it.
   const cmdSkipsWorkspaceRootByDefault = cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test'
   if (config.workspaceRoot) {

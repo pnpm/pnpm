@@ -119,14 +119,14 @@ const IN_PLACE_OPEN = fs.constants.O_WRONLY |
   (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0)
 
 /**
- * Overwrites a corrupt store file in place — truncate and rewrite under
- * the same inode — so every hard link to it (in other projects'
+ * Overwrites a corrupt store file in place, truncate and rewrite under
+ * the same inode, so every hard link to it (in other projects'
  * node_modules) sees the restored content too. Returns false when the
  * repair should instead fall back to {@link writeFileAtomic}'s
  * temp+rename: the dirent is not a regular file, the file is
  * write-protected or refuses the write open (a running executable,
  * another owner's file), the write failed, or the freshly written
- * content does not verify — the last covers a concurrent process still
+ * content does not verify, the last covers a concurrent process still
  * mid-write on the same path, whose interleaved writes the rename then
  * replaces.
  *

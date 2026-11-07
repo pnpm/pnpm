@@ -28,7 +28,7 @@ function lookupConfig (opts: ConfigCommandOptions, key: string, isScopedKey: boo
   }
   const kebabKey = isCamelCase(key) ? kebabCase(key) : key
   // The merged map is what resolvers use, so `registry` answers the same
-  // default the resolved `registries` view declares as the bare `@` scope —
+  // default the resolved `registries` view declares as the bare `@` scope,
   // a raw `.npmrc` value would contradict it.
   if (kebabKey === 'registry') {
     return { value: opts._config.registriesByScope?.default ?? opts.authConfig.registry }

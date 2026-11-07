@@ -146,7 +146,7 @@ fn decodes(json: &str) -> bool {
 
 /// The registry wire format grows fields and reshapes the trust markers
 /// without warning, and a manifest that fails to decode is skipped as if
-/// the version were never published — so a shape pnpm doesn't model can
+/// the version were never published, so a shape pnpm doesn't model can
 /// silently erase `dist-tags.latest` from a packument. Every shape here
 /// must keep costing nothing.
 #[test]
@@ -231,7 +231,7 @@ fn net_new_fields_and_marker_reshapes_never_cost_the_version() {
 /// Counterpart to
 /// [`net_new_fields_and_marker_reshapes_never_cost_the_version`]: what a
 /// version manifest still has to get right. Each of these fails the
-/// manifest, and so the version, by design — pnpm cannot install a
+/// manifest, and so the version, by design, pnpm cannot install a
 /// version it can't name, locate, or verify, and a quieter failure would
 /// only defer the problem. Everything else about a manifest degrades to
 /// `None` instead.

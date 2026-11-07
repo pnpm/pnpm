@@ -213,7 +213,7 @@ test('rebuilds a dependency shared by multiple workspace projects in the global 
   const storeDir = path.resolve('store')
 
   // Per-project lockfiles make `rebuild -r` run a concurrent pass per project, and
-  // both projects share one GVS projection — so the passes select the same directory
+  // both projects share one GVS projection, so the passes select the same directory
   // at once, exercising the per-projection build lock.
   fs.writeFileSync('pnpm-workspace.yaml', [
     'packages:',

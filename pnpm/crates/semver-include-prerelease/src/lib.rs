@@ -48,13 +48,13 @@ impl IncludePrereleaseRange {
     ///
     /// A prerelease is eligible wherever its own release would be, and
     /// clears a lower bound npm synthesized for an omitted component
-    /// exactly when that release clears it — the two halves of
+    /// exactly when that release clears it, the two halves of
     /// `includePrerelease` [`IncludePrereleaseRange`] describes.
     #[must_use]
     pub fn satisfies(&self, version: &Version) -> bool {
         // The eligibility rule `includePrerelease` drops only ever
         // excludes prereleases, so for a release `node_semver` already
-        // answers with the endpoint test — and answers it without the
+        // answers with the endpoint test, and answers it without the
         // single-version ranges the prerelease path has to build.
         if !version.is_prerelease() {
             return self.alternatives
@@ -149,8 +149,8 @@ fn glue_operators_to_versions(alternative: &str) -> String {
     glued
 }
 
-/// Whether `token` names a version that leaves a component out — `18`,
-/// `18.x`, `^18.0` — the case in which npm lowers the comparator's lower
+/// Whether `token` names a version that leaves a component out, `18`,
+/// `18.x`, `^18.0`, the case in which npm lowers the comparator's lower
 /// bound. A hyphen range's lower endpoint is lowered whether or not it
 /// omits anything, so it is asked [`names_a_prerelease`] instead.
 fn omits_a_component(token: &str) -> bool {

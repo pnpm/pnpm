@@ -731,7 +731,7 @@ fn should_print_cache_path() {
 
     let printed = PathBuf::from(String::from_utf8(output).unwrap().trim());
     // The path is meant to be handed to other tools, so it must be absolute
-    // and free of `..` — the configured `cacheDir` is relative to the
+    // and free of `..`, the configured `cacheDir` is relative to the
     // workspace. Its textual form is not pinned any further: macOS resolves
     // the temporary directory to `/private/var`, exactly as `path.resolve`
     // does for the TypeScript CLI.

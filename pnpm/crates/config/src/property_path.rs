@@ -2,7 +2,7 @@
 //!
 //! Implements the read half: the tokenizer (`tokenize`), the parser
 //! ([`parse_property_path`]), and [`get_object_value_by_property_path`]. The
-//! mutating `set`/`delete` halves are not implemented — the config command
+//! mutating `set`/`delete` halves are not implemented, the config command
 //! only reads through a property path and uses [`parse_property_path`] to
 //! classify a key as simple vs. deep.
 //!

@@ -312,7 +312,7 @@ impl ParseableWalk<'_> {
                     for root_segment in self.root_segments(dep) {
                         let mut full_path = vec![root_segment];
                         full_path.extend(new_path.iter().cloned());
-                        // Leaf (importer or depth-limited) — reversed so the
+                        // Leaf (importer or depth-limited), reversed so the
                         // importer comes first.
                         full_path.reverse();
                         self.lines.push(full_path.join(" > "));

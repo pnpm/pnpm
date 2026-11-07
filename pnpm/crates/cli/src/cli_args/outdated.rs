@@ -1,4 +1,4 @@
-//! `pacquet outdated` — report direct dependencies that have a newer
+//! `pacquet outdated`, report direct dependencies that have a newer
 //! version available.
 
 pub(crate) mod query;

@@ -45,7 +45,7 @@ impl Checkout {
     /// naming this crate are resolved against their workspace.
     pub(super) fn find(&self, name: &str, version: &str) -> Result<Option<CheckoutPackage>> {
         // A repository may hold another crate of the same name that it
-        // cannot describe on its own — a fixture, or a member of a
+        // cannot describe on its own, a fixture, or a member of a
         // workspace the checkout does not reach. Only the one the
         // lockfile asks for has to be readable, so a candidate that is
         // not it takes its error out of the way.
@@ -264,7 +264,7 @@ fn inherit_dependencies(
 }
 
 /// Resolve the inheritance markers in each of one table's dependency
-/// kinds — the manifest root, or one `[target.<cfg>]` section.
+/// kinds, the manifest root, or one `[target.<cfg>]` section.
 fn inherit_dependency_kinds(
     table: &mut toml::Table,
     workspace: Option<&toml::Table>,

@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 /// Everything a resolution depended on: what the project asked for, and
 /// the environments it was answered for. A server's answer is accepted
 /// only when it was for exactly these; a lockfile on disk is replayed on
-/// whatever target still installs it — see [`super::Lockfile::applies_to`].
+/// whatever target still installs it, see [`super::Lockfile::applies_to`].
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 #[cfg_attr(

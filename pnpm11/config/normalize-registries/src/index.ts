@@ -83,12 +83,12 @@ export function toRegistryDeclarations (context: Partial<RegistryContext>): Reco
 
 /**
  * The registries the CLI resolves from, merged across every source, in the
- * shape the `registries` setting is written in — the view `pnpm config get
+ * shape the `registries` setting is written in, the view `pnpm config get
  * registries` prints.
  *
  * Unlike {@link toRegistryDeclarations}, nothing is omitted: the default
- * registry is declared as the bare `@` scope, and the built-in routes — the
- * `@jsr` scope and the `npmjs` / `gh` prefixes — are declared too, because
+ * registry is declared as the bare `@` scope, and the built-in routes, the
+ * `@jsr` scope and the `npmjs` / `gh` prefixes, are declared too, because
  * this view answers "where does this install resolve from", not "what did
  * the user write". Registry keys, declaration fields, and scope lists come
  * out in one canonical order so both CLI implementations print identical
@@ -171,7 +171,7 @@ function sortRegistryDeclarations (declarations: Record<string, RegistryDeclarat
 /**
  * The layout the user declared for `registry`, or `undefined` for none.
  *
- * Built-in layouts are deliberately not applied here — they belong with
+ * Built-in layouts are deliberately not applied here, they belong with
  * `isCanonicalRegistryTarballUrl`, which acts on them, so that a code path
  * that never threads `registryOptionsByUrl` still gets them.
  */

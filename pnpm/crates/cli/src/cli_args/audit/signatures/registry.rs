@@ -45,7 +45,7 @@ pub(super) struct PackumentVersion {
 pub(super) struct Packument {
     /// Per-version publish times. Kept as raw JSON values (rather than
     /// `String`s) because the object also holds `created`/`modified` keys and
-    /// pnpm never validates the shape — only `versions` is required.
+    /// pnpm never validates the shape, only `versions` is required.
     #[serde(default)]
     pub(super) time: BTreeMap<String, serde_json::Value>,
     pub(super) versions: HashMap<String, PackumentVersion>,

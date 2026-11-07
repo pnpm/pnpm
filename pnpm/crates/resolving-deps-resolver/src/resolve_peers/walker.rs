@@ -75,7 +75,7 @@ pub(super) struct PeerWalkOutput {
     pub(super) issues: PeerDependencyIssues,
     pub(super) missing_ancestor_pkg_ids: HashMap<String, Vec<SharedChain<Arc<str>>>>,
     /// Graph edges whose target `NodeId` had no `DepPath` yet at the
-    /// time we built the parent's `graph_children` map — typically
+    /// time we built the parent's `graph_children` map, typically
     /// because the target is a later sibling direct dep that the walker
     /// hasn't reached yet. `walk()` drains this list once every direct
     /// dep is walked and patches the recorded entries with the now-known
@@ -94,7 +94,7 @@ pub(super) struct PeerWalkOutput {
 }
 
 pub(super) struct PeerWalkNodes {
-    /// Peers each node and its subtree resolved against ancestors —
+    /// Peers each node and its subtree resolved against ancestors,
     /// the "unknown resolved peers" propagated up so a parent can fold
     /// its descendants' peer dependencies into its own peer suffix.
     /// Indexed by `NodeId`; value's keys are peer aliases.
@@ -114,7 +114,7 @@ pub(super) struct PeerWalkNodes {
 
 pub(super) struct PeerWalkTraversal {
     /// Stack of nodes currently being walked. Re-entry on a node here
-    /// is a cycle — the recursion bottoms out with a `name@version`
+    /// is a cycle, the recursion bottoms out with a `name@version`
     /// peer-id and the original visit drives the actual graph insert.
     pub(super) in_progress: HashSet<NodeId>,
     pub(super) mode: PeerWalkMode,
@@ -128,7 +128,7 @@ pub(super) struct PeerWalkTraversal {
     pub(super) pending_canonical_nodes: Vec<NodeId>,
     /// Set while [`Walker::drain_pending_canonical_nodes`] walks a shared
     /// back-edge target at importer context: those walks must not emit
-    /// missing-peer issues — every real position reports its own state,
+    /// missing-peer issues, every real position reports its own state,
     /// and an importer-context miss there would demand an auto-install
     /// the positions do not need.
     in_canonical_drain: bool,
@@ -253,7 +253,7 @@ impl<'tree> Walker<'tree> {
 
     /// Whether the peer walk drops the `pkg_id → child_pkg_id` edge:
     /// a self-edge, or an intra-SCC edge whose target is not later in
-    /// package-id order — the same answer at every occurrence.
+    /// package-id order, the same answer at every occurrence.
     pub(super) fn cuts_cycle_edge(
         scc_of: &HashMap<Arc<str>, usize>,
         pkg_id: &str,
@@ -416,7 +416,7 @@ impl Walker<'_> {
         }
     }
 
-    /// See [`crate::PeerResolutionScope::hoisted_peer_provider_node_ids`] — a
+    /// See [`crate::PeerResolutionScope::hoisted_peer_provider_node_ids`], a
     /// provider is normally resolved at its tree position during the main
     /// walk; only one whose position was pruned still needs this root-context
     /// fallback.
@@ -460,7 +460,7 @@ impl Walker<'_> {
     /// [`crate::PeerLinkOptions::lockfile_dir`] are seeded with a node id
     /// rewritten to `link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`
     /// when [`crate::PeerLinkOptions::exclude_links_from_lockfile`] is on
-    /// — keeping the peer-suffix segment stable across machines
+    ///keeping the peer-suffix segment stable across machines
     /// regardless of the absolute path of the external link.
     /// Whether a dependency installed under `alias` can provide a peer:
     /// its alias or its real package name (the two differ for npm-alias

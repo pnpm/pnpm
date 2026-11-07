@@ -290,7 +290,7 @@ fn try_hosted_git_shorthand(input: &str) -> Option<String> {
         return Some(format!("https://bitbucket.org/{user}/{project}/issues"));
     }
 
-    // `owner/repo` shorthand — only when no `:`, `//`, or `@` is present,
+    // `owner/repo` shorthand, only when no `:`, `//`, or `@` is present,
     // to avoid matching `git+<https://`>, SCP-style SSH, etc.
     if !input.contains(':') && !input.contains("//") && !input.contains('@') {
         let (user, project) = split_user_project(input)?;

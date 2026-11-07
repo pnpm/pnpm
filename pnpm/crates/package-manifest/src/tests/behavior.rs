@@ -43,7 +43,7 @@ fn init_should_throw_if_exists() {
 }
 
 /// The scaffold `pnpm add` writes when there is no manifest yet carries no
-/// pin — only `pnpm init` pins the project to a pnpm version.
+/// pin, only `pnpm init` pins the project to a pnpm version.
 #[test]
 fn create_if_needed_does_not_pin_a_package_manager() {
     let dir = tempdir().unwrap();

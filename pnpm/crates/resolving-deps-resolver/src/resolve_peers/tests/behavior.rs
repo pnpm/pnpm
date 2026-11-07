@@ -176,7 +176,7 @@ fn realized_children_are_shared_across_visits() {
 }
 
 /// The peer walk realizes one occurrence node per distinct
-/// root-to-package path — millions of them on a large graph — and each
+/// root-to-package path, millions of them on a large graph, and each
 /// names its package. Realization must hand the child edge's `Arc` to
 /// the node rather than copy the id into it, so this asserts pointer
 /// equality through `realize_children_with`, the path that creates
@@ -216,7 +216,7 @@ fn realizing_children_shares_the_edge_package_id() {
 }
 
 /// The same shape without `p`: members whose canonical subtree reaches
-/// no peer consumer merge to bare depPaths — identically in either walk
+/// no peer consumer merge to bare depPaths, identically in either walk
 /// order.
 #[test]
 fn a_backedge_cut_member_merges_to_a_bare_dep_path() {
@@ -239,7 +239,7 @@ fn a_backedge_cut_member_merges_to_a_bare_dep_path() {
 
 /// Nearest-wins is untouched at walked positions: an importer-level
 /// provider does not shadow a nearer entry-level one. Only the shared
-/// back-edge occurrence — which has no position — binds the importer's
+/// back-edge occurrence, which has no position, binds the importer's
 /// provider.
 #[test]
 fn an_importer_provider_does_not_shadow_a_nearer_entry_provider() {

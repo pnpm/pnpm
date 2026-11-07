@@ -62,7 +62,7 @@ async fn fetcher_packs_subfolder_when_path_set() {
 #[tokio::test(flavor = "multi_thread")]
 async fn fetcher_skips_build_when_ignore_scripts() {
     let tmp = tempdir().unwrap();
-    // A repo whose `prepare` script would fail if it ran — observing
+    // A repo whose `prepare` script would fail if it ran, observing
     // success proves the lifecycle runner never spawned anything.
     let work = tmp.path().join("work");
     let bare = tmp.path().join("repo.git");
@@ -123,7 +123,7 @@ async fn fetcher_skips_build_when_ignore_scripts() {
         // layer; pacquet's dispatcher hardcodes `built=true` today (see
         // `install_package_by_snapshot.rs`), so we mirror that here.
         // `received.built` is the unrelated `should_be_built` flag from
-        // `prepare_package` (does the manifest declare a build?) — it
+        // `prepare_package` (does the manifest declare a build?), it
         // can be `true` even when scripts were skipped.
     }
     .run::<SilentReporter>()

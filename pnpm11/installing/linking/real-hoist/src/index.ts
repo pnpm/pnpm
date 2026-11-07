@@ -33,7 +33,7 @@ export type { HoisterResult }
  * that depPath on every variant as their shared `reference`, so only
  * that one depPath survives into the result. Anything indexing the
  * hoist result by package therefore has to key *and* look up by this
- * id rather than by the depPath an edge declares — otherwise every
+ * id rather than by the depPath an edge declares, otherwise every
  * edge on a collapsed variant finds nothing and drops out of the
  * layout.
  *
@@ -54,7 +54,7 @@ export type { HoisterResult }
  */
 export function getHoisterPkgId (depPath: string, pkgSnapshot: PackageSnapshot): string {
   // `resolution` is typed as required, but the lockfile is parsed from
-  // untyped YAML — guard so a malformed snapshot degrades to the
+  // untyped YAML, guard so a malformed snapshot degrades to the
   // collapsed identity instead of a TypeError here.
   const resolution = pkgSnapshot.resolution as PackageSnapshot['resolution'] | undefined
   if (resolution != null && 'directory' in resolution && resolution.directory != null) {

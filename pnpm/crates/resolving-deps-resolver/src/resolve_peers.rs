@@ -7,17 +7,17 @@
 //! Produces a [`DependenciesGraph`] keyed by depPath plus the
 //! `direct → DepPath` map the install layer consumes.
 //!
-//! Beyond the correctness surface — peer matching, depPath construction
+//! Beyond the correctness surface, peer matching, depPath construction
 //! with per-occurrence variation, missing / bad peer issue collection,
-//! transitive-peer propagation, and the basic cycle break — the walk
+//! transitive-peer propagation, and the basic cycle break, the walk
 //! carries two performance caches:
 //!
-//! - **`peersCache`** — caches resolved peer combinations keyed by
+//! - **`peersCache`**, caches resolved peer combinations keyed by
 //!   `pkgIdWithPatchHash` so a repeat visit short-circuits the walk
 //!   when the current parent peer context matches one the cache has
 //!   already seen. Stored on [`crate::resolve_peers::discovery::PeerDiscoveryCaches::peers_cache`] and matched via
 //!   [`Walker::find_hit`] + [`Walker::provider_identity_match`].
-//! - **`purePkgs` fast path** — a pure package (no resolved / missing
+//! - **`purePkgs` fast path**, a pure package (no resolved / missing
 //!   peers across its entire subtree) gets its `depPath` equal to its
 //!   `pkgIdWithPatchHash` without recursing. Stored on
 //!   [`crate::resolve_peers::discovery::PeerDiscoveryCaches::pure_pkgs`] and consulted at the top of
@@ -95,7 +95,7 @@ pub struct PeerResolutionScope {
     /// whose root package's shared children context is owned by a
     /// *different* importer are not emitted. The peer-hoist loop sets
     /// this so a non-owner package occurrence keeps the missing-peer
-    /// report computed under the owner occurrence's alias chain —
+    /// report computed under the owner occurrence's alias chain,
     /// only the package's *own* peers are re-evaluated per occurrence.
     /// The final workspace-wide pass leaves this `None` so warnings
     /// still cover every importer. Held by `Arc`: the maps inside are
@@ -197,7 +197,7 @@ pub struct HoistMissingScope {
     /// children-owner context, from
     /// the workspace's recorded first-walk misses. A
     /// missing peer inside a foreign-claimed subtree is suppressed
-    /// only when the owner's walk did *not* report it missing —
+    /// only when the owner's walk did *not* report it missing,
     /// i.e. that context satisfied it, so the shared children report
     /// filtered it out at walk time. Misses the owner walk could not
     /// satisfy stay visible to every importer (and each hoists its
@@ -230,7 +230,7 @@ impl HoistMissingScope {
     }
 
     /// Whether another importer's shared walk of `pkg_id` already
-    /// reported on `peer_name` — and found it satisfied.
+    /// reported on `peer_name`, and found it satisfied.
     fn covers(&self, pkg_id: &str, peer_name: &str) -> bool {
         self.first_importer_by_pkg
             .get(pkg_id)
@@ -259,7 +259,7 @@ pub struct ResolvePeersResult {
     /// can tell which descendant misses the owner resolver's context
     /// already satisfied. See [`HoistMissingScope`].
     pub missing_names_by_pkg: HashMap<String, HashSet<String>>,
-    /// Final `DepPath` of every walked node — the upstream
+    /// Final `DepPath` of every walked node, the upstream
     /// `pathsByNodeId`. Feed it back through
     /// [`crate::PeerResolutionScope::resolved_peer_provider_paths`] to run a
     /// locked-peer-provider reuse pass.
@@ -267,7 +267,7 @@ pub struct ResolvePeersResult {
 }
 
 /// One importer's input to the multi-importer [`fn@resolve_peers_workspace`]
-/// — the lockfile importer id, the importer's `directNodeIdsByAlias`
+///the lockfile importer id, the importer's `directNodeIdsByAlias`
 /// slice, the absolute project root, and the per-importer
 /// `modules_dir` used by the `excludeLinksFromLockfile` link-remap.
 #[derive(Debug, Clone)]
@@ -291,14 +291,14 @@ pub struct ImporterPeerInput {
     pub rejected_optional_peers: HashSet<String>,
 }
 
-/// Output of [`fn@resolve_peers_workspace`] — the cross-importer
+/// Output of [`fn@resolve_peers_workspace`], the cross-importer
 /// dedupe map plus per-importer `direct_dependencies_by_alias` slices.
 #[derive(Debug, Default)]
 pub struct WorkspaceResolvePeersResult {
     pub graph: DependenciesGraph,
     pub direct_dependencies_by_importer: BTreeMap<String, BTreeMap<String, DepPath>>,
     pub peer_dependency_issues_by_importer: BTreeMap<String, PeerDependencyIssues>,
-    /// Final `DepPath` of every walked node — the upstream
+    /// Final `DepPath` of every walked node, the upstream
     /// `pathsByNodeId`. See [`ResolvePeersResult::paths_by_node_id`].
     pub paths_by_node_id: HashMap<NodeId, DepPath>,
 }
@@ -306,7 +306,7 @@ pub struct WorkspaceResolvePeersResult {
 /// Resolve peer dependencies for `tree` and emit a depPath-keyed graph.
 ///
 /// Takes `tree` by `&mut` because lazy [`crate::TreeChildren`] entries are
-/// realised in-place during the walk — every revisit's `(alias →
+/// realised in-place during the walk, every revisit's `(alias →
 /// NodeId)` children map is allocated on first descent and the
 /// parent's `TreeChildren::Lazy` flips to `Realized` so a second
 /// visitor reuses the map without redoing the work. Pure subtrees

@@ -20,7 +20,7 @@ fn rejects_unrelated_runtimes_and_partials() {
     // `node@runtime:` with nothing after the colon doesn't
     // masquerade as a runtime entry.
     assert!(!is_runtime_dep_path("node@runtime:"));
-    // Anchored at the start of the string — a name that happens
+    // Anchored at the start of the string, a name that happens
     // to contain `node@runtime:` as a substring is not a match.
     assert!(!is_runtime_dep_path("@scope/node@runtime:1.0.0"));
 }

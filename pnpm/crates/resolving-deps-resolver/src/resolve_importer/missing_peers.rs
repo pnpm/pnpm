@@ -185,7 +185,7 @@ pub(super) fn distinct_wanted_ranges(entries: &[MissingPeer]) -> Vec<String> {
 /// the upstream `mergePkgsDeps` policy: a single (or single unique)
 /// range passes through unchanged, distinct compatible ranges reduce to
 /// their semver intersection, and an empty intersection falls back to a
-/// `||`-join under `auto_install_peers_from_highest_match` — or `None`,
+/// `||`-join under `auto_install_peers_from_highest_match`, or `None`,
 /// dropping the peer on an unresolvable conflict.
 ///
 /// Only the unique ranges reach [`intersect_ranges`]: folding a range in

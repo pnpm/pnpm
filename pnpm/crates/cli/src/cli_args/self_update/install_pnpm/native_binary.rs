@@ -28,7 +28,7 @@ pub(in super::super) fn exe_platform_pkg_dir_name(
 }
 
 /// Scope-local directory name of the platform package under the
-/// `exe.<platform>-<arch>[-musl]` scheme — the convention pnpm v12 ships
+/// `exe.<platform>-<arch>[-musl]` scheme, the convention pnpm v12 ships
 /// its native binaries under.
 pub(in super::super) fn exe_platform_pkg_dir_name_next(
     platform: &str,
@@ -171,8 +171,8 @@ fn native_source_trust_root(install_real_dir: &Path, wrapper_pkg_name: &str) -> 
 }
 
 // Recognizes a slot by re-deriving its `links`-relative path with
-// [`format_global_virtual_store_path`] — the same formatter that laid the
-// slot out — so this walk can't drift from the layout (e.g. the `@`
+// [`format_global_virtual_store_path`], the same formatter that laid the
+// slot out, so this walk can't drift from the layout (e.g. the `@`
 // placeholder scope segment unscoped packages sit under).
 fn global_virtual_store_root_from_slot(slot_dir: &Path, package_name: &str) -> Option<PathBuf> {
     let hash = slot_dir.file_name()?.to_str()?;

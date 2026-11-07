@@ -266,7 +266,7 @@ fn changelog_intents(
 }
 
 /// A published `package@version` identifies exactly one artifact, so two
-/// projects that share a name cannot both release the same version — the
+/// projects that share a name cannot both release the same version, the
 /// registry would reject the second publish, and the name-keyed ledger entry
 /// would collide. Caught here, before any manifest is written, naming both
 /// directories.

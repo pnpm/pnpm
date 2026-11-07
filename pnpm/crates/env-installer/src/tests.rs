@@ -206,7 +206,7 @@ struct FixtureResolver {
     /// does for a release the registry does not publish.
     unpublished: std::collections::HashSet<String>,
     /// Resolve to tarball resolutions whose URL is not derivable from the
-    /// registry — the shape a load-balanced proxy or Artifactory-style
+    /// registry, the shape a load-balanced proxy or Artifactory-style
     /// mirror produces.
     non_derivable_tarball_urls: bool,
 }

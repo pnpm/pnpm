@@ -29,11 +29,11 @@ pub fn local_file_tarball_install_url<'a>(
 /// [`InstallPackageBySnapshot::run`](crate::InstallPackageBySnapshot::run) reads top-down: each variant builds
 /// its own `cas_paths`. Public because the pnpr server derives the same
 /// URLs when it announces a verified frozen lockfile's tarballs to the
-/// client — both sides must derive byte-identical URLs so the client's
+/// client, both sides must derive byte-identical URLs so the client's
 /// prefetch mem-cache keys line up.
 ///
 /// The integrity is `None` only for the shapes
-/// [`unverified_fetch_is_allowed`] exempts — every other resolution whose
+/// [`unverified_fetch_is_allowed`] exempts, every other resolution whose
 /// recorded integrity pins nothing (absent, or the empty SRI string an
 /// edited lockfile can carry) is refused here rather than fetched
 /// unchecked. See
@@ -42,7 +42,7 @@ pub fn local_file_tarball_install_url<'a>(
 ///
 /// # Panics
 ///
-/// On directory / git / binary / variations resolutions — callers gate
+/// On directory / git / binary / variations resolutions, callers gate
 /// on the tarball/registry shapes first.
 pub fn tarball_url_and_integrity<'a>(
     resolution: &'a LockfileResolution,
@@ -201,7 +201,7 @@ pub(super) fn invalid_tarball_revision(
 /// be fetched.
 ///
 /// pnpm exempts the two shapes it never recorded a hash for, keyed off
-/// the URL the way `classifyResolution` does — a lockfile's own
+/// the URL the way `classifyResolution` does, a lockfile's own
 /// `gitHosted` marker is only a hint:
 ///
 /// - a git-host archive URL, which pins a full commit SHA (older pnpm

@@ -58,7 +58,7 @@ pub(super) struct PickedRange {
 }
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the
 /// manifest range pnpm would record: the spec resolved to a concrete
-/// version (through the *same* resolver path the follow-up install uses —
+/// version (through the *same* resolver path the follow-up install uses,
 /// `resolutionMode` and `minimumReleaseAge` included), carrying the operator
 /// the existing entry pins, then the spec's, then the configured default. So
 /// `pnpm add foo@^7` records `^7.8.4`, not `^7`.
@@ -67,7 +67,7 @@ pub(super) struct PickedRange {
 /// saved as `^3.9.4` while `3.9.10` exists), so the install has to be seeded
 /// with [`PickedRange::version`] to lock it.
 ///
-/// Returns `Ok(None)` — write the specifier verbatim — for anything that is
+/// Returns `Ok(None)`, write the specifier verbatim, for anything that is
 /// not a plain registry range/tag/version for `package_name` itself:
 /// non-registry protocols (`git:`/`file:`/`workspace:`/URLs, which
 /// [`parse_bare_specifier`] rejects), `npm:` aliases (resolving them risks

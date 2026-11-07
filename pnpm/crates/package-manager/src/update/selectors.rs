@@ -46,11 +46,9 @@ pub(super) fn reject_versioned_latest_selectors(
     }
     Err(UpdateError::LatestWithSpec(with_spec.join(", ")))
 }
-/// The selectors an update selector stands for. An `npm:` selector
-/// contributes a second one for the aliased package, because that -- not
-/// the alias -- is the name the resolver resolves the edge under; it
-/// carries the aliased spec's own version so the expansion scopes the same
-/// version line the user asked for.
+/// An `npm:` selector expands to a second target for the aliased package.
+/// The resolver matches the package name, not the alias. The expansion
+/// carries the aliased spec's version so it targets the same version line.
 pub(super) fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<ParsedSelector> {
     let mut expanded = Vec::with_capacity(selectors.len());
     for selector in selectors {
@@ -77,8 +75,8 @@ pub(super) fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<Parse
 /// Record `name` as an update target once per selector that claims it: a
 /// selector pinning an exact version scopes the target to that version's
 /// line, while a bare or ranged one widens it to every version. Negated
-/// selectors exclude names, never versions, so they claim nothing here --
-/// the matcher that found `name` has already applied them.
+/// selectors exclude names, never versions, so they claim nothing here. The matcher that found `name` has already
+/// applied them.
 pub(super) fn insert_update_target(
     targets: &mut UpdateTargets,
     selectors: &[ParsedSelector],
@@ -117,7 +115,7 @@ pub(super) fn selector_matches_a_direct_dependency(
 }
 /// `pacquet update <dep>@<version>` where `<dep>` matches no direct dependency
 /// has nowhere to record the version. An update resolves such a target the way
-/// a fresh install would -- which a command-line version cannot influence -- so
+/// a fresh install would. A command-line version cannot influence that choice, so
 /// honoring the request would mean writing a lockfile entry no manifest backs,
 /// and the next fresh resolve would undo it. Neither npm nor Yarn accepts a
 /// version here either. Fail rather than resolve to something else and leave
@@ -194,8 +192,8 @@ pub(super) fn indirect_version_error(pinned: &[(String, String)]) -> UpdateError
     }
 }
 /// The name an update target for `matched` is keyed by. A manifest keys a
-/// dependency by its alias, but the resolver matches update targets — and
-/// [`UpdateSeedPolicy::DropOnly`](crate::UpdateSeedPolicy::DropOnly) keys them — by the package name the edge
+/// dependency by its alias, but the resolver matches update targets, and
+/// [`UpdateSeedPolicy::DropOnly`](crate::UpdateSeedPolicy::DropOnly) keys them, by the package name the edge
 /// resolves under, which an `npm:` or `jsr:` selector states separately from
 /// the alias. Falls back to the alias, which is the name for every other
 /// selector shape.

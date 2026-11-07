@@ -222,7 +222,7 @@ fn slow_fetch_warning_flags_parse() {
 
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
 /// canonical `pnpm_config::NodeLinker` enum. Tied to the
-/// `ValueEnum` derive's kebab-case rename — if a future variant
+/// `ValueEnum` derive's kebab-case rename, if a future variant
 /// is added, this test starts failing at compile time as a
 /// reminder to update the mapping.
 #[test]

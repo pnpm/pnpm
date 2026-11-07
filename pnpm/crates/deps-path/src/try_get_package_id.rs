@@ -5,18 +5,18 @@ use crate::suffix_index::index_of_dep_path_suffix;
 /// The function combines two transforms:
 ///
 /// 1. Strip the peer-graph suffix and the `(patch_hash=…)` segment via
-///    [`index_of_dep_path_suffix`] — same balanced-paren scan
+///    [`index_of_dep_path_suffix`], same balanced-paren scan
 ///    [`crate::remove_suffix`] uses.
 /// 2. When the trimmed result contains a `:`, drop the leading
 ///    `<name>@` prefix so the returned id is the bare resolution id
 ///    (a tarball URL, a git URL, ...). Pnpm keeps the prefix for
-///    `tool:` / `runtime:` entries — those carry their name in the
+///    `tool:` / `runtime:` entries, those carry their name in the
 ///    pkgId by design.
 ///
 /// The result is a borrowed slice of `dep_path` when the second
 /// transform doesn't run, or an owned [`String`] when it does. A
-/// borrowed result is always a *prefix* of `dep_path` — the whole of it,
-/// or everything ahead of the suffix — so a caller holding an owned
+/// borrowed result is always a *prefix* of `dep_path`, the whole of it,
+/// or everything ahead of the suffix, so a caller holding an owned
 /// input can truncate it in place instead of re-allocating. Callers that
 /// always need ownership can `.to_string()`.
 #[must_use]

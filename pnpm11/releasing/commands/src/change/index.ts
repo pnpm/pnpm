@@ -170,7 +170,7 @@ function assertReleasableRefs ({ params, releasable, workspaceDir, allProjects }
  * packages" heading) and preselected, the rest listed below under "unchanged
  * packages". A name shared by several projects is offered under its directory
  * reference so the written intent stays unambiguous. Change detection is
- * best-effort — outside a git repo, or when no base branch can be found, the
+ * best-effort, outside a git repo, or when no base branch can be found, the
  * list falls back to a flat, unselected picker.
  */
 async function promptForPackages (

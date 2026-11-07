@@ -4,14 +4,14 @@ use std::sync::Arc;
 /// A single token in an access list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccessToken {
-    /// `$all` — anyone, authenticated or not.
+    /// `$all`, anyone, authenticated or not.
     All,
-    /// `$authenticated` — any caller carrying valid Bearer or Basic
+    /// `$authenticated`, any caller carrying valid Bearer or Basic
     /// credentials.
     Authenticated,
-    /// `$anonymous` — only callers *without* valid credentials.
+    /// `$anonymous`, only callers *without* valid credentials.
     Anonymous,
-    /// `$owners` — package owners / maintainers.
+    /// `$owners`, package owners / maintainers.
     Owners,
     /// An immutable account ID. Teams use the explicit `team:` form.
     User(String),

@@ -51,7 +51,7 @@ const PREPUBLISH_SCRIPTS: &[&str] =
 /// Manifest keys hoisted from `publishConfig` onto the manifest root.
 ///
 /// `name` lets a package be published under a name it cannot carry in the
-/// workspace — typically because a sibling project already owns that name.
+/// workspace, typically because a sibling project already owns that name.
 /// Nothing else in the workspace observes the rename: dependents,
 /// `pnpm-lock.yaml`, and the changeset ledger all keep addressing the project
 /// by its manifest name.
@@ -84,7 +84,7 @@ pub struct CreateExportableManifestOptions<'a> {
     /// Directory holding `pnpm-workspace.yaml`, which a `file:` /
     /// `link:` catalog entry's relative path is measured from. `None`
     /// leaves such an entry as the catalog writes it, for a caller with
-    /// no workspace — and so no catalogs — of its own.
+    /// no workspace, and so no catalogs, of its own.
     pub workspace_dir: Option<&'a Path>,
     /// Where workspace dependencies are installed. Defaults to
     /// `<dir>/node_modules` when `None`.
@@ -346,7 +346,7 @@ fn override_publish_config(publish: &mut Map<String, Value>) {
 }
 
 /// Read a root README accepted by npm for embedding. Only a regular
-/// file is embedded — a symlink is skipped so it can't leak the
+/// file is embedded, a symlink is skipped so it can't leak the
 /// contents of a target outside the project.
 pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
     let mut selected: Option<(ReadmeKind, String, PathBuf)> = None;

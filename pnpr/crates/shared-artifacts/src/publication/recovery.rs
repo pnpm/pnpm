@@ -45,7 +45,7 @@ impl SharedArtifactStore {
     /// have lost while it was running.
     ///
     /// Being written off lets reclamation run beside it, and reclamation
-    /// collects what nothing references — which, before this publication stored
+    /// collects what nothing references, which, before this publication stored
     /// its envelope, includes the blobs it had uploaded. An envelope naming
     /// files that are not there is worse than no artifact, so they are read back
     /// before the scopes are, and the artifact is taken out if any is gone.
@@ -53,7 +53,7 @@ impl SharedArtifactStore {
     /// A scope may have gone to an artifact published while this one was
     /// written off, and that artifact holds it. This one then has no claim on a
     /// machine it reaches, so it takes its own artifact back out rather than
-    /// leaving two that reach it — the variant is named for constraints only an
+    /// leaving two that reach it, the variant is named for constraints only an
     /// identical artifact shares, so removing it removes nothing else's.
     pub(in super::super) async fn recover_after_expiry(
         &self,

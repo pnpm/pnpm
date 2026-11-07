@@ -153,7 +153,7 @@ async function removeDirsOutsidePlan (
  *
  * Deleting is reserved for what the previous install recorded placing. Anything
  * else may hold work someone did by hand, so it is displaced rather than
- * destroyed — the treatment `safeIsInnerLink` already gives a package directory
+ * destroyed, the treatment `safeIsInnerLink` already gives a package directory
  * that pnpm did not put there. Getting it out of `node_modules` is what makes
  * the tree correct; the bytes are incidental.
  */

@@ -236,7 +236,7 @@ test('no command', async () => {
   expect(cmd).toBeNull()
 })
 
-// Regression for pnpm/pnpm#11487 — --pm-on-fail must reach the consumer even when
+// Regression for pnpm/pnpm#11487, --pm-on-fail must reach the consumer even when
 // short-circuited by --help, otherwise users can't bypass the
 // packageManager check just to read help text for a stale-pinned project.
 test('universal options typed in the exploratory parse survive the --help short-circuit', async () => {
@@ -537,7 +537,7 @@ test('version bootstrap options parse space-separated string values on the --ver
 })
 
 // When both the alias and the canonical option are supplied, the canonical
-// value must win and the alias must be dropped — otherwise --prefix could
+// value must win and the alias must be dropped, otherwise --prefix could
 // silently overwrite an explicit --dir.
 test('canonical option wins when both --prefix and --dir are passed', async () => {
   const { options } = await parseCliArgs({

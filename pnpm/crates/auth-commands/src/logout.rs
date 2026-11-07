@@ -45,8 +45,8 @@ pub trait FsWrite {
 }
 
 /// Send the `DELETE -/user/token/<token>` request that revokes a token
-/// on the registry. The outcome the caller acts on — accepted, rejected
-/// with a status, or unreachable — is the whole contract; how the
+/// on the registry. The outcome the caller acts on, accepted, rejected
+/// with a status, or unreachable, is the whole contract; how the
 /// request is retried and parsed is the provider's concern.
 pub trait RevokeToken {
     fn revoke(
@@ -286,7 +286,7 @@ fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: Stri
     Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
 }
 
-/// The token-free prefix of a `…/-/user/token/<token>` revoke URL — the
+/// The token-free prefix of a `…/-/user/token/<token>` revoke URL, the
 /// URL with its final, token-bearing path segment dropped. Handed to
 /// `send_with_retry` for routing and logging so the token never reaches the
 /// retry logs; the request itself still targets the full revoke URL. The

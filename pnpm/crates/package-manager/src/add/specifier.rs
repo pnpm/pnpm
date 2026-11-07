@@ -144,7 +144,7 @@ fn resolve_catalog_and_warnings(
 /// `^<latest>`. The scan order matches pnpm's `findSpec` /
 /// `guessDependencyType` (`DEPENDENCIES_OR_PEER_FIELDS`):
 /// `optionalDependencies`, `dependencies`, `devDependencies`,
-/// `peerDependencies` — the first-found specifier wins even when the
+/// `peerDependencies`, the first-found specifier wins even when the
 /// add targets a different group ([`PackageManifest::add_dependency`]
 /// then removes the entry from its old group).
 pub(super) fn declared_specifier(manifest: &PackageManifest, package_name: &str) -> Option<String> {
@@ -161,8 +161,8 @@ pub(super) fn declared_specifier(manifest: &PackageManifest, package_name: &str)
 /// The bare specifier to reconcile against the catalogs:
 /// - an explicit `@<version>` is resolved to a concrete version and
 ///   recorded with the range operator it (or the existing entry)
-///   pins — `pnpm add foo@^7` records `^7.8.4`, not
-///   `^7`. An `npm:` alias records its target the same way —
+///   pins, `pnpm add foo@^7` records `^7.8.4`, not
+///   `^7`. An `npm:` alias records its target the same way,
 ///   `pnpm add v2@npm:foo@1` records `npm:foo@^1.0.0`. Other protocols
 ///   stay verbatim;
 /// - an explicit `node@runtime:<spec>` is likewise pinned to the
@@ -172,13 +172,13 @@ pub(super) fn declared_specifier(manifest: &PackageManifest, package_name: &str)
 /// - an explicit `deno` / `bun` `tool:` or `runtime:` request is saved as
 ///   `runtime:`, the spelling its folded declaration reads back as;
 /// - a `jsr:` selector is pinned the same way and rendered back under
-///   its protocol — `pnpm add jsr:@scope/pkg` records `jsr:^1.2.3`;
+///   its protocol, `pnpm add jsr:@scope/pkg` records `jsr:^1.2.3`;
 /// - a re-add with no version keeps the dependency's current
 ///   specifier verbatim (a `catalog:` reference, a range, or an
-///   exact pin) — `pnpm add <existing>` without a
+///   exact pin), `pnpm add <existing>` without a
 ///   version leaves the declared range untouched;
 /// - a brand-new dependency the catalog already lists takes the
-///   `catalog:` reference — naming no version asks for whatever the
+///   `catalog:` reference, naming no version asks for whatever the
 ///   workspace agreed on, which is the entry, not the `latest` range
 ///   it happens to resolve to today;
 /// - any other brand-new dependency takes the range the workspace
@@ -381,8 +381,8 @@ pub(super) fn split_name_spec(input: &str) -> (&str, Option<&str>) {
     }
 }
 /// The specifier `pacquet add <name>@<spec>` saves when `<spec>` isn't a plain
-/// registry range. A hosted-git request — a bare `owner/repo#committish`
-/// shorthand or a GitHub / GitLab / Bitbucket URL — is rewritten to its
+/// registry range. A hosted-git request, a bare `owner/repo#committish`
+/// shorthand or a GitHub / GitLab / Bitbucket URL, is rewritten to its
 /// `github:` / `gitlab:` / `bitbucket:` shortcut form. Everything else
 /// (`file:`, `link:`, `workspace:`, `npm:` aliases, tarball URLs) is
 /// kept verbatim.

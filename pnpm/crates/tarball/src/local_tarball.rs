@@ -197,7 +197,7 @@ pub async fn read_cas_package_json(
 /// [`pnpm_store_dir::PackageFilesIndex`], so a package living in a subdirectory of the
 /// archive has to be read back from the CAS. Returns `None` when the
 /// subdirectory has no `package.json`, matching the root path's
-/// best-effort contract — the caller degrades rather than failing the
+/// best-effort contract, the caller degrades rather than failing the
 /// resolve.
 pub async fn read_subdir_manifest(
     cas_paths: &pnpm_fs::CasPaths,
@@ -218,7 +218,7 @@ pub struct LocalTarballMetadata {
     /// The hash the requested [`IntegrityKind`](crate::IntegrityKind) names:
     /// the file's, or that of the tar the file holds.
     pub integrity: Integrity,
-    /// `None` when the narrowing kept nothing — the archive has no root
+    /// `None` when the narrowing kept nothing, the archive has no root
     /// `package.json`, or one that is not a JSON object, or one whose
     /// every field was dropped.
     pub manifest: Option<serde_json::Value>,
@@ -237,7 +237,7 @@ pub struct LocalTarballMetadata {
 /// *resolution*.
 ///
 /// A `file:` tarball dependency carries no name, version, or integrity
-/// in its specifier — those live in the archive's own `package.json` —
+/// in its specifier, those live in the archive's own `package.json`,
 /// and pacquet builds the lockfile before the install pass runs, so the
 /// local resolver has to read them here.
 ///
@@ -251,7 +251,7 @@ pub async fn read_local_tarball_metadata(
     kind: crate::IntegrityKind,
 ) -> Result<LocalTarballMetadata, TarballError> {
     let package_url = format!("file:{}", path.display());
-    // pnpm names the plain filesystem path — not the `file:` URL — when
+    // pnpm names the plain filesystem path, not the `file:` URL, when
     // it reports a bad tarball, so the manifest error quotes the same.
     let tarball_path = path.display().to_string();
     let (file, size) = open_local_tarball(path).await?;

@@ -26,7 +26,7 @@ pub(super) fn link_global_bins(
 ) -> miette::Result<()> {
     // A package manager installed globally opts into project-aware
     // dispatch, so it defers to whatever version a project pins and stays
-    // the fallback for projects that pin nothing — the arrangement a
+    // the fallback for projects that pin nothing, the arrangement a
     // globally installed runtime already has. The entry is recorded before
     // the split below, so the bins this very run writes are the
     // dispatching flavor.

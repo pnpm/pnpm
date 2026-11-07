@@ -259,8 +259,8 @@ function lockfile (): LockfileObject {
 }
 
 /**
- * The importer depends on `foo@1.1.0` directly, while `baz` — reached through
- * `qux` — resolves `foo` as a peer at the version `qux` provides, `2.0.0`.
+ * The importer depends on `foo@1.1.0` directly, while `baz`, reached through
+ * `qux`, resolves `foo` as a peer at the version `qux` provides, `2.0.0`.
  */
 function lockfileWithPeerOnEachVersionOfFoo (): LockfileObject {
   return {

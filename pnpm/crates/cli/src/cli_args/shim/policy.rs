@@ -2,8 +2,8 @@
 //! never do.
 //!
 //! The record in the global `config.yaml` is one of the layers the
-//! dispatcher reads — the pnpm home's `pnpm-workspace.yaml` and the
-//! environment both outrank it — so a command that edits it has to ask
+//! dispatcher reads, the pnpm home's `pnpm-workspace.yaml` and the
+//! environment both outrank it, so a command that edits it has to ask
 //! what the *resolved* setting would be, not what its own file says. Two
 //! rules follow, and both are about not deciding something the user
 //! didn't:
@@ -80,7 +80,7 @@ pub(super) fn set_policy(
 ///
 /// A globally installed package manager should defer to the version a
 /// project pins, the way a globally installed runtime already defers to
-/// `devEngines.runtime` — the global install stays the fallback for
+/// `devEngines.runtime`, the global install stays the fallback for
 /// projects that pin nothing. Only a package the user has not decided
 /// about is recorded: an entry of its own, or a `globalShims: false` that
 /// turns every shim off, is a decision and stands.
@@ -138,7 +138,7 @@ pub(super) fn would_dispatch(config: &Config, package: &str) -> miette::Result<b
     Ok(shims.policy(package) != ShimPolicy::Off)
 }
 
-/// Whether `package` would dispatch with nothing recorded for it — the
+/// Whether `package` would dispatch with nothing recorded for it, the
 /// built-in defaults are the managed runtimes.
 pub(super) fn dispatches_by_default(package: &str) -> bool {
     GlobalShims::default().policy(package) != ShimPolicy::Off

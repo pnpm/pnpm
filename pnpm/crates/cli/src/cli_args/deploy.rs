@@ -273,7 +273,7 @@ impl DeployArgs {
     ) -> miette::Result<SharedDeployOutcome> {
         let deploy_dir = &real_deploy_dir(deploy_dir)?;
         // The shared lockfile, and the importer ids naming the projects in
-        // it, belong to the lockfile dir — which `lockfileDir` can move
+        // it, belong to the lockfile dir, which `lockfileDir` can move
         // away from the workspace this deploy selected its project from.
         let lockfile_dir = config.lockfile_dir_for(workspace_dir);
         let lockfile = match load_deploy_lockfile(workspace_dir, lockfile_dir)? {

@@ -1,6 +1,6 @@
 //! String manipulation over depPaths (`name@version(peer1@v)(peer2@v)`).
 //! Pacquet already carries typed parsers for the simple shapes
-//! (`pnpm_lockfile::PkgNameVerPeer` et al. — referenced as plain
+//! (`pnpm_lockfile::PkgNameVerPeer` et al., referenced as plain
 //! text because this crate deliberately doesn't depend on
 //! `pnpm-lockfile`), but the peer-resolution stage needs a handful
 //! of pure string helpers that operate on the pre-typed surface: build

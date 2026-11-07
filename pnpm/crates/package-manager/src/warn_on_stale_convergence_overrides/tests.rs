@@ -93,7 +93,7 @@ async fn silent_when_no_candidate_is_newer_than_the_override_value() {
 #[tokio::test]
 async fn unresolved_range_stays_in_the_satisfies_check() {
     let overrides = converge_override("foo", "4.0.6");
-    // `4.0.6` (an exact declared range) fails to resolve — it yields no
+    // `4.0.6` (an exact declared range) fails to resolve, it yields no
     // candidate, but the `^4.0.5` candidate must still satisfy it.
     let declared = ranges("foo", &["^4.0.5", "4.0.6"]);
     let stale =

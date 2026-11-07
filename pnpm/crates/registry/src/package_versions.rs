@@ -5,9 +5,9 @@
 //! and `serde_json::Value` trees behind each version are built, hashed,
 //! and dropped even though a pick consults only the version *strings*
 //! plus the handful of manifests it actually considers. Each version
-//! therefore stays as an unhydrated fragment — the raw JSON serde
+//! therefore stays as an unhydrated fragment, the raw JSON serde
 //! captured ([`Arc<RawValue>`], shared rather than copied) or a byte
-//! span read on demand from the held-open mirror file — until someone
+//! span read on demand from the held-open mirror file, until someone
 //! asks for the typed form, and the hydrated manifest is cached per
 //! slot so repeated lookups parse once.
 //!
@@ -20,7 +20,7 @@
 //! fragments verbatim, so such bytes mean the local file is damaged
 //! rather than that the version is missing. Those are recorded in
 //! [`PackageVersions::corrupt_mirror_fragment_found`], which the resolver
-//! reads to treat the whole mirror as unreadable — silently resolving a
+//! reads to treat the whole mirror as unreadable, silently resolving a
 //! different version off damaged local data would be worse than the
 //! refetch, and the etag lives in the intact headers record, so nothing
 //! else would ever repair the file.
@@ -45,7 +45,7 @@ use crate::package_version::{
 };
 
 /// Single-field view of a version manifest for
-/// [`PackageVersions::is_deprecated`] — same normalization as
+/// [`PackageVersions::is_deprecated`], same normalization as
 /// [`PackageVersion::deprecated`], every other field skipped.
 #[derive(Deserialize)]
 struct DeprecatedProbe {
@@ -81,7 +81,7 @@ enum FragmentSource {
     /// of a packument body captures these).
     Raw(Arc<RawValue>),
     /// Byte span inside an indexed on-disk metadata mirror, read on
-    /// demand from the *held-open* file — reading per hydration
+    /// demand from the *held-open* file, reading per hydration
     /// instead of retaining the mirror body keeps a workspace-scale
     /// packument cache out of resident memory. See
     /// [`PackageVersions::from_file_spans`] for the inode-pinning
@@ -91,7 +91,7 @@ enum FragmentSource {
     /// file could not be held open (see
     /// [`PackageVersions::from_buffered_mirror_fragments`]).
     BufferedMirror(Arc<RawValue>),
-    /// No fragment — the slot was constructed from an already-typed
+    /// No fragment, the slot was constructed from an already-typed
     /// manifest (tests, the publish-date filter's slot moves).
     None,
 }
@@ -308,7 +308,7 @@ impl PackageVersions {
     ///
     /// [`Self::get`] answers "absent" for both a version the packument
     /// never listed and one whose manifest pnpm couldn't parse. The two
-    /// need different reporting — the second is a registry serving a
+    /// need different reporting, the second is a registry serving a
     /// field in a shape pnpm doesn't model, and the caller can only say
     /// so if it can recover the parse error. Re-parses the fragment, so
     /// this belongs on error paths only.
@@ -328,7 +328,7 @@ impl PackageVersions {
     /// The pick paths consult deprecation for *many* candidate
     /// versions per packument (dist-tag repopulation, the
     /// deprecated-pick fallback); hydrating each candidate parses its
-    /// whole manifest — including the flattened catch-all map — and
+    /// whole manifest, including the flattened catch-all map, and
     /// dominated warm-resolve CPU.
     #[must_use]
     pub fn is_deprecated(&self, version: &str) -> bool {
@@ -397,7 +397,7 @@ impl PackageVersions {
     }
 
     /// Filtered copy keeping only the versions `keep` accepts. Slots
-    /// move as fragments — nothing hydrates. Used by the
+    /// move as fragments, nothing hydrates. Used by the
     /// publish-date filter, which decides on the packument's `time`
     /// map rather than the manifests.
     #[must_use]
@@ -473,7 +473,7 @@ impl Serialize for PackageVersions {
         use serde::ser::SerializeMap;
         let mut map = serializer.serialize_map(Some(self.slots.len()))?;
         for (version, slot) in &self.slots {
-            // Fragments round-trip verbatim — re-serializing a hydrated
+            // Fragments round-trip verbatim, re-serializing a hydrated
             // manifest would reorder keys; the wire bytes are canonical.
             // File-span fragments read their span here (rare: only a
             // file-loaded packument being re-serialized).

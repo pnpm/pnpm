@@ -5,14 +5,14 @@ use crate::{PkgNameVerPeer, Prefix, VersionPart};
 /// setting. Modeled as an [`Option`] everywhere it is threaded, because
 /// "behaves like the npm registry" is a claim only the operator can make:
 ///
-/// - [`None`] — strict. Only the exact canonical URL is reconstructible. This
+/// - [`None`], strict. Only the exact canonical URL is reconstructible. This
 ///   is how every registry but registry.npmjs.org is read by default.
-/// - [`RegistryServerType::Npm`] — behaves like registry.npmjs.org, which
+/// - [`RegistryServerType::Npm`], behaves like registry.npmjs.org, which
 ///   serves a scoped package from the percent-encoded path as well as the
 ///   unencoded one. A faithful mirror or caching proxy of it is this.
-/// - [`RegistryServerType::Artifactory`] — repeats the scope in a scoped
+/// - [`RegistryServerType::Artifactory`], repeats the scope in a scoped
 ///   package's tarball filename.
-/// - [`RegistryServerType::Pnpr`] — serves a version's tarball at the package
+/// - [`RegistryServerType::Pnpr`], serves a version's tarball at the package
 ///   identifier under the registry, `<registry>/<name>@<version>`. The body may
 ///   be a `.tgz` or a tar; the fetcher tells them apart by content.
 ///
@@ -54,7 +54,7 @@ const DEFAULT_REGISTRY_SERVER_TYPES: &[(&str, RegistryServerType)] =
 
 /// The layout the user declared for `registry`, or [`None`] for none.
 ///
-/// Built-in layouts are deliberately not applied here — they belong with the
+/// Built-in layouts are deliberately not applied here, they belong with the
 /// predicate that acts on them, so that a code path which never threads
 /// `registryOptions` still gets them.
 ///
@@ -124,8 +124,8 @@ fn effective_server_type(opts: TarballUrlOptions<'_>) -> Option<RegistryServerTy
 /// and the declared per-registry settings.
 ///
 /// Threaded as one value rather than as three parameters so a consumer cannot
-/// be handed the routing without the settings — dropping the settings is
-/// silent, the tarball URL is rebuilt in the wrong layout — and so a
+/// be handed the routing without the settings, dropping the settings is
+/// silent, the tarball URL is rebuilt in the wrong layout, and so a
 /// new per-registry setting reaches every consumer by being added here.
 ///
 /// The counterpart of the TypeScript CLI's [`RegistryContext`].
@@ -454,7 +454,7 @@ pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -
 }
 
 /// Whether `tarball` is the URL [`npm_tarball_url`] rebuilds for `name` and
-/// `version` — i.e. it can be dropped from the lockfile and rebuilt on demand.
+/// `version`, i.e. it can be dropped from the lockfile and rebuilt on demand.
 pub(super) fn is_canonical_registry_tarball_url(
     tarball: &str,
     name: &str,

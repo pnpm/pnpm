@@ -74,7 +74,7 @@ pub(crate) async fn resolve_finders(
 
 /// Every `(alias, node)` pair a finder must be evaluated for: the
 /// canonical name of every resolved package node, plus each edge's
-/// alias — including edges to workspace projects and unresolvable
+/// alias, including edges to workspace projects and unresolvable
 /// link edges, which the search also visits.
 pub(crate) fn finder_candidates(
     env: &PkgInfoEnv<'_>,

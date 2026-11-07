@@ -395,14 +395,14 @@ async fn update_config_hook_cannot_read_or_change_the_symlinked_lockfile_dirs() 
 const ACCEPT_FULL: &str = "application/json; q=1.0, */*";
 
 /// `Accept` header the resolver sends for abbreviated metadata
-/// (`ACCEPT_ABBREVIATED_DOC`) — what the probe would use if it did *not*
+/// (`ACCEPT_ABBREVIATED_DOC`), what the probe would use if it did *not*
 /// derive full metadata from the trust policy.
 const ACCEPT_ABBREVIATED: &str =
     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
 
 /// Full `pnpm` packument: carries the per-version `time` map. `1.0.0` has
 /// stronger trust evidence (`trustedPublisher` + provenance) than the
-/// later `1.1.0` (none) — a trust downgrade the no-downgrade check must
+/// later `1.1.0` (none), a trust downgrade the no-downgrade check must
 /// reject once it can see `time`.
 const FULL_DOWNGRADE_BODY: &str = r#"{
     "name": "pnpm",
@@ -474,7 +474,7 @@ const FULL_CLEAN_BODY: &str = r#"{
 
 /// Abbreviated packument: no `time` map. Served only to the abbreviated
 /// `Accept` header, so the probe reaches it only if it *fails* to request
-/// full metadata — in which case the trust check fails closed with
+/// full metadata, in which case the trust check fails closed with
 /// "missing time". A test that instead sees a "trust downgrade" (or a
 /// clean resolve) proves the probe requested full metadata.
 const ABBREVIATED_BODY: &str = r#"{
@@ -502,7 +502,7 @@ const ABBREVIATED_BODY: &str = r#"{
     }
 }"#;
 
-/// Abbreviated packument that *does* carry `time` — what a registry with
+/// Abbreviated packument that *does* carry `time`, what a registry with
 /// `registrySupportsTimeField=true` serves. It still omits the trust
 /// evidence (`_npmUser` / `dist.attestations`) that no abbreviated
 /// packument carries, so a no-downgrade check run against it would see no
@@ -547,7 +547,7 @@ fn no_downgrade_config(registry: String, cache_dir: &Path) -> Config {
 }
 
 /// Under `trustPolicy=no-downgrade`, the self-update probe must resolve
-/// against **full** metadata — the same as a regular install — so the
+/// against **full** metadata, the same as a regular install, so the
 /// no-downgrade check actually runs. It reaches the full packument (with
 /// `time`), sees the downgrade, rejects the requested `1.1.0`, and falls
 /// back to `1.0.0` for a range. If the probe fetched abbreviated metadata it

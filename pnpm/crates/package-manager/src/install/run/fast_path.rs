@@ -44,7 +44,7 @@ pub(super) struct UpToDateCheck<'a> {
 ///
 /// Only a full `pacquet install` may short-circuit. `add` and `remove` mutate
 /// the manifest in memory and persist it after this run returns, so the
-/// on-disk mtimes the check reads still describe the pre-mutation project —
+/// on-disk mtimes the check reads still describe the pre-mutation project,
 /// without this gate a fresh workspace state would read as "nothing changed →
 /// already up to date" and the mutation would never be resolved or
 /// materialized. `pacquet update` is excluded through its seed policy: a

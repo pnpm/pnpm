@@ -1,7 +1,7 @@
 //! Guard against a store row whose content is not the package the row
 //! claims to hold.
 //!
-//! A `package_index` row is keyed by `<integrity>\t<pkg_id>` — the
+//! A `package_index` row is keyed by `<integrity>\t<pkg_id>`, the
 //! tarball's checksum plus the `name@version` the resolution was
 //! recorded under. The tarball's own `package.json` is the second
 //! statement of that identity, and the two can disagree: a hand-edited
@@ -16,7 +16,7 @@
 
 /// A store row whose bundled manifest names a different package than
 /// its key does. Both fields are rendered `name@version`, with
-/// `undefined` standing in for a field the manifest does not carry —
+/// `undefined` standing in for a field the manifest does not carry,
 /// the same wording pnpm reports.
 #[derive(Debug, PartialEq, Eq)]
 pub struct PkgContentMismatch {
@@ -42,7 +42,7 @@ impl PkgContentMismatch {
 /// bundled `manifest` states, returning the disagreement when there is
 /// one.
 ///
-/// `None` — the verdict "nothing to object to" — also covers every case
+/// `None`, the verdict "nothing to object to", also covers every case
 /// where one of the two identities is unavailable: a key that names no
 /// `name@version` package (a URL or git resolution id, or the
 /// `<pkg_id>\t{built,not-built}` key git-hosted rows use), a row with no
@@ -71,8 +71,8 @@ pub fn pkg_content_mismatch(
     // Every agreeing row has returned by here, so confirming that the key
     // names a registry package at all costs nothing on the path every
     // install takes. Without the confirmation a `pkg_id` that merely looks
-    // split-able — a tarball URL ending in something version-shaped, whose
-    // name half would then be the URL itself, credentials included — would
+    // split-able, a tarball URL ending in something version-shaped, whose
+    // name half would then be the URL itself, credentials included, would
     // be reported as another package.
     if !names_a_registry_package(expected_name, version_slot) {
         return None;
@@ -101,8 +101,8 @@ fn split_pkg_id(index_key: &str) -> Option<(&str, &str)> {
 /// name and a version.
 ///
 /// The version slot is either a plain version or the registry-qualified
-/// `<alias>:<version>` form. Every other version-slot shape — `file:`,
-/// `link:`, a git committish — states no version the manifest could
+/// `<alias>:<version>` form. Every other version-slot shape, `file:`,
+/// `link:`, a git committish, states no version the manifest could
 /// disagree with.
 fn names_a_registry_package(name: &str, version_slot: &str) -> bool {
     if !pnpm_package_name::is_valid_old_npm_package_name(name) {
@@ -116,9 +116,9 @@ fn names_a_registry_package(name: &str, version_slot: &str) -> bool {
 }
 
 /// Package names are compared case-insensitively, as pnpm compares
-/// them. The ASCII pass answers every published name — the registry has
+/// them. The ASCII pass answers every published name, the registry has
 /// rejected non-lowercase names for years, and the ones predating that
-/// are ASCII — leaving the allocating fold for names no registry serves.
+/// are ASCII, leaving the allocating fold for names no registry serves.
 fn same_name(left: &str, right: &str) -> bool {
     left.eq_ignore_ascii_case(right) || left.to_lowercase() == right.to_lowercase()
 }

@@ -5,8 +5,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Pre-create the destination parents serially — cheap, deduplicated,
-/// and a no-op for dirs that already exist — so the parallel symlink
+/// Pre-create the destination parents serially, cheap, deduplicated,
+/// and a no-op for dirs that already exist, so the parallel symlink
 /// pass is one syscall per link.
 pub(super) fn create_parents(
     dirs: &HoistedModulesDirs<'_>,

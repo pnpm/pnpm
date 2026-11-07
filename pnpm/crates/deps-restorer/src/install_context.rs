@@ -22,7 +22,7 @@ pub struct InstallContext<'a> {
     pub linker: crate::ModuleLinkerContext<'a>,
     pub caches: InstallCaches<'a>,
     pub config: &'static Config,
-    /// Install root — the directory containing `pnpm-lock.yaml`. For a
+    /// Install root, the directory containing `pnpm-lock.yaml`. For a
     /// real workspace this is the workspace root; for a single project,
     /// that project's directory.
     pub workspace_root: &'a Path,

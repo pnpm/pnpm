@@ -129,7 +129,7 @@ fn test_default_pnpm_home_dir_expands_nested_percent_refs() {
 }
 
 /// The fake `Sys` here returns a value for `XDG_DATA_HOME` and `None`
-/// for `PNPM_HOME` so the lookup is deterministic — no need to
+/// for `PNPM_HOME` so the lookup is deterministic, no need to
 /// snapshot-and-restore real process env state to neutralise a
 /// developer's shell that has `PNPM_HOME` set.
 #[test]
@@ -386,7 +386,7 @@ fn resolve_child_concurrency_positive_amount() {
 /// `i32::MIN.unsigned_abs()`
 /// is `2_147_483_648`, well above any plausible host
 /// parallelism, so `saturating_sub` produces `0` and `.max(1)`
-/// lifts to exactly `1` — assert that precise value so a wrong
+/// lifts to exactly `1`, assert that precise value so a wrong
 /// result like `2` would still fail the test.
 #[test]
 fn resolve_child_concurrency_handles_i32_min() {
@@ -458,7 +458,7 @@ fn test_default_store_dir_with_unc_current_dir_does_not_panic() {
 }
 
 /// Compares the rendered string rather than the `Path`. On Windows
-/// `Path` equality is separator-insensitive — it compares components,
+/// `Path` equality is separator-insensitive, it compares components,
 /// so a value built by joining an `"a/b/c"` literal still satisfies an
 /// `assert_eq!` against the backslash form, while the forward slashes
 /// survive into `.modules.yaml` and `pnpm store path`.

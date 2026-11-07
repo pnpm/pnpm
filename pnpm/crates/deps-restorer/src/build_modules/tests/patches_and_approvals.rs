@@ -65,7 +65,7 @@ fn ignored_scripts_event_carries_returned_names() {
 /// appends.
 ///
 /// Drive this through the WRITE path so the test can read the
-/// cache key back out of the persisted row — the `;patch=<hash>`
+/// cache key back out of the persisted row, the `;patch=<hash>`
 /// segment in the key shape is the contract the cache relies on.
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
@@ -147,7 +147,7 @@ async fn write_path_cache_key_includes_patch_hash() {
     // The applier runs against `pkg_dir` before the postinstall, so
     // it needs a real patch file that succeeds. Touch a brand-new
     // file rather than modifying `index.js` so the assertions on
-    // the diff map below stay simple — the patch adds
+    // the diff map below stay simple, the patch adds
     // `patched.txt`, the postinstall adds `generated.txt`, the
     // pristine `index.js` stays at its base digest.
     let patch_dir = tempdir().expect("create patch dir");
@@ -273,7 +273,7 @@ new file mode 100644
 ///
 /// Drives `BuildModules` with a single `requires_build=false`
 /// snapshot (no postinstall scripts), `dangerouslyAllowAllBuilds: true`
-/// (irrelevant — no scripts to allow), and a patch that creates
+/// (irrelevant, no scripts to allow), and a patch that creates
 /// `patched.txt`. After the run, `patched.txt` must exist on disk
 /// with the patch body.
 #[cfg(unix)]
@@ -296,7 +296,7 @@ async fn patch_only_snapshot_gets_patched_via_build_modules() {
 
     // Lay down a pristine `is-positive` package dir under the
     // virtual store so the applier has a real target. No scripts,
-    // so `requires_build_map` for this snapshot stays false — the
+    // so `requires_build_map` for this snapshot stays false, the
     // build trigger fires solely because of the patch entry.
     let pkg_dir = virtual_store_dir.path().join("is-positive@1.0.0/node_modules/is-positive");
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");
@@ -424,7 +424,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
     fs::write(pkg_dir.join("package.json"), r#"{"name":"is-positive","version":"1.0.0"}"#)
         .expect("write manifest");
 
-    // `patch_file_path: None` — the lockfile-only shape where a hash
+    // `patch_file_path: None`, the lockfile-only shape where a hash
     // is known but no live config provides a file. Must surface as
     // `ERR_PNPM_PATCH_FILE_PATH_MISSING`.
     let patches: HashMap<PackageKey, ExtendedPatchInfo> = HashMap::from([(
@@ -507,7 +507,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
 }
 #[test]
 fn allow_build_key_strips_version_for_registry_packages() {
-    // Registry depPaths reduce to the bare package name — the
+    // Registry depPaths reduce to the bare package name, the
     // `allowBuilds` key a user would approve them under.
     assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0"), "esbuild");
     assert_eq!(
@@ -524,7 +524,7 @@ fn allow_build_key_ignores_patch_hash_when_deriving_name() {
 #[test]
 fn allow_build_key_keeps_full_id_for_non_semver_artifacts() {
     // Git / tarball artifacts have a non-semver "version", so the whole
-    // pkgId is the key — the name alone must not approve their builds.
+    // pkgId is the key, the name alone must not approve their builds.
     let git = "foo@github.com/foo/bar#0123456789";
     assert_eq!(allow_build_key_from_ignored_build(git), git);
 

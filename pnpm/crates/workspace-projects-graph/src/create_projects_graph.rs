@@ -220,7 +220,7 @@ enum SpecKind<'a> {
     Directory(&'a str),
     /// A semver version or range, matched by name + version.
     VersionOrRange,
-    /// Neither (tag, git URL, `npm:` alias, ...) — no edge.
+    /// Neither (tag, git URL, `npm:` alias, ...), no edge.
     Skip,
 }
 

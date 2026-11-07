@@ -17,7 +17,7 @@ pub(super) fn mark_reachable_slots(
     // Canonicalize the links root once and pass it down. The
     // mark walk compares every target's canonical form against
     // this root, and canonicalising inside the per-entry loop
-    // would burn one extra syscall per visited symlink — wasteful
+    // would burn one extra syscall per visited symlink, wasteful
     // on large trees where the answer is invariant.
     let canonical_links =
         dunce::canonicalize(links_dir).unwrap_or_else(|_| links_dir.to_path_buf());
@@ -57,7 +57,7 @@ fn mark_loader_roots(
 /// Find every `node_modules/` directory under `project_dir`,
 /// including those inside workspace packages. Descends into every
 /// non-hidden subdir until it sees `node_modules`, at which point it
-/// records the path and stops descending — the
+/// records the path and stops descending, the
 /// hoisted deps inside `node_modules/.pnpm` and friends are picked up
 /// by [`walk_symlinks_to_store`]'s transitive recursion instead.
 fn find_all_node_modules_dirs(
@@ -120,7 +120,7 @@ fn project_subdirectories(dir: &Path, excluded_store: &Path) -> Result<Vec<PathB
 /// `canonical_links` must already be the canonicalised links root.
 ///
 /// `visited` is the cycle guard, keyed by the canonical (real) path
-/// of `dir`. Storing the canonical `PathBuf` directly is enough — the
+/// of `dir`. Storing the canonical `PathBuf` directly is enough, the
 /// set is never serialised, so there's no need to hash the realpath
 /// first.
 fn walk_symlinks_to_store(

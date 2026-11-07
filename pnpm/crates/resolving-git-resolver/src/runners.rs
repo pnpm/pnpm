@@ -18,8 +18,8 @@ use reqwest::StatusCode;
 pub struct RealGitProbe {
     pub http_client: Arc<ThrottledClient>,
     /// Per-attempt deadline, overriding the client's much larger
-    /// `fetchTimeout`. The probe only gates an optimization — failure
-    /// falls back to a `type: git` resolution that always works — so
+    /// `fetchTimeout`. The probe only gates an optimization, failure
+    /// falls back to a `type: git` resolution that always works, so
     /// an archive endpoint a firewall blackholes (reachable
     /// `github.com`, blocked `codeload.github.com`) must cost seconds,
     /// not attempts × `fetchTimeout`.

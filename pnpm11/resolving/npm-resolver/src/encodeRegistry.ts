@@ -7,7 +7,7 @@ import { isError, PnpmError, redactAndSanitize, redactUrlForDisplay } from '@pnp
  * Bytes a registry key carries verbatim. Everything else is percent-escaped,
  * so a `%` or `+` in the result is always one this module wrote, and the key
  * can never contain a path separator, a character Windows rejects in a
- * filename, or a glob metacharacter — the cache commands interpolate the key
+ * filename, or a glob metacharacter, the cache commands interpolate the key
  * straight into a glob pattern, and `pnpm cache delete` erases whatever that
  * pattern matches.
  */
@@ -45,7 +45,7 @@ const MAX_KEY_LENGTH = 255
  *
  * `+` joins the port to the host and the path segments to one another, and
  * every other occurrence of it is escaped, as is every character that could
- * spell one of the separators — so no two registry URLs share a directory.
+ * spell one of the separators, so no two registry URLs share a directory.
  * They must not: a shared directory lets the resolver answer from another
  * registry's versions, integrity hashes and tarball URLs, which surfaces as
  * `ERR_PNPM_TARBALL_URL_MISMATCH` when the lockfile is verified.
@@ -54,7 +54,7 @@ const MAX_KEY_LENGTH = 255
  * path are two different trust domains: metadata served over `http` can be
  * rewritten in transit, and must never be handed to a resolution configured
  * for `https`. Including it also puts a `%` in every key, and a key written
- * before this change was a bare URL host — which can never contain one — so no
+ * before this change was a bare URL host, which can never contain one, so no
  * new key can land on a stale directory.
  *
  * The port is dropped when it is the scheme's default and leading and trailing
@@ -75,7 +75,7 @@ export function encodeRegistry (registry: string): string {
     url = new URL(registry)
   } catch (err: unknown) {
     // `err` is not attached as the cause: Node's ERR_INVALID_URL carries the
-    // raw registry — credentials and all — in its `input` property, so
+    // raw registry, credentials and all, in its `input` property, so
     // anything that serializes the cause would undo the redaction here.
     const reason = isError(err) ? err.message : String(err)
     throw new PnpmError('INVALID_REGISTRY_URL', `Failed to parse registry URL "${redactAndSanitize(registry)}": ${redactAndSanitize(reason)}`)
@@ -148,7 +148,7 @@ function escapeComponent (component: string): string {
  *
  * The only spelling difference that does not reach the registry is a missing
  * trailing slash, because the resolver appends one to a registry configured
- * without it — so `.../a` and `.../a/` share a cache. Every other slash is
+ * without it, so `.../a` and `.../a/` share a cache. Every other slash is
  * significant: `https://r/`, `https://r//` and `https://r///` request
  * `/lodash`, `//lodash` and `///lodash` respectively, so they are three
  * registries and get three directories, carrying one, two and three segments.

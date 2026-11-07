@@ -1,8 +1,8 @@
 //! Per-package access rules: each concrete registry's `packages:` map,
 //! keyed by [`PackagePattern`] with `access` / `publish` / `unpublish`
 //! permission lists as values. Selection is by **specificity**, not
-//! declaration order — an exact name beats `@scope/*` beats `@*/*` beats
-//! `**` — because a YAML mapping is formally unordered and key order must
+//! declaration order, an exact name beats `@scope/*` beats `@*/*` beats
+//! `**`, because a YAML mapping is formally unordered and key order must
 //! not decide which access rule applies. The restricted pattern language
 //! makes that selection total: for any one name, at most one key per
 //! specificity tier can match, so every name has exactly one winning entry.
@@ -11,8 +11,8 @@
 //! caller's identity satisfies any token in the list. Tokens are the
 //! built-in pseudo-groups (`$all`, `$authenticated`, `$anonymous`), a
 //! bare account ID, or a `team:<id>` reference to a team the owning
-//! registry declares. Teams are registry-scoped — the registry is the
-//! tenant, so it owns its principal sets — and a `team:` token reads the
+//! registry declares. Teams are registry-scoped, the registry is the
+//! tenant, so it owns its principal sets, and a `team:` token reads the
 //! registry's live [`TeamDirectory`], so evaluation needs only the caller's
 //! identity.
 
@@ -47,7 +47,7 @@ pub struct PackageRule {
 /// registry-level defaults an entry's omitted fields fall back to.
 /// [`PackageRules`] holds the current table.
 ///
-/// Selection is by **specificity** — the most specific matching key wins,
+/// Selection is by **specificity**, the most specific matching key wins,
 /// and key order carries no meaning (see the module docs). No entry can be
 /// dead: an exact key carves its name out of a scope key, which still
 /// serves the rest, so there is no shadowed-entry validation inside a
@@ -69,8 +69,8 @@ pub struct RuleTable {
 
 /// Positions of the rules by pattern shape, mirroring the specificity
 /// chain: an exact key beats the name's scope key beats `@*/*` beats `**`.
-/// Duplicate keys never coexist here — YAML loading and the routing-graph
-/// validation both reject them — so each slot holds the one possible rule.
+/// Duplicate keys never coexist here, YAML loading and the routing-graph
+/// validation both reject them, so each slot holds the one possible rule.
 #[derive(Debug, Default, Clone)]
 struct RuleIndex {
     exact: BTreeMap<String, usize>,
@@ -145,7 +145,7 @@ pub struct Effective<'a> {
     /// the registry-level default. Drives how a hosted denial answers: an
     /// explicitly gated name is declared, discoverable config and rejects
     /// loudly (401/403, so a client can prompt for auth), while a
-    /// default-gated name is masked as not-found — a blanket-private
+    /// default-gated name is masked as not-found, a blanket-private
     /// registry never reveals which names exist.
     pub access_is_explicit: bool,
 }
@@ -180,7 +180,7 @@ impl RuleTable {
     }
 
     /// Add one entry to the map. Selection stays order-free (specificity);
-    /// duplicate keys are the caller's to avoid — YAML loading rejects them.
+    /// duplicate keys are the caller's to avoid, YAML loading rejects them.
     /// For tests and embedders that build rules programmatically.
     pub fn push_rule(&mut self, rule: PackageRule) {
         self.rules.push(rule);
@@ -248,7 +248,7 @@ impl RuleTable {
         }
     }
 
-    /// The registry-level default `access:` — who may reach the registry
+    /// The registry-level default `access:`, who may reach the registry
     /// when no per-package entry refines it. Write-path masking uses this
     /// for names the registry does not claim (there is no entry to consult).
     #[must_use]
@@ -258,7 +258,7 @@ impl RuleTable {
 
     /// Whether *any* name this registry serves could admit `identity`: the
     /// registry-level default does, or some explicit entry's `access` does.
-    /// The search scan's fast path — a caller no rule could ever admit gets
+    /// The search scan's fast path, a caller no rule could ever admit gets
     /// the empty result without enumerating the registry's storage, so a
     /// blanket-masked registry leaks neither package names nor its size
     /// through scan timing.

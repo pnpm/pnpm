@@ -1,7 +1,7 @@
 //! The Cargo registry surface.
 //!
-//! Two URL families make up a Cargo registry. The **sparse index** —
-//! `index/config.json` and one `index/<prefix>/<crate>` file per crate — is
+//! Two URL families make up a Cargo registry. The **sparse index**,
+//! `index/config.json` and one `index/<prefix>/<crate>` file per crate, is
 //! what `cargo` resolves from; a hosted crate's file is rendered from its
 //! stored [`CrateDocument`], an upstream's is proxied through the cache
 //! unchanged (index files carry no URLs; the `config.json` pnpr serves points
@@ -87,7 +87,7 @@ pub(super) fn routes() -> Router<AppState> {
 /// when a request names none.
 const DEFAULT_SEARCH_PAGE: usize = 10;
 
-/// `GET api/v1/crates?q=<query>&per_page=<n>&page=<n>` — `cargo search`.
+/// `GET api/v1/crates?q=<query>&per_page=<n>&page=<n>`, `cargo search`.
 ///
 /// Hosted sources only. An upstream contributes nothing, the way an npm
 /// upstream does until its `search` is turned on, and searching one needs

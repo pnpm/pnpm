@@ -1,4 +1,4 @@
-//! `pacquet docs` / `pacquet home` — open the documentation of a package
+//! `pacquet docs` / `pacquet home`, open the documentation of a package
 //! in the browser.
 //!
 //! The browser-opening success path is covered by the unit tests

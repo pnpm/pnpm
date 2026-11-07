@@ -68,12 +68,12 @@ pub(super) fn chmod_tolerating_removal(
 }
 
 /// The `node_modules` directories relevant to a bin package in the
-/// virtual-store layout — pnpm's `getBinNodePaths`. For a package at
+/// virtual-store layout, pnpm's `getBinNodePaths`. For a package at
 /// `.pnpm/pkg@ver/node_modules/pkg` this returns the package's own
 /// `node_modules` (bundled deps) followed by the slot's
 /// `node_modules` (sibling deps), so tools that resolve from CWD
 /// (`import-local` in jest, eslint, ...) find the correct versions.
-/// `dir` must already be symlink-free — [`shim_node_path`](super::linking_paths::shim_node_path) passes the
+/// `dir` must already be symlink-free, [`shim_node_path`](super::linking_paths::shim_node_path) passes the
 /// caller-resolved location or a canonicalized fallback.
 pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
     let Some(node_modules_dir) = dir
@@ -114,7 +114,7 @@ pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
     result
 }
 
-/// Whether `shim_path`'s file name is exactly `node` — the trigger for the
+/// Whether `shim_path`'s file name is exactly `node`, the trigger for the
 /// node-runtime short-circuit in [`write_shim`](super::shim_writer::write_shim).
 pub(super) fn is_node_bin_name(shim_path: &Path) -> bool {
     matches!(shim_path.file_name().and_then(|s| s.to_str()), Some("node"))
@@ -212,7 +212,7 @@ pub(super) fn link_node_bin(
 ///
 /// Returns `Ok(true)` when the symlink path handled the bin, `Ok(false)`
 /// when the caller must fall through to the shim path (Windows, where
-/// the setting is inert — pnpm gates on `!isWindows()` the same way).
+/// the setting is inert, pnpm gates on `!isWindows()` the same way).
 #[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn link_symlinked_executable<Sys>(
     target_path: &Path,
@@ -225,7 +225,7 @@ where
     use std::os::unix::fs::symlink;
     // pnpm's warm-install short-circuit also accepts an existing shim
     // that points at the target, so enabling the setting rewrites no
-    // valid shims — only bins that are missing or wrong get the
+    // valid shims, only bins that are missing or wrong get the
     // symlink form. (Symlinks already pointing at the target were
     // accepted before this branch was reached.)
     if matches!(
@@ -316,7 +316,7 @@ where
 }
 
 /// Whether the dirent at `shim_path` is a symlink that already resolves
-/// to `target_path` — raw, or resolved against the bin dir — pnpm's
+/// to `target_path`, raw, or resolved against the bin dir, pnpm's
 /// warm-install short-circuit arm for symlinked bins. An absolute node
 /// link inside the relocatable root must be rewritten before it can move.
 pub(super) fn symlink_already_points_at(
@@ -347,8 +347,8 @@ pub(super) fn symlink_already_points_at(
 /// Whether `first_path` and `second_path` are the same file.
 /// [`same_file::Handle`] proves a hard link cheaply via the OS file identity
 /// (device + inode on Unix, file index + volume serial on Windows). When
-/// that identity can't be obtained — a missing file, or a filesystem that
-/// doesn't expose a stable index — we fall back to comparing the file contents
+/// that identity can't be obtained, a missing file, or a filesystem that
+/// doesn't expose a stable index, we fall back to comparing the file contents
 /// after a quick size check, which also treats a byte-identical copy as the
 /// same file.
 #[cfg(windows)]

@@ -4,7 +4,7 @@
 //! `yarn` on npm stops at Classic, Yarn 6 is not published there at all,
 //! and `node` / `deno` are wrappers that download a build. Asking for one
 //! of those by name therefore has to become a different selector before
-//! the install pipeline sees it — an npm alias for the lines that are
+//! the install pipeline sees it, an npm alias for the lines that are
 //! published under another name, the `runtime:` protocol for the ones
 //! that ship as platform archives.
 
@@ -35,8 +35,8 @@ pub(crate) fn tool_install_selector(request: &str) -> Option<String> {
         let bare = format!("{name}@{version_spec}");
         return Some(tool_install_selector(&bare).unwrap_or(bare));
     }
-    // A specifier that locates a package — `node@runtime:22`, an explicit
-    // `yarn@npm:@yarnpkg/cli-dist@4`, `yarn@yarnpkg/berry` — already says
+    // A specifier that locates a package, `node@runtime:22`, an explicit
+    // `yarn@npm:@yarnpkg/cli-dist@4`, `yarn@yarnpkg/berry`, already says
     // what to install, and rewriting it would nest one locator inside
     // another.
     if !is_version_request(version_spec) {
@@ -53,7 +53,7 @@ fn package_manager_selector(pm: PackageManager, name: &str, version_spec: &str) 
     match pm.channel(version_spec) {
         // Published under its own name: the request already selects it.
         ToolChannel::Registry { package } if package == name => None,
-        // Published under another name — install it under the name the
+        // Published under another name, install it under the name the
         // user asked for, so its bins land where they expect.
         ToolChannel::Registry { package } => Some(format!("{name}@npm:{package}@{version_spec}")),
         ToolChannel::Binary(BinaryChannel::Bun | BinaryChannel::Yarn) => {

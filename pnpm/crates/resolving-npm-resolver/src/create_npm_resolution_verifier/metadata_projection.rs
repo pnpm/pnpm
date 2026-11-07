@@ -59,7 +59,7 @@ impl TrustHistory for TrustHistoryProjection {
 
 /// Pull the `(modified, versionTarballs)` projection the verifier
 /// needs out of a packument document. Works against either the
-/// abbreviated or the full form — both carry `modified` and a
+/// abbreviated or the full form, both carry `modified` and a
 /// `versions` map with per-version `dist.tarball`.
 pub(super) fn project_abbreviated_meta(
     meta: &Package,

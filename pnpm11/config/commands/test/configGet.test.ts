@@ -349,7 +349,7 @@ test('config get registry and @jsr:registry answer the merged routes', async () 
     },
   }
 
-  // The resolved default — wherever it was routed from — wins over a raw
+  // The resolved default, wherever it was routed from, wins over a raw
   // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
   // view.
   const registryResult = await config.handler(createConfigCommandOpts(baseOpts), ['get', 'registry'])

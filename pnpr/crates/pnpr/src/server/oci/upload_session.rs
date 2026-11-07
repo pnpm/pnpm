@@ -49,7 +49,7 @@ impl Request {
         Ok(Some(self.finish_upload(destination, upload, key, mount).await))
     }
 
-    /// `POST /v2/<name>/blobs/uploads/` — start an upload, or complete one in
+    /// `POST /v2/<name>/blobs/uploads/`, start an upload, or complete one in
     /// a single request when the client sends `?digest=`.
     pub(super) async fn start_upload(&self, name: &str, body: Body) -> Response {
         if self.method != Method::POST {

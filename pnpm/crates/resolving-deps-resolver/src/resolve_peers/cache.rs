@@ -25,23 +25,23 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
 /// One cached resolution of a non-pure subtree: the part of a walk's
-/// verdict that holds in any compatible parent context, so a revisit —
-/// by the same walk or another importer's — can reuse it.
+/// verdict that holds in any compatible parent context, so a revisit,
+/// by the same walk or another importer's, can reuse it.
 ///
 /// `dep_path` is the value [`Walker::resolve_node`] would otherwise
 /// recompute. `resolved_peers` is the external peer set (excluding
-/// peers satisfied by this node's own children) — [`Walker::find_hit`]
+/// peers satisfied by this node's own children), [`Walker::find_hit`]
 /// uses it as the cache-match key against the current parent context.
 /// `missing_peers` is the set of unmet peer requirements the original
-/// walk surfaced — when a cache item carries a missing peer that the
+/// walk surfaced, when a cache item carries a missing peer that the
 /// current parent context *does* provide, the contexts are
 /// incompatible and the item must be rejected. `missing_peers_of_children`
 /// is the subset exposed as the package's children report.
 ///
 /// The peer *providers* the walk resolved to are deliberately not part
-/// of the verdict: they belong to the resolving walk's own context —
+/// of the verdict: they belong to the resolving walk's own context,
 /// pnpm's resolver gives a not-new package `resolvedPeers: {}`
-/// (`resolveDependencies.ts`) — so only the walk that first resolved a
+/// (`resolveDependencies.ts`), so only the walk that first resolved a
 /// subtree promotes its providers to importer level.
 #[derive(Debug)]
 pub(super) struct PeersCacheItem {

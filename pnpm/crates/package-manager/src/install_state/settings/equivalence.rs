@@ -35,7 +35,7 @@ pub(super) fn allow_builds_match(
 /// `packageExtensions` are compared as opaque `serde_json::Value`
 /// trees so the workspace-state file written by either implementation
 /// round-trips through the other. Empty maps are equivalent to absent
-/// — pacquet's [`pnpm_config::WorkspaceSettings::apply_to`] already collapses
+///pacquet's [`pnpm_config::WorkspaceSettings::apply_to`] already collapses
 /// `packageExtensions: {}` to `None`, but pnpm may write `Some({})`
 /// directly, and the workspace-state file is shared across the two.
 pub(super) fn package_extensions_match(

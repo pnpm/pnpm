@@ -3,7 +3,7 @@
 //!
 //! The npm-resolver intercepts every `workspace:`-shaped wanted
 //! dependency *except* the path-relative forms (`workspace:./foo`,
-//! `workspace:../bar`) — those flow through unchanged so the
+//! `workspace:../bar`), those flow through unchanged so the
 //! local-resolver in the chain takes them as `link:`-shaped
 //! directory specs.
 
@@ -65,7 +65,7 @@ pub struct ResolveFromWorkspaceOptions<'a> {
 /// options struct.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SavedSpecifierOptions {
-    /// `false` suppresses the computation entirely — nothing below an
+    /// `false` suppresses the computation entirely, nothing below an
     /// importer's direct dependencies is written to a manifest.
     pub calc_specifier: bool,
     /// Range operator to apply when the dependency declares none.
@@ -81,7 +81,7 @@ pub struct SavedSpecifierOptions {
 /// are part of the public contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveFromWorkspaceError {
-    /// The translated workspace spec failed to parse — practically
+    /// The translated workspace spec failed to parse, practically
     /// unreachable since the caller checks the `workspace:` prefix
     /// before invoking this entry point.
     #[diagnostic(transparent)]

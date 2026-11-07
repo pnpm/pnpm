@@ -83,7 +83,7 @@ static WARNED_HELD_BACK: std::sync::LazyLock<Mutex<indexmap::IndexSet<String>>> 
 /// the newer version everywhere is an override's job, not an update's.
 ///
 /// The baseline for "held back" is the pick with only the non-pin
-/// selectors applied — `range`/`tag` selectors such as the
+/// selectors applied, `range`/`tag` selectors such as the
 /// `pnpm audit --fix` vulnerability penalties steer the baseline too,
 /// so the warning never recommends a version those selectors avoid.
 /// The baseline also honors the `published_by` maturity cutoff the

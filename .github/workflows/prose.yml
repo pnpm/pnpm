@@ -9,6 +9,7 @@ on:
       - '.vale.ini'
       - '.vale/**'
       - '.github/scripts/lint-prose.mjs'
+      - '.github/scripts/lint-source-comment-separators.mjs'
       - '.github/workflows/prose.yml'
   push:
     branches: [main]
@@ -45,6 +46,8 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+      - name: Check for separator comments
+        run: node .github/scripts/lint-source-comment-separators.mjs
       - name: Lint prose
         env:
           # Changesets are linted only when the pull request adds them.

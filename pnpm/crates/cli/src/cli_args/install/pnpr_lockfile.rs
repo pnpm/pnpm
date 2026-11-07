@@ -251,7 +251,7 @@ pub(super) async fn install_from_local_lockfile<Reporter: self::Reporter + 'stat
     // waits for every in-flight prefetch download (each task holds a
     // store-index writer handle), which would hold the fail-fast
     // abort hostage to the remaining transfers. The index rows are
-    // best-effort — a dropped row only costs a later re-download.
+    // best-effort, a dropped row only costs a later re-download.
     result.wrap_err("restoring dependencies from the local lockfile via pnpr verification")?;
 
     if let Some(prefetcher) = prefetcher {

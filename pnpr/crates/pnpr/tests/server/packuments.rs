@@ -181,7 +181,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     );
 
     // A document without a parsable `time.modified` omits the header
-    // instead of guessing — absent and garbled values alike.
+    // instead of guessing, absent and garbled values alike.
     let no_time = app
         .clone()
         .oneshot(

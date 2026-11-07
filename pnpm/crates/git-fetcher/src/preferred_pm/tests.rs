@@ -149,7 +149,7 @@ fn a_dev_engines_pin_wins_over_the_lockfile() {
 
 /// A dependency's manifest is untrusted input and its pin reaches a
 /// command line, so only a plain semver range is carried over. Everything
-/// else — a URL, a dist-tag, a shell payload — leaves the version to pnpm.
+/// else, a URL, a dist-tag, a shell payload, leaves the version to pnpm.
 #[test]
 fn only_a_semver_range_is_carried_over_from_a_pin() {
     let dir = tempdir().unwrap();
@@ -236,7 +236,7 @@ fn a_yarn_declaration_without_a_version_takes_the_line_from_the_lockfile() {
 }
 
 /// Only the header is read, so a lockfile too large to hold in memory
-/// still answers — and a `__metadata` block that is not in the header is
+/// still answers, and a `__metadata` block that is not in the header is
 /// not a Berry stamp.
 #[test]
 fn the_line_is_read_from_the_lockfile_header() {
@@ -306,7 +306,7 @@ fn a_dev_engines_list_falls_through_to_an_entry_pnpm_can_provision() {
 }
 
 /// `devEngines` outranks `packageManager`, but only for a package manager
-/// pnpm can provision — an unknown one there must not bury the pin below
+/// pnpm can provision, an unknown one there must not bury the pin below
 /// it.
 #[test]
 fn an_unknown_dev_engines_pin_leaves_package_manager_in_charge() {

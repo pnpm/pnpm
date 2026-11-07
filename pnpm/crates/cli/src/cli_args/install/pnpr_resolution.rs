@@ -15,7 +15,7 @@ use super::{
 ///
 /// Sends the client's registries to the server, which resolves against
 /// them and returns the resolved lockfile; writes that lockfile, then
-/// runs a frozen install to materialize `node_modules` from it — the
+/// runs a frozen install to materialize `node_modules` from it, the
 /// frozen install fetches every tarball from the registries itself, like
 /// a normal install. Under `--lockfile-only` it stops after writing the
 /// lockfile (fetch nothing, link nothing).
@@ -335,8 +335,8 @@ fn merge_source<'a>(
 /// server exchange can be skipped.
 ///
 /// Filtered installs keep the exchange even when satisfied: their merge
-/// semantics live there. A workspace-wide install has a selection too —
-/// every project — and skips the server like any single-project one.
+/// semantics live there. A workspace-wide install has a selection too,
+/// every project, and skips the server like any single-project one.
 async fn satisfied_without_server(
     state: &State,
     link: &PnprLink<'_>,

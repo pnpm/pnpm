@@ -60,7 +60,7 @@ export async function getManifest (
     // No mature version found within range: the resolver fell back to the
     // lowest immature pick and flagged it inline. `outdated` shouldn't
     // present an immature version as "available", so treat it as no match
-    // — matching the pre-violation-collection behavior when the resolver
+    // matching the pre-violation-collection behavior when the resolver
     // threw `NO_MATURE_MATCHING_VERSION`.
     if (resolution?.policyViolation?.code === 'MINIMUM_RELEASE_AGE_VIOLATION') {
       return null

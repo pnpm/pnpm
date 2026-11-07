@@ -206,8 +206,8 @@ pub(super) fn load_wanted_lockfile<'a, Reporter: self::Reporter>(
         Err(error) => Err(InstallError::LoadWantedLockfile(error)),
     }
 }
-/// A constraint-free lockfile spawns nothing — the probe's result would go
-/// unused (see `detect_installability_host` for why that matters) — and
+/// A constraint-free lockfile spawns nothing, the probe's result would go
+/// unused (see `detect_installability_host` for why that matters), and
 /// neither does `--force` (skips the checks) or a resolve-only pass (returns
 /// before them). The scan is of the *wanted* lockfile: a fresh resolve whose
 /// new graph gains constraints the old lockfile lacked detects the host at

@@ -48,7 +48,7 @@ fn write_manifest_with_dependency_groups(
     write_named_manifest_with_dependency_groups(workspace, "verify-deps-project", marker, groups);
 }
 
-/// The fixture manifest — a `hello` script that touches `marker` —
+/// The fixture manifest, a `hello` script that touches `marker`,
 /// extended with the dependency groups the caller needs.
 fn write_named_manifest_with_dependency_groups(
     workspace: &Path,
@@ -352,7 +352,7 @@ fn error_action_follows_the_dependency_state() {
 
     // Deleting pnpm-lock.yaml and the current lockfile leaves nothing to
     // stand in for it, so the check fails like pnpm's
-    // RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND — and the pre-run check must not
+    // RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND, and the pre-run check must not
     // recreate the file (pnpm's run path never restores the lockfile; only
     // the install command does).
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
@@ -977,7 +977,7 @@ fn scripts_get_the_check_disabled_through_their_env() {
 }
 
 /// The `pnpm_config_verify_deps_before_run` env var outranks even the
-/// CLI `--config.` override — that priority is what makes the script
+/// CLI `--config.` override, that priority is what makes the script
 /// env stamp above an effective recursion breaker.
 #[cfg(unix)]
 #[test]

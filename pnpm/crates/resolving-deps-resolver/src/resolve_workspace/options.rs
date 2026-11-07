@@ -20,7 +20,7 @@ pub struct WorkspaceResolveOptions {
     /// and the importer-relative `link:` is rendered from that canonical
     /// result afterwards. Must stay `false` whenever the resolver chain can
     /// make a resolution depend on the consuming importer beyond that
-    /// rendering — a pnpmfile custom resolver above all.
+    /// rendering, a pnpmfile custom resolver above all.
     pub share_workspace_resolutions: bool,
     /// Package-name → semver-range map from the
     /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
@@ -62,7 +62,7 @@ pub struct WorkspacePeerResolutionOptions {
     /// shared [`WorkspaceTreeCtx`] so the tree walk drops
     /// peer-shadowed `dependencies` entries. Also overrides every
     /// per-importer
-    /// [`crate::ImporterPeerOptions::auto_install_peers`] — the
+    /// [`crate::ImporterPeerOptions::auto_install_peers`], the
     /// setting is workspace-wide.
     pub auto_install_peers: bool,
 }
@@ -103,7 +103,7 @@ pub struct WorkspaceLockfileReuse {
     /// [`Self::lockfile`]. `false` keeps the lockfile as a
     /// per-edge version-pin source only: every node re-resolves against
     /// its (hook-rewritten) manifest range, and an edge whose recorded
-    /// version still satisfies that range stays on it — mirroring the
+    /// version still satisfies that range stays on it, mirroring the
     /// TypeScript resolver's forced full resolution, which forces the
     /// walk without unpinning still-satisfied edges. The config drift
     /// that denied subtree reuse stays effective: hooks rewrite the
@@ -145,7 +145,7 @@ pub struct WorkspaceVersionResolution {
 /// taken the hooks, logs and lockfile.
 pub(super) struct PassSettings {
     /// The lockfile's recorded publish dates, taken only for the
-    /// `time-based` pre-pass that reads them — a lockfile is untrusted
+    /// `time-based` pre-pass that reads them, a lockfile is untrusted
     /// input, so an install that will not consult the dates must not
     /// copy them.
     pub(super) recorded_time: Option<BTreeMap<String, String>>,

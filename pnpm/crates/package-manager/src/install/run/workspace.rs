@@ -34,7 +34,7 @@ impl<'a> WorkspaceDirs<'a> {
     // Project root for the [bunyan]-envelope `prefix`. This is
     // emitted as `lockfileDir`, the directory containing
     // `pnpm-lock.yaml`. With workspace support that equals the
-    // workspace root — pacquet finds it via [`find_workspace_dir`].
+    // workspace root, pacquet finds it via [`find_workspace_dir`].
     // Falls back to the manifest's parent dir when no
     // `pnpm-workspace.yaml` exists in any ancestor (the
     // single-project case). Closes pnpm/pacquet#357.
@@ -129,7 +129,7 @@ impl<'a> InstallWorkspace<'a> {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
             // doesn't panic the installer. `prefix` is used only for
-            // reporter envelopes, so a lossy conversion is acceptable —
+            // reporter envelopes, so a lossy conversion is acceptable,
             // the rest of the install path uses the same pattern for
             // paths threaded into log events.
             prefix: dirs.workspace_root.to_string_lossy().into_owned(),
@@ -411,7 +411,7 @@ pub(super) struct StaleImporterPrune<'a> {
 /// list, so only it may conclude that an importer the lockfile records belongs
 /// to a project that is gone. This is pnpm's `pruneLockfileImporters`, which
 /// its recursive install defaults to the same condition (`pkgs.length ===
-/// allProjects.length`) — outside a workspace there is no project list to
+/// allProjects.length`), outside a workspace there is no project list to
 /// compare against. A `NodeApiProject[]` handed in by an API consumer carries
 /// no promise of listing every workspace project, so it cannot stand in for
 /// the project list either.
@@ -423,7 +423,7 @@ pub(super) fn may_prune_stale_importers(prune: &StaleImporterPrune<'_>) -> bool 
         && prune.config.shares_one_lockfile()
 }
 /// Report the projects this install covers depending on each other in a cycle
-/// — after the repeat-install short-circuit, because pnpm returns from
+///after the repeat-install short-circuit, because pnpm returns from
 /// "Already up to date" before reaching its own check, and before any
 /// resolution, because a `disallowWorkspaceCycles` failure must not be paid
 /// for.

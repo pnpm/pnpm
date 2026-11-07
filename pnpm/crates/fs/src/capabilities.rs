@@ -9,7 +9,7 @@ use std::{fs, io, path::Path};
 ///
 /// The seam exists for [`fn@crate::rename_even_across_devices`], whose
 /// fallback runs only when the kernel reports the two paths as being
-/// on different filesystems — a condition no test can stage portably
+/// on different filesystems, a condition no test can stage portably
 /// on a single volume.
 pub trait FsRename {
     fn rename(src: &Path, dst: &Path) -> io::Result<()>;
@@ -19,7 +19,7 @@ pub trait FsRename {
 ///
 /// The seam exists for [`fn@crate::rename_even_across_devices`], whose
 /// contract turns on what happens when this fails after the move is
-/// already committed — a state the real filesystem only reaches
+/// already committed, a state the real filesystem only reaches
 /// through platform-specific permission tricks.
 pub trait FsRemoveDirent {
     fn remove_dirent(path: &Path) -> io::Result<()>;
@@ -35,8 +35,8 @@ pub trait FsReflink {
 /// Create a hard link from `source` to `target`, as [`fs::hard_link`].
 ///
 /// The seam exists so tests can hand callers the errors only some
-/// filesystems return — `EPERM` from a FUSE mount that has no
-/// hardlinks, `EXDEV` from a target on another mount — which a temp
+/// filesystems return, `EPERM` from a FUSE mount that has no
+/// hardlinks, `EXDEV` from a target on another mount, which a temp
 /// dir on a single volume cannot reproduce.
 pub trait FsHardLink {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()>;

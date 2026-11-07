@@ -15,7 +15,7 @@ pub struct InstallabilityHost {
     pub node_version: String,
     /// `true` when `node_version` was discovered by spawning
     /// `node --version`; `false` when the field carries the synthetic
-    /// fallback. The side-effects-cache key derives from this — a
+    /// fallback. The side-effects-cache key derives from this, a
     /// fallback version must not seed the cache because subsequent
     /// installs would key on the actual node major and miss every
     /// row written under the fallback.
@@ -176,7 +176,7 @@ pub(super) fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Ve
 /// because the verdict is unconditionally an empty skip set.
 ///
 /// `pub` so `install_frozen_lockfile` can gate the host detection
-/// on it — the spawn is otherwise on the critical path of
+/// on it, the spawn is otherwise on the critical path of
 /// `CreateVirtualStore::run` and serializes ~100ms of node-binary
 /// startup with extraction.
 #[must_use]

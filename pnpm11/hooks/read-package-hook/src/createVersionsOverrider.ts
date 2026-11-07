@@ -17,7 +17,7 @@ export interface CreateVersionsOverriderOptions {
    * Populated with every declared semver range seen for packages that have a
    * convergence override, whether or not the override's version satisfied it.
    * Feeds the staleness check for convergence overrides after a full
-   * resolution. Edges claimed by an explicit override are not recorded — the
+   * resolution. Edges claimed by an explicit override are not recorded, the
    * convergence override never governs them.
    */
   convergeDeclaredRanges?: Map<string, Set<string>>
@@ -27,7 +27,7 @@ export interface CreateVersionsOverriderOptions {
  * Resolves the specifier an override imposes on a single dependency edge, or
  * `undefined` when no override claims it. `'-'` means the edge is removed.
  *
- * Edges that have no declaring manifest — a peer pnpm auto-installs — reach
+ * Edges that have no declaring manifest, a peer pnpm auto-installs, reach
  * the overrides through this function instead of through the read-package
  * hook, so parent-scoped overrides (`parent>child`) never apply to them.
  */
@@ -36,7 +36,7 @@ export type DependencyOverrider = (name: string, bareSpecifier: string, dir?: st
 /**
  * `undefined` when no override in the set could ever claim an undeclared
  * dependency, so the resolver skips the per-peer call in the common case of a
- * project with no overrides — or with parent-scoped ones only.
+ * project with no overrides, or with parent-scoped ones only.
  */
 export function createDependencyOverrider (
   overrides: VersionOverrideWithoutRawSelector[],
@@ -64,7 +64,7 @@ export function createDependencyOverrider (
 export type OverridableManifest = Pick<ProjectManifest, 'name' | 'version' | DependenciesOrPeersField>
 
 /**
- * Whether an override claims a dependency declared as `bareSpecifier` —
+ * Whether an override claims a dependency declared as `bareSpecifier`,
  * whether or not it rewrites the text. The specifier is part of the question:
  * a range-scoped override (`foo@^2`) claims one declaration of `foo` and not
  * another, so an alias alone cannot answer it.
@@ -388,8 +388,8 @@ function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath, protoco
 /**
  * Render a path that carries no protocol, keeping it unambiguously local.
  *
- * Re-anchoring can drop a leading `./` — `./libs/x` measured from the
- * workspace root renders as `libs/x` — and a bare `<segment>/<segment>` reads
+ * Re-anchoring can drop a leading `./`, `./libs/x` measured from the
+ * workspace root renders as `libs/x`, and a bare `<segment>/<segment>` reads
  * as a hosted-git shorthand instead, so the prefix goes back on.
  *
  * A drive-prefixed path cannot be made unambiguous by a prefix, since

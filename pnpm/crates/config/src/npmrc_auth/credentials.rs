@@ -226,8 +226,8 @@ fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYaml
     if let Some(token) = &creds.auth_token {
         return Ok(Some(format!("Bearer {token}")));
     }
-    // An empty `_auth` names no credential — the shape an unresolved
-    // `${VAR}` leaves behind — and pnpm skips it rather than failing.
+    // An empty `_auth` names no credential, the shape an unresolved
+    // `${VAR}` leaves behind, and pnpm skips it rather than failing.
     if let Some(pair) = creds.auth_pair_base64
         .as_deref()
         .filter(|pair| !pair.is_empty())
@@ -260,7 +260,7 @@ fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYaml
 /// which ignores whitespace anywhere and keeps the low bits of a
 /// truncated final group rather than rejecting the value. Padding is
 /// stripped before the value reaches this engine, so `=` left anywhere
-/// else is an invalid byte — as it is for `atob`.
+/// else is an invalid byte, as it is for `atob`.
 const CREDENTIAL_BASE64: base64::engine::GeneralPurpose = base64::engine::GeneralPurpose::new(
     &base64::alphabet::STANDARD,
     base64::engine::GeneralPurposeConfig::new()
@@ -271,7 +271,7 @@ const CREDENTIAL_BASE64: base64::engine::GeneralPurpose = base64::engine::Genera
 /// Decode a standard base64 credential to the bytes it carries, matching
 /// `decodeBase64Credential` in the TypeScript stack: whitespace is
 /// ignored, and trailing `=` padding may be redundant (`aGk===`),
-/// short (`Zm9vOmJhcg=`), or missing (`aGk`) — the spellings that reach
+/// short (`Zm9vOmJhcg=`), or missing (`aGk`), the spellings that reach
 /// a `.npmrc` by hand or from a shell pipeline. `None` when the value is
 /// not base64 at all.
 fn base64_decode_bytes(input: &str) -> Option<Vec<u8>> {
@@ -350,8 +350,8 @@ impl NpmrcAuth {
 
     /// Pin this source file's **unscoped** per-registry settings
     /// ([`unscoped_key_names`]) to the registry declared in this same
-    /// file — or the npmjs default ([`DEFAULT_REGISTRY`]) when the file has
-    /// no `registry=` of its own — by nerf-darting that registry into a
+    /// file, or the npmjs default ([`DEFAULT_REGISTRY`]) when the file has
+    /// no `registry=` of its own, by nerf-darting that registry into a
     /// per-URI key and moving the values onto
     /// [`Self::creds_by_scope_by_uri`] / [`crate::npmrc_auth::NpmrcTls::by_uri`], plus the
     /// matching rewrite of [`Self::raw_ini_config`] so `pnpm config get` /
@@ -385,7 +385,7 @@ impl NpmrcAuth {
         let uri = pnpm_network::nerf_dart(&pinned_registry(&declared_registry));
         if uri.is_empty() {
             // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
-            // the unscoped material — already taken above — rather than
+            // the unscoped material, already taken above, rather than
             // risk sending it to the wrong host.
             self.warnings.push(format!(
                 "Unscoped per-registry settings ({names}) in \"{source_label}\" were ignored: \
@@ -440,7 +440,7 @@ impl NpmrcAuth {
     /// value, so both move to the pinned key together. `tokenHelper` is
     /// not an INI-readable key on its own ([`crate::config_types::is_ini_config_key`] mirrors
     /// npm, which has no unscoped form), so the parser never captured it
-    /// — its raw value comes from the parsed credential instead.
+    ///its raw value comes from the parsed credential instead.
     pub(super) fn take_unscoped_raw_values(
         &mut self,
         unscoped: &[&'static str],

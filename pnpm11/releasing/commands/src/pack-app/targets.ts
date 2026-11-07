@@ -17,7 +17,7 @@ export interface ParsedTarget {
 
 // Parsed triplet must match this shape exactly. We anchor and constrain each
 // segment so that inputs like `linux-x64-musl-../../outside` are rejected
-// outright — otherwise `target.raw` would later flow into path.join for the
+// outright, otherwise `target.raw` would later flow into path.join for the
 // output directory and could escape it.
 const TARGET_PATTERN = /^(linux|darwin|win32)-(x64|arm64)(?:-(musl))?$/
 

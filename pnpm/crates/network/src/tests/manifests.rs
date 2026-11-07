@@ -4,7 +4,7 @@ use super::{EnvGuard, NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledCli
 
 // `SSL_CERT_FILE` alone switches `rustls-native-certs` to env-only
 // loading, so pointing it at an empty file is a portable stand-in for a
-// machine whose system trust store holds nothing — the nixpkgs sandbox
+// machine whose system trust store holds nothing, the nixpkgs sandbox
 // of pnpm/pnpm#13588. Only the Linux/BSD platform verifier reads that
 // variable; the Apple and Windows ones go to the OS keychain.
 #[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
@@ -35,7 +35,7 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
 
     // A configured `ca` is itself enough to keep the platform verifier
     // constructible, so a user with custom roots never reaches the
-    // fallback — their roots cannot be displaced by it.
+    // fallback, their roots cannot be displaced by it.
     let ca =
         std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-ca.pem"))
             .expect("read test ca fixture");

@@ -25,7 +25,7 @@ pub enum PreparePackageError {
     NotAllowed {
         name: String,
         version: String,
-        /// The identity `allowBuilds` is checked against — the name
+        /// The identity `allowBuilds` is checked against, the name
         /// plus the resolution id, not the manifest version. A
         /// name-only key cannot approve a git artifact, so quoting
         /// anything else here suggests an entry that never matches.
@@ -78,7 +78,7 @@ pub enum GitFetcherError {
     SharedSource(#[error(source)] std::sync::Arc<GitFetcherError>),
 
     /// `git` executable not found on `PATH`. Pacquet, like pnpm, does
-    /// not bundle git — the user must install it themselves.
+    /// not bundle git, the user must install it themselves.
     #[display("`git` executable not found on PATH. Install git to fetch git-hosted packages.")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_NOT_FOUND))]
     GitNotFound,
@@ -95,7 +95,7 @@ pub enum GitFetcherError {
 
     /// The clone (or shallow fetch) of a git dependency failed. Carries
     /// the package the resolution belongs to, which [`Self::GitExec`]
-    /// alone cannot name — a bare `git clone` failure leaves the user to
+    /// alone cannot name, a bare `git clone` failure leaves the user to
     /// work out which of their dependencies it came from.
     #[display(
         "Failed to fetch {package:?} from the git repository {:?}: {}",
@@ -112,7 +112,7 @@ pub enum GitFetcherError {
     ///
     /// A lockfile written before pnpm v11.21 could record an SSH URL for
     /// a dependency whose specifier never asked for SSH, and resolution
-    /// is skipped while that lockfile stays up to date — so the entry
+    /// is skipped while that lockfile stays up to date, so the entry
     /// survives the upgrade that fixed it and the install keeps failing
     /// wherever no SSH key is configured.
     #[display(

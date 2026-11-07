@@ -15,7 +15,7 @@
 //! The mount point can be the project directory itself, when nothing
 //! above it accepts a hard link. The store then goes to
 //! `<pkg_root>/node_modules/.pnpm-store`, where the project's VCS
-//! ignores it — deliberately not the `<pkg_root>/.pnpm-store` pnpm 11
+//! ignores it, deliberately not the `<pkg_root>/.pnpm-store` pnpm 11
 //! uses. A project switched between both CLIs fails `pnpm add`,
 //! `pnpm remove`, and `pnpm update` with `ERR_PNPM_UNEXPECTED_STORE` until
 //! `pnpm install` recreates its modules directory.
@@ -25,7 +25,7 @@
 //! `/Volumes/src/` on macOS) would have pacquet install into the
 //! case-*insensitive* home volume (`~/Library/pnpm/store`).
 //! Downstream tools that compare canonical paths get confused by the
-//! mismatch — typescript-eslint, for instance, canonicalises its
+//! mismatch, typescript-eslint, for instance, canonicalises its
 //! parser cache against the home store and then can't find the same
 //! source files in the case-sensitive TypeScript program loaded from
 //! the workspace volume, so `eslint --fix` fails with a
@@ -73,7 +73,7 @@ impl StoreRelocation {
 /// home-based path and the project root.
 ///
 /// Falls back to `home_default` whenever the algorithm cannot complete
-/// — the conservative choice on any error.
+///the conservative choice on any error.
 pub fn resolve_store_dir<Sys: LinkProbe>(
     home_default: PathBuf,
     pnpm_home_dir: &Path,
@@ -115,7 +115,7 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
 /// using `can_link_between_dirs` to test each ancestor.
 ///
 /// Returns `None` if no ancestor accepts the hardlink (no usable
-/// mount point) — the caller falls back to the home store.
+/// mount point), the caller falls back to the home store.
 fn root_link_target<Sys: LinkProbe>(pkg_root: &Path) -> Option<PathBuf> {
     let mut dir = filesystem_root(pkg_root);
     loop {
@@ -132,7 +132,7 @@ fn root_link_target<Sys: LinkProbe>(pkg_root: &Path) -> Option<PathBuf> {
 /// Extract the absolute-path prefix that anchors `path` (the root
 /// `/` on Unix; the disk-prefix `C:\` on Windows; etc.). When `path`
 /// has no absolute root component the function returns the path
-/// unchanged — that branch should be unreachable here because
+/// unchanged, that branch should be unreachable here because
 /// `pkg_root` is canonicalised before [`root_link_target`] is called.
 fn filesystem_root(path: &Path) -> PathBuf {
     let mut root = PathBuf::new();

@@ -1,7 +1,7 @@
 //! Bare-specifier parsing for the local-filesystem resolver.
 //!
 //! Decides whether a wanted dep is a local-filesystem shape (and which
-//! protocol — `link:` vs `file:`) and builds the [`LocalPackageSpec`]
+//! protocol, `link:` vs `file:`) and builds the [`LocalPackageSpec`]
 //! the resolver consumes.
 
 use std::path::{Path, PathBuf};
@@ -101,7 +101,7 @@ pub(crate) fn parse_local_scheme(
     Ok(None)
 }
 
-/// Parse a wanted dep by path shape alone — no scheme prefix. The
+/// Parse a wanted dep by path shape alone, no scheme prefix. The
 /// dispatcher calls this *after* [`parse_local_scheme`] so explicit
 /// `link:`/`file:`/`workspace:`/`path:` prefixes don't slip through.
 pub(crate) fn parse_local_path(

@@ -33,7 +33,7 @@ export function createRegistryRevisionsUnsupportedError (message: string): PnpmE
 }
 
 /**
- * Build the canonical tarball URL of an npm package — i.e. the URL pnpm derives
+ * Build the canonical tarball URL of an npm package, i.e. the URL pnpm derives
  * from a package's name, version, and registry.
  *
  * This is the single source of the URL shape: the lockfile writer drops a
@@ -58,7 +58,7 @@ export function getNpmTarballUrl (
 
 /**
  * Whether `tarball` is the canonical npm registry URL derived from the package
- * name, version, and registry — i.e. it can be dropped from the lockfile and
+ * name, version, and registry, i.e. it can be dropped from the lockfile and
  * rebuilt on demand by {@link getNpmTarballUrl}.
  *
  * The lockfile writer uses this to decide whether to persist a tarball URL.

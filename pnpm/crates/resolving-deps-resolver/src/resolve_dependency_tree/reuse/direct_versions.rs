@@ -53,7 +53,7 @@ fn direct_dep_specifier_unchanged(
 /// [`fn@record_changed_direct_deps`] have their `catalog:` protocol
 /// already replaced by the catalog's range
 /// ([`fn@resolve_catalog_specifiers`]), while the importer snapshot
-/// records the literal `catalog:` / `catalog:<name>` form — comparing
+/// records the literal `catalog:` / `catalog:<name>` form, comparing
 /// those directly would mark every catalog-managed dep as changed on
 /// every install, and the changed-direct-dep reuse gate would then
 /// re-resolve (and drift) every subtree depending on one. The edge is

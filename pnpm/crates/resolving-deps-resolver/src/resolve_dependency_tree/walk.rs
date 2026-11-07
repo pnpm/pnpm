@@ -2,7 +2,7 @@
 //! ([`fn@resolve_node_seed`]), seeding a settled occurrence's children
 //! ([`fn@seed_node_children`]), and the per-wanted resolve cache both
 //! go through. Seeding and settling are separate phases so a whole
-//! depth level resolves before any of it is settled — which is what
+//! depth level resolves before any of it is settled, which is what
 //! makes children ownership, and with it the lockfile, independent of
 //! the order concurrent subtrees finish in ([`fn@walk_from_seeds`]).
 
@@ -148,7 +148,7 @@ where
 /// without a children walk (cycle break, skipped optional, or finished
 /// lockfile reuse), the package was reused from the lockfile and its
 /// snapshot children are waiting on the level's settled alias scope,
-/// or the package resolved fresh and its children are still pending —
+/// or the package resolved fresh and its children are still pending,
 /// the level settles which occurrence of it walks them, and only then
 /// does that one seed its children, so their resolution sees the whole
 /// level's versions in its preferred-versions overlay.
@@ -213,7 +213,7 @@ pub(super) struct PendingNode {
     /// occurrence, once its level has seeded in full.
     claim: Option<ChildrenOwnerClaim>,
     /// The edge's recorded snapshot key in the prior lockfile, if
-    /// any — threads each child's prior ref through the walk phase
+    /// any, threads each child's prior ref through the walk phase
     /// via `ReuseSource::Transitive`.
     pub(super) prior_key: Option<PkgNameVerPeer>,
     identity: PendingNodeIdentity,
@@ -268,7 +268,7 @@ struct FrontierNode {
     children_pkg_aliases: Arc<ParentPkgAliases>,
 }
 
-/// A frontier node that has seeded its children — what settling the
+/// A frontier node that has seeded its children, what settling the
 /// level needs to record its edges and to hand the children that own
 /// their own packages on to the next level.
 struct SeededNode {
@@ -287,7 +287,7 @@ struct SeededNode {
 /// children ownership is decided ([`fn@assign_level_owners`]).
 /// Ownership then never passes to an occurrence seeded later, and the
 /// children each package records stop depending on which subtree
-/// happened to reach it first — the arrival-order dependence behind
+/// happened to reach it first, the arrival-order dependence behind
 /// <https://github.com/pnpm/pnpm/issues/13685>. It is also why no
 /// occurrence ever re-walks a package another one recorded, which the
 /// exponential blowup of <https://github.com/pnpm/pnpm/issues/13574>

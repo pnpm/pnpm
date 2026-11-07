@@ -50,7 +50,7 @@ pub fn format_pack_output(results: &[PackResultJson], json: bool, unicode: bool)
         .map(|result| {
             // `name` / `version` / `filename` and the file paths are
             // manifest- and filesystem-derived, so strip control
-            // characters before they reach the terminal — a file named
+            // characters before they reach the terminal, a file named
             // with raw ANSI escapes would otherwise spoof the output.
             let files = result.files
                 .iter()
@@ -70,7 +70,7 @@ pub fn format_pack_output(results: &[PackResultJson], json: bool, unicode: bool)
 
 /// Strip control characters (keeping `\n` / `\t`) from text headed for the
 /// terminal, so a manifest- or filesystem-derived value can't emit raw
-/// escape sequences. JSON output is left untouched — it is data, not a
+/// escape sequences. JSON output is left untouched, it is data, not a
 /// terminal rendering.
 fn sanitize_for_terminal(text: &str) -> std::borrow::Cow<'_, str> {
     if text

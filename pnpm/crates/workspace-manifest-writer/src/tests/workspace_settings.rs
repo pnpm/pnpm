@@ -83,7 +83,7 @@ fn updates_named_catalog_value_preserving_comment() {
     assert_eq!(out, "catalogs:\n  react:\n    # pinned by the platform team\n    react: 18.2.0\n");
 }
 
-/// `saveCatalogName` is unconstrained — it comes from
+/// `saveCatalogName` is unconstrained, it comes from
 /// `pnpm-workspace.yaml`, `PNPM_CONFIG_SAVE_CATALOG_NAME`, or
 /// `--save-catalog-name`. A newline in it renders as a YAML block scalar
 /// that the splice would write into the middle of the `catalogs:`

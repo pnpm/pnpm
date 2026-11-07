@@ -39,7 +39,7 @@ fn now() -> DateTime<Utc> {
 }
 
 /// Build a header map carrying a bearer `Authorization` plus one
-/// custom header — the resolved per-upstream set an [`Upstream`] is
+/// custom header, the resolved per-upstream set an [`Upstream`] is
 /// expected to attach to every request.
 fn auth_and_custom_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();

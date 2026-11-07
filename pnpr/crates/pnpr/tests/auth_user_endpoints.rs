@@ -1,5 +1,5 @@
 //! Acceptance tests for the npm-CLI-compatible user and token
-//! endpoints — `whoami`, profile, token listing, token revocation,
+//! endpoints, `whoami`, profile, token listing, token revocation,
 //! and logout. The token-listing endpoint backs `npm token list`;
 //! the rest gate behind a valid bearer token in the same way as
 //! `npm whoami` / `npm profile get` / `npm logout` expect.
@@ -316,7 +316,7 @@ async fn profile_returns_user_info() {
     assert_eq!(payload["name"].as_str(), Some("alice"));
     assert_eq!(payload["tfa"].as_bool(), Some(false));
     // npm CLI's table renderer expects these keys to be present even
-    // when empty — make sure we don't omit them.
+    // when empty, make sure we don't omit them.
     assert!(payload.get("email").is_some(), "email field must be present");
     assert!(payload.get("cidr_whitelist").is_some(), "cidr_whitelist field must be present");
 }
@@ -559,7 +559,7 @@ async fn logout_requires_caller_to_own_the_token() {
     let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
     let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
-    // Alice asks to log out using bob's token — forbidden.
+    // Alice asks to log out using bob's token, forbidden.
     let path = format!("/-/user/token/{bob_token}");
     let response = app
         .clone()
@@ -592,7 +592,7 @@ async fn logout_requires_auth() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// Every auth-endpoint response — success, 401, 403, 404 alike —
+/// Every auth-endpoint response, success, 401, 403, 404 alike,
 /// must mark itself uncacheable so an intermediary HTTP cache that
 /// ignores `Vary` can't latch onto one user's identity and serve it
 /// to another.
@@ -603,7 +603,7 @@ async fn auth_endpoints_set_private_no_cache_headers() {
     let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
     let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
-    // Bob's key — used to drive the 403 cross-user revoke branch below.
+    // Bob's key, used to drive the 403 cross-user revoke branch below.
     let response = app
         .clone()
         .oneshot(get_with_bearer("/-/npm/v1/tokens", &bob_token))
@@ -666,7 +666,7 @@ async fn auth_endpoints_set_private_no_cache_headers() {
     }
 }
 
-/// Revocation must persist across a restart — once a token is
+/// Revocation must persist across a restart, once a token is
 /// revoked, reopening the `SQLite` store must not reload it.
 #[tokio::test]
 async fn revocation_survives_restart() {

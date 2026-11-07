@@ -18,7 +18,7 @@ pub(crate) fn replace_executable(src: &Path, dest: &Path) -> std::io::Result<()>
     let staged = staging_path(dest);
     let publish = || {
         // A hard link shares the source's inode, so it is only usable
-        // when the source already carries the executable bits — a chmod
+        // when the source already carries the executable bits, a chmod
         // through the link would mutate the source (the running
         // executable, or a store entry, possibly in a read-only store).
         // A non-executable source is copied instead, and only the fresh

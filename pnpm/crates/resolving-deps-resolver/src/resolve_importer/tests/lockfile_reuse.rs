@@ -24,7 +24,7 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
     );
     // hoistPeers picks the already-resolved 18.2.0 instead of "^18.0.0".
     // The stub returns the same result for both keys so a stray
-    // "^18.0.0" resolve call would still work — but the assertion
+    // "^18.0.0" resolve call would still work, but the assertion
     // below also checks the call list.
     table.insert(
         ("react".to_string(), "18.2.0".to_string()),

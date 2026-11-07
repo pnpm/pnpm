@@ -308,7 +308,7 @@ function shouldRelinkPkg (
   // yet, the fetcher tolerates the missing directory and comes back with an
   // empty `filesMap`; relinking from that would wipe an already-materialized
   // target. Only skip the relink when there is something in the target
-  // worth preserving — an empty or missing target has nothing to lose, and
+  // worth preserving, an empty or missing target has nothing to lose, and
   // still needs the relink to create it so the post-build resync has
   // somewhere to write into.
   if (opts.resolvedFrom === 'local-dir' && opts.sourceExists === false) {

@@ -1,18 +1,18 @@
 //! Rendering pnpm's terminal output inside the engine.
 //!
 //! Without this, an embedder gets the raw event stream through `onLog` and
-//! has to render it itself — in practice by keeping `@pnpm/logger` and
+//! has to render it itself, in practice by keeping `@pnpm/logger` and
 //! `@pnpm/cli.default-reporter` around and feeding the events into them.
 //! That works only for as long as the JS reporter of one pnpm line stays
 //! wire-compatible with the events of another, which is a coupling an
 //! embedder should not have to maintain. [`NativeRenderer`] folds the same
-//! events through [`pnpm_default_reporter`] — the reporter `pnpm install`
-//! itself renders with — so an embedder gets pnpm's real output and no JS
+//! events through [`pnpm_default_reporter`], the reporter `pnpm install`
+//! itself renders with, so an embedder gets pnpm's real output and no JS
 //! reporter.
 //!
 //! Output goes to stdout (or stderr) by default. An embedder that owns the
-//! terminal — Bit's CLI server replaces `process.stdout` with a stream that
-//! forwards to connected editors — passes an `onOutput` callback instead,
+//! terminal, Bit's CLI server replaces `process.stdout` with a stream that
+//! forwards to connected editors, passes an `onOutput` callback instead,
 //! and every rendered chunk is handed back to JS rather than written to a
 //! file descriptor the host has already redirected at the JS level.
 
@@ -74,7 +74,7 @@ pub struct ReporterOptions {
     /// `"error"`, `"warn"`, `"info"` (the default), or `"debug"`.
     pub log_level: Option<String>,
     /// Terminal width to wrap at, at least one column. Defaults to the
-    /// width of the output stream when it is a terminal, and 80 otherwise —
+    /// width of the output stream when it is a terminal, and 80 otherwise,
     /// an `onOutput` callback always needs it passed explicitly, since the
     /// engine cannot see where the chunks end up.
     pub width: Option<u32>,
@@ -143,7 +143,7 @@ impl Destination {
     }
 
     /// The terminal width of *this* destination. Measuring stdout while
-    /// rendering to stderr would size the frame from an unrelated stream —
+    /// rendering to stderr would size the frame from an unrelated stream,
     /// they are separately redirectable and need not be the same width.
     fn terminal_columns(&self) -> Option<usize> {
         match self {
@@ -159,7 +159,7 @@ impl Destination {
 /// One engine call's renderer: the folded reporter state plus the frame
 /// differ and throttle that turn it into terminal writes. A fresh one is
 /// built per call, so consecutive installs in one process do not inherit
-/// each other's counters or options — unlike the CLI's process-global
+/// each other's counters or options, unlike the CLI's process-global
 /// reporter, which is configured once at startup.
 pub struct NativeRenderer {
     state: ReporterState,

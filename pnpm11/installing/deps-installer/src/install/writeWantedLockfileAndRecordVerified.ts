@@ -14,7 +14,7 @@ export interface WriteWantedLockfileAndRecordVerifiedOptions {
   mergeGitBranchLockfiles?: boolean
 }
 
-/** Combines {@link writeWantedLockfile} and {@link recordLockfileVerified} — see each for semantics. */
+/** Combines {@link writeWantedLockfile} and {@link recordLockfileVerified}, see each for semantics. */
 export async function writeWantedLockfileAndRecordVerified (
   opts: WriteWantedLockfileAndRecordVerifiedOptions
 ): Promise<LockfileObject> {

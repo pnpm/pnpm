@@ -66,7 +66,7 @@ use ssri::Integrity;
 use tokio::sync::{Notify, RwLock, Semaphore};
 
 /// Ceiling on a single eager buffer reservation sized from untrusted
-/// archive metadata — `dist.unpackedSize` in registry metadata and an
+/// archive metadata, `dist.unpackedSize` in registry metadata and an
 /// entry's `uncompressed_size` in a zip central directory. Both are
 /// attacker-controlled, and post-download work runs concurrently (see
 /// [`post_download_semaphore`]), so whatever one task reserves up front
@@ -96,7 +96,7 @@ fn auth_header_for_package_download(
 /// tarball + gzip inflate + per-file SHA-512 + CAFS writes). The body is
 /// CPU-bound with some blocking FS I/O, and putting it on
 /// `tokio::task::spawn_blocking` makes the default 512-thread blocking
-/// pool available — but async fan-out across `try_join_all` routinely
+/// pool available, but async fan-out across `try_join_all` routinely
 /// fires hundreds of these at once on a 1352-snapshot install, which
 /// thrashes small CI runners. Past "Download completed" a 2-CPU GitHub
 /// Actions runner wedged between decompress-close and `Checksum verified`
@@ -379,7 +379,7 @@ impl<'a> IngestTarballToStore<'a> {
 
     /// Park until the task that claimed this URL settles the cache slot.
     ///
-    /// `pnpm:progress` fires exactly once per URL — only the first writer's
+    /// `pnpm:progress` fires exactly once per URL, only the first writer's
     /// `run_without_mem_cache` call emits. Later waiters on the same cache
     /// slot do not re-trigger the emit.
     async fn wait_for_owner<Reporter: self::Reporter>(
@@ -508,8 +508,8 @@ pub(crate) fn claim_cache_entry(
 /// Park until the task that claimed this key settles the cache slot.
 ///
 /// Register with the `Notify` *before* re-checking the slot.
-/// `notify_waiters` stores no permit — it wakes only `Notified`
-/// futures already registered at that instant — and the read guard
+/// `notify_waiters` stores no permit, it wakes only `Notified`
+/// futures already registered at that instant, and the read guard
 /// from an `InProgress` observation is released before the loop,
 /// so the owner's flip-and-notify can land in between. Checking
 /// first and registering after loses that wakeup and parks this
@@ -540,7 +540,7 @@ pub(crate) async fn wait_for_cached_tarball(
             CacheValue::Failed(cause) => return Err(sibling_fetch_failed(cause)),
             // The owner notifies only after flipping the slot to
             // `Available` or `Failed`, so a wake with the slot still
-            // `InProgress` cannot happen — but a stale registration
+            // `InProgress` cannot happen, but a stale registration
             // completing early is harmless: re-register and park again.
             CacheValue::InProgress(_) => {}
         }

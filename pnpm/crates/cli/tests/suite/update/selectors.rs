@@ -58,7 +58,7 @@ fn update_transitive_mixed_with_direct_selector() {
     drop((root, anchor));
 }
 
-/// The glob form of the mixed-selector case — the shape from
+/// The glob form of the mixed-selector case, the shape from
 /// <https://github.com/pnpm/pnpm/issues/12103> (`pnpm up "@babel/*" uuid`).
 /// A glob that names only a transitive
 /// dependency must still bump it when a direct selector rides alongside.
@@ -94,7 +94,7 @@ fn update_transitive_glob_mixed_with_direct_selector() {
 
 /// `pacquet update <pkg>@<version>` on a package that is only present as a
 /// transitive dependency has no manifest entry to write the version into, and
-/// an update resolves the target the way a fresh install would — so the
+/// an update resolves the target the way a fresh install would, so the
 /// version could only reach the lockfile as an entry nothing backs. The
 /// command fails and points at `overrides`, the mechanism that does pin a
 /// transitive dependency.
@@ -155,7 +155,7 @@ fn update_latest_with_selector_is_scoped() {
 }
 
 /// A negation selector (`!@scope/*`) updates everything *except* the
-/// matched packages — ports pnpm's "update with negation pattern" test.
+/// matched packages, ports pnpm's "update with negation pattern" test.
 #[test]
 fn update_latest_with_negation_selector() {
     let (root, workspace, anchor) = setup();
@@ -229,7 +229,7 @@ fn update_depth_zero_leaves_transitive_dependencies_locked() {
 }
 
 /// `updateConfig.ignoreDependencies` excludes the listed packages from a
-/// no-selector update — ports pnpm's "ignore packages in
+/// no-selector update, ports pnpm's "ignore packages in
 /// updateConfig.ignoreDependencies" test (adapted to static fixtures).
 #[test]
 fn update_latest_honors_ignore_dependencies() {
@@ -591,7 +591,7 @@ fn update_prod_and_peer_preserves_omitted_dev_dependencies() {
 }
 
 /// When every included *direct* dep is ignored, `update --latest` is a
-/// full no-op — it must not re-resolve the non-ignored *indirect* deps.
+/// full no-op, it must not re-resolve the non-ignored *indirect* deps.
 /// Mirrors pnpm's early `if (opts.latest) return`.
 #[test]
 fn update_latest_all_direct_ignored_does_not_touch_indirect() {
@@ -619,7 +619,7 @@ fn update_latest_all_direct_ignored_does_not_touch_indirect() {
 /// The non-`--latest` counterpart: when the only direct dep is ignored,
 /// a plain `update` still re-resolves the non-ignored indirect deps to
 /// the highest in range. Mirrors pnpm's "updating indirect dependencies
-/// only" branch — and guards against narrowing the `--latest` no-op
+/// only" branch, and guards against narrowing the `--latest` no-op
 /// guard into an unconditional one.
 #[test]
 fn update_compatible_all_direct_ignored_still_updates_indirect() {
@@ -639,7 +639,7 @@ fn update_compatible_all_direct_ignored_still_updates_indirect() {
     drop((root, anchor));
 }
 
-/// When every dependency is ignored, `update --latest` is a no-op —
+/// When every dependency is ignored, `update --latest` is a no-op,
 /// ports pnpm's "do not update anything if all the dependencies are
 /// ignored" test.
 #[test]
@@ -688,7 +688,7 @@ fn update_npm_alias_selector_targets_the_aliased_package() {
     let (root, workspace, anchor) = setup();
 
     // Pin the aliased package at 100.0.0 through a direct exact entry,
-    // then drop the entry so the alias is the only thing holding it — its
+    // then drop the entry so the alias is the only thing holding it, its
     // ^100.0.0 range a fresh resolve answers with 100.1.0.
     write_manifest(
         &workspace,
@@ -716,7 +716,7 @@ fn update_npm_alias_selector_targets_the_aliased_package() {
 /// boundary, so a partial update made a reused parent snapshot appear
 /// childless. pacquet reuses the whole subtree of a non-targeted package
 /// from the lockfile ([`UpdateReuseScope::Except`]), so the transitive
-/// edge survives — this test locks that in.
+/// edge survives, this test locks that in.
 ///
 /// The TypeScript regression updates a package absent from the manifest;
 /// pacquet rejects that with `NO_PACKAGE_IN_DEPENDENCIES`, so the update

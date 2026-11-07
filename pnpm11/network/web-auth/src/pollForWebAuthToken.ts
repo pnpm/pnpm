@@ -160,8 +160,8 @@ async function waitForRetryAfter ({ Date, deadline, response, setTimeout }: Wait
 
 /**
  * Reads and parses a poll response body, applying {@link TOKEN_BODY_LIMIT}
- * when the raw stream is exposed. Returns `undefined` — which the poll loop
- * treats the same as an unparsable body, retrying on the next tick — for an
+ * when the raw stream is exposed. Returns `undefined`, which the poll loop
+ * treats the same as an unparsable body, retrying on the next tick, for an
  * oversized or truncated body.
  */
 async function readTokenBody (response: WebAuthFetchResponse): Promise<unknown> {

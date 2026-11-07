@@ -1,4 +1,4 @@
-//! `pnpm env` — the deprecated Node.js front end to `pnpm runtime`.
+//! `pnpm env`, the deprecated Node.js front end to `pnpm runtime`.
 //!
 //! Only the paths that stop before the network are covered here; `env use`
 //! and `env list` reach the Node.js mirror, which the mocked registry does

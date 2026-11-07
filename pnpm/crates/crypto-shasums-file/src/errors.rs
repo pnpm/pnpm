@@ -104,7 +104,7 @@ pub enum FetchVerifiedNodeShasumsError {
 
 /// Errors raised by [`crate::pick_file_checksum_from_shasums_file`].
 ///
-/// Two upstream codes survive the port verbatim — they are the
+/// Two upstream codes survive the port verbatim, they are the
 /// per-file equivalents of `ERR_PNPM_FAILED_DOWNLOAD_SHASUM_FILE`'s download
 /// failure and signal that the body the verifier already has does not
 /// answer the question being asked.

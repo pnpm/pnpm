@@ -104,7 +104,7 @@ impl PickPolicy {
         let time_based = config.resolution_mode == ResolutionMode::TimeBased;
         let pick_lowest_direct = config.resolution_mode.picks_lowest_direct();
         let full_metadata = config.requires_full_metadata_for_resolution();
-        // On overflow we leave the policy inactive for this run — better
+        // On overflow we leave the policy inactive for this run, better
         // than silently producing a cutoff in the wrong direction.
         let published_by = config
             .resolved_minimum_release_age()

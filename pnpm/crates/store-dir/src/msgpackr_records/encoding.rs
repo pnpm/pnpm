@@ -10,7 +10,7 @@ use super::{
 ///
 /// ## Slot allocation
 ///
-/// Slot `0x40` is reserved for the top-level [`PackageFilesIndex`] —
+/// Slot `0x40` is reserved for the top-level [`PackageFilesIndex`],
 /// one per row, always first in the stream. Inner slots in
 /// `0x41..=0x7f` are allocated **lazily, in first-seen order, one per
 /// distinct record shape** (where "shape" is the set of fields that
@@ -23,7 +23,7 @@ use super::{
 ///
 /// This is what msgpackr itself does for the same traversal and shape
 /// set, so pacquet's output is **wire-compatible** with msgpackr (same
-/// record schemas, same slot numbers, same value encodings) — pnpm's
+/// record schemas, same slot numbers, same value encodings), pnpm's
 /// reader reconstructs the same JS shape from both. Exact bytes can
 /// still differ when Rust's `HashMap` iterates `files` / `sideEffects`
 /// / `added` entries in a different order than msgpackr's JS `Map`
@@ -78,7 +78,7 @@ pub enum EncodeError {
 /// A single stream always has exactly one of these, so it gets the
 /// base slot. Inner records (`CafsFileInfo`, `SideEffectsDiff`) are
 /// allocated lazily from [`FIRST_INNER_SLOT`] upwards, one slot per
-/// distinct shape — see [`EncodeState::allocate_slot`].
+/// distinct shape, see [`EncodeState::allocate_slot`].
 pub(super) const PKG_FILES_INDEX_SLOT: u8 = SLOT_LO;
 
 pub(super) const FIRST_INNER_SLOT: u8 = SLOT_LO + 1;
@@ -251,11 +251,11 @@ fn sorted_by_key<Value>(map: &HashMap<String, Value>) -> Vec<(&String, &Value)> 
 /// Emit one JSON value as msgpack inside an active records stream.
 /// Scalars use the smallest slot-safe encoding (no bare positive
 /// fixints in `0x40..=0x7f`, which would otherwise be misread as
-/// record-slot references — see [`write_uint`]). Arrays are plain
+/// record-slot references, see [`write_uint`]). Arrays are plain
 /// msgpack `fixarray` / `array16` / `array32`. Objects are
 /// **record-encoded** via [`encode_json_object`] so that
 /// `useRecords: true` decoders see them as JS `Object` rather than
-/// JS `Map` — necessary for pnpm's bin linker to find
+/// JS `Map`, necessary for pnpm's bin linker to find
 /// `manifest.bin` / `manifest.directories?.bin` via property
 /// access.
 fn encode_json_value(
@@ -290,7 +290,7 @@ fn encode_json_value(
 ///
 /// Field iteration order is the [`serde_json::Map`]'s own order;
 /// pacquet builds with `serde_json/preserve_order`, so that's the
-/// insertion order from parsing the original `package.json` — the
+/// insertion order from parsing the original `package.json`, the
 /// same order pnpm itself observes when packing the manifest.
 fn encode_json_object(
     writer: &mut Vec<u8>,
@@ -336,7 +336,7 @@ fn encode_json_number(writer: &mut Vec<u8>, n: &serde_json::Number) {
     // cases above. If it isn't (a future serde_json release adds a
     // new representation), the wire output would be missing a value
     // for this field, which would surface as a deserialize error on
-    // round-trip — louder than silent corruption.
+    // round-trip, louder than silent corruption.
 }
 
 fn encode_cafs_file_info(
@@ -362,7 +362,7 @@ fn encode_cafs_file_info(
     write_uint(writer, u64::from(info.mode));
     write_uint(writer, info.size);
     if let Some(v) = info.checked_at {
-        // Float 64 — not uint 64 — because msgpackr decodes `uint 64`
+        // Float 64, not uint 64, because msgpackr decodes `uint 64`
         // as a JS `BigInt`, and pnpm's integrity check does
         // `mtimeMs - (checkedAt ?? 0)` which throws `TypeError: Cannot
         // mix BigInt and other types`.
@@ -448,14 +448,14 @@ fn write_array_header(writer: &mut Vec<u8>, n: usize) {
 
 /// Write an unsigned integer in the smallest `MessagePack` encoding that
 /// is safe inside an active records stream. Values `0x40..=0x7f` cannot
-/// be emitted as positive fixints — their byte representation collides
-/// with record-slot references — so they get promoted to `uint 8`.
+/// be emitted as positive fixints, their byte representation collides
+/// with record-slot references, so they get promoted to `uint 8`.
 /// msgpackr does the same thing under `useRecords: true` for exactly
 /// the same reason. `mode: u32` (e.g. `0o755` = 493) and `size: u64`
 /// round-trip through this.
 pub(super) fn write_uint(writer: &mut Vec<u8>, value: u64) {
     if value < u64::from(SLOT_LO) {
-        // Positive fixint 0x00..=0x3f — below the slot range, safe to
+        // Positive fixint 0x00..=0x3f, below the slot range, safe to
         // emit bare.
         writer.push(value as u8);
     } else if u8::try_from(value).is_ok() {

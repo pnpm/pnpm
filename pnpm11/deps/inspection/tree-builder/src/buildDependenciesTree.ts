@@ -388,7 +388,7 @@ async function dependenciesHierarchyForPackage (
   }
 
   // Handle unsaved dependencies (packages in node_modules but not in lockfile).
-  // When searching, unsaved deps are irrelevant — they aren't in the lockfile
+  // When searching, unsaved deps are irrelevant, they aren't in the lockfile
   // graph and can't have dependency subtrees showing paths to the search target.
   // They aren't workspace projects either, which is all onlyProjects lists.
   if (!opts.search && !opts.onlyProjects) {

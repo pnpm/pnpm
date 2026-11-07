@@ -174,7 +174,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
 
 /// `(kebab-key, type-includes-Number)` for the npm-compatible settings
 /// (`npmConfigTypes`). Applied after [`PNPM_TYPES`], so on the few
-/// overlapping keys these definitions win — but none of the overlaps change
+/// overlapping keys these definitions win, but none of the overlaps change
 /// number-ness, so the merged "includes Number" answer is the union.
 const NPM_CONFIG_TYPES: &[(&str, bool)] = &[
     ("access", false),

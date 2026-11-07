@@ -133,7 +133,7 @@ fn link_dependency(target: &str) -> pnpm_lockfile::SnapshotDepRef {
 }
 
 /// The locked peer names a lockfile yields for an importer it does not
-/// list — the union `importer_locked_peer_context` folds over every
+/// list, the union `importer_locked_peer_context` folds over every
 /// snapshot.
 fn locked_peer_names(wanted_lockfile: Option<&pnpm_lockfile::Lockfile>) -> HashSet<String> {
     importer_locked_peer_versions(wanted_lockfile, "missing-importer").into_keys().collect()

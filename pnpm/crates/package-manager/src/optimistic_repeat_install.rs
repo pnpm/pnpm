@@ -89,7 +89,7 @@ pub(crate) fn check_optimistic_repeat_install_in(
         return Decision::Skipped { reason };
     }
     // No workspace state means no previous install has completed
-    // (or the file was deleted) — there's no `lastValidatedTimestamp`
+    // (or the file was deleted), there's no `lastValidatedTimestamp`
     // to compare against.
     let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
@@ -164,7 +164,7 @@ pub(crate) fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
         return Some("prune_direct_dependencies enabled");
     }
     // The merge has to run, and it rewrites the wanted lockfile and
-    // deletes the per-branch ones — neither of which any fast path does.
+    // deletes the per-branch ones, neither of which any fast path does.
     if config.merge_git_branch_lockfiles {
         return Some("the git branch lockfiles have to be merged");
     }

@@ -129,7 +129,7 @@ fn retry_error_code(err: &TarballError) -> Option<&'static str> {
         TarballError::ReadZipArchive { .. } | TarballError::ReadZipEntries { .. } => "ERR_PNPM_ZIP",
         TarballError::NoOfflineTarball { .. } => {
             // The retry classifier sees this only if the offline gate
-            // were ever placed inside the retry loop (it isn't —
+            // were ever placed inside the retry loop (it isn't,
             // `NoOfflineTarball` short-circuits before
             // `fetch_and_extract_with_retry`). The arm exists for
             // exhaustiveness; the `code` field is set so a future

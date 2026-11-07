@@ -5,7 +5,7 @@ use pretty_assertions::assert_eq;
 /// A lockfile that keeps a `file:` snapshot but drops or mismatches its
 /// `packages:` entry leaves no resolution to read. The segment and the
 /// project scope have to reach the same verdict from what is left, or
-/// the snapshot takes the anchored segment while missing the scope —
+/// the snapshot takes the anchored segment while missing the scope,
 /// which is the collision the scope exists to prevent.
 #[test]
 fn a_file_snapshot_without_metadata_is_still_scoped() {

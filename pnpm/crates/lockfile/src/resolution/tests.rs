@@ -15,7 +15,7 @@ use text_block_macros::text_block;
 
 const GIT_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
-/// No declared server type — the strict default every registry but
+/// No declared server type, the strict default every registry but
 /// registry.npmjs.org is read with.
 fn undeclared_form(registry: &str, include_tarball_url: bool) -> LockfileFormOptions<'_> {
     LockfileFormOptions { registry, server_type: None, include_tarball_url }
@@ -45,9 +45,7 @@ fn render_resolution(resolution: &LockfileResolution) -> String {
         .join("\n")
 }
 
-// -----------------------------------------------------------------------------
-// `select_platform_variant` / `libc_matches` — Slice B
-// -----------------------------------------------------------------------------
+// `select_platform_variant` / `libc_matches`, Slice B
 
 fn binary_resolution(url: &str) -> LockfileResolution {
     LockfileResolution::Binary(BinaryResolution {
@@ -86,7 +84,7 @@ fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
 const SHA512: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
 const REVISION_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
-// --- Custom resolutions ---
+// - Custom resolutions
 
 fn custom_cdn_resolution() -> LockfileResolution {
     let mut extra = serde_json::Map::new();

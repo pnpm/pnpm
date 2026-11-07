@@ -127,7 +127,7 @@ fn a_value_taking_option_does_not_move_the_boundary_onto_its_value() {
 ///
 /// `with current` is spliced into pnpm's own argv by `with_current::rewrite`
 /// *after* the pre-clap passes, so an override in it is still pnpm's to
-/// claim — leaving it would let clap mistake it for the script name. Any
+/// claim, leaving it would let clap mistake it for the script name. Any
 /// other version execs a child pnpm, so stripping an override would lose it
 /// for that child.
 #[test]
@@ -152,7 +152,7 @@ fn with_forwards_only_for_a_version_that_execs_a_child() {
         assert_eq!(actual, forwarded, "{argv:?}");
     }
 
-    // The whole child command line, command included — forwarding only the
+    // The whole child command line, command included, forwarding only the
     // options would leave the child pnpm with nothing to run.
     for (argv, forwarded) in [
         (

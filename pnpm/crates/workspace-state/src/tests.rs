@@ -298,8 +298,8 @@ fn node_modules_entries(workspace_dir: &std::path::Path) -> Vec<String> {
 }
 
 /// The write survives another process holding the destination open
-/// without `FILE_SHARE_DELETE` — an antivirus scan or the search
-/// indexer — for as long as that handle lives
+/// without `FILE_SHARE_DELETE`, an antivirus scan or the search
+/// indexer, for as long as that handle lives
 /// ([#14550](https://github.com/pnpm/pnpm/issues/14550)). A single
 /// `MoveFileEx` fails such a rename with `ERROR_ACCESS_DENIED`, so
 /// without the retry this write reports

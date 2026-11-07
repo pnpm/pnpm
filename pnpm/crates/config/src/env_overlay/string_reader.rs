@@ -46,7 +46,7 @@ pub(super) fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> 
 /// where an empty variable reads as unset); the command line's
 /// `--config.<setting>=<value>` tokens are the other
 /// (`WorkspaceSettings::from_string_values`). `value_allow_empty` is kept
-/// separate because some settings read `""` as a value of their own — see
+/// separate because some settings read `""` as a value of their own, see
 /// [`read_env_allow_empty`].
 #[derive(Clone, Copy)]
 pub(super) struct StringReader<'a> {

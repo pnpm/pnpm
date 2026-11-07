@@ -67,7 +67,7 @@ fn inserts_entry_into_a_four_space_indented_block() {
 #[test]
 fn quotes_scoped_package_keys() {
     // A key starting with `@` cannot be a YAML plain scalar, so it must be
-    // quoted — both when creating the block and when adding an entry.
+    // quoted, both when creating the block and when adding an entry.
     let out = run(None, &catalogs(&[("default", &[("@pnpm.e2e/foo", "1.0.0")])])).expect("written");
     assert_eq!(out, "catalog:\n  '@pnpm.e2e/foo': 1.0.0\n");
 
@@ -138,7 +138,7 @@ fn allow_builds_preserves_other_keys_and_comments() {
 fn allow_builds_upserts_a_key_containing_a_colon() {
     // Artifact allow-build keys keep the full pkgId, which contains `:`
     // (e.g. a tarball/git URL). The upsert must find and toggle the
-    // existing entry instead of appending a duplicate — which a
+    // existing entry instead of appending a duplicate, which a
     // first-colon line scan would do by truncating the key.
     let key = "foo@https://example.com/foo.tgz";
     let original = format!("allowBuilds:\n  '{key}': false\n");

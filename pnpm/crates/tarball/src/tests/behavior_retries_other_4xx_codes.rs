@@ -174,7 +174,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                 let url1 = format!("{}/pkg.tgz", server.url());
 
                 // `DashMap::default()` uses `RandomState`, whose seed is
-                // per-instance — so we MUST probe the very cache the
+                // per-instance, so we MUST probe the very cache the
                 // runtime tasks will use. A separate "probe" map would
                 // hash to different shards and silently defeat the
                 // collision setup, hiding the regression.
@@ -271,7 +271,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                 // A reaches `run_without_mem_cache`'s HTTP await, B
                 // reaches the if-let branch's `notified().await` (with
                 // the bug, holding the DashMap shard guard), and only
-                // then is C polled — its else branch's
+                // then is C polled, its else branch's
                 // `mem_cache.insert` is what blocks the worker pre-fix.
                 let task_a =
                     tokio::spawn(make_dts(url1).run_with_mem_cache::<SilentReporter>(mem_cache));
@@ -293,7 +293,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                 slow2.assert_async().await;
             });
 
-            // Reaching here means the runtime drained all three tasks —
+            // Reaching here means the runtime drained all three tasks,
             // i.e. no deadlock.
             let _ = tx.send(());
         })
@@ -307,7 +307,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
 }
 
 /// `retries: 0` (the value the existing fall-through tests use)
-/// must produce exactly one network attempt — no extra request,
+/// must produce exactly one network attempt, no extra request,
 /// no backoff sleep. Guards against a future refactor that
 /// off-by-ones the loop and turns `retries: 0` into "1 retry".
 #[tokio::test]
@@ -353,7 +353,7 @@ async fn zero_retries_makes_a_single_attempt() {
 
 /// `run_with_mem_cache` must not deadlock when the *owning* fetch
 /// errors. The owner must set the slot to `CacheValue::Failed` and
-/// notify waiters — otherwise
+/// notify waiters, otherwise
 /// a second requester parks on `Notify::notified` forever. Both
 /// requesters surface a `TarballError`.
 ///
@@ -371,7 +371,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     let _mock = server
         .mock("GET", "/pkg.tgz")
         // 404 makes `is_transient_error` return false, so the retry
-        // loop fails fast — perfect for forcing the owner-error
+        // loop fails fast, perfect for forcing the owner-error
         // branch deterministically.
         .with_status(404)
         // Both concurrent requesters dedup on the URL, so only one
@@ -456,7 +456,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     let result_a = a_result.expect("task_a join");
     let result_b = b_result.expect("task_b join");
 
-    // Both must surface an error — exact variant depends on which
+    // Both must surface an error, exact variant depends on which
     // task drove the network fetch (gets HttpStatus 404) and which
     // parked on Notify (gets SiblingFetchFailed). Pin only the
     // "both errored, neither hung" invariant.
@@ -468,7 +468,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 
 /// `pnpm:fetching-progress started` must fire *before* `send().await`,
 /// not after. Connection-level failures (DNS / connect / timeout)
-/// surface from `send().await` — emitting `started` after that point
+/// surface from `send().await`, emitting `started` after that point
 /// would silently skip those attempts even though the retry loop
 /// still iterates over them. Drives the failure path with an
 /// unreachable URL and asserts `started` fired anyway.
@@ -538,7 +538,7 @@ async fn started_fires_for_connection_level_failures() {
         "started must fire for the attempt even when send() fails before headers; got {captured:?}",
     );
     // No response head ever arrived, so `size` is the truthful
-    // "we don't know" — JSON `null` per pnpm's `size: number | null`.
+    // "we don't know", JSON `null` per pnpm's `size: number | null`.
     // Pinning this here so a future refactor that synthesizes a
     // bogus `size` for the error path can't sneak past review.
     assert_eq!(
@@ -551,7 +551,7 @@ async fn started_fires_for_connection_level_failures() {
 }
 
 /// `pnpm:progress found_in_store` fires from the cache-hit early
-/// returns in `run_without_mem_cache` — both the prefetched-cas
+/// returns in `run_without_mem_cache`, both the prefetched-cas
 /// branch and the `load_cached_cas_paths` fallback. Use the latter
 /// (writing a v11 store row + the underlying CAFS files, then a
 /// fresh-call `run_without_mem_cache`) so the test exercises the
@@ -583,7 +583,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         .mock("GET", "/pkg.tgz")
         .with_status(200)
         .with_body(FASTIFY_ERROR_TARBALL)
-        .expect(1) // exactly one network hit — second call must reuse the cache
+        .expect(1) // exactly one network hit, second call must reuse the cache
         .create_async()
         .await;
 
@@ -636,7 +636,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     drop(writer);
     writer_task.await.expect("writer task").expect("writer flushed");
 
-    // Second pass — same (integrity, package_id) pair. Recording
+    // Second pass, same (integrity, package_id) pair. Recording
     // reporter sees the `found_in_store` emit; the mockito mock must
     // not be hit again (`expect(1)` above).
     let store_index = tokio::task::spawn_blocking(move || {
@@ -712,8 +712,8 @@ async fn found_in_store_event_fires_on_cache_hit() {
     drop(store_dir_keep);
 }
 
-/// `pnpm:request-retry` fires before each backoff sleep — once per
-/// failed-and-being-retried attempt — and never on the final
+/// `pnpm:request-retry` fires before each backoff sleep, once per
+/// failed-and-being-retried attempt, and never on the final
 /// successful or final failed attempt. With one transient 503
 /// followed by a 200, the retry loop emits exactly one event:
 /// `attempt: 1` (one-indexed, matching pnpm's wire shape) carrying
@@ -803,7 +803,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     assert_eq!(retry.url, url);
     // `fast_retry_opts` collapses the backoff to 1 ms, so `timeout`
     // must reflect the actual retry-loop sleep (not pnpm's
-    // production 10 s default) — guard against an off-by-one that
+    // production 10 s default), guard against an off-by-one that
     // emits the wrong attempt's delay.
     assert_eq!(retry.timeout, 1, "timeout must mirror RetryOpts::delay_for");
     // The 503 surfaces as `TarballError::HttpStatus`, so the
@@ -823,7 +823,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
 /// not a limit the deflate stream behind it respects. An entry that
 /// keeps producing bytes past what it declared is the zip bomb: it must
 /// be rejected, and the read must stop rather than following the stream
-/// to wherever it ends — on the buffered and the direct-to-store branch
+/// to wherever it ends, on the buffered and the direct-to-store branch
 /// alike.
 #[test]
 fn write_zip_entry_to_cas_stops_reading_an_entry_longer_than_it_claims() {
@@ -865,7 +865,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
 
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
-    // `.expect(0)` — if the fetcher attempts the network at all,
+    // `.expect(0)`, if the fetcher attempts the network at all,
     // mockito's drop checker fails the test on the `.assert_async`
     // call below.
     let must_not_fire = server
@@ -917,7 +917,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
     .expect_err("offline + cache miss must error before reaching the network");
 
     // Variant shape + diagnostic code together. The `code` check
-    // pins the user-facing surface — `ERR_PNPM_NO_OFFLINE_TARBALL`
+    // pins the user-facing surface, `ERR_PNPM_NO_OFFLINE_TARBALL`
     // is part of the CLI contract, like pnpm's
     // `ERR_PNPM_NO_OFFLINE_META`.
     let TarballError::NoOfflineTarball { package_id, url: errored_url } = &err else {
@@ -934,7 +934,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         "diagnostic code is part of the user-facing surface; must stay stable",
     );
 
-    // No network call was made — confirms the gate fired before any
+    // No network call was made, confirms the gate fired before any
     // attempt at `fetch_and_extract_with_retry`.
     must_not_fire.assert_async().await;
 
@@ -949,7 +949,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
 #[tokio::test]
 async fn offline_mode_still_uses_prefetched_cache() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
-    // Server with `.expect(0)` — the prefetched-CAS-paths branch must
+    // Server with `.expect(0)`, the prefetched-CAS-paths branch must
     // short-circuit before any HTTP call.
     let mut server = mockito::Server::new_async().await;
     let must_not_fire = server
@@ -964,7 +964,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
     let pkg_id = "@fastify/error@3.3.0";
 
     // Seed the prefetched cache with a placeholder entry for our
-    // (integrity, pkg_id) — value content doesn't matter; the gate
+    // (integrity, pkg_id), value content doesn't matter; the gate
     // we're exercising only checks key presence. `PrefetchedCasPaths`
     // is a `HashMap` type alias, so a struct literal works directly.
     let cache_key = store_index_key(&pkg_integrity.to_string(), pkg_id);

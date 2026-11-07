@@ -245,8 +245,8 @@ pub(super) fn apply_release_policy(config: &mut Config, overlay: &ConfigOverlay)
     }
 }
 
-/// Key the overlay's unkeyed (`""`) `Authorization` header — the host's
-/// default-registry credential — at the registry that same overlay declared,
+/// Key the overlay's unkeyed (`""`) `Authorization` header, the host's
+/// default-registry credential, at the registry that same overlay declared,
 /// or at the npmjs default when it declared none. This mirrors the pinning
 /// `.npmrc` credentials get in `NpmrcAuth::rescope_unscoped`: the credential
 /// and the registry it is sent to both come from the host, so a `registry=`

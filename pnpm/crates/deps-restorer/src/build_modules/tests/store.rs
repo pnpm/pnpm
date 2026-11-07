@@ -92,7 +92,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
     let modules_dir = tempdir().expect("create temp dir");
     let lockfile_dir = tempdir().expect("create temp dir");
 
-    // A slot directory that exists but has lost its manifest — the state a
+    // A slot directory that exists but has lost its manifest, the state a
     // stage-and-swap failure would leave behind.
     let (pkg_dir, _mode) =
         create_postinstall_modifies_source_fixture(virtual_store_dir.path(), &pkg_key);
@@ -196,7 +196,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
     );
 }
 /// Negative pair: with `side_effects_cache = false`, even a
-/// matching cache entry is ignored — the build runs.
+/// matching cache entry is ignored, the build runs.
 #[cfg(unix)]
 #[test]
 fn side_effects_cache_disabled_bypasses_the_gate() {
@@ -291,7 +291,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
 /// built directory, diffs against the pristine `PackageFilesIndex.files`
 /// row pre-seeded in the store, and queues a mutation so the row's
 /// `side_effects[cache_key]` carries the post-build files that
-/// differ from the base. The base CAS blob is left untouched — the
+/// differ from the base. The base CAS blob is left untouched, the
 /// digest the store-index row holds for `index.js` matches the
 /// pristine content, not the post-build content.
 ///
@@ -354,7 +354,7 @@ async fn write_path_populates_side_effects_row() {
         "index.js".to_string(),
         CafsFileInfo {
             // The pristine content's actual digest is irrelevant
-            // for this test — the WRITE path doesn't compare it
+            // for this test, the WRITE path doesn't compare it
             // against on-disk CAS, just against the post-build
             // hashes from `add_files_from_dir`. So long as it
             // matches what `add_files_from_dir` will compute for

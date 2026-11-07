@@ -287,7 +287,7 @@ test('self-update refreshes legacy v10 bootstrap shim at pnpmHomeDir', async () 
   // legacy shim so the upgrade actually takes effect for users still on the
   // v10 PATH layout. See pnpm/pnpm#11464.
   const opts = prepare()
-  // Simulate a leftover v10 bootstrap shim. Content is irrelevant — the
+  // Simulate a leftover v10 bootstrap shim. Content is irrelevant, the
   // detector only cares about file presence, and linkBins will overwrite it.
   fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm'), '#!/bin/sh\necho stale\n', { mode: 0o755 })
   if (process.platform === 'win32') {
@@ -403,7 +403,7 @@ test('self-update resolves relative legacy shim targets from pnpmHomeDir', async
 test('self-update ignores a dangling legacy shim at pnpmHomeDir', async () => {
   // pnpm/pnpm#12496: a v10-layout shim whose install target was later
   // garbage-collected is dead weight, not a real v10 layout. self-update
-  // must not refresh it or warn about it — that warning would never stop,
+  // must not refresh it or warn about it, that warning would never stop,
   // because the dangling shim would never be cleaned up by `pnpm setup`.
   const opts = prepare()
   // Write a shim that looks like a real cmd-shim product (carries the
@@ -420,7 +420,7 @@ test('self-update ignores a dangling legacy shim at pnpmHomeDir', async () => {
 
   await selfUpdate.handler(opts, [])
 
-  // The dangling shim must not have been refreshed — its body still
+  // The dangling shim must not have been refreshed, its body still
   // references the dead target, because linkBins was not called against
   // pnpmHomeDir. (When the legacy detector fires, linkBins overwrites the
   // shim with one pointing at the freshly-installed pnpm.)
@@ -551,7 +551,7 @@ test('self-update installs the global binary when the project pin already names 
     },
   }, [])
 
-  // The pin needs no change, but the active pnpm is still v9.0.0 — without the
+  // The pin needs no change, but the active pnpm is still v9.0.0, without the
   // global install the project stays unusable. See pnpm/pnpm#14747.
   expect(output).toBe('The current project is already set to use pnpm v9.1.0\nSuccessfully updated pnpm to v9.1.0')
 
@@ -621,7 +621,7 @@ test('self-update rejects a trust-downgraded version under trustPolicy=no-downgr
   const registry = opts.registriesByScope.default
   const now = Date.now()
   // The earlier 9.0.5 was published with strong trust evidence (trusted
-  // publisher + provenance); the later 9.1.0 has none — a trust downgrade
+  // publisher + provenance); the later 9.1.0 has none, a trust downgrade
   // the no-downgrade policy must refuse to switch to when it is requested
   // by version.
   const metadata = {
@@ -773,7 +773,7 @@ test('global self-update respects minimumReleaseAge: skips immature latest, no-o
   // Reproduces pnpm/pnpm#11655: a globally-installed pnpm (no project pin / no
   // wantedPackageManager) must not jump to a "latest" version younger than
   // minimumReleaseAge. Active pnpm is mocked as 9.0.0 at the top of this
-  // file. The registry's `latest` (9.1.0) is 8h old — immature — so the
+  // file. The registry's `latest` (9.1.0) is 8h old, immature, so the
   // resolver should fall back to 9.0.0, which equals the active version and is
   // already installed globally, producing a no-op rather than reinstalling.
   const opts = prepare()
@@ -951,7 +951,7 @@ test('self-update latest forces the downgrade even when latest is older', async 
   // Mocked current pnpm is v9.0.0; mocking `latest` as v8.15.0 makes this an
   // actual downgrade so the test exercises the explicit-`latest` bypass of
   // the no-downgrade guard. The fixture tarball is still 9.1.0, but this test
-  // only checks that the install path was reached — not the resulting pinned
+  // only checks that the install path was reached, not the resulting pinned
   // version.
   mockRegistryForUpdate(opts.registriesByScope.default, '8.15.0', createMetadata('8.15.0', opts.registriesByScope.default))
 
@@ -965,7 +965,7 @@ test('self-update latest forces the downgrade even when latest is older', async 
 test('self-update by exact older version skips the no-downgrade guard', async () => {
   const opts = prepare()
   // The fixture tarball's actual contents are still 9.1.0; only the registry
-  // metadata claims 8.15.0. That is fine here — this test only verifies that
+  // metadata claims 8.15.0. That is fine here, this test only verifies that
   // an explicit version argument bypasses the implicit-latest guard, not the
   // resulting pinned version.
   mockRegistryForUpdate(opts.registriesByScope.default, '8.15.0', createMetadata('8.15.0', opts.registriesByScope.default))
@@ -1405,7 +1405,7 @@ test('should not modify complex devEngines.packageManager range when resolved ve
   }, [])
 
   expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
-  // The range should remain unchanged — the exact version is pinned in the lockfile
+  // The range should remain unchanged, the exact version is pinned in the lockfile
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager.version).toBe('>=8.0.0')
   // The lockfile should be written with the resolved exact version
@@ -1925,7 +1925,7 @@ describe('linkExePlatformBinary', () => {
     const dir = tempDir(false)
 
     // Simulate a future release where only the new-scheme platform package
-    // directory exists under the virtual store — the legacy name is absent.
+    // directory exists under the virtual store, the legacy name is absent.
     const nextPkgName = exePlatformPkgDirNameNext(platform, arch, libcFamily)
     const exeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
     const platformDir = path.join(dir, 'node_modules', '@pnpm', nextPkgName)
@@ -2087,7 +2087,7 @@ describe('linkExePlatformBinary', () => {
     expect(result.stdout.toString().trim()).toBe(process.version)
   })
 
-  // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
+  // Regression coverage for https://github.com/pnpm/pnpm/issues/11486, the
   // `pn` / `pnpx` / `pnx` aliases were broken in MSYS2 / Git Bash on Windows.
   // Root cause: linkExePlatformBinary pointed those bin entries at .cmd files,
   // and @pnpm/bins.cmd-shim's Bash shim for a .cmd source bounces through
@@ -2257,7 +2257,7 @@ describe('assertReleaseIsInstallable', () => {
 
 describe('assertPnpmRuns', () => {
   // Build the bins the same way installPnpmToGlobalDir does, so the spawn goes
-  // through the real shim linkBins writes — including the .cmd wrapper on
+  // through the real shim linkBins writes, including the .cmd wrapper on
   // Windows, which is the part a hand-written fixture would get wrong.
   async function linkFakePnpm (entry: string): Promise<string> {
     const dir = tempDir(false)

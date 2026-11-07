@@ -9,7 +9,7 @@ use super::{
 /// The overlay's view for one edge, as it joins the resolve cache key: the
 /// same range can legitimately pick different versions under levels that
 /// resolved different siblings. Each candidate name (alias, `npm:` inner
-/// target, folded `jsr:` name) keeps its own versions — the picker consults
+/// target, folded `jsr:` name) keeps its own versions, the picker consults
 /// the overlay per name, so a flat union of versions could collide two
 /// overlays that distribute the same versions across different names. Empty
 /// for almost every edge, so the dedup keeps working where it matters.
@@ -81,7 +81,7 @@ pub(super) fn pin_patched_revision(
 ///
 /// `parent_dir` is the directory of the manifest that declares this
 /// edge, when that manifest is a package resolved from a local
-/// directory — see [`declaring_manifest_dir`](crate::resolve_dependency_tree::tree_ctx::declaring_manifest_dir).
+/// directory, see [`declaring_manifest_dir`](crate::resolve_dependency_tree::tree_ctx::declaring_manifest_dir).
 ///
 /// `parent_pkg_aliases` is the scope this edge's level resolves in; it
 /// decides which of the resolved package's `dependencies` its own

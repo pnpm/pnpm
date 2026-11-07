@@ -58,7 +58,7 @@ fn verifies_a_bare_tarball_when_the_lockfile_records_a_local_resolution() {
 }
 /// Drift in `excludeLinksFromLockfile` invalidates the cached state.
 /// pnpm resolves it to a concrete `false` default and records it, so
-/// pacquet must record and compare it too — otherwise pnpm's all-key
+/// pacquet must record and compare it too, otherwise pnpm's all-key
 /// freshness check reports drift on every command after a pacquet
 /// install.
 #[test]
@@ -107,8 +107,8 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
 /// but no `pnpm-lock.yaml` on disk must NOT short-circuit. The
 /// single-project branch raises `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND`,
 /// which resolves to not-up-to-date. Without this gate, pacquet's fast
-/// path fires whenever the workspace-state file and manifests agree —
-/// independent of whether the lockfile exists — which silently turns
+/// path fires whenever the workspace-state file and manifests agree,
+/// independent of whether the lockfile exists, which silently turns
 /// the `cache+node_modules` and `node_modules`-only benchmark
 /// scenarios into a 35 ms no-op.
 #[test]
@@ -133,7 +133,7 @@ fn returns_skipped_when_lockfile_missing_in_single_project_mode() {
     );
 }
 /// Workspace installs do NOT require `pnpm-lock.yaml` on disk for
-/// the fast path — the workspace branch reports up to date purely off
+/// the fast path, the workspace branch reports up to date purely off
 /// the per-manifest mtime check without any wanted-lockfile probe (its
 /// merge-conflict scan silently `continue`s on ENOENT). Pacquet must
 /// match that polarity so a workspace install state file written by
@@ -144,7 +144,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     // Same seeded state as the happy path, but the lockfile gets
-    // wiped first — the workspace branch shouldn't care.
+    // wiped first, the workspace branch shouldn't care.
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove seeded lockfile");
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
@@ -432,8 +432,8 @@ fn returns_skipped_when_current_lockfile_is_empty_for_non_empty_wanted_lockfile(
         "expected Skipped(current lockfile missing), got {decision:?}",
     );
 }
-/// A manifest rewrite that leaves the dependency fields intact — the
-/// shape `touch package.json` / `npm pkg set/delete` produce — must
+/// A manifest rewrite that leaves the dependency fields intact, the
+/// shape `touch package.json` / `npm pkg set/delete` produce, must
 /// still short-circuit because the wanted lockfile remains up to date.
 #[test]
 fn returns_up_to_date_when_touched_manifest_still_satisfies_lockfile() {
@@ -448,7 +448,7 @@ fn returns_up_to_date_when_touched_manifest_still_satisfies_lockfile() {
 }
 /// A wanted lockfile rewritten after the last install (newer than the
 /// current lockfile, different content) cannot short-circuit: the
-/// modules directory no longer reflects it — the
+/// modules directory no longer reflects it, the
 /// `RUN_CHECK_DEPS_OUTDATED_DEPS` outcome.
 #[test]
 fn returns_skipped_when_wanted_lockfile_diverged_from_current() {
@@ -654,7 +654,7 @@ fn regenerates_missing_wanted_lockfile_from_current_when_manifests_unchanged() {
         Lockfile::load_current_from_install_state_dir(&config.install_state_dir).unwrap().unwrap();
     assert_eq!(regenerated, current);
 }
-/// Same as above with a touched (content-identical) manifest — the
+/// Same as above with a touched (content-identical) manifest, the
 /// content re-check runs against the current lockfile.
 #[test]
 fn regenerates_missing_wanted_lockfile_when_touched_manifest_satisfies_current() {
@@ -674,7 +674,7 @@ fn regenerates_missing_wanted_lockfile_when_touched_manifest_satisfies_current()
     );
 }
 /// A manifest that no longer matches the current lockfile cannot ride
-/// the current-as-wanted fallback — the full install must resolve.
+/// the current-as-wanted fallback, the full install must resolve.
 #[test]
 fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency() {
     let (dir, config) = setup_content_check_project();

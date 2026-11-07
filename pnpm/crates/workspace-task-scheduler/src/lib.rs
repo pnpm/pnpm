@@ -47,7 +47,7 @@ pub struct TaskNode {
     pub project: PathBuf,
     pub task_name: String,
     pub concurrency: Option<usize>,
-    /// The scripts of the project that the task name selected — several
+    /// The scripts of the project that the task name selected, several
     /// when the task name is a `RegExp` selector. Empty when the project has
     /// no such script: the task is then a pass-through that runs nothing,
     /// completes as soon as its dependencies have, and is reported as
@@ -64,7 +64,7 @@ pub struct TaskNode {
 /// selection order the project graph established.
 pub type TaskGraph = IndexMap<TaskKey, TaskNode>;
 
-/// `The tasks form a dependency cycle` — a cyclic task graph cannot be
+/// `The tasks form a dependency cycle`, a cyclic task graph cannot be
 /// scheduled, and running it in an arbitrary order would succeed or fail by
 /// luck.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -116,9 +116,9 @@ where
     pub select_scripts: SelectScripts,
     /// The tasks the pipeline requests; every requested project gets a
     /// task per name. A pipeline is a set, so the names carry no
-    /// ordering — any ordering among them is `dependsOn`'s job.
+    /// ordering, any ordering among them is `dependsOn`'s job.
     pub task_names: &'a [&'a str],
-    /// The projects whose tasks the invocation requests — the affected
+    /// The projects whose tasks the invocation requests, the affected
     /// set. `None` requests every project of `project_dependencies`. The
     /// rest of the map participates only through `dependsOn` edges, the
     /// way an upstream build is pulled in without its lint or tests.
@@ -144,7 +144,7 @@ pub enum TaskCompletion {
     Failed,
     /// The task was interrupted because another task caused the run to bail.
     Cancelled,
-    /// The task's work errored before it could run — an infrastructure
+    /// The task's work errored before it could run, an infrastructure
     /// failure, not a script failure. Stops dispatch like a bail.
     Aborted,
 }
@@ -162,8 +162,8 @@ where
     /// Runs one task's work. Not called for pass-through tasks (no scripts
     /// to run).
     pub run_task: &'a Run,
-    /// A task that runs nothing: a pass-through with no such script, or —
-    /// without `--bail` — a task some dependency of which did not pass.
+    /// A task that runs nothing: a pass-through with no such script, or,
+    /// without `--bail`, a task some dependency of which did not pass.
     /// Both are reported as skipped.
     pub on_task_skipped: &'a Skip,
 }

@@ -41,7 +41,7 @@ pub fn create_hex_hash_from_file(path: &Path) -> Result<String, CalcPatchHashErr
 
 /// SHA-256 hex digests for every patch file in `patches`.
 ///
-/// The map keys are passed through verbatim — those are the
+/// The map keys are passed through verbatim, those are the
 /// `patchedDependencies` keys (e.g. `lodash@4.17.21`); the values
 /// are absolute patch file paths and are replaced with their
 /// per-file hex digests.

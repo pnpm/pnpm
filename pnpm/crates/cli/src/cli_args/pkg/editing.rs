@@ -47,7 +47,7 @@ pub(super) fn set_object_value_by_property_path(
     };
     let mut current = root;
     for (position, segment) in parents.iter().enumerate() {
-        // A container is created — or replaced — to match what the next
+        // A container is created, or replaced, to match what the next
         // segment addresses it as, so a path can be set into a document
         // that does not describe it yet.
         let needs_array = matches!(&segments[position + 1], Segment::Index(_));
@@ -127,7 +127,7 @@ fn place_value(current: &mut Value, last: &Segment, value: Value) -> miette::Res
     Ok(())
 }
 
-/// Write into the array slot the index names, growing — or building —
+/// Write into the array slot the index names, growing, or building,
 /// the array to reach it.
 fn place_at_index(current: &mut Value, index: usize, value: Value) {
     if !current.is_array() {
@@ -183,7 +183,7 @@ pub(super) fn delete_object_value_by_property_path(
 }
 
 /// Step into the container `segment` names. `None` when the document
-/// has nothing there — a path that does not exist deletes nothing.
+/// has nothing there, a path that does not exist deletes nothing.
 fn descend_for_delete<'a>(
     current: &'a mut Value,
     segment: &Segment,

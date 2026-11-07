@@ -1,11 +1,11 @@
-//! `pacquet shim add|rm|ls` — context-aware shims for packages that are
+//! `pacquet shim add|rm|ls`, context-aware shims for packages that are
 //! not installed globally.
 //!
 //! A shim pnpm links for a globally installed package defers to the
 //! project's own copy when there is one. These shims have no global
 //! install behind them at all: they exist only to let a project decide
 //! what runs. That is what makes `yarn` work in a Yarn project on a
-//! machine that has only pnpm — the shim resolves the project's
+//! machine that has only pnpm, the shim resolves the project's
 //! `packageManager` pin and provisions it.
 //!
 //! Creating one is deliberate. Nothing here happens as a side effect of
@@ -212,7 +212,7 @@ pub(crate) async fn add_shims(
     let mut report = String::new();
     for (package, bins) in bins_by_package {
         // A bin already in the global bin directory belongs to something
-        // else — a globally installed package, or another shim. Replacing
+        // else, a globally installed package, or another shim. Replacing
         // it would take a working command away, and `pnpm shim rm` would
         // then delete it rather than give it back.
         if let Some(bin) = bins.iter().find(|bin| taken_by_another(bin_dir, bin, package)) {

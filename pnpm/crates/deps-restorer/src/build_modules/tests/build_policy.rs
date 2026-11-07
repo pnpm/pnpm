@@ -190,7 +190,7 @@ fn build_modules_collects_ignored_builds() {
 }
 /// The post-build importer bin relink keys off
 /// [`BuildModulesOutput::mutated_slots`], so the signal must stay
-/// `false` when every candidate is blocked by the allow policy —
+/// `false` when every candidate is blocked by the allow policy,
 /// nothing wrote into a linked slot, and the relink may skip.
 #[test]
 fn mutated_slots_is_false_when_every_build_is_ignored() {
@@ -605,7 +605,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         "ignored set must be the same under concurrency 2 as under 1: {ignored:?}",
     );
 }
-/// Explicit `false` in `allowBuilds` is silently skipped — it does NOT
+/// Explicit `false` in `allowBuilds` is silently skipped, it does NOT
 /// land in the ignored-scripts list.
 #[test]
 fn build_modules_excludes_explicit_deny_from_ignored() {
@@ -693,13 +693,13 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 }
 /// A side-effects cache hit skips the rebuild.
 ///
-/// The cache is normally populated by running the install twice —
+/// The cache is normally populated by running the install twice,
 /// once via the WRITE path, then consumed. Pacquet doesn't have a
 /// WRITE path yet ([#421]'s slice (B)), so we hand-craft the same
 /// state directly: a `side_effects_maps_by_snapshot` entry whose
 /// cache key matches what `BuildModules` will compute via
 /// `calc_dep_state`. With that in place, the gate skips the build
-/// even though the package's `postinstall` would have failed —
+/// even though the package's `postinstall` would have failed,
 /// observable via the absence of a `pnpm:lifecycle` event for the
 /// stage.
 ///
@@ -767,7 +767,7 @@ fn using_side_effects_cache_skips_rebuild() {
     // (resolved to CAS paths); the gate re-materializes it into the
     // already-linked slot, so it carries both the pristine
     // `package.json` and a side-effect file the build would have
-    // produced — proving the cached build output lands on disk
+    // produced, proving the cached build output lands on disk
     // without the script re-running.
     let engine = "darwin;arm64;node20";
     let dep_graph = crate::build_deps_graph(&snapshots, &packages);
@@ -877,7 +877,7 @@ fn using_side_effects_cache_skips_rebuild() {
     assert!(!any_lifecycle, "side-effects cache hit must skip lifecycle scripts: {captured:#?}");
 
     // The script was skipped, but the cached build output still has to
-    // be materialized — the overlay's side-effect file must land in the
+    // be materialized, the overlay's side-effect file must land in the
     // slot so the warm reinstall isn't left in its pre-build state.
     assert!(
         pkg_dir.join("generated-by-postinstall.js").exists(),
@@ -885,7 +885,7 @@ fn using_side_effects_cache_skips_rebuild() {
     );
 }
 /// A cache hit whose overlay can't be materialized (e.g. a side-effects
-/// `added` blob deleted out from under the store — those aren't
+/// `added` blob deleted out from under the store, those aren't
 /// re-verified) must not abort the install. It degrades to a cache miss:
 /// the build re-runs over the pristine files and re-seeds the cache,
 /// instead of propagating the import error past the optional-dependency
@@ -944,7 +944,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         },
     );
     // The overlay points `generated.txt` at a CAS path that doesn't
-    // exist, so `materialize_side_effects` fails — standing in for a
+    // exist, so `materialize_side_effects` fails, standing in for a
     // store whose side-effects blob went missing.
     let overlay = pnpm_fs::CasPaths::from([
         ("package.json".to_string(), pkg_dir.join("package.json").into()),

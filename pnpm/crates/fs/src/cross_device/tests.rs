@@ -3,7 +3,7 @@ use std::io;
 
 /// `is_cross_device` picks up EXDEV (raw 18) on every Unix we
 /// support, and Unix `EEXIST` (raw 17) must never be classified as
-/// cross-device — misclassifying a concurrent-create race as EXDEV
+/// cross-device, misclassifying a concurrent-create race as EXDEV
 /// would fall back to a copy and overwrite the file the other
 /// process just installed. On Windows raw 17 is
 /// `ERROR_NOT_SAME_DEVICE`, which is a genuine cross-device signal.

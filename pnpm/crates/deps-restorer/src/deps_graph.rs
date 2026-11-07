@@ -4,7 +4,7 @@
 //! `BuildModules`'s `is_built` gate needs to call
 //! `calc_dep_state(graph, ...)` per snapshot to compute the
 //! side-effects-cache key. This module builds that graph from the
-//! lockfile's `snapshots` + `packages` sections — `full_pkg_id`
+//! lockfile's `snapshots` + `packages` sections, `full_pkg_id`
 //! derivation plus children-link wiring from `SnapshotEntry.dependencies`
 //! + `optional_dependencies`.
 
@@ -54,7 +54,7 @@ pub fn build_deps_graph_for_platform(
 }
 
 /// Build the `DepsGraph` for only the forward closure of `roots`
-/// — the union of every snapshot transitively reachable through
+///the union of every snapshot transitively reachable through
 /// `dependencies` + `optional_dependencies` starting from any root.
 ///
 /// `BuildModules` uses this for the side-effects cache READ /
@@ -62,7 +62,7 @@ pub fn build_deps_graph_for_platform(
 /// pure-JS install case where no snapshot is `requires_build`.
 /// `calc_dep_state` only ever recurses into a node's own
 /// closure, so the bounded graph produces the exact same cache
-/// keys as the full graph for every root — observable behavior
+/// keys as the full graph for every root, observable behavior
 /// matches [`build_deps_graph`] for the inputs we care about.
 pub fn build_deps_subgraph<Iter>(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
@@ -83,7 +83,7 @@ where
             continue;
         };
         // Enqueue every child the new node points at. Repeat-enqueues
-        // are cheap — the `graph.contains_key` guard at the top of
+        // are cheap, the `graph.contains_key` guard at the top of
         // the loop discards them.
         for child_key in node.children.values() {
             if !graph.contains_key(child_key) {
@@ -115,7 +115,7 @@ fn full_pkg_id_for(
     resolution: &LockfileResolution,
     platforms: &VariantPlatforms,
 ) -> String {
-    // `PackageKey`'s `Display` impl produces `<name>@<ver>` — the
+    // `PackageKey`'s `Display` impl produces `<name>@<ver>`, the
     // shape the `pkgIdWithPatchHash` carries in v9 lockfiles. (Pre-v6
     // lockfiles used the `/<name>/<ver>` shape, but pacquet doesn't
     // parse those.)

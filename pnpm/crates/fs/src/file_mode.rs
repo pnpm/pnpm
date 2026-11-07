@@ -236,8 +236,8 @@ fn open_without_following(path: &Path) -> io::Result<std::fs::File> {
 /// Re-add executable bits to `target` when the CAS source path carries the
 /// `-exec` suffix. The CAS encodes executability purely in that suffix (see
 /// [`cas_path_is_executable`]), so it is the source of truth: a `copy` or
-/// `reflink` that materializes a freshly-created `0o644` target — `fs::copy`
-/// on overlayfs, Linux `FICLONE` reflink always — would otherwise leave a
+/// `reflink` that materializes a freshly-created `0o644` target, `fs::copy`
+/// on overlayfs, Linux `FICLONE` reflink always, would otherwise leave a
 /// native binary non-executable. Non-executable entries (no `-exec` suffix)
 /// are left untouched, so the mode is never widened and no `set_permissions`
 /// syscall is paid on the non-exec majority. On Windows this is a no-op

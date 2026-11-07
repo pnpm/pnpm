@@ -58,7 +58,7 @@ fn fast_retry_opts() -> RetryOpts {
 }
 
 /// A `Content-Encoding: gzip` header over a body that isn't gzip makes
-/// reqwest fail while decoding the response body — the same class of
+/// reqwest fail while decoding the response body, the same class of
 /// failure as a connection reset mid-transfer, which `send_with_retry`
 /// can't see because it happens after the request returns `200`.
 async fn corrupt_gzip_body_mock(server: &mut mockito::ServerGuard) -> mockito::Mock {

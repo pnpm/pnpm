@@ -25,7 +25,7 @@
  * or without an extension are left alone, because Node.js may detect module
  * syntax in them.
  *
- * The Rust CLI embeds an identical copy of these sources — the two must
+ * The Rust CLI embeds an identical copy of these sources, the two must
  * stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
  */
 const RESOLVE_HELPERS = `\
@@ -39,7 +39,7 @@ const markUnknownEntryPointAsCommonJs = (resolved, context) => isEntryPointUnkno
  * Fallback for Node.js versions that have module.register() but not
  * module.registerHooks() (>=18.19 <22.15): an off-thread hooks module for
  * module.register(). Runtimes with neither API (--import parses from
- * 18.18/19.0) get no hook at all — CJS NODE_PATH resolution still works
+ * 18.18/19.0) get no hook at all, CJS NODE_PATH resolution still works
  * natively there.
  */
 const ASYNC_LOADER_SOURCE = `\
@@ -103,7 +103,7 @@ if (registerHooks) {
 
 /*
  * Encodes everything outside the RFC 3986 unreserved set. Unlike
- * encodeURIComponent, this also encodes ! ' ( ) * — the single quote in
+ * encodeURIComponent, this also encodes ! ' ( ) *, the single quote in
  * particular, which Node's NODE_OPTIONS tokenizer treats as a quote
  * delimiter and would strip from the flag.
  */

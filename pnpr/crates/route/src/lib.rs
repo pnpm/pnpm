@@ -4,7 +4,7 @@
 //! resolution inputs, with auth deliberately excluded from the key. That
 //! is safe only for resolutions that touched no private data. This module
 //! decides, for every metadata/tarball fetch a resolve performs, whether
-//! its **route** is public or private — without a second request — so a
+//! its **route** is public or private, without a second request, so a
 //! public resolution can be shared globally while a private one is keyed
 //! by the *private access descriptor* that produced it.
 //!
@@ -62,7 +62,7 @@ use pnpr_registry::{ConcreteKind, Ecosystem, Registries, Resolved};
 /// The classification of a single fetch route.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RouteClass {
-    /// Public route — fetched anonymously and shareable globally. The
+    /// Public route, fetched anonymously and shareable globally. The
     /// built-in unscoped-npmjs route, an operator-declared public route,
     /// or a pnpr-hosted package whose access policy admits everyone.
     Public,
@@ -96,7 +96,7 @@ pub struct RouteContext {
     /// is still a configured registry pnpr may fetch from anonymously.
     upstream_origins: Vec<String>,
     /// The registry routing graph, used to resolve a path-less fetch to the
-    /// concrete registry that serves it — the same dispatch the serving
+    /// concrete registry that serves it, the same dispatch the serving
     /// endpoints use, so classification and serving can't disagree about a
     /// package's origin.
     registries: Registries,
@@ -123,7 +123,7 @@ struct RouteMatcher {
     origin: Option<String>,
     package: Option<Glob<'static>>,
     /// Whether the route allowlists `https` fetches only. Set on the built-in
-    /// routes, whose hosts are public and serve TLS — see
+    /// routes, whose hosts are public and serve TLS, see
     /// [`RouteContext::allows_registry`].
     https_only: bool,
 }
@@ -136,7 +136,7 @@ struct ResolvedAlias {
     credential_digest: String,
     registry: String,
     /// Nerf-darted upstream origin the alias serves. Routing is by origin
-    /// alone — an upstream credential covers every package on its registry.
+    /// alone, an upstream credential covers every package on its registry.
     origin: String,
     /// The upstream registry's URL scheme (`https`/`http`). The credential is
     /// attached only to a fetch of this same scheme: nerf-darting strips the
@@ -151,7 +151,7 @@ struct ResolvedAlias {
 }
 
 impl fmt::Debug for ResolvedAlias {
-    /// Redacts [`Self::authorization`] — it carries the upstream's server-owned
+    /// Redacts [`Self::authorization`], it carries the upstream's server-owned
     /// upstream credential, which must never reach a log line or panic dump.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResolvedAlias")
@@ -179,7 +179,7 @@ impl RouteContext {
         // The registries pnpm itself routes to without configuration are
         // built-in public routes, so they are both allowlisted and classified
         // public without any operator config (and ahead of any upstream
-        // credential for the same origin — public wins).
+        // credential for the same origin, public wins).
         let public_routes = [RouteMatcher::npmjs(), RouteMatcher::jsr()]
             .into_iter()
             .chain(routing.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
@@ -242,8 +242,8 @@ impl RouteContext {
     /// authorized proxied alias; otherwise an anonymous public fetch (no
     /// managed credential). The fetch allowlist ([`Self::allows_registry`])
     /// runs first at the request boundary, so a route reaching here is a
-    /// configured registry: an anonymous fall-through either succeeds —
-    /// proving the content is public and globally shareable — or fails
+    /// configured registry: an anonymous fall-through either succeeds,
+    /// proving the content is public and globally shareable, or fails
     /// closed upstream (`401`/`403`) when it actually needed a credential
     /// the caller is not authorized for.
     #[must_use]
@@ -285,7 +285,7 @@ impl RouteContext {
     /// A fetch to pnpr's own `/~<name>/` endpoint addresses that registry
     /// directly (a package name can never begin with `~`): an access-bearing
     /// upstream resolves through its alias for authorized callers, a hosted
-    /// registry through its own rules. Everyone else — and an unknown name —
+    /// registry through its own rules. Everyone else, and an unknown name,
     /// gets an anonymous fetch the endpoint itself rejects, rather than
     /// falling through to another registry's policy.
     fn classify_own_origin(
@@ -301,8 +301,8 @@ impl RouteContext {
             return self.classify_addressed(identity, registry, package);
         }
 
-        // A path-less fetch resolves through the graph's default registry —
-        // the same dispatch the serving endpoints use — to the one concrete
+        // A path-less fetch resolves through the graph's default registry,
+        // the same dispatch the serving endpoints use, to the one concrete
         // registry that serves this package.
         let Some(package) = package else {
             // A non-package fetch against pnpr itself carries no private
@@ -336,7 +336,7 @@ impl RouteContext {
         };
         if let Some(alias) = self.authorized_alias(identity, registry) {
             // Per-package refinement: a name the upstream's rules deny this
-            // caller gets no credential — the anonymous fetch fails closed at
+            // caller gets no credential, the anonymous fetch fails closed at
             // the endpoint, matching serving.
             if self.upstream_admits(&alias.name, identity, package) {
                 return RouteClass::Proxied {
@@ -357,7 +357,7 @@ impl RouteContext {
     /// fetch; an unauthorized caller falls through to one the endpoint fails
     /// closed on.
     fn classify_upstream(&self, identity: &Identity, registry: &str, package: &str) -> RouteClass {
-        // Per-package refinement — see `classify_addressed`.
+        // Per-package refinement, see `classify_addressed`.
         let admitted = self
             .authorized_alias(identity, registry)
             .filter(|alias| self.upstream_admits(&alias.name, identity, Some(package)));
@@ -387,8 +387,8 @@ impl RouteContext {
     /// hosts, operator-declared public routes, configured upstream origins, and
     /// pnpr's own origin (which serves its hosted packages and `/~<name>/`
     /// endpoints). A client `registry`/`namedRegistries` matching none of
-    /// these is rejected before any server-side fetch — the resolver's SSRF
-    /// boundary — so there is no "unknown registry" to resolve anonymously.
+    /// these is rejected before any server-side fetch, the resolver's SSRF
+    /// boundary, so there is no "unknown registry" to resolve anonymously.
     ///
     /// Every hop of a redirect is re-checked here too, so a route that admits
     /// cleartext admits a downgrade to it. The built-in hosts therefore
@@ -450,10 +450,10 @@ impl RouteContext {
     /// private and gated by re-running that registry's rules for the caller.
     /// This is the same effective-access lookup the serving gate
     /// (`hosted_gate`) admits with, so classification and serving cannot
-    /// disagree about *whether* a caller may read a name — the serving
+    /// disagree about *whether* a caller may read a name, the serving
     /// tiers only vary the denial's shape (mask vs. 401/403), and every
     /// denial classifies as an anonymous public fetch the endpoint fails
-    /// closed on. The descriptor is registry-qualified — the same
+    /// closed on. The descriptor is registry-qualified, the same
     /// `name@version` on two hosted registries is two different packages,
     /// so their cache entries must never share a key.
     fn classify_hosted(
@@ -509,8 +509,8 @@ impl RouteContext {
         match descriptor {
             PrivateAccessDescriptor::Alias { alias, credential_digest, package } => {
                 // Reuse the cached resolution only if `identity` would *select*
-                // this exact alias for its origin — the first authorized alias
-                // [`Self::select_alias`] returns there — and its credential
+                // this exact alias for its origin, the first authorized alias
+                // [`Self::select_alias`] returns there, and its credential
                 // still hashes to the same digest. Not merely an alias the
                 // caller is authorized for: with overlapping upstream access
                 // (several aliases on one origin a caller can use), an
@@ -531,8 +531,8 @@ impl RouteContext {
             }
             PrivateAccessDescriptor::Hosted { policy_id } => {
                 // The id is registry-qualified (see `hosted_policy_id`); a
-                // descriptor that doesn't parse — including one written by a
-                // pre-registry-scoped build — fails closed and re-resolves.
+                // descriptor that doesn't parse, including one written by a
+                // pre-registry-scoped build, fails closed and re-resolves.
                 match policy_id.split_once('\0') {
                     Some((registry, package)) => self.hosted_rules
                         .get(registry)
@@ -573,8 +573,8 @@ const JSR_ORIGIN: &str = "//npm.jsr.io/";
 impl RouteMatcher {
     /// The built-in public route: the official npm registry, host-level (no
     /// package glob, so scoped and unscoped packages alike are public). An
-    /// anonymous fetch returns only public content — a private scoped package
-    /// `404`s — so a successfully-resolved npmjs route is public and globally
+    /// anonymous fetch returns only public content, a private scoped package
+    /// `404`s, so a successfully-resolved npmjs route is public and globally
     /// shareable. Prepended to the operator-declared routes in
     /// [`RouteContext::from_config`], so it is allowlisted and public without
     /// any config, and ahead of any upstream credential for the same origin.
@@ -591,8 +591,8 @@ impl RouteMatcher {
     }
 
     /// Build a matcher from an operator-declared public route, failing
-    /// closed. An *omitted* `registry`/`package` field means "match any" —
-    /// the intended wildcard — but a field that is *present yet unparsable*
+    /// closed. An *omitted* `registry`/`package` field means "match any",
+    /// the intended wildcard, but a field that is *present yet unparsable*
     /// (a typo'd registry URL or glob) drops the whole rule (`None`) rather
     /// than collapsing to a `None` field that [`Self::matches`] would read as
     /// match-any. A typo must narrow matching, never widen a scoped public

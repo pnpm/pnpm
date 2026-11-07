@@ -5,9 +5,9 @@ use super::{DEFAULT_REGISTRY_SCOPE, LoadWorkspaceYamlError, NpmrcAuth, split_inl
 /// `full` is the merged config including the project `.npmrc`; `trusted`
 /// is the same merge minus the project source (mirroring pnpm's
 /// `userConfig` vs `trustedConfig` split). A `tokenHelper` present in
-/// `full` but not reproducible verbatim from `trusted` — because the
+/// `full` but not reproducible verbatim from `trusted`, because the
 /// project source added it, or overrode a trusted one with a different
-/// command — is repository-controlled and rejected. A project value that
+/// command, is repository-controlled and rejected. A project value that
 /// exactly equals the trusted one is harmless and allowed, matching pnpm.
 pub(crate) fn enforce_token_helper_trust(
     full: &NpmrcAuth,
@@ -80,7 +80,7 @@ pub(super) fn parse_token_helper_field(
 ///
 /// `tokenHelper` is deliberately absent: it names an executable, so it
 /// is only ever honored from a trusted `.npmrc` / `auth.ini` file (see
-/// [`INI_CREDS_SUFFIXES`]), never from the environment — mirroring
+/// [`INI_CREDS_SUFFIXES`]), never from the environment, mirroring
 /// pnpm, which drops a `//host/:tokenHelper` env var outright.
 const CREDS_SUFFIXES: &[&str] = &["_authToken", "_auth", "_password", "username"];
 

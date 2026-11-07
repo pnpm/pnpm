@@ -6,14 +6,14 @@
 //! absolute paths walks and re-allocates the anchors' long common
 //! prefix on every edge; both anchors hang off the same lockfile root,
 //! so the prefix always cancels out. The helpers here run the same
-//! component math on the root-relative suffixes instead — and since
+//! component math on the root-relative suffixes instead, and since
 //! both anchors are constant per importer, [`ImporterAnchor`] derives
 //! the suffix once so the per-edge work is the suffix math alone.
 //!
 //! The anchor is a *fast path*: it disarms itself for any input where
 //! the relative-space result is not guaranteed to be the same as the
-//! absolute-space one — a dot-carrying anchor, a driveless-yet-rooted
-//! Windows anchor, an importer outside the lockfile root — and each
+//! absolute-space one, a dot-carrying anchor, a driveless-yet-rooted
+//! Windows anchor, an importer outside the lockfile root, and each
 //! rendering falls back to the caller's absolute-space math the same
 //! way for an absolute or escaping target. Within the guarded domain
 //! the two computations agree component-for-component, because
@@ -32,9 +32,9 @@ use std::path::{Component, Path};
 /// the empty suffix.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ImporterAnchor {
-    /// `None` — an anchor carries dot components, is not truly
+    /// `None`, an anchor carries dot components, is not truly
     /// absolute, is not valid UTF-8, or the importer is not under the
-    /// lockfile root — turns every rendering into the caller's
+    /// lockfile root, turns every rendering into the caller's
     /// fallback.
     rel_components: Option<Vec<String>>,
 }
@@ -121,8 +121,8 @@ impl ImporterAnchor {
 
 /// One scan of a target path against the importer's own components.
 ///
-/// The tail is located by offset rather than collected, so the common case —
-/// nothing collapsed or dropped — copies over as one slice instead of
+/// The tail is located by offset rather than collected, so the common case,
+/// nothing collapsed or dropped, copies over as one slice instead of
 /// splitting the target a second time to render it.
 struct ImporterRelativeScan {
     /// How many leading components the target shares with the importer.
@@ -234,9 +234,9 @@ const SEPARATORS: &[char] = &['/'];
 /// would yield, without the per-component `OsStr` machinery:
 /// separators collapse and `.` segments vanish (`lexical_normalize`
 /// erases a leading one too, so the two directions agree on it).
-/// `None` for an anchored target — one starting with a separator, or
+/// `None` for an anchored target, one starting with a separator, or
 /// (on Windows) whose first segment carries a `:` and so may be a
-/// prefix — where suffix math does not apply; the caller's
+/// prefix, where suffix math does not apply; the caller's
 /// absolute-space fallback handles those.
 fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str> + Clone> {
     if target.starts_with(SEPARATORS) {
@@ -276,8 +276,8 @@ fn render<'component>(
 }
 
 /// The importer's directory as a clean relative suffix of the lockfile
-/// root. `None` — an anchor carries `.` / `..` components, or the
-/// importer is not under the root — sends the caller to the
+/// root. `None`, an anchor carries `.` / `..` components, or the
+/// importer is not under the root, sends the caller to the
 /// absolute-space math. The workspace root importer yields the empty
 /// path.
 pub(crate) fn importer_rel_dir<'dir>(
@@ -292,7 +292,7 @@ pub(crate) fn importer_rel_dir<'dir>(
 }
 
 fn is_clean_absolute(path: &Path) -> bool {
-    // `is_absolute` carries the platform rules — on Windows it demands
+    // `is_absolute` carries the platform rules, on Windows it demands
     // a prefix *and* a root, rejecting drive-relative `C:foo` and
     // rootless `\foo` alike.
     path.is_absolute()

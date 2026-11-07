@@ -52,8 +52,8 @@ pub(super) fn print_built(results: &[String]) {
 /// blob the embedded runtime can deserialize. The second constraint forces
 /// the builder to match the target runtime version exactly.
 ///
-/// Unlike pnpm — which reuses its own running interpreter when it already
-/// matches — pacquet has no host Node.js, so it always downloads a
+/// Unlike pnpm, which reuses its own running interpreter when it already
+/// matches, pacquet has no host Node.js, so it always downloads a
 /// host-arch Node.js of the target version.
 pub(super) fn resolve_builder_binary(runtime: &EmbeddedRuntime) -> miette::Result<PathBuf> {
     let target_version = &runtime.version;
@@ -205,7 +205,7 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
 }
 
 /// Refuse to write to `output_file` when it already exists and is not a
-/// regular file — most importantly a symlink, which `node --build-sea`
+/// regular file, most importantly a symlink, which `node --build-sea`
 /// would follow to overwrite a file outside the project. `symlink_metadata`
 /// does not traverse the final component, so a symlink reports
 /// `is_file() == false`. A missing path is fine (nothing to overwrite).
@@ -264,7 +264,7 @@ pub(super) fn ad_hoc_sign_mac_binary(
 }
 
 /// Resolve an external signer (`ldid`) to an absolute path via `PATH`,
-/// skipping any match that resolves inside the project directory — a repo
+/// skipping any match that resolves inside the project directory, a repo
 /// could ship `node_modules/.bin/ldid` and, if that directory is on the
 /// developer's `PATH`, get an attacker-controlled binary executed when
 /// packaging a darwin target. Returns the first match outside the project,

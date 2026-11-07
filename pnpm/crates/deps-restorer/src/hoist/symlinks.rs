@@ -20,9 +20,9 @@ mod stale;
 /// (`<virtual_store_dir>/<key.virtual_store_name>/`); the hoist code
 /// never has to branch on `enable_global_virtual_store` itself.
 ///
-/// Existing symlinks are introspected — if the existing entry is a
+/// Existing symlinks are introspected, if the existing entry is a
 /// symlink pointing at a target inside the virtual store
-/// (`layout.package_store_dir()` — the GVS links dir or the local
+/// (`layout.package_store_dir()`, the GVS links dir or the local
 /// `.pnpm` dir) or inside the internal pnpm directory (the parent of
 /// `private_hoisted_modules_dir`), the stale symlink is replaced.
 /// External symlinks (or non-symlink occupants) are left in place.
@@ -33,12 +33,12 @@ mod stale;
 ///    pair plus the set of scope-dir parents (`<root>/@scope`)
 ///    needed by scoped aliases.
 /// 2. `create_dir_all` the two hoisted-modules roots and each
-///    distinct scope dir — once per dir, not per symlink, so a
+///    distinct scope dir, once per dir, not per symlink, so a
 ///    1k-alias install doesn't pay 1k redundant stats on the same
 ///    handful of parents.
 /// 3. `par_iter` the pair list and issue `symlinkat()` syscalls in
-///    parallel via rayon. Each pair is now a single syscall — no
-///    parent-dir prep — so the only contention is the kernel's
+///    parallel via rayon. Each pair is now a single syscall, no
+///    parent-dir prep, so the only contention is the kernel's
 ///    inode lock on the parent directory, which is dominated by
 ///    the syscall latency itself on macOS APFS / Linux ext4.
 pub fn symlink_hoisted_dependencies(
@@ -86,7 +86,7 @@ impl HoistedModulesDirs<'_> {
 /// hoisted aliases would otherwise clone the `PathBuf` per alias (under
 /// legacy flat-name mode it wraps the `to_virtual_store_name()` String
 /// the lockfile crate flags as "far from optimal"). Most nodes have a
-/// single alias, so the `Arc` overhead is marginal — but the `slot_dir`
+/// single alias, so the `Arc` overhead is marginal, but the `slot_dir`
 /// lookup itself does work (`HashMap` probe + `String` build), so building
 /// it once per node is worth the indirection.
 #[derive(Default)]
@@ -199,8 +199,8 @@ impl HoistSymlinkPlan {
             .is_some_and(|existing| existing.starts_with(&destination))
     }
 
-    /// Pre-create the destination parents serially — cheap, deduplicated,
-    /// and a no-op for dirs that already exist — so the parallel symlink
+    /// Pre-create the destination parents serially, cheap, deduplicated,
+    /// and a no-op for dirs that already exist, so the parallel symlink
     /// pass is one syscall per link.
     fn create_parents(
         &self,

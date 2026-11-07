@@ -101,7 +101,7 @@ async fn authenticated_access_token_from_yaml_gates_anonymous_reads() {
 
     // `@secret/*` requires auth: an anonymous read is 401.
     assert_eq!(status_of(app.clone(), get("/npm/@secret/thing")).await, StatusCode::UNAUTHORIZED);
-    // A `**` ($all) package is readable anonymously — it's just absent
+    // A `**` ($all) package is readable anonymously, it's just absent
     // on disk, so 404, which proves the access check passed.
     assert_eq!(status_of(app, get("/npm/lodash")).await, StatusCode::NOT_FOUND);
 }

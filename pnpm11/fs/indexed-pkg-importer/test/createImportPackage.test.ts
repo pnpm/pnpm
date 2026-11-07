@@ -49,7 +49,7 @@ const { renameOverwriteSync } = await import('rename-overwrite')
 
 beforeEach(() => {
   // Clean up real directories created by the importer (not mocked) so each
-  // test starts fresh — otherwise the fast path sees leftover dirs and writes
+  // test starts fresh, otherwise the fast path sees leftover dirs and writes
   // over them, causing different behavior than a fresh import.
   fs.rmSync('project', { recursive: true, force: true })
   fs.rmSync('project2', { recursive: true, force: true })
@@ -330,7 +330,7 @@ testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone uses hardlinks for a
   // Regression test: the ENOTSUP fallback in createClonePkg() used to silently
   // convert clone failures to copies, so the auto-importer thought cloning
   // worked and selected it for all packages.  On ext4 (no reflink support),
-  // this caused every file to be copied instead of hardlinked — a multi-second
+  // this caused every file to be copied instead of hardlinked, a multi-second
   // regression on large projects.
   jest.mocked(gfs.linkSync).mockReset()
   const importPackage = createIndexedPkgImporter('auto')
@@ -351,7 +351,7 @@ testOnLinuxOnly('packageImportMethod=auto: ENOTSUP on clone uses hardlinks for a
   jest.mocked(gfs.copyFileSync).mockClear()
   jest.mocked(gfs.linkSync).mockClear()
 
-  // Second package must also use hardlinks — not copy
+  // Second package must also use hardlinks, not copy
   expect(importPackage('project2/package', {
     filesMap: new Map([
       ['index.js', 'hash2'],

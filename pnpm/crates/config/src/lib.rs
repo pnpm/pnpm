@@ -153,7 +153,7 @@ pub struct PackageManagerBootstrap {
     pub registries: BTreeMap<String, String>,
     pub proxy: pnpm_network::ProxyConfig,
     /// The trusted layers' merged proxy keys, of which [`Self::proxy`]
-    /// is the resolution — see [`crate::proxy_keys`].
+    /// is the resolution, see [`crate::proxy_keys`].
     pub proxy_keys: crate::proxy_keys::ProxyKeys,
     pub tls: pnpm_network::TlsConfig,
     pub tls_by_uri: pnpm_network::PerRegistryTls,

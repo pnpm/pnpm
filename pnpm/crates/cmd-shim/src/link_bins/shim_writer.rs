@@ -102,7 +102,7 @@ where
     // Not writing a `.ps1` is not enough to keep one out of the bin
     // dir: an install that did want one leaves it there, and
     // PowerShell keeps preferring it over the `.cmd` sibling. Delete
-    // it up front, above the short-circuits below — they all return
+    // it up front, above the short-circuits below, they all return
     // without touching the Windows siblings.
     if !spec.windows.powershell {
         remove_stale_bin(&with_extension_appended(spec.shim_path, "ps1"))?;
@@ -142,7 +142,7 @@ where
     //    pacquet then cmd-shims that file, `search_script_runtime`
     //    parses the shebang as `prog: "/bin/sh"` and emits a shim
     //    whose target resolves to a non-existent path
-    //    (`$basedir/../node/bin/../node/bin/node` — the `node` segment
+    //    (`$basedir/../node/bin/../node/bin/node`, the `node` segment
     //    appears twice). A direct symlink / hardlink bypasses the
     //    parser entirely.
     if is_node_bin_name(spec.shim_path)
@@ -152,7 +152,7 @@ where
     }
 
     // pnpm's `preferSymlinkedExecutables`: link the bin file directly
-    // instead of wrapping it in a shell shim. Unix only — the Windows
+    // instead of wrapping it in a shell shim. Unix only, the Windows
     // half returns `false` so bins keep their shims there, like pnpm.
     // Stays below the node-runtime special case, which links `node`
     // regardless of the setting.
@@ -208,7 +208,7 @@ enum ExistingShim {
 ///
 /// In a bin directory this run created, that read almost never finds
 /// anything, so the write goes first and falls back to the read when it
-/// fails — see [`FsCreateDirAll::create_dir_all_reporting`](crate::capabilities::FsCreateDirAll::create_dir_all_reporting) for what
+/// fails, see [`FsCreateDirAll::create_dir_all_reporting`](crate::capabilities::FsCreateDirAll::create_dir_all_reporting) for what
 /// makes it "almost". Trying the write first anywhere else would add a
 /// failed create to every shim already in place, which is what an
 /// ordinary reinstall is made of.
@@ -383,7 +383,7 @@ where
 }
 
 /// Create the shims at a path nothing occupies. The exclusive create
-/// refuses any pre-existing dirent — a dangling symlink included — so no
+/// refuses any pre-existing dirent, a dangling symlink included, so no
 /// removal or content probe is needed first. `Ok(false)` sends the
 /// caller to the general path: the create lost a race, found a dirent
 /// after all, or `Sys` doesn't support exclusive creation.
@@ -397,8 +397,8 @@ where
     let &ShimSpec { probe_path, shim_path, .. } = spec;
     let runtime = spec.resolve_runtime::<Sys>(cache)?;
     let sh_body = spec.sh_body(runtime.as_ref())?;
-    // Any failure — a lost race, a dangling symlink squatting on the
-    // path, a `Sys` without exclusive creation — goes to the general
+    // Any failure, a lost race, a dangling symlink squatting on the
+    // path, a `Sys` without exclusive creation, goes to the general
     // path, whose replacement is atomic. No content is ever read back
     // through the path here: a read would follow a raced symlink.
     if Sys::write_new(shim_path, sh_body.as_bytes()).is_err() {
@@ -421,8 +421,8 @@ where
 /// `bytes`, atomically where `Sys` supports it (see
 /// [`FsWrite::write_replace`]): no reader observes a torn shim,
 /// concurrent installers writing the equivalent shim converge on
-/// last-writer-wins, and a symlink planted at the path — the classic
-/// unlink/symlink race in a shared or writable bin dir — is replaced as
+/// last-writer-wins, and a symlink planted at the path, the classic
+/// unlink/symlink race in a shared or writable bin dir, is replaced as
 /// a dirent, never followed. A `Sys` without atomic replacement (the DI
 /// fakes' default) keeps the remove-then-write.
 fn replace_shim<Sys: FsWrite>(path: &Path, bytes: &[u8]) -> Result<(), LinkBinsError> {

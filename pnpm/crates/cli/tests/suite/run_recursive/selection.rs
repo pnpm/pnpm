@@ -14,7 +14,7 @@ use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 /// its own group is stopped the moment it reads from the terminal.
 ///
 /// Unix-only by subject: the assertion compares POSIX process groups,
-/// which Windows has no counterpart for — pnpm keeps a script's children
+/// which Windows has no counterpart for, pnpm keeps a script's children
 /// in a job object there instead.
 #[cfg(unix)]
 #[test]
@@ -55,7 +55,7 @@ fn filtered_run_keeps_single_script_in_foreground_process_group() {
 }
 
 /// A member's script resolves binaries from the workspace root's
-/// `node_modules/.bin` — pnpm puts it on PATH via `extraBinPaths`, so
+/// `node_modules/.bin`, pnpm puts it on PATH via `extraBinPaths`, so
 /// root-level dev tools are callable from every workspace project.
 #[test]
 fn recursive_run_finds_workspace_root_bin_on_path() {
@@ -198,7 +198,7 @@ fn recursive_run_filter_selects_only_matching_project() {
 }
 
 /// An exclude selector (`!<name>`) runs the script in every project
-/// except the excluded one — the shape pnpm's release workflow leans on
+/// except the excluded one, the shape pnpm's release workflow leans on
 /// with `--filter=!pnpm`.
 #[test]
 fn recursive_run_exclude_filter_skips_excluded_project() {
@@ -406,7 +406,7 @@ fn include_workspace_root_flag_keeps_the_root_in_a_recursive_run() {
 }
 
 /// The flag is the CLI half of the `includeWorkspaceRoot` setting, which
-/// reads from `pnpm-workspace.yaml` too — and `--no-include-workspace-root`
+/// reads from `pnpm-workspace.yaml` too, and `--no-include-workspace-root`
 /// overrides the setting back off, the way pnpm's `--no-` negation does.
 #[test]
 fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
@@ -454,7 +454,7 @@ fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
 /// An all-exclusion selection (`--filter=!<name>`) also drops the
 /// workspace root, matching the release-workflow shape
 /// (`--filter=!pnpm --filter=!@pnpm/exe`): `-r --filter=!project-2 run
-/// build` runs project-1 only — project-2 is excluded by the selector
+/// build` runs project-1 only, project-2 is excluded by the selector
 /// and the root by the `!{<workspace-root>}` augmentation.
 #[test]
 fn recursive_run_all_exclusion_filter_also_drops_root() {
@@ -586,7 +586,7 @@ fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
 /// `--filter-prod <pkg>...` walks production dependencies only, so a
 /// dev-only edge is excluded from the selected set. With `app` depending
 /// on `lib` through `devDependencies`, `--filter-prod app...` runs `app`
-/// but skips `lib` — whereas plain `--filter app...` would run both.
+/// but skips `lib`, whereas plain `--filter app...` would run both.
 /// This is what distinguishes `--filter-prod` from `--filter`: the
 /// `follow_prod_deps_only` branch builds the graph with dev edges
 /// dropped, so the `...` dependency walk never reaches `lib`.
@@ -625,8 +625,8 @@ fn recursive_run_filter_prod_follows_production_deps_only() {
 }
 
 /// A mixed `--filter` / `--filter-prod` selection lists prod-selected
-/// projects before regular ones. With `alpha` and `beta` independent — so
-/// they share one topological chunk — `--filter alpha` `--filter-prod beta`
+/// projects before regular ones. With `alpha` and `beta` independent, so
+/// they share one topological chunk, `--filter alpha` `--filter-prod beta`
 /// runs `beta` before `alpha`.
 #[test]
 fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {

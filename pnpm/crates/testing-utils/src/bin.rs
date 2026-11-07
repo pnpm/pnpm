@@ -74,14 +74,14 @@ pub struct AddMockedRegistry {
     pub store_dir: PathBuf,
     /// Absolute path to the cache directory as defined by the `.npmrc` file.
     pub cache_dir: PathBuf,
-    /// Handle to the mocked registry this test uses — the process-scoped
+    /// Handle to the mocked registry this test uses, the process-scoped
     /// instance, or one of the test's own.
     pub mock_instance: TestRegistry,
 }
 
 impl AddMockedRegistry {
     /// Move `tag` to `version` on the mocked registry, the way the JS
-    /// harness's `addDistTag` does — the setup behind every upstream test
+    /// harness's `addDistTag` does, the setup behind every upstream test
     /// where a newer version is published after the install.
     ///
     /// The packument the last command cached goes with it, so the next one
@@ -212,7 +212,7 @@ impl CommandTempCwd<()> {
         // has set in their global pnpm config (`~/.config/pnpm/config.yaml`
         // on Linux/macOS-with-XDG, `~/Library/Preferences/pnpm/config.yaml`
         // on macOS by default). Tests that exercise GVS explicitly
-        // override this — see `enable_gvs_in_workspace_yaml` in
+        // override this, see `enable_gvs_in_workspace_yaml` in
         // `pnpm/crates/cli/tests/_utils.rs`.
         let workspace_yaml = self.workspace.join("pnpm-workspace.yaml");
         let workspace_yaml_text = text_block_fnl! {

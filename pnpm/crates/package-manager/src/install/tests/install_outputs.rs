@@ -239,7 +239,7 @@ async fn should_install_dependencies() {
     // `@pnpm/xyz@1.0.0` has peer dependencies on `@pnpm/x`, `@pnpm/y`,
     // and `@pnpm/z`, so the resolver produces a peer-suffixed
     // depPath and the layout lands the slot at
-    // `@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0` —
+    // `@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0`,
     // matching the snapshot key shape `pnpm install` would write
     // to `pnpm-lock.yaml` and the slot the frozen-lockfile
     // path materialises into.
@@ -462,7 +462,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
 
-    // No `@<version>` — should resolve to the `latest` tag.
+    // No `@<version>`, should resolve to the `latest` tag.
     manifest
         .add_dependency(
             "hello-world-alias",
@@ -543,7 +543,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     );
 
     // Virtual-store directory uses the real package name (version resolved
-    // at runtime from `latest` — just assert the real name prefix exists).
+    // at runtime from `latest`, just assert the real name prefix exists).
     let virtual_store_dir_path = dirs.project_root.join("node_modules/.pacquet");
     let has_real_name_dir = std::fs::read_dir(&virtual_store_dir_path)
         .unwrap()
@@ -692,7 +692,7 @@ pub(super) async fn install_writes_modules_yaml() {
 /// transitive `@pnpm.e2e/failing-postinstall@1.0.0` has a
 /// `postinstall` that exits non-zero. Pacquet's
 /// `frozen_lockfile=false` path stops at extraction (script execution
-/// lives behind `BuildModules` in the frozen-lockfile branch —
+/// lives behind `BuildModules` in the frozen-lockfile branch,
 /// `BuildModules` itself is unit-tested against the same fixture in
 /// `crate::build_modules::tests::do_not_fail_on_optional_dep_with_failing_postinstall`).
 /// This test pins the fetch + extract behavior on the optional edge:
@@ -811,7 +811,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
     let dirs = InstallDirs::new();
 
     let manifest_path = dirs.path().join("package.json");
-    // Deliberately leave the `placeholder` dep out — same drift the
+    // Deliberately leave the `placeholder` dep out, same drift the
     // sibling test exercises. With `ignore_manifest_check: true` the
     // install must accept the drift and move on to materialization.
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();

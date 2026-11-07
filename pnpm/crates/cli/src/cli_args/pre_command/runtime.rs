@@ -86,8 +86,8 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
     check_installed_runtime(name, display_name, wanted_range, on_fail, emit)
 }
 
-/// Every `onFail` other than `error` — including a value pnpm does not
-/// define — degrades to a warning.
+/// Every `onFail` other than `error`, including a value pnpm does not
+/// define, degrades to a warning.
 fn fail_runtime_check(
     on_fail: Option<&str>,
     message: &str,

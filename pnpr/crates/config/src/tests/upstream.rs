@@ -259,8 +259,8 @@ registries:
     assert!(err.to_string().contains("`access`"), "unexpected error: {err}");
 }
 
-/// A `public` upstream is fetched anonymously, so *any* custom header — not just
-/// `Authorization`, but a credential smuggled through `X-Api-Key` — must fail
+/// A `public` upstream is fetched anonymously, so *any* custom header, not just
+/// `Authorization`, but a credential smuggled through `X-Api-Key`, must fail
 /// closed rather than be sent to a supposedly-public origin.
 #[test]
 fn from_yaml_str_rejects_public_upstream_with_custom_headers() {
@@ -284,7 +284,7 @@ registries:
 }
 
 /// With the registry disabled, an upstream registry whose credential cannot
-/// resolve must not fail startup — the tier never talks to that upstream. The
+/// resolve must not fail startup, the tier never talks to that upstream. The
 /// registry still joins the (validated) graph; only its serving config is
 /// skipped.
 #[test]
@@ -362,7 +362,7 @@ registries:
 #[test]
 fn upstream_write_rules_are_rejected() {
     // No write can land on an upstream, so a `publish`/`unpublish` value in
-    // its `packages:` map is a config mistake — and it fails on every tier,
+    // its `packages:` map is a config mistake, and it fails on every tier,
     // whether or not the registry surface resolves upstream credentials.
     let yaml = "\
 storage: ./s

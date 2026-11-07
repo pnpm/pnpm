@@ -3,8 +3,8 @@ use std::path::Path;
 
 /// The wanted lockfile as a manifest-mutating command received it.
 ///
-/// `add`, `remove` and `update` read the lockfile themselves — for
-/// preferred versions, catalog requests, drop targets — and then run an
+/// `add`, `remove` and `update` read the lockfile themselves, for
+/// preferred versions, catalog requests, drop targets, and then run an
 /// install over it, so the views travel together.
 #[derive(Clone, Copy)]
 pub struct CommandLockfile<'a> {
@@ -25,7 +25,7 @@ pub struct CommandLockfile<'a> {
 }
 
 impl<'a> CommandLockfile<'a> {
-    /// A lockfile that was never read from disk — synthesized, or handed
+    /// A lockfile that was never read from disk, synthesized, or handed
     /// over by a caller that already holds it.
     #[must_use]
     pub fn loaded(document: Option<&'a Lockfile>, path: Option<&'a Path>) -> Self {

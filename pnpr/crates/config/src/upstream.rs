@@ -28,7 +28,7 @@ pub struct UpstreamConfig {
     /// every request pnpr makes to this upstream.
     pub headers: HeaderMap,
     /// Per-upstream packument freshness window (`maxAge`).
-    /// `None` when the YAML omits it — the proxy then falls back to the
+    /// `None` when the YAML omits it, the proxy then falls back to the
     /// global [`super::HttpConfig::packument_ttl`], so the existing
     /// `--packument-ttl` flag still governs upstreams that don't set
     /// their own.
@@ -43,12 +43,12 @@ pub struct UpstreamConfig {
     /// Which pnpr callers may select this upstream as a proxied private-route
     /// credential, and reach it through its `/~<name>/` registry endpoint.
     /// `None` means the upstream is registry-proxy only and is never offered as
-    /// a resolver private-route credential — only upstreams that declare
+    /// a resolver private-route credential, only upstreams that declare
     /// `access:` participate in route classification.
     pub access: Option<AccessList>,
     /// The registry's `packages:` map: the namespace it claims plus
     /// per-package `access` refinements (a `publish`/`unpublish` value is a
-    /// config error — no write can land on an upstream). The registry-level
+    /// config error, no write can land on an upstream). The registry-level
     /// gate ([`Self::access`], or `$all` for a public upstream) is the default
     /// an entry's omitted `access` falls back to.
     pub rules: PackageRules,
@@ -170,7 +170,7 @@ pub(super) struct UpstreamConfigFile {
 
 /// A verdaccio interval scalar as written in YAML: either a string
 /// (`"2m"`, `"30s"`) or a bare number (a count of seconds). Both YAML
-/// shapes are accepted — verdaccio configs use either — and kept as the
+/// shapes are accepted, verdaccio configs use either, and kept as the
 /// raw string so [`parse_interval`] handles them uniformly and an
 /// unparsable value surfaces as a precise config error.
 #[derive(Debug, Clone)]
@@ -258,7 +258,7 @@ impl TokenEnv {
 /// the resolution is testable.
 ///
 /// The auth-derived `Authorization` header is inserted first, then the
-/// custom `headers:` are merged on top — so a custom `Authorization`
+/// custom `headers:` are merged on top, so a custom `Authorization`
 /// entry overrides the one derived from `auth:`, matching verdaccio's
 /// merge order. A configured `auth:` block that resolves to no token,
 fn resolve_upstream_access(
@@ -323,7 +323,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
         search: file.search,
         access,
         // The `packages:` rules are attached by the caller
-        // (`build_registries`) — this resolver only handles the serving
+        // (`build_registries`), this resolver only handles the serving
         // knobs shared with programmatic construction.
         rules: PackageRules::default(),
     })
@@ -370,8 +370,8 @@ fn upstream_headers<Sys: EnvVar>(
 
 /// Parse a verdaccio-style interval string into a [`Duration`].
 ///
-/// Accepts the suffixes verdaccio's `parseInterval` understands —
-/// `ms`, `s`, `m`, `h`, `d`, `w` — optionally chained without or with
+/// Accepts the suffixes verdaccio's `parseInterval` understands,
+/// `ms`, `s`, `m`, `h`, `d`, `w`, optionally chained without or with
 /// whitespace (`"1h30m"`, `"2m 30s"`), and a bare number, which (like
 /// verdaccio) is read as **seconds**. A trailing number with no suffix
 /// is also seconds. Returns `None` for anything unparsable so the

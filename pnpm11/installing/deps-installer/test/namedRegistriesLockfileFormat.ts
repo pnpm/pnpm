@@ -42,7 +42,7 @@ test('a named-registry dependency is keyed registry-qualified', async () => {
   expect(Object.keys(lockfile.snapshots ?? {})).toContain('@pnpm.e2e/foo@work:1.0.0')
 
   // The mock registry serves canonical tarball URLs, so the entry keeps only
-  // its integrity — the URL is rebuilt from the `work` alias on read.
+  // its integrity, the URL is rebuilt from the `work` alias on read.
   expect(lockfile.packages?.['@pnpm.e2e/foo@work:1.0.0']).toStrictEqual({
     resolution: { integrity: expect.any(String) },
   })
@@ -54,7 +54,7 @@ test('recording a registry-qualified key leaves the lockfile version alone', asy
   await installFoo()
 
   // The key is additive. Readers gate on the lockfile's major version, so
-  // moving it would lock out every client that has not learned the new one —
+  // moving it would lock out every client that has not learned the new one,
   // including engines embedded in other tools, which cannot be patched.
   expect(readLockfile().lockfileVersion).toBe(LOCKFILE_VERSION)
 })

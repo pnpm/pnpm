@@ -39,7 +39,7 @@ pub struct WantedLockfileSatisfactionCheck<'a> {
 }
 
 /// Whether an unfiltered install could materialize `node_modules` from
-/// `lockfile` as-is — the same settings-drift and per-importer
+/// `lockfile` as-is, the same settings-drift and per-importer
 /// specifier gates the explicit `--frozen-lockfile` dispatch runs, so a
 /// `true` verdict guarantees a subsequent frozen [`super::Install`] run
 /// over the same lockfile passes its freshness check instead of
@@ -48,7 +48,7 @@ pub struct WantedLockfileSatisfactionCheck<'a> {
 /// Built for the pnpr client, which uses the verdict to skip the
 /// server resolve exchange when there is nothing to resolve
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
-/// Conservative on every input it cannot cheaply reason about — an
+/// Conservative on every input it cannot cheaply reason about, an
 /// empty lockfile, config dependencies, a workspace pnpmfile (whose
 /// hooks could rewrite manifests or force a re-resolve), or a failed
 /// workspace discovery all report `false`, sending the caller down its
@@ -75,7 +75,7 @@ pub async fn wanted_lockfile_satisfies_workspace(
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     // The importer ids below name projects relative to the directory the
     // check.lockfile sits in, which `lockfileDir` can move away from the
-    // workspace root — deriving them from the workspace instead would
+    // workspace root, deriving them from the workspace instead would
     // classify every importer the check.lockfile records as missing.
     let lockfile_root =
         super::lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
@@ -210,7 +210,7 @@ pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
 }
 
 /// Rewrite the loaded lockfile in place of a full resolution for the
-/// drift the lockfile itself proves is safe to absorb — see
+/// drift the lockfile itself proves is safe to absorb, see
 /// [`crate::fast_update_compose::try_compose_fast_updates`] for the
 /// handlers and their composition order. The candidate only replaces
 /// the loaded lockfile once it passes every freshness gate, so a
@@ -224,7 +224,7 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
     // guard inside the pipeline, and the report below all need the same
     // snapshot, and reading the patch files is the only I/O any of them do.
     // `Err` is a patch file that cannot be read or hashed, which the
-    // resolver reports — not the same as having none configured.
+    // resolver reports, not the same as having none configured.
     let Ok(patch_hashes) = opts.freshness.config.patched_dependency_hashes() else {
         return None;
     };

@@ -2,7 +2,7 @@
 //! end to end, recording the computed integrity in the lockfile.
 //!
 //! URL/tarball resolvers carry no `name@version`/`integrity` at resolve
-//! time — those live in the tarball's `package.json`. pacquet builds
+//! time, those live in the tarball's `package.json`. pacquet builds
 //! the lockfile before the install pass, so the [`TarballResolver`]
 //! downloads the tarball during resolution to compute its sha512
 //! integrity and read its manifest (see <https://github.com/pnpm/pnpm/issues/12053>).
@@ -17,7 +17,7 @@
 //! `--frozen-lockfile` install doesn't fail closed.
 //!
 //! Reaching the [`TarballResolver`] requires a bare specifier whose URL
-//! does *not* start with the configured registry — a registry-host
+//! does *not* start with the configured registry, a registry-host
 //! tarball URL is parsed by the npm resolver instead (see
 //! `parse_bare_specifier`) and carries the registry's integrity from
 //! metadata. The test points at the loopback registry via `localhost`
@@ -95,8 +95,8 @@ fn remote_tarball_integrity_survives_unrelated_install() {
 
     // The mocked registry is `http://127.0.0.1:PORT/`; pointing at the
     // same loopback server via `localhost` keeps the URL from matching
-    // the registry prefix, so the TarballResolver — not the npm resolver
-    // — claims it. `localhost` resolves to 127.0.0.1, so the tarball is
+    // the registry prefix, so the TarballResolver, not the npm resolver
+    // claims it. `localhost` resolves to 127.0.0.1, so the tarball is
     // still downloadable from that server.
     let tarball = format!(
         "{}is-positive/-/is-positive-1.0.0.tgz",
@@ -104,7 +104,7 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     );
     // A non-registry tarball is keyed by `name@<url>` (the version lives
     // in `resolution.tarball` + the `version:` field), not `name@1.0.0`.
-    // Mirrors pnpm — see `installing/deps-installer/test/lockfile.ts`
+    // Mirrors pnpm, see `installing/deps-installer/test/lockfile.ts`
     // ("packages installed via tarball URL ... are normalized").
     let package_key = format!("is-positive@{tarball}");
     let manifest_path = workspace.join("package.json");
@@ -127,7 +127,7 @@ fn remote_tarball_integrity_survives_unrelated_install() {
         });
 
     // Install an unrelated package. This rewrites the lockfile while the
-    // tarball dependency is re-resolved — the exact
+    // tarball dependency is re-resolved, the exact
     // <https://github.com/pnpm/pnpm/issues/12001> trigger.
     fs::write(
         &manifest_path,
@@ -246,7 +246,7 @@ fn remote_tarball_reresolves_from_warm_store_without_refetch() {
 /// ([#13308](https://github.com/pnpm/pnpm/issues/13308)).
 ///
 /// The refusal comes from the lockfile-verification gate, which batches
-/// every offending entry into one error before anything is fetched —
+/// every offending entry into one error before anything is fetched,
 /// not from the per-entry fetch-path backstop
 /// (`tarball_url_and_integrity`), which only speaks up for entries that
 /// reach a fetch without having passed the gate
@@ -255,8 +255,8 @@ fn remote_tarball_reresolves_from_warm_store_without_refetch() {
 /// "before anything is fetched": a refusal that only came from the fetch
 /// path would have downloaded the bytes first.
 ///
-/// Git-host archive URLs are the exemption — they are what older pnpm
-/// versions wrote without an `integrity` — and that shape is covered
+/// Git-host archive URLs are the exemption, they are what older pnpm
+/// versions wrote without an `integrity`, and that shape is covered
 /// by `unverified_fetch_is_allowed`'s unit tests, since no local
 /// server can answer for a git host.
 #[test]
@@ -350,7 +350,7 @@ fn frozen_install_refuses_a_remote_tarball_without_integrity() {
 }
 
 /// A remote tarball lands in the store index under exactly one row, keyed
-/// by the bare URL — the `pkgId` the TypeScript CLI writes, so a store
+/// by the bare URL, the `pkgId` the TypeScript CLI writes, so a store
 /// warmed by one stack stays warm for the other
 /// ([#13365](https://github.com/pnpm/pnpm/issues/13365)).
 ///
@@ -408,8 +408,8 @@ fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
 /// is still reused from a warm store on re-resolution.
 ///
 /// The lockfile records the *post-redirect* URL in `resolution.tarball`
-/// while the entry's `pkg_id` — its key, and the store-index row it
-/// lands at — stays the bare specifier the manifest asked for. A
+/// while the entry's `pkg_id`, its key, and the store-index row it
+/// lands at, stays the bare specifier the manifest asked for. A
 /// re-resolve looks the warm entry up by that specifier, before any
 /// preflight has revealed the redirect, so both sides have to agree on
 /// it. The proof is the same as

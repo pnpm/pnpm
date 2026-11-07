@@ -5,7 +5,7 @@ use miette::Diagnostic;
 use pnpm_config::{Config, check_global_bin_dir};
 use std::path::{Path, PathBuf};
 
-/// Print the current package prefix — the nearest ancestor directory
+/// Print the current package prefix, the nearest ancestor directory
 /// that holds a project.
 #[derive(Debug, Args)]
 pub struct PrefixArgs {
@@ -30,7 +30,7 @@ const NPM_PROJECT_MARKERS: &[&str] =
     &["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
 
 /// [`NPM_PROJECT_MARKERS`] plus the manifests pnpm v12 manages beyond
-/// `package.json` — a Cargo or Python package without a `package.json` is
+/// `package.json`, a Cargo or Python package without a `package.json` is
 /// a project too.
 const PROJECT_MARKERS: &[&str] = &[
     "node_modules",
@@ -146,7 +146,7 @@ impl PrefixArgs {
             check_global_bin_dir(&bin, std::env::var("PATH").ok().as_deref(), false)
                 .map_err(miette::Report::new)?;
             // pnpm's `prefix` handler prints the parent of the global packages
-            // dir — the global dir root, without the layout-version leaf.
+            // dir, the global dir root, without the layout-version leaf.
             let pkg_dir =
                 config.global_pkg_dir.clone().ok_or(GlobalError::MissingGlobalPackageDir)?;
             let prefix_dir = pkg_dir.parent().ok_or(GlobalError::MissingGlobalPackageDir)?;

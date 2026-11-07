@@ -26,7 +26,7 @@ use std::{
 
 impl<'a> CreateVirtualStore<'a> {
     /// Execute the subroutine. Returns the set of bundled manifests
-    /// recovered from `index.db` for the warm-batch slots — the
+    /// recovered from `index.db` for the warm-batch slots, the
     /// bin linker uses these to avoid re-reading `package.json` per
     /// child. See [`PackageManifests`](crate::create_virtual_store::PackageManifests).
     pub(super) async fn run_inner<Reporter: self::Reporter>(

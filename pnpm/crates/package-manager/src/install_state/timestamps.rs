@@ -69,7 +69,7 @@ pub(crate) fn mtime_ms(path: &Path) -> Option<i64> {
 /// still seen as modified. On a filesystem that rounds mtimes down to
 /// whole seconds the file could have been touched anywhere within its
 /// second, so the whole second counts as possibly-after. Erring toward
-/// "modified" only runs the authoritative content check — it never skips
+/// "modified" only runs the authoritative content check, it never skips
 /// a needed install.
 pub(crate) fn modified_at_or_after(subject: FileMtime, reference_ms: i64) -> bool {
     let reference_ns = reference_ms.saturating_mul(NANOS_PER_MILLI);
@@ -111,7 +111,7 @@ pub(crate) fn validation_baseline_ms(
 
 /// The filesystem clock's current time in milliseconds, taken from an
 /// mtime the filesystem stamps itself, so it shares a clock with every
-/// file the repeat-install check compares — the reason
+/// file the repeat-install check compares, the reason
 /// [`validation_baseline_ms`] cannot use the wall clock either.
 ///
 /// A repeat-install check reads it *before* validating the contents it
@@ -121,8 +121,8 @@ pub(crate) fn validation_baseline_ms(
 /// writes the workspace state, where pnpm records `Date.now()`.
 ///
 /// The probe is an unnamed temporary file in the directory holding the
-/// workspace state — pnpm's own, on the volume the state write lands on
-/// — so nothing else can observe it and it needs no cleanup. The
+/// workspace state, pnpm's own, on the volume the state write lands on
+///so nothing else can observe it and it needs no cleanup. The
 /// directory is created first because an install may be about to write
 /// the state file for the first time. `None` when the probe cannot be
 /// created or stat'd, leaving the caller with the mtime-derived
@@ -144,14 +144,14 @@ fn filesystem_now_in_modules(parent: &Path) -> Option<FileMtime> {
 
 /// The `lastValidatedTimestamp` to record once an install or a
 /// repeat-install content check has validated the manifests:
-/// `baseline_ms` — the mtimes of the files it validated, per
-/// [`validation_baseline_ms`] — raised to the filesystem clock's
+/// `baseline_ms`, the mtimes of the files it validated, per
+/// [`validation_baseline_ms`], raised to the filesystem clock's
 /// `now_ms`.
 ///
 /// `baseline_ms` on its own never converges. It is a file mtime
 /// truncated to milliseconds, and [`modified_at_or_after`] deliberately
-/// reads a file whose mtime falls inside that same millisecond — or, on
-/// a whole-second filesystem, inside that same second — as
+/// reads a file whose mtime falls inside that same millisecond, or, on
+/// a whole-second filesystem, inside that same second, as
 /// possibly-modified. The very file that forced this content check keeps
 /// forcing one on every later run, so the pure-mtime fast path becomes
 /// unreachable

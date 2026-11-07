@@ -47,7 +47,7 @@ export interface CookedHooks {
   calculatePnpmfileChecksum?: () => Promise<string>
   /**
    * Whether a `readPackage` hook came from a pnpmfile the checksum does not
-   * cover (the global pnpmfile) — its drift is invisible to
+   * cover (the global pnpmfile), its drift is invisible to
    * `pnpmfileChecksum` comparisons, so nothing downstream may treat the
    * checksum as proof the hooks are unchanged.
    */

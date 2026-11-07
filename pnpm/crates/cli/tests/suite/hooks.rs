@@ -121,8 +121,8 @@ module.exports = { hooks: { updateConfig (config) {
 
 const EXTRA_ENV_PNPMFILE: &str = "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, PNPM_HOOK_MARKER: 'from-hook' }; return config } } }";
 
-/// A script that records `PNPM_HOOK_MARKER` — the variable
-/// [`EXTRA_ENV_PNPMFILE`] exports — in `marker.txt` next to the manifest.
+/// A script that records `PNPM_HOOK_MARKER`, the variable
+/// [`EXTRA_ENV_PNPMFILE`] exports, in `marker.txt` next to the manifest.
 const WRITE_MARKER_SCRIPT: &str =
     r#"node -e "require('fs').writeFileSync('marker.txt', process.env.PNPM_HOOK_MARKER || '')""#;
 
@@ -712,7 +712,7 @@ fn update_config_catalog_applies_to_import() {
 }
 
 /// `updateConfig` applies to `pnpm run`, not just to the install family:
-/// the settings a hook returns — `extraEnv` here — reach the environment of
+/// the settings a hook returns, `extraEnv` here, reach the environment of
 /// the script it spawns.
 #[test]
 fn update_config_applies_to_run() {
@@ -882,8 +882,8 @@ fn update_config_applies_to_rebuild() {
 /// A hook that changes an install-affecting setting must be applied before
 /// the verify-deps-before-run check compares the live settings with the ones
 /// the last install recorded. Without the hook, `pnpm run` sees the
-/// pre-hook value, reports the setting as changed, and — under
-/// `verifyDepsBeforeRun: error` — refuses to run any script at all.
+/// pre-hook value, reports the setting as changed, and, under
+/// `verifyDepsBeforeRun: error`, refuses to run any script at all.
 #[test]
 fn update_config_applies_before_the_verify_deps_check() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

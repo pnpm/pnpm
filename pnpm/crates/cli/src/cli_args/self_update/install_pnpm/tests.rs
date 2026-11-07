@@ -14,7 +14,7 @@ use pnpm_testing_utils::registry::TestRegistry;
 use std::fs;
 
 /// The engine install must stay anchored to its install dir even when an
-/// ancestor carries a `pnpm-workspace.yaml` — the global packages dir
+/// ancestor carries a `pnpm-workspace.yaml`, the global packages dir
 /// legitimately holds one of global settings once a global `allowBuilds`
 /// decision has been persisted. Left unanchored, the install pipeline
 /// walked up, adopted that file as the workspace root, and the wrapper
@@ -34,7 +34,7 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
     // dir: a stray `node_modules` and a lockfile at the adopted workspace
     // root. A later self-update must succeed with them in place (each
     // update installs into a fresh slot) and must not touch that lockfile
-    // — it is the env lockfile's home.
+    // it is the env lockfile's home.
     fs::create_dir_all(global_pkg_dir.join("node_modules").join(".pnpm"))
         .expect("create leftover node_modules");
     let leftover_lockfile = "lockfileVersion: '9.0'\n";
@@ -390,7 +390,7 @@ fn fake_gvs_native_slot(links_dir: &std::path::Path) -> std::path::PathBuf {
 /// `packageManager` delegation installs the engine into the global virtual
 /// store, where the unscoped `pnpm` wrapper sits under the `@` placeholder
 /// scope and its platform package legitimately resolves into a sibling slot
-/// — the trust root must widen to `links` instead of the wrapper's own slot.
+///the trust root must widen to `links` instead of the wrapper's own slot.
 #[cfg(unix)]
 #[test]
 fn links_native_binary_from_a_sibling_global_virtual_store_slot() {
@@ -540,7 +540,7 @@ fn rejects_native_binary_scope_symlink_that_escapes_the_install_dir() {
 #[test]
 fn link_errors_when_the_native_binary_is_missing() {
     let temp = tempfile::tempdir().expect("tempdir");
-    // Wrapper present, but no `@pnpm/<platform>` native binary — linking must
+    // Wrapper present, but no `@pnpm/<platform>` native binary, linking must
     // fail loudly rather than leave a broken "successful" self-update.
     fake_engine_install(temp.path(), false);
 
@@ -700,7 +700,7 @@ fn assert_release_is_installable_allows_every_other_release() {
 }
 
 /// A slot left by an older layout whose wrapper symlink escapes the slot
-/// (e.g. into a shared global virtual store) must not be reused — the
+/// (e.g. into a shared global virtual store) must not be reused, the
 /// caller falls through to a fresh install instead of aborting the whole
 /// self-update on the wrapper-containment guard.
 #[cfg(unix)]

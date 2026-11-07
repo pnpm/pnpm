@@ -138,7 +138,7 @@ test('use local cache when registry returns 304 Not Modified', async () => {
     'utf8'
   )
 
-  // Registry returns 304 Not Modified — verify conditional headers are sent
+  // Registry returns 304 Not Modified, verify conditional headers are sent
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({
       path: '/is-positive',
@@ -168,7 +168,7 @@ test('if-modified-since is sent as an HTTP-date derived from the stored ISO-8601
   const metaDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(metaDir, { recursive: true })
   // The mirror stores the packument's `time.modified`, which is ISO-8601. The
-  // wire header must be the HTTP-date form (RFC 9110 §8.8.3) — pinned here so
+  // wire header must be the HTTP-date form (RFC 9110 §8.8.3), pinned here so
   // the TypeScript CLI and pacquet stay byte-identical on the wire.
   const headers = JSON.stringify({ modified: '2025-01-15T12:00:00.000Z' })
   fs.writeFileSync(

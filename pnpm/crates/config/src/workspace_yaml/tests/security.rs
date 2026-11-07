@@ -2,7 +2,7 @@ use super::{Config, Path, WorkspaceSettings, assert_eq};
 
 /// `unsafePerm: false` from yaml propagates to `Config.unsafe_perm`
 /// on POSIX. The starting `Config::new()` value depends on the runtime
-/// uid (see [`default_unsafe_perm`]) — `true` for non-root, `false`
+/// uid (see [`default_unsafe_perm`]), `true` for non-root, `false`
 /// for root. Either way, `apply_to` with `Some(false)` ends in
 /// `false`.
 #[test]
@@ -22,7 +22,7 @@ fn parses_unsafe_perm_from_yaml_and_applies() {
 }
 
 /// On Windows, `apply_to` ignores the yaml value and forces
-/// `unsafe_perm = true` — running lifecycle scripts under a uid/gid
+/// `unsafe_perm = true`, running lifecycle scripts under a uid/gid
 /// drop is POSIX-only.
 #[cfg(windows)]
 #[test]

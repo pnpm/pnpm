@@ -281,7 +281,7 @@ async function installWithPacquet (
 ): Promise<InstallFunctionResult> {
   // pacquet >= 0.11.7 resolves itself: hand it the whole install
   // (resolve + fetch + import + link + build, writing the lockfile)
-  // in a single non-frozen pass. Only for plain installs — `add` /
+  // in a single non-frozen pass. Only for plain installs, `add` /
   // `update` / `remove` need pnpm to mutate the manifests and
   // resolve the new specs first (pacquet's `install` reads
   // package.json from disk, which pnpm hasn't rewritten yet).
@@ -290,7 +290,7 @@ async function installWithPacquet (
     ctx.wantedLockfile = await readLockfileWrittenByPacquet(ctx, opts)
     return pacquetResolveResult(projects, ctx)
   }
-  // Older pacquet can only materialize: split the install in two —
+  // Older pacquet can only materialize: split the install in two,
   // ask `resolveAndLinkProjects` for a `lockfileOnly` resolve pass (writes
   // `pnpm-lock.yaml`), then hand the freshly-written lockfile to
   // pacquet for the fetch / import / link / build phases.
@@ -307,7 +307,7 @@ async function installWithPacquet (
 
 /**
  * `configDependencies` are recorded in a YAML document prepended
- * to `pnpm-lock.yaml` — purely a pnpm concept that pacquet doesn't
+ * to `pnpm-lock.yaml`, purely a pnpm concept that pacquet doesn't
  * model. Capture it before pacquet rewrites the lockfile and
  * restore it afterwards (`writeEnvLockfile` re-reads pacquet's main
  * document and re-prepends the env document), otherwise the next
@@ -372,7 +372,7 @@ async function readLockfileWrittenByPacquet (
  * `node_modules` tree itself. `ctx.wantedLockfile` has already been
  * refreshed from disk. Resolution-policy handlers are guarded out before
  * this path, so there are no command-layer policy violations to return.
- * Manifests are returned unchanged — this path only runs for plain
+ * Manifests are returned unchanged, this path only runs for plain
  * installs, which don't rewrite `package.json`.
  */
 function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): InstallFunctionResult {
@@ -395,8 +395,8 @@ function pacquetResolveResult (projects: ImporterToUpdate[], ctx: PnpmContext): 
  * Pacquet reads the wanted lockfile from disk and produces its own
  * `pnpm:stats` / `pnpm:ignored-scripts` log events that drive the
  * reporter. The structured stats / ignoredBuilds return values that
- * `headlessInstall` produces aren't recovered here — pacquet doesn't
- * surface them through any return path — so callers get `undefined` for
+ * `headlessInstall` produces aren't recovered here, pacquet doesn't
+ * surface them through any return path, so callers get `undefined` for
  * both. `mutateModules` already tolerates that (it falls back to a zero
  * stats record and a no-op ignoredBuilds iteration).
  */

@@ -53,8 +53,8 @@ fn parse_bun_version(stdout: &str) -> Option<String> {
 
 /// `text` when it is a whole semver version. The probed binary is only as
 /// trustworthy as `PATH`, and its output is echoed back in the
-/// runtime-mismatch message, so anything that is not a version — including
-/// a version followed by terminal escapes — is rejected outright rather
+/// runtime-mismatch message, so anything that is not a version, including
+/// a version followed by terminal escapes, is rejected outright rather
 /// than reported as the installed version.
 fn accept_version(text: &str) -> Option<String> {
     node_semver::Version::parse(text).ok().map(|_| text.to_string())

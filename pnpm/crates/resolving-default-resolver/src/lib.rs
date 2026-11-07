@@ -26,7 +26,7 @@ pub struct DefaultResolver {
 
 impl DefaultResolver {
     /// Build a dispatcher from a chain of resolvers. Order is preserved
-    /// — earlier entries get the first shot at every wanted dependency.
+    ///earlier entries get the first shot at every wanted dependency.
     #[must_use]
     pub fn new(chain: Vec<Box<dyn Resolver>>) -> Self {
         Self { chain }
@@ -70,7 +70,7 @@ impl DefaultResolver {
 /// it into another dispatcher (or hand it to a consumer that already
 /// accepts the trait, like `resolve_dependency_tree`). Through the
 /// trait, the "no resolver claimed" branch surfaces as `Ok(None)` so
-/// the caller chooses how to react — the inherent
+/// the caller chooses how to react, the inherent
 /// [`Self::resolve`](DefaultResolver::resolve) method keeps raising
 /// [`SpecNotSupportedByAnyResolverError`] for callers that prefer the
 /// error form.

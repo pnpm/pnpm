@@ -151,7 +151,7 @@ fn unkeyed_header_falls_back_to_npmjs_when_the_overlay_declares_no_registry() {
 }
 
 /// A default registry that is not a parseable URL leaves the unkeyed header
-/// nowhere safe to go, so it is dropped rather than keyed at `""` — where it
+/// nowhere safe to go, so it is dropped rather than keyed at `""`, where it
 /// would match every lookup.
 #[test]
 fn unkeyed_header_is_dropped_when_the_default_registry_is_unparsable() {

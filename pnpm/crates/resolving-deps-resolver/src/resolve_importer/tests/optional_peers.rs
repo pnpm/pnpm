@@ -9,7 +9,7 @@ use super::{
 /// provider is resolved anywhere in the tree (here: deep under a
 /// sibling) IS hoisted: every run-resolved version folds into the
 /// preferred-versions set and the optional-peer hoist resolves the
-/// peer against it after the wave (verified against pnpm 11.6.0 — the
+/// peer against it after the wave (verified against pnpm 11.6.0, the
 /// `eslint` + `cosmiconfig-typescript-loader` shape, where `eslint`
 /// gains `(jiti@x)`). For
 /// <https://github.com/pnpm/pnpm/issues/12266>.
@@ -67,7 +67,7 @@ async fn optional_peer_with_real_entry_is_hoisted_from_resolved_tree() {
 }
 
 /// A peer declared only via `peerDependenciesMeta` on a direct package
-/// (no `peerDependencies` entry — the `debug` / `supports-color`
+/// (no `peerDependencies` entry, the `debug` / `supports-color`
 /// shape) is an implied optional `"*"` peer and joins the optional-peer
 /// hoist exactly like an explicitly declared optional peer: when a
 /// satisfying version is already in the graph, it is deduped onto that
@@ -298,7 +298,7 @@ async fn auto_install_does_not_install_same_missing_peer_twice() {
 
 /// Prefer the peer dependency version already used in the root: when
 /// the importer declares the peer itself, its pinned version wins via
-/// the importer-peerDependencies seed — even if `latest` would resolve
+/// the importer-peerDependencies seed, even if `latest` would resolve
 /// higher.
 #[tokio::test]
 async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
@@ -316,7 +316,7 @@ async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
         ),
     );
     // The importer pinned `y: ^1.0.0` so the resolver only sees that
-    // spec — never `>=1.0.0` (the peer range). Were the importer
+    // spec, never `>=1.0.0` (the peer range). Were the importer
     // peerDeps not walked, the picker would fall back to the peer
     // range and might pick y@2.0.0.
     table.insert(
@@ -412,7 +412,7 @@ async fn auto_install_hoisted_peer_dep_reuses_regular_dep_version() {
 /// Regression test for <https://github.com/pnpm/pnpm/issues/11999>.
 ///
 /// Pacquet's `resolve_peers` walks synchronously with an `in_progress`
-/// set, so the deadlock that hit pnpm does not occur here — but the
+/// set, so the deadlock that hit pnpm does not occur here, but the
 /// scenario has to keep terminating with a graph entry for the aliased
 /// root and for each pair of mutually-peer-depending leaves.
 ///

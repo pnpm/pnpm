@@ -51,7 +51,7 @@ export interface UpdateWorkspaceManifestOptions {
   updatedOverrides?: Record<string, string>
   /**
    * The complete desired audit ignore list, written to whichever spelling
-   * the manifest uses — see {@link setAuditIgnoreGhsas}. An empty array
+   * the manifest uses, see {@link setAuditIgnoreGhsas}. An empty array
    * removes the list.
    */
   updatedAuditIgnoreGhsas?: string[]

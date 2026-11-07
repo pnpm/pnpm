@@ -551,7 +551,7 @@ fn named_registry_with_scoped_body_and_selector() {
 
 #[test]
 fn named_registry_preserves_scoped_name_no_jsr_style_rewrite() {
-    // Named registries publish the package under its original name —
+    // Named registries publish the package under its original name,
     // unlike JSR which remaps `@scope/name` to `@jsr/scope__name`.
     let gh = gh_aliases();
     let spec = parse_named_registry_specifier_to_registry_package_spec(

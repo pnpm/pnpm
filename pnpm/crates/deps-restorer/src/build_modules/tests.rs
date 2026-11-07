@@ -52,7 +52,7 @@ static TEST_LOGGED_METHODS: std::sync::atomic::AtomicU8 = std::sync::atomic::Ato
 /// would arrive at the policy. Each spec is parsed through
 /// [`AllowBuildPolicy::from_config`] so version unions and depPath
 /// keys work the same way they do at runtime.
-/// Panics on any parse failure — test inputs must be valid.
+/// Panics on any parse failure, test inputs must be valid.
 fn policy_from_specs<const LEN: usize>(
     entries: [(&str, bool); LEN],
     dangerously_allow_all: bool,
@@ -79,7 +79,7 @@ fn key(name_text: &str, version: &str) -> PackageKey {
 
 /// Materialize a `<virtual_store_dir>/<store_name>/node_modules/<pkg_name>/package.json`
 /// fixture so `pkg_requires_build` returns true for `key`. The script body
-/// is harmless (`true`) — the existing tests rely on the policy gate to block
+/// is harmless (`true`), the existing tests rely on the policy gate to block
 /// execution, so the script never actually runs.
 fn create_buildable_pkg(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let key_str = key.without_peer().to_string();
@@ -123,11 +123,11 @@ fn root_importers(deps: &[(&str, &str)]) -> HashMap<String, ProjectSnapshot> {
     )])
 }
 
-// --- frozen-store build backstop ---------------------------------------
+// frozen-store build backstop
 
 /// A `pnpm-workspace.yaml`-shaped patch entry for one package. The
 /// `patch_file_path` is left `None` because the frozen-store backstop
-/// fires before any patch application — the entry only has to make
+/// fires before any patch application, the entry only has to make
 /// `has_patch` true and land the snapshot in the build sequence.
 fn single_patch(key: &PackageKey) -> HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo> {
     HashMap::from([(
@@ -142,7 +142,7 @@ fn single_patch(key: &PackageKey) -> HashMap<PackageKey, pnpm_patching::Extended
 
 /// Build a global-virtual-store [`VirtualStoreLayout`] for a backstop
 /// test. `snapshots: None` short-circuits [`VirtualStoreLayout::new`]
-/// to an empty `gvs_suffixes` map, which is all the backstop needs —
+/// to an empty `gvs_suffixes` map, which is all the backstop needs,
 /// it queries [`VirtualStoreLayout::enable_global_virtual_store`]
 /// (true iff `gvs_suffixes.is_some()`) and fires before any slot-dir
 /// lookup.
@@ -158,7 +158,7 @@ fn gvs_layout(dir: &Path) -> &'static VirtualStoreLayout {
 
 /// Run [`BuildModules`] over a single patched `is-positive@1.0.0`
 /// snapshot, varying only `layout`, `frozen_store`, and the snapshot's
-/// `optional` flag — the three backstop inputs. No on-disk fixture: the
+/// `optional` flag, the three backstop inputs. No on-disk fixture: the
 /// snapshot's slot never materializes, so on paths that skip the
 /// backstop the run no-ops at the `!pkg_dir.exists()` guard rather than
 /// touching the (absent) patch file.
@@ -293,7 +293,7 @@ fn create_postinstall_modifies_source_fixture(
     // Bake the pristine `index.js` into the directory before the
     // postinstall runs. The WRITE-path diff compares the
     // post-build directory against the pre-seeded `files` map,
-    // so this file must appear in both — the postinstall only
+    // so this file must appear in both, the postinstall only
     // adds `generated.txt` on top.
     fs::write(pkg_dir.join("index.js"), "module.exports = 'hi'\n").expect("write index.js");
     let manifest = serde_json::json!({
@@ -335,7 +335,7 @@ fn report_store_file_differences(
 /// postinstall additionally produces a 0-permission file. The
 /// WRITE-path walker (`add_files_from_dir`) then fails on
 /// `fs::read("unreadable")` with `EACCES`, surfacing as
-/// `UploadError::AddFilesFromDir(ReadFile { … })` — a real upload
+/// `UploadError::AddFilesFromDir(ReadFile { … })`, a real upload
 /// error that `BuildModules` must swallow.
 #[cfg(unix)]
 fn create_postinstall_with_unreadable_fixture(

@@ -273,7 +273,7 @@ fn updates_aliasless_selector_that_resolves_to_an_existing_alias() {
 #[test]
 fn does_not_misattribute_a_spec_when_an_aliasless_optional_dep_fails_to_resolve() {
     // The survivor omits `normalized_bare_specifier` so its spec falls back to
-    // the wanted dependency's — the path where a wrong pairing would surface.
+    // the wanted dependency's, the path where a wrong pairing would surface.
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
     let failed_optional =
         wanted(None, "github:owner/missing#1111111111111111111111111111111111111111", true);

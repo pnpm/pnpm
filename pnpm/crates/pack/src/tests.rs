@@ -328,7 +328,7 @@ fn on_disk_executable_file_is_packed_executable() {
 }
 
 /// A `publishConfig.name` rename has to reach the tarball filename and the
-/// packed manifest together — the registry derives the published package from
+/// packed manifest together, the registry derives the published package from
 /// the manifest, so a filename naming the workspace package would name a
 /// different artifact than the one inside it.
 #[test]
@@ -832,8 +832,8 @@ fn workspace_license_is_injected_into_a_sub_package() {
 }
 
 /// A symlinked workspace-root `LICENSE` must not be injected: following
-/// it would leak the target's bytes — potentially a file outside the
-/// workspace — into the published tarball.
+/// it would leak the target's bytes, potentially a file outside the
+/// workspace, into the published tarball.
 #[cfg(unix)]
 #[test]
 fn symlinked_workspace_license_is_not_injected() {

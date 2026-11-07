@@ -17,8 +17,8 @@ export interface WorkspaceFilter {
   followProdDepsOnly: boolean
   /**
    * Overrides how a `{<dir>}` selector matches, for a selector pnpm
-   * generates rather than the user writing it. Left out — every filter a
-   * user passes — the selector follows the mode the whole pass runs in,
+   * generates rather than the user writing it. Left out, every filter a
+   * user passes, the selector follows the mode the whole pass runs in,
    * which `legacyDirFiltering` chooses.
    */
   useGlobDirFiltering?: boolean

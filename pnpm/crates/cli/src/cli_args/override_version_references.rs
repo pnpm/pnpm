@@ -1,5 +1,5 @@
-//! The `$dep-name` self-reference syntax in `overrides` — a value that
-//! copies the specifier the root manifest declares for that dependency —
+//! The `$dep-name` self-reference syntax in `overrides`, a value that
+//! copies the specifier the root manifest declares for that dependency,
 //! is deprecated in favor of catalogs. pnpm still honors it, and warns
 //! once per command about every selector still using it.
 

@@ -49,7 +49,7 @@ pub struct RunArgs {
     /// A pre-defined package script followed by the arguments passed to
     /// it. When empty, the available scripts are listed.
     // One positional rather than a script name plus a separate argument
-    // list, so parsing stops *at* the script name — pnpm puts `run` in
+    // list, so parsing stops *at* the script name, pnpm puts `run` in
     // `SPECIALLY_ESCAPED_CMDS` to the same effect. Every later token
     // reaches the script verbatim, including a `--` separator and
     // anything shaped like a pnpm flag. Splitting the two lets clap keep

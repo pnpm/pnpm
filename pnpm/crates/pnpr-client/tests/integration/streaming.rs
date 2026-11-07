@@ -34,7 +34,7 @@ async fn an_upstream_resolves_a_private_package() {
 
 /// The same install against a server with no matching upstream
 /// fails: the client forwards no credential and pnpr has none to select,
-/// so the gated packument can only be fetched anonymously — which the
+/// so the gated packument can only be fetched anonymously, which the
 /// registry refuses.
 #[tokio::test]
 async fn a_private_package_fails_without_an_upstream() {

@@ -10,11 +10,11 @@ use assert_cmd::assert::OutputAssertExt;
 
 /// A per-task `concurrency: 1` serializes the scripts just as firmly as a
 /// dependency chain does, so at a terminal they must stay in pacquet's
-/// process group too — the scheduler never has two of them in flight to
+/// process group too, the scheduler never has two of them in flight to
 /// keep apart.
 ///
 /// Unix-only by subject: the assertion compares POSIX process groups,
-/// which Windows has no counterpart for — pnpm keeps a script's children
+/// which Windows has no counterpart for, pnpm keeps a script's children
 /// in a job object there instead.
 #[cfg(unix)]
 #[test]

@@ -145,7 +145,7 @@ fn empty_node_options_env_vars_override_lower_layers() {
 
 /// `savePrefix` is the exception to [`empty_env_var_is_treated_as_unset`]:
 /// `""` is the value that pins an exact version, so
-/// `PNPM_CONFIG_SAVE_PREFIX=` must reach the config as `Some("")` — the
+/// `PNPM_CONFIG_SAVE_PREFIX=` must reach the config as `Some("")`, the
 /// same state `savePrefix: ""` in `pnpm-workspace.yaml` produces.
 #[test]
 fn empty_save_prefix_env_var_survives() {
@@ -286,7 +286,7 @@ fn scope_parses_from_env() {
 /// `scope`, like `savePrefix`, is an exception to
 /// [`empty_env_var_is_treated_as_unset`]: `PNPM_CONFIG_SCOPE=` must reach the
 /// config as `Some("")`, not `None`, so it clobbers a scope set by a
-/// lower-priority layer and yields an unscoped `pnpm login` — matching the
+/// lower-priority layer and yields an unscoped `pnpm login`, matching the
 /// TypeScript CLI, whose env pass keeps the empty value.
 #[test]
 fn empty_scope_env_var_survives_to_clobber_lower_layers() {

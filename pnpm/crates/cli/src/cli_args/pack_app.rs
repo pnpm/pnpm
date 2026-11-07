@@ -358,7 +358,7 @@ impl PackAppArgs {
         Ok(validate_output_name(&output_name)?)
     }
     /// The created output directory. `outputDir` is repo-controllable, so
-    /// absolute paths and `..` traversal are rejected — build artifacts
+    /// absolute paths and `..` traversal are rejected, build artifacts
     /// must not be written outside the project.
     fn resolve_output_dir(
         &self,

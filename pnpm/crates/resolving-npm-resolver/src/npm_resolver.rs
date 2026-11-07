@@ -149,7 +149,7 @@ pub struct RegistryMetadataClient<Cache: PackageMetaCache> {
     /// via [`crate::shared_picked_manifest_cache`] once per install.
     pub picked_manifest_cache: crate::PickedManifestCache,
     /// Root of the on-disk metadata mirror. `None` disables every
-    /// disk read/write — the picker goes straight to the network on
+    /// disk read/write, the picker goes straight to the network on
     /// each cache miss.
     pub cache_dir: Option<PathBuf>,
     /// Retry budget threaded through to

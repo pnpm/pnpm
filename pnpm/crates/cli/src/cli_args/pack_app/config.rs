@@ -61,7 +61,7 @@ pub(super) fn output_file_name(output_name: &str, platform: &str) -> String {
 
 pub(super) fn parse_target(raw: &str) -> Result<ParsedTarget, PackAppError> {
     // Anchored, segment-constrained parse so inputs like
-    // `linux-x64-musl-../../outside` are rejected outright — otherwise
+    // `linux-x64-musl-../../outside` are rejected outright, otherwise
     // `target.raw` would later flow into the output directory join and
     // could escape it.
     let parts: Vec<&str> = raw.split('-').collect();

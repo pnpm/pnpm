@@ -126,7 +126,7 @@ pub(super) fn exec_concurrency(args: &ExecArgs, config: &Config, task_count: usi
 }
 
 /// Record a passed task in the run state, aborting the whole run when
-/// the state cannot be written — a run whose state is unrecorded cannot
+/// the state cannot be written, a run whose state is unrecorded cannot
 /// be resumed, so continuing would build a summary nothing can act on.
 fn record_task_passed(
     task_run_state: &crate::cli_args::task_run_state::TaskRunState,

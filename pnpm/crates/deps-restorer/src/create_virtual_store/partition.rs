@@ -1,5 +1,5 @@
-//! Split the snapshots this install materializes into the warm batch —
-//! already in the CAFS, so the prefetch covered them — and the cold
+//! Split the snapshots this install materializes into the warm batch,
+//! already in the CAFS, so the prefetch covered them, and the cold
 //! batch that still needs downloading, and collect the store-index rows
 //! later phases read.
 //!
@@ -170,7 +170,7 @@ impl Partition<'_> {
 /// scripts on every warm reinstall.
 ///
 /// `rebuilds` withholds the side-effects row of a snapshot that must be
-/// built afresh — keeping the row would let the `is_built` gate skip the
+/// built afresh, keeping the row would let the `is_built` gate skip the
 /// very build that is asked for.
 pub(super) fn partition_snapshots<'a>(
     snapshot_entries: &'a [SnapshotWithCacheKey<'a>],
@@ -182,7 +182,7 @@ pub(super) fn partition_snapshots<'a>(
     // The warm batch runs on rayon rather than per-snapshot tokio
     // futures. Profiled at 1352 prefetched / 0 cold on a 10-core Mac:
     // each future's sync `rayon::join` pinned a tokio worker and
-    // saturated the pool, so `sum-of-link ~= wall` — effectively 1x
+    // saturated the pool, so `sum-of-link ~= wall`, effectively 1x
     // parallelism. One `par_iter` over every snapshot lets the pool
     // work-steal across all of them; wall dropped ~10 s to ~6.5 s.
     //

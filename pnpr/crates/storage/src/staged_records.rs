@@ -80,7 +80,7 @@ impl Storage {
         })
     }
 
-    /// Remove a staged record — the metadata first, so a concurrent list
+    /// Remove a staged record, the metadata first, so a concurrent list
     /// never surfaces a record whose body is already gone. `Ok(false)` when
     /// no metadata existed. A body-removal failure is logged rather than
     /// propagated: once the metadata is gone the record is deleted for every
@@ -111,7 +111,7 @@ impl Storage {
     }
 
     /// Record a run, reporting `false` when that workspace already has one
-    /// under this id — a run record is written once and never rewritten.
+    /// under this id, a run record is written once and never rewritten.
     pub async fn create_pipeline_run(
         &self,
         key: &PipelineRunKey<'_>,

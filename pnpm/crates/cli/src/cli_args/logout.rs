@@ -1,4 +1,4 @@
-//! `pacquet logout` — revoke the registry auth token and remove it from the
+//! `pacquet logout`, revoke the registry auth token and remove it from the
 //! global `config.yaml`. The command logic lives in `pnpm-auth-commands`;
 //! this module is the thin CLI adapter that resolves config into
 //! [`LogoutOptions`].

@@ -543,7 +543,7 @@ fn install_fails_on_env_var_in_project_npmrc_registry() {
 ///
 /// Also asserts that the project gets registered under
 /// `<store_dir>/v11/projects/`, mirroring the frozen-lockfile branch
-/// — the prune sweep walks that directory to learn which projects
+///the prune sweep walks that directory to learn which projects
 /// still reference the shared store.
 #[cfg(unix)]
 #[test]
@@ -601,7 +601,7 @@ fn fresh_install_honors_enable_global_virtual_store() {
 /// `virtualStoreOnly` populates the virtual store and creates no
 /// importer links. `.pnp.cjs` is how a `PnP` project resolves, so it is a
 /// project-level artifact of the same kind and must not be written
-/// either — otherwise the project claims to resolve out of a store it
+/// either, otherwise the project claims to resolve out of a store it
 /// was never linked into.
 ///
 /// Covers the fresh-resolution path: `pnpm fetch` pins

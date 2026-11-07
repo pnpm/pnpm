@@ -1,7 +1,7 @@
 //! What the resolver reads off an *importer's* manifest to seed a walk:
 //! which of its direct dependencies are optional or injected, and the
-//! wanted specs the walk starts from. The package side of the same job —
-//! what the walk reads off each resolved package — lives in
+//! wanted specs the walk starts from. The package side of the same job,
+//! what the walk reads off each resolved package, lives in
 //! [`super::manifest`].
 
 use std::path::Path;
@@ -68,7 +68,7 @@ fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
 /// spreading the groups in order: `peerDependencies` first (when
 /// `auto_install_peers`), then `devDependencies` < `dependencies` <
 /// `optionalDependencies`, a later group's range replacing an earlier
-/// one — matching `filterDependenciesByType` in
+/// one, matching `filterDependenciesByType` in
 /// `@pnpm/pkg-manifest.utils` (`{...dev, ...prod, ...optional}`), so a
 /// regular dep wins over a devDependency of the same alias, and either
 /// wins over its peer range.
@@ -76,7 +76,7 @@ fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
 /// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
 /// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
 /// (which only needs the resolved direct-dep publish dates), so both
-/// see the identical direct-dep set — the importer-dep computation runs
+/// see the identical direct-dep set, the importer-dep computation runs
 /// once before resolving an importer's deps.
 ///
 /// Fails with

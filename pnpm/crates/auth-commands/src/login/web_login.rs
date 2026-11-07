@@ -114,7 +114,7 @@ fn report_notices<Reporter: self::Reporter>(notices: &[String]) {
     }
 }
 
-/// A materialized registry response — the fields [`web_login`] and
+/// A materialized registry response, the fields [`web_login`] and
 /// `add_user` read after the request completes.
 struct HttpResponse {
     ok: bool,
@@ -132,8 +132,8 @@ pub(super) enum WebLoginFlowError {
     Http { status: u16, text: String },
     /// The probe succeeded but the body lacked a usable `loginUrl` / `doneUrl`.
     InvalidResponse,
-    /// A `loginUrl` / `doneUrl` carried control characters — a terminal-spoofing
-    /// attempt — so the login is rejected rather than used.
+    /// A `loginUrl` / `doneUrl` carried control characters, a terminal-spoofing
+    /// attempt, so the login is rejected rather than used.
     UnsafeUrl,
     /// The token poll exceeded its budget.
     Timeout(WebAuthTimeoutError),

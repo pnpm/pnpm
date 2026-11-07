@@ -6,7 +6,7 @@ use super::{
 };
 
 /// `pnpm config get` reads the explicit-settings record, which therefore has
-/// to answer both spellings with the value the install will use — whichever
+/// to answer both spellings with the value the install will use, whichever
 /// of the two the file was written in.
 #[test]
 pub fn explicit_settings_report_the_spelling_that_won() {
@@ -35,7 +35,7 @@ pub fn explicit_settings_report_the_spelling_that_won() {
 }
 
 /// `audit.level` supersedes the deprecated `auditLevel` spelling, and
-/// `pnpm config get audit-level` reads the explicit-settings record — so the
+/// `pnpm config get audit-level` reads the explicit-settings record, so the
 /// record has to carry the level under the deprecated name too, whichever
 /// spelling the file was written in.
 #[test]
@@ -534,7 +534,7 @@ pub fn package_manager_bootstrap_honors_env_registry() {
 }
 
 /// When `PNPM_CONFIG_REGISTRY` is set without a trailing slash, the env
-/// override normalizes it before storing — matching pnpm, which treats
+/// override normalizes it before storing, matching pnpm, which treats
 /// `https://r` and `https://r/` as the same registry. The slash must be
 /// appended consistently to `config.registry`, `config.registries_by_scope`, and
 /// the bootstrap map so downstream lookups (auth-header pinning,
@@ -634,8 +634,8 @@ pub fn global_config_yaml_keys_settable_nowhere_are_reported_with_their_route() 
 }
 
 /// A key that names no setting of any supported pnpm gets the
-/// "not recognized by this version" warning — with the closest real setting
-/// when the key looks like a typo of one — instead of the move-to-workspace
+/// "not recognized by this version" warning, with the closest real setting
+/// when the key looks like a typo of one, instead of the move-to-workspace
 /// advice, which would send the user to a file that ignores it too.
 #[test]
 pub fn global_config_yaml_unrecognized_keys_are_reported_with_a_suggestion() {

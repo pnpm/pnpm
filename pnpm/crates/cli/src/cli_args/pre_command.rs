@@ -3,7 +3,7 @@
 //! running. A pnpm pin with `onFail: "download"` switches the CLI to the
 //! wanted version; every other pin is validated in place and fails or warns.
 //! A pin that persists to the lockfile is also recorded there, whatever the
-//! command — see [`env_lockfile_sync_from_loaded`].
+//! command, see [`env_lockfile_sync_from_loaded`].
 //!
 //! Mirrors the block at the top of pnpm's `pnpm/src/main.ts`.
 
@@ -79,7 +79,7 @@ pub(crate) fn pre_command_plan(
 
 /// The `pnpm --version` path, which clap answers before a command is
 /// parsed. pnpm checks the package manager there too, but skips the runtime
-/// checks — printing the version must work in a project whose runtime pin
+/// checks, printing the version must work in a project whose runtime pin
 /// the system cannot satisfy.
 pub(crate) fn pre_command_plan_for_version_flag(
     argv: &[OsString],

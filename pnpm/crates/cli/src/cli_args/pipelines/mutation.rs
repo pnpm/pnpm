@@ -292,8 +292,8 @@ impl UpdatePipeline {
             false,
             false,
         )?;
-        // An empty selection has nothing to update, and — like the shared
-        // path — must not generate a changeset.
+        // An empty selection has nothing to update, and, like the shared
+        // path, must not generate a changeset.
         match &plan {
             InstallFamilyPlan::PerProject(projects) if projects.is_empty() => {
                 return Ok(());

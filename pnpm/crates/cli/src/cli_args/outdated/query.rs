@@ -159,7 +159,7 @@ impl OutdatedRun {
 /// whether it is outdated.
 #[derive(Debug, Clone, Copy)]
 pub enum TargetVersion {
-    /// The `latest` dist-tag — the absolute newest published version.
+    /// The `latest` dist-tag, the absolute newest published version.
     Latest,
     /// The highest version satisfying the manifest range. pnpm's
     /// `outdated --compatible`, and the version an in-range `update`
@@ -275,7 +275,7 @@ pub struct OutdatedQuery<'a> {
     /// When present, restricts the walk to dependency keys the matcher
     /// accepts (pnpm's `outdated <pattern>` arguments).
     pub match_names: Option<&'a Matcher>,
-    /// When present, drops the dependency keys the matcher accepts —
+    /// When present, drops the dependency keys the matcher accepts,
     /// `updateConfig.ignoreDependencies`, which takes a dependency out of
     /// both the report and the interactive update list.
     pub ignore_names: Option<&'a Matcher>,

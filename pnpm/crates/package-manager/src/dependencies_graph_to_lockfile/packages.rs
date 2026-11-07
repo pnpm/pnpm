@@ -28,7 +28,7 @@ pub struct PackageMetadataSources<'a> {
     pub previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
 }
 /// Walk the depPath-keyed [`DependenciesGraph`] and emit the matching
-/// `(PackageMetadata, SnapshotEntry)` pair for each node — fanned out
+/// `(PackageMetadata, SnapshotEntry)` pair for each node, fanned out
 /// across the two top-level maps the v9 lockfile splits.
 ///
 /// Multiple snapshot entries (peer variants) share one packages entry,
@@ -91,7 +91,7 @@ pub(super) fn build_node<'graph>(
     let dep_path = node.dep_path.as_str();
     let snapshot_key = match dep_path.parse::<PackageKey>() {
         Ok(snapshot_key) => Ok(snapshot_key),
-        // A workspace link is the one node with no row of its own —
+        // A workspace link is the one node with no row of its own,
         // it resolves as its own importer and pnpm writes it none
         // either.
         Err(_) if dep_path.starts_with("link:") => return Ok(None),
@@ -181,7 +181,7 @@ pub(super) fn carry_previous_deprecation(
 /// Build the per-`(name, version)` [`PackageMetadata`] block for the
 /// lockfile's `packages:` map.
 ///
-/// Covers the per-package half only — the per-snapshot fields
+/// Covers the per-package half only, the per-snapshot fields
 /// `dependencies` / `optionalDependencies` / `transitivePeerDependencies` /
 /// `optional` / `patched` go on the snapshot below.
 pub(super) fn build_package_metadata(
@@ -262,7 +262,7 @@ pub(super) fn explicit_version(
 }
 /// Read a JSON array field off the resolver's manifest fragment and flatten it
 /// into a `Vec<String>`. `None` when the field is missing or has no string
-/// values — malformed metadata is silently dropped.
+/// values, malformed metadata is silently dropped.
 pub(super) fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Vec<String>> {
     match manifest?.get(key)? {
         Value::Array(items) => {
@@ -316,7 +316,7 @@ pub fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
 /// `transitivePeerDependencies` is sorted; `optional` is sourced from
 /// [`compute_corrected_optional`](crate::dependencies_graph_to_lockfile::compute_corrected_optional), which re-derives the flag from the
 /// importer graph because the resolver's per-node fold misses
-/// transitive descendants on revisits — see
+/// transitive descendants on revisits, see
 /// <https://github.com/pnpm/pnpm/issues/11916>.
 /// `BuildModules` consults this flag to decide whether a build
 /// failure is fatal or should be reported via

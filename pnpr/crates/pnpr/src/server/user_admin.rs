@@ -49,7 +49,7 @@ struct NewPassword {
     password: String,
 }
 
-/// `GET /-/pnpr/v0/admin/users` — `{"users": [{"name": ...}]}`, sorted.
+/// `GET /-/pnpr/v0/admin/users`, `{"users": [{"name": ...}]}`, sorted.
 async fn list_users(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -66,7 +66,7 @@ async fn list_users(
     private_no_cache(respond(result.await))
 }
 
-/// `PUT /-/pnpr/v0/admin/users/{user}` with `{"password": ...}` — create the
+/// `PUT /-/pnpr/v0/admin/users/{user}` with `{"password": ...}`, create the
 /// user (201) or replace its password (200). Creation ignores the
 /// self-registration cap.
 async fn put_user(
@@ -131,7 +131,7 @@ async fn delete_user(
     respond(result.await)
 }
 
-/// `GET /-/pnpr/v0/admin/users/{user}/tokens` — the user's tokens in the
+/// `GET /-/pnpr/v0/admin/users/{user}/tokens`, the user's tokens in the
 /// `npm token list` shape.
 async fn list_user_tokens(
     State(state): State<AppState>,
@@ -150,7 +150,7 @@ async fn list_user_tokens(
     private_no_cache(respond(result.await))
 }
 
-/// `DELETE /-/pnpr/v0/admin/users/{user}/tokens/{key}` — revoke one of the
+/// `DELETE /-/pnpr/v0/admin/users/{user}/tokens/{key}`, revoke one of the
 /// user's tokens. A key the user does not hold is not found.
 async fn revoke_user_token(
     State(state): State<AppState>,

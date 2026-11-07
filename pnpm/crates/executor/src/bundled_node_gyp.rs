@@ -20,8 +20,8 @@ const NODE_GYP_WRAPPER: &str = if cfg!(windows) { "node-gyp.cmd" } else { "node-
 /// executable, for prepending to a lifecycle script's `PATH`.
 ///
 /// pnpm ships node-gyp so that packages whose install scripts shell out
-/// to it — directly, or through the `node-gyp rebuild` fallback
-/// synthesized for a package with a `binding.gyp` and no install script —
+/// to it, directly, or through the `node-gyp rebuild` fallback
+/// synthesized for a package with a `binding.gyp` and no install script,
 /// build without the user having to install node-gyp themselves. The
 /// whole dependency tree is resolved from this repo's lockfile at
 /// release time, so it is frozen and reviewed per pnpm release rather

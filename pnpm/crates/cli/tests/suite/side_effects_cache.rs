@@ -13,7 +13,7 @@ use std::{fs, path::Path, process::Command};
 ///
 /// `sideEffectsCache` is on by default, so the first build seeds the
 /// cache. On the second frozen install the `is_built` gate skips the
-/// rebuild — the cached build output must still be materialized into the
+/// rebuild, the cached build output must still be materialized into the
 /// freshly linked slot, mirroring pnpm's `getFlatMap` applying the
 /// side-effects diff at import time. Without that, the slot is left with
 /// only the pristine tarball files and the package is broken at runtime.
@@ -264,7 +264,7 @@ fn assert_build_runs_on_every_install(version: &str) {
 /// workspace. The registry config lives in the workspace's `.npmrc` /
 /// `pnpm-workspace.yaml` and the mock registry is a process-global
 /// singleton kept alive by the caller, so this only needs its own
-/// command — no extra `CommandTempCwd` / registry.
+/// command, no extra `CommandTempCwd` / registry.
 fn run_frozen_install(workspace: &Path) {
     frozen_install_command(workspace).assert().success();
 }
@@ -307,7 +307,7 @@ const BUILT_PACKAGE_DIR: &str = "node_modules/@pnpm/postinstall-modifies-source"
 /// Under the global virtual store a forced import heals the shared slot
 /// in place from the pristine base file map, because the side-effects
 /// overlay is applied later by the build phase. The build phase then has
-/// to be told the slot needs rebuilding — which is what
+/// to be told the slot needs rebuilding, which is what
 /// `.pnpm-needs-build` is for, per `slot_carries_overlay`. Without the
 /// marker the cache hit reports the build as already on disk and the
 /// package keeps whatever the re-import left.
@@ -354,7 +354,7 @@ fn a_forced_install_does_not_revert_a_built_package_under_the_global_virtual_sto
 /// re-importing the slot to its pristine files each time and keeping it out
 /// of the warm skip set, repaired only for as long as the cache row lives.
 ///
-/// Nothing clears it explicitly on this path — `build_one_snapshot` removes it
+/// Nothing clears it explicitly on this path, `build_one_snapshot` removes it
 /// only from `build_candidate`, which the cache hit returns before reaching.
 /// What settles it is that a cache overlay is the whole post-build file set,
 /// imported with `force`, so materializing it replaces the directory's

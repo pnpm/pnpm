@@ -50,7 +50,7 @@ pub fn redact_url_credentials(text: &str) -> String {
 /// Make untrusted, URL-bearing text safe to print or log: strip every
 /// control character, then redact inline `user:pass@` credentials
 /// ([`redact_url_credentials`]). Used for registry URLs and network-error
-/// messages alike — both can carry basic-auth or escape sequences from an
+/// messages alike, both can carry basic-auth or escape sequences from an
 /// untrusted `.npmrc` / `--registry` (or a `reqwest` error that echoes the
 /// request URL back), which must not leak credentials or inject terminal
 /// output via raw escapes / `\r` / `\n`.
@@ -124,7 +124,7 @@ fn sanitize_control_characters(text: &str) -> String {
 ///
 /// Line breaks are kept only when doing so redacts exactly as much as
 /// collapsing the text would: a newline can fall inside a `user:pass@`
-/// authority — git echoes such a URL back verbatim, password included — and
+/// authority, git echoes such a URL back verbatim, password included, and
 /// redacting each line separately would leave the credentials split but
 /// readable. Whenever the two disagree, the collapsed form wins.
 #[must_use]

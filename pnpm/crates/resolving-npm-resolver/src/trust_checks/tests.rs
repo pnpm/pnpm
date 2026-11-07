@@ -359,7 +359,7 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
 }
 
 /// A prior version whose manifest fragment does not decode fails the
-/// check closed (`TrustCheckFailed`) instead of being skipped — the
+/// check closed (`TrustCheckFailed`) instead of being skipped, the
 /// skipped fragment could be the strongest prior evidence, and
 /// passing without it would let a downgrade through undetected.
 #[test]

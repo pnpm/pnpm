@@ -76,7 +76,7 @@ export const WEB_AUTH_FETCH_OPTIONS: WebAuthFetchOptions = {
 }
 
 // `withOtpHandling` polls `doneUrl` through `context.fetch`, so it must inherit
-// the command's proxy/TLS/`configByUri` config — otherwise the write succeeds
+// the command's proxy/TLS/`configByUri` config, otherwise the write succeeds
 // but the web-auth retry fails in custom-network environments.
 export function createOtpContext (opts: CreateFetchFromRegistryOptions): OtpContext {
   return {

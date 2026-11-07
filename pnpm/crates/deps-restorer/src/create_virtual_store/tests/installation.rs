@@ -194,7 +194,7 @@ async fn materialized_snapshot_with_a_missing_cas_blob_is_refetched() {
     assert!(message.contains("offline mode"), "{message}");
 }
 /// `snapshot_deps_equal` is `true` when both `dependencies` and
-/// `optionalDependencies` agree — matching upstream's `equals(...)`
+/// `optionalDependencies` agree, matching upstream's `equals(...)`
 /// pair. An absent map matches an empty map: pnpm canonicalises both
 /// to `{}` via Ramda's `isEmpty`, so pacquet must too or warm
 /// reinstalls would loop pointlessly when the lockfile drops the

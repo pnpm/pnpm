@@ -15,7 +15,7 @@ function violation (
 }
 
 // Swap `process.stdin.isTTY` for the duration of a test, restoring the
-// original descriptor — not just the value — so the property's
+// original descriptor, not just the value, so the property's
 // configurability/enumerability shape doesn't leak between tests when
 // the host process didn't define an own `isTTY` at all.
 async function withStdinTTY (value: boolean | undefined, fn: () => void | Promise<void>): Promise<void> {
@@ -79,7 +79,7 @@ test('setupPolicyHandlers returns a plan when ci=false and stdin is a TTY', asyn
 test('strict + --no-save refuses up-front instead of prompting for approval it cannot persist', async () => {
   // The prompt promises to write to minimumReleaseAgeExclude, but the
   // install command's `opts.save !== false` gate blocks that under
-  // --no-save — accepting the prompt would leave the lockfile holding
+  // --no-save, accepting the prompt would leave the lockfile holding
   // approved-but-unlisted picks that the next install rejects.
   await withStdinTTY(true, async () => {
     const plan = setupPolicyHandlers({
@@ -94,7 +94,7 @@ test('strict + --no-save refuses up-front instead of prompting for approval it c
 })
 
 test('loose + --no-save runs the hook as a no-op (lockfile re-triggers auto-collect later)', async () => {
-  // Loose mode never persists from the hook anyway — `pickManifestUpdates`
+  // Loose mode never persists from the hook anyway, `pickManifestUpdates`
   // is what writes the exclude list at the install's tail, and the
   // installDeps / recursive `opts.save !== false` gates already skip that
   // when --no-save is set.
@@ -140,7 +140,7 @@ test('loose-mode plan combines multiple immature versions of one package into a 
   try {
     const updates = plan.pickManifestUpdates(violations)
     // The versions of `foo` collapse into one canonical, semver-sorted
-    // entry — matching the form the workspace writer persists, so the
+    // entry, matching the form the workspace writer persists, so the
     // logged "Added N entries" count is not inflated by per-version picks.
     expect(updates).toEqual({ addedMinimumReleaseAgeExcludes: ['bar@3.1.0', 'foo@1.0.0 || 2.0.0'] })
   } finally {
@@ -152,7 +152,7 @@ test('pickManifestUpdates returns undefined when no handler contributes anything
   const plan = setupPolicyHandlers({ minimumReleaseAge: 60 })!
   expect(plan.pickManifestUpdates([])).toBeUndefined()
   // Codes the minimumReleaseAge handler doesn't recognize don't produce a
-  // patch — and with no other handler registered yet, the merged result
+  // patch, and with no other handler registered yet, the merged result
   // collapses to undefined so the install command skips the workspace
   // writer entirely.
   expect(plan.pickManifestUpdates([violation('foo', '1.0.0', 'TRUST_DOWNGRADE')])).toBeUndefined()
@@ -160,7 +160,7 @@ test('pickManifestUpdates returns undefined when no handler contributes anything
 
 test('the hook is a no-op in loose mode regardless of violations', async () => {
   const plan = setupPolicyHandlers({ minimumReleaseAge: 60 })!
-  // Loose mode never prompts — picks are persisted from
+  // Loose mode never prompts, picks are persisted from
   // `pickManifestUpdates` at the end of the install.
   await expect(plan.handleResolutionPolicyViolations([violation('foo', '1.0.0')]))
     .resolves.toBeUndefined()

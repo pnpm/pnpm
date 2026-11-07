@@ -324,7 +324,7 @@ fn tolerable_without_signature_requires_a_soft_category_and_a_non_canonical_regi
     assert!(!failure(FailureCategory::Absent, mirror).tolerable_without_signature());
     assert!(!failure(FailureCategory::Invalid, mirror).tolerable_without_signature());
     // The canonical registry always provides signatures for genuine
-    // releases, so nothing is tolerated there — under any URL-equivalent
+    // releases, so nothing is tolerated there, under any URL-equivalent
     // spelling of it.
     for canonical in [
         "https://registry.npmjs.org",

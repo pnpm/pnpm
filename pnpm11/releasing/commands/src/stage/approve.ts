@@ -21,7 +21,7 @@ import type { ApprovalItem, StageItem, StageOptions } from './types.js'
 export type StageApproveResult = string | { output: string, exitCode: number }
 
 /**
- * `pnpm stage approve [<stage-id> ...]` — publish staged versions, choosing
+ * `pnpm stage approve [<stage-id> ...]`, publish staged versions, choosing
  * them interactively when none are named.
  *
  * Several versions are approved through a single {@link StageOtpSession}, so
@@ -72,7 +72,7 @@ function dedupeStageIds (stageIds: string[]): string[] {
  * rather than repaired:
  *
  * - the id has to be the same UUID the other subcommands address a staged
- *   version by, and the package name a name npm would accept — both checked
+ *   version by, and the package name a name npm would accept, both checked
  *   before anything is stripped, so that removing a hidden character can
  *   never be what makes a value valid. A name that fails is not displayed;
  * - the remaining fields are shown and nothing more, so they are stripped of

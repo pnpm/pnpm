@@ -63,7 +63,7 @@ describe('collectSbomComponents with named registries', () => {
   it('should reject an alias that is not configured instead of dropping the component', async () => {
     // Without the alias the purl would fall back to the unqualified
     // `pkg:npm/foo@1.0.0`, collide with the default-registry component, and be
-    // silently skipped by the dedupe shortcut — an artifact missing from a
+    // silently skipped by the dedupe shortcut, an artifact missing from a
     // compliance document.
     await expect(collect('work')).rejects.toThrow(
       expect.objectContaining({ code: 'ERR_PNPM_MISSING_NAMED_REGISTRY' })
@@ -285,7 +285,7 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
     expect(installable?.license).toBe('MIT')
 
     // Optional packages for other platforms are not installed, so they have no
-    // store metadata and are omitted from the SBOM — as is the edge pointing
+    // store metadata and are omitted from the SBOM, as is the edge pointing
     // at them, which would otherwise dangle.
     expect(components.find((component) => component.name === 'never-installable')).toBeUndefined()
     expect(relationships.some((relationship) => relationship.to === 'pkg:npm/never-installable@1.0.0')).toBe(false)

@@ -42,7 +42,7 @@ pub struct FilterWorkspaceProjectsOptions {
     /// rather than the default subdirectory check.
     pub use_glob_dir_filtering: bool,
     /// Directory a `[<since>]` selector's git diff runs in when the
-    /// selector has no `{dir}` part — normally the workspace root.
+    /// selector has no `{dir}` part, normally the workspace root.
     pub workspace_dir: PathBuf,
     /// `testPattern`: glob patterns naming test files. A `[<since>]`
     /// selector selects a project whose changed files all match these
@@ -78,7 +78,7 @@ pub struct FilterProjectsOptions {
 #[non_exhaustive]
 pub enum FilterError {
     /// The `git diff` behind a `[<since>]` changed-packages selector
-    /// failed — unknown revision, not a git repository, or git could
+    /// failed, unknown revision, not a git repository, or git could
     /// not be spawned. Carries git's stderr under pnpm's
     /// `ERR_PNPM_FILTER_CHANGED` code.
     #[display("Filtering by changed packages failed. {stderr}")]

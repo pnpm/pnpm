@@ -151,7 +151,7 @@ struct BuildCandidate<'c> {
     /// already built; this marks those so they bypass the `is_built`
     /// gate. The selection holds allow-build keys (the package name for
     /// registry deps, the full pkgId for git/tarball artifacts), so
-    /// either form matches — a selected non-registry artifact is forced
+    /// either form matches, a selected non-registry artifact is forced
     /// past the gate too.
     force_rebuild: bool,
     should_run_scripts: bool,
@@ -237,7 +237,7 @@ fn report_broken_slot<Reporter: self::Reporter>(
 /// lives inside the read-only store, so applying a patch or running an
 /// approved lifecycle script would fail with a raw `EROFS`; this refuses up
 /// front with guidance. The caller is past the `is_built` gate, so a cached
-/// build has already returned — reaching here means the seed is genuinely
+/// build has already returned, reaching here means the seed is genuinely
 /// missing this package's build output. Bin-linking (the other write) reuses
 /// existing symlinks write-free on a complete seed, so only patch/script
 /// writes gate.
@@ -367,7 +367,7 @@ fn is_build_candidate(requires_build: bool, has_patch: bool) -> bool {
 /// An explicit `pacquet rebuild` re-runs the build scripts of the selected
 /// packages even when the side-effects cache reports them already built. The
 /// selection holds allow-build keys (the package name for registry deps, the
-/// full pkgId for git/tarball artifacts), so either form matches — a selected
+/// full pkgId for git/tarball artifacts), so either form matches, a selected
 /// non-registry artifact is forced past the `is_built` gate too.
 fn rebuild_forces_build(rebuild: Option<&RebuildOptions>, name: &str, dep_path: &str) -> bool {
     rebuild.is_some_and(|rebuild| {
@@ -378,13 +378,13 @@ fn rebuild_forces_build(rebuild: Option<&RebuildOptions>, name: &str, dep_path: 
 
 /// Whether this snapshot's lifecycle scripts run at all.
 ///
-/// The allow-policy gate still applies — a rebuild never builds a disallowed
+/// The allow-policy gate still applies, a rebuild never builds a disallowed
 /// package. And a `pacquet rebuild <pkg>` runs scripts only for the selected
 /// packages: non-selected ones are still evaluated by the policy gate (so
 /// their `.modules.yaml` ignored-builds record stays intact), but their
 /// scripts are suppressed here. The side-effects `is_built` gate is only an
-/// optimization and is disabled by default, so this gate — not that
-/// short-circuit — is what bounds script execution to the selection.
+/// optimization and is disabled by default, so this gate, not that
+/// short-circuit, is what bounds script execution to the selection.
 fn snapshot_runs_scripts(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,

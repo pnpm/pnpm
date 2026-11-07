@@ -269,7 +269,7 @@ impl Walker<'_> {
             // compute the real depPath and insert it into
             // `node_dep_paths`. Returning the bare id here ensures the
             // current ancestor's peer-suffix construction can use a
-            // `name@version` PeerId — see [`build_peer_id`] for the
+            // `name@version` PeerId, see [`build_peer_id`] for the
             // cycle handling.
             let tree_node = &self.tree.dependencies_tree[node_id];
             let pkg_id = Arc::<str>::clone(&self.tree.packages[&tree_node.resolved_package_id].id);

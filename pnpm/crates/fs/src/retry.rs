@@ -190,7 +190,7 @@ where
 }
 
 /// Sleep out one backoff, capped to what is left of the budget. Reports
-/// whether the budget still allows another attempt — checked both before the
+/// whether the budget still allows another attempt, checked both before the
 /// sleep and after it, since the sleep itself consumes budget.
 fn wait_for_retry<Elapsed, Sleep>(
     timing: &mut RetryTiming<Elapsed, Sleep>,

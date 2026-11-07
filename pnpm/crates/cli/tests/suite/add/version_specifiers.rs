@@ -163,7 +163,7 @@ fn add_existing_dependency_without_version_keeps_exact_pin() {
 /// `add <pkg>@<range>` records the range resolved to a concrete version
 /// with the input's operator, matching pnpm. `^100.0.0` resolves to the
 /// highest in-range version (100.1.0; 101.0.0 is a different major), so the
-/// manifest gets `^100.1.0` — not the verbatim `^100.0.0`.
+/// manifest gets `^100.1.0`, not the verbatim `^100.0.0`.
 #[test]
 fn add_explicit_range_resolves_to_concrete_version() {
     let (root, dir, anchor) = exec_pacquet_in_temp_cwd([
@@ -176,7 +176,7 @@ fn add_explicit_range_resolves_to_concrete_version() {
 }
 
 /// A narrower range is not widened: `~100.0.0` resolves to the highest
-/// `100.0.x` (here `100.0.0`) and keeps the tilde — it is not bumped to the
+/// `100.0.x` (here `100.0.0`) and keeps the tilde, it is not bumped to the
 /// `latest` tag (`101.0.0`).
 #[test]
 fn add_explicit_tilde_range_is_not_widened_to_latest() {

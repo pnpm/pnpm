@@ -41,7 +41,7 @@ fn rejects_a_registry_key_that_embeds_credentials() {
 
 /// `.npmrc` scopes settings with a scheme-less `//host/`, and this setting's
 /// own error points users at that syntax, so it is the form they are most
-/// likely to write — and it must not slip past the check.
+/// likely to write, and it must not slip past the check.
 #[test]
 fn rejects_a_scheme_less_registry_key_that_embeds_credentials() {
     let dir = tempfile::tempdir().unwrap();

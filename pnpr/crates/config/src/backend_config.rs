@@ -5,7 +5,7 @@ use super::{
 };
 
 /// The resolved record-store backend for auth (users + tokens). Unlike
-/// [`crate::HostedStoreConfig`], this only carries the parsed settings — the
+/// [`crate::HostedStoreConfig`], this only carries the parsed settings, the
 /// fallible step (connecting to the database and ensuring its schema)
 /// is async, so it runs in `AuthState::load` rather than at
 /// config-parse time.
@@ -40,7 +40,7 @@ pub struct LibsqlSettings {
     pub replica_path: Option<PathBuf>,
     /// How often (seconds) the embedded replica pulls from the primary.
     /// Only meaningful with `replicaPath`; bounds how stale a read can
-    /// be — most importantly, token-revocation lag. `0` disables
+    /// be, most importantly, token-revocation lag. `0` disables
     /// background sync (the replica then reflects the initial sync at
     /// startup and its own account and token changes; a token's last-used
     /// time waits for the next sync). Defaults to
@@ -188,7 +188,7 @@ impl MaxUsers {
     /// accepts any signed integer here; negative anything other than
     /// `-1` is nonsense and is treated as "disabled" to err on the
     /// side of rejecting unsafe configs. An omitted key never reaches
-    /// this function — it maps to [`MaxUsers::Disabled`] in
+    /// this function, it maps to [`MaxUsers::Disabled`] in
     /// [`build_auth_config`], so there is no YAML spelling for
     /// "unlimited".
     pub(super) fn from_yaml(value: i64) -> Self {
@@ -201,7 +201,7 @@ impl MaxUsers {
 /// `./users.json` lives next to the config file (verdaccio's
 /// convention). When `auth.users.file` is set but
 /// `auth.tokens.file` is not, tokens default to a `tokens.db`
-/// sibling of the account file — keeping credentials co-located in
+/// sibling of the account file, keeping credentials co-located in
 /// one directory the operator can lock down (`chmod 600`).
 #[derive(Debug, Clone)]
 pub struct IdentityConfig {
@@ -210,7 +210,7 @@ pub struct IdentityConfig {
     /// are `None`.
     pub auth: AuthConfig,
     /// Which record store backs the auth state (users + tokens).
-    /// Defaults to [`BackendConfig::Local`] — a JSON account file
+    /// Defaults to [`BackendConfig::Local`], a JSON account file
     /// plus `SQLite` token database. The YAML `backend:` block can
     /// switch both stores to one shared SQL database so several
     /// stateless pnpr replicas see a consistent set of accounts.

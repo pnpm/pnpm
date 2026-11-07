@@ -1,5 +1,5 @@
 //! The peers a package declares, checked against the versions an
-//! importer provides — so an optional peer provider taken from elsewhere
+//! importer provides, so an optional peer provider taken from elsewhere
 //! in the graph is not hoisted where its own peers would conflict.
 
 use super::context;

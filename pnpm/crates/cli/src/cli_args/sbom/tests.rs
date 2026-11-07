@@ -104,7 +104,7 @@ fn confined_importer_dir_rejects_lexical_escapes() {
 }
 
 /// A lexically clean importer key whose directory is a symlink pointing
-/// outside the workspace must not be read — the canonicalize + containment
+/// outside the workspace must not be read, the canonicalize + containment
 /// check catches what the lexical `validate_importer_id` filter cannot.
 #[cfg(unix)]
 #[test]

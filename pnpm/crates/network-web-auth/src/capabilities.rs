@@ -55,7 +55,7 @@ pub trait Sleep {
 /// headers, and a separately fallible body.
 ///
 /// The `Err` arm stands in for `fetch` itself rejecting (a network
-/// failure) — distinct from a successful response whose body fails to
+/// failure), distinct from a successful response whose body fails to
 /// parse, which the caller reads from
 /// [`WebAuthFetchResponse::token`](crate::WebAuthFetchResponse::token).
 pub trait WebAuthFetch {
@@ -65,7 +65,7 @@ pub trait WebAuthFetch {
     ) -> impl Future<Output = Result<WebAuthFetchResponse, WebAuthFetchError>>;
 }
 
-/// `fetch` itself failed — the request never produced a response. The
+/// `fetch` itself failed, the request never produced a response. The
 /// cause is intentionally opaque: the poll loop treats every fetch failure
 /// the same way (swallow and retry on the next tick), so it never inspects
 /// this value, matching the TS `catch { continue }`.
@@ -245,7 +245,7 @@ const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// Production [`EnterKeyListener::Handle`]. Resolves once the background
 /// thread observes an Enter keypress, and stays resolved on re-polls;
 /// dropping it sets the cancel flag so that thread stops within one
-/// [`ENTER_POLL_INTERVAL`] — crossterm's blocking `event::read()` cannot be
+/// [`ENTER_POLL_INTERVAL`], crossterm's blocking `event::read()` cannot be
 /// cancelled, so the thread polls with a timeout instead of blocking
 /// forever.
 ///
@@ -260,8 +260,8 @@ pub struct HostEnterHandle {
 }
 
 /// Where a [`HostEnterHandle`] is in its lifecycle. `Completed` and
-/// `Disabled` are both terminal — the oneshot receiver must not be polled
-/// again — but they resolve differently: a completed handle re-polls as
+/// `Disabled` are both terminal, the oneshot receiver must not be polled
+/// again, but they resolve differently: a completed handle re-polls as
 /// `Ready` while a disabled one (stdin read error) stays `Pending` forever
 /// so the browser is not opened spuriously.
 #[cfg(not(target_family = "wasm"))]
@@ -312,7 +312,7 @@ impl EnterKeyListener for Host {
 
     /// Watch stdin for an Enter keypress without blocking uninterruptibly;
     /// the returned handle documents the cancellation contract. `crossterm`
-    /// reads in the terminal's default (cooked) mode — no raw mode — matching
+    /// reads in the terminal's default (cooked) mode, no raw mode, matching
     /// pnpm's plain `readline.createInterface({ input: process.stdin })`,
     /// which reacts to a submitted line rather than individual keys.
     fn listen() -> io::Result<HostEnterHandle> {
@@ -351,7 +351,7 @@ enum EnterPoll {
 /// Wait one interval for an Enter keypress.
 ///
 /// Input that is ready is skipped without consuming when the handle was
-/// dropped meanwhile — otherwise `read()` would steal a keystroke from
+/// dropped meanwhile, otherwise `read()` would steal a keystroke from
 /// whatever reads stdin next. The re-check is best-effort: a drop landing
 /// between it and `read()` can still lose one keystroke. That residual window
 /// is a few instructions wide and accepted; crossterm offers no way to close

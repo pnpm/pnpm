@@ -1,8 +1,8 @@
 //! The stderr channel for config-load warnings.
 //!
 //! pnpm collects the warnings raised while reading config and prints them
-//! with `console.warn` — to stderr, outside the reporter, on every command
-//! and under every reporter — so they never mix into the stdout a script
+//! with `console.warn`, to stderr, outside the reporter, on every command
+//! and under every reporter, so they never mix into the stdout a script
 //! captures. Warnings emitted through the reporter stay on stdout; only
 //! config-load warnings and the project checks that run before the command
 //! belong here.
@@ -42,7 +42,7 @@ pub(crate) fn emit_config_warning(message: &str) {
 
 /// Warn about `registries` entries that name no configured registry.
 ///
-/// Such an entry is inert — the wrong URL, a stale entry, a scope that moved —
+/// Such an entry is inert, the wrong URL, a stale entry, a scope that moved,
 /// and silently doing nothing is the failure mode users cannot debug. A warning
 /// rather than an error: a shared config dependency can legitimately describe
 /// registries a given project does not use.
@@ -91,7 +91,7 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
 ///
 /// A per-project setting reaches its project through the install that
 /// project owns. A workspace that shares one lockfile runs no such
-/// install — it resolves and writes every project together — so the
+/// install, it resolves and writes every project together, so the
 /// entries are inert there, and silently keeping the workspace-wide
 /// value is the failure mode users cannot debug.
 pub(crate) fn warn_unapplied_package_configs(config: &Config) {
@@ -177,8 +177,8 @@ pub(crate) struct UnrecognizedTaskSettingsError {
 
 /// Report the problem keys of the project's `pnpm-workspace.yaml`, in pnpm's
 /// order (refused, unrecognized, kebab-case). Unrecognized keys are a
-/// warning, or — when `strict` (the running pnpm is the version the project
-/// pins) — the errors above, raised after the other warnings are out.
+/// warning, or, when `strict` (the running pnpm is the version the project
+/// pins), the errors above, raised after the other warnings are out.
 pub(crate) fn report_workspace_key_issues(
     issues: &WorkspaceKeyIssues,
     strict: bool,

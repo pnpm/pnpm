@@ -22,8 +22,8 @@ type EpicConfig = NonNullable<VersioningSettings['epics']>[number]
 
 /**
  * Resolves each configured epic to its lead directory and the set of member
- * directories its selectors match. The lead — a single named package with a
- * semver version — is excluded from its own membership; a selector matching
+ * directories its selectors match. The lead, a single named package with a
+ * semver version, is excluded from its own membership; a selector matching
  * it is a no-op. Membership selectors match name globs, `./`-prefixed
  * directory globs, and `!`-prefixed negations.
  */
@@ -78,7 +78,7 @@ function compileEpicSelector (selector: string): EpicSelector {
 /**
  * Whether a project is an epic member under pnpm's order-dependent selector
  * rule: each matching selector overrides the previous verdict, so the last one
- * to match decides — a positive include or a `!` negation — mirroring
+ * to match decides, a positive include or a `!` negation, mirroring
  * `@pnpm/config.matcher`, where a later include can re-include a package an
  * earlier negation excluded.
  */
@@ -209,7 +209,7 @@ function rebasedMemberVersion (opts: ApplyEpicBandVersionsOptions, memberDir: st
 
 /**
  * The band of member majors an epic permits: `[leadMajor×100, leadMajor×100+99]`,
- * where `leadMajor` is the major the plan establishes for the lead — its
+ * where `leadMajor` is the major the plan establishes for the lead, its
  * re-based major when the lead crosses to a new stable major, otherwise the
  * lead's current major (a prerelease lead does not open the next band).
  */
@@ -235,7 +235,7 @@ export function epicBand (
 /**
  * Enforces that every released member's new major stays inside its epic's band.
  * The re-base already keeps members in band when the lead moves; this guards
- * the other direction — an ordinary `major` intent that would carry a member
+ * the other direction, an ordinary `major` intent that would carry a member
  * over the band ceiling (`1199.x` → `1200.0.0` while the lead is still on 11)
  * is rejected rather than silently landing the member in the next band.
  */

@@ -2,7 +2,7 @@
 //! a branch, materialize each one into a persistent checkout, and run the
 //! pipeline against it in a child process.
 //!
-//! This is the smallest thing that is actually CI — no leasing, no
+//! This is the smallest thing that is actually CI, no leasing, no
 //! webhook ingress, no coordinator: one daemon, one repository, one
 //! branch. Execution deliberately happens in a spawned `pnpm pipeline`
 //! process rather than in this one: the agent is the component that runs
@@ -30,7 +30,7 @@ pub struct WatchInvocation {
 }
 
 pub(crate) struct WatchPolling {
-    /// The repository to poll — a URL or a local path, anything `git`
+    /// The repository to poll, a URL or a local path, anything `git`
     /// accepts as a remote.
     pub repo: String,
     pub branch: String,
@@ -63,7 +63,7 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
     let _lock = lock_agent(&agent_dir)
         .map_err(|error| miette::miette!("locking watch agent {agent_display}: {error}"))?;
     // Named after the repository so everything derived from the checkout
-    // path — the run record's workspace identity above all — reads as the
+    // path, the run record's workspace identity above all, reads as the
     // project, not as "checkout".
     let dirs = AgentDirs {
         checkout: agent_dir
@@ -211,8 +211,8 @@ fn git_ok(cwd: Option<&Path>, args: &[&str]) -> miette::Result<()> {
 }
 
 /// Run `pnpm pipeline` against the checkout as a child process. The base
-/// for affected selection is the previously built revision — "what
-/// changed since the last build" is the agent's native question — with
+/// for affected selection is the previously built revision, "what
+/// changed since the last build" is the agent's native question, with
 /// the first build of a checkout running the full graph. Unsuccessful
 /// children leave the revision pending for the next poll.
 fn run_pipeline_in_checkout(

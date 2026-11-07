@@ -58,7 +58,7 @@ use std::{
 /// [yarn-kind]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L12-L14
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum HoisterDependencyKind {
-    /// A normal package — eligible for hoisting.
+    /// A normal package, eligible for hoisting.
     Regular,
     /// A workspace project. The root `.` node is one of these; each
     /// non-root importer is added under it as another `Workspace`
@@ -66,7 +66,7 @@ pub enum HoisterDependencyKind {
     Workspace,
     /// A package linked from outside the lockfile graph (e.g. a
     /// `link:` ref). Only hoists when *all* of its descendants
-    /// hoist, and triggers another round when any do — see
+    /// hoist, and triggers another round when any do, see
     /// [`hoist.ts:416`][soft-link].
     ///
     /// [soft-link]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L416
@@ -86,13 +86,13 @@ pub enum HoisterDependencyKind {
 /// can stash a placeholder `Rc<HoisterTree>` for cycle short-circuit,
 /// recurse, then populate the children in place. The placeholder Rc
 /// and the populated one are the same allocation, so a node visited
-/// via a back-edge sees the eventually-populated set — matching JS's
+/// via a back-edge sees the eventually-populated set, matching JS's
 /// `Set<HoisterTree>` mutation semantics.
 ///
 /// [yarn-tree]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L16-L19
 #[derive(Debug)]
 pub struct HoisterTree {
-    /// The alias the package is exposed under at *this* parent —
+    /// The alias the package is exposed under at *this* parent,
     /// what would appear as the directory name in `node_modules`.
     /// For npm-alias deps (`"foo": "npm:bar@^1"`), this is `foo`.
     pub name: String,
@@ -104,7 +104,7 @@ pub struct HoisterTree {
     /// is `""` or `"workspace:<id>"`; for regular nodes it's the
     /// snapshot key (`name@version(peer)`).
     pub reference: String,
-    /// Aliases that this node refuses to hoist past — its parent
+    /// Aliases that this node refuses to hoist past, its parent
     /// must keep them in scope. The union of `peerDependencies` and
     /// `transitivePeerDependencies` from the lockfile, unless
     /// `autoInstallPeers` is set (which zeroes the set so the
@@ -115,10 +115,10 @@ pub struct HoisterTree {
     /// candidates. Carried through the type for parity with
     /// `@yarnpkg/nm`'s `HoisterTree.hoistPriority`, but pacquet
     /// builds every node with `0`, so the preference pass ranks
-    /// purely by usage count — the `hoistPriority` tier stays inert
+    /// purely by usage count, the `hoistPriority` tier stays inert
     /// until a producer sets it.
     pub hoist_priority: u32,
-    /// Children of this node. Order matches insertion order — the
+    /// Children of this node. Order matches insertion order, the
     /// hoister depends on it.
     pub dependencies: RefCell<IndexSet<RcByPtr<HoisterTree>>>,
 }
@@ -205,7 +205,7 @@ pub struct HoistOpts {
     /// is added to the hoister tree as a `Workspace`-kind child of
     /// the virtual `.` root. This is the only way under hoisted
     /// for workspace projects to participate in the shared
-    /// hoist-decisions pass — without this every project hoists
+    /// hoist-decisions pass, without this every project hoists
     /// independently and conflicting versions don't dedupe across
     /// the workspace. Pacquet's `Config::hoist_workspace_packages`
     /// (in `pnpm-config`) drives this for the install pipeline.
@@ -219,7 +219,7 @@ impl Default for HoistOpts {
             external_dependencies: BTreeSet::new(),
             auto_install_peers: false,
             // Workspace-aware hoisting is the whole point of
-            // `nodeLinker: hoisted` in a workspace — opting out is a
+            // `nodeLinker: hoisted` in a workspace, opting out is a
             // niche knob, never the expected starting point, so it
             // defaults on.
             hoist_workspace_packages: true,
@@ -252,13 +252,13 @@ pub enum HoistError {
 /// equal iff their underlying `Rc`s point at the same allocation;
 /// hashing uses the pointer address, not `T`'s `Hash` impl.
 ///
-/// This mirrors JS `Set<HoisterTree>` semantics — JS Sets hash by
+/// This mirrors JS `Set<HoisterTree>` semantics, JS Sets hash by
 /// object identity, so adding the same node via two parent paths
 /// keeps one entry. Cloning a [`RcByPtr`] only bumps the refcount, so
 /// the dedup property survives parent-to-child propagation.
 ///
 /// Without this wrapper, [`IndexSet<Rc<HoisterTree>>`] would hash on
-/// the tree contents — recursive and expensive for deep graphs,
+/// the tree contents, recursive and expensive for deep graphs,
 /// and wrong when two structurally-identical nodes come from
 /// different sources and should stay distinct.
 #[derive(Debug)]
@@ -320,7 +320,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     }
 
     // Non-root importers (workspace projects) become children of
-    // the virtual `.` root — unconditionally, matching pnpm v11's
+    // the virtual `.` root, unconditionally, matching pnpm v11's
     // `hoist()`, which attaches every importer regardless of any
     // knob. The hoister sees the whole workspace as one tree, which
     // is what enables cross-project dedupe of conflicting versions
@@ -329,7 +329,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     // hoisted linker expects. In pnpm, `hoist-workspace-packages`
     // only controls whether the workspace *packages themselves* get
     // name-links in the root's hoisted modules dir (v11's
-    // `hoistedWorkspacePackages` in the headless linker) — it never
+    // `hoistedWorkspacePackages` in the headless linker), it never
     // decides tree membership.
     for (importer_id, importer) in sorted_non_root_importers(lockfile) {
         let mut importer_children: IndexSet<RcByPtr<HoisterTree>> = IndexSet::new();
@@ -349,7 +349,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
 
     let result = nm_hoist(&root_node, opts);
 
-    // Strip `externalDependencies` from the top-level result —
+    // Strip `externalDependencies` from the top-level result,
     // they exist only to reserve a name slot at the root.
     if !opts.external_dependencies.is_empty() {
         result.dependencies
@@ -365,18 +365,18 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
 /// pulls eligible descendants up to the root via a depth-first
 /// recursion run to a fixed point (see [`hoist_into_root`]) with
 /// parent-wins conflict resolution. Models the common case
-/// of pnpm's `nodeLinker: hoisted` install — every transitive
+/// of pnpm's `nodeLinker: hoisted` install, every transitive
 /// dependency that doesn't collide with an already-hoisted name
 /// surfaces at the root, just like a flat `node_modules`.
 ///
 /// Among competing versions of one name, the most-used version
-/// wins the root slot — ported from upstream's `buildPreferenceMap`
+/// wins the root slot, ported from upstream's `buildPreferenceMap`
 /// / `getHoistIdentMap` (see [`build_hoist_ident_map`]) and the
 /// per-pass ident shift in [`hoist_into_root`].
 ///
 /// What this does *not* model yet:
 ///
-/// * `ExternalSoftLink` descendants — pacquet creates soft-links
+/// * `ExternalSoftLink` descendants, pacquet creates soft-links
 ///   only as zero-children placeholders, so upstream's
 ///   "only-hoist-when-all-descendants-hoist" rule has nothing to
 ///   delay today.
@@ -389,14 +389,14 @@ fn nm_hoist(tree: &HoisterTree, opts: &HoistOpts) -> HoisterResult {
     let mut context = ConvertContext::default();
     let root = convert(tree, &mut context);
     // The `.` root has no parents, so it is decoupled by
-    // construction — mutating its children can't leak anywhere.
+    // construction, mutating its children can't leak anywhere.
     root.decoupled.set(true);
     let mut path_locators = HashSet::from([node_locator(&root)]);
     hoist_to(&root, opts, &mut path_locators, true);
     // Returning an owned `HoisterResult` (rather than
     // `Rc<HoisterResult>`) keeps the wrapper's post-hoist
     // `external_dependencies` filter from mutating the shared graph.
-    // Cloning the outer struct duplicates only the top-level fields —
+    // Cloning the outer struct duplicates only the top-level fields,
     // the subtree children remain shared via the cloned `RcByPtr`
     // values, so deep deps stay deduplicated.
     (*root).clone()
@@ -428,7 +428,7 @@ fn hoist_to(
     // directories (their providers were hoisted away earlier). A
     // candidate must not take such a name slot with a different
     // version. The top `.` root has nothing above it, so its map is
-    // empty — matching upstream, which passes an empty map when
+    // empty, matching upstream, which passes an empty map when
     // `tree == rootNode`.
     let used = if is_top_root { HashMap::new() } else { get_used_dependencies(root) };
     hoist_into_root(root, &node_locator(root), opts, &used);
@@ -459,7 +459,7 @@ fn hoist_to(
 /// lookup). Hoisting a *different* version of such a name onto
 /// `root` would shadow those resolutions, so [`hoist_into_root`]
 /// refuses candidates that collide with this map. Ports upstream's
-/// [`getZeroRoundUsedDependencies`][zero-round] — the variant yarn
+/// [`getZeroRoundUsedDependencies`][zero-round], the variant yarn
 /// always uses, since its `hoist()` hardcodes
 /// `fastLookupPossible: true`.
 ///
@@ -492,7 +492,7 @@ fn node_locator(node: &HoisterResult) -> String {
 }
 
 /// Whether two nodes are the same package *version*, ignoring the
-/// peer-resolution suffix — upstream's `ident` equality (its
+/// peer-resolution suffix, upstream's `ident` equality (its
 /// `makeIdent` strips the virtual segment the way this drops the
 /// `(...)` suffix). Peer-suffix variants of one version compare
 /// equal: they merge in a hoisted layout, so they never shadow each
@@ -514,7 +514,7 @@ fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
 
 /// Whether an ancestor strictly below the root carries a different
 /// package version under `candidate`'s name (see
-/// [`AbsorbDecision::PathShadow`](crate::absorption::AbsorbDecision::PathShadow)). `path[0]` is the hoist root —
+/// [`AbsorbDecision::PathShadow`](crate::absorption::AbsorbDecision::PathShadow)). `path[0]` is the hoist root,
 /// its slot is judged by the root-index decision, not here.
 fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool {
     path.iter()
@@ -527,7 +527,7 @@ fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool 
         })
 }
 
-/// Whether two nodes are the same package — equal locators — without
+/// Whether two nodes are the same package, equal locators, without
 /// building the locator strings. Decoupled copies of one package
 /// compare equal; different versions under one name do not.
 fn same_locator(left: &HoisterResult, right: &HoisterResult) -> bool {
@@ -540,8 +540,8 @@ fn same_locator(left: &HoisterResult, right: &HoisterResult) -> bool {
 /// sibling order is preserved). A node already decoupled has exactly
 /// one parent and is returned as is. Ports upstream's
 /// [`decoupleGraphNode`][decouple]: the clone shares the grandchild
-/// `Rc`s — those are decoupled in turn if and when the walk reaches
-/// them — so only the mutated spine of the graph is ever copied.
+/// `Rc`s, those are decoupled in turn if and when the walk reaches
+/// them, so only the mutated spine of the graph is ever copied.
 ///
 /// `parent` must itself be decoupled: replacing the edge mutates its
 /// dependency set.
@@ -595,7 +595,7 @@ struct HoistCtx<'a> {
 ///
 /// Each round is a recursive depth-first walk (see
 /// [`hoist_subtree`]) whose `ancestor_path` reflects the current
-/// result-graph position of each node — a freshly-hoisted child
+/// result-graph position of each node, a freshly-hoisted child
 /// recurses with `[root]`, a child that stayed nested recurses
 /// with `parent_path + [parent]`. The outer loop re-runs the DFS
 /// whenever a round made at least one move, because that move can
@@ -683,14 +683,14 @@ fn node_ident(node: &HoisterResult) -> String {
 /// `root` down to (but *excluding*) `node`, so for the root
 /// itself it is empty and for a child of root it is `[root]`.
 /// Returns whether this subtree moved at least one node in the
-/// current round — the outer multi-round loop uses that to
+/// current round, the outer multi-round loop uses that to
 /// decide whether another round can unlock further hoists.
 ///
-/// `node` must be decoupled — the walk mutates its dependency set.
+/// `node` must be decoupled, the walk mutates its dependency set.
 /// The recursion keeps that invariant: every child is decoupled
 /// (relative to its post-decision parent) before it is descended
-/// into, so a package shared by several parents is walked — and
-/// decided — once per path, on that path's own copy. The walk tree
+/// into, so a package shared by several parents is walked, and
+/// decided, once per path, on that path's own copy. The walk tree
 /// therefore has the shape of the final materialized layout, and
 /// termination follows from the cycle cut below: no locator repeats
 /// on a path, so paths (and the walk) are finite.
@@ -706,7 +706,7 @@ fn hoist_subtree(
     // A node whose name is in `border_names` is a hoisting border:
     // its descendants are kept nested beneath it rather than hoisted
     // to the root. `under_border` carries that boundary down the
-    // recursion — once any proper ancestor of a node is a border,
+    // recursion, once any proper ancestor of a node is a border,
     // the node (and everything below it) stays put. Mirrors upstream's
     // `isHoistBorder` flag, which blocks a bordered node's *children* from
     // hoisting past it, not the bordered node itself.
@@ -721,7 +721,7 @@ fn hoist_subtree(
         .cloned()
         .collect();
 
-    // Path from root down to and including `node` — i.e. the
+    // Path from root down to and including `node`, i.e. the
     // ancestor path for `node`'s direct children. Used for the
     // peer-shadow checks, the cycle cut, and as the starting point
     // for the path passed into recursion when a child stays
@@ -753,7 +753,7 @@ fn hoist_subtree(
         // Decouple before descending: the recursion mutates the
         // child's dependency set, which must not leak into other
         // paths that share the child. The child's current parent is
-        // the last element of its recursion path — root for a
+        // the last element of its recursion path, root for a
         // just-moved (or root-direct) child, `node` otherwise.
         let parent =
             child_recursion_path.last().expect("the recursion path ends at the child's parent");

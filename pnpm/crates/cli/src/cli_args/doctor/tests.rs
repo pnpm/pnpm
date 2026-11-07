@@ -39,7 +39,7 @@ fn render_report_summarizes_a_clean_run() {
     assert_eq!(output, "✓ Versions: pnpm 12.0.0\n\nAll checks passed");
 }
 
-/// A warning must not read as a failure, and its fix has to reach the user —
+/// A warning must not read as a failure, and its fix has to reach the user,
 /// a check nobody can act on is noise.
 #[test]
 fn render_report_shows_the_fix_for_a_warning() {

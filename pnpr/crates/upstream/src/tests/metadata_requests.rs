@@ -208,7 +208,7 @@ async fn fetch_packument_replays_validators_and_handles_304() {
 async fn fetch_packument_304_without_validators_is_an_error() {
     let mut server = mockito::Server::new_async().await;
     // No conditional header is sent (empty validators), so a `304` here is
-    // a misbehaving upstream — there's no body and nothing to revalidate
+    // a misbehaving upstream, there's no body and nothing to revalidate
     // against. It must surface as an error, not a `NotModified` that the
     // caller could mistake for "keep serving the cache".
     let mock = server

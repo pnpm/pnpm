@@ -183,8 +183,8 @@ export async function handler (
 /**
  * `exec` runs one command per project, so its task graph is one task per
  * selected project over the project dependency edges: it gets the
- * dependency-order scheduling, while `dependsOn` declarations — which name
- * scripts — do not apply to it.
+ * dependency-order scheduling, while `dependsOn` declarations, which name
+ * scripts, do not apply to it.
  */
 function buildRecursiveExecTaskGraph (opts: ExecOpts, commandName: string): TaskGraph {
   const projectDependencies = opts.sort

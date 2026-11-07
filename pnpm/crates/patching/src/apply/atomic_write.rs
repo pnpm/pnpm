@@ -23,11 +23,11 @@ use std::{
 ///
 /// `rename` is atomic on Unix and replaces in-place on Windows, so an
 /// IO failure mid-write leaves either the original file or the
-/// rewritten one — never an empty dirent. **This is atomic against IO
+/// rewritten one, never an empty dirent. **This is atomic against IO
 /// errors, not against power loss**: we don't `fsync` the temp file
 /// or the parent directory, so a host crash between rename and the
 /// kernel's writeback flush can lose the rename. This matches Node's
-/// `fs.writeFileSync` semantics — it doesn't fsync either, and a
+/// `fs.writeFileSync` semantics, it doesn't fsync either, and a
 /// partially-written patched install is recoverable by re-running
 /// `pnpm install` anyway.
 ///
@@ -41,7 +41,7 @@ pub(super) fn write_atomic_with_mode(
     content: &[u8],
     permissions: Option<&Permissions>,
 ) -> io::Result<()> {
-    /// Sixteen fresh counter values is plenty — under benign
+    /// Sixteen fresh counter values is plenty, under benign
     /// conditions we never collide; under shared-store-across-
     /// containers the chance of 16 consecutive same-pid same-counter
     /// collisions is negligible. Matches the constant in

@@ -136,7 +136,7 @@ pub(super) fn shared_workspace_key(
 /// result keyed by the `link:` this importer renders, shared only with the
 /// importers that render the same one. A second importer therefore always
 /// skips the resolver chain, and skips the hooks as well when its rendered
-/// link matches. Concurrent first-callers can both miss and resolve in parallel —
+/// link matches. Concurrent first-callers can both miss and resolve in parallel,
 /// the resolver's own per-cache-key fetch locker coalesces the network work,
 /// and the second `or_insert` loses the race harmlessly.
 pub(super) async fn resolve_wanted_cached<Chain>(
@@ -254,9 +254,9 @@ where
 
 /// Combine two per-package opts adjustments into one clone, or `None` when
 /// neither applies. The `update_requested` flag is scoped per
-/// wanted-dependency — true only when the package's real name (parsed from
+/// wanted-dependency, true only when the package's real name (parsed from
 /// `bare_specifier` for npm-aliases, folded from the jsr specifier for jsr
-/// deps) is in the update target list — so the picker's held-back-update
+/// deps) is in the update target list, so the picker's held-back-update
 /// warning fires only for the packages the user actually asked to update.
 pub(super) fn per_wanted_opts(
     opts: &ResolveOptions,
@@ -283,7 +283,7 @@ pub(super) fn per_wanted_opts(
 /// `getManifestFromResponse`).
 ///
 /// Every consumer downstream of the resolver chain reads the package's
-/// identity off its manifest — most of all
+/// identity off its manifest, most of all
 /// [`build_pkg_id_with_patch_hash`](crate::resolve_dependency_tree::manifest::build_pkg_id_with_patch_hash), which has no name to prefix the dep
 /// path with when there is none, leaving a bare `file:<path>` / URL that
 /// keys no `packages:` row. A package with no `package.json` of its own
@@ -358,7 +358,7 @@ fn stamp_fallback_identity(result: &mut pnpm_resolving_resolver_base::ResolveRes
 /// Wrap a resolver-chain failure, keeping the pnpm error code of the ones
 /// that carry one. The chain hands back a type-erased
 /// [`ResolveError`], which drops the `miette::Diagnostic` facet, so the codes
-/// that are part of pnpm's public contract are recovered by downcast —
+/// that are part of pnpm's public contract are recovered by downcast,
 /// [`PickPackageError`] included, so `ERR_PNPM_NO_OFFLINE_META` and its
 /// legacy-mirror hint reach the CLI instead of collapsing to a plain
 /// string; every other failure keeps the generic envelope.

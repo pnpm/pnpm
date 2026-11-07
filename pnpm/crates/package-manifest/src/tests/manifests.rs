@@ -210,8 +210,8 @@ fn new_manifests_end_with_a_final_newline() {
     assert!(read_to_string(&tmp).unwrap().ends_with('\n'));
 }
 
-/// Editors on Windows — and published packages such as Vite's
-/// `utf8-bom-package` fixture — write manifests with a leading UTF-8 BOM.
+/// Editors on Windows, and published packages such as Vite's
+/// `utf8-bom-package` fixture, write manifests with a leading UTF-8 BOM.
 /// pnpm decodes them through `strip-bom`, so pacquet must accept them too
 /// instead of failing at line 1 column 1.
 #[test]

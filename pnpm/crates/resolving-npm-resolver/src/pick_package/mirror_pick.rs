@@ -73,7 +73,7 @@ impl PickState<'_> {
     /// exact pinned version.
     ///
     /// The fast picker can throw `MissingTime` when publishedBy is active
-    /// and the cache is abbreviated — that is swallowed and falls through to
+    /// and the cache is abbreviated, that is swallowed and falls through to
     /// a network fetch, which would upgrade abbreviated→full. Pacquet's
     /// fetcher is always full so this shouldn't fire today, but the
     /// swallow-and-fall-through keeps the behavior intact.
@@ -221,7 +221,7 @@ impl PickState<'_> {
     /// `spawn_blocking` + multi-MB `serde_json::from_str` this pick paid.
     ///
     /// The cache is rebuilt per install, so populating it here can't outlive
-    /// the freshness window the disk read already accepted — the next install
+    /// the freshness window the disk read already accepted, the next install
     /// starts a fresh cache and re-evaluates the disk shortcut.
     pub(super) fn promote_unverified<Cache: PackageMetaCache>(
         &self,

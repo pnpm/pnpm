@@ -2,8 +2,8 @@
 //!
 //! `POST /-/pnpr/v0/resolve` with `"ecosystem": "pypi"` resolves a Python
 //! project the way the Cargo surface next door resolves a Cargo one: the
-//! client sends what only it has — its requirements and the interpreter
-//! they are for — and the server does the part that costs round trips.
+//! client sends what only it has, its requirements and the interpreter
+//! they are for, and the server does the part that costs round trips.
 //!
 //! For Python that part is most of the work. Resolving a requirement reads
 //! a distribution's `METADATA`, which lives inside a wheel, so a client
@@ -18,7 +18,7 @@
 //!
 //! What comes back is a `pylock.toml` document. The client writes it, then
 //! downloads the wheels it names and checks them against the digests the
-//! index published — and re-solves the project against the metadata of
+//! index published, and re-solves the project against the metadata of
 //! what it actually downloaded, so a wrong answer here cannot become an
 //! installed environment.
 

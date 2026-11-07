@@ -182,8 +182,8 @@ impl ImporterTransforms {
         if !self.is_active() {
             return BTreeMap::new();
         }
-        // Every importer's transform is independent — a clone of its own
-        // manifest plus in-place rewrites — so a workspace-scale set fans
+        // Every importer's transform is independent, a clone of its own
+        // manifest plus in-place rewrites, so a workspace-scale set fans
         // out across rayon. The rebuilt `BTreeMap` restores the ordering
         // regardless of completion order.
         use rayon::prelude::*;
@@ -286,7 +286,7 @@ fn transform_importer_manifest(
 /// The `optionalDependencies` entries `ignoredOptionalDependencies` matches.
 ///
 /// Callers query this before mutating, so a shared manifest with no match
-/// skips the copy-on-write clone — the common case across the thousands of
+/// skips the copy-on-write clone, the common case across the thousands of
 /// dependency manifests one resolve reads.
 fn ignored_optional_names(manifest: &Value, matcher: &Matcher) -> Vec<String> {
     if matcher.is_empty() {

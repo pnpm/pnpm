@@ -3,8 +3,8 @@ use std::{fs, io, path::Path};
 
 /// Remove whatever occupies `path` without following links: a regular
 /// file (or file-shaped symlink) is unlinked, a real directory is
-/// removed recursively, and a directory-shaped link — a symlink to a
-/// directory, or a junction on Windows — is unlinked without touching
+/// removed recursively, and a directory-shaped link, a symlink to a
+/// directory, or a junction on Windows, is unlinked without touching
 /// its target. Dangling links are removed too.
 ///
 /// The naive `is_dir()` dispatch to `remove_dir_all` / `remove_file`

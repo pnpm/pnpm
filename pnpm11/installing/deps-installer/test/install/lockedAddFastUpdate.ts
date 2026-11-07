@@ -276,7 +276,7 @@ function withASecondLockedChild (): LockfileObject {
   return subject
 }
 
-/** `lockfile()` with `bar` — and so `child` under it — reached optionally. */
+/** `lockfile()` with `bar`, and so `child` under it, reached optionally. */
 function lockfileWithOptionalBar (): LockfileObject {
   const subject = lockfile()
   const importer = subject.importers['.' as ProjectId]

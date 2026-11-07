@@ -36,7 +36,7 @@ interface TarballContents {
  * {@link PublishSummary} shape that `pnpm publish --json` emits.
  *
  * Used when we hold the tarball bytes already and need a summary without
- * re-packing — e.g. inspecting a staged publish via `pnpm stage download`.
+ * re-packing, e.g. inspecting a staged publish via `pnpm stage download`.
  *
  * @throws {@link PnpmError} with code `STAGE_TARBALL_MANIFEST_NOT_FOUND` when the tarball
  *   does not contain `package/package.json`, or when that file is unparsable JSON.

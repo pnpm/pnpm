@@ -34,7 +34,7 @@ pub struct S3Settings {
     /// this; AWS and R2 work with the default.
     #[serde(default)]
     pub force_path_style: Option<bool>,
-    /// Allow plain-HTTP endpoints — needed for a local `MinIO` over
+    /// Allow plain-HTTP endpoints, needed for a local `MinIO` over
     /// `http://`. Defaults to HTTPS-only.
     #[serde(default)]
     pub allow_http: Option<bool>,
@@ -117,7 +117,7 @@ pub(super) fn s3_builder(settings: &S3Settings) -> AmazonS3Builder {
 
 /// A key prefix normalized to either `""` or a value ending in `/`, so the
 /// store can concatenate it onto an object key. Every prefix reaching a store
-/// goes through this — a raw `packages` would otherwise key `packagesfoo/…`.
+/// goes through this, a raw `packages` would otherwise key `packagesfoo/…`.
 #[must_use]
 pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
     match prefix
@@ -133,16 +133,16 @@ pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
 }
 
 /// The resolved hosted-store backend. Like [`crate::BackendConfig`], this carries
-/// settings rather than a live client, so a parsed config stays plain data —
+/// settings rather than a live client, so a parsed config stays plain data,
 /// nothing here holds a constructed `ObjectStore` that a reader has to reason
 /// about the lifetime of. `Storage::new` builds the client.
 #[derive(Debug, Clone)]
 pub enum HostedStoreConfig {
-    /// Local directory — [`crate::StorageConfig::hosted_dir`].
+    /// Local directory, [`crate::StorageConfig::hosted_dir`].
     Fs,
     /// S3-compatible bucket, as declared by the YAML `s3:` block.
     S3(S3Settings),
-    /// A caller-supplied object store. Parsing never produces this variant —
+    /// A caller-supplied object store. Parsing never produces this variant,
     /// it is how an embedder brings its own [`ObjectStore`]: a provider pnpr
     /// has no settings shape for, or an in-memory one under test. `prefix` is
     /// normalized on the way in, so a raw `packages` works.

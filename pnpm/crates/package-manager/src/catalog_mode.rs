@@ -238,7 +238,7 @@ fn catalog_mismatch(
 }
 
 /// Whether `specifier` names a path resolved against the project that
-/// declares it — a `file:` / `link:` protocol, a bare path or tarball
+/// declares it, a `file:` / `link:` protocol, a bare path or tarball
 /// filename, or a `workspace:` pointing at a directory rather than a range.
 ///
 /// A catalog measures such a path from `pnpm-workspace.yaml`'s own

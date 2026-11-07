@@ -43,7 +43,7 @@ pub struct WorkspaceManifest {
     pub packages: Option<Vec<String>>,
 
     /// Top-level shorthand for the default catalog. Mutually exclusive
-    /// with `catalogs.default` — `pnpm_catalogs_config` enforces
+    /// with `catalogs.default`, `pnpm_catalogs_config` enforces
     /// that.
     #[serde(default)]
     pub catalog: Option<Catalog>,
@@ -59,7 +59,7 @@ pub struct WorkspaceManifest {
 /// `invalid_workspace_configuration` error code.
 ///
 /// Note: the "packages field is not an array" case is covered by
-/// [`ReadWorkspaceManifestError::ParseYaml`] in pacquet —
+/// [`ReadWorkspaceManifestError::ParseYaml`] in pacquet,
 /// `serde_saphyr` rejects a non-array shape before this layer runs.
 /// Only the empty-string-entry check needs a dedicated variant.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -128,7 +128,7 @@ pub fn parse_workspace_manifest(
     text: &str,
 ) -> Result<WorkspaceManifest, ReadWorkspaceManifestError> {
     // An empty workspace manifest is valid and means "no settings, no
-    // packages" — same as `{}`. `serde_saphyr` would otherwise reject
+    // packages", same as `{}`. `serde_saphyr` would otherwise reject
     // an empty document; short-circuit to the default value.
     if text.trim().is_empty() {
         return Ok(WorkspaceManifest::default());
@@ -142,8 +142,8 @@ pub fn parse_workspace_manifest(
         .unwrap_or_default();
 
     // serde_saphyr already enforces the array shape and string type
-    // for `packages:` at deserialization. The remaining invariant —
-    // entries cannot be empty strings — needs a manual pass since serde
+    // for `packages:` at deserialization. The remaining invariant,
+    // entries cannot be empty strings, needs a manual pass since serde
     // doesn't know about that constraint.
     if let Some(packages) = &manifest.packages {
         for entry in packages {

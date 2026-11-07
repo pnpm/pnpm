@@ -6,7 +6,7 @@ use crate::normalize_arch::get_normalized_arch;
 ///
 /// Splitting them keeps the caller free to compose either the URL
 /// (`{dirname}/{basename}{extname}`) or the zip-prefix
-/// (`{basename}`) — `BinaryResolution.prefix` needs only the
+/// (`{basename}`), `BinaryResolution.prefix` needs only the
 /// basename, while the `url` field needs the full concatenation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeArtifactAddress {
@@ -17,7 +17,7 @@ pub struct NodeArtifactAddress {
 
 /// Options bundle for [`get_node_artifact_address`].
 ///
-/// `libc` only ever takes `Some("musl")` — glibc is the implicit
+/// `libc` only ever takes `Some("musl")`, glibc is the implicit
 /// default and is *not* included in the archive name. The
 /// type is `Option<&str>` so future libc additions don't churn the
 /// API.

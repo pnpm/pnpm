@@ -138,7 +138,7 @@ async function preparePnprProjects (
   opts: MutateModulesOptions
 ): Promise<PnprInstallProject[] | null> {
   const targetSet = listPnprTargets(projects, opts.allProjects ?? [])
-  // Bail to the normal flow if any mutated project isn't in allProjects —
+  // Bail to the normal flow if any mutated project isn't in allProjects,
   // we can't pre-process its manifest correctly.
   for (const project of projects) {
     if (!targetSet.some((target) => target.rootDir === project.rootDir)) return null
@@ -154,7 +154,7 @@ function listPnprTargets (
   for (const project of projects) {
     mutationByRootDir.set(project.rootDir, project)
   }
-  // Include every workspace project, not just the mutated ones — otherwise
+  // Include every workspace project, not just the mutated ones, otherwise
   // the pnpr server's resulting lockfile would only contain the targeted importer
   // and `headlessInstall` (or a later install) would crash on the missing
   // entries for the other workspace projects. Projects without a mutation
@@ -236,7 +236,7 @@ export function applyResolvedSpecsFromLockfile (
   if (!importerSnapshot || newDeps.length === 0) return manifest
   // In-memory ProjectSnapshot stores resolved versions in `dependencies`
   // (alias → resolved version) and original specs in `specifiers` (alias →
-  // user spec). The on-disk YAML shape pairs them per entry — the reader
+  // user spec). The on-disk YAML shape pairs them per entry, the reader
   // splits them. Read both and compute the save-prefix spec client-side.
   for (const dep of newDeps) {
     if (dep.userSpecified) continue

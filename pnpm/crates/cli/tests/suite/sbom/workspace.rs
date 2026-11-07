@@ -574,7 +574,7 @@ fn sbom_filter_selects_dev_dependency_projects() {
 }
 
 /// `--filter-prod <pkg>...` walks production dependencies only, so
-/// `dev-lib` — a `devDependencies`-only workspace dependency of `app` —
+/// `dev-lib`, a `devDependencies`-only workspace dependency of `app`,
 /// is left out.
 #[test]
 fn sbom_filter_prod_follows_production_deps_only() {
@@ -619,7 +619,7 @@ fn sbom_filter_matching_nothing_writes_no_sbom() {
 }
 
 /// `--workspace-root` narrows the SBOM to the root project, even though
-/// the workspace package patterns don't name it — the root project is
+/// the workspace package patterns don't name it, the root project is
 /// always part of the workspace, so the `{<workspace-root>}` selector the
 /// flag adds finds it.
 #[test]
@@ -650,7 +650,7 @@ fn sbom_workspace_root_selects_only_the_root() {
 }
 
 /// A lockfile with no importer for a selected project is out of date, and
-/// walking what is left would under-report the selection's dependencies —
+/// walking what is left would under-report the selection's dependencies,
 /// so the run fails instead of writing that SBOM.
 #[test]
 fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {

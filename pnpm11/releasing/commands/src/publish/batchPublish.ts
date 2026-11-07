@@ -42,7 +42,7 @@ interface PackedPkg {
 /**
  * Publish all {@link pkgs} by sending a single `PUT /-/pnpr/v0/publish` request per target
  * registry, instead of one request per package. The endpoint is not part of the standard npm
- * registry API — the registry has to implement it explicitly (pnpr does), so this whole code
+ * registry API, the registry has to implement it explicitly (pnpr does), so this whole code
  * path is opt-in via the `--batch` flag.
  *
  * Every package is packed (and its `prepublishOnly`/`prepublish` scripts run) before anything
@@ -164,7 +164,7 @@ async function packPkgForBatch (project: Project, opts: BatchPublishOptions): Pr
   if (!opts.ignoreScripts) {
     await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['prepublishOnly', 'prepublish'], project.manifest)
   }
-  // The tarball is packed into a temporary directory and read into memory right away — the
+  // The tarball is packed into a temporary directory and read into memory right away, the
   // request body carries it base64-encoded, so nothing needs to stay on disk.
   // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
   const { temporaryDirectory } = await import('tempy')
@@ -268,7 +268,7 @@ interface PublishDocument {
 }
 
 /**
- * Build the npm publish document for one package — the same JSON body `libnpmpublish` would
+ * Build the npm publish document for one package, the same JSON body `libnpmpublish` would
  * send as the whole `PUT /:pkg` request. The batch publish request body is an array of these,
  * which lets the registry reuse its single-package publish pipeline per entry.
  */

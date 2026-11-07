@@ -87,10 +87,10 @@ fn same_file_structure() {
 
     // Filter out pnpm-only artifacts whose presence is orthogonal to whether
     // the two tools agree on the CAFS layout:
-    //   * `v11/projects/<hash>` — pnpm-11-only per-project metadata tracking
+    //   * `v11/projects/<hash>`, pnpm-11-only per-project metadata tracking
     //     which packages in the store are linked from which project. Sharing
     //     the store doesn't require it.
-    //   * `v11/index.db-wal` / `v11/index.db-shm` — SQLite WAL sidecars that
+    //   * `v11/index.db-wal` / `v11/index.db-shm`, SQLite WAL sidecars that
     //     only exist while a connection is open; their presence at comparison
     //     time depends on whether the checkpoint ran before we measured.
     let normalize = |files: Vec<String>| -> Vec<String> {
@@ -99,7 +99,7 @@ fn same_file_structure() {
             // Per-project metadata that pnpm 11 populates and pacquet doesn't.
             // Doesn't affect the shared-cafs story.
             .filter(|path| !path.starts_with("v11/projects/"))
-            // Hoisted-symlinks layout introduced in pnpm 11 — pnpm stores
+            // Hoisted-symlinks layout introduced in pnpm 11, pnpm stores
             // one `node_modules` tree per `<name>/<version>/<hash>/` under
             // `v11/links/` and links the project's `node_modules/X` into there.
             // Pacquet still uses the older per-project `.pnpm/` virtual store,
@@ -138,7 +138,7 @@ fn same_file_structure() {
 // records (pnpm via `Packr({useRecords: true})`, pacquet via
 // `encode_package_files_index`). `StoreIndex::get` decodes both through
 // the shared transcoder, so this test just asserts the two tools'
-// decoded `PackageFilesIndex` shapes match for the same install — not
+// decoded `PackageFilesIndex` shapes match for the same install, not
 // byte-identical rows, because `HashMap` iteration order can differ
 // from msgpackr's, but the post-decode structs compare equal.
 #[test]
@@ -154,7 +154,7 @@ fn same_index_file_contents() {
 
     let modules_dir = workspace.join("node_modules");
     // Cleanup also drops `pnpm-lock.yaml` so pnpm doesn't pick a
-    // different install code path than pacquet on the second leg —
+    // different install code path than pacquet on the second leg,
     // see the matching note in `same_file_structure`.
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let cleanup = || {
@@ -210,7 +210,7 @@ fn same_index_file_contents() {
 //
 // Why that regression would be silent without this test: pnpm's
 // `Packr({useRecords: true, moreTypes: true}).unpack(...)` decodes
-// every plain msgpack map (at any nesting level) as a JS `Map` —
+// every plain msgpack map (at any nesting level) as a JS `Map`,
 // records are the escape hatch that says "this one's a plain object".
 // A plain-map-encoded row would come back as a top-level `Map`,
 // `pkgIndex.files` (property access) would be `undefined`, and pnpm's
@@ -219,9 +219,9 @@ fn same_index_file_contents() {
 //
 // The flow below reproduces the benchmark's path: pacquet populates
 // the store, `node_modules` is wiped, then pnpm installs against the
-// same store. Leaving the store intact — unlike `same_file_structure`
+// same store. Leaving the store intact, unlike `same_file_structure`
 // and `same_index_file_contents`, which clean it between the pacquet
-// and pnpm halves — is what makes pnpm actually *read* pacquet's
+// and pnpm halves, is what makes pnpm actually *read* pacquet's
 // rows.
 #[test]
 fn pnpm_reads_pacquet_written_rows() {
@@ -266,7 +266,7 @@ fn pnpm_reads_pacquet_written_rows() {
 /// because it appends `STORE_VERSION` (`"v11"`) to the user-configured
 /// `storeDir`.
 /// Pacquet's [`StoreDir::links`](../../../../store-dir/src/store_dir.rs)
-/// puts them at `links/<scope>/<name>/<version>/<hash>/...` — one level
+/// puts them at `links/<scope>/<name>/<version>/<hash>/...`, one level
 /// shallower. Both prefixes pass through unmodified, so when the two
 /// path sets are diffed in `assert_eq!` the prefix divergence shows up
 /// alongside any inner-shape disagreement instead of being silently
@@ -280,7 +280,7 @@ fn gvs_paths_only(files: Vec<String>) -> Vec<String> {
 
 /// Run pnpm-then-pacquet against a shared workspace and compare the
 /// GVS slot trees they each materialize. Pnpm runs first so the
-/// lockfile exists before pacquet starts — pacquet's GVS write path
+/// lockfile exists before pacquet starts, pacquet's GVS write path
 /// is gated on `frozen_lockfile && enable_global_virtual_store` (see
 /// `package-manager/src/install.rs:299` and the
 /// [`VirtualStoreLayout::legacy`](../../../../package-manager/src/virtual_store_layout.rs)
@@ -327,8 +327,8 @@ fn install_then_compare_gvs(
 }
 
 /// Pure-JS GVS parity: a package with one transitive dep, no install
-/// scripts. With `allowBuilds` left at the GVS default of `{}` —
-/// it defaults to `{}` whenever `enableGlobalVirtualStore` is on — every
+/// scripts. With `allowBuilds` left at the GVS default of `{}`,
+/// it defaults to `{}` whenever `enableGlobalVirtualStore` is on, every
 /// snapshot hashes with `engine = null`, so the GVS slot tree is
 /// engine-agnostic and the comparison is independent of the host
 /// Node.js / OS / arch the test runs on.
@@ -378,7 +378,7 @@ fn same_global_virtual_store_layout_pure_js() {
 /// would split the same approved-build package across two slot
 /// directories.
 ///
-/// Scripts run on both sides (neither install uses `--ignore-scripts`) —
+/// Scripts run on both sides (neither install uses `--ignore-scripts`),
 /// if pnpm skipped scripts while pacquet ran them the slot trees would
 /// diverge on the script-generated `generated-by-*.js` files even
 /// though the hash itself agreed.
@@ -425,7 +425,7 @@ fn same_global_virtual_store_layout_with_approved_postinstall() {
 /// `parent-of-pkg-with-1-dep`, and `parent-of-pkg-with-1-dep` itself
 /// depends on `pkg-with-1-dep`. So `pkg-with-1-dep` is reachable
 /// through two paths from the root, and `calc_dep_graph_hash` must
-/// hit its memoization cache on the second visit — if the cache key
+/// hit its memoization cache on the second visit, if the cache key
 /// or the hash payload disagreed between pnpm and pacquet, the
 /// `pkg-with-1-dep` slot would land at one path on pnpm and another
 /// on pacquet. Mirrors the cache-correctness guarantee that the unit

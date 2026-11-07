@@ -101,7 +101,7 @@ impl SharedArtifactStore {
     }
 
     /// The blobs stored artifacts reference, the artifacts themselves, and
-    /// whether every variant was read — all from one pass, since reclamation
+    /// whether every variant was read, all from one pass, since reclamation
     /// asks all three of every envelope it reads.
     ///
     /// A variant it could not read is stored all the same, and its scopes are

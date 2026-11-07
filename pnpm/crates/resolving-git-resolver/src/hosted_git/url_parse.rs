@@ -360,13 +360,13 @@ pub(super) fn extract_gitlab(parsed: &ParsedUrl) -> Option<Segments> {
 /// sees: percent-decode standard escapes, leave malformed sequences
 /// alone (upstream surfaces them via `URIError`, which falls through to
 /// returning `None` at the call site). Pacquet keeps the input as-is on
-/// malformed input — the affected URLs are caught elsewhere when the
+/// malformed input, the affected URLs are caught elsewhere when the
 /// downstream parse fails.
 pub(super) fn percent_decode(input: &str) -> String {
     // Decode `%XX` triples to raw bytes first, then reassemble as
     // UTF-8 so multibyte sequences (e.g. a `%E2%80%A6` ellipsis) are
     // reconstructed correctly. Fall back to the original input if the
-    // resulting byte stream isn't valid UTF-8 — that matches Node's
+    // resulting byte stream isn't valid UTF-8, that matches Node's
     // `decodeURIComponent` throwing a `URIError`, which upstream's
     // `try/catch` in `hosted-git-info`'s `fromUrl` swallows.
     let mut buf: Vec<u8> = Vec::with_capacity(input.len());

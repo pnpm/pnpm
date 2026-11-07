@@ -30,7 +30,7 @@ pub struct Remove<'a> {
 /// the manifest is mutated or any install runs.
 ///
 /// Kept separate from [`RemoveError`] so the `validate_removable` guard
-/// returns a small `Result` — folding these into [`RemoveError`] (which
+/// returns a small `Result`, folding these into [`RemoveError`] (which
 /// carries the large [`InstallError`]) trips `clippy::result_large_err`
 /// on the non-async validator.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -385,7 +385,7 @@ fn persist_manifest<Reporter: self::Reporter>(
 }
 
 /// The up-front guards `pacquet remove` applies before mutating the
-/// manifest or running any install — both fail fast.
+/// manifest or running any install, both fail fast.
 fn validate_removable(
     manifest: &PackageManifest,
     package_names: &[String],

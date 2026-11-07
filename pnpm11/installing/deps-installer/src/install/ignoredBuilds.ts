@@ -112,7 +112,7 @@ function findRevokedBuilds (
  * scan added to it. Re-read the manifest from disk so we only
  * update ignoredBuilds and don't clobber fields (hoistedDependencies,
  * pendingBuilds, etc.) the install just wrote. The current computed
- * set is authoritative — runUnignoredDependencyBuilds may have removed
+ * set is authoritative, runUnignoredDependencyBuilds may have removed
  * entries (for packages it successfully rebuilt) that the on-disk
  * manifest still records, and those must not be re-introduced.
  */

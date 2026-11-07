@@ -40,7 +40,7 @@ struct RegistryPath {
     name: String,
 }
 
-/// `GET /-/pnpr/v0/admin/rules/{ecosystem}/{name}` — the hosted registry's
+/// `GET /-/pnpr/v0/admin/rules/{ecosystem}/{name}`, the hosted registry's
 /// current rules, whether the admin API may change them, and the version of
 /// the stored changes as `version` and `ETag`.
 async fn get_rules(
@@ -60,7 +60,7 @@ async fn get_rules(
     private_no_cache(respond(result.await))
 }
 
-/// `PUT /-/pnpr/v0/admin/rules/{ecosystem}/{name}` — replace the stored
+/// `PUT /-/pnpr/v0/admin/rules/{ecosystem}/{name}`, replace the stored
 /// changes with the body's, and answer with the rules that result. With
 /// `If-Match`, only while the stored changes still have that version.
 async fn put_rules(
@@ -105,7 +105,7 @@ async fn put_rules(
     respond(result.await)
 }
 
-/// `DELETE /-/pnpr/v0/admin/rules/{ecosystem}/{name}` — drop the stored
+/// `DELETE /-/pnpr/v0/admin/rules/{ecosystem}/{name}`, drop the stored
 /// changes, so the configuration's rules apply again. With `If-Match`, only
 /// while the stored changes still have that version.
 async fn delete_rules(

@@ -11,7 +11,7 @@ use crate::cli_args::yarn_workspaces_field::{
 /// [`select_workspace_projects`](super::select_workspace_projects), optionally running the install's
 /// workspace-cycle search over the selection graph while it is still in
 /// hand. Callers pass `true` only for a run that is certain to reach
-/// the cycle check — the "Already up to date" fast path returns before
+/// the cycle check, the "Already up to date" fast path returns before
 /// it, and a search it never reads would tax exactly that path.
 /// `runtimeOnFail` is a workspace-level override the projects carry into
 /// their own installs, so it is applied to each manifest as it is read.
@@ -127,7 +127,7 @@ fn apply_install_git_branch_lockfiles_config(
 ) {
     // pnpm merges its CLI options into the config *before* deciding
     // `mergeGitBranchLockfiles`, so a pattern given on the command line
-    // still gets matched against the current branch — and an explicit
+    // still gets matched against the current branch, and an explicit
     // `--merge-git-branch-lockfiles` settles the question without it.
     if lockfile_updates.merge_git_branch_lockfiles {
         cfg.cli_settings.insert("mergeGitBranchLockfiles".to_string());

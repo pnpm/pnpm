@@ -8,7 +8,7 @@ use rusqlite::Connection;
 /// 32766 in newer builds (rusqlite ships a recent `SQLite`, so the
 /// effective cap is well above any realistic lockfile size). Capping
 /// at 999 here keeps us safe against hand-rolled custom builds with
-/// the legacy default — no realistic install hits this boundary, but
+/// the legacy default, no realistic install hits this boundary, but
 /// the chunking adds maybe a microsecond of overhead and removes the
 /// need to think about the cap on the read path.
 pub(super) const GET_MANY_CHUNK: usize = 999;
@@ -38,7 +38,7 @@ impl StoreIndex {
     ///    `Packr({useRecords: true, …})` emits.
     /// 2. **pacquet-written**: also msgpackr-records, from
     ///    [`encode_package_files_index`][crate::msgpackr_records::encode_package_files_index]
-    ///    — pacquet matches pnpm's on-wire shape so the two tools can
+    ///    pacquet matches pnpm's on-wire shape so the two tools can
     ///    share `index.db`.
     /// 3. **Legacy pacquet-written**: plain `MessagePack` maps from the
     ///    `rmp_serde::to_vec_named` path. These may still live in
@@ -114,14 +114,14 @@ impl StoreIndex {
     /// and decodes cleanly. Missing keys are absent from the map;
     /// rows whose msgpack payload fails to decode are logged at `debug!`
     /// and dropped, matching `load_cached_cas_paths`'s `.ok()?` stance on
-    /// the per-key path — a malformed row is treated as a cache miss so
+    /// the per-key path, a malformed row is treated as a cache miss so
     /// the install falls through to a fresh download.
     ///
     /// `SQLite` walks the `package_index` PK B-tree once per chunk, so the
     /// per-key query overhead (≈40 µs even for misses) collapses into
     /// one round-trip. With 1352 cache keys against an empty store this
     /// drops the prefetch cost from ~50 ms of N selects to a single
-    /// query — see [#294] for the cold-cache regression this fixes.
+    /// query, see [#294] for the cold-cache regression this fixes.
     ///
     /// [#294]: https://github.com/pnpm/pacquet/issues/294
     pub fn get_many(
@@ -147,13 +147,13 @@ impl StoreIndex {
     }
 
     /// Batched read that returns the **undecoded** value bytes for each
-    /// hit. Callers run `decode_index_value` themselves — either inline
+    /// hit. Callers run `decode_index_value` themselves, either inline
     /// (like [`Self::get_many`]) or, more usefully, in parallel across
     /// a rayon pool after releasing the [`SharedReadonlyStoreIndex`](super::SharedReadonlyStoreIndex)
     /// mutex.
     ///
     /// The decode is the dominant CPU cost of [`Self::get_many`] for
-    /// rows that carry a `manifest` field — msgpackr-records transcode
+    /// rows that carry a `manifest` field, msgpackr-records transcode
     /// plus a `rmp_serde::from_slice` of a nested JSON tree per row,
     /// times ~1k rows on a real lockfile. Doing that work under the
     /// [`SharedReadonlyStoreIndex`](super::SharedReadonlyStoreIndex) lock serialises N installs back to
@@ -227,7 +227,7 @@ impl StoreIndex {
     /// Batched existence probe: the subset of `keys` that have a row in
     /// `package_index`. Same chunked `WHERE key IN` shape (and SQL-injection
     /// posture) as [`Self::get_many_raw`], but selects only the key column,
-    /// so no row data is copied — for callers that decide *whether* to do
+    /// so no row data is copied, for callers that decide *whether* to do
     /// work per key and leave reading the row to a later pass.
     ///
     /// A key with no row of its own is contained when the row it is an
@@ -310,7 +310,7 @@ impl StoreIndex {
     ///
     /// One `BEGIN IMMEDIATE` ... `COMMIT` wraps the inserts, which amortizes the
     /// WAL commit fsync across the whole batch. At 1352 snapshots that
-    /// turns 1352 per-row fsyncs into ⌈`1352/batch_size`⌉ — on APFS this is
+    /// turns 1352 per-row fsyncs into ⌈`1352/batch_size`⌉, on APFS this is
     /// the single biggest lever for `pacquet install` wall time ([#263]).
     ///
     /// `SQLite` errors during the transaction roll it back before returning,
@@ -318,11 +318,11 @@ impl StoreIndex {
     /// A per-file index writes each row on its own, so a failed row leaves
     /// the others written.
     /// A per-row msgpack encoding error is logged at `warn!` and skipped
-    /// — one malformed [`PackageFilesIndex`] shouldn't cost every other row
+    ///one malformed [`PackageFilesIndex`] shouldn't cost every other row
     /// in the batch the chance to commit, matching the "best-effort
     /// index" stance the writer task and the read path already take.
     /// Encoding is done up front into a `Vec<(String, Vec<u8>)>` so the
-    /// transaction body is pure `SQLite` — the caller's producer thread pays
+    /// transaction body is pure `SQLite`, the caller's producer thread pays
     /// the msgpack cost, not the single writer thread.
     ///
     /// [#263]: https://github.com/pnpm/pacquet/issues/263
@@ -504,14 +504,14 @@ fn sqlite_get_many_raw(
     for chunk in keys.chunks(GET_MANY_CHUNK) {
         // Build a `?,?,...?` list whose length matches `chunk`. The
         // only thing interpolated into `sql` is this fixed-shape
-        // placeholder string — no caller-supplied bytes ever reach
+        // placeholder string, no caller-supplied bytes ever reach
         // the SQL text. The keys themselves flow through
         // `rusqlite::params_from_iter` below, which routes them via
         // SQLite's prepared-statement parameter binding (the same
         // path every other site in this file uses). Keep the two
         // lines in lock-step: if the placeholder count or the params
         // iterator ever stop matching `chunk.len()`, that's the bug
-        // to look at — not SQL injection.
+        // to look at, not SQL injection.
         let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
         let sql = format!("SELECT key, data FROM package_index WHERE key IN ({placeholders})");
         let mut stmt = conn

@@ -41,7 +41,7 @@ export interface MakeRunPacquetOpts {
    */
   packageName: 'pacquet' | '@pnpm/pacquet'
   /**
-   * The parsed pnpm argv from `@pnpm/cli.parse-cli-args` — `original`
+   * The parsed pnpm argv from `@pnpm/cli.parse-cli-args`, `original`
    * preserves the user's exact tokens (so `--key=value` stays joined,
    * which pacquet's `--config.<key>=<value>` parser requires), and
    * `remain` lists the positionals (the `install`/`i` command token
@@ -143,7 +143,7 @@ function makeRun (opts: MakeRunPacquetOpts): (callOpts?: RunPacquetCallOpts) => 
 function createPacquetArgs (opts: MakeRunPacquetOpts, callOpts?: RunPacquetCallOpts): string[] {
   const forwardedFlags = opts.isInstallCommand ? collectForwardedFlags(opts.argv) : []
   // In resolve mode pacquet does the resolution itself, so it must not
-  // be pinned to the existing lockfile — drop both injected flags.
+  // be pinned to the existing lockfile, drop both injected flags.
   //
   // Otherwise (frozen materialization) inject `--frozen-lockfile` plus
   // `--ignore-manifest-check`. The latter tells pacquet to skip its
@@ -223,7 +223,7 @@ async function waitForPacquetExit (child: ChildProcess, rl: readline.Interface):
  *
  * Only resolve mode needs it. A frozen materialization is given
  * `--ignore-manifest-check`, which pacquet's own gate for this hook
- * already reads as "the caller ran it" — so it is suppressed there
+ * already reads as "the caller ran it", so it is suppressed there
  * without a marker. Pacquet invoked directly by a user has no earlier
  * run to deduplicate against.
  *
@@ -279,13 +279,13 @@ export function makePacquetEnv (opts: MakeRunPacquetOpts, callOpts?: RunPacquetC
  * inside its own `node_modules` (pacquet's own `node_modules` is empty
  * after configDependencies install). Resolve it directly here rather than
  * through pacquet's `bin/pacquet`, which is only a placeholder until the
- * package's preinstall relinks it to the native binary — a step that does
+ * package's preinstall relinks it to the native binary, a step that does
  * not run for configDependencies. Use Node's resolver rooted at pacquet's
  * own `package.json` so we find the same sibling package.
  *
  * The `realpathSync` is required: `.pnpm-config/pacquet` is a symlink
  * into the global virtual store, and Node's `createRequire` builds its
- * search paths from the *literal* ancestors of the path it's given —
+ * search paths from the *literal* ancestors of the path it's given,
  * it won't follow the symlink up into the store dir where the
  * `@pacquet/<plat>-<arch>` sibling actually lives.
  */
@@ -309,7 +309,7 @@ export function pacquetPlatformPkgName (): string {
 /**
  * Read the installed pacquet's version from its `package.json` under
  * `node_modules/.pnpm-config/<packageName>`. Returns `undefined` if it
- * can't be read — callers treat that as "assume the older,
+ * can't be read, callers treat that as "assume the older,
  * materialization-only pacquet" so a missing/garbled manifest degrades
  * to the safe path rather than failing the install.
  */
@@ -339,13 +339,13 @@ function pacquetSupportsResolution (version: string | undefined): boolean {
  * From `pnpm install`/`pnpm i`, return everything in argv that should
  * ride along to pacquet's own `install` subcommand. Drops the
  * positionals nopt classified (`install` / `i`, plus anything users
- * typed positionally) since pacquet's `install` doesn't accept any —
+ * typed positionally) since pacquet's `install` doesn't accept any,
  * leaving them in produces `error: unexpected argument 'install'
  * found`.
  *
  * Flags we manage ourselves (`--frozen-lockfile`,
  * `--ignore-manifest-check`) are dropped in every form the user can
- * type them — positive (`--frozen-lockfile`), negated
+ * type them, positive (`--frozen-lockfile`), negated
  * (`--no-frozen-lockfile`), and any `=value` form. Forwarding the
  * user's own token would contradict that choice: pacquet accepts a
  * `--no-<flag>` negation for every boolean flag with last-one-wins
@@ -391,7 +391,7 @@ function isAlwaysInjected (arg: string): boolean {
  * etc.) so listing them to the user makes the "not forwarded" surface
  * concrete.
  *
- * Flags pnpm itself honors before delegation are filtered out —
+ * Flags pnpm itself honors before delegation are filtered out,
  * warning about them would be misleading: `--frozen-lockfile` and
  * `--ignore-manifest-check` in every shape (positive / negated /
  * `=value`); the reporting flags of {@link translateReportingFlag}; and

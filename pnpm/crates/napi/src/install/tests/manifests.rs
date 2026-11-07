@@ -28,7 +28,7 @@ fn non_object_project_manifests_are_rejected() {
 }
 
 /// The `pnpm fetch` shape: every importer the lockfile records is imported
-/// into the virtual store, and nothing is linked out of it — no importer
+/// into the virtual store, and nothing is linked out of it, no importer
 /// symlink for a direct dependency, and no top-level `.bin` entry. The
 /// in-memory manifests are ignored entirely, so an empty one still fetches
 /// the whole recorded graph.
@@ -96,7 +96,7 @@ fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
 }
 
 /// A fetch-shaped install reads the lockfile by definition, so an ambient
-/// `lockfile: false` must not disable it — that would leave the mode with
+/// `lockfile: false` must not disable it, that would leave the mode with
 /// nothing to materialize from and fail with `ERR_PNPM_NO_LOCKFILE`.
 #[test]
 fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
@@ -152,7 +152,7 @@ fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
 }
 
 /// The fetch shape covers every importer the lockfile records, not just the
-/// ones the caller named — pnpm's `initialImporterIds` under
+/// ones the caller named, pnpm's `initialImporterIds` under
 /// `ignorePackageManifest`. Here the caller passes only the workspace root
 /// while the dependency belongs to a member project.
 #[test]
@@ -318,7 +318,7 @@ fn repeat_install_with_unchanged_in_memory_manifest_needs_no_registry() {
 }
 
 /// A workspace whose `lib` project is injected into `app`, with an importer
-/// manifest that drops the dependencies its `dependencyManifest` declares —
+/// manifest that drops the dependencies its `dependencyManifest` declares,
 /// the shape Bit passes after transforming its importer manifests. One of
 /// them injects the `util` project through `workspace:*`; another is also a
 /// peer, which `app` provides at a version the dependency spec rejects.

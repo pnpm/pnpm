@@ -1,14 +1,14 @@
 use super::{reporter::ReporterType, run::RunArgs};
 use clap::Args;
 
-/// The arguments of a command that stands for one named script —
+/// The arguments of a command that stands for one named script,
 /// `pnpm test`, `pnpm start`, `pnpm stop`.
 // pnpm has no command by these names at all: they reach `run` through the
 // `pnpm <script>` fallback, so parsing stops at the command name and every
 // later token is the script's, a `--` separator and anything shaped like a
 // pnpm flag included. Declaring options of their own here would claim
 // those tokens instead (pnpm/pnpm#13301), so the single `trailing_var_arg`
-// positional is the whole grammar — the shape `run` uses for the same
+// positional is the whole grammar, the shape `run` uses for the same
 // reason.
 #[derive(Debug, Args)]
 pub struct ScriptShortcutArgs {

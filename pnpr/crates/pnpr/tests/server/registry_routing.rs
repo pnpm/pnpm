@@ -170,8 +170,8 @@ async fn router_routes_each_package_to_its_declared_source() {
 #[tokio::test]
 async fn router_not_found_does_not_fall_through_to_public() {
     // A router whose only source claims the private `@corp/*` scope. A public
-    // name no source claims must be a definitive 404 — never served from a
-    // public origin — which is the dependency-confusion vector closed by
+    // name no source claims must be a definitive 404, never served from a
+    // public origin, which is the dependency-confusion vector closed by
     // construction. The same namespace bound holds on the registry's own URL:
     // `/~corp/lodash` is a 404 answered before the upstream (and its
     // server-owned credential) is consulted.
@@ -245,7 +245,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
 #[tokio::test]
 async fn router_unavailable_source_errors_not_404() {
     // The matched source is down. The router must surface an *error*, never a
-    // 404 — reporting "not found" would let a downstream proxy or the client's
+    // 404, reporting "not found" would let a downstream proxy or the client's
     // next-configured registry fall through to a different origin.
     let tmp = TempDir::new().unwrap();
     // Point `corp` at a closed port so every fetch is a transport failure.
@@ -358,8 +358,8 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
     assert!(err.to_string().contains("collides"), "unexpected error: {err}");
 }
 
-/// The identity endpoints — adduser/login, whoami, profile, token list,
-/// logout, token revoke — are global, so they are served under *any*
+/// The identity endpoints, adduser/login, whoami, profile, token list,
+/// logout, token revoke, are global, so they are served under *any*
 /// `/~<prefix>/` without consulting the registry table: clients derive these
 /// URLs from their configured registry URL, so `pnpm login --registry
 /// .../~corp/` must work even when nothing named `corp` is mounted. Skipping
@@ -515,8 +515,8 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
     }
 
-    // `/corp/-/whoami` is a well-formed tarball address — package `corp`,
-    // file `whoami` — so it reads through the registry graph instead of
+    // `/corp/-/whoami` is a well-formed tarball address, package `corp`,
+    // file `whoami`, so it reads through the registry graph instead of
     // answering as whoami. The configured upstream is unreachable, which is
     // what a package read of it reports.
     let tarball_shaped = app

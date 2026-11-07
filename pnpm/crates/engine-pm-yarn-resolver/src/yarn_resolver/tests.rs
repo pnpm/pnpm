@@ -49,7 +49,7 @@ fn a_range_no_release_satisfies_resolves_to_nothing() {
     assert_eq!(picked("not a range"), None);
 }
 
-/// A specifier comes from a manifest, so it can carry credentials — the
+/// A specifier comes from a manifest, so it can carry credentials, the
 /// message a user sees must not.
 #[test]
 fn a_credential_bearing_specifier_is_redacted_in_the_error() {

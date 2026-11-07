@@ -424,7 +424,7 @@ async fn fetch_full_metadata_retries_transient_status() {
 
 /// The mirror's `modified` value is the packument's ISO-8601
 /// `time.modified`, but `If-Modified-Since` must carry an HTTP-date
-/// (RFC 9110 §8.8.3) — the same conversion the TypeScript CLI does with
+/// (RFC 9110 §8.8.3), the same conversion the TypeScript CLI does with
 /// `toUTCString()`, keeping the two stacks byte-identical on the wire.
 #[tokio::test]
 async fn fetch_full_metadata_sends_if_modified_since_as_http_date() {
@@ -461,7 +461,7 @@ async fn fetch_full_metadata_sends_if_modified_since_as_http_date() {
 }
 
 /// A `modified` value that is neither ISO-8601 nor an HTTP-date cannot be
-/// turned into a valid header, so it is dropped rather than sent — and it
+/// turned into a valid header, so it is dropped rather than sent, and it
 /// must not count as a validator, or an unsolicited 304 would be
 /// misattributed to it instead of triggering the no-cache retry.
 #[tokio::test]
@@ -545,7 +545,7 @@ fn to_http_date_rejects_unparsable_values() {
 }
 
 /// A `Content-Encoding: gzip` header over a body that isn't gzip makes
-/// reqwest fail while *decoding the response body* — the same class of
+/// reqwest fail while *decoding the response body*, the same class of
 /// failure as a connection reset mid-transfer, surfacing as reqwest's
 /// "error decoding response body". This is the error the CI benchmark
 /// hit against the live registry and that `send_with_retry` can't see,

@@ -42,7 +42,7 @@ fn locates_both_patch_hash_and_peers() {
 
 #[test]
 fn handles_nested_parens_in_peer_segment() {
-    // A transitive peer can itself carry a peer suffix —
+    // A transitive peer can itself carry a peer suffix,
     // `(bar@2.0.0(baz@3.0.0))` is one balanced segment.
     let dep_path = "foo@1.0.0(bar@2.0.0(baz@3.0.0))";
     let got = index_of_dep_path_suffix(dep_path);
@@ -102,7 +102,7 @@ fn leading_slash_legacy_with_nested_peer_strips_to_bare() {
     assert_eq!(get_pkg_id_with_patch_hash(dep_path), "/foo@1.0.0");
 }
 
-/// The right-to-left balanced scan is what makes this work — a
+/// The right-to-left balanced scan is what makes this work, a
 /// left-to-right `find('(')` would split inside `(-.-)`.
 #[test]
 fn scope_with_parens_does_not_confuse_suffix_scan() {

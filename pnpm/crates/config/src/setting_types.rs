@@ -254,7 +254,7 @@ impl RuntimeOnFail {
 ///
 /// Every script pnpm spawns gets `pnpm_config_verify_deps_before_run=false`
 /// in its env, and that env var overrides every other source of this
-/// setting — otherwise a script invoking `pnpm run` would re-enter the
+/// setting, otherwise a script invoking `pnpm run` would re-enter the
 /// check and, under `install`, recurse through the spawned install's own
 /// lifecycle scripts (pnpm/pnpm#10060).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

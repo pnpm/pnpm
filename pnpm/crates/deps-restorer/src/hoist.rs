@@ -5,7 +5,7 @@
 //! Bin linking for hoisted aliases is handled at the call site
 //! ([`crate::InstallFrozenLockfile::run`]) by re-using
 //! [`crate::link_bins_dir`] against the private and public
-//! hoisted modules dirs — the hoist pass itself only computes the
+//! hoisted modules dirs, the hoist pass itself only computes the
 //! alias-list inputs that pass needs.
 
 pub use symlinks::symlink_hoisted_dependencies;
@@ -55,7 +55,7 @@ pub struct HoistGraphNode {
     pub name: PkgName,
     /// Children indexed by alias (the name they're linked under in the
     /// parent's `node_modules`). For npm-alias entries the alias and
-    /// the resolved package name diverge — the hoist pass keeps the
+    /// the resolved package name diverge, the hoist pass keeps the
     /// alias because that's what becomes the directory name in the
     /// hoisted location too.
     pub children: IndexMap<String, PackageKey>,
@@ -69,7 +69,7 @@ pub struct HoistGraphNode {
 
 /// Build the hoist graph from a v9 lockfile's `snapshots:` + `packages:`.
 ///
-/// Skips snapshots whose metadata key isn't in `packages` — same
+/// Skips snapshots whose metadata key isn't in `packages`, same
 /// degraded behaviour as [`crate::deps_graph::build_deps_graph`]; the
 /// hoist pass won't see the missing snapshot.
 ///
@@ -115,7 +115,7 @@ pub fn build_hoist_graph_with_max_length(
 ///
 /// Outer key is the importer id (`"."` for the root project). Inner
 /// map is alias → snapshot key,
-/// preserving npm-alias semantics — the alias is the directory name
+/// preserving npm-alias semantics, the alias is the directory name
 /// linked under the project's `node_modules`, and the snapshot key
 /// resolves where the link points.
 pub type DirectDepsByImporter = IndexMap<String, IndexMap<String, PackageKey>>;
@@ -265,7 +265,7 @@ fn snapshot_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
             .collect();
         dep_entries.sort_by_cached_key(|entry| entry.0.to_string());
         for (alias, dep_ref) in dep_entries {
-            // `dep_ref.resolve` is `None` for `link:` deps —
+            // `dep_ref.resolve` is `None` for `link:` deps,
             // workspace siblings that live outside the virtual
             // store, which are skipped here.
             if let Some(child) = dep_ref.resolve(alias) {
@@ -309,7 +309,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     pass.hoist_root_dependencies();
     // `hoist-workspace-packages`: consider each named workspace project
     // for hoisting after every importer's direct deps (v11 merges the
-    // names into the root children as the LOWEST-precedence entries —
+    // names into the root children as the LOWEST-precedence entries,
     // any direct dep wins the alias) but before depth-0 transitives.
     let mut workspace_packages_done = false;
     for entry in &entries {
@@ -485,7 +485,7 @@ impl<'a> HoistPass<'a> {
             .entry(child_node_id.clone())
             .or_default()
             .insert(alias.to_owned(), hoist_kind);
-        // From here on we need the node — bail if missing or skipped.
+        // From here on we need the node, bail if missing or skipped.
         // Note we do NOT claim the alias in that case, so a later
         // sibling with the same alias still gets a chance.
         let Some(node) = self.input.graph.get(child_node_id) else { return };

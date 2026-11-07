@@ -64,8 +64,8 @@ pub(crate) fn check_importer_satisfies(
         })?;
 
     // Apply `pnpm.overrides` to a *cloned* manifest before the
-    // per-importer specifier check so the lockfile's specifiers —
-    // written with overrides already applied — match the on-disk
+    // per-importer specifier check so the lockfile's specifiers,
+    // written with overrides already applied, match the on-disk
     // manifest's deps. The caller's manifest stays pristine since the
     // override pass conceptually returns a new manifest
     // from the perspective of every consumer downstream of the
@@ -87,7 +87,7 @@ pub(crate) fn check_importer_satisfies(
     // `manifest.optionalDependencies` and delete matches from BOTH the
     // `optional` and `dependencies` maps. A name only present in
     // `dependencies` that happens to match the
-    // pattern is NOT removed — set-based ("name was in
+    // pattern is NOT removed, set-based ("name was in
     // optionalDependencies AND matched") rather than pure pattern
     // matching. `devDependencies` is untouched on purpose; the group
     // gate inside `satisfies_package_manifest` enforces that.

@@ -321,8 +321,8 @@ fn a_configured_pnpmfile_that_is_missing_names_itself() {
 
 /// A configured path that names no module extension is checked with `.cjs`
 /// appended, the way pnpm's `pnpmFileExistsSync` does. Such a path is present,
-/// so whatever happens next is an execution failure — `require` resolves
-/// `.js`/`.json`/`.node` but not `.cjs` — and reporting it as a missing file
+/// so whatever happens next is an execution failure, `require` resolves
+/// `.js`/`.json`/`.node` but not `.cjs`, and reporting it as a missing file
 /// would blame the setting for a pnpmfile that is right there on disk.
 #[test]
 fn an_extensionless_configured_pnpmfile_is_not_reported_as_missing() {

@@ -45,7 +45,7 @@ enum CachedRow {
 
 /// Reconstruct a package's `{filename → CAFS path}` map from the
 /// `SQLite` store index instead of the network. `Ok(None)` on any doubt
-/// — no index, no row, unreadable row, failed integrity check — leaving
+///no index, no row, unreadable row, failed integrity check, leaving
 /// the caller to download.
 ///
 /// `verify_store_integrity` matches pnpm's flag of the same name, and
@@ -85,7 +85,7 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
     let row = match result {
         Ok(row) => row,
         Err(error) => {
-            // `JoinError` — the blocking task panicked, or the runtime was
+            // `JoinError`, the blocking task panicked, or the runtime was
             // cancelled mid-install. Degrade to a cache miss so the caller
             // falls through to a fresh download, but surface the error so
             // the panic / cancellation stays diagnosable.
@@ -172,7 +172,7 @@ fn cached_row(
         // Per-file reason (filename, CAS path, size mismatch, hash
         // mismatch, ...) is logged at `debug!` inside
         // `check_pkg_files_integrity` / `build_file_maps_from_index`
-        // where the failure actually happens — this caller-side log
+        // where the failure actually happens, this caller-side log
         // just summarises "the row as a whole didn't verify" so log
         // scrapers can correlate the per-file debug lines with the
         // snapshot they belong to.
@@ -209,7 +209,7 @@ fn resolve_cached_row_bins(
 /// A poisoned mutex is treated as a cache miss rather than propagating the
 /// panic: the `SELECT` is stateless, so the prior panic couldn't have left
 /// the index in an inconsistent shape, and cache lookups are a best-effort
-/// hint anyway — failing over to a fresh download is the more resilient
+/// hint anyway, failing over to a fresh download is the more resilient
 /// default than turning every subsequent snapshot into a crash.
 fn read_row(index: &SharedReadonlyStoreIndex, cache_key: &str) -> Option<PackageFilesIndex> {
     pnpm_store_dir::StoreIndex::get_shared(index, cache_key).ok().flatten()
@@ -265,8 +265,8 @@ pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>
 /// Read every requested row's undecoded bytes, holding the store-index
 /// mutex for the `SELECT` loop alone.
 ///
-/// Decoding is the dominant cost once rows carry a `manifest` — a
-/// nested JSON tree per row, across ~1k rows on a real lockfile — so it
+/// Decoding is the dominant cost once rows carry a `manifest`, a
+/// nested JSON tree per row, across ~1k rows on a real lockfile, so it
 /// stays outside the guard, leaving concurrent readers to wait only on
 /// the queries. `get_many_raw` batches those into one round-trip per
 /// `GET_MANY_CHUNK` rather than one per key, which is what makes a

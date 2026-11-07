@@ -112,7 +112,7 @@ interface RemoveConsumedIntentsOptions {
 /**
  * An intent file is deletable once every project it names has a consumed
  * ledger entry for it, with one exemption: while a project is still on a
- * lane, entries against prerelease versions alone keep the file alive — its
+ * lane, entries against prerelease versions alone keep the file alive, its
  * prose is still needed to compose the stable changelog section at
  * graduation. Declined (`none`) entries demand no release and never block
  * deletion. References here were already validated by the plan assembly,
@@ -168,7 +168,7 @@ function consumptionChecker ({ refs, consumptionOf, laneDirs }: ConsumptionCheck
  * Confirms the parked sections whose releases the registry reports published
  * with that section, deletes those section files (their prose now lives in the
  * published tarball), and returns the subset of `ledger` those confirmations
- * cover — the consumed ledger that gates intent deletion. Driven by the parked
+ * cover, the consumed ledger that gates intent deletion. Driven by the parked
  * files rather than the ledger, so a dependency-propagated release (which has a
  * section but no consumed intents, hence no ledger entry) still gets its
  * section collected. Every parked file belongs to an as-yet-unpublished

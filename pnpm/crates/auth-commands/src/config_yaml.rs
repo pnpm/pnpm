@@ -133,8 +133,9 @@ fn auth_without(root: &Map<String, Value>, registry: &str, scope: &str) -> Optio
 /// Route `scope` to `registry`, in whichever of the setting's two shapes the
 /// document already uses.
 ///
-/// The shapes cannot be mixed in one map — the reader rejects a `registries`
-/// that does — so a document already written as `<scope>: <url>` entries is
+/// The shapes cannot be mixed in one map. The reader rejects a `registries`
+/// map that mixes them. A document already written as `<scope>: <url>`
+/// entries is
 /// extended in that shape rather than converted.
 ///
 /// A scope reaches one registry: the reader refuses a `registries` that

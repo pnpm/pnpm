@@ -182,7 +182,7 @@ function resolveFilesIndexFile ({ createOpts, ignoredBuild, opts, requiresPrepar
  *
  * Every interpolated value is untrusted: a lockfile URL can carry `user:pass@`
  * credentials, and git echoes it back through stderr. Only the values go
- * through {@link redactAndSanitize} — it strips control characters, which would
+ * through {@link redactAndSanitize}, it strips control characters, which would
  * collapse the deliberately multi-line hint.
  */
 function gitFetchError (err: Error, repo: string, pkgName?: string): PnpmError {
@@ -211,7 +211,7 @@ function gitFailureDetail (err: Error): string {
  *
  * A lockfile written before pnpm v11.21 could record an SSH URL for a dependency
  * whose specifier never asked for SSH, and resolution is skipped while that
- * lockfile stays up to date — so the entry survives the upgrade that fixed it and
+ * lockfile stays up to date, so the entry survives the upgrade that fixed it and
  * the install keeps failing wherever no SSH key is configured.
  */
 function sshRemediationHint (repo: string, pkgName?: string): string | undefined {

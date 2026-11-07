@@ -138,7 +138,7 @@ async fn collect_returns_data_for_all_violations() {
 
 /// Pacquet's `Lockfile` keeps `packages:` keyed by the bare
 /// `react@17.0.2` already, so the duplicate would have to live in
-/// `snapshots:` — which today's collector doesn't walk.
+/// `snapshots:`, which today's collector doesn't walk.
 #[tokio::test]
 async fn one_packages_entry_yields_one_verification() {
     use std::sync::atomic::{AtomicUsize, Ordering};

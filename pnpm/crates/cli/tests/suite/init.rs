@@ -258,7 +258,7 @@ fn a_new_workspace_member_is_not_pinned() {
 }
 
 /// Every other command run from a plain subdirectory of a project acts on
-/// the project, but `init` scaffolds where the user stands — otherwise
+/// the project, but `init` scaffolds where the user stands, otherwise
 /// there would be no way to start a package inside an existing one.
 #[test]
 fn init_scaffolds_in_the_cwd_inside_an_existing_project() {

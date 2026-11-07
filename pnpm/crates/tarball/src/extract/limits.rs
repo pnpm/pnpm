@@ -301,8 +301,8 @@ fn rejected_entry_path_error(error: RejectedEntryPathError) -> TarballError {
 /// instead of silently landing outside the store.
 ///
 /// An entry that is only one segment long keeps that segment. Such an
-/// entry sits at the archive root — beside `package/`, or in a flat
-/// archive with no wrapping directory at all — so there is no
+/// entry sits at the archive root, beside `package/`, or in a flat
+/// archive with no wrapping directory at all, so there is no
 /// top-level directory on it to drop, and pnpm keys it by its own name
 /// (`parseString` in `parseTarball.ts` advances past the first
 /// separator, which a single segment has none of). Dropping the segment
@@ -338,8 +338,8 @@ pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError
 ///
 /// `\` is treated as a separator, as pnpm does before it validates
 /// (`parseTarball.ts`). Without that, a Windows-built entry keeps its
-/// backslashes verbatim on Unix — where they are ordinary filename
-/// characters — and the resulting key travels through the `index.db`
+/// backslashes verbatim on Unix, where they are ordinary filename
+/// characters, and the resulting key travels through the `index.db`
 /// both implementations share to a reader that *does* treat them as
 /// separators.
 ///

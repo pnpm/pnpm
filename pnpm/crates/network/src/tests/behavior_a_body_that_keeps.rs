@@ -88,7 +88,7 @@ fn default_network_concurrency_stays_within_floor_and_cap() {
 }
 
 /// A redirect to a host the guard rejects must fail the request before the
-/// off-allowlist target is ever contacted — the redirect SSRF boundary.
+/// off-allowlist target is ever contacted, the redirect SSRF boundary.
 #[tokio::test]
 async fn redirect_guard_blocks_off_allowlist_redirect_target() {
     let mut server = mockito::Server::new_async().await;

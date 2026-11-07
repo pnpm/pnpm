@@ -46,7 +46,7 @@ pub enum CheckGlobalBinDirError {
 ///
 /// `path_env` is the value of `PATH` (the caller reads it so this stays
 /// testable). When `should_allow_write` is set, the directory must also
-/// exist and be writable — pnpm enforces this for every command except
+/// exist and be writable, pnpm enforces this for every command except
 /// `root` and `prefix`, which only print a path.
 pub fn check_global_bin_dir(
     global_bin_dir: &Path,
@@ -116,7 +116,7 @@ fn dirs_equal(dir1: &Path, dir2: &Path) -> bool {
 }
 
 /// Collapse `.` / `..` / redundant separators without touching the
-/// filesystem (it never resolves symlinks — neither does Node's
+/// filesystem (it never resolves symlinks, neither does Node's
 /// `path.relative`).
 fn lexically_normalize(path: &Path) -> PathBuf {
     use std::path::Component;

@@ -3,7 +3,7 @@
 //! Each test sets up a workspace with a `package.json`, lets pnpm
 //! generate the lockfile against the registry mock, then runs
 //! `pacquet install --frozen-lockfile`. The frozen-lockfile path is
-//! the only path that runs the hoist algorithm — without-lockfile
+//! the only path that runs the hoist algorithm, without-lockfile
 //! returns an empty `HoistedDependencies` map by design (no graph to
 //! walk; the lockfile is the source of the snapshot graph).
 //!
@@ -62,7 +62,7 @@ fn write_manifest(workspace: &Path, deps: serde_json::Value) {
 /// TS: `hoisting should not create a broken symlink to a skipped optional
 /// dependency` (`hoist.ts:540`): with `publicHoistPattern: '*'`, neither
 /// the skipped platform-incompatible optional nor its dependency may
-/// appear — as a working or dangling symlink — at either hoist target, on
+/// appear, as a working or dangling symlink, at either hoist target, on
 /// the fresh install and on the frozen reinstall.
 #[test]
 fn hoisting_skips_broken_symlink_for_skipped_optional() {
@@ -273,7 +273,7 @@ fn private_hoist_links_bins() {
     drop((root, mock_instance));
 }
 
-/// Public hoist of an alias whose target package declares a bin —
+/// Public hoist of an alias whose target package declares a bin,
 /// the bin should land in `<root>/node_modules/.bin/` (linked by the
 /// existing direct-deps bin pass, not by [`link_hoisted_bins`]).
 #[test]
@@ -322,7 +322,7 @@ fn public_hoist_bin_is_linked_via_root_bin_dir() {
 /// [#11871](https://github.com/pnpm/pnpm/issues/11871).
 ///
 /// Uses `@pnpm.e2e/hello-world-js-bin-parent` (a direct dep) which
-/// pulls in `@pnpm.e2e/hello-world-js-bin` as a transitive — under
+/// pulls in `@pnpm.e2e/hello-world-js-bin` as a transitive, under
 /// the hoisted linker both land at the top level as real dirs.
 #[test]
 fn fresh_install_hoisted_node_linker_lands_real_directories() {
@@ -368,7 +368,7 @@ fn fresh_install_hoisted_node_linker_lands_real_directories() {
     // The hoisted linker writes no virtual-store slot directories.
     // (`node_modules/.pnpm` itself may exist to hold the current
     // `lock.yaml`, matching pnpm, but no per-package slot is laid
-    // down — that's the isolated linker's shape.)
+    // down, that's the isolated linker's shape.)
     assert!(
         !workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin@1.0.0").exists(),
         "hoisted linker must not materialize a virtual-store slot for the package",
@@ -931,7 +931,7 @@ fn should_add_extra_node_paths_to_command_shims() {
          ({hoisted_modules_entry}):\n{shim}",
     );
 
-    // The fresh install's own `packages:` rows must record `hasBin` —
+    // The fresh install's own `packages:` rows must record `hasBin`,
     // the bin linker's slot short-circuit trusts them on this very
     // install, before any save/load round-trip.
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));

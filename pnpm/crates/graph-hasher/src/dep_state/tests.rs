@@ -321,7 +321,7 @@ fn graph_hash(graph: &HashMap<String, DepsGraphNode<String>>, key: &str) -> Stri
     calc_dep_graph_hash(graph, &mut HashMap::new(), &key.to_string())
 }
 
-/// `a` sits in two cycles at once — `a` ↔ `b` and `a` ↔ `m`.
+/// `a` sits in two cycles at once, `a` ↔ `b` and `a` ↔ `m`.
 fn two_cycle_graph() -> HashMap<String, DepsGraphNode<String>> {
     graph_of([
         ("a", node("a", &[("m", "m"), ("z", "z"), ("b", "b")])),

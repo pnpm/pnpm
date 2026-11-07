@@ -103,7 +103,7 @@ impl NpmrcAuth {
     /// and values are resolved via the [`EnvVar`] capability; unresolved
     /// placeholders (no env value and no `${VAR:-default}` fallback) are
     /// substituted with `""` and surfaced as warnings. Leaving the literal
-    /// `${VAR}` in an auth value would otherwise be sent verbatim — most
+    /// `${VAR}` in an auth value would otherwise be sent verbatim, most
     /// damagingly as a bearer auth token under OIDC trusted publishing
     /// (<https://github.com/pnpm/pnpm/issues/11513>).
     ///
@@ -292,7 +292,7 @@ impl NpmrcAuth {
             "http-proxy" => self.proxy.http = Some(value.to_string()),
             "proxy" => self.proxy.legacy = Some(value.to_string()),
             "no-proxy" | "noproxy" => self.proxy.bypass = Some(value.to_string()),
-            // Repeated `ca=` lines accumulate — multiple values arrive as
+            // Repeated `ca=` lines accumulate, multiple values arrive as
             // repeated keys in INI.
             "ca" => self.tls.ca.push(value.to_string()),
             "cafile" => self.tls.cafile = Some(resolve_cafile(value.to_string(), npmrc_dir)),

@@ -122,7 +122,7 @@ pub fn read_file_permissions(file: &fs::File) -> io::Result<CopyPermissions> {
 /// does not bring it into being.
 ///
 /// Everything after the creation goes through that one handle rather
-/// than the path — the bytes, the mode, and whatever `finish` does
+/// than the path, the bytes, the mode, and whatever `finish` does
 /// with it. A writer that swaps the dirent mid-copy therefore cannot
 /// redirect any of it onto a file elsewhere, the way re-opening
 /// `target_path` by name could. The mode is also supplied at creation,

@@ -54,7 +54,7 @@ export interface FetchVerifiedNodeShasumsFileCachedOpts extends FetchShasumsFile
  * embedded release keys: the cache directory is project-configurable, so a
  * pre-seeded entry must prove it is a genuine release body before it is
  * served. Any verification failure is a miss and the pair is refetched.
- * `shasumsUrl` must be version-pinned — a mutable URL must never be handed to
+ * `shasumsUrl` must be version-pinned, a mutable URL must never be handed to
  * the cache.
  */
 export async function fetchVerifiedNodeShasumsFileCached (
@@ -86,7 +86,7 @@ export async function fetchVerifiedNodeShasumsFileCached (
  * Like {@link fetchShasumsFile}, backed by the disk cache when `opts.cacheDir`
  * is given. For mirrors whose SHASUMS files carry no verifiable signature the
  * cached body is trusted exactly as far as the TLS fetch that produced it.
- * `shasumsUrl` must be version-pinned — a mutable URL must never be handed to
+ * `shasumsUrl` must be version-pinned, a mutable URL must never be handed to
  * the cache.
  */
 export async function fetchShasumsFileCached (

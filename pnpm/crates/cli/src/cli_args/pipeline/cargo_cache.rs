@@ -283,7 +283,7 @@ fn add_config_inputs(
 }
 
 /// The workspace's own packages, and the guarantee that each one's
-/// manifest lives inside the repository — a path dependency outside it
+/// manifest lives inside the repository, a path dependency outside it
 /// is an input the cache key cannot cover.
 fn local_packages_in_repo(metadata: &serde_json::Value, repo: &Path) -> io::Result<Vec<String>> {
     let canonical_repo = dunce::canonicalize(repo)?;

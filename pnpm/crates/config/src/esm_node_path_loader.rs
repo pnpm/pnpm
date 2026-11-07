@@ -18,7 +18,7 @@
 //! module syntax in them.
 //!
 //! The hook sources are identical copies of the ones the TypeScript CLI
-//! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`) — the two must
+//! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`), the two must
 //! stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
 
 use std::{fmt::Write, sync::LazyLock};
@@ -31,7 +31,7 @@ const markUnknownEntryPointAsCommonJs = (resolved, context) => isEntryPointUnkno
 /// Fallback for Node.js versions that have `module.register()` but not
 /// `module.registerHooks()` (>=18.19 <22.15): an off-thread hooks module
 /// for `module.register()`. Runtimes with neither API (`--import` parses
-/// from 18.18/19.0) get no hook at all — CJS `NODE_PATH` resolution still
+/// from 18.18/19.0) get no hook at all, CJS `NODE_PATH` resolution still
 /// works natively there. The retry goes through the default resolver with
 /// a synthetic parent inside each `NODE_PATH` entry, so the caller's
 /// export conditions (import vs require) are preserved; every entry pnpm
@@ -118,7 +118,7 @@ pub fn esm_node_path_loader_import_flag() -> &'static str {
 
 /// Percent-encodes everything outside the RFC 3986 unreserved set, exactly
 /// like the TypeScript side's `strictUriEncode`. Unlike JavaScript's
-/// `encodeURIComponent`, this also encodes `!` `'` `(` `)` `*` — the single
+/// `encodeURIComponent`, this also encodes `!` `'` `(` `)` `*`, the single
 /// quote in particular, which Node's `NODE_OPTIONS` tokenizer treats as a
 /// quote delimiter and would strip from the flag.
 fn strict_uri_encode(text: &str) -> String {

@@ -4,7 +4,7 @@
 //! with the invoked command's table and accepts any option anywhere on
 //! the command line: `pnpm --ignore-scripts --prod deploy <dir>` and
 //! `pnpm deploy --ignore-scripts --prod <dir>` are the same invocation
-//! (pnpm's release tooling relies on this — `bundle-deps.ts` passes
+//! (pnpm's release tooling relies on this, `bundle-deps.ts` passes
 //! install flags ahead of `deploy`). Clap instead scopes options to the
 //! level they are declared on, so an option owned by a subcommand aborts
 //! the parse with "unexpected argument" when it appears before the
@@ -95,8 +95,8 @@ pub(crate) fn find_positional(
 }
 
 /// [`find_positional`]'s scan with the stop reason kept: a caller that
-/// mirrors nopt — which strips the `--` terminator and treats what
-/// follows as positionals — needs to tell the terminator apart from
+/// mirrors nopt, which strips the `--` terminator and treats what
+/// follows as positionals, needs to tell the terminator apart from
 /// running out of argv (`None`).
 pub(crate) fn scan_for_positional(
     argv: &[OsString],

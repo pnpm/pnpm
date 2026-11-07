@@ -307,7 +307,7 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
 }
 
 /// The standard bearer token every test upstream uses, and the credential digest
-/// it produces — what a `RouteClass::Proxied` / `PrivateAccessDescriptor::Alias`
+/// it produces, what a `RouteClass::Proxied` / `PrivateAccessDescriptor::Alias`
 /// for such an upstream carries.
 const UPSTREAM_TOKEN: &str = "Bearer upstream-secret";
 
@@ -358,7 +358,7 @@ fn upstream_per_package_rules_gate_alias_selection() {
         RouteClass::Proxied { .. },
     ));
     // Bob holds registry-level access but the per-package rule denies him:
-    // no credential is handed out, matching the serving endpoint's denial —
+    // no credential is handed out, matching the serving endpoint's denial,
     // his anonymous fetch fails closed instead of warming a private cache.
     assert_eq!(context.classify(&user("bob"), url, Some("@corp/secret")), RouteClass::Public);
     // Other names on the registry stay proxied for bob.
@@ -600,7 +600,7 @@ fn overlapping_upstream_access_reuses_only_the_selected_alias() {
     assert!(via_primary.allows(&context, &user("alice")));
 
     // A lockfile routed through `secondary` must NOT be replayed for alice,
-    // even though she is authorized for it — she resolves through `primary`.
+    // even though she is authorized for it, she resolves through `primary`.
     let mut via_secondary = Footprint::default();
     via_secondary.add(PrivateAccessDescriptor::Alias {
         alias: "secondary".to_string(),

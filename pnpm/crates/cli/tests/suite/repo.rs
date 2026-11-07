@@ -1,4 +1,4 @@
-//! `pacquet repo` — open the repository URL of a package in the browser.
+//! `pacquet repo`, open the repository URL of a package in the browser.
 //!
 //! The URL-normalization logic is covered by
 //! the unit tests on `repository_to_web_url` / `pick_repo_url`; the full

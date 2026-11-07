@@ -73,7 +73,7 @@ fn skips_a_with_consumed_by_a_value_taking_option() {
 
 #[test]
 fn does_not_rewrite_with_current_inside_another_subcommand() {
-    // `with current` as data for another command must be left alone — only
+    // `with current` as data for another command must be left alone, only
     // `with` at the subcommand position is the sugar.
     for tokens in [
         vec!["exec", "with", "current", "install"],

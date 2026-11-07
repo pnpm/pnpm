@@ -157,7 +157,7 @@ pub(in super::super) async fn validate_staged_publish_name(
 }
 
 /// A publish whose document is computed and whose blobs are fully written to
-/// tmp slots — everything verified, nothing visible to readers yet.
+/// tmp slots, everything verified, nothing visible to readers yet.
 /// [`commit_publishes`](super::commit_publishes) makes it visible. Every surface stages into this, so
 /// one commit can carry packages of more than one ecosystem.
 pub(in super::super) struct StagedPublish {

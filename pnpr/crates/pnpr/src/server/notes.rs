@@ -1,8 +1,8 @@
 //! Release notes of hosted npm package versions:
 //!
-//! - `GET|PUT|DELETE {base}/{name}/{version}/notes` — one version's note.
+//! - `GET|PUT|DELETE {base}/{name}/{version}/notes`, one version's note.
 //!   `GET` also takes a dist-tag.
-//! - `GET {base}/{name}/-/notes` — the notes of every version, newest first.
+//! - `GET {base}/{name}/-/notes`, the notes of every version, newest first.
 //!
 //! A version note has the access rules of its package: reading it needs read
 //! access, writing it the package's `publish` rule. A version's publication

@@ -7,7 +7,7 @@ use super::{
 
 /// Line-level reconciliation of the block sequence `key` toward `items`,
 /// mirroring the TypeScript writer's node reuse: an entry whose value the
-/// list already holds keeps its lines verbatim — comments included — a value
+/// list already holds keeps its lines verbatim, comments included, a value
 /// new to the list is rendered as a fresh line, and lines no entry claims are
 /// dropped, where a whole-block re-render would drop every comment in the
 /// block. `None` when the block is not a plain block sequence matching
@@ -32,8 +32,8 @@ pub(super) fn reconcile_sequence_items(
 /// to it has to be written to match them.
 struct ItemLayout {
     /// One span per item, in document order. A span opens at the comment and
-    /// blank lines ahead of its item — the TypeScript writer attaches those
-    /// to the entry below, so pruning the entry above must leave them be —
+    /// blank lines ahead of its item, the TypeScript writer attaches those
+    /// to the entry below, so pruning the entry above must leave them be,
     /// and closes where the next span opens. The first span opens at its own
     /// line, since comments between the key and the list belong to no entry,
     /// and the last closes before the blank run that separates the block from
@@ -159,8 +159,8 @@ fn rebuild_items(
 
 /// Whether the sequence-item line `content` carries the whole of `entry`.
 ///
-/// A value that runs past its item line — a block scalar's body, a quoted
-/// scalar broken across lines — can hold blank and `#`-leading lines, which
+/// A value that runs past its item line, a block scalar's body, a quoted
+/// scalar broken across lines, can hold blank and `#`-leading lines, which
 /// the span logic would take for the comments of the entry below and drop
 /// with it, silently rewriting this entry's value. A `trustPolicyExclude`
 /// entry truncated that way can widen into the bare `*` that excludes every
@@ -175,7 +175,7 @@ fn holds_whole_value(content: &str, entry: &str) -> bool {
 
 /// The first line of the run of comment and blank lines immediately ahead of
 /// the item line at `idx`: the run belongs to the entry below it, so it opens
-/// that entry's span. Only valid while a structural line sits above the run —
+/// that entry's span. Only valid while a structural line sits above the run,
 /// the previous item, in the one caller.
 fn comment_run_start(all: &[Line<'_>], idx: usize) -> usize {
     let mut start = idx;

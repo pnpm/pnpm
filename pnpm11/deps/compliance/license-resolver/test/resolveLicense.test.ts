@@ -89,7 +89,7 @@ describe('resolveLicense', () => {
     expect(result?.name.split(' OR ').sort()).toEqual(['Apache-2.0', 'MIT'])
   })
 
-  // Precedence end-to-end — see pnpm/pnpm#11248.
+  // Precedence end-to-end, see pnpm/pnpm#11248.
   test('modern `license` wins over both legacy `licenses` and on-disk LICENSE', async () => {
     const dir = await tempDir()
     const licensePath = await writeLicenseFile(dir, 'LICENSE', 'Licensed under ISC')

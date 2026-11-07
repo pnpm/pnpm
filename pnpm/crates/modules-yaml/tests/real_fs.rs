@@ -40,7 +40,7 @@ fn read_preserves_absolute_virtual_store_dir() {
 /// the recovered absolute path is compared byte-for-byte against
 /// `Config::virtual_store_dir()`, and an unnormalized join
 /// (`<modules_dir>/../../...`) never matches the normalized config
-/// side — so the short-circuit silently misses every install whose
+/// side, so the short-circuit silently misses every install whose
 /// store lives outside the project.
 #[cfg(not(windows))]
 #[test]

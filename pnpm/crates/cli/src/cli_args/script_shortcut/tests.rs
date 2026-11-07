@@ -62,7 +62,7 @@ fn stop_fails_on_missing_script_without_if_present() {
 
 /// These tests drive `ScriptShortcutArgs::run` in-process, so the
 /// verify-deps-before-run gate must stay off: its `install` default
-/// would spawn `current_exe()` — the test harness binary — as the
+/// would spawn `current_exe()`, the test harness binary, as the
 /// installer. pnpm's unit tests equally construct their options
 /// without the setting.
 fn test_config() -> pnpm_config::Config {

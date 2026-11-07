@@ -40,7 +40,7 @@ impl Cell<'_> {
 /// dependencies. The generated tree is later copied into each cell.
 ///
 /// With `reuse`, an already-scaffolded template (a `<stack>/app` directory
-/// holding a `package.json`) is returned untouched — re-running a generator
+/// holding a `package.json`) is returned untouched, re-running a generator
 /// into a non-empty directory typically fails. Without it, the caller is
 /// expected to have wiped the work dir, so scaffolding starts clean.
 pub fn scaffold_template(
@@ -183,7 +183,7 @@ fn prepare_cell(
 /// `dangerouslyAllowAllBuilds` lets dependency build scripts run unattended
 /// (esbuild, etc.) so the build stage exercises a real, fully-built
 /// `node_modules` instead of stopping at an approval prompt. That is the
-/// point of an ecosystem run, not a security stance — these are throwaway
+/// point of an ecosystem run, not a security stance, these are throwaway
 /// projects scaffolded from pinned generators.
 fn write_workspace_yaml(cell_dir: &Path, project_dir: &Path, layout: Layout) -> Result<(), String> {
     let store_dir = cell_dir.join("store");
@@ -217,7 +217,7 @@ fn run_build_script(project_dir: &Path, script_name: &str, log_path: &Path) -> R
 
     // Absolute `/bin/sh`, not `sh`: the child's PATH is prepended with the
     // project's `node_modules/.bin`, and Rust resolves a bare program name
-    // against that child PATH — a dependency shipping a `.bin/sh` would
+    // against that child PATH, a dependency shipping a `.bin/sh` would
     // otherwise run in place of the system shell. The script the shell runs
     // still resolves framework bins from `.bin` via that PATH.
     let mut process = sandboxed_command("/bin/sh");
@@ -346,7 +346,7 @@ fn wait_until_serving(
         }
         // A 2xx/3xx means the server served the route through the installed
         // layout. A connection error or an HTTP error status is retried until
-        // the deadline — many dev servers briefly refuse connections or answer
+        // the deadline, many dev servers briefly refuse connections or answer
         // 4xx/5xx while warming up.
         let observation = match probe(port, serve.ready_path) {
             Ok(code) if (200..400).contains(&code) => return Ok(()),

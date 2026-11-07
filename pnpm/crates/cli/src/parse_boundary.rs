@@ -1,7 +1,7 @@
 //! Where pnpm stops parsing argv and starts forwarding it.
 //!
-//! Every pass that rewrites argv before clap sees it — [`ConfigOverrides::extract`]
-//! and [`expand_universal_shorthands`] — has to agree on this, or a token
+//! Every pass that rewrites argv before clap sees it, [`ConfigOverrides::extract`]
+//! and [`expand_universal_shorthands`], has to agree on this, or a token
 //! meant for a script gets claimed or rewritten on the way through
 //! (pnpm/pnpm#13302).
 //!
@@ -31,7 +31,7 @@ const COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE: [&str; 3] = ["run", "exec", "dlx"]
 ///
 /// pnpm has no command by these names: they reach `run` through the
 /// `pnpm <script>` fallback, so the boundary is the token right after the
-/// command name — there is no script name to skip, unlike `run`.
+/// command name, there is no script name to skip, unlike `run`.
 const SCRIPT_SHORTCUTS: [&str; 3] = ["test", "start", "stop"];
 
 /// Commands that prefix another command rather than taking arguments of
@@ -63,7 +63,7 @@ pub(crate) fn passthrough_from(argv: &[OsString]) -> Option<usize> {
 }
 
 /// Where a command's forwarded arguments begin, and whether that command
-/// is a script shortcut — the one shape whose arguments can *open* on a
+/// is a script shortcut, the one shape whose arguments can *open* on a
 /// `--`, since no script name precedes them.
 #[derive(Clone, Copy)]
 pub(crate) struct CommandBoundary {
@@ -166,7 +166,7 @@ fn subcommand_scan(
     Some(SubcommandScan::Resume(version + 1))
 }
 
-/// The long options — including aliases — that the command named in `argv`
+/// The long options, including aliases, that the command named in `argv`
 /// declares itself.
 ///
 /// A setting spelled like one of them belongs to the command: nopt merges
@@ -176,7 +176,7 @@ fn subcommand_scan(
 /// setting on). Empty when argv names no known command.
 ///
 /// The command is the one pnpm resolves, which is `add` for an `install`
-/// given a package name — see [`install_as_add`]. That rewrite runs after
+/// given a package name, see [`install_as_add`]. That rewrite runs after
 /// the settings are extracted, so resolving here the same way is what
 /// keeps `pnpm install <pkg> --offline` from reaching `add`'s grammar with
 /// an option only `install` declares.
@@ -221,8 +221,8 @@ pub(crate) fn subcommand_option_names(argv: &[OsString]) -> HashSet<&'static str
 
 /// The arity view the pre-clap passes share: the top-level grammar with
 /// every subcommand's options folded in, because the command is not known
-/// yet. Both halves of the union — a global lives on the top-level
-/// command, a command's own options on its subcommand — and both are
+/// yet. Both halves of the union, a global lives on the top-level
+/// command, a command's own options on its subcommand, and both are
 /// derived from the static [`grammar`], so the table is built once.
 pub(crate) fn union_arity() -> &'static ArgTable {
     static ARITY: std::sync::OnceLock<ArgTable> = std::sync::OnceLock::new();
@@ -314,7 +314,7 @@ fn long_option_width(long: &str, next: Option<&str>, arity: &ArgTable) -> usize 
         return 1;
     };
     // A setting spelled as a bare flag is stripped by
-    // [`ConfigOverrides::extract`], which computes this boundary — so clap
+    // [`ConfigOverrides::extract`], which computes this boundary, so clap
     // declares no arity for it and the setting table answers instead, with
     // the same next-token rule extraction applies.
     if crate::config_overrides::bare_boolean_setting_claims(name, next) {

@@ -118,13 +118,13 @@ pub struct FrozenLockfileInputs<'a> {
 
 #[derive(Clone, Copy)]
 pub struct FrozenProjectInputs<'a> {
-    /// Install root — the directory containing `pnpm-lock.yaml`.
+    /// Install root, the directory containing `pnpm-lock.yaml`.
     /// For a real workspace, this is the workspace root (the dir
     /// containing `pnpm-workspace.yaml`); for a single-project
     /// install, it's the project dir.
     ///
     /// Reporter envelopes (`pnpm:stage`, `pnpm:summary`, `pnpm:lifecycle`)
-    /// use [`requester`], a lossy-UTF-8 string view of this path —
+    /// use [`requester`], a lossy-UTF-8 string view of this path,
     /// per-importer events like `pnpm:root` use the importer's own
     /// `rootDir` instead. Filesystem operations that need the real
     /// path (the per-importer `node_modules/` write under
@@ -162,8 +162,8 @@ pub struct FrozenPlatformOptions<'a> {
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 
     /// When `true`, runtime dependencies (`node@runtime:`,
-    /// `deno@runtime:`, `bun@runtime:`) — i.e. packages whose
-    /// metadata resolution is `Binary` or `Variations` — are
+    /// `deno@runtime:`, `bun@runtime:`), i.e. packages whose
+    /// metadata resolution is `Binary` or `Variations`, are
     /// added to the install-time skip set and the rest of the
     /// install ignores them. Computed at the CLI layer from
     /// `config.skip_runtimes || --no-runtime`.
@@ -238,7 +238,7 @@ pub struct FrozenInstallSeed<'a> {
     pub node_version: Option<String>,
     pub skipped: Option<Vec<String>>,
     /// When set, replaces the local `resolution_verifiers` fan-out as the
-    /// trust verdict — used by the pnpr client to delegate verification to
+    /// trust verdict, used by the pnpr client to delegate verification to
     /// the server's `/-/pnpr/v0/verify-lockfile` while the fetch runs locally. The
     /// same concurrent sequencing and build gate apply.
     pub lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,

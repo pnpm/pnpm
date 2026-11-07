@@ -683,7 +683,7 @@ fn missing_pattern_directory_matches_nothing() {
 /// intact so the decision can be made at all.
 ///
 /// A regular file where the pattern expects a directory, rather than a
-/// `0o000` directory — the walk then fails for a reason no privilege level
+/// `0o000` directory, the walk then fails for a reason no privilege level
 /// can bypass, so the fixture holds even when the tests run as root.
 #[test]
 fn non_notfound_walk_failure_still_errors() {
@@ -867,8 +867,8 @@ fn pattern_climbing_past_the_filesystem_root_matches_nothing() {
     );
 }
 
-/// Workspaces do contain manifests written with a leading UTF-8 BOM —
-/// Vite ships one as the `utf8-bom-package` fixture — and discovery must
+/// Workspaces do contain manifests written with a leading UTF-8 BOM,
+/// Vite ships one as the `utf8-bom-package` fixture, and discovery must
 /// enumerate them rather than failing the whole walk.
 #[test]
 fn discovers_a_project_whose_manifest_starts_with_a_utf8_bom() {
@@ -939,8 +939,8 @@ fn a_named_dot_directory_does_not_exempt_a_recursive_wildcard() {
 }
 
 /// A manifest that fails to parse must fail the discovery, and with
-/// several broken the reported one is a function of the project list —
-/// the first in root order — not of read scheduling.
+/// several broken the reported one is a function of the project list,
+/// the first in root order, not of read scheduling.
 #[test]
 fn a_malformed_manifest_fails_discovery_deterministically() {
     let tmp = TempDir::new().unwrap();

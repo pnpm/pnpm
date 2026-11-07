@@ -127,8 +127,8 @@ fn bundled_package_dirs(
 
 /// Set-difference over file digests, and over modes where the host records them.
 ///
-/// `base`     — the pristine `PackageFilesIndex.files` map (pre-build).
-/// `current`  — the rehashed map produced by [`crate::add_files_from_dir()`].
+/// `base`    , the pristine `PackageFilesIndex.files` map (pre-build).
+/// `current` , the rehashed map produced by [`crate::add_files_from_dir()`].
 ///
 /// Off Unix [`crate::add_files_from_dir()`] reports a fixed mode, so a mode
 /// difference from `base` is not a change the build made. Those

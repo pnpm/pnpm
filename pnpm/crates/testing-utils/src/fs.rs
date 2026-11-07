@@ -194,7 +194,7 @@ pub fn set_mtime_ms(path: &Path, ms: i64) {
 }
 
 /// Set `path`'s mtime to `modified`, keeping whatever sub-millisecond
-/// precision the filesystem stores — the granularity [`set_mtime_ms`]
+/// precision the filesystem stores, the granularity [`set_mtime_ms`]
 /// cannot express, and the one a same-millisecond mtime collision needs.
 pub fn set_mtime(path: &Path, modified: SystemTime) {
     fs::OpenOptions::new()

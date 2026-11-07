@@ -1,6 +1,6 @@
 pub use pnpm_detect_libc::{host_arch, host_platform};
 
-/// Compute pnpm's `ENGINE_NAME` string — the same value pnpm uses
+/// Compute pnpm's `ENGINE_NAME` string, the same value pnpm uses
 /// as the side-effects cache key prefix.
 ///
 /// The format is `<platform>;<arch>;node<major>`, where `platform`
@@ -35,7 +35,7 @@ pub fn engine_name(node_major: u32, platform: Option<&str>, arch: Option<&str>) 
 ///   first `.`) isn't a parseable `u32`.
 ///
 /// Callers should fall back to either a sentinel cache key (which
-/// won't match any pnpm-written entry — safe) or skip the
+/// won't match any pnpm-written entry, safe) or skip the
 /// cache-read entirely when this returns `None`.
 #[must_use]
 pub fn detect_node_major() -> Option<u32> {
@@ -120,9 +120,9 @@ fn parse_node_version_output(stdout: &str) -> Option<u32> {
 /// pnpm's `'glibc' | 'musl' | null` (with `null` translated to
 /// `"unknown"` so the call site stays infallible):
 ///
-/// - `"musl"` — musl-based Linux.
-/// - `"glibc"` — glibc-based Linux.
-/// - `"unknown"` — non-Linux host (macOS, Windows, BSD, etc.) or
+/// - `"musl"`, musl-based Linux.
+/// - `"glibc"`, glibc-based Linux.
+/// - `"unknown"`, non-Linux host (macOS, Windows, BSD, etc.) or
 ///   detection failure. `check_platform` treats this as "skip libc
 ///   constraint".
 ///

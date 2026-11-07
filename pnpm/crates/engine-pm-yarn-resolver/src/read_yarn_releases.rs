@@ -268,7 +268,7 @@ fn variant_url(variant: &PlatformAssetResolution) -> &str {
 }
 
 /// The `sha256-<base64>` form of a release API `digest`, which is
-/// `sha256:<hex>`. `None` for any other algorithm or a malformed digest —
+/// `sha256:<hex>`. `None` for any other algorithm or a malformed digest,
 /// such an asset is skipped rather than installed unverified.
 fn sha256_digest_to_sri(digest: &str) -> Option<String> {
     sha256_hex_to_sri(digest.strip_prefix("sha256:")?)

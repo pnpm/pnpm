@@ -246,7 +246,7 @@ export interface ResolutionVerifier {
  * every active verifier on the freshly-resolved tree and either prompts
  * the user, persists them (e.g. into `minimumReleaseAgeExclude`), or
  * aborts. Code is the verifier-defined error code
- * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, etc.) — the
+ * (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, etc.), the
  * install command filters by code to decide downstream UX.
  */
 export interface ResolutionPolicyViolation {
@@ -285,7 +285,7 @@ export function resolvePlatformSelector (
 
 /**
  * Pick the variant whose target matches the given selector, or `undefined` if
- * none does. A variant with no `libc` represents the "default" build — glibc on
+ * none does. A variant with no `libc` represents the "default" build, glibc on
  * Linux, irrelevant on macOS/Windows. A non-default libc (e.g. `musl`) is a
  * separate, non-interchangeable artifact; an exact libc match is required in
  * that case so the glibc/default variant doesn't silently win (its `target.libc`
@@ -356,7 +356,7 @@ export interface ResolveResult {
    * can react to.
    *
    * `resolution` on the violation is the same `resolution` field
-   * above — supplied for symmetry with `ResolutionPolicyViolation`
+   * above, supplied for symmetry with `ResolutionPolicyViolation`
    * entries that flow out of `verifyLockfileResolutions` for
    * lockfile-only paths.
    */
@@ -481,7 +481,7 @@ export type ResolveFunction = (wantedDependency: WantedDependency & { optional?:
 /**
  * Input to a resolver's `resolveLatest` function. The resolver decides
  * whether it owns this dep purely from `wantedDependency` (its alias and
- * manifest specifier) — the lockfile-resolved ref is the caller's
+ * manifest specifier), the lockfile-resolved ref is the caller's
  * concern, not the resolver's.
  */
 export interface LatestQuery {
@@ -492,7 +492,7 @@ export interface LatestQuery {
 /**
  * Result of a resolver's `resolveLatest` call.
  *
- * - `undefined` means "this resolver does not handle this dep — try
+ * - `undefined` means "this resolver does not handle this dep, try
  *   the next one".
  * - An object (even without a `latestManifest`) means "I claim this
  *   dep, but I can't tell you what's latest" (e.g. policy blocked,

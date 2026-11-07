@@ -61,7 +61,7 @@ pub(super) fn workspace_shadow_pick(
 /// matches.
 ///
 /// A store-manifest peek, once pacquet grows one, has to run before this fast
-/// path — the TypeScript counterpart
+/// path, the TypeScript counterpart
 /// (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
 pub(super) fn prefer_workspace_pick(
     workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
@@ -120,7 +120,7 @@ pub(super) fn wanted_spec(
 
 /// Whether a latest-version lookup should report "no latest" instead of
 /// failing. `minimumReleaseAge` filters the packument before the pick, so
-/// every published version can be too young to match — a policy outcome the
+/// every published version can be too young to match, a policy outcome the
 /// caller renders as "nothing to update to", not an error.
 pub(crate) fn swallowed_as_no_latest(err: &ResolveError, opts: &ResolveOptions) -> bool {
     opts.policy.published_by.is_some() && err.is::<NoMatchingVersionError>()

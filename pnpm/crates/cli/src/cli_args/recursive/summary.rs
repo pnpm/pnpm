@@ -4,7 +4,7 @@ use super::{Context, IndexMap, IntoDiagnostic, Path, Serialize};
 ///
 /// The per-task map is nested under an `executionStatus` key. Keys are
 /// project directories, `#`-qualified with the task name for tasks other
-/// than the one the invocation named — see `task_summary_key`.
+/// than the one the invocation named, see `task_summary_key`.
 pub fn write_recursive_summary(
     dir: &Path,
     summary: &IndexMap<String, ExecutionStatus>,

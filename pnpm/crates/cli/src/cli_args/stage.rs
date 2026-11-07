@@ -1,9 +1,9 @@
-//! `pacquet stage` — stage packages for publishing, deferring
+//! `pacquet stage`, stage packages for publishing, deferring
 //! proof-of-presence (2FA) approval to a later point in time.
 //!
 //! `stage publish` runs the regular publish pipeline (packing, lifecycle
 //! scripts, OIDC/OTP) against the registry's staging endpoint; the remaining
-//! subcommands — `list`, `view`, `approve`, `reject`, `download` — talk to
+//! subcommands, `list`, `view`, `approve`, `reject`, `download`, talk to
 //! the registry's `-/stage` API directly.
 
 pub use registry::StageRegistryError;
@@ -192,7 +192,7 @@ impl StageArgs {
         }
     }
 
-    /// `stage publish` — the regular publish pipeline against the staging
+    /// `stage publish`, the regular publish pipeline against the staging
     /// endpoint, rendered as `+ <pkg> (staged with id <id>)` lines or a
     /// name-keyed JSON object.
     async fn stage_publish<Reporter: self::Reporter>(
@@ -229,7 +229,7 @@ impl StageArgs {
         Ok(Some(lines.join("\n")))
     }
 
-    /// `stage list [<package-spec>]` — every staged version, paginated.
+    /// `stage list [<package-spec>]`, every staged version, paginated.
     async fn stage_list(&self, config: &Config) -> miette::Result<Option<String>> {
         let package_filter = parse_package_filter(self.params.get(1))?;
         let context = self.stage_context(config, package_filter.as_deref())?;
@@ -251,7 +251,7 @@ impl StageArgs {
         Ok(Some(rendered.join("\n\n")))
     }
 
-    /// `stage view <stage-id>` — one staged version's metadata.
+    /// `stage view <stage-id>`, one staged version's metadata.
     async fn stage_view(&self, config: &Config) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "view")?;
         let context = self.stage_context(config, None)?;
@@ -265,7 +265,7 @@ impl StageArgs {
         Ok(Some(render_stage_item(&item)))
     }
 
-    /// `stage reject <stage-id>` — permanently delete the staged version.
+    /// `stage reject <stage-id>`, permanently delete the staged version.
     async fn stage_reject<Reporter: self::Reporter>(
         &self,
         config: &Config,
@@ -287,7 +287,7 @@ impl StageArgs {
         Ok(Some(format!("Staged package {stage_id} has been rejected.")))
     }
 
-    /// `stage download <stage-id>` — fetch the staged tarball into `dir` and
+    /// `stage download <stage-id>`, fetch the staged tarball into `dir` and
     /// print its summary.
     async fn stage_download(&self, dir: &Path, config: &Config) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "download")?;

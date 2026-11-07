@@ -92,7 +92,7 @@ fn cyclic_slot_suffixes() -> Vec<(String, String)> {
     );
     let (snapshots, packages) = cyclic_snapshots();
     // An empty policy allows no builds, which makes every snapshot hash
-    // engine-agnostically — the digests below then hold on any host.
+    // engine-agnostically, the digests below then hold on any host.
     let policy = crate::AllowBuildPolicy::default();
     let layout = VirtualStoreLayout::new(
         &config,

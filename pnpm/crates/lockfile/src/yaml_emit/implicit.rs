@@ -124,7 +124,7 @@ fn integer_form_matches(body: &str) -> bool {
             .count();
         cursor = &rest[frac_len..];
     }
-    // ([eE][-+]?[0-9]+)? — and nothing left over.
+    // ([eE][-+]?[0-9]+)?, and nothing left over.
     exponent_consumes_all(cursor)
 }
 

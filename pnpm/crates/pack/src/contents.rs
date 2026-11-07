@@ -63,7 +63,7 @@ pub(super) fn inject_workspace_license(
         // fail the later read/size pass with "Is a directory", and a
         // symlink could point outside the workspace and leak its target's
         // bytes into the published tarball. `DirEntry::file_type` does not
-        // follow symlinks, so `is_file()` rejects both — matching the
+        // follow symlinks, so `is_file()` rejects both, matching the
         // symlink-skipping `read_readme_file` does in `exportable-manifest`.
         if entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
             files_map.insert(format!("package/{name}"), workspace_dir.join(&name));

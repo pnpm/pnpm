@@ -43,7 +43,7 @@ pub(crate) async fn handle_verify_lockfile(
     };
     // Verifier packument fetches run under the same route hook, so they
     // select the same pnpr-managed credentials and are recorded in the
-    // same footprint as a resolve would be — a verifier can't read or
+    // same footprint as a resolve would be, a verifier can't read or
     // populate a cache scope a resolve wouldn't.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
@@ -81,7 +81,7 @@ pub(super) enum VerifyFailure {
 
 /// Verify the client's input lockfile under the client's policy. On a
 /// clean pass returns the [`ObservedDistStats`] the verifier
-/// collected — `None` when the whole-lockfile verdict cache satisfied
+/// collected, `None` when the whole-lockfile verdict cache satisfied
 /// the check without a fan-out (no metadata was fetched, so no sizes
 /// exist). On a policy violation returns the rendered violations so
 /// the caller can deliver them to the client. A build-verifiers
@@ -116,7 +116,7 @@ pub(super) async fn verify_input_lockfile(
     }
 
     // A transport failure verifying an entry (the upstream registry couldn't be
-    // reached/authorized) is a gateway error, not a policy violation — surface
+    // reached/authorized) is a gateway error, not a policy violation, surface
     // the registry's own (credential-redacted) message to the client.
     let violations = match collect_resolution_policy_violations(lockfile, &verifiers, None).await {
         Ok(violations) => violations,
@@ -139,7 +139,7 @@ pub(super) async fn verify_input_lockfile(
 
 /// Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
 /// already passed under a policy we still trust skips the whole fan-out
-/// (the dominant win for a shared pnpr — CI re-runs, a fleet building
+/// (the dominant win for a shared pnpr, CI re-runs, a fleet building
 /// the same repo).
 pub(super) fn past_verdict_trusted(
     runtime: &Resolver,
@@ -181,7 +181,7 @@ pub(super) fn render_violations(
 
 /// Merge every active verifier's policy snapshot into one bag, the key
 /// the verdict cache stores alongside the lockfile hash. Later verifiers
-/// overwrite earlier ones on a shared key — mirrors the local cache's
+/// overwrite earlier ones on a shared key, mirrors the local cache's
 /// [`merge_policies`] so a verdict recorded here is comparable to one the
 /// client's own cache would write.
 pub(super) fn merge_policies(

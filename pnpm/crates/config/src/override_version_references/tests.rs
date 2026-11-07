@@ -41,7 +41,7 @@ fn a_reference_resolves_to_the_specifier_of_a_direct_dependency() {
     );
 }
 
-/// The selector a reference is attached to is irrelevant — `$name`
+/// The selector a reference is attached to is irrelevant, `$name`
 /// names the dependency to copy the specifier from, not the dependency
 /// being overridden.
 #[test]

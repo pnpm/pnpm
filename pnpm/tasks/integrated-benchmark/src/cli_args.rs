@@ -15,7 +15,7 @@ pub struct CliArgs {
     /// Diagnostic: run every `pnpr` mock/server with
     /// `RUST_LOG=pnpr::serve_timing=debug` so each serve emits per-phase timing
     /// (upstream fetch vs cache read) into its log. Isolates server-side serve
-    /// cost from the client's filesystem/link noise — useful for cold-store perf
+    /// cost from the client's filesystem/link noise, useful for cold-store perf
     /// questions. Adds logging overhead, so it skews the measured means; enable
     /// only for a diagnostic run, not a baseline.
     #[clap(long)]
@@ -112,7 +112,7 @@ pub struct NetworkOptions {
     /// clients' tarball fetches, so tarballs take the time they would over
     /// a real connection instead of being free on loopback. Loopback serves
     /// at ~GB/s; the public npm registry measured ~190 Mbit/s (~24 MB/s)
-    /// peak on a fast link, and typical home/CI links are 50–200 Mbit/s.
+    /// peak on a fast link, and typical home/CI links are 50 to 200 Mbit/s.
     /// Pairs with `--registry-latency-ms` (latency dominates small
     /// packages, bandwidth dominates large ones). `0` leaves the registry
     /// at loopback speed; ignored with
@@ -130,7 +130,7 @@ pub struct NetworkOptions {
     pub registry_slow_start: bool,
 }
 
-/// A benchmark target — a specific revision of pacquet or pnpm to build
+/// A benchmark target, a specific revision of pacquet or pnpm to build
 /// and measure.
 #[derive(Debug, Clone)]
 pub struct TargetSpec {
@@ -229,7 +229,7 @@ pub enum BenchmarkScenario {
     /// client must re-resolve the whole tree (cold packument cache → a
     /// fetch waterfall over the registry link) but every tarball is
     /// already in the store, so no download dominates and hides it. This
-    /// is the scenario that exposes pnpr's core win — a direct install
+    /// is the scenario that exposes pnpr's core win, a direct install
     /// pays the full cold resolution while pnpr offloads it to its warm
     /// server.
     #[value(name = "isolated-linker.fresh-install.cold-cache.hot-store")]
@@ -258,7 +258,7 @@ pub enum BenchmarkScenario {
     /// `pnpm-lock.yaml` removed per iteration, so every timed run
     /// re-resolves the whole tree from the on-disk packument mirror.
     /// With no network and no materialization, mirror reads and
-    /// packument parsing dominate — the series that guards offline /
+    /// packument parsing dominate, the series that guards offline /
     /// prefer-offline resolution (e.g. the disk-to-memory metadata
     /// promotion). The measured command can't prime the mirror itself
     /// (`--offline` fails on a cold one), so an online pre-warm pass
@@ -316,7 +316,7 @@ pub struct Cleanup {
     /// Paths in the bench dir to `rm -rf` before each iteration.
     pub remove: &'static [&'static str],
     /// `(dst, src)` pairs (relative to the bench dir) to `cp` before
-    /// each iteration — restores files the install mutates.
+    /// each iteration, restores files the install mutates.
     pub restore: &'static [(&'static str, &'static str)],
 }
 
@@ -444,8 +444,8 @@ impl BenchmarkScenario {
         match self {
             // `cache-dir` (the packument-metadata mirror) is wiped
             // alongside `store-dir` so a direct fresh install pays the
-            // full cold resolution — fetching every packument over the
-            // emulated registry link — which is precisely the cost pnpr
+            // full cold resolution, fetching every packument over the
+            // emulated registry link, which is precisely the cost pnpr
             // offloads to its warm server. Without this the mirror
             // stays warm and direct ≈ pnpr.
             Self::IsolatedFreshInstallColdCacheColdStore => Cleanup::new(
@@ -468,7 +468,7 @@ impl BenchmarkScenario {
                 Cleanup::new(&["node_modules"], &[SAVED_LOCKFILE])
             }
             // A repeat install mutates nothing, so nothing is removed or
-            // restored — restoring the lockfile would bump its mtime and
+            // restored, restoring the lockfile would bump its mtime and
             // push every iteration off the pure-mtime fast path into the
             // heavier content re-check. The populated `node_modules` (and
             // workspace state) come from the pre-warm pass.

@@ -10,7 +10,7 @@ type Opts = DedupeInjectedDepsOptions<PartialResolvedPackage>
 // Regression test for https://github.com/pnpm/pnpm/issues/10433: an injected
 // workspace dep must still dedupe to `link:` when an unrelated shared dep
 // (debug) resolves peer-suffixed for the target project but peer-free for the
-// injected occurrence -- both are valid resolutions of the same package.
+// injected occurrence. Both are valid resolutions of the same package.
 test('injected dependency dedupes to link: even when an unrelated shared dependency has a peer suffix on only one side', () => {
   const nodeId = 1 as NodeId
   const depPath = '@scope/pkg-c@file:packages/pkg-c(@scope/pkg-a@file:packages/pkg-a)' as DepPath

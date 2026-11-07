@@ -82,7 +82,7 @@ fn exact_version_timestamps(
 /// otherwise the next whole minute (unless already on a minute boundary).
 /// Rounding up keeps the coarsened value at or after the real publish
 /// time, so `minimumReleaseAge` and trust checks can only ever read a
-/// version as *newer* than it is — the fail-safe direction (a too-new
+/// version as *newer* than it is, the fail-safe direction (a too-new
 /// version is never coarsened into looking mature).
 fn coarsen_timestamp_dt(parsed: DateTime<Utc>, horizon: DateTime<Utc>) -> Option<DateTime<Utc>> {
     if parsed < horizon {

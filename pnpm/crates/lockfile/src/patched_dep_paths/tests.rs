@@ -233,7 +233,7 @@ snapshots:
 
 /// `foo@1.0.0` and `foo@2.0.0` started out sharing one patch file, so both
 /// recorded `shared`. `foo@2.0.0`'s patch has since diverged, but its suffix
-/// still says `shared` — a hash the map does still contain, under the entry
+/// still says `shared`, a hash the map does still contain, under the entry
 /// for the *other* version. Matching the hash anywhere in the map would miss
 /// this; it has to be matched against the entry for that package.
 #[test]
@@ -424,7 +424,7 @@ snapshots:
 }
 
 /// A registry-qualified key carries the semver behind its registry alias, and
-/// gets no `packages:` `version:` entry because of it — pnpm's `parse` reports
+/// gets no `packages:` `version:` entry because of it, pnpm's `parse` reports
 /// that bare semver, which is what the patch keys are written against.
 #[test]
 fn a_registry_qualified_key_matches_on_the_semver_behind_its_alias() {

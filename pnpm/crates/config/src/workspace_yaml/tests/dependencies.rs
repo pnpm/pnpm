@@ -3,7 +3,7 @@ use super::{Config, Path, WorkspaceSettings, assert_eq};
 /// `patchedDependencies` in `pnpm-workspace.yaml` is a string→string
 /// map where keys carry an optional `@version` suffix and values are
 /// patch-file paths. This test guards the
-/// deserialization shape only — the camelCase rename, optionality,
+/// deserialization shape only, the camelCase rename, optionality,
 /// and value-as-string-path.
 #[test]
 fn parses_patched_dependencies_from_yaml() {
@@ -29,7 +29,7 @@ fn patched_dependencies_absent_yields_none() {
 
 /// `ignoredOptionalDependencies` parses from yaml as a list of
 /// strings and applies onto `Config::ignored_optional_dependencies`
-/// verbatim — order preserved, no sorting at apply time (the
+/// verbatim, order preserved, no sorting at apply time (the
 /// freshness check sorts before comparison, but `Config` holds the
 /// user-supplied order).
 #[test]

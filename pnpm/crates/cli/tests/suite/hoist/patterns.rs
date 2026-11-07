@@ -6,7 +6,7 @@ use assert_cmd::assert::OutputAssertExt;
 
 /// Default hoist patterns hoist every transitive into
 /// `<vs>/node_modules/`.
-/// Single-importer subset — the persisted map surviving a repeat
+/// Single-importer subset, the persisted map surviving a repeat
 /// install is covered by
 /// [`should_hoist_dependencies_repeat_install_preserves_map`].
 #[test]
@@ -44,7 +44,7 @@ fn private_hoist_default_pattern_hoists_transitives() {
         "transitive `@pnpm.e2e/hello-world-js-bin` should be hoisted to {private_hoist:?}",
     );
     // Public-hoist patterns default to `[]` (matching pnpm v11), so
-    // no transitive can match — it should NOT be at the root.
+    // no transitive can match, it should NOT be at the root.
     assert!(
         !workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "transitive should not be publicly hoisted under default patterns",
@@ -203,7 +203,7 @@ fn modules_yaml_public_hoist_pattern_matches_pnpm_default() {
     drop((root, mock_instance));
 }
 
-/// `hoistPattern: ["@pnpm.e2e/*"]` — only aliases under the
+/// `hoistPattern: ["@pnpm.e2e/*"]`, only aliases under the
 /// `@pnpm.e2e` scope hoist privately. (Uses the `@pnpm.e2e` package
 /// set; the registry mock doesn't carry the `express` family.)
 #[test]
@@ -241,7 +241,7 @@ fn private_hoist_pattern_filters_aliases() {
 }
 
 /// `!`-negation excludes a specific alias from hoisting. Pattern
-/// `["*", "!@pnpm.e2e/hello-world-js-bin"]` — everything except this
+/// `["*", "!@pnpm.e2e/hello-world-js-bin"]`, everything except this
 /// one alias. Mirrors the matcher's negation semantics integration-
 /// test-side; the matcher itself has unit coverage in
 /// `crates/config/src/matcher.rs`.
@@ -318,7 +318,7 @@ fn hoist_pattern_mismatch_throws_against_existing_modules_yaml() {
 }
 
 /// TS: `hoistPattern=undefined throws exception when executed on
-/// node_modules installed with hoist-pattern=*` (`hoist.ts:220`) — the
+/// node_modules installed with hoist-pattern=*` (`hoist.ts:220`), the
 /// mirror of the test above.
 #[test]
 fn hoist_pattern_undefined_throws_against_hoisted_modules_yaml() {

@@ -5,7 +5,7 @@ use super::{
 
 /// The row would be keyed by the subpackage (read from
 /// `<subdir>/package.json`) while carrying an index built from the
-/// whole archive — the repo's manifest and every repo file. Writing
+/// whole archive, the repo's manifest and every repo file. Writing
 /// that would hand any consumer trusting the key a payload describing
 /// the repo, so no row is written at all.
 #[tokio::test]

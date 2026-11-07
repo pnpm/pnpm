@@ -8,7 +8,7 @@ const CHUNK_SIZE = 64 * 1024
  * Compared rather than hashed: the answer is usually "no" at the first
  * differing byte, and there is nothing to gain from reading further.
  *
- * `candidate` is the untrusted side — a path something else may hold — so
+ * `candidate` is the untrusted side, a path something else may hold, so
  * anything other than a readable regular file of the same size is not
  * the same file, rather than an error.
  */

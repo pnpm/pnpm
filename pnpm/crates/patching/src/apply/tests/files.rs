@@ -337,7 +337,7 @@ new file mode 100644
     assert_eq!(after, "first line\nsecond line\n");
 }
 
-/// `..` in a patch path is rejected — a malicious or
+/// `..` in a patch path is rejected, a malicious or
 /// misconfigured patch must not be able to read/write/delete
 /// outside `patched_dir`.
 #[test]
@@ -532,7 +532,7 @@ fn create_with_unwritable_parent_path_errors() {
 ///
 /// The patch substitutes one line (`old` → `new`) so forward apply
 /// against the already-patched file fails to find the `-old` context
-/// line — the case that exercises the reverse-apply idempotency
+/// line, the case that exercises the reverse-apply idempotency
 /// branch. A purely additive patch wouldn't reach the reverse
 /// branch: diffy's fuzz matching shifts the insertion point and
 /// double-applies the addition, producing duplicate content.

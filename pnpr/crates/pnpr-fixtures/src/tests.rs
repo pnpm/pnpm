@@ -203,8 +203,8 @@ fn discarding_leaves_a_tree_that_completed_after_the_claim_was_decided() {
 }
 
 /// The claim frees `storage`, so a publisher can take it before the
-/// restore runs. That tree is equivalent — the path is keyed by a
-/// fingerprint of the fixtures — so the claim is dropped, not forced back.
+/// restore runs. That tree is equivalent, the path is keyed by a
+/// fingerprint of the fixtures, so the claim is dropped, not forced back.
 #[test]
 fn restoring_yields_to_a_publisher_that_took_the_freed_path() {
     let root = TempDir::new().expect("create temp dir");

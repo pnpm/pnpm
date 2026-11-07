@@ -82,7 +82,7 @@ fn drop_cyclic_dependencies(graph: &mut TaskGraph, order: &[TaskKey]) {
 }
 
 /// `<workspace-relative dir>#<task name>`, with forward slashes on every
-/// platform — the rendering of a task in cycle errors and dry-run output.
+/// platform, the rendering of a task in cycle errors and dry-run output.
 #[must_use]
 pub fn format_task(key: &TaskKey, workspace_dir: &Path) -> String {
     format!("{}#{}", relative_project_dir(&key.project, workspace_dir), key.task_name)
@@ -117,7 +117,7 @@ pub fn reverse_task_graph(graph: &TaskGraph) -> TaskGraph {
     reversed
 }
 
-/// The graph without the anchor's transitive dependencies — the tasks known
+/// The graph without the anchor's transitive dependencies, the tasks known
 /// to have finished before a run would reach the anchor. Everything else
 /// stays, including work unrelated to the anchor, and edges into the
 /// dropped set are treated as satisfied.
@@ -192,11 +192,11 @@ fn transitive_dependencies(graph: &TaskGraph, anchors: &HashSet<TaskKey>) -> Has
 
 /// Whether at most one script can ever be in flight, which is when output
 /// may stay inherited rather than piped: no task runs several scripts, and
-/// the scripts are held apart either by the dependency edges — every
-/// script-running task on one chain — or by the per-task concurrency
+/// the scripts are held apart either by the dependency edges, every
+/// script-running task on one chain, or by the per-task concurrency
 /// limits [`schedule_tasks`](crate::synchronous::schedule_tasks) enforces.
 ///
-/// `sequenced_tasks` is [`sequence_tasks`]'s result — the proof the graph
+/// `sequenced_tasks` is [`sequence_tasks`]'s result, the proof the graph
 /// is acyclic, and the evaluation order for the longest-chain scan.
 #[must_use]
 pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> bool {
@@ -233,7 +233,7 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> b
 
 /// Whether [`schedule_tasks`](crate::synchronous::schedule_tasks)'s concurrency limits alone leave at most one
 /// script in flight: every script-running task shares a single limit group
-/// — the group is the task name — and that group admits one task at a time.
+///the group is the task name, and that group admits one task at a time.
 fn serialized_by_one_task_limit(graph: &TaskGraph) -> bool {
     let mut limited_group: Option<&str> = None;
     for node in graph
@@ -253,8 +253,8 @@ fn serialized_by_one_task_limit(graph: &TaskGraph) -> bool {
 }
 
 /// The task's key in the recursive summary. The task of the script the
-/// invocation named keeps the project directory alone — the format
-/// existing consumers of `pnpm-exec-summary.json` read — and every other
+/// invocation named keeps the project directory alone, the format
+/// existing consumers of `pnpm-exec-summary.json` read, and every other
 /// task qualifies it with the task name: those `dependsOn` pulled in, and
 /// the per-script tasks a `RegExp` selector expands into.
 #[must_use]
@@ -322,7 +322,7 @@ pub fn task_graph_to_json(graph: &TaskGraph, workspace_dir: &Path) -> DryRunDocu
     DryRunDocument { tasks }
 }
 
-/// What plain `--dry-run` prints: one valid linearization of the graph —
+/// What plain `--dry-run` prints: one valid linearization of the graph,
 /// not the order the scheduler will follow. Ties among simultaneously
 /// runnable tasks are broken by project directory, so two dry runs of one
 /// workspace print the same thing and their diff is meaningful.

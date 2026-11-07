@@ -132,7 +132,7 @@ fn replacing_a_group_with_a_different_package_set_keeps_its_relinked_bins() {
     assert!(leftover.is_none());
 
     // Changing the set of packages changes the hash, so `shared` was
-    // rewritten to point at the new one just before this ran — unlinking the
+    // rewritten to point at the new one just before this ran, unlinking the
     // group it used to belong to must not take it away again.
     assert!(global_bin_dir.join("shared").exists());
     assert!(!global_bin_dir.join("dropped").exists());

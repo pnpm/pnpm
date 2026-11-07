@@ -27,7 +27,7 @@ impl RunMode {
         options: &InstallRunOptions<'_, '_>,
     ) -> Result<Self, InstallError> {
         // Taken before any fetching so the store-verification figures
-        // this install reports are its own — a recursive workspace run
+        // this install reports are its own, a recursive workspace run
         // and a long-lived embedder (the NAPI addon) both drive several
         // installs through the same process-global tally.
         let verified_file_integrity_baseline = VerifiedFileIntegrity::snapshot();
@@ -117,12 +117,12 @@ fn reject_lockfile_only_without_lockfile(
 }
 
 /// `enableModulesDir: false` (with the global virtual store off) is "resolve
-/// and write the lockfile, materialize nothing" — the same pipeline
+/// and write the lockfile, materialize nothing", the same pipeline
 /// `--lockfile-only` takes, entered from config, except that the packages
 /// are still fetched into the store (`RunMode::fetches_into_store`). It stays
 /// outside the `lockfile: false` conflict (pnpm accepts that combination and
-/// writes nothing), and never turns a rebuild — which runs against an
-/// already-materialized `node_modules` — into a silent no-op.
+/// writes nothing), and never turns a rebuild, which runs against an
+/// already-materialized `node_modules`, into a silent no-op.
 fn effective_lockfile_only(
     config: &Config,
     lockfile_only: bool,

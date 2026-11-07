@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 /// succeeds.
 ///
 /// One attempt spans the whole pipeline so that a post-download failure
-/// — integrity mismatch, gzip decode, malformed tar — reaches the retry
+///integrity mismatch, gzip decode, malformed tar, reaches the retry
 /// boundary, where a re-fetch can recover from a transfer that happened
 /// to checksum or decode wrong.
 ///

@@ -37,9 +37,9 @@ use std::{
 /// The running pnpm, which a git-hosted dependency's build is given so it
 /// can install with the package manager it asks for.
 ///
-/// `None` when the executable is something other than pnpm itself — the
+/// `None` when the executable is something other than pnpm itself, the
 /// Node.js addon runs this code inside `node`, where there is no pnpm
-/// binary to forward to — and the build then falls back to whatever
+/// binary to forward to, and the build then falls back to whatever
 /// package managers the host has installed.
 static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
     let path = pnpm_executor::current_pnpm_exe().ok()?;
@@ -52,8 +52,8 @@ static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
 /// import and symlink creation run concurrently via `rayon::join`
 /// inside [`CreateVirtualDirBySnapshot::run`](crate::CreateVirtualDirBySnapshot::run).
 ///
-/// Holds only what every snapshot of one install shares — the clients,
-/// the store handles, the layout, the policies — so it is built once
+/// Holds only what every snapshot of one install shares, the clients,
+/// the store handles, the layout, the policies, so it is built once
 /// and each snapshot is passed to [`Self::run`].
 #[derive(Clone, Copy)]
 pub struct InstallPackageBySnapshot<'a> {
@@ -65,7 +65,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// The platforms a `variations` resolution selects an archive for.
     pub variant_platforms: &'a VariantPlatforms,
     /// When `true`, return the fetched CAS paths without populating the
-    /// virtual-store slot ([`CreateVirtualDirBySnapshot`](crate::CreateVirtualDirBySnapshot)) — the caller
+    /// virtual-store slot ([`CreateVirtualDirBySnapshot`](crate::CreateVirtualDirBySnapshot)), the caller
     /// links them itself in a separate parallel pass. The cold batch in
     /// [`crate::CreateVirtualStore`] sets this so the per-snapshot
     /// download futures don't each run a *blocking* `rayon::join` link
@@ -155,7 +155,7 @@ pub enum InstallPackageBySnapshotError {
     #[diagnostic(code(ERR_PNPM_TARBALL_INTEGRITY))]
     CustomFetcherIntegrityMismatch { package_id: String },
 
-    /// A custom-typed resolution reached the built-in dispatch — no
+    /// A custom-typed resolution reached the built-in dispatch, no
     /// pnpmfile custom fetcher claimed it. Message and code mirror the
     /// TypeScript `pickFetcher` in
     /// `pnpm11/fetching/pick-fetcher/src/index.ts`.

@@ -496,7 +496,7 @@ fn self_update_to_pnpm_without_native_shims_leaves_the_global_shims_alone() {
 }
 
 /// The engine is a native binary, so building a runnable and a non-runnable one
-/// means writing real executables — hence the unix gate, matching the `/bin/sh`
+/// means writing real executables, hence the unix gate, matching the `/bin/sh`
 /// shims the rest of this crate's tests use.
 #[cfg(unix)]
 fn seed_engine_executable(install_dir: &Path, contents: &str) {

@@ -1,4 +1,4 @@
-//! `pacquet setup` — make pnpm available for global use.
+//! `pacquet setup`, make pnpm available for global use.
 //!
 //! The CLI is installed into the global packages directory, the `pn` /
 //! `pnpx` / `pnx` alias scripts are written into `$PNPM_HOME/bin`, and

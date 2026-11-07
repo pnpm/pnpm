@@ -43,11 +43,11 @@ pub enum Step {
     /// The tentative sources cannot satisfy the selected dependency graph.
     Backtrack(String),
     /// The versions this index offers of a distribution nothing has read
-    /// yet — see [`crate::candidates_from_page`].
+    /// yet, see [`crate::candidates_from_page`].
     NeedCandidates(PackageName),
     /// An explicit source that must win over index candidates.
     NeedUrl(PackageName, String),
-    /// The `METADATA` of one wheel — see [`WheelMetadata::parse`].
+    /// The `METADATA` of one wheel, see [`WheelMetadata::parse`].
     NeedMetadata(PackageName, Version),
 }
 
@@ -337,7 +337,7 @@ pub fn step(
     }
 }
 
-/// Solve a project against candidates that are already all known — a
+/// Solve a project against candidates that are already all known, a
 /// locked install, where every candidate came from the lockfile. Anything
 /// still missing is the lockfile failing to satisfy the project.
 pub fn locked_solution(

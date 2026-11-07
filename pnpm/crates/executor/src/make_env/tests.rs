@@ -152,7 +152,7 @@ fn make_env_stamps_lifecycle_specific_keys() {
 
     // Compute expected paths through the same `join` so the
     // assertions are correct on Windows (`\\` separator) as well as
-    // POSIX. Path-separator handling itself is `std`'s job — these
+    // POSIX. Path-separator handling itself is `std`'s job, these
     // tests verify build_env's mapping, not separator policy.
     let expected_package_json = pkg_root
         .join("package.json")

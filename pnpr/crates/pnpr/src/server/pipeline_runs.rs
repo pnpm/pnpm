@@ -6,7 +6,7 @@ use pnpr_shared_artifacts::OrgGrant;
 
 use axum::response::IntoResponse;
 
-/// `PUT /-/pnpr/v0/pipeline/runs` — record one `pnpm pipeline` run under its
+/// `PUT /-/pnpr/v0/pipeline/runs`, record one `pnpm pipeline` run under its
 /// organization. The document is stored verbatim; identifiers are validated
 /// by the store.
 pub(super) async fn serve_publish_pipeline_run(
@@ -45,7 +45,7 @@ pub(super) async fn serve_publish_pipeline_run(
     )
 }
 
-/// `GET /-/pnpr/v0/pipeline/runs[?org=&workspace=&limit=]` — the most recent
+/// `GET /-/pnpr/v0/pipeline/runs[?org=&workspace=&limit=]`, the most recent
 /// run summaries the caller may read, newest first.
 pub(super) async fn serve_list_pipeline_runs(
     State(state): State<AppState>,
@@ -99,7 +99,7 @@ pub(super) fn parse_pipeline_run_query(query: &str) -> PipelineRunQuery {
     parsed
 }
 
-/// `GET /-/pnpr/v0/pipeline/runs/{org}/{workspace}/{run_id}` — one run's full
+/// `GET /-/pnpr/v0/pipeline/runs/{org}/{workspace}/{run_id}`, one run's full
 /// record, event stream included.
 pub(super) async fn serve_get_pipeline_run(
     State(state): State<AppState>,
@@ -120,7 +120,7 @@ pub(super) async fn serve_get_pipeline_run(
     })
 }
 
-/// `GET /-/pnpr/v0/pipeline` — a self-contained viewer over the run
+/// `GET /-/pnpr/v0/pipeline`, a self-contained viewer over the run
 /// endpoints. Static HTML with no data of its own: the reads it issues
 /// carry the token the visitor pastes, so the page itself needs no auth.
 pub(super) async fn serve_pipeline_ui() -> Response {

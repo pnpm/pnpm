@@ -1,4 +1,4 @@
-//! `pnpm stage approve` — publish staged versions, chosen interactively
+//! `pnpm stage approve`, publish staged versions, chosen interactively
 //! when none are named.
 //!
 //! A batch of versions is approved through a single [`OtpSession`], so one

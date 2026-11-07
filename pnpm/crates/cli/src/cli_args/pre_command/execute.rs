@@ -169,7 +169,7 @@ async fn install_switch_target(
     }
 }
 
-/// No switch to perform, but the recorded entries are invalid — heal
+/// No switch to perform, but the recorded entries are invalid, heal
 /// them now or every later invocation re-resolves over the network. A
 /// frozen lockfile cannot be written, and nothing is installed here, so
 /// the repair waits for a run that may write.

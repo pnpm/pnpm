@@ -15,7 +15,7 @@ use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
 /// A `catalog:` dependency whose catalog entry holds a bare local path
-/// is a local file dependency after dereferencing — the catalog
+/// is a local file dependency after dereferencing, the catalog
 /// resolver only bans the `workspace:`, `link:`, and `file:` protocols,
 /// so the bare-path spelling reaches the local resolver. Same bail as
 /// a direct local path.
@@ -110,7 +110,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
     assert_eq!(decision, Decision::UpToDate);
 }
 /// A `pnpm.overrides` entry spelled `catalog:` whose catalog entry
-/// holds a local path bails like a direct local file override —
+/// holds a local path bails like a direct local file override,
 /// overrides are dereferenced through `parse_config_overrides` before
 /// the check.
 #[test]

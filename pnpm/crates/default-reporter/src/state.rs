@@ -354,7 +354,7 @@ impl ReporterState {
     /// `pnpm` / `pnpm:global` misc streams filter per message level in
     /// [`Self::on_pnpm`], so errors always pass. Lifecycle events always
     /// pass: below `info`, [`Self::on_lifecycle`] buffers each script and
-    /// prints only failed ones. Dedupe-check issues always pass too —
+    /// prints only failed ones. Dedupe-check issues always pass too,
     /// upstream reports them as an error-level log
     /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`).
     fn level_permits(&self, event: &LogEvent) -> bool {

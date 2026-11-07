@@ -245,7 +245,7 @@ async fn path_field_packs_only_subdirectory() {
     let cas_paths = write_to_cas(
         &store_dir,
         &[
-            // Monorepo root manifest — not the published package.
+            // Monorepo root manifest, not the published package.
             ("package.json", br#"{"name":"monorepo","version":"0.0.0","private":true}"#, false),
             // The sub-package we're packing.
             (
@@ -293,7 +293,7 @@ async fn path_field_packs_only_subdirectory() {
         .collect();
     // The fetcher packlists relative to `pkg_dir` (which is
     // `<tmp>/packages/sub`), so the returned keys are *also* relative
-    // to that sub-dir — never carrying the `packages/sub/` prefix.
+    // to that sub-dir, never carrying the `packages/sub/` prefix.
     assert!(keys.contains(&"package.json"), "sub-dir manifest must be included");
     assert!(keys.contains(&"index.js"), "sub-dir main must be included");
     assert!(keys.contains(&"README.md"), "always-included file must be included");
@@ -423,7 +423,7 @@ async fn writes_index_row_when_writer_provided() {
     assert!(keys.contains(&"package.json"), "package.json missing from row.files: {keys:?}");
     assert!(keys.contains(&"index.js"), "index.js missing from row.files: {keys:?}");
 
-    // Per-file metadata must round-trip cleanly — the warm prefetch
+    // Per-file metadata must round-trip cleanly, the warm prefetch
     // reconstructs the CAS file path from `digest` + `mode`, and the
     // verify pass compares `size` against the on-disk file. If any
     // of these drift, a follow-up install would miss the cache and
@@ -456,7 +456,7 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
 
-    // No `files` field, no `prepare` script — packlist returns
+    // No `files` field, no `prepare` script, packlist returns
     // everything, `should_be_built` is false. All three input
     // entries (package.json + index.js + README.md) survive
     // packlist's always-included rules.
@@ -496,7 +496,7 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
     .await
     .unwrap();
 
-    // The returned map is the *exact* input — same keys, same CAS
+    // The returned map is the *exact* input, same keys, same CAS
     // paths. The slow path would re-import and produce a fresh map
     // that just happens to point at the same hashes; the fast path
     // skips that work entirely.
@@ -506,7 +506,7 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
 
 /// When the fast path triggers and a writer is provided, the
 /// synthesized row must be queued at the final key with the same
-/// shape the slow path would have produced — same digests, same file
+/// shape the slow path would have produced, same digests, same file
 /// set. A warm prefetch reading the row from `index.db` can't tell
 /// which path produced it.
 #[tokio::test(flavor = "multi_thread")]
@@ -574,7 +574,7 @@ async fn fast_path_queues_synthesized_index_row() {
 
     // The synthesized `bin/cli.js` entry must round-trip through
     // `cas_file_path_by_mode` to the same path the input map points
-    // at — that's the property a warm prefetch relies on.
+    // at, that's the property a warm prefetch relies on.
     let bin_entry = row.files.get("bin/cli.js").expect("bin entry must exist");
     assert_eq!(bin_entry.mode & 0o111, 0o111, "executable bit must survive the synthesis");
     let resolved =
@@ -648,7 +648,7 @@ async fn sub_path_never_takes_fast_path() {
     drop(writer);
     writer_task.await.unwrap().unwrap();
 
-    // Output keys are relative to the sub-dir — never carrying the
+    // Output keys are relative to the sub-dir, never carrying the
     // `packages/sub/` prefix. If the fast path had triggered
     // (returning input `cas_paths` verbatim), the keys would still
     // be the monorepo-prefixed paths.
@@ -807,7 +807,7 @@ async fn tarball_path_traversal_attack_is_rejected() {
 }
 
 /// A `path` pointing at a sub-directory the tarball doesn't contain
-/// must surface as `ERR_PNPM_INVALID_PATH` — silently packing the root would
+/// must surface as `ERR_PNPM_INVALID_PATH`, silently packing the root would
 /// produce a working install for the wrong package.
 #[tokio::test(flavor = "multi_thread")]
 async fn tarball_path_to_missing_subdir_is_rejected() {

@@ -58,7 +58,7 @@ export function pinLockedPeerProviders<Pkg extends PartialResolvedPackage> (
     // Pinning writes into parentPkgs, and a childless node shares the object
     // with its parent, so siblings processed later would see the pinned
     // provider too. Copy before the first write to keep the pin scoped to
-    // this node — sibling order follows resolution order, so a leak makes the
+    // this node, sibling order follows resolution order, so a leak makes the
     // lockfile depend on network timing. Done here, not before the loop, so a
     // pass whose guards skip every entry never allocates.
     if (parentPkgs === opts.parentParentPkgs) {
@@ -106,7 +106,7 @@ function lockedPeerProviderIsStable<Pkg extends PartialResolvedPackage> (
   if (ctx.resolvedPeerProviderPaths?.get(peerNodeId) !== previousPeerDepPath) return false
   // Only pin providers that have no peer context of their own. A provider
   // whose locked depPath carries a peer suffix is itself context-dependent
-  // — and self-referential for cyclic peers — so reusing it can re-expand
+  // and self-referential for cyclic peers, so reusing it can re-expand
   // cyclic suffixes and break the deterministic resolution that
   // https://github.com/pnpm/pnpm/issues/8155 established. Stable leaf
   // providers are the ones worth pinning; anything else falls back to

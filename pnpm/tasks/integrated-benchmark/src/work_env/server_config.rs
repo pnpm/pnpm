@@ -144,7 +144,7 @@ pub(super) struct ColdMockConfig {
     default_registry: &'static str,
     log: ColdMockLog,
 }
-/// The `registries:` table — a single-upstream entry.
+/// The `registries:` table, a single-upstream entry.
 #[derive(Serialize)]
 pub(super) struct ColdMockUpstreamTable {
     npmjs: ColdMockUpstreamEntry,

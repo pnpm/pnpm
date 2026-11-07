@@ -29,7 +29,7 @@ async fn mockito_integration_http_proxy_forwards_request_with_basic_auth() {
     let proxy_url = proxy_server.url();
     // `user@name:p@ss` percent-encoded → `user%40name:p%40ss`; the
     // network layer percent-decodes both halves to `user@name` and
-    // `p@ss` and base64-encodes the pair as `dXNlckBuYW1lOnBAc3M=` —
+    // `p@ss` and base64-encodes the pair as `dXNlckBuYW1lOnBAc3M=`,
     // the value the mock matches above.
     let with_auth = proxy_url.replacen("//", "//user%40name:p%40ss@", 1);
     let cfg = ProxyConfig { https_proxy: None, http_proxy: Some(with_auth), no_proxy: None };
@@ -261,7 +261,7 @@ fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
         .map(|pem| (*pem).to_string())
         .collect();
     ca.push(TEST_CA_PEM.to_string());
-    // The valid entry must still reach the trust store — dropping it
+    // The valid entry must still reach the trust store, dropping it
     // alongside its unreadable neighbours would break the install a
     // different way.
     assert_eq!(
@@ -334,7 +334,7 @@ fn unreadable_ca_does_not_disable_default_trust_anchors() {
 #[test]
 fn node_extra_ca_certs_is_loaded_and_failures_are_non_fatal() {
     // `EnvGuard` serializes env-mutating tests process-wide and restores
-    // the prior value on drop — including on panic — so a failing
+    // the prior value on drop, including on panic, so a failing
     // `.expect()` below can't leak `NODE_EXTRA_CA_CERTS` into a sibling
     // test. `for_installs` re-reads the var on each call.
     let env = EnvGuard::snapshot(["NODE_EXTRA_CA_CERTS"]);
@@ -435,7 +435,7 @@ async fn default_tls_rejects_an_untrusted_certificate_without_panicking() {
 
 #[test]
 fn for_installs_with_cert_but_no_key_skips_identity() {
-    // Both must be set for the identity wiring to fire — a `cert`
+    // Both must be set for the identity wiring to fire, a `cert`
     // without `key` is silently ignored (pnpm's undici plumbing has
     // the same "both or neither" expectation). The client must still
     // build cleanly.
@@ -512,7 +512,7 @@ fn a_blank_scoped_cert_shadows_the_top_level_identity() {
 }
 
 /// The blocked-redirect error must name only the origin, never the path or
-/// query/fragment where a presigned-URL signature/token lives — the error can
+/// query/fragment where a presigned-URL signature/token lives, the error can
 /// reach a client.
 #[test]
 fn blocked_redirect_error_redacts_token() {

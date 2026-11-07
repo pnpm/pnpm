@@ -34,7 +34,7 @@
 //! matching: backslashes become `/` and a trailing `/` is stripped. This
 //! mirrors upstream's pattern `replace(/\\/g, '/')` together with
 //! micromatch's separator handling, which treats `\` in the candidate as a
-//! path separator too — so a Windows `ProjectRootDir` rendered with
+//! path separator too, so a Windows `ProjectRootDir` rendered with
 //! backslashes by [`PathBuf::to_string_lossy`](std::path::PathBuf) still
 //! matches.
 

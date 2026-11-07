@@ -78,7 +78,7 @@ fn stage_event_matches_pnpm_wire_shape() {
 }
 
 /// Generic-channel (`name: "pnpm"`) log carries the bare `pnpm`
-/// channel name — without a `:`-suffix — matching the shape pnpm's
+/// channel name, without a `:`-suffix, matching the shape pnpm's
 /// global logger writes. `@pnpm/cli.default-reporter` routes these
 /// records through the "other" stream branch; a typo on the channel
 /// name would silently fail to render.
@@ -164,7 +164,7 @@ fn dedupe_check_event_matches_pnpm_wire_shape() {
 }
 
 /// Global-channel (`name: "pnpm:global"`) log carries the
-/// `pnpm:global` channel name and a bare `message` with no `prefix` —
+/// `pnpm:global` channel name and a bare `message` with no `prefix`,
 /// matching pnpm's `bole('pnpm:global')` writes. A `prefix` field would
 /// diverge from the upstream shape `@pnpm/cli.default-reporter` parses.
 #[test]
@@ -254,7 +254,7 @@ fn package_import_method_event_matches_pnpm_wire_shape() {
 /// `pnpm:root` is presence-tagged on `added` / `removed`. The JS
 /// reporter accumulates `added` events and renders them in the
 /// `pnpm:summary` "+N -M" block. Optional fields skip when absent
-/// — emitting them as JSON `null` would put `null` in the rendered
+///emitting them as JSON `null` would put `null` in the rendered
 /// version string.
 #[test]
 fn root_event_matches_pnpm_wire_shape() {
@@ -287,7 +287,7 @@ fn root_event_matches_pnpm_wire_shape() {
     assert_eq!(json["added"]["version"], "4.0.0");
     assert_eq!(json["added"]["dependencyType"], "prod");
     // Optional fields skip when None so the JS reporter doesn't see
-    // `id: null` etc. — pnpm's emit also omits them when absent.
+    // `id: null` etc., pnpm's emit also omits them when absent.
     for k in ["id", "latest", "linkedFrom"] {
         assert!(json["added"].get(k).is_none(), "added.{k} should be absent, got {json:?}");
     }
@@ -325,7 +325,7 @@ fn root_event_matches_pnpm_wire_shape() {
 
 /// `pnpm:stats` is presence-tagged on `added` / `removed`. pnpm
 /// emits each from a separate site, so an event carries one or the
-/// other — never both.
+/// other, never both.
 #[test]
 fn stats_event_matches_pnpm_wire_shape() {
     let event = LogEvent::Stats(StatsLog {

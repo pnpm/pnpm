@@ -104,8 +104,8 @@ mod update_project_manifest_object;
 mod warn_on_stale_convergence_overrides;
 mod workspace_cycles;
 
-/// The dependency groups a project installs directly — `dependencies`,
-/// `devDependencies`, `optionalDependencies` — in the order pnpm's
+/// The dependency groups a project installs directly, `dependencies`,
+/// `devDependencies`, `optionalDependencies`, in the order pnpm's
 /// `updateProjectManifest` walks them. This is also the install `include`
 /// set for runs whose `dependency_groups` carries no user filter intent
 /// (`add`, `remove`, `update`): those mutations pick a manifest group to

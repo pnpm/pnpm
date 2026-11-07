@@ -173,7 +173,7 @@ fn a_coincidental_tail_match_is_not_a_restatement() {
     );
 }
 
-/// The kept levels keep answering for themselves — the collapsed head
+/// The kept levels keep answering for themselves, the collapsed head
 /// still carries the code miette prints above the report.
 #[test]
 fn the_head_keeps_its_diagnostic_code() {

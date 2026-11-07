@@ -52,7 +52,7 @@ async fn serves_scoped_packument_from_storage() {
     assert_eq!(doc["name"], "@foo/no-deps");
     assert_eq!(doc["dist-tags"]["latest"], "1.0.0");
 
-    // The on-disk packument has a Verdaccio-form tarball URL —
+    // The on-disk packument has a Verdaccio-form tarball URL,
     // `http://localhost:4873/@foo/no-deps/-/@foo/no-deps-1.0.0.tgz`.
     // After our rewrite the client should see the `<name>@<version>` form
     // pointed at our `public_url`.
@@ -167,7 +167,7 @@ async fn abbreviated_accept_header_strips_packument() {
     // the install on a real npm packument.
     assert_eq!(doc["modified"], doc["time"]["modified"]);
     // README prose is never read during resolution and is the
-    // dominant per-packument bloat — the abbreviated form drops it.
+    // dominant per-packument bloat, the abbreviated form drops it.
     assert!(doc.get("readme").is_none(), "abbreviated form should drop readme");
     assert!(doc.get("readmeFilename").is_none(), "abbreviated form should drop readmeFilename");
     assert!(doc.get("_attachments").is_none(), "abbreviated form should drop _attachments");
@@ -225,7 +225,7 @@ async fn serves_version_manifest_by_dist_tag() {
     assert_eq!(manifest["version"], "1.0.0");
     assert_eq!(manifest["dist"]["tarball"], format!("{PUBLIC_URL}/npm/@foo/no-deps@1.0.0"));
     // The response is the single-version manifest, not the whole
-    // packument — `versions` shouldn't be there.
+    // packument, `versions` shouldn't be there.
     assert!(manifest.get("versions").is_none());
 }
 

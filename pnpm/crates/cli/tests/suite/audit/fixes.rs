@@ -452,7 +452,7 @@ fn audit_fix_ignore_prune_normalizes_ghsa_casing() {
     assert_success(&output);
     // Retained entries are rewritten to their canonical spelling regardless
     // of the casing the user originally ignored them with, and deduplicated
-    // — the exact list must be just the one canonical, still-relevant id.
+    // the exact list must be just the one canonical, still-relevant id.
     assert_eq!(audit_config_ignore_ghsas(&workspace), vec!["GHSA-test-1111-2222".to_string()]);
     mock.assert();
 }
@@ -469,7 +469,7 @@ fn audit_fix_ignore_prune_persists_canonical_form_even_when_nothing_is_removed()
     )
     .create();
     // Both entries match the same advisory (a differently-cased duplicate)
-    // — nothing gets removed, but the stored list should still collapse to
+    // nothing gets removed, but the stored list should still collapse to
     // the single canonical entry.
     write_audit_workspace(
         &workspace,
@@ -616,7 +616,7 @@ fn audit_fix_ignore_prune_updates_the_canonical_audit_ignore_list() {
     let actual_manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     // The retained list must land back on the canonical `audit.ignore` that
-    // supplied it — writing the deprecated `auditConfig.ignoreGhsas` instead
+    // supplied it, writing the deprecated `auditConfig.ignoreGhsas` instead
     // would let the unchanged canonical list shadow the prune on the next
     // read and restore the stale id.
     let expected_manifest =
