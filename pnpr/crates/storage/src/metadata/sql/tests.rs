@@ -667,6 +667,7 @@ async fn another_ecosystem_stores_its_document_whole(db: Db) {
         .write_hosted_document_if_current(&name, b"", Some(&current.version), None)
         .await
         .unwrap();
+    storage.write_hosted_document_if_current(&name, b"", None, None).await.unwrap();
     assert!(
         storage
             .read_hosted_document(&name)

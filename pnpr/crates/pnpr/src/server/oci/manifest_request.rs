@@ -33,8 +33,8 @@ impl Request {
         )
         .await
         {
-            Ok(Some(document)) if !document.manifests().is_empty() => document,
-            Ok(_) => return unknown_repository(name).respond(),
+            Ok(Some(document)) => document,
+            Ok(None) => return unknown_repository(name).respond(),
             Err(err) => return registry_error(err),
         };
         let Some(entry) = document.resolve(reference).cloned() else {

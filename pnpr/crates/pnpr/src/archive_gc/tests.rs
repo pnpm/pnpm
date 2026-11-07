@@ -164,22 +164,6 @@ async fn collection_keeps_untagged_manifests_and_layers_and_finds_nested_orphans
             .unwrap()
             .is_none(),
     );
-
-    let emptied = name("acme/emptied");
-    storage
-        .write_hosted_document_if_current(
-            &emptied,
-            &ImageDocument::new(emptied.as_str()).to_bytes(),
-            None,
-            None,
-        )
-        .await
-        .unwrap();
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/emptied"]);
-    assert_eq!(collect(&storage, Duration::ZERO, true, MANIFEST_LIMIT).await.unwrap(), (0, 0));
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/emptied"]);
-    assert_eq!(collect(&storage, Duration::ZERO, false, MANIFEST_LIMIT).await.unwrap(), (0, 0));
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app"]);
 }
 
 #[tokio::test]

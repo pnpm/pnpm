@@ -32,31 +32,7 @@ impl Collection<'_> {
                 }
             }
         }
-        for name in self.storage.hosted_package_names().await? {
-            if let Err(error) = self.remove_empty_repository(&name).await {
-                tracing::warn!(repository = %name, %error, "empty repository not removed");
-                failure.get_or_insert(error);
-            }
-        }
         failure.map_or(Ok(report), Err)
-    }
-
-    async fn remove_empty_repository(&self, name: &str) -> Result<()> {
-        let repository = CanonicalPackageName::from_stored(name, Ecosystem::Oci);
-        let Some(stored) = self.storage.read_hosted_document_for_update(&repository).await? else {
-            return Ok(());
-        };
-        if !liveness::parse_image_document(&stored.bytes)?.manifests().is_empty() {
-            return Ok(());
-        }
-        self.storage.write_hosted_document_if_current(
-            &repository,
-            b"",
-            Some(&stored.version),
-            None,
-        )
-        .await?;
-        Ok(())
     }
 
     async fn unmap_repository(&self, name: &str, min_age: Duration) -> Result<GcReport> {
