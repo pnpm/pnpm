@@ -228,7 +228,7 @@ pub(in super::super) async fn stage_publish(
 
     let mut base = read_staged_base(&storage, &doc).await?;
     check_staged_tombstone(state, &storage, &doc, base.packument.is_some()).await?;
-    let publisher = doc.publisher.username().map(str::to_string);
+    let publisher = doc.publisher.user_id().map(str::to_string);
     let (merged, without_any) =
         prepare_publish_document(&storage, &mut doc, &mut base, now_iso).await?;
     drop(doc.incoming);

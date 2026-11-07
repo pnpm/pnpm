@@ -38,7 +38,7 @@ storage: ./storage
 #  allowHttp: false
 
 # Shared database backend for auth records (users and tokens).
-# Defaults to local htpasswd + tokens.db files.
+# Defaults to local account JSON + tokens.db files.
 #backend:
 #  libsql:
 #    url: ${PNPR_LIBSQL_URL}
@@ -61,8 +61,8 @@ storage: ./storage
 #  lease: 1h   # how long an interrupted reclaim is left before another run takes it over
 
 auth:
-  htpasswd:
-    file: ./htpasswd
+  users:
+    file: ./users.json
     # Maximum amount of users allowed to register. The safe default is -1
     # (registration disabled); set a non-negative cap to allow registration.
     maxUsers: -1

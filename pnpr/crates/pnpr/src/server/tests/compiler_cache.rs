@@ -91,7 +91,7 @@ fn config(directory: &TempDir) -> Config {
 
 fn app(config: Config, username: &str, readonly: bool) -> Router {
     let mut token = record(readonly, &[]);
-    token.username = username.to_string();
+    token.user_id = username.to_string();
     app_with_config_and_token(config, "token", token)
 }
 

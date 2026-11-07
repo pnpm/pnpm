@@ -27,7 +27,7 @@ fn libsql_config(storage: &Path, primary: SocketAddr) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage.to_path_buf());
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.metadata = MetadataBackend::Libsql(LibsqlSettings {
         url: format!("http://{primary}"),
         auth_token: None,

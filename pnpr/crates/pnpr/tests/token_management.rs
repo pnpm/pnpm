@@ -21,7 +21,7 @@ fn listen() -> SocketAddr {
 fn static_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -111,7 +111,7 @@ async fn create_token_with_readonly_cidr_name_and_expires() {
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_json(res.into_body()).await;
     assert_eq!(body["token"].as_str().unwrap().len(), 32);
-    assert_eq!(body["user"], "alice");
+    assert_eq!(body["user"].as_str(), crate::tokens::account_id(&app, "alice").await.as_deref());
     assert_eq!(body["readonly"], true);
     assert_eq!(body["cidr_whitelist"], json!(["10.0.0.0/8"]));
     assert_eq!(body["name"], "ci-token");

@@ -42,8 +42,9 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
             },
         );
     }
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    let app = router(config);
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret"), ("bob", "secret")]);
+    let app = pnpr::router_with_auth(config, auth);
 
     let handshake = app
         .clone()

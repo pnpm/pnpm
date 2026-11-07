@@ -220,8 +220,8 @@ pub(super) fn get_org_teams(
     };
     let teams: Vec<Value> = hosted.teams
         .snapshot()
-        .keys()
-        .map(|name| json!({ "name": name }))
+        .iter()
+        .map(|(id, team)| json!({ "id": id, "name": team.name }))
         .collect();
     (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
 }
@@ -229,7 +229,7 @@ pub(super) fn get_org_teams(
 /// `GET /-/team/{scope}/{team}/user` (path-less) or
 /// `GET /~<name>/-/team/{scope}/{team}/user` — list a team's members, in
 /// the shape the pnpm team command consumes: an array of `{"name": ...}`.
-pub(super) fn get_team_members(
+pub(super) async fn get_team_members(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
@@ -241,12 +241,25 @@ pub(super) fn get_team_members(
         Err(err) => return err.into_response(),
     };
     let roster = hosted.teams.snapshot();
-    let Some(members) = roster.get(team) else {
+    let Some((_, record)) = roster
+        .iter()
+        .find(|(_, record)| record.name == team)
+    else {
         return not_found();
     };
-    let members: Vec<Value> = members
-        .iter()
-        .map(|name| json!({ "name": name }))
-        .collect();
+    let mut members = Vec::new();
+    for id in &record.members {
+        let name = match state.inner.identity.auth.users.account_name(id).await {
+            Ok(Some(name)) => name,
+            Ok(None) => format!("deleted:{id}"),
+            Err(err) => return err.into_response(),
+        };
+        members.push(json!({ "id": id, "name": name }));
+    }
+    members.sort_by(|left, right| {
+        left["name"]
+            .as_str()
+            .cmp(&right["name"].as_str())
+    });
     (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
 }

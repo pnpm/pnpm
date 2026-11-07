@@ -52,7 +52,8 @@ pub(super) async fn grant_team_access(
     let result = async {
         let registry = managed_team(state, identity, &target, team, "grant access to")?;
         let grant: Grant = parse_body(body)?;
-        let token = format!("team:{team}");
+        let id = super::team_mutations::team_id(state, registry, team)?;
+        let token = format!("team:{id}");
         update_rules(state, registry, |changes, base| {
             edit_team_lists(changes, base, &grant.package, |lists| {
                 grant_lists(lists, &token, grant.permissions);
@@ -91,7 +92,8 @@ pub(super) async fn revoke_team_access(
     let result = async {
         let registry = managed_team(state, identity, &target, team, "revoke access from")?;
         let revoke: Revoke = parse_body(body)?;
-        let token = format!("team:{team}");
+        let id = super::team_mutations::team_id(state, registry, team)?;
+        let token = format!("team:{id}");
         update_rules(state, registry, |changes, base| {
             edit_team_lists(changes, base, &revoke.package, |lists| {
                 for list in lists {
@@ -126,12 +128,13 @@ pub(super) fn list_team_packages(
     team: &str,
 ) -> Response {
     let result = (|| {
-        let (_, hosted) = team_registry(state, identity, target.registry, target.scope)?;
+        let (registry, hosted) = team_registry(state, identity, target.registry, target.scope)?;
+        let id = super::team_mutations::team_id(state, registry, team)?;
         let table = hosted.rules.snapshot();
         let packages: serde_json::Map<_, _> = table
             .rules()
             .iter()
-            .filter_map(|rule| team_permission(&table, rule, team, identity))
+            .filter_map(|rule| team_permission(&table, rule, &id, identity))
             .collect();
         Ok((StatusCode::OK, axum::Json(json!(packages))))
     })();
@@ -174,7 +177,10 @@ fn managed_team<'a>(
 }
 
 fn holds_team(hosted: &HostedConfig, team: &str) -> bool {
-    hosted.teams.snapshot().contains_key(team)
+    hosted.teams
+        .snapshot()
+        .values()
+        .any(|record| record.name == team)
 }
 
 /// Apply `edit` to the `access`, `publish`, and `unpublish` lists that apply

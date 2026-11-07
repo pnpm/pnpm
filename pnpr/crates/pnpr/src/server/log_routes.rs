@@ -155,7 +155,7 @@ impl LogReaders {
             .map(|(_, hosted)| hosted)
             .collect();
         let is_admin = identity
-            .username()
+            .user_id()
             .is_some_and(|username| state.inner.config.identity.admins.contains(username));
         // No registry's rules admit anyone to a log no registry holds.
         let may_read_all = is_admin

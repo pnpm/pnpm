@@ -25,7 +25,7 @@ auth:
       workloads:
         - identity:
             subject: repo:org/repo:ref:refs/heads/main
-            username: ci
+            userId: ci
             claims:
               repository_id: '123'
           registry: private

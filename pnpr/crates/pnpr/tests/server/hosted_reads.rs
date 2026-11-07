@@ -56,7 +56,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -187,7 +187,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     ];
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -337,7 +337,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     registries.validate().expect("patterned hosted config is valid");
     config.routing.registries = registries;
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -436,7 +436,7 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
         .collect(),
         None,
     );
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let member = issue_token(&auth, "alice").await;
     let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
@@ -489,7 +489,7 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
         .clone();
     corp.access = Some(AccessList::from_tokens(["alice"]));
     config.routing.upstreams.insert("corp".to_string(), corp);
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let member = issue_token(&auth, "alice").await;
     let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
@@ -537,7 +537,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let member = issue_token(&auth, "alice").await;
     let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
@@ -670,7 +670,8 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
             vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
             Some("corp".to_string()),
         );
-        let auth = AuthState::in_memory();
+        let auth =
+            crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
         let member = issue_token(&auth, "alice").await;
         let outsider = issue_token(&auth, "mallory").await;
         let app = router_with_auth(config, auth);

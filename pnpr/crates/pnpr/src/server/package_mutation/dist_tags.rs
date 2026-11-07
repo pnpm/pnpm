@@ -153,7 +153,7 @@ async fn update_dist_tag(
     let storage = hosted_storage(state, Some(&target.org));
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     let change =
-        TagChange { tag: request.tag, target: version.as_deref(), principal: identity.username() };
+        TagChange { tag: request.tag, target: version.as_deref(), principal: identity.user_id() };
     match storage.change_dist_tag(&name, change).await {
         Ok(TagUpdate::Committed { generation, moved }) => Ok(TagOutcome {
             response: ok_created_response(generation.as_ref()),

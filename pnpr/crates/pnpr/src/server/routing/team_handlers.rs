@@ -105,13 +105,9 @@ async fn get_team_users(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<TeamPath>,
 ) -> Response {
-    private_no_cache(get_team_members(
-        &state,
-        &identity,
-        registry.as_deref(),
-        &path.scope,
-        &path.team,
-    ))
+    private_no_cache(
+        get_team_members(&state, &identity, registry.as_deref(), &path.scope, &path.team).await,
+    )
 }
 
 /// `PUT {base}/-/team/{scope}/{team}/user`.

@@ -17,7 +17,10 @@ pub(super) fn check_token_restrictions(
 ) -> Result<(), RegistryError> {
     if record.readonly && is_write_request(method, path) {
         return Err(RegistryError::Forbidden {
-            user: record.username.clone(),
+            user: record
+                .owner_name()
+                .unwrap_or(&record.user_id)
+                .to_string(),
             action: "write with",
             resource: "a read-only token".to_string(),
         });
@@ -26,7 +29,10 @@ pub(super) fn check_token_restrictions(
         let allowed = client_ip.is_some_and(|ip| cidr_whitelist_allows(&record.cidr_whitelist, ip));
         if !allowed {
             return Err(RegistryError::Forbidden {
-                user: record.username.clone(),
+                user: record
+                    .owner_name()
+                    .unwrap_or(&record.user_id)
+                    .to_string(),
                 action: "use",
                 resource: "this token from your network address".to_string(),
             });

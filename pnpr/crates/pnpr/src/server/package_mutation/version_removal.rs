@@ -47,7 +47,7 @@ async fn try_remove_listed_version(
     let removed = [version.to_string()];
     let unpublished = unpublished_blobs(storage, name, &removed).await;
     let bytes = serde_json::to_vec(&packument)?;
-    let principal = identity.username();
+    let principal = identity.user_id();
     match storage.write_hosted_document_if_current(name, &bytes, Some(&stored.version), principal)
         .await?
     {

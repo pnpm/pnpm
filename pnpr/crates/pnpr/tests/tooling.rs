@@ -51,22 +51,22 @@ fn create_hosting_test_config(dir: &Path) -> (Config, tempfile::NamedTempFile) {
 fn create_test_config_with(dir: &Path, registries: &str) -> (Config, tempfile::NamedTempFile) {
     let storage_dir = dir.join("storage");
     let cache_dir = dir.join("cache");
-    let htpasswd_file = dir.join("htpasswd");
+    let users_file = dir.join("users.json");
     std::fs::create_dir_all(&storage_dir).unwrap();
     std::fs::create_dir_all(&cache_dir).unwrap();
-    std::fs::write(&htpasswd_file, "").unwrap();
+    std::fs::write(&users_file, "{}").unwrap();
 
     let yaml = format!(
         r"
 storage: '{}'
 cache: '{}'
 auth:
-  htpasswd:
+  users:
     file: '{}'
 {registries}",
         storage_dir.display(),
         cache_dir.display(),
-        htpasswd_file.display(),
+        users_file.display(),
     );
 
     let config_file = tempfile::NamedTempFile::new().unwrap();
@@ -125,8 +125,8 @@ async fn test_htpasswd_import() {
     assert!(target.exists());
 
     let target_content = std::fs::read_to_string(&target).unwrap();
-    assert!(target_content.contains("user1:{SHA}"));
-    assert!(target_content.contains("user2:$2y$"));
+    assert!(target_content.contains("{SHA}"));
+    assert!(target_content.contains("$2y$"));
 }
 
 #[tokio::test]
@@ -576,7 +576,7 @@ async fn test_verify_and_export_attestations() {
     assert_eq!(exp_rep.blobs_exported, 2);
     assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.tgz").exists());
     assert!(export_out.join("signed-pkg/signed-pkg-1.0.0.sigstore").exists());
-    assert!(!export_out.join("htpasswd").exists());
+    assert!(!export_out.join("users.json").exists());
 }
 
 #[test]
@@ -624,7 +624,7 @@ backend:
     authToken: 'secret-database-token'
     replicaPath: '{}'
 auth:
-  htpasswd:
+  users:
     maxUsers: 3
 registries:
   local:
@@ -778,7 +778,15 @@ fn test_htpasswd_import_malformed_and_collisions() {
     assert!(import_htpasswd(&opts).is_err());
 
     // 2. Existing user collision handling without and with overwrite
-    std::fs::write(&target, "alice:$2y$10$abcdefghijklmnopqrstuu\n").unwrap();
+    pnpr_auth::UserStore::import_password_hashes(
+        &target,
+        [("alice".to_string(), "$2y$10$abcdefghijklmnopqrstuu".to_string())].into(),
+        pnpr_auth::PasswordImport {
+            collisions: pnpr_auth::PasswordCollisions::Keep,
+            mode: pnpr_auth::ImportMode::Persist,
+        },
+    )
+    .unwrap();
     // Incoming source has alice with a different hash
     std::fs::write(
         &source,
@@ -799,7 +807,7 @@ fn test_htpasswd_import_malformed_and_collisions() {
 
     // Check alice was NOT overwritten
     let content = std::fs::read_to_string(&target).unwrap();
-    assert!(content.contains("alice:$2y$10$abcdefghijklmnopqrstuu"));
+    assert!(content.contains("$2y$10$abcdefghijklmnopqrstuu"));
 
     // 3. With overwrite: true, alice gets replaced (bob is already identical)
     let ow_opts = HtpasswdImportOptions {
@@ -813,5 +821,44 @@ fn test_htpasswd_import_malformed_and_collisions() {
     assert_eq!(rep2.collisions.len(), 0);
 
     let content2 = std::fs::read_to_string(&target).unwrap();
-    assert!(content2.contains("alice:{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g="));
+    assert!(content2.contains("{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g="));
+}
+
+#[tokio::test]
+async fn add_user_preserves_account_id_when_changing_password() {
+    let dir = TempDir::new().unwrap();
+    let (config, _config_file) = create_test_config(dir.path());
+    pnpr::run_command(
+        &config,
+        pnpr::Command::AddUser {
+            username: "example-user".to_string(),
+            password: Some("first-password".to_string()),
+        },
+    )
+    .await
+    .unwrap();
+    let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .unwrap();
+    let id = auth.users
+        .account_id("example-user")
+        .await
+        .unwrap()
+        .unwrap();
+    pnpr::run_command(
+        &config,
+        pnpr::Command::AddUser {
+            username: "example-user".to_string(),
+            password: Some("second-password".to_string()),
+        },
+    )
+    .await
+    .unwrap();
+    let reloaded = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .unwrap();
+    let (_, logged_in_id) =
+        reloaded.users.add_or_login("example-user", "second-password").await.unwrap();
+    assert_eq!(id, logged_in_id);
+    assert!(reloaded.users.add_or_login("example-user", "first-password").await.is_err());
 }

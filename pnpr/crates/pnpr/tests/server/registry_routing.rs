@@ -370,7 +370,7 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
 async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     // Login against a registry prefix that is NOT a defined registry.
@@ -499,7 +499,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
 async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_endpoints() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for path in ["/npm/~/-/whoami", "/npm/corp/-/npm/v1/tokens", "/npm/~/-/npm/v1/user"] {
@@ -538,7 +538,7 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
 async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for (method, path) in [
@@ -574,7 +574,7 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
 async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for (method, path) in [
@@ -608,7 +608,7 @@ async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
 async fn a_prefix_that_is_not_valid_utf8_is_not_found() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     let response = app
@@ -705,7 +705,10 @@ async fn a_single_npm_ecosystem_still_answers_under_its_prefix() {
 async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
     let tmp = TempDir::new().unwrap();
     let config = registry_groups::grouped_config(tmp.path(), "alice");
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(
+        &config,
+        &[("alice", "password"), ("bob", "password"), ("ci", "password")],
+    );
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     for authenticated in [false, true] {

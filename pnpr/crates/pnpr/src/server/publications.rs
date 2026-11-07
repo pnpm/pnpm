@@ -299,7 +299,7 @@ async fn change_publication_note(
         authorize_member_publish(state, identity, &publication.catalog, member).await?;
     }
     let principal = identity
-        .username()
+        .user_id()
         .unwrap_or("-")
         .to_string();
     let change = NoteChange { text, principal: principal.clone() };

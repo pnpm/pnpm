@@ -509,7 +509,16 @@ async fn scoped_bearer_credentials_stop_with_their_owners_account() {
         StatusCode::OK,
     );
 
-    auth_state.users.delete_user("alice").await.unwrap();
+    auth_state.users
+        .delete_user(
+            &auth_state.users
+                .account_id("alice")
+                .await
+                .unwrap()
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(
         app.oneshot(pull()).await
             .unwrap()

@@ -499,9 +499,13 @@ fn proxied_alias_accepts_team_member_identity() {
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
     upstream.access = Some(AccessList::new(vec![AccessToken::Team {
-        name: "platform".to_string(),
+        id: "platform".to_string(),
         directory: TeamDirectory::new(
-            [("platform".to_string(), ["alice".to_string()].into())].into(),
+            [(
+                "platform".to_string(),
+                pnpr_policy::Team::new("platform", ["alice".to_string()].into()),
+            )]
+            .into(),
         ),
     }]));
     config.routing.upstreams.insert("corp".to_string(), upstream);

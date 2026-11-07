@@ -43,7 +43,7 @@ pub struct OidcGroups {
 pub struct OidcTeamGrant {
     pub group: String,
     pub registry: String,
-    pub team: String,
+    pub team_id: String,
 }
 
 fn default_groups_claim() -> String {
@@ -64,7 +64,7 @@ impl std::fmt::Debug for OidcLogin {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OidcBinding {
     pub subject: String,
-    pub username: String,
+    pub user_id: String,
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub claims: BTreeMap<String, String>,
 }

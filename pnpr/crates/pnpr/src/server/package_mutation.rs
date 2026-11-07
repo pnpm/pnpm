@@ -168,7 +168,7 @@ async fn rewrite_packument(
     }
     let unpublished = unpublished_blobs(storage, name, &removed).await;
     let version = Some(&hosted_packument.version);
-    match storage.write_hosted_document_if_current(name, &bytes, version, identity.username()).await
+    match storage.write_hosted_document_if_current(name, &bytes, version, identity.user_id()).await
     {
         Ok(DocumentWrite::Written) => {
             reclaim_unpublished_blobs(storage, name, unpublished).await;
@@ -279,7 +279,7 @@ fn new_tombstone_from_hosted(
     }
     PackageTombstone {
         package: name.as_str().to_string(),
-        unpublished_by: identity.username().map(ToString::to_string),
+        unpublished_by: identity.user_id().map(ToString::to_string),
         unpublished_at: chrono::Utc::now().to_rfc3339(),
         maintainers,
         unpublished_versions: Vec::new(),

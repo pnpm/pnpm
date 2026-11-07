@@ -25,6 +25,7 @@ pub(super) fn user_admin_routes() -> Router<AppState> {
             &format!("{USERS}/{{user}}"),
             delete(delete_user)
                 .put(put_user)
+                .patch(rename_user)
                 .route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
         )
         .route(&format!("{USERS}/{{user}}/tokens"), get(list_user_tokens))
@@ -55,10 +56,10 @@ async fn list_users(
 ) -> Response {
     let result = async {
         require_admin(&state, &identity, "list", "the users".to_string())?;
-        let names = state.inner.identity.auth.users.list_users().await?;
-        let users: Vec<_> = names
+        let accounts = state.inner.identity.auth.users.list_accounts().await?;
+        let users: Vec<_> = accounts
             .into_iter()
-            .map(|name| json!({ "name": name }))
+            .map(|account| json!({ "id": account.id, "name": account.username }))
             .collect();
         Ok(json_response(StatusCode::OK, &json!({ "users": users })))
     };
@@ -91,7 +92,8 @@ async fn put_user(
             user = %path.user,
             "admin action performed on user",
         );
-        Ok(json_response(status, &json!({ "name": path.user })))
+        let id = state.inner.identity.auth.users.account_id(&path.user).await?;
+        Ok(json_response(status, &json!({ "id": id, "name": path.user })))
     };
     respond(result.await)
 }
@@ -106,26 +108,24 @@ async fn delete_user(
 ) -> Response {
     let result = async {
         require_admin(&state, &identity, "remove", format!("user {:?}", path.user))?;
-        let revoked_before = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
-        let removed = retire_known_user(&state, &path.user, revoked_before).await?;
+        let auth = &state.inner.identity.auth;
+        let name = auth.users
+            .account_name(&path.user)
+            .await?
+            .unwrap_or_else(|| format!("deleted:{}", path.user));
+        let removed = auth.users.delete_user(&path.user).await?;
         state.inner.identity.oidc.revoke_user_sessions(&path.user);
-        let revoked_after = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
-        let had_nothing_to_revoke = revoked_before + revoked_after == 0;
-        match removed {
-            // A user the store never held, who also left no tokens behind,
-            // was never there to delete.
-            UserRemoval::NoSuchUser if had_nothing_to_revoke => {
-                return Err(RegistryError::NotFound);
-            }
-            UserRemoval::NoSuchUser | UserRemoval::Removed => {}
+        let revoked_total = auth.revoke_all_tokens(&path.user).await?;
+        if removed == UserRemoval::NoSuchUser && revoked_total == 0 {
+            return Err(RegistryError::NotFound);
         }
         let actor = identity.username().unwrap_or("-");
-        let revoked_total = revoked_before + revoked_after;
         tracing::info!(
             target: "pnpr::audit",
             action = "user.delete",
             actor = %actor,
-            user = %path.user,
+            user = %name,
+            user_id = %path.user,
             tokens_revoked = revoked_total,
             "admin user deleted",
         );
@@ -164,14 +164,19 @@ async fn revoke_user_token(
         require_admin(&state, &identity, "revoke", format!("the tokens of {:?}", path.user))?;
         let tokens = &state.inner.identity.auth.tokens;
         match tokens.find_by_key(&path.key).await? {
-            Some(record) if record.username == path.user => {
+            Some(record) if record.user_id == path.user => {
                 tokens.revoke_by_key(&path.key).await?;
                 let actor = identity.username().unwrap_or("-");
+                let name = state.inner.identity.auth.users
+                    .account_name(&path.user)
+                    .await?
+                    .unwrap_or_else(|| format!("deleted:{}", path.user));
                 tracing::info!(
                     target: "pnpr::audit",
                     action = "user.token_revoke",
                     actor = %actor,
-                    user = %path.user,
+                    user = %name,
+                    user_id = %path.user,
                     token_key = %path.key,
                     "admin user token revoked",
                 );
@@ -199,24 +204,23 @@ fn parse_password(body: &Bytes) -> Result<String, RegistryError> {
     Ok(password)
 }
 
-async fn retire_known_user(
-    state: &AppState,
-    username: &str,
-    revoked: usize,
-) -> Result<UserRemoval, RegistryError> {
-    let auth = &state.inner.identity.auth;
-    let managed = state.inner.config.identity.is_reserved_name(username)
-        || super::scim::is_provisioned(state, username)?;
-    let was_retired = auth.users.is_retired(username).await?;
-    if revoked == 0
-        && !managed
-        && !was_retired
-        && auth.users.password_hash(username).await?.is_none()
-    {
-        return Err(RegistryError::NotFound);
-    }
-    match auth.users.retire_user(username).await? {
-        UserRemoval::NoSuchUser if managed && !was_retired => Ok(UserRemoval::Removed),
-        removal => Ok(removal),
-    }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RenameUser {
+    name: String,
+}
+
+async fn rename_user(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path(path): Path<UserPath>,
+    body: Bytes,
+) -> Response {
+    let result = async {
+        require_admin(&state, &identity, "rename", format!("account {:?}", path.user))?;
+        let RenameUser { name } = serde_json::from_slice(&body)?;
+        state.inner.identity.auth.users.rename_user(&path.user, &name).await?;
+        Ok(json_response(StatusCode::OK, &json!({ "id": path.user, "name": name })))
+    };
+    respond(result.await)
 }

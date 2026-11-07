@@ -10,7 +10,7 @@
 //! Each permission is a list of tokens; a request is allowed when the
 //! caller's identity satisfies any token in the list. Tokens are the
 //! built-in pseudo-groups (`$all`, `$authenticated`, `$anonymous`), a
-//! bare *username*, or a `team:<name>` reference to a team the owning
+//! bare account ID, or a `team:<id>` reference to a team the owning
 //! registry declares. Teams are registry-scoped — the registry is the
 //! tenant, so it owns its principal sets — and a `team:` token reads the
 //! registry's live [`TeamDirectory`], so evaluation needs only the caller's
@@ -18,7 +18,7 @@
 
 pub use access::{AccessList, AccessToken, Identity, Membership};
 pub use package_rules::{PackageRules, RuleOverride};
-pub use teams::{TeamDirectory, Teams};
+pub use teams::{Team, TeamDirectory, Teams};
 
 mod access;
 mod package_rules;

@@ -21,10 +21,19 @@ pub(super) fn start_hosted_pnpr() -> (String, String) {
                 .expect("open user store");
             users.create_user("pacquet-test", "password").await.expect("store test account");
             let tokens = pnpr::TokenStore::open(tokens_path.clone()).expect("open token store");
-            tokens.issue("pacquet-test").await.expect("issue test token")
+            tokens
+                .issue(
+                    &users
+                        .account_id("pacquet-test")
+                        .await
+                        .unwrap()
+                        .unwrap(),
+                )
+                .await
+                .expect("issue test token")
         });
     let addr = server.serve(move |config| {
-        config.identity.auth.htpasswd.file = Some(htpasswd_path);
+        config.identity.auth.users.file = Some(htpasswd_path);
         config.identity.auth.tokens.file = Some(tokens_path);
         config.routing.hosted.insert(
             "acme".to_string(),

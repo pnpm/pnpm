@@ -102,7 +102,7 @@ async fn callback(
         )
         .await
         {
-            Ok(session) => signed_in(&state.inner.identity.oidc, &query.state, session),
+            Ok(session) => finish_sign_in(&state, &query.state, session).await,
             Err(err) => err.into_response(),
         }
     } else {
@@ -339,7 +339,7 @@ pub(super) fn check_workload_request(
         return Ok(());
     }
     Err(RegistryError::Forbidden {
-        user: workload.identity.username.clone(),
+        user: workload.identity.user_id.clone(),
         action: "use",
         resource: "workload credentials outside the configured npm publish targets".to_string(),
     })
@@ -354,7 +354,7 @@ pub(super) struct WorkloadScope {
     /// The serving key of the workload's registry, as a publish resolves it.
     registry: String,
     packages: Vec<String>,
-    username: String,
+    user_id: String,
 }
 
 impl WorkloadScope {
@@ -369,7 +369,7 @@ impl WorkloadScope {
         WorkloadScope {
             registry,
             packages: workload.packages.clone(),
-            username: workload.identity.username.clone(),
+            user_id: workload.identity.user_id.clone(),
         }
     }
 
@@ -403,7 +403,7 @@ impl WorkloadScope {
 
     fn refusal(&self, resource: &str) -> RegistryError {
         RegistryError::Forbidden {
-            user: self.username.clone(),
+            user: self.user_id.clone(),
             action: "publish",
             resource: format!("{resource} with workload credentials"),
         }
@@ -412,3 +412,26 @@ impl WorkloadScope {
 
 #[cfg(test)]
 mod tests;
+
+async fn finish_sign_in(state: &AppState, flow: &str, session: LoginSession) -> Response {
+    let verified = async {
+        let user = state.inner.identity.oidc
+            .session(&session.token)?
+            .ok_or_else(|| RegistryError::Unauthenticated {
+                resource: "OIDC browser session".to_string(),
+            })?;
+        super::authentication::require_active_account(state, &user.user_id).await?;
+        if super::scim::is_deprovisioned(state, &user.user_id)? {
+            return Err(RegistryError::Unauthenticated {
+                resource: "an inactive account".to_string(),
+            });
+        }
+        Ok(())
+    }
+    .await;
+    if let Err(err) = verified {
+        state.inner.identity.oidc.revoke_session(&session.token);
+        return err.into_response();
+    }
+    signed_in(&state.inner.identity.oidc, flow, session)
+}

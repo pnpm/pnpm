@@ -87,15 +87,28 @@ async fn start_pnpr_inner(
 
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
     config.features.artifacts.enabled = artifacts_enabled;
+    let accounts_path = storage.path().join("users.json");
+    let accounts = pnpr::UserStore::open(accounts_path.clone(), pnpr::MaxUsers::Unlimited).unwrap();
+    pnpr::UserBackend::create_user(&accounts, "pnpr-client", "password123")
+        .await
+        .unwrap();
+    pnpr::UserBackend::create_user(&accounts, "reader", "password123").await.unwrap();
+    let publisher_id = pnpr::UserBackend::account_id(&accounts, "pnpr-client")
+        .await
+        .unwrap()
+        .unwrap();
+    let reader_id = pnpr::UserBackend::account_id(&accounts, "reader").await.unwrap().unwrap();
+    config.identity.auth.users.file = Some(accounts_path);
+
     config.features.artifacts.orgs.insert(
         "pnpr-client".to_string(),
         pnpr::StorageAccess {
-            access: pnpr::AccessList::from_tokens(["pnpr-client", "reader"]),
-            publish: pnpr::AccessList::from_tokens(["pnpr-client"]),
+            access: pnpr::AccessList::from_tokens([&publisher_id, &reader_id]),
+            publish: pnpr::AccessList::from_tokens([&publisher_id]),
         },
     );
     config.http.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
-    config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
     config.routing.route_policy.allowed_private_networks = ["127.0.0.0/8", "::1"]
         .into_iter()
         .map(|network| pnpr::IpNetwork::parse(network).expect("loopback network parses"))

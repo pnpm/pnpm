@@ -8,8 +8,8 @@ pub use access::{
 };
 pub use artifacts::{ArtifactQuota, ArtifactsFeature, StorageAccess};
 pub use backend_config::{
-    AuthConfig, BackendConfig, HtpasswdConfig, IdentityConfig, LibsqlSettings, MaxUsers,
-    SqlBackendSettings, TokensConfig,
+    AuthConfig, BackendConfig, IdentityConfig, LibsqlSettings, MaxUsers, SqlBackendSettings,
+    TokensConfig, UsersConfig,
 };
 pub use byte_size::{ByteSize, parse_byte_size};
 pub use gc::GcConfig;
@@ -18,7 +18,7 @@ pub use ip_network::{IpNetwork, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
 pub use package_documents::PackageDocumentsConfig;
-pub use pnpr_policy::{TeamDirectory, Teams};
+pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;

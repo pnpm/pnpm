@@ -27,7 +27,7 @@ auth:
         clientSecret: ${OIDC_CLIENT_SECRET}
         users:
           - subject: 'the-users-stable-sub-claim'
-            username: alice
+            userId: <account-id>
             claims:
               hd: example.com
 ```
@@ -35,9 +35,11 @@ auth:
 `audience` is the application's client ID. `clientSecret` can be omitted for
 providers that support public clients with PKCE. `subject` is the exact `sub`
 claim issued to this application, not an email address. Each binding maps that
-subject to a pnpr username, and the registry's existing access rules and teams
+subject to an existing pnpr account ID, and the registry's existing access rules and teams
 then apply. Extra `claims` are exact string matches and all of them must match.
-There is no automatic account creation, and no linking by email.
+Create the account with `pnpr add-user` or SCIM before binding it. There is no
+automatic account creation or linking by email or username. Renaming the
+account does not change the binding. A deleted account ID cannot sign in.
 
 ### Teams from groups
 
@@ -53,19 +55,20 @@ auth:
       login:
         users:
           - subject: 'the-users-stable-sub-claim'
-            username: alice
+            userId: <account-id>
         groups:
           claim: groups
           teams:
             - group: 7f3c2a10-0000-0000-0000-000000000000
               registry: private
-              team: platform
+              teamId: platform
 ```
 
 - `claim` names the ID-token claim that lists the groups, either as a list of
   strings or as one string. It defaults to `groups`.
-- A session whose claim lists `group` is a member of `team` on the hosted
-  registry `registry`, as if the team listed its username. `registry` is the
+- `teamId` is the stable team ID, not its display name.
+- A session whose claim lists `group` is a member of `teamId` on the hosted
+  registry `registry`, as if the team listed its account ID. `registry` is the
   registry's key in `registries:`.
 - The membership lasts as long as the session. Removing someone from a group
   takes effect at their next sign-in, within an hour. It never applies to the
@@ -118,8 +121,8 @@ An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](contain
 
 ## GitHub Actions keyless publishing
 
-Configure a dedicated workload username, a named hosted npm registry, and exact
-package names. The package's normal `publish` rule must grant that username
+Create a dedicated workload account, a named hosted npm registry, and exact
+package names. The package's normal `publish` rule must grant that account ID
 access too.
 
 ```yaml title="pnpr.yaml"
@@ -128,7 +131,7 @@ registries:
     type: hosted
     packages:
       '@example/widget':
-        publish: [release-ci]
+        publish: [<workload-account-id>]
 auth:
   oidc:
     - name: github
@@ -137,7 +140,7 @@ auth:
       workloads:
         - identity:
             subject: repo:example/widgets:ref:refs/heads/main
-            username: release-ci
+            userId: <workload-account-id>
             claims:
               repository_id: '123456789'
               repository_owner_id: '987654321'

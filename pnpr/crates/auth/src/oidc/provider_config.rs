@@ -22,8 +22,8 @@ pub(super) fn validate_provider(config: &OidcProvider) -> Result<()> {
         .flat_map(|login| &login.users)
         .chain(config.workloads.iter().map(|workload| &workload.identity))
     {
-        crate::validation::validate_username(&binding.username)
-            .map_err(|_| invalid_config("invalid OIDC username"))?;
+        crate::validation::validate_username(&binding.user_id)
+            .map_err(|_| invalid_config("invalid OIDC user_id"))?;
         if binding.subject.is_empty() || !subjects.insert(&binding.subject) {
             return Err(invalid_config(
                 "OIDC subjects must be nonempty and unique within each provider",

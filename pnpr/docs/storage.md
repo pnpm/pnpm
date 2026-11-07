@@ -290,8 +290,8 @@ metadata:
   authToken: ${PNPR_LIBSQL_TOKEN}
 
 auth:
-  htpasswd:
-    file: ./htpasswd
+  users:
+    file: ./users.json
 
 registries:
   local:

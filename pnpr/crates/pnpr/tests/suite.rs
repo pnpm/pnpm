@@ -16,6 +16,7 @@ mod storage;
 mod tokens;
 
 mod access_log;
+mod account_identity;
 mod admin_audit_log;
 mod atomic_publication;
 mod auth_persistence;
@@ -36,7 +37,6 @@ mod pypi_registry;
 mod pypi_resolve;
 mod registry_mock;
 mod release_notes;
-mod reserved_usernames;
 mod rule_administration;
 mod s3_backend;
 mod scim;

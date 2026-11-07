@@ -106,7 +106,10 @@ fn team_tokens_admit_members_only() {
 fn team_tokens_follow_roster_replacement() {
     let (token, directory) = team_token("platform", &["alice"]);
     let list = AccessList::new(vec![token]);
-    directory.replace(Teams::from([("platform".to_string(), ["bob".to_string()].into())]));
+    directory.replace(Teams::from([(
+        "platform".to_string(),
+        crate::Team::new("platform", ["bob".to_string()].into()),
+    )]));
     assert!(list.allows(&user("bob")));
     assert!(!list.allows(&user("alice")));
     directory.replace(Teams::default());
@@ -118,8 +121,9 @@ fn team_token(team: &str, members: &[&str]) -> (AccessToken, TeamDirectory) {
         .iter()
         .map(ToString::to_string)
         .collect();
-    let directory = TeamDirectory::new(Teams::from([(team.to_string(), members)]));
-    (AccessToken::Team { name: team.to_string(), directory: directory.clone() }, directory)
+    let directory =
+        TeamDirectory::new(Teams::from([(team.to_string(), crate::Team::new(team, members))]));
+    (AccessToken::Team { id: team.to_string(), directory: directory.clone() }, directory)
 }
 
 #[test]
@@ -297,7 +301,7 @@ fn a_credential_membership_satisfies_team_tokens_of_that_roster_only() {
     let (token, directory) = team_token("platform", &[]);
     let list = AccessList::new(vec![token]);
     let membership =
-        |directory: TeamDirectory, team: &str| Membership { directory, team: team.to_string() };
+        |directory: TeamDirectory, team: &str| Membership { directory, team_id: team.to_string() };
 
     assert!(list.allows(&Identity::member("bob", vec![membership(directory.clone(), "platform")])));
     assert!(!list.allows(&Identity::member("bob", vec![membership(directory, "other")])));
@@ -325,4 +329,31 @@ fn admits_every_identity_requires_universal_access() {
 
     let empty = AccessList::from_tokens([] as [&str; 0]);
     assert!(!empty.admits_every_identity());
+}
+
+#[test]
+fn replacing_a_team_name_does_not_transfer_a_sessions_membership() {
+    let old = crate::Team::new("release", std::collections::BTreeSet::default());
+    let directory = TeamDirectory::new(Teams::from([("old-team-id".to_string(), old)]));
+    let session = Identity::account_member(
+        "user-id",
+        "member",
+        vec![crate::Membership {
+            directory: directory.clone(),
+            team_id: "old-team-id".to_string(),
+        }],
+    );
+    let old_grant = AccessList::new(vec![AccessToken::Team {
+        id: "old-team-id".to_string(),
+        directory: directory.clone(),
+    }]);
+    assert!(old_grant.allows(&session));
+    directory.replace(Teams::from([(
+        "new-team-id".to_string(),
+        crate::Team::new("release", std::collections::BTreeSet::default()),
+    )]));
+    let new_grant =
+        AccessList::new(vec![AccessToken::Team { id: "new-team-id".to_string(), directory }]);
+    assert!(!old_grant.allows(&session));
+    assert!(!new_grant.allows(&session));
 }

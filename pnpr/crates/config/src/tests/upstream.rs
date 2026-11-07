@@ -326,7 +326,7 @@ registries:
   local:
     type: hosted
     teams:
-      platform: [alice, bob]
+      platform: { name: platform, members: [alice, bob] }
     packages:
       '@team/*':
         access: team:platform
@@ -334,7 +334,7 @@ registries:
     type: upstream
     url: https://npm.corp.example/
     teams:
-      partners: [alice]
+      partners: { name: partners, members: [alice] }
     access: team:partners
     auth:
       type: bearer

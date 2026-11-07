@@ -396,10 +396,14 @@ async fn default_tls_rejects_an_untrusted_certificate_without_panicking() {
             "../../tests/fixtures/test-client-pkcs1.key"
         ))
         .expect("parse server key");
-        let config = ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(vec![cert], key)
-            .expect("configure untrusted TLS server");
+        let config = ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::aws_lc_rs::default_provider(),
+        ))
+        .with_safe_default_protocol_versions()
+        .expect("supported TLS protocol versions")
+        .with_no_client_auth()
+        .with_single_cert(vec![cert], key)
+        .expect("configure untrusted TLS server");
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind TLS server");
         let address = listener.local_addr().expect("TLS server address");
         let server = std::thread::spawn(move || {

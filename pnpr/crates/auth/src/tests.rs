@@ -116,11 +116,11 @@ async fn adduser_creates_then_validates() {
     let store = test_user_store();
     let outcome = store.add_or_login("alice", "secret").await.unwrap();
     assert!(matches!(outcome, (UpsertOutcome::Created, _)));
-    assert_eq!(outcome.1, "alice");
+    assert_eq!(Some(outcome.1), store.account_id("alice").await.unwrap());
 
     let outcome = store.add_or_login("alice", "secret").await.unwrap();
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
-    assert_eq!(outcome.1, "alice");
+    assert_eq!(Some(outcome.1), store.account_id("alice").await.unwrap());
 
     // A wrong password for an existing user is rejected.
     let err = store.add_or_login("alice", "wrong").await.unwrap_err();
@@ -218,13 +218,14 @@ async fn adduser_writes_bcrypt_2y_format() {
     let store = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
     store.add_or_login("alice", "secret").await.unwrap();
 
-    let raw = std::fs::read_to_string(&path).unwrap();
-    let (user, hash) = raw
-        .trim_end()
-        .split_once(':')
-        .expect("user:hash line");
-    assert_eq!(user, "alice");
-    assert!(hash.starts_with("$2y$"), "expected $2y$ prefix for htpasswd compat, got {hash:?}");
+    let records: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert!(
+        records["alice"]["password_hash"]
+            .as_str()
+            .unwrap()
+            .starts_with("$2y$"),
+    );
 }
 
 #[tokio::test]
@@ -236,7 +237,7 @@ async fn max_users_minus_one_disables_registration() {
 
 #[tokio::test]
 async fn in_memory_store_honors_the_registration_cap() {
-    // An unset `auth.htpasswd.file` must not re-open sign-ups that the
+    // An unset `auth.users.file` must not re-open sign-ups that the
     // configured cap denied: the in-memory store enforces it too.
     let store = UserStore::in_memory_with_max_users(MaxUsers::Disabled);
     let err = store.add_or_login("alice", "secret").await.unwrap_err();
@@ -260,7 +261,7 @@ async fn open_rejects_corrupt_htpasswd_at_startup() {
     let path = tmp.path().join("htpasswd");
     std::fs::write(&path, "no-colon-here\nalice:plaintext\n").unwrap();
     let err = UserStore::open(path, MaxUsers::Unlimited).unwrap_err();
-    assert!(matches!(err, pnpr_error::RegistryError::InvalidHtpasswdFile { .. }), "got {err:?}");
+    assert!(matches!(err, pnpr_error::RegistryError::InvalidUsersFile { .. }), "got {err:?}");
 }
 
 #[test]
@@ -324,7 +325,7 @@ async fn lookup_record_surfaces_token_restrictions() {
         .await
         .unwrap()
         .expect("seeded token resolves");
-    assert_eq!(record.username, "alice");
+    assert_eq!(record.user_id, "alice");
     assert!(record.readonly, "readonly flag must survive the lookup");
     assert_eq!(record.cidr_whitelist, vec!["203.0.113.0/24".to_string()]);
 
@@ -390,7 +391,7 @@ async fn tokens_issue_with_options_persists_and_expires() {
         )
         .await
         .unwrap();
-    assert_eq!(record.username, "alice");
+    assert_eq!(record.user_id, "alice");
     assert!(record.readonly);
     assert_eq!(record.name.as_deref(), Some("ci-token"));
     assert_eq!(record.expires_at, Some(2_000_000_000));
@@ -402,7 +403,7 @@ async fn tokens_issue_with_options_persists_and_expires() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(looked_up.username, "alice");
+    assert_eq!(looked_up.user_id, "alice");
     assert!(looked_up.readonly);
     assert_eq!(looked_up.cidr_whitelist, vec!["127.0.0.1/32".to_string()]);
     assert_eq!(looked_up.name.as_deref(), Some("ci-token"));
@@ -474,7 +475,7 @@ async fn tokens_clamp_negative_persisted_timestamps() {
     crate::token_store::sqlite::init_tokens_schema(&conn).unwrap();
     conn.execute(
         "INSERT INTO tokens
-         (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+         (token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params!["token-hash", "alice", -1_i64, -42_i64, 0_i64, "[]"],
     )
@@ -587,7 +588,7 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
     crate::token_store::sqlite::init_tokens_schema(&conn).unwrap();
     conn.execute(
         "INSERT INTO tokens
-         (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+         (token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         rusqlite::params!["token-hash", "alice", 0_i64, 0_i64, 0_i64, "{ not json"],
     )
@@ -610,7 +611,12 @@ pub(crate) async fn assert_admin_round_trip(users: &dyn UserBackend) {
     assert_eq!(users.create_user("alice", "other").await.unwrap(), UserCreation::NameTaken);
     assert_eq!(users.list_users().await.unwrap(), ["alice"]);
 
-    assert_eq!(users.set_password("alice", "second").await.unwrap(), PasswordChange::Changed);
+    let id = users
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(users.set_password(&id, "second").await.unwrap(), PasswordChange::Changed);
     assert!(users.add_or_login("alice", "first").await.is_err());
     assert!(matches!(
         users.add_or_login("alice", "second").await.unwrap(),
@@ -618,8 +624,8 @@ pub(crate) async fn assert_admin_round_trip(users: &dyn UserBackend) {
     ));
     assert_eq!(users.set_password("bob", "x").await.unwrap(), PasswordChange::NoSuchUser);
 
-    assert_eq!(users.delete_user("alice").await.unwrap(), UserRemoval::Removed);
-    assert_eq!(users.delete_user("alice").await.unwrap(), UserRemoval::NoSuchUser);
+    assert_eq!(users.delete_user(&id).await.unwrap(), UserRemoval::Removed);
+    assert_eq!(users.delete_user(&id).await.unwrap(), UserRemoval::NoSuchUser);
     assert!(
         users
             .list_users()
@@ -641,7 +647,19 @@ async fn admin_created_users_bypass_disabled_registration_and_persist() {
     let store = UserStore::open_with_cost(path.clone(), MaxUsers::Disabled, TEST_COST).unwrap();
     assert_eq!(store.create_user("alice", "secret").await.unwrap(), UserCreation::Created);
     assert_eq!(store.create_user("bob", "secret").await.unwrap(), UserCreation::Created);
-    assert_eq!(store.delete_user("bob").await.unwrap(), UserRemoval::Removed);
+    assert_eq!(
+        store
+            .delete_user(
+                &store
+                    .account_id("bob")
+                    .await
+                    .unwrap()
+                    .unwrap()
+            )
+            .await
+            .unwrap(),
+        UserRemoval::Removed,
+    );
 
     let reopened = UserStore::open_with_cost(path, MaxUsers::Disabled, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
@@ -660,7 +678,16 @@ async fn concurrent_edits_leave_the_file_matching_memory() {
             let name = format!("user{index}");
             store.create_user(&name, "x").await.unwrap();
             if index % 2 == 0 {
-                store.delete_user(&name).await.unwrap();
+                store
+                    .delete_user(
+                        &store
+                            .account_id(&name)
+                            .await
+                            .unwrap()
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
             }
         });
     }
@@ -698,17 +725,22 @@ async fn local_tokens_of_a_removed_owner_stop_authenticating() {
     let users = Arc::new(test_user_store());
     let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
     users.create_user("alice", "x").await.unwrap();
-    let token = tokens.issue("alice").await.unwrap();
+    let id = users
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    let token = tokens.issue(&id).await.unwrap();
     assert_eq!(
         tokens
             .lookup(&token)
             .await
             .unwrap()
             .as_deref(),
-        Some("alice"),
+        Some(id.as_str()),
     );
 
-    users.delete_user("alice").await.unwrap();
+    users.delete_user(&id).await.unwrap();
     assert!(
         tokens
             .lookup(&token)
@@ -725,7 +757,7 @@ async fn local_tokens_of_a_removed_owner_stop_authenticating() {
     );
     assert_eq!(
         tokens
-            .list_for_user("alice")
+            .list_for_user(&id)
             .await
             .unwrap()
             .len(),
@@ -866,7 +898,11 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("htpasswd");
     // "test" hashed with SHA-1 in Apache/Verdaccio format
-    std::fs::write(&path, "verdaccio_user:{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=\n").unwrap();
+    std::fs::write(
+        &path,
+        native_account("verdaccio-id", "verdaccio_user", "{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M="),
+    )
+    .unwrap();
 
     let store =
         UserStore::open_with_cost(path.clone(), pnpr_config::MaxUsers::Unlimited, TEST_COST)
@@ -879,17 +915,17 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
     // Correct password succeeds
     let (outcome, user) = store.add_or_login("verdaccio_user", "test").await.unwrap();
     assert_eq!(outcome, super::UpsertOutcome::LoggedIn);
-    assert_eq!(user, "verdaccio_user");
+    assert_eq!(user, "verdaccio-id");
 
     // File on disk is now upgraded to bcrypt
     let content = std::fs::read_to_string(&path).unwrap();
     assert!(!content.contains("{SHA}"));
-    assert!(content.contains("verdaccio_user:$2y$"));
+    assert!(content.contains("$2y$"));
 
     // Verify returning user can log in with new bcrypt hash
     let (outcome2, user2) = store.add_or_login("verdaccio_user", "test").await.unwrap();
     assert_eq!(outcome2, super::UpsertOutcome::LoggedIn);
-    assert_eq!(user2, "verdaccio_user");
+    assert_eq!(user2, "verdaccio-id");
 }
 
 #[tokio::test]
@@ -919,7 +955,7 @@ async fn schema_migrations_runs_on_empty_sqlite_database() {
 }
 
 #[tokio::test]
-async fn schema_migrations_upgrades_legacy_sqlite_database() {
+async fn incompatible_auth_databases_are_refused_without_migration() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");
 
@@ -943,23 +979,7 @@ async fn schema_migrations_upgrades_legacy_sqlite_database() {
         .unwrap();
     }
 
-    // Opening TokenStore must migrate schema to CURRENT_SCHEMA_VERSION
-    let store = TokenStore::open(path.clone()).unwrap();
-    let conn = rusqlite::Connection::open(&path).unwrap();
-    let version: i64 = conn
-        .query_row("SELECT MAX(version) FROM auth_schema_migrations", [], |row| row.get(0))
-        .unwrap();
-    assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
-
-    // Legacy record is preserved with None scopes and kind
-    let record = store
-        .find_by_key("deadbeef")
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(record.username, "alice");
-    assert_eq!(record.scopes, None);
-    assert_eq!(record.kind, None);
+    assert!(TokenStore::open(path).is_err());
 }
 
 #[tokio::test]
@@ -978,10 +998,7 @@ async fn schema_migrations_refuses_future_schema_version() {
 
     let err = TokenStore::open(path).unwrap_err();
     let err_str = err.to_string();
-    assert!(
-        err_str.contains("newer than supported version"),
-        "expected error about newer version, got: {err_str}",
-    );
+    assert!(err_str.contains("incompatible"), "expected error about newer version, got: {err_str}");
 }
 
 #[tokio::test]
@@ -1031,7 +1048,20 @@ async fn file_backed_user_store_picks_up_external_edits() {
     );
 
     // store2 updates alice's password
-    assert_eq!(store2.set_password("alice", "pass2").await.unwrap(), PasswordChange::Changed);
+    assert_eq!(
+        store2
+            .set_password(
+                &store2
+                    .account_id("alice")
+                    .await
+                    .unwrap()
+                    .unwrap(),
+                "pass2"
+            )
+            .await
+            .unwrap(),
+        PasswordChange::Changed,
+    );
     // store1 adds bob
     assert_eq!(store1.create_user("bob", "pass3").await.unwrap(), UserCreation::Created);
 
@@ -1059,16 +1089,21 @@ async fn holds_fails_closed_on_corrupt_htpasswd_and_reflects_deletion() {
     let store = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
 
     assert_eq!(store.create_user("alice", "pass1").await.unwrap(), UserCreation::Created);
-    assert!(store.holds("alice").unwrap());
+    let id = store
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(store.holds(&id).unwrap());
     assert!(!store.holds("bob").unwrap());
 
     // Corrupt the htpasswd file
     std::fs::write(&htpasswd_path, b"invalid htpasswd line without colon\n").unwrap();
-    assert!(store.holds("alice").is_err(), "must fail closed on corrupt htpasswd");
+    assert!(store.holds(&id).is_err(), "must fail closed on corrupt htpasswd");
 
     // Delete the htpasswd file: accounts are cleared
     std::fs::remove_file(&htpasswd_path).unwrap();
-    assert!(!store.holds("alice").unwrap(), "deleted file must reflect as empty store");
+    assert!(!store.holds(&id).unwrap(), "deleted file must reflect as empty store");
 }
 
 #[tokio::test]
@@ -1085,7 +1120,7 @@ async fn concurrent_lookups_during_removal_and_replacement_do_not_deadlock() {
         let store = std::sync::Arc::clone(&store);
         handles.push(tokio::spawn(async move {
             for _ in 0..20 {
-                let _ = store.holds("alice");
+                let _ = store.holds("file-alice-id");
                 let _ = store.password_hash("alice").await;
                 let _ = store.list_users().await;
                 tokio::time::sleep(std::time::Duration::from_millis((index % 3) + 1)).await;
@@ -1098,7 +1133,8 @@ async fn concurrent_lookups_during_removal_and_replacement_do_not_deadlock() {
             let _ = std::fs::remove_file(&htpasswd_path);
             tokio::time::sleep(std::time::Duration::from_millis(2)).await;
             let hash = bcrypt::hash(format!("pass{round}"), TEST_COST).unwrap();
-            std::fs::write(&htpasswd_path, format!("alice:{hash}\n")).unwrap();
+            std::fs::write(&htpasswd_path, native_account("file-alice-id", "alice", &hash))
+                .unwrap();
             tokio::time::sleep(std::time::Duration::from_millis(2)).await;
         }
     });
@@ -1108,7 +1144,7 @@ async fn concurrent_lookups_during_removal_and_replacement_do_not_deadlock() {
     }
     replacer.await.unwrap();
 
-    assert!(store.holds("alice").unwrap());
+    assert!(store.holds("file-alice-id").unwrap());
     assert!(
         store
             .password_hash("alice")
@@ -1126,10 +1162,10 @@ async fn same_size_replacement_reloads_users_even_if_timestamp_preserved() {
     let store = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
 
     let hash_alice = bcrypt::hash("pass_alice", TEST_COST).unwrap();
-    let initial_content = format!("alice:{hash_alice}\n");
+    let initial_content = native_account("alice-id", "alice", &hash_alice);
     std::fs::write(&htpasswd_path, &initial_content).unwrap();
 
-    assert!(store.holds("alice").unwrap());
+    assert!(store.holds("alice-id").unwrap());
 
     let orig_mtime = std::fs::metadata(&htpasswd_path)
         .unwrap()
@@ -1137,7 +1173,7 @@ async fn same_size_replacement_reloads_users_even_if_timestamp_preserved() {
         .unwrap();
 
     let hash_bob = bcrypt::hash("pass_bob00", TEST_COST).unwrap();
-    let replacement = format!("bob00:{hash_bob}\n");
+    let replacement = native_account("bob00-id", "bob00", &hash_bob);
     assert_eq!(initial_content.len(), replacement.len());
 
     let tmp_path = dir.path().join("htpasswd.tmp");
@@ -1150,6 +1186,10 @@ async fn same_size_replacement_reloads_users_even_if_timestamp_preserved() {
     drop(tmp_file);
     std::fs::rename(&tmp_path, &htpasswd_path).unwrap();
 
-    assert!(store.holds("bob00").unwrap());
-    assert!(!store.holds("alice").unwrap());
+    assert!(store.holds("bob00-id").unwrap());
+    assert!(!store.holds("alice-id").unwrap());
+}
+
+fn native_account(id: &str, name: &str, hash: &str) -> String {
+    serde_json::json!({ name: { "id": id, "password_hash": hash } }).to_string()
 }

@@ -90,7 +90,9 @@ fn parse_roster(registry: &str, bytes: &[u8]) -> Result<Teams, RegistryError> {
         })?;
     Ok(record.teams
         .into_iter()
-        .map(|team| (team.name, team.members.into_iter().collect()))
+        .map(|team| {
+            (team.id, pnpr_policy::Team::new(team.name, team.members.into_iter().collect()))
+        })
         .collect())
 }
 
@@ -103,6 +105,7 @@ struct RosterRecord {
 
 #[derive(Serialize, Deserialize)]
 struct RosterTeam {
+    id: String,
     name: String,
     members: Vec<String>,
 }
@@ -111,9 +114,10 @@ impl From<&Teams> for RosterRecord {
     fn from(teams: &Teams) -> Self {
         let teams = teams
             .iter()
-            .map(|(name, members)| RosterTeam {
-                name: name.clone(),
-                members: members.iter().cloned().collect(),
+            .map(|(id, team)| RosterTeam {
+                id: id.clone(),
+                name: team.name.clone(),
+                members: team.members.iter().cloned().collect(),
             })
             .collect();
         Self { teams }

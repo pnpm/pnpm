@@ -53,7 +53,7 @@ impl AccessSpec {
             validate_access_token(entry)?;
             tokens.push(match entry.strip_prefix("team:") {
                 Some(team) if declared.contains_key(team) => {
-                    AccessToken::Team { name: team.to_string(), directory: teams.clone() }
+                    AccessToken::Team { id: team.to_string(), directory: teams.clone() }
                 }
                 Some(_) => {
                     return Err(format!(
@@ -98,22 +98,34 @@ pub(super) fn declared_teams(teams: &Teams) -> String {
 /// writable after `team:` in a token) and member lists.
 pub(super) fn build_teams(
     registry: &str,
-    file: &IndexMap<String, AccessSpec>,
+    file: &IndexMap<String, super::config_file::TeamFile>,
 ) -> Result<Teams, RegistryError> {
     let mut teams = Teams::default();
-    for (team, members) in file {
+    for (team, record) in file {
         validate_team_name(team)
             .map_err(|reason| RegistryError::InvalidConfig {
                 reason: format!("registry {registry:?} has an invalid team name: {reason}"),
             })?;
-        let members = members
+        validate_team_name(&record.name).map_err(|reason| RegistryError::InvalidConfig { reason })?;
+        if teams
+            .values()
+            .any(|existing: &pnpr_policy::Team| existing.name == record.name)
+        {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!("duplicate team name {:?}", record.name),
+            });
+        }
+        let members = record.members
             .member_names()
             .map_err(|reason| RegistryError::InvalidConfig {
                 reason: format!(
                     "registry {registry:?} team {team:?} has an invalid member list: {reason}",
                 ),
             })?;
-        teams.insert(team.clone(), members.iter().cloned().collect());
+        teams.insert(
+            team.clone(),
+            pnpr_policy::Team::new(&record.name, members.iter().cloned().collect()),
+        );
     }
     Ok(teams)
 }

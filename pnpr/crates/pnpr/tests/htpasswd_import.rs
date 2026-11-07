@@ -2,43 +2,54 @@ use pnpr::{
     UserBackend, UserStore,
     htpasswd_import::{HtpasswdImportOptions, import_htpasswd},
 };
-use pnpr_auth::{DELETED_USER_HASH, parse_htpasswd};
 use pnpr_config::MaxUsers;
 
 #[tokio::test]
-async fn imports_preserve_retired_names_even_with_overwrite() {
-    let dir = tempfile::tempdir().unwrap();
-    let source = dir.path().join("backup");
-    let target = dir.path().join("htpasswd");
-    let users = UserStore::open_with_cost(target.clone(), MaxUsers::Unlimited, 4).unwrap();
-    users.create_user("former-member", "old-password").await.unwrap();
-    std::fs::copy(&target, &source).unwrap();
-    users.retire_user("former-member").await.unwrap();
+async fn importing_a_reused_name_creates_a_fresh_identity() {
     for overwrite in [false, true] {
-        let options = HtpasswdImportOptions {
-            source: source.clone(),
-            target: Some(target.clone()),
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("htpasswd");
+        let target = directory.path().join("users.json");
+        let users = UserStore::open_with_cost(target.clone(), MaxUsers::Unlimited, 4).unwrap();
+        let (_, original_id) = users.add_or_login("member", "password").await.unwrap();
+        let hash = users
+            .password_hash("member")
+            .await
+            .unwrap()
+            .unwrap();
+        std::fs::write(&source, format!("member:{hash}\n")).unwrap();
+        users.delete_user(&original_id).await.unwrap();
+        let report = import_htpasswd(&HtpasswdImportOptions {
+            source,
+            target: Some(target),
             dry_run: false,
             overwrite,
-        };
-        let report = import_htpasswd(&options).unwrap();
-        assert_eq!(report.merged, 0);
-        assert_eq!(report.collisions, ["former-member (destination: retired, source: bcrypt)"]);
-        assert!(users.is_retired("former-member").await.unwrap());
-        assert!(users.add_or_login("former-member", "old-password").await.is_err());
+        })
+        .unwrap();
+        assert_eq!(report.merged, 1);
+        assert!(report.collisions.is_empty());
+        let (_, imported_id) = users.add_or_login("member", "password").await.unwrap();
+        assert_ne!(original_id, imported_id);
+        assert_eq!(users.account_name(&original_id).await.unwrap(), None);
     }
-    let copied = dir.path().join("copied");
-    let report = import_htpasswd(&HtpasswdImportOptions {
-        source: target,
-        target: Some(copied.clone()),
+}
+
+#[tokio::test]
+async fn overwriting_credentials_preserves_the_existing_account_id() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("htpasswd");
+    let target = directory.path().join("users.json");
+    let users = UserStore::open_with_cost(target.clone(), MaxUsers::Unlimited, 4).unwrap();
+    let (_, id) = users.add_or_login("member", "old-password").await.unwrap();
+    let hash = bcrypt::hash("new-password", 4).unwrap();
+    std::fs::write(&source, format!("member:{hash}\n")).unwrap();
+    import_htpasswd(&HtpasswdImportOptions {
+        source,
+        target: Some(target),
         dry_run: false,
         overwrite: true,
     })
     .unwrap();
-    assert_eq!(report.total_read, 1);
-    assert_eq!(report.merged, 1);
-    assert_eq!(
-        parse_htpasswd(&std::fs::read_to_string(copied).unwrap()).unwrap()["former-member"],
-        DELETED_USER_HASH,
-    );
+    assert_eq!(users.add_or_login("member", "new-password").await.unwrap().1, id);
+    assert!(users.add_or_login("member", "old-password").await.is_err());
 }

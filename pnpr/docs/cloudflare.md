@@ -84,7 +84,7 @@ trustedProxies: [10.0.0.0/8]
 trustedProxyHeader: x-real-ip
 
 auth:
-  htpasswd:
+  users:
     maxUsers: 3
 
 registries:

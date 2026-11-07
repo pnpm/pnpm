@@ -171,7 +171,7 @@ async fn artifact_caller(state: &AppState, headers: &HeaderMap) -> Result<(), Re
     if state.inner.builds.artifacts.is_none() {
         return Err(private_no_cache(StatusCode::NOT_FOUND.into_response()));
     }
-    match super::request_access::caller_username(state, headers).await {
+    match super::request_access::caller_user_id(state, headers).await {
         Ok(Some(_)) => Ok(()),
         Ok(None) => {
             Err(RegistryError::Unauthenticated { resource: "shared artifacts".to_string() }
@@ -446,7 +446,7 @@ impl StagedReferences {
 /// the one an idempotent publish is scoped to.
 pub(super) fn principal(identity: &Identity) -> Result<&str, RegistryError> {
     identity
-        .username()
+        .user_id()
         .ok_or_else(|| RegistryError::Unauthenticated {
             resource: "release archive staging".to_string(),
         })

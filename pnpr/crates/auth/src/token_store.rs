@@ -7,7 +7,7 @@ use super::{
 use sqlite::{delete_token, init_tokens_schema, insert_token, load_all_tokens};
 use std::fmt::Write as _;
 
-/// SHA-256-hashed (`token_hash` → username) map, optionally backed by
+/// SHA-256-hashed (`token_hash` → `user_id`) map, optionally backed by
 /// a `SQLite` database for cross-restart durability.
 ///
 /// Token records carry the verdaccio shape (`created_at`, `last_used_at`,
@@ -25,7 +25,7 @@ pub struct TokenStore {
 pub(super) struct TokenInner {
     /// hex-encoded SHA-256 of the raw token → record.
     tokens: HashMap<String, TokenRecord>,
-    /// username → the keys of its tokens, so work on one user's tokens does
+    /// `user_id` → the keys of its tokens, so work on one user's tokens does
     /// not scan everyone's while holding the lock lookups need.
     by_owner: HashMap<String, HashSet<String>>,
 }
@@ -41,7 +41,7 @@ impl TokenInner {
 
     pub(super) fn insert(&mut self, key: String, record: TokenRecord) {
         self.by_owner
-            .entry(record.username.clone())
+            .entry(record.user_id.clone())
             .or_default()
             .insert(key.clone());
         self.tokens.insert(key, record);
@@ -51,10 +51,10 @@ impl TokenInner {
         let Some(record) = self.tokens.remove(key) else {
             return;
         };
-        if let Some(keys) = self.by_owner.get_mut(&record.username) {
+        if let Some(keys) = self.by_owner.get_mut(&record.user_id) {
             keys.remove(key);
             if keys.is_empty() {
-                self.by_owner.remove(&record.username);
+                self.by_owner.remove(&record.user_id);
             }
         }
     }
@@ -64,9 +64,9 @@ impl TokenInner {
         self.tokens.is_empty()
     }
 
-    fn owned_by(&self, username: &str) -> Vec<(String, TokenRecord)> {
+    fn owned_by(&self, user_id: &str) -> Vec<(String, TokenRecord)> {
         self.by_owner
-            .get(username)
+            .get(user_id)
             .into_iter()
             .flatten()
             .filter_map(|key| Some((key.clone(), self.tokens.get(key)?.clone())))
@@ -138,7 +138,9 @@ impl NewToken {
     )
 )]
 pub struct TokenRecord {
-    pub username: String,
+    /// Current owner name, resolved by an account join rather than stored with the token.
+    pub(crate) owner_name: Option<String>,
+    pub user_id: String,
     pub created_at: u64,
     pub last_used_at: u64,
     pub readonly: bool,
@@ -150,10 +152,23 @@ pub struct TokenRecord {
 }
 
 impl TokenRecord {
+    /// The current owner name when the account backend resolved it with this token.
     #[must_use]
-    pub fn new(username: impl Into<String>, created_at: u64, last_used_at: u64) -> Self {
+    pub fn owner_name(&self) -> Option<&str> {
+        self.owner_name.as_deref()
+    }
+
+    #[must_use]
+    pub(crate) fn with_owner_name(mut self, name: String) -> Self {
+        self.owner_name = Some(name);
+        self
+    }
+
+    #[must_use]
+    pub fn new(user_id: impl Into<String>, created_at: u64, last_used_at: u64) -> Self {
         Self {
-            username: username.into(),
+            owner_name: None,
+            user_id: user_id.into(),
             created_at,
             last_used_at,
             readonly: false,
@@ -278,15 +293,16 @@ impl TokenStore {
 impl TokenBackend for TokenStore {
     async fn issue_token(
         &self,
-        username: &str,
+        user_id: &str,
         new_token: NewToken,
     ) -> Result<(String, TokenRecord)> {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, username);
+        let raw = mint_token(&self.secret, nonce, user_id);
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_seconds();
         let record = TokenRecord {
-            username: username.to_string(),
+            owner_name: None,
+            user_id: user_id.to_string(),
             created_at: now,
             last_used_at: now,
             readonly: new_token.readonly,
@@ -304,8 +320,8 @@ impl TokenBackend for TokenStore {
         Ok((raw, record))
     }
 
-    async fn issue(&self, username: &str) -> Result<String> {
-        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
+    async fn issue(&self, user_id: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(user_id, NewToken::default()).await?;
         Ok(raw)
     }
 
@@ -321,7 +337,7 @@ impl TokenBackend for TokenStore {
         if record.expires_at.is_some_and(|exp| exp <= now) {
             return Ok(None);
         }
-        Ok(Some(record.username.clone()))
+        Ok(Some(record.user_id.clone()))
     }
 
     async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
@@ -355,9 +371,9 @@ impl TokenBackend for TokenStore {
         Ok(inner.tokens.get(key).cloned())
     }
 
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+    async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner.owned_by(username))
+        Ok(inner.owned_by(user_id))
     }
 
     /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
@@ -425,11 +441,11 @@ pub(super) fn fresh_secret() -> [u8; 32] {
     secret
 }
 
-pub(super) fn mint_token(secret: &[u8; 32], nonce: u64, username: &str) -> String {
+pub(super) fn mint_token(secret: &[u8; 32], nonce: u64, user_id: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(secret);
     hasher.update(nonce.to_le_bytes());
-    hasher.update(username.as_bytes());
+    hasher.update(user_id.as_bytes());
     let digest = hasher.finalize();
     // 16 bytes of hash → 32 hex chars. Long enough to be
     // unguessable, short enough to keep test logs readable.

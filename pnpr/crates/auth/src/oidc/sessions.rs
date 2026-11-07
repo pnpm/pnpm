@@ -67,12 +67,12 @@ impl OidcState {
             .is_some()
     }
 
-    /// Revoke every browser session `username` holds on this process,
+    /// Revoke every browser session `user_id` holds on this process,
     /// returning how many there were.
-    pub fn revoke_user_sessions(&self, username: &str) -> usize {
+    pub fn revoke_user_sessions(&self, user_id: &str) -> usize {
         let mut sessions = self.browser.sessions.lock().expect("OIDC session mutex poisoned");
         let before = sessions.len();
-        sessions.retain(|_, session| session.user.username != username);
+        sessions.retain(|_, session| session.user.user_id != user_id);
         before - sessions.len()
     }
 

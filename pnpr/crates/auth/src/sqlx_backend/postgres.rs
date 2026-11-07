@@ -66,15 +66,58 @@ fn postgres_pool_options(
 #[async_trait]
 impl AuthSqlBackend for PostgresDatabase {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
-        let row = sqlx::query("SELECT username, bcrypt_hash FROM users WHERE username = $1")
+        let row = sqlx::query("SELECT username, bcrypt_hash, id FROM users WHERE username = $1")
             .bind(username)
             .fetch_optional(&self.pool)
             .await?;
         row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
-            Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
+            Ok(StoredUser {
+                username: row.try_get(0)?,
+                bcrypt_hash: row.try_get(1)?,
+                id: row.try_get(2)?,
+            })
         })
         .transpose()
         .map_err(RegistryError::from)
+    }
+
+    async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
+        Ok(sqlx::query_scalar("SELECT username FROM users WHERE id = $1 AND bcrypt_hash <> '!'")
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await?)
+    }
+
+    async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
+        let current = self.account_name(user_id).await?.ok_or(RegistryError::NotFound)?;
+        if current == username {
+            return Ok(());
+        }
+        let result =
+            sqlx::query("UPDATE users SET username = $2 WHERE id = $1 AND bcrypt_hash <> '!'")
+                .bind(user_id)
+                .bind(username)
+                .execute(&self.pool)
+                .await;
+        match result {
+            Ok(result) if result.rows_affected() > 0 => Ok(()),
+            Ok(_) => Err(RegistryError::NotFound),
+            Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
+                reason: format!("username {username:?} is taken"),
+            }),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
+        let rows = sqlx::query(
+            "SELECT id, username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|row| Ok(crate::UserAccount { id: row.try_get(0)?, username: row.try_get(1)? }))
+            .collect()
     }
 
     async fn user_count(&self) -> Result<u64> {
@@ -112,15 +155,18 @@ impl AuthSqlBackend for PostgresDatabase {
                 return self.existing_or_cap_reached(username).await;
             }
         };
-        let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES ($1, $2)")
-            .bind(username)
-            .bind(bcrypt_hash)
-            .execute(&mut *tx)
-            .await;
+        let id = crate::new_principal_id();
+        let inserted =
+            sqlx::query("INSERT INTO users (username, bcrypt_hash, id) VALUES ($1, $2, $3)")
+                .bind(username)
+                .bind(bcrypt_hash)
+                .bind(&id)
+                .execute(&mut *tx)
+                .await;
         match inserted {
             Ok(_) => {
                 tx.commit().await?;
-                Ok(InsertUser::Created)
+                Ok(InsertUser::Created(id))
             }
             Err(err) if is_unique_violation(&err) => {
                 tx.rollback().await?;
@@ -167,13 +213,12 @@ impl AuthSqlBackend for PostgresDatabase {
         username: &str,
         bcrypt_hash: &str,
     ) -> Result<PasswordChange> {
-        let updated = sqlx::query(
-            "UPDATE users SET bcrypt_hash = $2 WHERE username = $1 AND bcrypt_hash <> '!'",
-        )
-        .bind(username)
-        .bind(bcrypt_hash)
-        .execute(&self.pool)
-        .await?;
+        let updated =
+            sqlx::query("UPDATE users SET bcrypt_hash = $2 WHERE id = $1 AND bcrypt_hash <> '!'")
+                .bind(username)
+                .bind(bcrypt_hash)
+                .execute(&self.pool)
+                .await?;
         if updated.rows_affected() > 0 {
             Ok(PasswordChange::Changed)
         } else {
@@ -187,23 +232,18 @@ impl AuthSqlBackend for PostgresDatabase {
         old_hash: &str,
         new_hash: &str,
     ) -> Result<bool> {
-        let updated = sqlx::query(
-            "UPDATE users SET bcrypt_hash = $3 WHERE username = $1 AND bcrypt_hash = $2",
-        )
-        .bind(username)
-        .bind(old_hash)
-        .bind(new_hash)
-        .execute(&self.pool)
-        .await?;
+        let updated =
+            sqlx::query("UPDATE users SET bcrypt_hash = $3 WHERE id = $1 AND bcrypt_hash = $2")
+                .bind(username)
+                .bind(old_hash)
+                .bind(new_hash)
+                .execute(&self.pool)
+                .await?;
         Ok(updated.rows_affected() > 0)
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        self.remove_user_record(username, crate::UserRemovalMode::Delete).await
-    }
-
-    async fn retire_user(&self, username: &str) -> Result<UserRemoval> {
-        self.remove_user_record(username, crate::UserRemovalMode::Retire).await
+        self.remove_user_record(username).await
     }
 
     async fn check_readiness(&self) -> Result<()> {
@@ -213,26 +253,9 @@ impl AuthSqlBackend for PostgresDatabase {
 }
 
 impl PostgresDatabase {
-    async fn remove_user_record(
-        &self,
-        username: &str,
-        mode: crate::UserRemovalMode,
-    ) -> Result<UserRemoval> {
+    async fn remove_user_record(&self, username: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
-        if matches!(mode, crate::UserRemovalMode::Retire) {
-            crate::validation::validate_username(username)?;
-            let reservation = "INSERT INTO users (username, bcrypt_hash) VALUES ($1, '!')
-                               ON CONFLICT (username) DO UPDATE SET username = EXCLUDED.username";
-            sqlx::query(reservation).bind(username).execute(&mut *tx).await?;
-        }
-        let statement = match mode {
-            crate::UserRemovalMode::Delete => {
-                "DELETE FROM users WHERE username = $1 AND bcrypt_hash <> '!'"
-            }
-            crate::UserRemovalMode::Retire => {
-                "UPDATE users SET bcrypt_hash = '!' WHERE username = $1 AND bcrypt_hash <> '!'"
-            }
-        };
+        let statement = "UPDATE users SET username = 'deleted:' || id, bcrypt_hash = '!' WHERE id = $1 AND bcrypt_hash <> '!'";
         let removed = sqlx::query(statement)
             .bind(username)
             .execute(&mut *tx)

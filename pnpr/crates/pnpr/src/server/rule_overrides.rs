@@ -280,7 +280,7 @@ fn compile_list(
                 .iter()
                 .map(|entry| match entry.strip_prefix("team:") {
                     Some(team) => {
-                        AccessToken::Team { name: team.to_string(), directory: teams.clone() }
+                        AccessToken::Team { id: team.to_string(), directory: teams.clone() }
                     }
                     None => AccessToken::from(entry.as_str()),
                 })

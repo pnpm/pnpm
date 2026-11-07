@@ -1,4 +1,4 @@
-use super::{Change, Registration, UserStore, active_user_count};
+use super::{Change, Registration, StoredAccount, UserStore, active_user_count};
 use crate::{
     PasswordChange, Result, UpsertOutcome, UserBackend, UserCreation, UserRemoval, dummy_verify,
     hash_bcrypt, validation::validate_username,
@@ -53,11 +53,13 @@ impl UserBackend for UserStore {
             {
                 return Err(RegistryError::TooManyUsers { max });
             }
-            users.insert(name, hash);
-            Ok(Change::Write(Registration::Created))
+            let account = StoredAccount::new(hash);
+            let id = account.id.clone();
+            users.insert(name, account);
+            Ok(Change::Write(Registration::Created(id)))
         });
         match registration.await? {
-            Registration::Created => Ok((UpsertOutcome::Created, username.to_string())),
+            Registration::Created(id) => Ok((UpsertOutcome::Created, id)),
             Registration::Existing(stored) => self.login_existing(username, password, stored).await,
         }
     }
@@ -68,11 +70,23 @@ impl UserBackend for UserStore {
             .snapshot()
             .users
             .iter()
-            .filter(|(_, hash)| hash.as_str() != crate::DELETED_USER_HASH)
+            .filter(|(_, hash)| hash.password_hash.as_str() != crate::DELETED_USER_HASH)
             .map(|(name, _)| name.clone())
             .collect();
         names.sort();
         Ok(names)
+    }
+
+    async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
+        self.sync_from_disk_if_path()?;
+        let mut accounts: Vec<_> = self
+            .snapshot()
+            .names_by_id
+            .iter()
+            .map(|(id, username)| crate::UserAccount { id: id.clone(), username: username.clone() })
+            .collect();
+        accounts.sort_by(|left, right| left.username.cmp(&right.username));
+        Ok(accounts)
     }
 
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
@@ -81,8 +95,8 @@ impl UserBackend for UserStore {
             .snapshot()
             .users
             .get(username)
-            .filter(|hash| hash.as_str() != crate::DELETED_USER_HASH)
-            .cloned())
+            .filter(|account| account.password_hash != crate::DELETED_USER_HASH)
+            .map(|account| account.password_hash.clone()))
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
@@ -93,7 +107,7 @@ impl UserBackend for UserStore {
             if users.contains_key(&name) {
                 return Ok(Change::Keep(UserCreation::NameTaken));
             }
-            users.insert(name, hash);
+            users.insert(name, StoredAccount::new(hash));
             Ok(Change::Write(UserCreation::Created))
         })
         .await
@@ -101,53 +115,106 @@ impl UserBackend for UserStore {
 
     async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        let name = username.to_string();
-        self.update(move |users| match users.get_mut(&name) {
-            Some(stored) if stored.as_str() != crate::DELETED_USER_HASH => {
-                *stored = hash;
-                Ok(Change::Write(PasswordChange::Changed))
+        let id = username.to_string();
+        self.update(move |users| {
+            match users
+                .values_mut()
+                .find(|account| account.id == id)
+            {
+                Some(stored) if stored.password_hash.as_str() != crate::DELETED_USER_HASH => {
+                    stored.password_hash = hash;
+                    Ok(Change::Write(PasswordChange::Changed))
+                }
+                _ => Ok(Change::Keep(PasswordChange::NoSuchUser)),
             }
-            _ => Ok(Change::Keep(PasswordChange::NoSuchUser)),
         })
         .await
     }
 
-    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
+    async fn provision_user(&self, username: &str) -> Result<String> {
+        validate_username(username)?;
         let name = username.to_string();
         self.update(move |users| {
-            if users
-                .get(&name)
-                .is_none_or(|hash| hash == crate::DELETED_USER_HASH)
-            {
-                return Ok(Change::Keep(UserRemoval::NoSuchUser));
+            if users.contains_key(&name) {
+                return Err(RegistryError::AdminConflict {
+                    reason: format!("username {name:?} is taken"),
+                });
             }
-            users.remove(&name);
-            Ok(Change::Write(UserRemoval::Removed))
+            let account = StoredAccount::new(crate::NO_PASSWORD_HASH.to_string());
+            let id = account.id.clone();
+            users.insert(name, account);
+            Ok(Change::Write(id))
         })
         .await
     }
 
-    async fn is_retired(&self, username: &str) -> Result<bool> {
+    async fn account_id(&self, username: &str) -> Result<Option<String>> {
         self.sync_from_disk_if_path()?;
         Ok(self
             .snapshot()
             .users
             .get(username)
-            .is_some_and(|hash| hash == crate::DELETED_USER_HASH))
+            .filter(|account| account.password_hash != crate::DELETED_USER_HASH)
+            .map(|account| account.id.clone()))
     }
 
-    async fn retire_user(&self, username: &str) -> Result<UserRemoval> {
+    async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
+        self.sync_from_disk_if_path()?;
+        Ok(self
+            .snapshot()
+            .names_by_id
+            .get(user_id)
+            .cloned())
+    }
+
+    async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
         validate_username(username)?;
+        let id = user_id.to_string();
         let name = username.to_string();
         self.update(move |users| {
-            let previous = users.insert(name, crate::DELETED_USER_HASH.to_string());
-            match previous {
-                Some(hash) if hash == crate::DELETED_USER_HASH => {
-                    Ok(Change::Keep(UserRemoval::NoSuchUser))
-                }
-                Some(_) => Ok(Change::Write(UserRemoval::Removed)),
-                None => Ok(Change::Write(UserRemoval::NoSuchUser)),
+            let is_current = users
+                .get(&name)
+                .is_some_and(|account| {
+                    account.id == id && account.password_hash != crate::DELETED_USER_HASH
+                });
+            if is_current {
+                return Ok(Change::Keep(()));
             }
+            if users.contains_key(&name) {
+                return Err(RegistryError::AdminConflict {
+                    reason: format!("username {name:?} is taken"),
+                });
+            }
+            let old = users
+                .iter()
+                .find(|(_, account)| {
+                    account.id == id && account.password_hash != crate::DELETED_USER_HASH
+                })
+                .map(|(name, _)| name.clone())
+                .ok_or(RegistryError::NotFound)?;
+            let account = users.remove(&old).ok_or(RegistryError::NotFound)?;
+            users.insert(name, account);
+            Ok(Change::Write(()))
+        })
+        .await
+    }
+
+    async fn delete_user(&self, user_id: &str) -> Result<UserRemoval> {
+        let id = user_id.to_string();
+        self.update(move |users| {
+            let name = users
+                .iter()
+                .find(|(_, account)| {
+                    account.id == id && account.password_hash != crate::DELETED_USER_HASH
+                })
+                .map(|(name, _)| name.clone());
+            let Some(name) = name else {
+                return Ok(Change::Keep(UserRemoval::NoSuchUser));
+            };
+            let mut account = users.remove(&name).ok_or(RegistryError::NotFound)?;
+            account.password_hash = crate::DELETED_USER_HASH.to_string();
+            users.insert(format!("deleted:{}", account.id), account);
+            Ok(Change::Write(UserRemoval::Removed))
         })
         .await
     }

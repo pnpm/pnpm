@@ -27,7 +27,7 @@ pub(super) fn bound_user(config: &OidcProvider, token: &CoreIdToken) -> Result<S
     let login = config.login.as_ref().ok_or_else(rejected)?;
     let binding = unique_binding(login.users.iter(), &payload)?;
     let teams = super::groups::granted_teams(login, &payload);
-    Ok(SessionUser { username: binding.username.clone(), teams })
+    Ok(SessionUser { user_id: binding.user_id.clone(), teams })
 }
 
 pub(super) fn token_verifier(

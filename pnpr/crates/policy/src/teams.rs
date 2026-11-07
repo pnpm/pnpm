@@ -5,9 +5,22 @@ use std::{
 
 use indexmap::IndexMap;
 
-/// A registry's teams: each team name mapped to its member usernames, in
-/// declaration order.
-pub type Teams = IndexMap<String, BTreeSet<String>>;
+/// A registry's teams indexed by immutable ID, in declaration order.
+pub type Teams = IndexMap<String, Team>;
+
+/// A team identity with a mutable display name and account-ID memberships.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Team {
+    pub name: String,
+    pub members: BTreeSet<String>,
+}
+
+impl Team {
+    #[must_use]
+    pub fn new(name: impl Into<String>, members: BTreeSet<String>) -> Self {
+        Self { name: name.into(), members }
+    }
+}
 
 /// The live roster of one registry's teams.
 ///
@@ -39,7 +52,7 @@ impl TeamDirectory {
     pub fn has_member(&self, team: &str, username: &str) -> bool {
         self.snapshot()
             .get(team)
-            .is_some_and(|members| members.contains(username))
+            .is_some_and(|members| members.members.contains(username))
     }
 }
 

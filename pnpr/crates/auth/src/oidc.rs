@@ -79,7 +79,7 @@ struct Provider {
 /// Who a browser session signed in as.
 #[derive(Debug, Clone)]
 pub struct SessionUser {
-    pub username: String,
+    pub user_id: String,
     /// The team grants the session's groups claim earned at sign-in.
     pub teams: Vec<OidcTeamGrant>,
 }

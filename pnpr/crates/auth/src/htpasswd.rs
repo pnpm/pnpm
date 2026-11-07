@@ -5,8 +5,7 @@ use crate::validation::validate_username;
 // htpasswd I/O
 // ---------------------------------------------------------------
 
-/// Parse `username:hash` records, accepting bcrypt, Apache `{SHA}`, and `!`
-/// for retired accounts. Reject other password formats.
+/// Parse bcrypt and Apache `{SHA}` credentials for import.
 pub fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
     let mut out = HashMap::new();
     for (line_no, line) in raw.lines().enumerate() {
@@ -38,7 +37,7 @@ pub fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str), Stri
         };
         return Err(format!("invalid username {user:?}: {reason}"));
     }
-    if hash != super::DELETED_USER_HASH && !is_supported_hash(hash) {
+    if !is_supported_hash(hash) {
         return Err(format!(
             "unsupported hash format for user {user:?} (only bcrypt and {{SHA}} are accepted)",
         ));
@@ -90,21 +89,6 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
         diff |= left_byte ^ right_byte;
     }
     diff == 0
-}
-
-/// Serialize the user map back to htpasswd shape. Sorted output so
-/// the file is stable under `git diff` and easier to eyeball.
-pub(super) fn serialize_htpasswd(users: &HashMap<String, String>) -> String {
-    let mut entries: Vec<(&String, &String)> = users.iter().collect();
-    entries.sort_by(|left, right| left.0.cmp(right.0));
-    let mut out = String::new();
-    for (user, hash) in entries {
-        out.push_str(user);
-        out.push(':');
-        out.push_str(hash);
-        out.push('\n');
-    }
-    out
 }
 
 /// Hold the shared edit lock before reading, merging, and writing an htpasswd file.
@@ -218,10 +202,10 @@ pub async fn verify_returning_user(
     stored: String,
     bcrypt_cost: u32,
 ) -> Result<(UpsertOutcome, String)> {
-    if stored == super::DELETED_USER_HASH {
-        return Err(RegistryError::ReservedUsername { name: username.to_string() });
-    }
-    let valid = if is_sha_hash(&stored) {
+    let valid = if stored == super::NO_PASSWORD_HASH || stored == super::DELETED_USER_HASH {
+        dummy_verify(password, bcrypt_cost).await;
+        false
+    } else if is_sha_hash(&stored) {
         let ok = verify_sha1(password, &stored);
         if !ok {
             dummy_verify(password, bcrypt_cost).await;

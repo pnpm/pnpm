@@ -72,7 +72,7 @@ fn from_default_yaml_parses_bundled_file() {
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert_eq!(config.routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
     assert_eq!(config.routing.registries.default_registry(), Some("npmjs"));
     assert!(config.routing.hosted.contains_key("local"));
     assert_eq!(config.logs.level, LogLevel::Info);
@@ -109,7 +109,7 @@ fn from_yaml_str_rejects_unknown_sections() {
     let yaml = "\
 storage: ./s
 auth:
-  htpasswd:
+  users:
     file: ./htpasswd
 web:
   enable: false
@@ -391,7 +391,7 @@ fn config_rejects_unknown_fields_across_subsystems() {
     let cases = [
         ("top-level", "unknownField: value\n", "unknown field `unknownField`"),
         ("auth", "auth:\n  unknownAuth: true\n", "unknown field `unknownAuth`"),
-        ("auth.htpasswd", "auth:\n  htpasswd:\n    unknownHt: true\n", "unknown field `unknownHt`"),
+        ("auth.users", "auth:\n  users:\n    unknownHt: true\n", "unknown field `unknownHt`"),
         ("auth.tokens", "auth:\n  tokens:\n    unknownTok: true\n", "unknown field `unknownTok`"),
         ("backend", "backend:\n  unknownBackend: {}\n", "unknown field `unknownBackend`"),
         (
@@ -450,7 +450,7 @@ cors:
 routes:
   allowedPrivateNetworks: ['10.0.0.0/8']
 auth:
-  htpasswd:
+  users:
     maxUsers: 10
 backend:
   libsql:
@@ -479,7 +479,7 @@ registries:
     assert_eq!(config.http.request_timeout, Some(std::time::Duration::from_secs(55)));
     assert_eq!(config.http.trusted_proxies.len(), 1);
     assert_eq!(config.http.trusted_proxy_header, crate::TrustedProxyHeader::XRealIp);
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Limited(10));
+    assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Limited(10));
     match &config.identity.backend {
         crate::BackendConfig::Libsql(settings) => {
             assert_eq!(settings.sync_interval_secs, Some(15));

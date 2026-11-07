@@ -27,7 +27,7 @@ fn sqlite_config(storage: &Path) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage.to_path_buf());
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.metadata = MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
     config
 }
@@ -201,8 +201,8 @@ async fn a_batch_retry_after_unpublishing_one_member_is_refused() {
 }
 
 /// Leave `bob` alone allowed to publish.
-fn only_bob_publishes(rules: &PackageRules) {
-    let bob = AccessList::from_tokens(["bob"]);
+fn only_bob_publishes(rules: &PackageRules, bob_id: &str) {
+    let bob = AccessList::from_tokens([bob_id]);
     let lists = RuleOverride { publish: Some(bob.clone()), ..RuleOverride::default() };
     let table = rules.snapshot();
     let overrides = table
@@ -229,7 +229,8 @@ async fn a_retry_needs_current_publish_permission() {
         send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
     assert_eq!(committed.status, StatusCode::CREATED);
 
-    only_bob_publishes(&rules);
+    token_of(&app, "bob").await;
+    only_bob_publishes(&rules, &crate::tokens::account_id(&app, "bob").await.unwrap());
     let retry = send(&app, "PUT", "/npm/revoked", &token, Some(&doc)).await;
     assert_eq!((retry.status, retry.generation), (StatusCode::FORBIDDEN, None));
     assert_eq!(retry.body.get("publication"), None);
@@ -273,7 +274,10 @@ async fn a_batch_is_one_publication() {
     let publication = send(&app, "GET", "/-/publications/-/v2.0.0", &token, None).await;
     assert_eq!(publication.status, StatusCode::OK);
     assert_eq!(publication.body["id"], 1);
-    assert_eq!(publication.body["publisher"], "alice");
+    assert_eq!(
+        publication.body["publisher"].as_str(),
+        crate::tokens::account_id(&app, "alice").await.as_deref(),
+    );
     let members: Vec<&str> = publication.body["members"]
         .as_array()
         .unwrap()
@@ -339,7 +343,7 @@ async fn a_member_lookup_hides_a_package_the_caller_cannot_read() {
     });
     let committed = send(&app, "PUT", "/-/pnpr/v0/publish", &bob, Some(&batch)).await;
     assert_eq!(committed.status, StatusCode::CREATED, "{}", committed.text);
-    only_bob_reads(&rules, "@private/*");
+    only_bob_reads(&rules, "@private/*", &crate::tokens::account_id(&app, "bob").await.unwrap());
 
     let hidden =
         send(&app, "GET", "/-/publications/-?member=npm:@private/hidden@1.0.0", &alice, None).await;
@@ -358,10 +362,10 @@ async fn a_member_lookup_hides_a_package_the_caller_cannot_read() {
 }
 
 /// Leave `bob` alone allowed to read the packages of `pattern`.
-fn only_bob_reads(rules: &PackageRules, pattern: &str) {
+fn only_bob_reads(rules: &PackageRules, pattern: &str, bob_id: &str) {
     let pattern = PackagePattern::parse(pattern, Ecosystem::Npm).unwrap();
     let lists =
-        RuleOverride { access: Some(AccessList::from_tokens(["bob"])), ..RuleOverride::default() };
+        RuleOverride { access: Some(AccessList::from_tokens([bob_id])), ..RuleOverride::default() };
     let changed = rules
         .snapshot()
         .with_overrides(None, vec![(pattern, lists)])

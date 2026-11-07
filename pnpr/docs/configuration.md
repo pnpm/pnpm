@@ -15,8 +15,8 @@ to the public npm registry:
 storage: ./storage
 
 auth:
-  htpasswd:
-    file: ./htpasswd
+  users:
+    file: ./users.json
 
 registries:
   local:
@@ -48,10 +48,10 @@ pnpr -c ./pnpr.yaml
 ```
 
 Relative paths in the config, such as `storage`, `cache`,
-`auth.htpasswd.file`, `auth.tokens.file`, `osv.path`, and `ui.dir`, resolve
+`auth.users.file`, `auth.tokens.file`, `osv.path`, and `ui.dir`, resolve
 against the config file's directory. For the bundled config, they resolve
 against the working directory. With `--storage`, the bundled config keeps
-`htpasswd` and `tokens.db` in the storage directory.
+`users.json` and `tokens.db` in the storage directory.
 
 ## `storage` and `cache`
 
@@ -172,8 +172,8 @@ them, and the grammar is deliberately small:
 | `$all` | Anyone, authenticated or not. |
 | `$authenticated` | Any logged-in user. |
 | `$anonymous` | Callers with no credentials. |
-| `team:<name>` | The members of a [team](#teams) declared on this registry. |
-| `alice` | Exactly that username. Any bare token is a username. |
+| `team:<id>` | The members of a [team](#teams) declared on this registry. |
+| `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
 
 Tokens are validated at config load and every near-miss is rejected loudly,
 rather than being read as a username that happens to admit nobody:
@@ -182,8 +182,8 @@ rather than being read as a username that happens to admit nobody:
 - `all`, `authenticated`, `anonymous`, and `@`-prefixed spellings like `@all`
   are errors suggesting the `$` form.
 - `team:` is the only typed prefix; any other `<kind>:` prefix is an error.
-  (htpasswd forbids `:` in usernames, which is what frees the character.)
-- `team:<name>` must resolve to a team the **same registry** declares. An
+  (IDs cannot contain `:`.)
+- `team:<id>` must resolve to a team the **same registry** declares. An
   undeclared name is a config error, so a typo can't silently grant to nobody.
 - One entry is one token: an entry containing whitespace is an error, so write
   `[alice, bob]` rather than `alice bob`.
@@ -212,7 +212,7 @@ registries:
 | --- | --- |
 | `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace, or `<name>` for a registry declared under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems). Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
-| `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>`. See [Teams](#teams). |
+| `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The registry's namespace and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 
@@ -260,7 +260,7 @@ registries:
 | `auth` | Server-owned credential for a private origin. `type` is `bearer` or `basic`; provide `token`, or `tokenEnv: true` to read `NPM_TOKEN`, or `tokenEnv: NAME` to read a named environment variable. |
 | `headers` | Extra request headers to send upstream. If `headers.Authorization` is set, it overrides the `auth`-derived header. |
 | `access` | Which pnpr users may reach this registry at `/~<name>/` (and resolve through it). Required for a non-`public` upstream. |
-| `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>`. See [Teams](#teams). |
+| `teams` | Named user sets for this registry, referenced from its access lists as `team:<id>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
 | `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. |
 | `timeout` | How long pnpr waits for the upstream to answer, and for more of a tarball it is downloading. A download that keeps receiving data runs to the end. A metadata request must finish within it. Defaults to `30s`. |
@@ -381,8 +381,8 @@ You can also set `tarballs: tar` on the main router, so the base every pnpm proj
 
 ## Teams {#teams}
 
-A team is a named list of usernames, declared on the registry that uses it and
-referenced from that registry's access lists as `team:<name>`, in the
+A team has a stable ID, a mutable name, and a list of account IDs. It is declared on the registry that uses it and
+referenced from that registry's access lists as `team:<id>`, in the
 registry-level `access:` default and the per-package `packages:` rules alike:
 
 ```yaml title="pnpr.yaml"
@@ -394,8 +394,8 @@ registries:
       type: bearer
       tokenEnv: CORP_NPM_TOKEN
     teams:
-      platform: [alice, bob]
-      frontend: [carol, dave]
+      platform: { name: platform, members: [alice, bob] }
+      frontend: { name: frontend, members: [carol, dave] }
     access: team:platform
     packages:
       '@corp/ui':
@@ -411,7 +411,7 @@ registries:
   private:
     type: hosted
     teams: &corpTeams
-      platform: [alice, bob]
+      platform: { name: platform, members: [alice, bob] }
     access: team:platform
 
   corp:
@@ -421,13 +421,12 @@ registries:
     access: team:platform
 ```
 
-A team's members are plain usernames. A team cannot contain another team. An
+A team's members are account IDs. A team cannot contain another team. An
 entry with a `:` in it is a config error.
 
-A team is only ever reached through the `team:` prefix: a bare `platform` in an
-access list names the **user** `platform`, even when a team of that name
-exists. Keeping the two apart means someone who can register a username can
-never inherit a team's grants by choosing its name.
+The keys under `teams:` are stable team IDs. Keep a key when changing its `name`.
+Use a new key for a replacement team. Access lists and OIDC group grants refer
+to that key. A bare access token refers to an account ID.
 
 ### Managing teams through the API {#managing-teams-through-the-api}
 
@@ -437,13 +436,13 @@ registry to let the [`auth.admins`](#auth) edit its roster with `pnpm team`:
 
 ```yaml title="pnpr.yaml"
 auth:
-  admins: [alice]
+  admins: [<account-id>]
 registries:
   private:
     type: hosted
     teamsManagedBy: api
     teams:
-      platform: [alice]
+      platform: { name: platform, members: [alice] }
     packages:
       '@corp/*':
         access: [team:platform]
@@ -661,32 +660,32 @@ ui:
 
 ## `auth`
 
-Without `auth.htpasswd.file` and without a [`backend`](auth-backends.md),
+Without `auth.users.file` and without a [`backend`](auth-backends.md),
 accounts live in memory and are lost on restart, and `pnpr add-user` refuses
-to run. Tokens live in memory too unless `auth.tokens.file` is set. The bundled config stores users in an htpasswd
+to run. Tokens live in memory too unless `auth.tokens.file` is set. The bundled config stores users in a JSON account
 file and tokens in a local SQLite database:
 
 ```yaml title="pnpr.yaml"
 auth:
-  htpasswd:
-    file: ./htpasswd
+  users:
+    file: ./users.json
     # Self-registration is disabled when omitted or set to -1.
     # Set a non-negative cap to allow new users.
     maxUsers: -1
   tokens:
-    # Optional. Defaults to a tokens.db sibling of the htpasswd file.
+    # Optional. Defaults to a tokens.db sibling of the account file.
     file: ./tokens.db
 ```
 
 Omitted `maxUsers` means registration disabled, not unlimited registration.
 Existing users can still log in. When `auth.tokens.file` is omitted and
-`auth.htpasswd.file` is set, the token database defaults to `tokens.db` next to
-the htpasswd file.
+`auth.users.file` is set, the token database defaults to `tokens.db` next to
+the account file.
 
 To share auth state across several stateless pnpr replicas, move users and
 tokens into a shared SQL database. See [Auth backends](auth-backends.md).
 
-`auth.admins` lists the usernames that may administer the registry. An admin
+`auth.admins` lists the account IDs that may administer the registry. An admin
 may:
 
 - create and remove accounts, change passwords, and revoke tokens through the
@@ -697,14 +696,14 @@ may:
 - change the rules of every registry with
   [`rulesManagedBy: api`](#changing-rules-through-the-api).
 
-Nobody can self-register an admin's username, a username an
-[OIDC binding](oidc.md) maps to, or a username a
-[SCIM client](scim.md) provisioned. Create the first admin account with
-[`pnpr add-user`](cli.md#add-user).
+Create the first admin with [`pnpr add-user`](cli.md#add-user), then copy the
+printed account ID into `auth.admins`. Account IDs also belong in access lists
+and team membership lists. Names are used for login and display. See
+[Account and team identity](identity.md).
 
 ```yaml title="pnpr.yaml"
 auth:
-  admins: [alice]
+  admins: [<account-id>]
 ```
 
 An `auth.oidc` list configures OpenID Connect browser sign-in and keyless CI

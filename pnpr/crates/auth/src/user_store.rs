@@ -1,6 +1,8 @@
+pub use import::{ImportMode, PasswordCollisions, PasswordImport};
+
 use super::{
-    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, hash_bcrypt, is_sha_hash, parse_htpasswd,
-    serialize_htpasswd, verify_returning_user, write_atomic,
+    DEFAULT_BCRYPT_COST, Result, UpsertOutcome, hash_bcrypt, is_sha_hash, verify_returning_user,
+    write_atomic,
 };
 use pnpr_config::MaxUsers;
 use pnpr_error::RegistryError;
@@ -10,11 +12,47 @@ use std::{
     sync::{Arc, Mutex, PoisonError},
 };
 
-/// Username to password hash, or [`crate::DELETED_USER_HASH`] for a retired account.
-type Users = HashMap<String, String>;
+/// Account records indexed by their current login name.
+type Users = HashMap<String, StoredAccount>;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StoredAccount {
+    id: String,
+    password_hash: String,
+}
+
+impl StoredAccount {
+    fn new(password_hash: String) -> Self {
+        Self { id: crate::new_principal_id(), password_hash }
+    }
+}
+
+fn parse_accounts(raw: &str) -> std::result::Result<Users, String> {
+    let accounts: Users = serde_json::from_str(raw).map_err(|err| err.to_string())?;
+    let mut ids = std::collections::HashSet::new();
+    for (name, account) in &accounts {
+        if account.password_hash != crate::DELETED_USER_HASH {
+            crate::validation::validate_username(name).map_err(|err| err.to_string())?;
+        } else if name != &format!("deleted:{}", account.id) {
+            return Err("deleted accounts must use their generated names".to_string());
+        }
+        if account.id.is_empty() || !ids.insert(account.id.as_str()) {
+            return Err("account IDs must be nonempty and unique".to_string());
+        }
+        if account.password_hash != crate::DELETED_USER_HASH
+            && account.password_hash != crate::NO_PASSWORD_HASH
+            && !crate::htpasswd::is_supported_hash(&account.password_hash)
+        {
+            return Err(format!("unsupported password hash for {name:?}"));
+        }
+    }
+    Ok(accounts)
+}
 
 mod backend;
 mod file_stamp;
+mod import;
 
 use file_stamp::FileStamp;
 
@@ -22,6 +60,7 @@ use file_stamp::FileStamp;
 struct UserStoreState {
     users: Users,
     active_count: u64,
+    names_by_id: HashMap<String, String>,
     last_synced: Option<FileStamp>,
     synced_at: Option<std::time::SystemTime>,
 }
@@ -29,11 +68,12 @@ struct UserStoreState {
 impl UserStoreState {
     fn replace_users(&mut self, users: Users) {
         self.active_count = active_user_count(&users);
+        self.names_by_id = active_names_by_id(&users);
         self.users = users;
     }
 }
 
-/// File-backed (or in-memory) htpasswd store.
+/// Native JSON account store, with an in-memory variant.
 #[derive(Debug)]
 pub struct UserStore {
     state: Arc<Mutex<UserStoreState>>,
@@ -74,7 +114,7 @@ impl UserStore {
     }
 
     /// File-backed store. The file is parsed up front so a malformed
-    /// htpasswd surfaces as a startup error rather than a silent
+    /// account file surfaces as a startup error rather than a silent
     /// empty user list. A missing file is OK — it's created on the
     /// first registration.
     pub fn open(path: PathBuf, max_users: MaxUsers) -> Result<Self> {
@@ -89,8 +129,8 @@ impl UserStore {
             std::fs::metadata(&path).ok().map(|metadata| FileStamp::from_metadata(&metadata));
         let (users, last_synced) = match std::fs::read_to_string(&path) {
             Ok(raw) => {
-                let parsed = parse_htpasswd(&raw)
-                    .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+                let parsed = parse_accounts(&raw)
+                    .map_err(|reason| RegistryError::InvalidUsersFile {
                         path: path.display().to_string(),
                         reason,
                     })?;
@@ -103,6 +143,7 @@ impl UserStore {
         Ok(Self {
             state: Arc::new(Mutex::new(UserStoreState {
                 active_count: active_user_count(&users),
+                names_by_id: active_names_by_id(&users),
                 users,
                 last_synced,
                 synced_at,
@@ -123,6 +164,7 @@ impl UserStore {
         Self {
             state: Arc::new(Mutex::new(UserStoreState {
                 active_count: active_user_count(&users),
+                names_by_id: active_names_by_id(&users),
                 users,
                 last_synced: None,
                 synced_at: None,
@@ -137,8 +179,9 @@ impl UserStore {
     #[cfg(test)]
     pub(crate) fn insert_user_for_test(&self, username: String, hash: String) {
         let mut state = self.snapshot();
-        state.users.insert(username, hash);
+        state.users.insert(username, StoredAccount::new(hash));
         state.active_count = active_user_count(&state.users);
+        state.names_by_id = active_names_by_id(&state.users);
     }
 
     #[cfg(test)]
@@ -172,8 +215,8 @@ impl UserStore {
             return Ok(());
         }
         let raw = std::fs::read_to_string(path)?;
-        let fresh = parse_htpasswd(&raw)
-            .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+        let fresh = parse_accounts(&raw)
+            .map_err(|reason| RegistryError::InvalidUsersFile {
                 path: path.display().to_string(),
                 reason,
             })?;
@@ -183,14 +226,10 @@ impl UserStore {
         Ok(())
     }
 
-    /// Whether `username` has a password account.
-    pub(crate) fn holds(&self, username: &str) -> Result<bool> {
+    /// Whether the account ID is active.
+    pub(crate) fn holds(&self, user_id: &str) -> Result<bool> {
         self.sync_from_disk_if_path()?;
-        Ok(self
-            .snapshot()
-            .users
-            .get(username)
-            .is_some_and(|hash| hash != super::DELETED_USER_HASH))
+        Ok(self.snapshot().names_by_id.contains_key(user_id))
     }
 
     fn snapshot(&self) -> std::sync::MutexGuard<'_, UserStoreState> {
@@ -223,8 +262,8 @@ impl UserStore {
                 .clone());
         };
         match std::fs::read_to_string(path) {
-            Ok(raw) => parse_htpasswd(&raw)
-                .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+            Ok(raw) => parse_accounts(&raw)
+                .map_err(|reason| RegistryError::InvalidUsersFile {
                     path: path.display().to_string(),
                     reason,
                 }),
@@ -241,7 +280,8 @@ fn persist_users_to_disk(
     let Some(path) = path else {
         return Ok(None);
     };
-    write_atomic(path, serialize_htpasswd(users).as_bytes())?;
+    let bytes = serde_json::to_vec_pretty(users).map_err(RegistryError::Json)?;
+    write_atomic(path, &bytes)?;
     let sync = std::fs::metadata(path).ok().map(|meta| FileStamp::from_metadata(&meta));
     Ok(sync)
 }
@@ -288,16 +328,25 @@ impl UserStore {
         &self,
         username: &str,
         password: &str,
-        stored: String,
+        stored: StoredAccount,
     ) -> Result<(UpsertOutcome, String)> {
-        let (outcome, user) =
-            verify_returning_user(username, password, stored.clone(), self.bcrypt_cost).await?;
-        if is_sha_hash(&stored) {
+        let (outcome, _) = verify_returning_user(
+            username,
+            password,
+            stored.password_hash.clone(),
+            self.bcrypt_cost,
+        )
+        .await?;
+        let user_id = stored.id.clone();
+        if is_sha_hash(&stored.password_hash) {
             let new_hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
             let name = username.to_string();
             self.update(move |users| {
-                if users.get(&name) == Some(&stored) {
-                    users.insert(name, new_hash);
+                if let Some(current) = users.get_mut(&name)
+                    && current.id == stored.id
+                    && current.password_hash == stored.password_hash
+                {
+                    current.password_hash = new_hash;
                     Ok(Change::Write(()))
                 } else {
                     Ok(Change::Keep(()))
@@ -305,15 +354,15 @@ impl UserStore {
             })
             .await?;
         }
-        Ok((outcome, user))
+        Ok((outcome, user_id))
     }
 }
 
 /// The outcome of a registration's locked step.
 enum Registration {
-    Created,
+    Created(String),
     /// Another request registered the name while this one hashed.
-    Existing(String),
+    Existing(StoredAccount),
 }
 
 impl Default for UserStore {
@@ -325,6 +374,14 @@ impl Default for UserStore {
 fn active_user_count(users: &Users) -> u64 {
     users
         .values()
-        .filter(|hash| hash.as_str() != super::DELETED_USER_HASH)
+        .filter(|account| account.password_hash != super::DELETED_USER_HASH)
         .count() as u64
+}
+
+fn active_names_by_id(users: &Users) -> HashMap<String, String> {
+    users
+        .iter()
+        .filter(|(_, account)| account.password_hash != crate::DELETED_USER_HASH)
+        .map(|(name, account)| (account.id.clone(), name.clone()))
+        .collect()
 }

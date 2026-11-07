@@ -24,14 +24,14 @@ fn config_with_single_login_provider(storage: &TempDir) -> Config {
             "name": "company",
             "issuer": "https://login.example",
             "audience": "pnpr",
-            "login": { "users": [{ "subject": "alice", "username": "alice" }] },
+            "login": { "users": [{ "subject": "alice", "userId": "alice" }] },
         },
         {
             "name": "github",
             "issuer": "https://token.actions.githubusercontent.com",
             "audience": "pnpr",
             "workloads": [{
-                "identity": { "subject": "repo:org/repo:ref:refs/heads/main", "username": "ci" },
+                "identity": { "subject": "repo:org/repo:ref:refs/heads/main", "userId": "ci" },
                 "registry": "local",
                 "packages": ["foo"],
             }],
@@ -52,13 +52,13 @@ fn config_with_multiple_login_providers(storage: &TempDir) -> Config {
             "name": "google",
             "issuer": "https://accounts.google.com",
             "audience": "pnpr",
-            "login": { "users": [{ "subject": "alice", "username": "alice" }] },
+            "login": { "users": [{ "subject": "alice", "userId": "alice" }] },
         },
         {
             "name": "okta",
             "issuer": "https://company.okta.com",
             "audience": "pnpr",
-            "login": { "users": [{ "subject": "bob", "username": "bob" }] },
+            "login": { "users": [{ "subject": "bob", "userId": "bob" }] },
         }
     ]))
     .unwrap();
