@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { getNodeVersionFromEnginesRuntime, packageIsInstallable } from '@pnpm/cli.utils'
+import { getDownloadedNodeVersionFromEnginesRuntime, packageIsInstallable } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
@@ -36,6 +36,7 @@ export interface FindWorkspaceProjectsOpts {
   nodeVersion?: string
   nodeVersionFromEnginesRuntime?: boolean
   runtimeOnFail?: 'download' | 'error' | 'warn' | 'ignore'
+  skipRuntimes?: boolean
   sharedWorkspaceLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
 }
@@ -89,9 +90,12 @@ export function findWorkspaceProjectsSync (
 
 function getProjectNodeVersion (
   manifest: ProjectManifest,
-  opts?: Pick<FindWorkspaceProjectsOpts, 'nodeVersion' | 'nodeVersionFromEnginesRuntime' | 'runtimeOnFail'>
+  opts?: Pick<FindWorkspaceProjectsOpts, 'nodeVersion' | 'nodeVersionFromEnginesRuntime' | 'runtimeOnFail' | 'skipRuntimes'>
 ): string | undefined {
-  const projectRuntime = getNodeVersionFromEnginesRuntime(manifest, opts?.runtimeOnFail)
+  if (opts?.skipRuntimes) {
+    return opts.nodeVersionFromEnginesRuntime ? undefined : opts.nodeVersion
+  }
+  const projectRuntime = getDownloadedNodeVersionFromEnginesRuntime(manifest, opts?.runtimeOnFail)
   return opts?.nodeVersionFromEnginesRuntime
     ? projectRuntime ?? opts.nodeVersion
     : opts?.nodeVersion ?? projectRuntime

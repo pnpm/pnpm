@@ -219,6 +219,38 @@ pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
     None
 }
 
+#[must_use]
+pub fn downloaded_node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
+    for engines_field in ["devEngines", "engines"] {
+        let Some(runtime_entry) = manifest
+            .get(engines_field)
+            .and_then(|field| field.get("runtime"))
+        else {
+            continue;
+        };
+        let runtimes = match runtime_entry {
+            Value::Array(runtimes) => runtimes.as_slice(),
+            runtime @ Value::Object(_) => std::slice::from_ref(runtime),
+            _ => continue,
+        };
+        let Some(runtime) = runtimes
+            .iter()
+            .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some("node"))
+        else {
+            continue;
+        };
+        if runtime.get("onFail").and_then(Value::as_str) != Some("download") {
+            return None;
+        }
+        let version = runtime
+            .get("version")
+            .and_then(Value::as_str)?
+            .trim();
+        return Some(Version::parse(version).ok()?.to_string());
+    }
+    None
+}
+
 /// Fold `tool:<version>` / `runtime:<version>` dependency entries back into
 /// `devEngines.runtime` / `engines.runtime` before writing a manifest.
 ///

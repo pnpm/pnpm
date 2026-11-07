@@ -15,11 +15,23 @@ export type { Platform, WantedPlatform } from './checkPlatform.js'
 export { inferPlatformFromPackageName } from './inferPlatformFromPackageName.js'
 
 export function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest, runtimeOnFail?: string): string | undefined {
+  return getNodeVersionFromRuntime(manifest, runtimeOnFail, false)
+}
+
+export function getDownloadedNodeVersionFromEnginesRuntime (manifest: ProjectManifest, runtimeOnFail?: string): string | undefined {
+  return getNodeVersionFromRuntime(manifest, runtimeOnFail, true)
+}
+
+function getNodeVersionFromRuntime (manifest: ProjectManifest, runtimeOnFail: string | undefined, downloadedOnly: boolean): string | undefined {
   for (const runtime of [manifest.devEngines?.runtime, manifest.engines?.runtime]) {
     const runtimes = runtime == null ? [] : Array.isArray(runtime) ? runtime : [runtime]
     const nodeRuntime = runtimes.find((entry) => entry.name === 'node')
     if (typeof nodeRuntime?.version !== 'string') continue
     const version = nodeRuntime.version.trim()
+    if (downloadedOnly) {
+      if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return undefined
+      return semver.valid(version) ?? undefined
+    }
     if (!semver.validRange(version)) continue
     if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return semver.valid(version) ?? undefined
     return semver.minVersion(version)?.version

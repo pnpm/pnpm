@@ -116,7 +116,7 @@ fn a_workspace_project_checks_node_engines_against_its_runtime() {
         &workspace,
         &serde_json::json!({
             "engines": { "node": ">=99.0.0" },
-            "devEngines": { "runtime": { "name": "node", "version": "^99.0.0" } },
+            "devEngines": { "runtime": { "name": "node", "version": "99.0.0" } },
         }),
     );
 

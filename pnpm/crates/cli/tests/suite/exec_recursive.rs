@@ -190,7 +190,7 @@ fn recursive_exec_checks_node_engines_against_each_projects_runtime() {
             "name": "project-1",
             "version": "1.0.0",
             "engines": { "node": ">=99.0.0" },
-            "devEngines": { "runtime": { "name": "node", "version": "99.0.0" } },
+            "devEngines": { "runtime": { "name": "node", "version": "99.0.0", "onFail": "download" } },
         })
         .to_string(),
     )

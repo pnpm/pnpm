@@ -1,8 +1,8 @@
 use super::{
     DependencyGroup, HashMap, NamedTempFile, PackageManifest, PackageManifestError, Write,
     apply_runtime_on_fail_override, assert_eq, convert_dependencies_to_engines_runtime,
-    convert_engines_runtime_to_dependencies, json, manifest_from_json,
-    node_version_from_engines_runtime, read_to_string, tempdir,
+    convert_engines_runtime_to_dependencies, downloaded_node_version_from_engines_runtime, json,
+    manifest_from_json, node_version_from_engines_runtime, read_to_string, tempdir,
 };
 
 #[test]
@@ -317,14 +317,34 @@ fn node_version_keeps_an_exact_pin() {
 }
 
 #[test]
-fn node_version_keeps_the_lower_bound_of_a_range_pnpm_downloads() {
+fn node_version_does_not_use_a_runtime_that_is_not_downloaded() {
     assert_eq!(
-        node_version_from_engines_runtime(&json!({
+        downloaded_node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "24.6.0" },
+            },
+        })),
+        None,
+    );
+    assert_eq!(
+        downloaded_node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": { "name": "node", "version": "24.6.0", "onFail": "warn" },
+            },
+        })),
+        None,
+    );
+}
+
+#[test]
+fn node_version_does_not_use_the_minimum_of_a_downloaded_runtime_range() {
+    assert_eq!(
+        downloaded_node_version_from_engines_runtime(&json!({
             "devEngines": {
                 "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "download" },
             },
         })),
-        Some("22.12.0".to_string()),
+        None,
     );
 }
 

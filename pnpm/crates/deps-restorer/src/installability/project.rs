@@ -51,7 +51,7 @@ pub fn project_host_requirements(
         }
         ProjectHostRequirements {
             installability: requirements,
-            node_version: pnpm_package_manifest::node_version_from_engines_runtime(
+            node_version: pnpm_package_manifest::downloaded_node_version_from_engines_runtime(
                 &effective_manifest,
             ),
         }

@@ -67,7 +67,7 @@ export async function selectWorkspaceProjects (
     filter: config.filter,
     filterProd: config.filterProd,
   })
-  const filterResults = await filterProjectsFromDir(wsDir, filters, createProjectsFilterOptions(config, context, wsDir))
+  const filterResults = await filterProjectsFromDir(wsDir, filters, createProjectsFilterOptions(config, context, wsDir, invocation.cliOptions['runtime'] === false))
 
   if (filterResults.allProjects.length === 0) {
     if (printLogs) {
@@ -123,13 +123,14 @@ function buildWorkspaceFilters (
   return filters
 }
 
-function createProjectsFilterOptions (config: Config, context: ConfigContext, wsDir: string): Parameters<typeof filterProjectsFromDir>[2] {
+function createProjectsFilterOptions (config: Config, context: ConfigContext, wsDir: string, skipRuntimes: boolean): Parameters<typeof filterProjectsFromDir>[2] {
   return {
     catalogs: config.catalogs,
     engineStrict: config.engineStrict,
     nodeVersion: config.nodeVersion,
     nodeVersionFromEnginesRuntime: context.nodeVersionFromEnginesRuntime,
     runtimeOnFail: config.runtimeOnFail,
+    skipRuntimes,
     patterns: config.workspacePackagePatterns,
     modulesDir: config.modulesDir,
     modulesDirsByProjectName: config.modulesDirsByProjectName,
