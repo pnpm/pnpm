@@ -17,6 +17,8 @@ fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Confi
         "1.0.0",
         "",
         |config| {
+            config.workspace_dir = config.modules_dir.parent().map(std::path::Path::to_path_buf);
+            config.explicit_settings.insert("modulesDir".into(), "vendor".into());
             config.modules_dir = config.modules_dir.with_file_name("vendor");
             config.install_state_dir = config.modules_dir.join(".pnpm");
             configure(config);

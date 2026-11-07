@@ -315,7 +315,7 @@ fn project_extra_env(
     config.prepend_project_node_path::<pnpm_config::Host>(
         &mut env,
         project,
-        &project.join(config.modules_dir_name_for(project, project_name)),
+        &config.project_modules_dir(project, project_name),
     );
     env
 }
@@ -326,12 +326,14 @@ fn command_search_path(
     project_name: Option<&str>,
 ) -> Result<std::ffi::OsString, ExecError> {
     let ExecDirs { run: dir, project } = dirs;
-    let modules_dir_name = config.modules_dir_name_for(project, project_name);
     let mut prepend = Vec::with_capacity(2 + config.extra_bin_paths.len());
-    prepend.push(dir.join(&modules_dir_name).join(".bin"));
     if project != dir {
-        prepend.push(project.join(&modules_dir_name).join(".bin"));
+        prepend.push(
+            dir.join(config.modules_dir_name_for(project, project_name))
+                .join(".bin"),
+        );
     }
+    prepend.push(config.project_modules_dir(project, project_name).join(".bin"));
     prepend.extend(crate::ecosystem_install::execution_paths(config, project).iter().cloned());
     prepend_dirs_to_path(&prepend).map_err(ExecError::from)
 }

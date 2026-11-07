@@ -390,8 +390,7 @@ fn project_scripts_bin_dir_and_env(
     change: &VersionChange,
     config: &Config,
 ) -> (PathBuf, HashMap<String, String>) {
-    let modules_dir =
-        change.path.join(config.modules_dir_name_for(&change.path, Some(&change.name)));
+    let modules_dir = config.project_modules_dir(&change.path, Some(&change.name));
     let mut extra_env = config.extra_env.clone();
     config.prepend_project_node_path::<pnpm_config::Host>(
         &mut extra_env,

@@ -826,3 +826,59 @@ fn the_loaded_linker_links_bins_into_a_modules_dir_outside_the_project() {
         drop((root, mock_instance));
     }
 }
+
+#[test]
+fn commands_find_each_projects_modules_dir_outside_the_project() {
+    for setting in MODULES_DIR_SETTINGS {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let (root_modules_dir, project_modules_dir) =
+            set_modules_dir_outside_the_project(&workspace, setting);
+        append_workspace_yaml_key(&workspace, "packages", "['project-1']");
+        let project_dir = workspace.join("project-1");
+        for (dir, name) in [(&workspace, "root"), (&project_dir, "project-1")] {
+            write_manifest(
+                dir,
+                &serde_json::json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "scripts": { "greet": "hello-world-js-bin" },
+                    "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+                }),
+            );
+        }
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+
+        for (dir, modules_dir) in
+            [(&workspace, &root_modules_dir), (&project_dir, &project_modules_dir)]
+        {
+            let context = format!("{setting:?} {}", dir.display());
+            let real = |path: &str| {
+                dunce::canonicalize(path.trim())
+                    .unwrap_or_else(|error| panic!("{context}: canonicalize {path:?}: {error}"))
+            };
+            assert_eq!(
+                real(&probe_stdout(dir, &["root"])),
+                dunce::canonicalize(modules_dir).unwrap(),
+                "{context}",
+            );
+            assert_eq!(
+                real(&probe_stdout(dir, &["bin"])),
+                dunce::canonicalize(modules_dir.join(".bin")).unwrap(),
+                "{context}",
+            );
+            for args in [&["run", "greet"][..], &["exec", "hello-world-js-bin"]] {
+                pacquet_in(dir)
+                    .with_args(args)
+                    .assert()
+                    .success();
+            }
+        }
+
+        drop((root, mock_instance));
+    }
+}
