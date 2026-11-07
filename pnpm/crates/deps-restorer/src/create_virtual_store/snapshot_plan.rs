@@ -76,7 +76,11 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         probe.layout,
         snapshots
             .keys()
-            .filter(|key| !probe.policy.is_hoisted && probe.layout.hashed_slot_dir(key).is_some())
+            .filter(|key| {
+                !probe.policy.skipped.contains(key)
+                    && probe.layout.hashed_slot_dir(key).is_some()
+                    && slot_probe_applies(&probe, key)
+            })
             .cloned(),
     )
     .map_err(CreateVirtualStoreError::SlotLock)?;
