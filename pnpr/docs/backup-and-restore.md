@@ -46,7 +46,7 @@ With `metadata.url`, use the path that URL names.
 pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
 ```
 
-An export does not include unpublished versions, former maintainer claims, dist-tag history, release notes, team rosters, rule overrides, SCIM users, or staged-publish approval records. Back up the [metadata database](storage.md#sqlite-metadata) to retain those records.
+An export does not include unpublished versions, former maintainer claims, dist-tag history, release notes, team rosters, rule overrides, SCIM users, or staged publishes. Back up the [metadata database](storage.md#sqlite-metadata) and hosted storage at the same point in time to retain these records and the staged bodies.
 
 ### Restore
 
