@@ -212,6 +212,7 @@ where
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
+        crate::validation::validate_password(password)?;
 
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
@@ -225,7 +226,6 @@ where
 
         self.check_registration_capacity().await?;
 
-        crate::validation::validate_new_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, self.max_users).await? {
             InsertUser::Created(id) => Ok((UpsertOutcome::Created, id)),
@@ -263,7 +263,7 @@ where
     /// counts the new user.
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
         validate_username(username)?;
-        crate::validation::validate_new_password(password)?;
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, MaxUsers::Unlimited).await? {
             InsertUser::Created(_) => Ok(UserCreation::Created),
@@ -274,7 +274,7 @@ where
     }
 
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
-        crate::validation::validate_new_password(password)?;
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         self.db.update_password_hash(user_id, &hash).await
     }

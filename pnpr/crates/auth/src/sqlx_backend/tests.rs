@@ -472,3 +472,21 @@ async fn provisioning_confusable_names_returns_the_validation_error() {
     assert!(matches!(error, RegistryError::BadRequest { .. }));
     assert_eq!(error.to_string(), crate::validation::confusable_username().to_string());
 }
+
+#[tokio::test]
+async fn password_policy_rejects_existing_short_credentials() {
+    let auth = SqlAuth::new(
+        CanonicalBackend {
+            confusable_insert: false,
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "member".to_string(),
+                bcrypt_hash: bcrypt::hash("short", 4).unwrap(),
+            },
+        },
+        MaxUsers::Unlimited,
+        Duration::from_secs(30),
+    );
+    let error = auth.add_or_login("member", "short").await.unwrap_err();
+    assert!(matches!(error, RegistryError::BadRequest { .. }));
+}

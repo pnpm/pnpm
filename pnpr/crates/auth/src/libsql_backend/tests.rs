@@ -591,7 +591,7 @@ async fn a_removed_owner_disables_its_tokens_but_not_their_cleanup() {
 #[tokio::test]
 async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
     let backend = local_backend(MaxUsers::Unlimited).await;
-    let sha_hash = "{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=";
+    let sha_hash = "{SHA}eJy+BAeECxwgQcszRS/2Dxm/WMw=";
     backend.pool
         .connect()
         .unwrap()
@@ -602,7 +602,7 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
         .await
         .unwrap();
 
-    let outcome = backend.add_or_login("alice", "test").await.unwrap();
+    let outcome = backend.add_or_login("alice", "test-password").await.unwrap();
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
 
     let updated = backend
@@ -770,4 +770,10 @@ async fn libsql_concurrent_confusable_registrations_create_only_one_account() {
             .len(),
         1,
     );
+}
+
+#[tokio::test]
+async fn libsql_password_policy_applies_to_registration_and_login() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    crate::validation::tests::assert_password_policy(&*backend).await;
 }

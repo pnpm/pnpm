@@ -123,7 +123,7 @@ async fn adduser_creates_then_validates() {
     assert_eq!(Some(outcome.1), store.account_id("alice").await.unwrap());
 
     // A wrong password for an existing user is rejected.
-    let err = store.add_or_login("alice", "wrong").await.unwrap_err();
+    let err = store.add_or_login("alice", "incorrect").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
@@ -914,10 +914,10 @@ fn parse_htpasswd_accepts_sha1_entries() {
 async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("htpasswd");
-    // "test" hashed with SHA-1 in Apache/Verdaccio format
+    // "test-password" hashed with SHA-1 in Apache/Verdaccio format
     std::fs::write(
         &path,
-        native_account("verdaccio-id", "verdaccio_user", "{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M="),
+        native_account("verdaccio-id", "verdaccio_user", "{SHA}eJy+BAeECxwgQcszRS/2Dxm/WMw="),
     )
     .unwrap();
 
@@ -926,11 +926,11 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
             .unwrap();
 
     // Wrong password fails
-    let err = store.add_or_login("verdaccio_user", "wrong").await.unwrap_err();
+    let err = store.add_or_login("verdaccio_user", "incorrect").await.unwrap_err();
     assert!(matches!(err, pnpr_error::RegistryError::Unauthenticated { .. }));
 
     // Correct password succeeds
-    let (outcome, user) = store.add_or_login("verdaccio_user", "test").await.unwrap();
+    let (outcome, user) = store.add_or_login("verdaccio_user", "test-password").await.unwrap();
     assert_eq!(outcome, super::UpsertOutcome::LoggedIn);
     assert_eq!(user, "verdaccio-id");
 
@@ -940,7 +940,7 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt() {
     assert!(content.contains("$2y$"));
 
     // Verify returning user can log in with new bcrypt hash
-    let (outcome2, user2) = store.add_or_login("verdaccio_user", "test").await.unwrap();
+    let (outcome2, user2) = store.add_or_login("verdaccio_user", "test-password").await.unwrap();
     assert_eq!(outcome2, super::UpsertOutcome::LoggedIn);
     assert_eq!(user2, "verdaccio-id");
 }

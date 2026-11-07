@@ -283,6 +283,7 @@ impl LibsqlAuth {
         hash: &tokio::sync::OnceCell<String>,
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
+        crate::validation::validate_password(password)?;
 
         if let Some(stored) = self.stored_hash(username).await? {
             return self.verify_and_maybe_upgrade(username, password, stored).await;
@@ -297,7 +298,6 @@ impl LibsqlAuth {
         // when the cap is already full; the insert below re-checks the
         // cap atomically so it holds even under a concurrent burst.
         self.check_registration_allowed().await?;
-        crate::validation::validate_new_password(password)?;
 
         let hash =
             hash.get_or_try_init(|| hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST)).await?;

@@ -369,10 +369,10 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
     let storage = TempDir::new().unwrap();
     let auth_dir = TempDir::new().unwrap();
     let htpasswd = auth_dir.path().join("users");
-    // "test" hashed with SHA-1 in Apache/Verdaccio format
+    // "test-password" hashed with SHA-1 in Apache/Verdaccio format
     pnpr_auth::UserStore::import_password_hashes(
         &htpasswd,
-        [("alice".to_string(), "{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=".to_string())].into(),
+        [("alice".to_string(), "{SHA}eJy+BAeECxwgQcszRS/2Dxm/WMw=".to_string())].into(),
         pnpr_auth::PasswordImport {
             collisions: pnpr_auth::PasswordCollisions::Keep,
             mode: pnpr_auth::ImportMode::Persist,
@@ -393,7 +393,7 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
     // Legacy SHA user logs in via npm adduser / login endpoint
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test-password")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -423,7 +423,7 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
 
     // Subsequent login succeeds with the upgraded hash
     let second_response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test-password")))
         .await
         .unwrap();
     assert_eq!(second_response.status(), StatusCode::CREATED);

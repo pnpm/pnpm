@@ -1,8 +1,6 @@
 use crate::UserBackend as _;
 
-#[tokio::test]
-async fn password_policy_applies_to_new_credentials_and_preserves_legacy_login() {
-    let users = crate::UserStore::in_memory_with_cost(pnpr_config::MaxUsers::Unlimited, 4);
+pub(crate) async fn assert_password_policy(users: &dyn crate::UserBackend) {
     for password in ["", "short", "ééééééé", &"a".repeat(72)] {
         let err = users.add_or_login("member", password).await.unwrap_err();
         assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
@@ -23,11 +21,10 @@ async fn password_policy_applies_to_new_credentials_and_preserves_legacy_login()
         .unwrap();
     assert!(users.set_password(&id, "short").await.is_err());
     users.add_or_login("member", "éééééééé").await.unwrap();
-    users.insert_user_for_test("legacy".to_string(), bcrypt::hash("short", 4).unwrap());
-    assert_eq!(
-        users.add_or_login("legacy", "short").await.unwrap().0,
-        crate::UpsertOutcome::LoggedIn,
-    );
+    for password in ["", "short", "ééééééé", &"a".repeat(72)] {
+        let err = users.add_or_login("member", password).await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    }
 }
 
 pub(crate) async fn assert_username_skeletons(users: &dyn crate::UserBackend) {
@@ -168,4 +165,13 @@ async fn separate_file_stores_reject_concurrent_confusable_registrations() {
         reopened.add_or_login(winner, "password").await.unwrap().0,
         crate::UpsertOutcome::LoggedIn,
     );
+}
+
+#[tokio::test]
+async fn file_password_policy_applies_to_registration_and_login() {
+    let users = crate::UserStore::in_memory_with_cost(pnpr_config::MaxUsers::Unlimited, 4);
+    assert_password_policy(&users).await;
+    users.insert_user_for_test("imported".to_string(), bcrypt::hash("short", 4).unwrap());
+    let error = users.add_or_login("imported", "short").await.unwrap_err();
+    assert_eq!(error.status_code(), axum::http::StatusCode::BAD_REQUEST);
 }

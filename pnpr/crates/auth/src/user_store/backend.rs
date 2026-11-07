@@ -23,6 +23,7 @@ impl UserBackend for UserStore {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
+        crate::validation::validate_password(password)?;
         self.sync_from_disk_if_path()?;
 
         let existing_hash = self
@@ -41,7 +42,6 @@ impl UserBackend for UserStore {
 
         self.check_registration_capacity()?;
 
-        crate::validation::validate_new_password(password)?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         let name = username.to_string();
         let max_users = self.max_users;
@@ -121,7 +121,7 @@ impl UserBackend for UserStore {
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
         validate_username(username)?;
-        crate::validation::validate_new_password(password)?;
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         let name = username.to_string();
         self.update(move |users| {
@@ -136,7 +136,7 @@ impl UserBackend for UserStore {
     }
 
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
-        crate::validation::validate_new_password(password)?;
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
         self.replace_password_hash(user_id, hash).await
     }

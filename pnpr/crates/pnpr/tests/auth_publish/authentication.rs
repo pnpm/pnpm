@@ -33,7 +33,7 @@ async fn adduser_rejects_wrong_password_for_existing_user() {
 
     let path = "/-/user/org.couchdb.user:alice";
     let body = json!({
-        "name": "alice", "password": "wrong",
+        "name": "alice", "password": "incorrect",
         "email": "foo@bar.net", "type": "user", "roles": []
     });
     let response = app

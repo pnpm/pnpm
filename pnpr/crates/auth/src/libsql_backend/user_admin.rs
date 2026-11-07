@@ -33,7 +33,7 @@ impl LibsqlAuth {
         password: &str,
     ) -> Result<UserCreation> {
         validate_username(username)?;
-        crate::validation::validate_new_password(password)?;
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         let hash = hash.as_str();
         let id = crate::new_principal_id();
@@ -68,7 +68,7 @@ impl LibsqlAuth {
         user_id: &str,
         password: &str,
     ) -> Result<PasswordChange> {
-        crate::validation::validate_new_password(password)?;
+        crate::validation::validate_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         self.replace_password_hash(user_id, &hash).await
     }

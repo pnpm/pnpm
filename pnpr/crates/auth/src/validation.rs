@@ -6,10 +6,10 @@ use pnpr_error::{RegistryError, Result};
 /// Maximum password length accepted by pnpr to prevent bcrypt 72-byte truncation issues.
 pub const MAX_PASSWORD_BYTES: usize = 71;
 
-/// Minimum number of Unicode characters in a newly chosen password.
+/// Minimum number of Unicode characters in a password.
 pub const MIN_PASSWORD_CHARS: usize = 8;
 
-pub(crate) fn validate_new_password(password: &str) -> Result<()> {
+pub(crate) fn validate_password(password: &str) -> Result<()> {
     if password.chars().count() < MIN_PASSWORD_CHARS {
         return Err(RegistryError::BadRequest {
             reason: format!("password must contain at least {MIN_PASSWORD_CHARS} characters"),
