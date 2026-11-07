@@ -84,13 +84,7 @@ pub(super) fn redact_url_candidate(candidate: &str) -> Option<String> {
     let Some(userinfo_end) = find_password_parsed_as_port(candidate) else {
         return redact_parsed_url(url);
     };
-    let authority_start = candidate.find("://")? + 3;
-    // A `?` or `#` before the `@` belongs to either the password or a query or fragment
-    // that holds a secret, so neither side of the `@` is safe to log.
-    if candidate[authority_start..userinfo_end].contains(['?', '#']) {
-        return Some(format!("{}redacted", &candidate[..authority_start]));
-    }
-    let redacted = replace_userinfo(candidate, userinfo_end)?;
+    let redacted = redact_userinfo_ending_at(candidate, userinfo_end)?;
     Some(redact_url_candidate(&redacted).unwrap_or(redacted))
 }
 
@@ -200,16 +194,16 @@ pub(super) fn redact_unparsable_url_userinfo(candidate: &str) -> Option<String> 
                     .rfind('@')
                     .map(|offset| authority_start + offset)
             })?;
+    redact_userinfo_ending_at(candidate, userinfo_end)
+}
+
+pub(super) fn redact_userinfo_ending_at(candidate: &str, userinfo_end: usize) -> Option<String> {
+    let authority_start = candidate.find("://")? + 3;
     // A `?` or `#` before the `@` belongs to either the password or a query or fragment
     // that holds a secret, so neither side of the `@` is safe to log.
     if candidate[authority_start..userinfo_end].contains(['?', '#']) {
         return Some(format!("{}redacted", &candidate[..authority_start]));
     }
-    replace_userinfo(candidate, userinfo_end)
-}
-
-pub(super) fn replace_userinfo(candidate: &str, userinfo_end: usize) -> Option<String> {
-    let authority_start = candidate.find("://")? + 3;
     let mut redacted = String::with_capacity(candidate.len());
     redacted.push_str(&candidate[..authority_start]);
     redacted.push_str("redacted@");

@@ -208,6 +208,7 @@ fn log_message_redacts_unparsable_urls_with_query_or_fragment_before_at_sign() {
     for (url, expected) in [
         ("https://host:bad/x#token=a@secret", "https://redacted"),
         ("postgres://admin:pa?ss@db.example/pnpr", "postgres://redacted"),
+        ("https://host:bad/@scope/pkg?token=a@secret", "https://redacted"),
     ] {
         assert_eq!(super::redact_url_credentials(url), expected);
     }
