@@ -31,9 +31,7 @@ CREATE TABLE IF NOT EXISTS versions (
     integrity TEXT NOT NULL,
     published_at TEXT,
     accepted_generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key),
-    FOREIGN KEY (catalog, ecosystem, name)
-        REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: the manifest accepted for a version under an interpretation
@@ -52,9 +50,7 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
     manifest TEXT NOT NULL,
     inputs TEXT NOT NULL,
     accepted_digest TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
-    FOREIGN KEY (catalog, ecosystem, name, version, revision_key)
-        REFERENCES versions (catalog, ecosystem, name, version, revision_key) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile)
 ) STRICT;
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
@@ -71,10 +67,7 @@ CREATE TABLE IF NOT EXISTS release_records (
     record BLOB NOT NULL,
     digest TEXT NOT NULL,
     log_index INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
-    FOREIGN KEY (catalog, ecosystem, name, version, revision_key, profile)
-        REFERENCES accepted_manifests (catalog, ecosystem, name, version, revision_key, profile)
-        ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile)
 ) STRICT;
 
 -- Insert-only: the transparency log of each catalog's records of one
@@ -110,9 +103,7 @@ CREATE TABLE IF NOT EXISTS readmes (
     revision_key TEXT NOT NULL,
     readme TEXT,
     readme_filename TEXT,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key),
-    FOREIGN KEY (catalog, ecosystem, name, version, revision_key)
-        REFERENCES versions (catalog, ecosystem, name, version, revision_key) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -122,9 +113,7 @@ CREATE TABLE IF NOT EXISTS tags (
     tag TEXT NOT NULL,
     version TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, tag),
-    FOREIGN KEY (catalog, ecosystem, name)
-        REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, tag)
 ) STRICT, WITHOUT ROWID;
 
 -- Insert-only: every move of a tag, so a release-age or downgrade policy can
@@ -166,9 +155,7 @@ CREATE TABLE IF NOT EXISTS annotations (
     version TEXT NOT NULL,
     deprecated TEXT NOT NULL,
     generation INTEGER NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version),
-    FOREIGN KEY (catalog, ecosystem, name)
-        REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version)
 ) STRICT, WITHOUT ROWID;
 
 -- A commit that introduced artifacts. `id` is the catalog generation it
@@ -196,8 +183,7 @@ CREATE TABLE IF NOT EXISTS publication_members (
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     artifact TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, artifact),
-    FOREIGN KEY (catalog, publication) REFERENCES publications (catalog, id)
+    PRIMARY KEY (catalog, ecosystem, name, version, artifact)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS publication_members_by_publication
     ON publication_members (catalog, publication);

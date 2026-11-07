@@ -576,17 +576,28 @@ async fn invalid_tag_changes_leave_metadata_unchanged(db: Db) {
 
 async fn removing_versions_and_packages(db: Db) {
     let storage = storage(&db);
-    write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
-    write(&storage, "pkg", &packument("pkg", &["2.0.0"])).await;
+    let mut initial = packument("pkg", &["1.0.0", "2.0.0"]);
+    initial["versions"]["1.0.0"]["deprecated"] = json!("old");
+    initial["versions"]["2.0.0"]["deprecated"] = json!("old");
+    write(&storage, "pkg", &initial).await;
+    let mut kept = packument("pkg", &["2.0.0"]);
+    kept["versions"]["2.0.0"]["deprecated"] = json!("old");
+    write(&storage, "pkg", &kept).await;
     let document = read(&storage, "pkg").await;
     assert!(document["versions"].get("1.0.0").is_none());
     assert!(document["time"].get("1.0.0").is_none());
+    for table in ["accepted_manifests", "readmes", "annotations", "versions"] {
+        assert_eq!(row_count(&storage, table).await, 1, "{table}");
+    }
     assert!(
         storage
             .remove_package(&npm("pkg"), None)
             .await
             .unwrap(),
     );
+    for table in super::commit::PACKAGE_TABLES {
+        assert_eq!(row_count(&storage, table).await, 0, "{table}");
+    }
     assert!(
         storage
             .read_hosted_document(&npm("pkg"))
@@ -605,6 +616,23 @@ async fn removing_versions_and_packages(db: Db) {
     let republished = packument("pkg", &["3.0.0"]);
     write(&storage, "pkg", &republished).await;
     assert_eq!(read(&storage, "pkg").await, republished);
+}
+
+async fn row_count(storage: &Storage, table: &'static str) -> i64 {
+    let metadata = std::sync::Arc::clone(storage.sql_metadata());
+    tokio::task::spawn_blocking(move || {
+        let mut count = 0;
+        metadata.adapter
+            .write(&mut |connection| {
+                let mut row = connection.query_one(&format!("SELECT COUNT(*) FROM {table}"), &[])?;
+                count = row.get(0)?;
+                Ok(())
+            })
+            .unwrap();
+        count
+    })
+    .await
+    .unwrap()
 }
 
 async fn a_removed_version_is_never_accepted_again(db: Db) {

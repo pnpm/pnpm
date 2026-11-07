@@ -368,7 +368,7 @@ pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
 
 /// The tables holding a package's rows other than its history, each before
 /// the tables its rows reference.
-const PACKAGE_TABLES: [&str; 8] = [
+pub(super) const PACKAGE_TABLES: [&str; 8] = [
     "artifact_blobs",
     "release_records",
     "accepted_manifests",

@@ -45,7 +45,6 @@ impl SqliteAdapter {
         let connection = rusqlite::Connection::open(path)?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "synchronous", "FULL")?;
-        connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.busy_timeout(BUSY_TIMEOUT)?;
         Ok(Self {
             path: path.to_path_buf(),
