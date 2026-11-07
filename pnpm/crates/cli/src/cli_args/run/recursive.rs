@@ -294,12 +294,7 @@ impl RecursiveRun<'_, '_> {
             return Ok(Prepared::NoMatchingScript);
         }
         // Before the run journal below replaces an interrupted run's.
-        check_workspace_requirements(
-            self.selection,
-            self.config,
-            self.workspace_root,
-            self.script.emit,
-        )?;
+        self.check_workspace_requirements()?;
         let extra_env: HashMap<String, String> = self.config.extra_env_with_node_options();
         let state_settings = run_state_settings(self.config, &extra_env);
         let task_run_state_context = TaskRunStateContext::new(
@@ -354,6 +349,15 @@ impl RecursiveRun<'_, '_> {
 
     /// Decided on the graph as built, before the run-only resume and
     /// sequencing, which do not apply to `exec`.
+    fn check_workspace_requirements(&self) -> miette::Result<()> {
+        check_workspace_requirements(
+            self.selection,
+            self.config,
+            self.workspace_root,
+            self.script.emit,
+        )
+    }
+
     fn falls_back_to_exec(&self, task_graph: &TaskGraph) -> bool {
         self.script.fallback_to_exec
             && !self.args.if_present
