@@ -73,6 +73,36 @@ fn a_project_dependency_kept_in_the_project_goes_in_its_modules_dir() {
     drop((root, mock_instance));
 }
 
+/// The last install recorded that `packages/foo` got a modules directory. A
+/// repeat install has to look for it where the install put it, not in
+/// `node_modules`, or it reports the workspace up to date.
+#[test]
+fn a_repeat_install_restores_a_removed_project_modules_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_conflicting_ms(&workspace);
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_ms_in_vendor_dirs(&workspace);
+
+    fs_remove_dir_all(&workspace.join("packages/foo/vendor"));
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_ms_in_vendor_dirs(&workspace);
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn an_unplanned_package_in_a_modules_dir_is_quarantined() {
     let CommandTempCwd {

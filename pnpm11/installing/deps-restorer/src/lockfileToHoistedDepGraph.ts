@@ -15,10 +15,10 @@ import type {
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, ProjectId, RegistryContext, SupportedArchitectures } from '@pnpm/types'
+import { importerModulesDir, isStrictlyInside } from '@pnpm/workspace.state'
 
 import { pickResolvableImporterIds } from './currentLockfileImporters.js'
 import { fetchDeps, type FetchDepsOptions, type SkipFetchingOption } from './fetchHoistedDeps.js'
-import { importerModulesDir, isStrictlyInside } from './importerModulesDir.js'
 
 export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
   allowBuild?: AllowBuild

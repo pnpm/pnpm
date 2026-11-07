@@ -210,6 +210,31 @@ test('a repeat hoisted install restores a removed workspace project modules dire
   }
 })
 
+// The last install recorded that pkg-a got a modules directory. The repeat
+// install has to look for it where the install put it, not in `node_modules`.
+test('a repeat hoisted install restores a removed project modules directory set by modulesDir', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', version: '0.0.0', private: true, dependencies: { 'is-positive': '3.1.0' } },
+    },
+    {
+      location: 'packages/pkg-a',
+      package: { name: 'pkg-a', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'], nodeLinker: 'hoisted', modulesDir: 'vendor' })
+
+  execPnpmSync(['install'], { expectSuccess: true })
+  const manifestPath = 'packages/pkg-a/vendor/is-positive/package.json'
+  expect(JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version).toBe('1.0.0')
+  expect(fs.existsSync('packages/pkg-a/node_modules')).toBe(false)
+
+  fs.rmSync('packages/pkg-a/vendor', { recursive: true })
+  execPnpmSync(['install'], { expectSuccess: true })
+  expect(JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version).toBe('1.0.0')
+})
+
 test('a filtered install with node-linker=hoisted keeps the packages of installed projects', async () => {
   preparePackages([
     {

@@ -23,12 +23,12 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import type { AllowBuild, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
+import { importerModulesDir, isStrictlyInside } from '@pnpm/workspace.state'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
 
-import { importerModulesDir, isStrictlyInside } from './importerModulesDir.js'
 import { reportOptionalFetchFailure } from './reportOptionalFetchFailure.js'
 
 const limitLinking = pLimit(16)
