@@ -37,6 +37,33 @@ fn log_message_redacts_malformed_credentials_in_scoped_package_urls() {
     );
 }
 
+#[test]
+fn log_message_preserves_at_signs_in_package_url_paths() {
+    for url in [
+        "https://registry.npmjs.org/@babel/cli@7.0.0",
+        "https://registry.example/pkg/-/pkg@1.0.0.tgz",
+        "http://localhost:4873/@babel/cli",
+    ] {
+        assert_eq!(super::redact_url_credentials(url), url);
+    }
+}
+
+#[test]
+fn log_message_redacts_malformed_password_ending_in_a_slash() {
+    assert_eq!(
+        super::redact_url_credentials("https://user:secret/@registry.example/package"),
+        "https://redacted@registry.example/package",
+    );
+}
+
+#[test]
+fn log_message_drops_fragment_containing_an_at_sign() {
+    assert_eq!(
+        super::redact_url_credentials("https://db.example/pnpr#password=alice@fragment-secret"),
+        "https://db.example/pnpr",
+    );
+}
+
 /// `reqwest::Error` has no public constructor, so the only way to
 /// get a real `is_timeout()` error in a test is to actually time
 /// out. Spin up a TCP listener that accepts and holds the socket
