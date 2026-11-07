@@ -51,8 +51,8 @@ fn recursive_run_checks_node_engines_against_each_projects_runtime() {
             "project-1",
             json!({
                 "name": "project-1",
-                "engines": { "node": ">=99.0.0" },
-                "devEngines": { "runtime": { "name": "node", "version": "99.0.0", "onFail": "download" } },
+                "engines": { "node": ">=24.0.0" },
+                "devEngines": { "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" } },
                 "scripts": { "test": r#"node -e "process.stdout.write('ok')""# },
             }),
         )],
