@@ -54,11 +54,11 @@ impl ProjectFile {
     pub(super) fn render_json(&self, file_base: &str) -> Value {
         let mut entry = serde_json::to_value(self).expect("project file serializes");
         entry["url"] = json!(file_url(file_base, &self.filename));
-        for legacy_key in ["dist-info-metadata", "data-dist-info-metadata"] {
+        for metadata_key in ["core-metadata", "dist-info-metadata", "data-dist-info-metadata"] {
             entry
                 .as_object_mut()
                 .expect("project file is an object")
-                .remove(legacy_key);
+                .remove(metadata_key);
         }
         if let Some(metadata) = self.metadata() {
             entry["core-metadata"] = json!(metadata);
@@ -78,6 +78,7 @@ impl ProjectFile {
             .as_ref()
             .or(self.dist_info_metadata.as_ref())
             .or(self.data_dist_info_metadata.as_ref())
+            .filter(|metadata| metadata.is_supported())
     }
 
     pub(super) fn render_metadata_attributes(&self, html: &mut String) {

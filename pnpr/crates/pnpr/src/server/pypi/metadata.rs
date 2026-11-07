@@ -7,7 +7,6 @@ use pnpm_python_resolver::metadata_url;
 use pnpr_pypi::{CoreMetadata, archive::MAX_METADATA_BYTES};
 use pnpr_upstream::{FetchOutcome, Upstream};
 use ssri::{Algorithm, Integrity};
-use std::collections::BTreeMap;
 
 pub(super) async fn serve(
     state: &AppState,
@@ -53,8 +52,8 @@ async fn load(
     else {
         return Ok(None);
     };
-    if let CoreMetadata::Hashes(hashes) = metadata
-        && !matches_metadata_digest(&document.bytes, hashes)
+    if let CoreMetadata::Hashes(_) = metadata
+        && !matches_metadata_digest(&document.bytes, metadata)
     {
         return Err(RegistryError::UpstreamResponse {
             url: url.to_string(),
@@ -67,16 +66,13 @@ async fn load(
     Ok(Some(document.bytes))
 }
 
-fn matches_metadata_digest(bytes: &[u8], hashes: &BTreeMap<String, String>) -> bool {
-    [Algorithm::Sha512, Algorithm::Sha384, Algorithm::Sha256]
-        .into_iter()
-        .find_map(|algorithm| {
-            hashes
-                .get(&algorithm.to_string())
-                .map(|digest| {
-                    Integrity::from_hex(digest, algorithm)
-                        .is_ok_and(|integrity| integrity.check(bytes).is_ok())
-                })
+fn matches_metadata_digest(bytes: &[u8], metadata: &CoreMetadata) -> bool {
+    metadata
+        .digest()
+        .is_some_and(|(algorithm, digest)| {
+            algorithm
+                .parse::<Algorithm>()
+                .and_then(|algorithm| Integrity::from_hex(digest, algorithm))
+                .is_ok_and(|integrity| integrity.check(bytes).is_ok())
         })
-        .unwrap_or(false)
 }

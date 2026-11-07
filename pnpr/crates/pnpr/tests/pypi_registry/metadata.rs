@@ -18,8 +18,8 @@ async fn metadata_availability_legacy_fallback_and_integrity_are_enforced() {
         ("data-dist-info-metadata", json!(true), StatusCode::OK),
         ("core-metadata", json!({"sha512": sha512_hex(bytes)}), StatusCode::OK),
         ("core-metadata", json!({"sha512": sha512_hex(b"different")}), StatusCode::BAD_GATEWAY),
-        ("core-metadata", json!({}), StatusCode::BAD_GATEWAY),
-        ("core-metadata", json!({"unsupported": "digest"}), StatusCode::BAD_GATEWAY),
+        ("core-metadata", json!({}), StatusCode::NOT_FOUND),
+        ("core-metadata", json!({"unsupported": "digest"}), StatusCode::NOT_FOUND),
         ("core-metadata", json!({"sha256": sha256_hex(b"different")}), StatusCode::BAD_GATEWAY),
     ] {
         let page = upstream
@@ -73,7 +73,6 @@ async fn metadata_availability_legacy_fallback_and_integrity_are_enforced() {
             .unwrap();
         let rendered: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-        assert_eq!(rendered["files"][0]["core-metadata"], value);
         assert!(rendered["files"][0].get("dist-info-metadata").is_none());
         assert!(rendered["files"][0].get("data-dist-info-metadata").is_none());
         page.assert_async().await;

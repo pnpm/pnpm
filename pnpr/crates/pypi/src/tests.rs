@@ -307,6 +307,7 @@ fn core_metadata_roundtrips_and_renders_boolean_and_legacy_declarations() {
     for (field, declaration, attribute) in [
         ("core-metadata", json!(true), Some(r#"data-core-metadata="true""#)),
         ("core-metadata", json!(false), None),
+        ("data-dist-info-metadata", json!(true), Some(r#"data-core-metadata="true""#)),
         (
             "dist-info-metadata",
             json!({"sha256": "a&b"}),
@@ -366,4 +367,27 @@ fn current_metadata_declaration_takes_precedence_over_legacy_availability() {
     let html = document.render_html("/files/sample-pkg");
     assert!(!html.contains("data-core-metadata"), "{html}");
     assert!(!html.contains("data-dist-info-metadata"), "{html}");
+}
+
+#[test]
+fn metadata_advertisements_use_the_strongest_supported_digest() {
+    for hashes in
+        [json!({}), json!({"md5": "digest"}), json!({"sha256": "weaker", "sha512": "stronger"})]
+    {
+        let page = json!({"name": "sample-pkg", "files": [{
+            "filename": "sample_pkg-1.0-py3-none-any.whl", "core-metadata": hashes,
+        }]});
+        let document = ProjectDocument::parse(&serde_json::to_vec(&page).unwrap()).unwrap();
+        let rendered = document.render_json("/files/sample-pkg");
+        let html = document.render_html("/files/sample-pkg");
+        if hashes.get("sha512").is_some() {
+            assert_eq!(rendered["files"][0]["core-metadata"], hashes);
+            assert!(html.contains(r#"data-core-metadata="sha512=stronger""#), "{html}");
+            assert!(html.contains(r#"data-dist-info-metadata="sha512=stronger""#), "{html}");
+            continue;
+        }
+        assert!(rendered["files"][0].get("core-metadata").is_none(), "{rendered}");
+        assert!(!html.contains("data-core-metadata"), "{html}");
+        assert!(!html.contains("data-dist-info-metadata"), "{html}");
+    }
 }
