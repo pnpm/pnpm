@@ -235,16 +235,17 @@ pub fn downloaded_node_version_from_engines_runtime(manifest: &Value) -> Option<
         };
         let Some(runtime) = runtimes
             .iter()
-            .find(|runtime| {
-                runtime.get("name").and_then(Value::as_str) == Some("node")
-                    && runtime
-                        .get("version")
-                        .and_then(Value::as_str)
-                        .is_some()
-            })
+            .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some("node"))
         else {
             continue;
         };
+        if runtime
+            .get("version")
+            .and_then(Value::as_str)
+            .is_none()
+        {
+            continue;
+        }
         return downloaded_node_version(manifest, runtime);
     }
     None

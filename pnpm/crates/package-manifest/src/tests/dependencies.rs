@@ -363,6 +363,17 @@ fn downloaded_node_version_skips_runtime_entries_without_a_version() {
         })),
         Some("24.0.0".to_string()),
     );
+    assert_eq!(
+        downloaded_node_version_from_engines_runtime(&json!({
+            "devEngines": {
+                "runtime": [
+                    { "name": "node", "onFail": "download" },
+                    { "name": "node", "version": "24.0.0", "onFail": "download" },
+                ],
+            },
+        })),
+        None,
+    );
 }
 
 #[test]
