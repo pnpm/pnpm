@@ -10,7 +10,7 @@ const libIndex = new URL('../lib/index.js', import.meta.url).href
 // Regression test for https://github.com/pnpm/pnpm/issues/12297: a worker
 // call that arrives after finishWorkers() (e.g. a tarball fetch delayed by a
 // network retry, finishing after the CLI's final drain) must not leave a
-// worker thread alive, a leaked idle worker keeps the process from exiting.
+// worker thread alive — a leaked idle worker keeps the process from exiting.
 test('process exits after a worker call that arrives after finishWorkers()', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-worker-straggler-'))
   const storeDir = path.join(tmp, 'store')

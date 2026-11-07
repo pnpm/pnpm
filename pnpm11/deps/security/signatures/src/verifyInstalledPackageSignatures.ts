@@ -13,7 +13,7 @@ import { verifyPackageSignatures } from './verifyPackageSignatures.js'
 
 export interface InstalledPackageToVerify {
   name: string
-  /** The registry the package was installed from, the packument (and its signatures) is fetched from here. */
+  /** The registry the package was installed from — the packument (and its signatures) is fetched from here. */
   registry: string
   version: string
   /** Integrity of the bytes actually installed on disk (from the lockfile). */

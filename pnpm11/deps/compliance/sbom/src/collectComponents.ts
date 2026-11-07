@@ -265,7 +265,7 @@ function buildDependencyPurl (
   // otherwise yield an unqualified purl that collides with the same
   // package from the default registry, and the `componentsMap.has(purl)`
   // shortcut in `walkDependency` would drop this component before
-  // `pkgSnapshotToResolution` ever got to reject it, silently omitting an
+  // `pkgSnapshotToResolution` ever got to reject it — silently omitting an
   // artifact from a compliance document.
   const registryUrl = registryName == null
     ? undefined
@@ -328,7 +328,7 @@ export function gitDownloadUrl (resolution: Resolution): string | undefined {
  * reading a checksum out of a malformed resolution yields nothing instead of
  * throwing, and a non-string integrity never reaches `ssri.parse` downstream.
  * (A malformed resolution still fails the walk further along, in
- * `pkgSnapshotToResolution`, this only keeps the checksum lookup total.)
+ * `pkgSnapshotToResolution` — this only keeps the checksum lookup total.)
  */
 function verifiedIntegrity (resolution: LockfileResolution): string | undefined {
   const { type, integrity } = (resolution ?? {}) as { type?: string, integrity?: unknown }

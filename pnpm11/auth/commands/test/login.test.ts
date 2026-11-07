@@ -726,7 +726,7 @@ describe('login', () => {
             text: 'Not Found',
           })
         }
-        // Return 403 (not 401), should not trigger OTP
+        // Return 403 (not 401) — should not trigger OTP
         return createMockResponse({
           ok: false,
           status: 403,

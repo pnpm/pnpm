@@ -578,7 +578,7 @@ test('GVS approve-builds writes settings to globalPkgDir without scanning siblin
   })
 
   // Sibling install dir with a package.json that has no matching
-  // pnpm-lock.yaml, mimics a stale `@pnpm/exe` install dir left behind in
+  // pnpm-lock.yaml — mimics a stale `@pnpm/exe` install dir left behind in
   // the global packages directory.
   fs.mkdirSync(path.join(temp, 'stale-install'))
   fs.writeFileSync(

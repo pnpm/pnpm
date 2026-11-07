@@ -56,7 +56,7 @@ const _proofTypedWorkspaceManifestKeysAreExhaustive: ProofTypedWorkspaceManifest
 
 /**
  * The {@link ConfigWithDeprecatedSettings} fields that neither {@link types}
- * nor {@link TYPED_WORKSPACE_MANIFEST_KEYS} carries, settings whose only
+ * nor {@link TYPED_WORKSPACE_MANIFEST_KEYS} carries — settings whose only
  * spelling is a camelCase config field (e.g. `catalogPrune`), and the reader's
  * own derived fields. {@link ProofKnownSettingKeysCoverConfig} forces a new
  * config field to be added here, so a setting introduced later cannot start

@@ -4,9 +4,9 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 /**
  * What the edges a fast update severed pointed at, each written the way a
  * peer suffix names a package: `name@version`, or a bare `name@` when the
- * reference pins no version a suffix segment can be compared against, a
+ * reference pins no version a suffix segment can be compared against — a
  * link or a tarball, whose suffix segment carries the resolved manifest
- * version instead, which makes every suffix naming that name suspect.
+ * version instead — which makes every suffix naming that name suspect.
  */
 export type DroppedEdges = Set<string>
 

@@ -790,7 +790,7 @@ test('lockfile verifier respects trust-policy-exclude on a downgraded lockfile e
   )
 
   // With the exclude entry in place, the verifier short-circuits before
-  // running the trust check on this package, mirrors the resolver-time
+  // running the trust check on this package — mirrors the resolver-time
   // exclude path so users have one consistent way to allow a downgrade.
   execPnpmSync([
     'install',

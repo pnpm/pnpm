@@ -68,7 +68,7 @@ export { UNVALIDATED_MIRROR_MAX_AGE_MS } from './route.js'
  * mirror, without registry validation. The mirror may predate versions the
  * registry has, so when a cache hit on such an entry can't satisfy the
  * requested spec (and the resolver isn't offline), `pickPackage` falls
- * through to the regular flow, a conditional registry request, instead of
+ * through to the regular flow — a conditional registry request — instead of
  * failing the pick, exactly as it would have before the entry was promoted.
  * Network-fetched and 304-revalidated packuments are never in this set, so
  * hits on them keep returning directly even when the pick fails (the caller
@@ -170,7 +170,7 @@ function createPickRequest (
 async function pickFromMemoryCache (request: PickRequest): Promise<PickResult | undefined> {
   const { ctx, spec, opts } = request
   // updateChecksums must reach the conditional registry request, so it
-  // can't be served from the in-memory cache, which may hold a disk-promoted
+  // can't be served from the in-memory cache — which may hold a disk-promoted
   // entry rather than a fresh network fetch (see the updateChecksums doc).
   const cachedMeta = opts.updateChecksums ? undefined : ctx.metaCache.get(request.cacheKey)
   if (cachedMeta == null) return undefined
@@ -256,7 +256,7 @@ async function pickFromMirrorPreferringOffline (session: MirrorSession): Promise
 
 // Concurrent offline picks of one package all miss the pre-queue cache
 // check and queue behind this limiter, so the check is repeated inside
-// the queue and the promotion happens before the limiter releases,
+// the queue and the promotion happens before the limiter releases —
 // otherwise every queued pick re-reads and re-parses the mirror. Serving
 // a queued pick from the cache is equivalent to it having arrived after
 // the first caller cached it: offline entries are always disk-sourced
@@ -420,7 +420,7 @@ async function pickFromMirrorWrittenAfterCutoff (
       return { meta: diskMeta, pickedPackage }
     }
   } catch {
-    // Same as the other mirror fast paths, fall through to the network fetch.
+    // Same as the other mirror fast paths — fall through to the network fetch.
   }
   return undefined
 }

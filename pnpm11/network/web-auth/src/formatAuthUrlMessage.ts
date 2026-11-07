@@ -21,7 +21,7 @@ export function formatAuthUrlMessage (authUrl: string, globalWarn: (message: str
 }
 
 /**
- * Formats the "Authenticate your account at" message without a QR code, for
+ * Formats the "Authenticate your account at" message without a QR code — for
  * output that is not a terminal and cannot render one.
  */
 export function formatAuthUrlOnlyMessage (authUrl: string): string {

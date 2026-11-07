@@ -316,7 +316,7 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
  * resolver chain was built with.
  *
  * The verification is kicked off here, right after the lockfile is loaded,
- * but not awaited inline, it would otherwise block every later install
+ * but not awaited inline — it would otherwise block every later install
  * stage on per-entry registry round trips. Its synchronous prologue (cache
  * lookup, lockfile hashing, candidate collection) runs now against the
  * pristine lockfile, so the async fan-out reads a stable snapshot even
@@ -345,7 +345,7 @@ async function startLockfileVerification (
     isReplaced: matchUpdateTargetsReplacedEverywhere(projects, ctx, opts.depth),
   })
   // Keep the rejection from going unhandled in the window before
-  // `settleInstall` awaits the verdict, a preResolution hook or the
+  // `settleInstall` awaits the verdict — a preResolution hook or the
   // install kickoff below could throw and bail out before we get there.
   verifyLockfilePromise.catch(() => {})
   return { verifyLockfilePromise }
@@ -355,7 +355,7 @@ async function startLockfileVerification (
  * Lockfile verification is skipped when we already know pacquet will run the
  * install: pacquet applies the same resolver-policy gate (port of
  * `verifyLockfileResolutions`) whether it materializes a frozen lockfile or
- * re-resolves from the manifests, so re-running it would duplicate the work,
+ * re-resolves from the manifests, so re-running it would duplicate the work —
  * and for `minimumReleaseAge` in strict mode each lockfile entry is an HTTP
  * probe.
  *
@@ -364,7 +364,7 @@ async function startLockfileVerification (
  * return null, throw, or fall through to the JS path must keep
  * verification on. The optimistic `preferFrozenLockfile` path decides
  * whether to delegate later (based on `allProjectsAreUpToDate`), which
- * isn't known here, so verification still runs in that window, the
+ * isn't known here — so verification still runs in that window, the
  * duplicate is bounded to it.
  */
 function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, installsOnly: boolean): boolean {
@@ -386,7 +386,7 @@ function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, in
         ctx.existsNonEmptyWantedLockfile &&
         (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)) ||
       // Resolving install: pacquet (>= 0.11.7) re-resolves from the
-      // manifests itself, applying the policy during fresh resolution,
+      // manifests itself — applying the policy during fresh resolution —
       // so the existing lockfile entries verified here would just be
       // discarded. If a policy handler is active, keep resolution in pnpm
       // so violations can be returned to the command layer.
@@ -397,7 +397,7 @@ function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, in
 async function runPreResolutionHooks (opts: StrictInstallOptions, ctx: PnpmContext): Promise<void> {
   if (!opts.hooks.preResolution) return
   for (const preResolution of opts.hooks.preResolution) {
-    // eslint-disable-next-line no-await-in-loop, preResolution hooks run one after another, in the order they were registered
+    // eslint-disable-next-line no-await-in-loop -- preResolution hooks run one after another, in the order they were registered
     await preResolution({
       currentLockfile: ctx.currentLockfile,
       wantedLockfile: ctx.wantedLockfile,
@@ -470,7 +470,7 @@ async function finishMutation (run: MutationRun, result: InnerInstallResult): Pr
   // The branch lockfiles become disposable only once the merge has been
   // written for good. An install that never saves a lockfile did not merge
   // them, and a `--dry-run` / `lockfileCheck` run only reports what it would
-  // do, deleting them in either case drops resolutions no file is left
+  // do — deleting them in either case drops resolutions no file is left
   // holding.
   if (
     opts.mergeGitBranchLockfiles && opts.useLockfile && opts.saveLockfile &&

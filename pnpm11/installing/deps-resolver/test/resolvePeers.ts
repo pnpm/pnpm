@@ -1084,9 +1084,9 @@ describe('locked peer provider preferences', () => {
         ['retainer', retainerNodeId],
         ['wrapper', wrapperNodeId],
       ]))
-      // eslint-disable-next-line no-await-in-loop, each child order variant is checked in turn
+      // eslint-disable-next-line no-await-in-loop -- each child order variant is checked in turn
       const initial = await resolvePeers(resolutionOpts)
-      // eslint-disable-next-line no-await-in-loop, the second run needs the first run's paths
+      // eslint-disable-next-line no-await-in-loop -- the second run needs the first run's paths
       const preferred = await resolvePeers({
         ...resolutionOpts,
         resolvedPeerProviderPaths: initial.pathsByNodeId,
@@ -1118,8 +1118,8 @@ describe('locked peer provider preferences', () => {
 describe('dedupePeers', () => {
   test('uses version-only peer suffixes without nested dep paths', async () => {
     // Simulates: react@18, @emotion/react@11(peer: react), @emotion/styled@11(peer: react, @emotion/react)
-    // Without dedupePeers: @emotion/styled gets suffix (@emotion/react@11(react@18))(react@18), nested dep paths
-    // With dedupePeers: @emotion/styled gets suffix (@emotion/react@11.0.0)(react@18.0.0), version-only, no nesting
+    // Without dedupePeers: @emotion/styled gets suffix (@emotion/react@11(react@18))(react@18) — nested dep paths
+    // With dedupePeers: @emotion/styled gets suffix (@emotion/react@11.0.0)(react@18.0.0) — version-only, no nesting
     const reactPkg = {
       name: 'react',
       pkgIdWithPatchHash: 'react/18.0.0' as PkgIdWithPatchHash,
@@ -1197,8 +1197,8 @@ describe('dedupePeers', () => {
 
   test('transitive peers use version-only suffixes', async () => {
     // A depends on B (peer: C). A has no peers itself.
-    // Without dedupePeers: A gets suffix (c/1.0.0), full dep path
-    // With dedupePeers: A gets suffix (c@1.0.0), version-only
+    // Without dedupePeers: A gets suffix (c/1.0.0) — full dep path
+    // With dedupePeers: A gets suffix (c@1.0.0) — version-only
     const aPkg = {
       name: 'a',
       pkgIdWithPatchHash: 'a/1.0.0' as PkgIdWithPatchHash,
@@ -1354,7 +1354,7 @@ describe('dedupePeers', () => {
       peersSuffixMaxLength: 1000,
       workspaceProjectIds: new Set(),
     })
-    // Plugin has two instances, one per react version
+    // Plugin has two instances — one per react version
     expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
       'plugin/1.0.0(react@17.0.0)',
       'plugin/1.0.0(react@18.0.0)',
@@ -1371,7 +1371,7 @@ describe('dedupePeers', () => {
     // plugin peer-depends both parser and typescript; parser peer-depends typescript.
     // So plugin's parser and plugin's typescript must agree. A top-level parser that
     // resolved typescript@2.0.0 must not shadow umbrella's own parser, which resolves
-    // typescript@1.0.0, the version that plugin itself uses.
+    // typescript@1.0.0 — the version that plugin itself uses.
     const ts1Pkg = {
       name: 'typescript',
       pkgIdWithPatchHash: 'typescript/1.0.0' as PkgIdWithPatchHash,
@@ -2240,7 +2240,7 @@ test('pruned hoisted peer providers that peer-depend on each other are resolved 
   // Hoisted peer providers whose tree position was never visited are resolved
   // by a root-context fallback. Providers frequently peer-depend on each
   // other, and each resolvePeersOfChildren call only detects peer cycles
-  // among its own children, so all pruned providers must be resolved in one
+  // among its own children — so all pruned providers must be resolved in one
   // call, or their dep path calculations await each other forever.
   const libAPkg = {
     name: 'lib-a',
@@ -2383,7 +2383,7 @@ test('a pruned hoisted peer provider is resolved by the root-context fallback', 
 test('an own direct dependency and a pruned hoisted peer provider that peer-depend on each other are resolved together', async () => {
   // Regression test for https://github.com/pnpm/pnpm/issues/12921: the peer
   // cycle spans two resolvePeersOfChildren calls (the own direct children and
-  // the pruned-provider fallback), so neither call's cycle analysis sees it,
+  // the pruned-provider fallback), so neither call's cycle analysis sees it —
   // the dep path calculations awaited each other forever.
   const mainPkg = {
     name: 'main',

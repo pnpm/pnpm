@@ -76,14 +76,14 @@ export async function promptBrowserOpen ({
     }
   })
 
-  // Only await pollPromise, do NOT await the Enter keypress.
+  // Only await pollPromise — do NOT await the Enter keypress.
   //
   // The Enter listener is a fire-and-forget side effect. Users may authenticate
   // on their phone (via QR code or pasted URL) without ever pressing Enter, so
   // the poll must be able to complete independently.
   //
   // npm uses Promise.all([opener, poll]) which blocks the entire flow until the
-  // user presses Enter, even if authentication already succeeded on another
+  // user presses Enter — even if authentication already succeeded on another
   // device: <https://github.com/npm/npm-profile/blob/d1a48be4/lib/index.js#L85-L98>
   try {
     return await pollPromise

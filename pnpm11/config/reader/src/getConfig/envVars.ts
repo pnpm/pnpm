@@ -85,8 +85,8 @@ const ENV_PNPM_TYPES = {
     'umask',
   ], types),
   // `types` carries npm's `maxsockets` spelling alone, so without this
-  // entry `PNPM_CONFIG_MAX_SOCKETS`, the canonical setting name, spelled
-  // the way the environment spells every other camelCase setting, would
+  // entry `PNPM_CONFIG_MAX_SOCKETS` — the canonical setting name, spelled
+  // the way the environment spells every other camelCase setting — would
   // match no schema and be dropped. Env-only: the CLI flag and
   // `pnpm config` keys keep npm's spelling.
   'max-sockets': Number,
@@ -151,7 +151,7 @@ function applyEnvSetting ({ explicitlySetKeys, pnpmConfig }: ConfigBuildState, k
     return
   }
 
-  // @ts-expect-error, the value's type depends on which key this is
+  // @ts-expect-error -- the value's type depends on which key this is
   pnpmConfig[key] = value
   explicitlySetKeys.add(key)
 

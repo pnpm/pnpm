@@ -31,7 +31,7 @@ const NON_TYPESCRIPT_PKGS = new Set([
 
 // Files that must be packed with mode 0755 in both `pnpm` and `@pnpm/exe`.
 // `@pnpm/exe` ships the same `dist/` tree as `pnpm`, so the two manifests'
-// `publishConfig.executableFiles` lists must stay identical, otherwise the
+// `publishConfig.executableFiles` lists must stay identical — otherwise the
 // shims end up packed at 0644 in one of the tarballs (see pnpm/pnpm#11483).
 const PUBLISH_EXECUTABLE_FILES = [
   './dist/node-gyp-bin/node-gyp',
@@ -416,7 +416,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       // the next package: pkg-with-tarball-dep-from-registry
       //
       // deepRecursive resolves @teambit/bit's enormous circular/peer graph and
-      // needs ~3.6 GB on its own, enough to fit Node's default ~4 GB heap, but
+      // needs ~3.6 GB on its own — enough to fit Node's default ~4 GB heap, but
       // not with the memory the other test files leave behind in the same
       // process (Jest's `--experimental-vm-modules` registry isn't reclaimed
       // between files). Run it in a dedicated jest process (`.test:heavy`) so it

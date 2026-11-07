@@ -100,7 +100,7 @@ function formatPingDetails (body: string): string {
   try {
     parsed = JSON.parse(body)
   } catch {
-    // non-JSON body, ignore
+    // non-JSON body — ignore
     return ''
   }
   if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {

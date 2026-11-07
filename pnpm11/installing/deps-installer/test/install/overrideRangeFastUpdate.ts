@@ -10,7 +10,7 @@ const registriesByScope: RegistriesByScope = { default: 'https://registry.npmjs.
 
 /**
  * Two importers hold `foo` at 1.0.0 and 1.2.0. The registry also has 1.3.0,
- * which nothing locks, resolution prefers a version the graph already
+ * which nothing locks — resolution prefers a version the graph already
  * holds, so a range override has to land on 1.2.0 rather than 1.3.0.
  */
 function makeLockfile (): LockfileObject {

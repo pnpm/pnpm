@@ -44,7 +44,7 @@ export async function runCli (argv: readonly string[]): Promise<void> {
         continue
       }
       // Guard against valid JSON that isn't a log object (e.g. `null`,
-      // numbers, strings), the reporter dispatches on `log.name`.
+      // numbers, strings) — the reporter dispatches on `log.name`.
       if (parsed == null || typeof parsed !== 'object') continue
       emitter.emit('data', parsed as Log)
     }

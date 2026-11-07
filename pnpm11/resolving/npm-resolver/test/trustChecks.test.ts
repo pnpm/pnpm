@@ -792,7 +792,7 @@ describe('failIfTrustDowngraded with ignoreMissingTimeField', () => {
         },
       },
     },
-    // Note: no 'time' field, a registry that strips it, or one whose
+    // Note: no 'time' field — a registry that strips it, or one whose
     // partial map `dropIncompletePublishTimes` normalized away.
   }
 

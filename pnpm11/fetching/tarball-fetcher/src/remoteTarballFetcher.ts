@@ -294,7 +294,7 @@ async function bufferDownloadChunk (state: DownloadBuffer, bytes: Uint8Array, st
     state.directory = await fs.mkdtemp(path.join(storeDir, 'download-'))
     state.file = await fs.open(path.join(state.directory, 'archive'), 'wx', 0o600)
     for (const buffered of state.chunks) {
-      // eslint-disable-next-line no-await-in-loop, writes preserve tarball byte order
+      // eslint-disable-next-line no-await-in-loop -- writes preserve tarball byte order
       await state.file.writeFile(buffered)
     }
     state.chunks.length = 0

@@ -2115,8 +2115,8 @@ test("a direct-dependency bump in one importer converges another importer's tran
   const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
   // All importers' direct deps resolve before any transitive, so project-2's
   // bumped 100.1.0 is in scope when project-1's transitive edge re-resolves.
-  // The refresh converges that edge to 100.1.0 too, matching a fresh install
-  // (no pin), where `^100.0.0` resolves to the latest 100.1.0, and the stale
+  // The refresh converges that edge to 100.1.0 too — matching a fresh install
+  // (no pin), where `^100.0.0` resolves to the latest 100.1.0 — and the stale
   // 100.0.0 is pruned.
   expect(lockfile.importers['project-2'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.1.0')
   expect(lockfile.snapshots['@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')

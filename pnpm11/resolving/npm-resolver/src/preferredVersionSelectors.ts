@@ -33,7 +33,7 @@ export function preferredVersionSelectorsFor (
 /**
  * Remove the lockfile-derived part of the selectors: the concrete pins
  * `getPreferredVersionsFromLockfileAndManifests` seeds at
- * `EXISTING_VERSION_SELECTOR_WEIGHT`, added onto the manifest weight when a
+ * `EXISTING_VERSION_SELECTOR_WEIGHT` — added onto the manifest weight when a
  * manifest entry pins the same version, so the lockfile weight is subtracted
  * rather than the selector dropped, leaving the manifest contribution in
  * effect. Selectors a fresh install would also apply (manifest pins,
@@ -66,7 +66,7 @@ function stripLockfileVersionPins (selectors?: VersionSelectors): VersionSelecto
  * newer version everywhere is an override's job, not an update's.
  *
  * The baseline for "held back" is the pick with only the non-pin selectors
- * applied, `range`/`tag` selectors such as the `pnpm audit --fix`
+ * applied — `range`/`tag` selectors such as the `pnpm audit --fix`
  * vulnerability penalties steer the baseline too, so the warning never
  * recommends a version those selectors avoid. The baseline also honors the
  * `publishedBy` maturity cutoff the actual pick applied: a version blocked

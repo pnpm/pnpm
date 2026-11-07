@@ -65,7 +65,7 @@ const VARIATION_RESOLUTION_CACHE_IDENTITY: VerifierCacheIdentity = {
  * Every verifier list that flows into the verification cache must carry
  * the always-on offline structural checks' identities, so a record
  * written before one of those rules existed cannot stat-fast-path around
- * it, its missing flag fails `canTrustPastCheck`, forcing a
+ * it — its missing flag fails `canTrustPastCheck`, forcing a
  * re-verification that runs the new check. Used by the gate itself and by
  * {@link recordLockfileVerified}, whose freshly-resolved lockfile
  * satisfies these invariants by construction (the resolver validates
@@ -112,7 +112,7 @@ export interface VerifyLockfileResolutionsOptions {
  *
  * Designed for fail-closed semantics at the verifier level: a verifier
  * that can't confirm a resolution is expected to return `{ ok: false }`
- * rather than passing silently, otherwise a registry hiccup or an
+ * rather than passing silently — otherwise a registry hiccup or an
  * unpublished version would re-open the bypass.
  *
  * No-op when `verifiers` is empty.
@@ -127,14 +127,14 @@ export async function verifyLockfileResolutions (
   const cacheContext = createVerificationCacheContext(lockfile, verifiers, options)
   if (isVerifiedByCache(cacheContext, verifiers, options?.lockfilePath)) return
 
-  // Emit started/done around the actual verification pass, the
+  // Emit started/done around the actual verification pass — the
   // round-trip can be slow on a cold registry cache, and the cached
   // short-circuit above announces itself with its own `cached` event,
   // so a user only sees these messages on installs that are doing
   // real work.
   // A degenerate lockfile where every snapshot fails the
   // name/version extraction (so candidates is empty) skips emission
-  // entirely, no work, no noise.
+  // entirely — no work, no noise.
   const { candidates, shapeViolations, invalidAliases } = collectCandidates(lockfile)
   if (invalidAliases.length > 0) {
     throw buildInvalidAliasError(invalidAliases)
@@ -183,7 +183,7 @@ function createVerificationCacheContext (
 }
 
 /**
- * Cache lookup runs before any registry I/O, the fast path is a
+ * Cache lookup runs before any registry I/O — the fast path is a
  * single stat() of the lockfile when the previous install already
  * verified it under a policy that's at least as strict as today's.
  * The content key is hashed lazily from the in-memory lockfile (not
@@ -205,7 +205,7 @@ function isVerifiedByCache (
     return false
   }
   // A silent short-circuit looks like the policy gate never ran
-  // (pnpm/pnpm#12324), so surface the reused verdict, but only
+  // (pnpm/pnpm#12324), so surface the reused verdict — but only
   // when policy verifiers are active; the shape-only run that
   // every install performs stays quiet.
   if (verifiers.length > 0) {
@@ -316,7 +316,7 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
   const details = omitted > 0
     ? `${breakdown}\n  …and ${omitted} more`
     : breakdown
-  // Registry fetch failures (auth/network/5xx) don't reach this batch, the
+  // Registry fetch failures (auth/network/5xx) don't reach this batch — the
   // verifier throws the registry's own error and the gate aborts with it. So
   // every violation here is a genuine policy rejection, and the hint points at
   // the lockfile rather than at connectivity.
@@ -346,7 +346,7 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
  * Collect-mode sibling of {@link verifyLockfileResolutions}: runs the
  * same fan-out over every verifier and every lockfile entry, but
  * returns the violations as data instead of throwing on the first batch.
- * No cache lookup or write, the throw-mode `verifyLockfileResolutions`
+ * No cache lookup or write — the throw-mode `verifyLockfileResolutions`
  * is what populates / honors the cache; this is for callers that need
  * to inspect violations.
  *
@@ -377,8 +377,8 @@ function isRegistryShapedResolution (resolution: unknown): boolean {
   if (type === 'variations') return areRegistryShapedVariants(variants)
   // Custom resolver protocols (`type: 'custom:*'`) are a legitimate
   // non-registry source the user opted into. They can only be materialized by
-  // a project-configured custom fetcher, an unrecognized custom type throws at
-  // fetch time (see @pnpm/fetching.pick-fetcher), so a forged custom type
+  // a project-configured custom fetcher — an unrecognized custom type throws at
+  // fetch time (see @pnpm/fetching.pick-fetcher) — so a forged custom type
   // cannot launder an artifact past this gate into a build.
   if (typeof type === 'string' && type.startsWith('custom:')) return true
   if (type != null) return false
@@ -475,7 +475,7 @@ function collectCandidates (lockfile: LockfileObject): { candidates: Map<string,
 /**
  * Add every key of `deps` that is not a valid {@link isValidDependencyAlias}
  * to `invalid`. Only pass maps whose keys become `node_modules/<alias>`
- * directories, not `overrides` (`foo>bar` selectors) or
+ * directories — not `overrides` (`foo>bar` selectors) or
  * `patchedDependencies` (`name@version` keys).
  */
 function pushInvalidAliases (deps: Record<string, string> | undefined, invalid: Set<string>): void {
@@ -492,7 +492,7 @@ async function iterateLockfileViolations (
 ): Promise<ResolutionPolicyViolation[]> {
   const violations: ResolutionPolicyViolation[] = []
   // A verifier may throw rather than return a violation when it can't reach the
-  // registry to verify an entry (auth/network/5xx), that's not a per-entry
+  // registry to verify an entry (auth/network/5xx) — that's not a per-entry
   // policy pick, it's an incomplete verification, so the registry's own error
   // should abort the install. Capture the first such error and rethrow it after
   // the fan-out settles: rethrowing straight into Promise.all would leave the
@@ -530,7 +530,7 @@ async function findFirstViolation (
   verifiers: readonly ResolutionVerifier[]
 ): Promise<ResolutionPolicyViolation | undefined> {
   for (const verifier of verifiers) {
-    // eslint-disable-next-line no-await-in-loop, the verifiers run in turn so an entry stops at its first failure
+    // eslint-disable-next-line no-await-in-loop -- the verifiers run in turn so an entry stops at its first failure
     const result = await verifier.verify(resolution, { name, version, nonSemverVersion, registryName })
     if (!result.ok) {
       return { name, version, resolution, code: result.code, reason: result.reason }

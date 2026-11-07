@@ -120,7 +120,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
 // Regression test for https://github.com/pnpm/pnpm/issues/11999.
 //
 // An aliased install (`a@npm:a-real`) pulls in two siblings `b` and `c` that
-// each bring a transitive package, `x` under `b`, `y` under `c`, declaring
+// each bring a transitive package — `x` under `b`, `y` under `c` — declaring
 // each other as peer dependencies. Both `x` and `y` are auto-installed at the
 // importer root via the missing-peer hoist. The aliased install also yields a
 // transitive peer back to `a`. The deep instances of `x` and `y` populate the

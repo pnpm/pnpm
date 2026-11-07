@@ -91,7 +91,7 @@ export async function findWorkspaceProjectsNoCheck (workspaceRoot: string, opts?
   let projects = await find(plan.initialIgnore)
   if (plan.skipsProjectModulesDirs) {
     for (;;) {
-      // eslint-disable-next-line no-await-in-loop, a walk's ignores come from the previous walk
+      // eslint-disable-next-line no-await-in-loop -- a walk's ignores come from the previous walk
       const grown = addProjectsOutsideModulesDirs(projects, await find(plan.ignoreFor(projects)), plan.modulesDirOf)
       if (grown == null) break
       projects = grown

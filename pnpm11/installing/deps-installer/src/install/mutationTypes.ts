@@ -248,7 +248,7 @@ export interface MutationRun extends MutationRunBase {
    * take the fast lockfile update and the frozen-like install; an explicitly
    * frozen run keeps its stricter behavior. An addition also has to have had
    * its manifest edit committed, which only a rewrite that passed its gates
-   * does, see `addedManifests`.
+   * does — see `addedManifests`.
    */
   installsAndUninstallsOnly: boolean
   scriptsOpts: RunLifecycleHooksConcurrentlyOptions

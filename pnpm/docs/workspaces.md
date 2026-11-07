@@ -172,7 +172,7 @@ If you see the message `There are cyclic workspace dependencies`, inspect worksp
 Here are a few of the most popular open source projects that use the workspace feature of pnpm:
 
 | Project | Stars | Migration date | Migration commit |
-|,      |,    |,             |,               |
+| --      | --    | --             | --               |
 | [Next.js](https://github.com/vercel/next.js) | ![](https://img.shields.io/github/stars/vercel/next.js) | 2022-05-29 | [`f7b81316aea4fc9962e5e54981a6d559004231aa`](https://github.com/vercel/next.js/commit/f7b81316aea4fc9962e5e54981a6d559004231aa) |
 | [n8n](https://github.com/n8n-io/n8n) | ![](https://img.shields.io/github/stars/n8n-io/n8n) | 2022-11-09 | [`736777385c54d5b20174c9c1fda38bb31fbf14b4`](https://github.com/n8n-io/n8n/commit/736777385c54d5b20174c9c1fda38bb31fbf14b4) |
 | [Angular](https://github.com/angular/angular) | ![](https://img.shields.io/github/stars/angular/angular) | 2025-07-31 | [`82cc576e6ffb3884d1fcf872b7050612601e5b5c`](https://github.com/angular/angular/commit/82cc576e6ffb3884d1fcf872b7050612601e5b5c) |

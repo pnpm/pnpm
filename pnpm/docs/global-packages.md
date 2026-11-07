@@ -166,7 +166,7 @@ a bare `node` inside that directory runs Node.js 22, even if your global Node.js
 
 ```sh
 cd ~/projects/legacy-app
-node --version   # v22.x.x, the version the project pins
+node --version   # v22.x.x — the version the project pins
 cd ~
 node --version   # your globally installed version
 ```

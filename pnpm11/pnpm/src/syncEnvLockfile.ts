@@ -32,7 +32,7 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   // project out of (pnpm/pnpm#14728).
   if (config.useLockfile === false) return
   // The currently running pnpm must satisfy the wanted range. Otherwise,
-  // recording it in the lockfile would cement an incompatible resolution,
+  // recording it in the lockfile would cement an incompatible resolution —
   // checkPackageManager has already surfaced the mismatch to the user.
   if (!semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })) return
 

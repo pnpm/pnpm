@@ -124,7 +124,7 @@ test('removes the bin link of a bin the build script dropped', async () => {
   await execPnpm(['install'])
 
   // The install spreads an injected package's bins over several `.bin`
-  // directories, beside the copy, inside it, and the hoisted one, so
+  // directories — beside the copy, inside it, and the hoisted one — so
   // assert over every directory rather than the ones we happen to expect.
   expect(binDirsHolding('.', 'dropped-cli')).not.toStrictEqual([])
   expect(binDirsHolding('.', 'kept-cli')).not.toStrictEqual([])

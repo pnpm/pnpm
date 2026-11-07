@@ -76,7 +76,7 @@ const linkBinsOfPackages = jest.fn<LinkBinsOfPackages>(async (pkgs, globalBinDir
 
   await fs.mkdir(globalBinDir, { recursive: true })
   const writtenPkgNames: string[] = []
-  /* eslint-disable no-await-in-loop, sequential writes make the injected partial failure deterministic */
+  /* eslint-disable no-await-in-loop -- sequential writes make the injected partial failure deterministic */
   for (const command of commands) {
     if (skipMissingBinSources && !existsSync(command.path)) continue
     const slot = path.join(globalBinDir, command.name)
@@ -929,7 +929,7 @@ test('drops the hash link of a group replaced by a different package set, keepin
   })
 
   // Changing the set of packages changes the hash, so `shared` was rewritten
-  // to point at the new one just before this ran, unlinking the group it
+  // to point at the new one just before this ran — unlinking the group it
   // used to belong to must not take it away again.
   expect(await fs.readFile(sharedSlot, 'utf8')).toBe('relinked at the new hash\n')
   await expect(fs.lstat(droppedSlot)).rejects.toMatchObject({ code: 'ENOENT' })

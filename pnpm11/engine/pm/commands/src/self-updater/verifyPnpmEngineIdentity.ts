@@ -26,7 +26,7 @@ export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
   configByUri?: Record<string, RegistryConfig>
   /**
    * The npm signing keys to trust. Defaults to {@link getNpmSigningKeys} (npm's
-   * embedded public keys). A test seam only, passing an empty array skips
+   * embedded public keys). A test seam only — passing an empty array skips
    * verification. Not reachable from project config, so it cannot be used to
    * weaken verification for a real install.
    */
@@ -44,7 +44,7 @@ export interface PnpmEngineToVerify {
 
 /**
  * Verifies that the pnpm engine about to be installed (and then executed) for an
- * automatic version switch or self-update is genuinely the published `pnpm`,
+ * automatic version switch or self-update is genuinely the published `pnpm` —
  * i.e. the bytes recorded in the env lockfile carry a valid npm registry
  * signature for their exact `name@version`.
  *
@@ -58,7 +58,7 @@ export interface PnpmEngineToVerify {
  *
  * The wanted pnpm version comes from a repository's `packageManager` /
  * `devEngines.packageManager` field, and the project controls the lockfile
- * integrity and the registry the bytes are fetched from, so without this
+ * integrity and the registry the bytes are fetched from — so without this
  * check, a cloned repository could make pnpm download and run an arbitrary
  * native binary. Signatures are verified against npm's embedded public keys
  * (see `getNpmSigningKeys`), so a project-controlled registry cannot answer with
@@ -66,23 +66,23 @@ export interface PnpmEngineToVerify {
  * which an npm mirror proxies transparently.
  *
  * RegistriesByScope that serve no `dist.signatures` at all (private mirrors and feed
- * proxies commonly strip them, https://github.com/pnpm/pnpm/issues/13147) do
+ * proxies commonly strip them — https://github.com/pnpm/pnpm/issues/13147) do
  * not fail the check outright: the signature is then fetched from the canonical
  * npm registry instead, which proves exactly the same thing, since it is
  * verified against the embedded keys over the installed integrity. When no
  * signature can be obtained from either source (both unreachable, or the
  * integrity is a non-sha512 pin no npm signature can cover), the check warns
- * and proceeds, but only when every engine package resolves through a
+ * and proceeds — but only when every engine package resolves through a
  * non-canonical registry. Such a registry can only come from the user's own
  * trusted (non-project) configuration, the download URL is derived from it
  * rather than read from the lockfile, and the bytes stay pinned by the
- * lockfile integrity, so a cloned repository still cannot steer pnpm to
+ * lockfile integrity — so a cloned repository still cannot steer pnpm to
  * attacker-controlled bytes; the residual trust is the same the user already
  * places in that registry for every package they install from it.
  *
  * Throws when verification detects tampering (an invalid signature), when a
  * package/version is absent from a reachable canonical registry, or when an
- * engine component present in the lockfile carries no integrity metadata,
+ * engine component present in the lockfile carries no integrity metadata —
  * pnpm can install a tarball without integrity, so a missing integrity must
  * fail closed rather than silently exempt that component from verification.
  * For engine packages resolved from the canonical npm registry itself, even an
@@ -137,7 +137,7 @@ export async function verifyPnpmEngineIdentity (
 
 /**
  * Whether the engine may run despite `failure`: no signature was obtainable
- * (nothing suspicious was observed, as opposed to a signature that exists but
+ * (nothing suspicious was observed — as opposed to a signature that exists but
  * does not validate, or a canonical registry answering that no signed release
  * exists), and the package resolves through a registry the user configured
  * themselves. See the trust rationale on {@link verifyPnpmEngineIdentity}.
@@ -166,7 +166,7 @@ function collectEnginePackagesToVerify (
 
   // `linkExePlatformBinary` hardlinks the host's platform binary over the
   // engine's own `pnpm` bin, so whenever the lockfile carries a candidate for
-  // this host those are the bytes that execute and they must be verified,
+  // this host those are the bytes that execute and they must be verified —
   // whichever engine lists them.
   const optionalDeps = envLockfile.snapshots[label]?.optionalDependencies
   const platformPkg = optionalDeps == null ? undefined : hostPlatformPackage(optionalDeps)

@@ -196,8 +196,8 @@ test('adding a patch for a locked package rekeys it without resolution', async (
   }, patchedOptions)
 
   // No registry work, matching the check the catalog and importer fast paths
-  // use. It is necessary rather than sufficient, a resolution pass seeded
-  // from this unchanged graph would request nothing either, so the proof
+  // use. It is necessary rather than sufficient — a resolution pass seeded
+  // from this unchanged graph would request nothing either — so the proof
   // that resolution is skipped lives in pacquet's `lockfile_resolution_reuse`,
   // where the reporter says so outright.
   expect(requestedPackages).toStrictEqual([])
@@ -279,7 +279,7 @@ test('the rekeyed lockfile matches what a full resolution writes', async () => {
 
 /**
  * `parent` is the only thing that reaches the patched `victim`, so dropping it
- * leaves the patch with nothing to apply to, `ERR_PNPM_UNUSED_PATCH`, which
+ * leaves the patch with nothing to apply to — `ERR_PNPM_UNUSED_PATCH`, which
  * only a resolution raises.
  */
 function lockfileWithAPatchedTransitiveDependency (): LockfileObject {

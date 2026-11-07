@@ -92,7 +92,7 @@ export async function resolvePeers<Pkg extends PartialResolvedPackage> (
 
   const finishingList: FinishingResolutionPromise[] = []
   for (const project of opts.projects) {
-    // eslint-disable-next-line no-await-in-loop, projects share the peers cache and parentPkgsOfNode, so they are resolved one at a time
+    // eslint-disable-next-line no-await-in-loop -- projects share the peers cache and parentPkgsOfNode, so they are resolved one at a time
     const projectResolution = await resolvePeersOfProject(sharedCtx, { project, workspaceRootProject, rootPkgsByName })
     finishingList.push(...projectResolution.finishingList)
     addPeerDependencyIssuesOfProject(peerDependencyIssuesByProjects, project.id, projectResolution.peerDependencyIssues)

@@ -36,7 +36,7 @@ const REGISTRY_NAME_RE = /^[A-Z][\w.-]*$/i
 
 /**
  * Whether `name` is syntactically usable as a named-registry alias in a
- * registry-qualified dep path. Does not check the reserved list,
+ * registry-qualified dep path. Does not check the reserved list —
  * see `RESERVED_VERSION_PREFIXES` for that.
  */
 export function isWellFormedRegistryName (name: string): boolean {
@@ -50,7 +50,7 @@ export interface RegistryQualifiedVersion {
 
 /**
  * Parses the version slot of a registry-qualified dep path
- * (`<registryName>:<version>`, e.g. `work:1.0.0`), the form used for
+ * (`<registryName>:<version>`, e.g. `work:1.0.0`) — the form used for
  * packages resolved from a named registry since lockfile format 12.0.
  * Returns `undefined` for every other version form (plain semver, `file:`,
  * `runtime:`, git/tarball URLs, ...).

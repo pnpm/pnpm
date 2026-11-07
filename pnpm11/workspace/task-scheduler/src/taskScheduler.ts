@@ -8,7 +8,7 @@ export type TaskCompletion =
   | 'passed'
   | 'failed'
   /**
-   * The task's work errored before it could run, an infrastructure
+   * The task's work errored before it could run — an infrastructure
    * failure, not a script failure. Stops dispatch like a bail; the caller
    * holds the error and rethrows it after the scheduler settles.
    */
@@ -24,8 +24,8 @@ export interface ScheduleTasksOptions {
    */
   runTask: (node: TaskNode, key: TaskKey) => Promise<TaskCompletion>
   /**
-   * A task that runs nothing: a pass-through with no such script, or,
-   * without `--bail`, a task some dependency of which did not pass. Both are
+   * A task that runs nothing: a pass-through with no such script, or —
+   * without `--bail` — a task some dependency of which did not pass. Both are
    * reported as skipped.
    */
   onTaskSkipped: (node: TaskNode, key: TaskKey) => void

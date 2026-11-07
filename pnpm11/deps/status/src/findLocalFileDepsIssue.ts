@@ -155,7 +155,7 @@ function findLocalFileDepInRecord (deps: Record<string, string> | undefined, { c
   if (deps == null) return undefined
   for (const [depName, spec] of Object.entries(deps)) {
     // A malformed manifest may carry a non-string spec; skip it rather
-    // than throw, checkDepsStatus() must never crash.
+    // than throw — checkDepsStatus() must never crash.
     if (typeof spec !== 'string') continue
     if (!isEffectiveLocalFileSpec(depName, spec, catalogs)) continue
     if (isOverridden?.(depName, spec)) continue
@@ -215,7 +215,7 @@ const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
  * Whether the specifier resolves to a local directory or tarball whose
  * contents can change without any manifest or lockfile mtime moving: the
  * `file:` protocol, path-prefixed specs (`./`, `../`, `~/`, absolute POSIX
- * paths, and Windows drive paths, including drive-relative ones like
+ * paths, and Windows drive paths — including drive-relative ones like
  * `C:dir`, matching the local resolver's `isFilespec`), and bare tarball
  * file names.
  *
@@ -224,7 +224,7 @@ const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
  * from a git shorthand at this layer, and matching it would disable the
  * repeat-install fast path for every project with git dependencies. Such
  * specs (and anything else carrying a protocol or URL) stay on the fast
- * path. `catalog:` specs also return false here, callers dereference them
+ * path. `catalog:` specs also return false here — callers dereference them
  * through the catalogs config first.
  */
 function isLocalFileSpec (spec: string): boolean {
@@ -232,7 +232,7 @@ function isLocalFileSpec (spec: string): boolean {
   if (LOCAL_PATH_PREFIX.test(spec)) return true
   if (spec.includes(':')) return false
   // A `#` here means a hosted-git shorthand committish (`user/repo#release.tgz`),
-  // not a local tarball, the `file:` and path-prefixed cases already returned above.
+  // not a local tarball — the `file:` and path-prefixed cases already returned above.
   if (spec.includes('#')) return false
   return LOCAL_TARBALL_EXTENSION.test(spec)
 }

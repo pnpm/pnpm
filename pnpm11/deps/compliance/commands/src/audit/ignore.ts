@@ -42,7 +42,7 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
   const newIgnoreGhsas = Array.from(currentUniqueGhsas)
   const diffGhsas = difference(newIgnoreGhsas, currentGhsas)
   // Written through the dedicated ignore-list update so the merged list
-  // lands on whichever spelling the manifest uses, replacing only
+  // lands on whichever spelling the manifest uses — replacing only
   // `auditConfig` would let a canonical `audit.ignore` list shadow the
   // added ids on the next read.
   await writeSettings({
@@ -52,7 +52,7 @@ export async function ignore (opts: IgnoreVulnerabilitiesOptions): Promise<strin
   return [...diffGhsas]
 }
 
-// Advisories for which no override can be produced, patched_versions is
+// Advisories for which no override can be produced — patched_versions is
 // undefined when pnpm couldn't infer a patched range from vulnerable_versions.
 // That is the only "no fix available" signal the bulk endpoint provides.
 function filterAdvisoriesWithNoResolutions (advisories: AuditAdvisory[]): AuditAdvisory[] {

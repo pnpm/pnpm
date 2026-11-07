@@ -190,13 +190,13 @@ function isPatchFailure (err: unknown): err is Error {
  * (`{storeDir}/links/...`), so applying a patch or running an allowlisted
  * lifecycle script writes into it. On a read-only `frozenStore` that write
  * would crash mid-build with a raw `EROFS`. A complete seed never reaches the
- * build step, built and patched packages are imported from the side-effects
- * cache with `isBuilt` set and filtered out by `shouldBuild`, so any package
+ * build step — built and patched packages are imported from the side-effects
+ * cache with `isBuilt` set and filtered out by `shouldBuild` — so any package
  * still wanting to write means the seed is missing its build output. We
  * collect those off the same filtered graph and refuse up front instead of
  * failing cryptically once a script starts. Bin-linking reuses existing
  * symlinks write-free, and non-allowlisted scripts never run, so neither
- * counts as a blocking write. Optional dependencies don't block either, their
+ * counts as a blocking write. Optional dependencies don't block either — their
  * build failures are non-fatal at runtime, so their builds are skipped instead.
  */
 function refuseBuildsIntoFrozenStore<NodeId extends string> (ctx: {
@@ -227,7 +227,7 @@ function writesIntoPackageDir<NodeId extends string> (
   ctx: { allowBuild: AllowBuild, opts: { ignoreScripts?: boolean } }
 ): boolean {
   // A patch is applied even under `ignoreScripts`, but a lifecycle script
-  // is not, so only the patch write counts as blocking when scripts are
+  // is not — so only the patch write counts as blocking when scripts are
   // suppressed.
   const willPatch = node.patch != null
   const willRunScripts = !ctx.opts.ignoreScripts && Boolean(node.requiresBuild) && ctx.allowBuild(node.depPath) === true

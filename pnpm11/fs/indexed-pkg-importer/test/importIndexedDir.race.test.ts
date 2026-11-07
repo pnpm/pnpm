@@ -40,7 +40,7 @@ test('safeToSkip skips when target already exists (content-addressed)', () => {
 
   const filenames = new Map([['package.json', srcFile]])
 
-  // Should not throw, target exists, path is content-addressed so content is correct
+  // Should not throw — target exists, path is content-addressed so content is correct
   importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'package.json'))).toBe(true)
@@ -112,7 +112,7 @@ test('fast-path failure does not delete directory populated by another process',
     fs.copyFileSync(src, dest)
   }
 
-  // Should not throw, the staging path recovers
+  // Should not throw — the staging path recovers
   importIndexedDir(
     { importFile: failingImportFile, importFileAtomic: failingImportFile },
     newDir,
@@ -191,7 +191,7 @@ test('safeToSkip creates dir when target does not exist', () => {
 
   const filenames = new Map([['index.js', srcFile]])
 
-  // Target doesn't exist, should create it
+  // Target doesn't exist — should create it
   importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { safeToSkip: true })
 
   expect(fs.existsSync(path.join(newDir, 'index.js'))).toBe(true)

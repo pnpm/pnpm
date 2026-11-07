@@ -19,7 +19,7 @@ interface DepPathAwaitEdges {
 // a consumer that peer-depend on each other, https://github.com/pnpm/pnpm/issues/12921).
 // Such an await cycle never settles on its own, so before the finishing
 // promises are awaited, walk the recorded await edges and resolve every
-// dep path promise on a cycle to the peer's `name@version`, the same
+// dep path promise on a cycle to the peer's `name@version` — the same
 // collapse in-call cycle detection applies (see calculateDepPath).
 // A node that hit the peers cache awaits its dep path from the node that
 // created the cache entry, so it borrows that owner's await edges.

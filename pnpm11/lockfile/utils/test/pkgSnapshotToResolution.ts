@@ -60,7 +60,7 @@ test('pkgSnapshotToResolution()', () => {
   })
 
   // Snapshot for a `file:` dependency whose resolution lacks the tarball
-  // field, the tarball should be recovered from the depPath.
+  // field — the tarball should be recovered from the depPath.
   expect(pkgSnapshotToResolution('test-package@file:test-package-1.0.0.tgz', {
     resolution: {
       integrity: 'sha512-AAAA',

@@ -260,7 +260,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
 
 // Peer dependency issues are a byproduct of resolution: whatever ran a
 // resolution reports them, and an install that skipped one reports
-// nothing. That is why `pnpm dedupe`, which always re-resolves, can
+// nothing. That is why `pnpm dedupe` — which always re-resolves — can
 // fail a tree `pnpm install` just accepted, and why `pnpm peers check`
 // exists to inspect a lockfile nobody re-resolved. Deliberate, tracked
 // as https://github.com/pnpm/pnpm/issues/14098.
@@ -525,7 +525,7 @@ describe('peer dependency is resolved from the root of the workspace even if the
 
     const lockfile = projects.root.readLockfile()
     // The linked package's own version, not the newer one pkg2 brought, and not
-    // the root's path, which would reach pkg/ajv-local, a directory that does
+    // the root's path — which would reach pkg/ajv-local, a directory that does
     // not exist.
     expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
   })
@@ -2431,7 +2431,7 @@ test('dedupePeers: version-only peer suffixes without nested dep paths', async (
   const lockfile = project.readLockfile()
 
   // Transitive peers are included but with version-only IDs (no nesting).
-  // abc-grand-parent and abc-parent-with-ab get (peer-c@1.0.0), not the full nested dep path.
+  // abc-grand-parent and abc-parent-with-ab get (peer-c@1.0.0) — not the full nested dep path.
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
     '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
     '@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
@@ -2561,7 +2561,7 @@ test('dedupePeers: workspace projects with different peer versions get different
   const lockfile = readYamlFileSync<LockfileFile>(path.resolve(WANTED_LOCKFILE))
 
   // Each project gets its own instances differentiated by peer-c version.
-  // Version-only suffixes, no nesting like (@pnpm.e2e/peer-c@1.0.0(@pnpm.e2e/peer-a@...)).
+  // Version-only suffixes — no nesting like (@pnpm.e2e/peer-c@1.0.0(@pnpm.e2e/peer-a@...)).
   expect(Object.keys(lockfile.snapshots!).sort()).toStrictEqual([
     '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@1.0.0)',
     '@pnpm.e2e/abc-grand-parent@1.0.0(@pnpm.e2e/peer-c@2.0.0)',

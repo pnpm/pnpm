@@ -573,7 +573,7 @@ test('filterByImportersAndEngine(): an incompatible package reached by a non-opt
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       // Only optionally reachable, so the resolver marked the whole subtree
-      // `optional: true`, but the edge that reaches it is a regular one.
+      // `optional: true` — but the edge that reaches it is a regular one.
       ['installable-optional@1.0.0' as DepPath]: {
         dependencies: {
           'not-compatible': '1.0.0',
@@ -605,7 +605,7 @@ test('filterByImportersAndEngine(): an incompatible package reached by a non-opt
   }
 
   // The whole subtree hangs off an `optionalDependencies` entry, so it stays
-  // best-effort under engineStrict, but the dependency is still installed, or
+  // best-effort under engineStrict — but the dependency is still installed, or
   // `installable-optional` would be linked without a dependency it declares.
   for (const engineStrict of [false, true]) {
     const skipped = new Set<string>()
@@ -775,7 +775,7 @@ test('filterByImportersAndEngine(): a workspace project linked as an optional de
   )
 
   // The link only decides whether project-2 is part of the install, not how
-  // project-2 depends on its own dependencies, pnpm installs the linked
+  // project-2 depends on its own dependencies — pnpm installs the linked
   // project's dependencies, so they stay required.
   expect(requiredDepPaths.has('not-compatible@1.0.0' as DepPath)).toBe(true)
   expect(Array.from(skipped)).toStrictEqual([])

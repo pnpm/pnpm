@@ -70,7 +70,7 @@ test.each(['1.0.0', '^1.0.0'])('every install command records the registry metad
     })
     const lockfile = fs.readFileSync(WANTED_LOCKFILE, 'utf8')
     for (const minimumReleaseAge of [0, MINIMUM_RELEASE_AGE]) {
-      // eslint-disable-next-line no-await-in-loop, each dedupe reads the lockfile the previous one wrote
+      // eslint-disable-next-line no-await-in-loop -- each dedupe reads the lockfile the previous one wrote
       await install(manifest, withReleaseAge(minimumReleaseAge, { dedupe: true }))
       expect({ step, minimumReleaseAge, lockfile: fs.readFileSync(WANTED_LOCKFILE, 'utf8') })
         .toStrictEqual({ step, minimumReleaseAge, lockfile })

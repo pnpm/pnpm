@@ -425,7 +425,7 @@ describe('extractZipToTarget security', () => {
           url: 'https://example.com/node.zip',
           integrity,
           basename: 'node-v20.0.0',
-          // Deliberately pass a /g regex, a stateful .test() would skip only
+          // Deliberately pass a /g regex — a stateful .test() would skip only
           // every other matching entry. All three shims must still be dropped.
           ignoreEntry: /^(?:npm|npx|corepack)$/g,
         },
@@ -713,7 +713,7 @@ describe('createBinaryFetcher', () => {
       throw new Error('should not be called')
     }) as never
     const filters: Record<string, string> = { node: '^ok$' }
-    // Must succeed, the pattern is valid at construction time.
+    // Must succeed — the pattern is valid at construction time.
     expect(() =>
       createBinaryFetcher({
         fetch: noop,
@@ -726,7 +726,7 @@ describe('createBinaryFetcher', () => {
     // There's no direct read back, but any mutation reaching the fetcher would throw
     // on subsequent fetches; the snapshot guarantees it can't.
     filters.node = '('
-    // Reconstructing with the broken pattern fails, demonstrating the original
+    // Reconstructing with the broken pattern fails — demonstrating the original
     // fetcher would have failed at construction if it had seen the broken pattern.
     expect(() =>
       createBinaryFetcher({

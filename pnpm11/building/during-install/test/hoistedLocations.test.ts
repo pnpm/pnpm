@@ -15,7 +15,7 @@ jest.unstable_mockModule('@pnpm/worker', () => ({
 
 const { buildModules } = await import('../lib/index.js')
 
-// A relative destination would race with applyPatchToDir()'s process-wide cwd switch,
+// A relative destination would race with applyPatchToDir()'s process-wide cwd switch —
 // see the comment in buildDependency().
 test('the hoisted locations passed to hardLinkDir are absolute', async () => {
   const lockfileDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-hoisted-'))

@@ -81,7 +81,7 @@ async function fetchConditionally (
 // (concurrent store cleanup, antivirus, ...) or its content turned out
 // corrupt, so the 304 validates nothing. Ask
 // again as a cold cache would, which the registry can only answer with a
-// body or an error, never another 304.
+// body or an error — never another 304.
 async function refetchWithoutValidators (request: PickRequest): Promise<PickResult> {
   const { ctx, spec, opts } = request
   const refetched = await ctx.fetch(spec.name, {
@@ -133,7 +133,7 @@ async function serveValidatedMeta (request: PickRequest, cached: PackageMeta): P
   // one, so the validation clock restarts now: bump the mirror's mtime so
   // the publishedBy freshness shortcut can fire again on the next
   // install. Without this, a mirror older than minimumReleaseAge
-  // re-validates on every subsequent install, a 304 never rewrites the
+  // re-validates on every subsequent install — a 304 never rewrites the
   // file. Fire-and-forget: a read-only cache dir only costs another
   // conditional request.
   if (!opts.dryRun) {
@@ -230,7 +230,7 @@ function mirrorFreshMeta (
 ): void {
   // Mirror the fetched document, unless the retained form is deliberately
   // narrower: `filterMetadata` always mirrors the stripped document, and a
-  // full document in the abbreviated slot mirrors the condensed form, `time`
+  // full document in the abbreviated slot mirrors the condensed form — `time`
   // is all the next install needs from this slot.
   const write = mirrorWrite(resultToSave, request.fullMetadata)
   const writeCondensed = request.ctx.filterMetadata === true ||

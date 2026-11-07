@@ -221,7 +221,7 @@ export interface PkgAddress extends PkgAddressOrLinkBase {
    * A peer dependency provider attached to the root importer so that other
    * subtrees can reuse it. Its `nodeId` keeps pointing at the provider's
    * original position inside the dependency tree, so the node must be
-   * peer-resolved there, not in the root context.
+   * peer-resolved there — not in the root context.
    */
   hoistedPeerProvider?: boolean
 }

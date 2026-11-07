@@ -131,8 +131,8 @@ export function allowBuildKeyFromIgnoredBuild (depPath: DepPath): string {
 }
 
 /**
- * The package name an `allowBuilds` key identifies, the key itself for a
- * bare name, the name half of a `name@version` dep-path key, or
+ * The package name an `allowBuilds` key identifies — the key itself for a
+ * bare name, the name half of a `name@version` dep-path key — or
  * `undefined` for keys carrying no single package name (hashless git-repo
  * keys, malformed shapes). Cleanup may only drop an entry whose package
  * this proves absent from a resolved-name index.

@@ -27,7 +27,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
   const storeIndex = new StoreIndex(opts.storeDir)
   try {
     for (const filePath of metaFilePaths) {
-      // eslint-disable-next-line no-await-in-loop, sequential, so only one packument is held in memory at a time
+      // eslint-disable-next-line no-await-in-loop -- sequential, so only one packument is held in memory at a time
       const metaFile = await readCachedMetaFile(path.join(opts.cacheDir, filePath))
       if (metaFile == null) continue
       const { metaObject, mtime } = metaFile

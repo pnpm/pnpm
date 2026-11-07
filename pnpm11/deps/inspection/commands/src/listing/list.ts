@@ -193,7 +193,7 @@ function pickGlobalInstallDirForDepth (
     // transitive deps), matching regular `pnpm ls` semantics.
     return { installDir: allInstallDirs[0], params }
   }
-  // Multiple installs, try to narrow to a single one via params,
+  // Multiple installs — try to narrow to a single one via params,
   // matching against top-level aliases of each install group.
   const matchingInstallDirs = findGlobalInstallDirs(globalPkgDir, params)
   if (matchingInstallDirs.length > 1 || (matchingInstallDirs.length === 0 && allInstallDirs.length > 0)) {

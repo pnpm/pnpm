@@ -100,7 +100,7 @@ export async function executeSwitchDecision ({
   if (pmVersion == null) return
 
   // If the wanted version matches the current version, no switch needed.
-  // Skip install-to-store entirely, we're already running this version.
+  // Skip install-to-store entirely — we're already running this version.
   if (pmVersion === packageManager.version) {
     await versionSwitch.store?.ctrl.close()
     return
@@ -239,7 +239,7 @@ function isInvalidPackageManagerLockfileError (err: unknown): boolean {
 }
 
 /**
- * The persisted entries do not satisfy the bootstrap rules, a
+ * The persisted entries do not satisfy the bootstrap rules — a
  * resolution carrying a tarball URL, say. Rather than refusing to run,
  * discard them and resolve afresh through the trusted bootstrap
  * registries, which yields entries in the accepted shape.

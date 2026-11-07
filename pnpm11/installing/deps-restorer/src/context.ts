@@ -69,7 +69,7 @@ export async function createHeadlessContext (opts: HeadlessOptions): Promise<Hea
   const wantedLockfile = await readWantedLockfileOrThrow(opts)
   // `modulesDir` is conventionally a path relative to `lockfileDir`, but
   // some callers pass it as an absolute path. Resolve via `pathAbsolute`
-  // so both forms work, `path.join` on Windows would otherwise produce a
+  // so both forms work — `path.join` on Windows would otherwise produce a
   // doubled prefix when the second argument is also absolute.
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(pathAbsolute(modulesDir, lockfileDir))

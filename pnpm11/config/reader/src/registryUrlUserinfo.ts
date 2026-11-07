@@ -31,7 +31,7 @@ function userinfoEnd (url: string): number | undefined {
  *
  * The scheme is anchored at the start rather than found by searching for the
  * first `://`: a `://` inside the path (`//host/a://b`) would otherwise be
- * taken for the separator, and the real authority, credentials and all,
+ * taken for the separator, and the real authority — credentials and all —
  * would go unexamined.
  */
 function authorityStartOf (url: string): number | undefined {

@@ -298,7 +298,7 @@ async function removeFromProject ({ opts, params, include, store }: RemoveContex
     dryRun: false,
   })
   const allProjects = opts.allProjects ?? await readWorkspaceProjects(opts)
-  // @ts-expect-error, workspacePackages is an install option that the remove options type does not declare
+  // @ts-expect-error -- workspacePackages is an install option that the remove options type does not declare
   removeOpts['workspacePackages'] = allProjects
     ? arrayOfWorkspacePackagesToMap(allProjects)
     : undefined

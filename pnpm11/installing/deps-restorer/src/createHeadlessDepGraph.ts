@@ -209,7 +209,7 @@ async function findImporterOwningRootModulesDir (
   if (importerIdsSet.has('.' as ProjectId)) return undefined
   for (const { id, modulesDir, rootDir } of projects) {
     if (!importerIdsSet.has(id)) continue
-    // eslint-disable-next-line no-await-in-loop, the first project in order whose modules dir is the root one wins, so later ones need not be resolved
+    // eslint-disable-next-line no-await-in-loop -- the first project in order whose modules dir is the root one wins, so later ones need not be resolved
     if (await realpathMissing(pathAbsolute(modulesDir, rootDir)) === rootModulesDir) return id
   }
   return undefined

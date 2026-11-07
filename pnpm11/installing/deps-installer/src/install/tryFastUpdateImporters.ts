@@ -48,7 +48,7 @@ export interface FastImportersUpdateOptions {
 
 /**
  * Mutates `lockfile` in place and may leave it partially rewritten when it
- * returns `false`, the caller passes the coordinator's disposable candidate,
+ * returns `false` — the caller passes the coordinator's disposable candidate,
  * which is discarded on failure. The severed edges and optionality moves are
  * recorded in `edits` for the shared epilogue.
  */
@@ -269,7 +269,7 @@ function dropEmptyDependencyGroups (importer: ProjectSnapshot): void {
 }
 
 /**
- * Whether the lockfile records no dependency of this project, the shape a
+ * Whether the lockfile records no dependency of this project — the shape a
  * project it has never seen arrives in. Usually an empty entry rather than an
  * absent one, since reading the lockfile seeds every project that has none.
  */
@@ -374,7 +374,7 @@ function addImporterEdge (
  * highest version of it the lockfile already holds that satisfies the range.
  *
  * Resolution prefers a version already in the graph over a higher one from
- * the registry, so reusing what is present is what it would record, for a
+ * the registry, so reusing what is present is what it would record — for a
  * widened range as much as for one the locked version cannot satisfy at all.
  *
  * `null` when the pick cannot be read off the lockfile:

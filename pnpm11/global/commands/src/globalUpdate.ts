@@ -365,8 +365,8 @@ async function pinsForDowngrades (
   const pins = new Map<string, string>()
   // Only `--latest` can pick a version outside the recorded range, and only a
   // plain version spec is dropped for it. Everything else resolves within a
-  // range the installed version already satisfies, so nothing below, not even
-  // reading the group's installed versions, is worth doing.
+  // range the installed version already satisfies, so nothing below — not even
+  // reading the group's installed versions — is worth doing.
   if (opts.latest !== true) return { pins }
   const versionsBefore = new Map(
     (await getGlobalPackageDetails(pkg))

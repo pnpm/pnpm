@@ -181,8 +181,8 @@ function mergeRegistriesByScope (
     ...jsonAuthRegistries.fallbackRegistries,
     ...declaredRegistries,
     ...declaredDefault,
-    // The `_auth` env var is the operator's channel, a CI runner pointed at
-    // a mandated proxy, so its routes win over what any file declares.
+    // The `_auth` env var is the operator's channel — a CI runner pointed at
+    // a mandated proxy — so its routes win over what any file declares.
     ...jsonAuthRegistries.envRegistries,
     ...cliScopedRegistries,
   }
@@ -268,8 +268,8 @@ function getProxyValue (value: string | false | undefined, fallback: string | un
 }
 
 /**
- * A `registries` entry that routes nothing to itself, no `scopes`, no
- * `prefix`, describes a registry configured elsewhere, so it only takes
+ * A `registries` entry that routes nothing to itself — no `scopes`, no
+ * `prefix` — describes a registry configured elsewhere, so it only takes
  * effect when its key is one pnpm actually resolves from. A key that matches
  * none is inert: the wrong URL, a stale entry, a scope that moved. Warn rather
  * than throw, because a shared config dependency can legitimately describe

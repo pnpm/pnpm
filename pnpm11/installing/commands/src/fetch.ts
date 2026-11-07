@@ -79,7 +79,7 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     // even if ignorePackageManifest handling changes in the future.
     virtualStoreOnly: true,
     // Ensure fetch can populate the virtual store even when the user has
-    // enable-modules-dir=false in their config, fetch always needs node_modules/.pnpm
+    // enable-modules-dir=false in their config — fetch always needs node_modules/.pnpm
     // (unless GVS is active, in which case enableModulesDir doesn't matter).
     enableModulesDir: true,
   } as InstallOptions)

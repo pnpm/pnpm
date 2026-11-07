@@ -104,7 +104,7 @@ function collectDirectNodes ({ directDependenciesByImporterId, graph, importerId
 function createBuildExtraEnv (ctx: HeadlessContext, shouldWritePackageMap: boolean): Record<string, string> | undefined {
   const { opts } = ctx
   let extraEnv: Record<string, string> | undefined = opts.extraEnv
-  // Only point Node at the loader when it was actually written,
+  // Only point Node at the loader when it was actually written —
   // `--require` on a missing file fails the script before it runs.
   if (opts.enablePnp && !ctx.skipPostImportLinking) {
     extraEnv = {

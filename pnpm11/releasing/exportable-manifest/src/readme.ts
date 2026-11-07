@@ -65,7 +65,7 @@ async function readReadmeContent (projectDir: string, fileName: string): Promise
     handle = await fs.promises.open(path.join(projectDir, fileName), README_READ_FLAGS)
     return await handle.readFile('utf8')
   } catch (err: unknown) {
-    // ELOOP: the entry is a symlink after all (a concurrent swap), skip it, as the isFile() check intended.
+    // ELOOP: the entry is a symlink after all (a concurrent swap) — skip it, as the isFile() check intended.
     if (isError(err) && 'code' in err && err.code === 'ELOOP') return undefined
     throw err
   } finally {

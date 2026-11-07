@@ -5,9 +5,9 @@ import fixBin from 'bin-links/lib/fix-bin.js'
 
 // Reports whether two paths refer to the same file. A matching inode/device
 // pair (read as BigInts to avoid the precision loss of NTFS 64-bit file IDs)
-// proves a hard link cheaply. Whenever identity can't be established that way,
+// proves a hard link cheaply. Whenever identity can't be established that way —
 // because the inodes genuinely differ or because Windows reports an unreliable
-// zero inode, we fall back to comparing the file contents after a quick size
+// zero inode — we fall back to comparing the file contents after a quick size
 // check, which also treats a byte-identical copy as the same file.
 export async function isSameFile (pathA: string, pathB: string): Promise<boolean> {
   const [statA, statB] = await Promise.all([

@@ -218,7 +218,7 @@ async function exitOnPromptCancel<Answer> (prompt: () => Promise<Answer>): Promi
     return await prompt()
   } catch (err) {
     if (isError(err) && err.name === 'ExitPromptError') {
-      // eslint-disable-next-line n/no-process-exit, the user cancelled the prompt, so nothing else should run
+      // eslint-disable-next-line n/no-process-exit -- the user cancelled the prompt, so nothing else should run
       process.exit(0)
     }
     throw err

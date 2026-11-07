@@ -21,7 +21,7 @@ function baseOpts (): Parameters<typeof createPublishOptions>[1] {
 }
 
 // `getIdToken` honors `NPM_ID_TOKEN` regardless of which CI flag is set, so make sure
-// it isn't set during these tests, otherwise OIDC would attempt a token exchange.
+// it isn't set during these tests — otherwise OIDC would attempt a token exchange.
 let savedNpmIdToken: string | undefined
 beforeAll(() => {
   savedNpmIdToken = process.env['NPM_ID_TOKEN']

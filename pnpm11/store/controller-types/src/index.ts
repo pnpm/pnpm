@@ -67,9 +67,9 @@ export interface StoreController {
    * Path of the file the store already holds for this content, or `undefined`
    * when it holds none.
    *
-   * Lets a caller that would otherwise fetch content the store already has,
+   * Lets a caller that would otherwise fetch content the store already has —
    * a remote side-effects artifact whose files are shared with the package's
-   * own, or with another artifact, skip the transfer. `mode` matters because
+   * own, or with another artifact — skip the transfer. `mode` matters because
    * the store keeps executable and non-executable content apart.
    */
   locateFileInStore?: (hexDigest: string, mode: number) => Promise<string | undefined>
@@ -213,7 +213,7 @@ export interface PackageResponse {
   fetching?: () => Promise<PkgRequestFetchResult>
   filesIndexFile?: string
   /**
-   * The resolution can't be completed without awaiting `fetching`, e.g. a registry
+   * The resolution can't be completed without awaiting `fetching` — e.g. a registry
    * tarball whose integrity is computed from the downloaded bytes. Set by the fetcher's
    * `resolutionNeedsFetch`. Callers that read the resolution before fetching (the lockfile
    * snapshot, virtual-store paths) must await `fetching` first for these.

@@ -58,8 +58,8 @@ function replaceEnvInSettingValue (key: string, value: unknown, opts: ReplaceEnv
 /**
  * Whether a `registries` value is the older `<scope>: <url>` shape rather than
  * a map of declarations. The registry URL is the value in the one and the key
- * in the other, so which one carries the request destination, and so which
- * one the env-placeholder gate applies to, follows from this.
+ * in the other, so which one carries the request destination — and so which
+ * one the env-placeholder gate applies to — follows from this.
  *
  * A map that mixes the two is a declaration map here; {@link
  * translateRegistrySettings} rejects it with a message about the mixing.

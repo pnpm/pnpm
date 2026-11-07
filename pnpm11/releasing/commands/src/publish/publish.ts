@@ -263,7 +263,7 @@ async function confirmPublishFromBranch (currentBranch: string, branches: string
 async function publishTarball (tarballPath: TarballPath, opts: PublishCommandOptions): Promise<PublishResult> {
   const publishedManifest = await extractPublishManifestFromPacked(tarballPath)
   // Publishing a pre-built tarball bypasses `pack.api()`, so we don't have the file listing
-  // or unpacked size, those summary fields are reported as empty/zero.
+  // or unpacked size — those summary fields are reported as empty/zero.
   const publishSummary = await publishPackedPkg({
     tarballPath,
     publishedManifest,

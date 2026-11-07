@@ -17,7 +17,7 @@ test('list all deps in a project with many dependencies without failing with an 
   expect(json).toBeTruthy()
 
   // Walk the JSON tree and collect dedupe / node stats to verify that
-  // deduplication is actually happening, a plain toBeTruthy() would not
+  // deduplication is actually happening — a plain toBeTruthy() would not
   // catch regressions where dedupe metadata disappears.
   let totalNodes = 0
   let dedupedNodes = 0
@@ -36,7 +36,7 @@ test('list all deps in a project with many dependencies without failing with an 
     }
   }
 
-  // The fixture has many transitive deps, deduplication must kick in.
+  // The fixture has many transitive deps — deduplication must kick in.
   expect(dedupedNodes).toBeGreaterThan(0)
   // The total materialized node count should be bounded well below the
   // combinatorial explosion that caused the original OOM.  The fixture

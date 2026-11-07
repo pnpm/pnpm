@@ -319,6 +319,6 @@ function mergeVersions (ourValue: string, theirValue: string): string {
     return semver.gt(ourVersion, theirVersion) ? ourValue : theirValue
   }
 
-  // Non-semver versions (link:, file:, git URLs, etc.), prefer theirs
+  // Non-semver versions (link:, file:, git URLs, etc.) — prefer theirs
   return theirValue
 }

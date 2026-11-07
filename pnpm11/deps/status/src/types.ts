@@ -67,7 +67,7 @@ export type CheckDepsStatusOptions = Pick<Config,
   /**
    * When git-branch lockfiles are enabled, the wanted lockfile lives at
    * `pnpm-lock.<branch>.yaml`, so a missing `pnpm-lock.yaml` is the steady
-   * state, the current-lockfile stand-in must not kick in.
+   * state — the current-lockfile stand-in must not kick in.
    */
   useGitBranchLockfile?: boolean
 } & WorkspaceStateSettings
@@ -81,7 +81,7 @@ export interface CheckDepsStatusResult {
    * (`<lockfileDir>/node_modules/.pnpm/lock.yaml`) stood in as the wanted
    * lockfile for the up-to-date checks. The current lockfile records
    * exactly what the previous install materialized, so the caller can
-   * restore `pnpm-lock.yaml` from it without resolving, `installDeps`
+   * restore `pnpm-lock.yaml` from it without resolving — `installDeps`
    * does that before reporting "Already up to date".
    */
   wantedLockfileToRestore?: {

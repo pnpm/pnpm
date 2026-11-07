@@ -223,7 +223,7 @@ remoteCache:
 ```
 
 | Field | Where it may be set | Meaning |
-|,- |,- |,- |
+| --- | --- | --- |
 | `url` | Global config or environment | The API base URL of a Turborepo Remote Cache server, such as `https://vercel.com/api`. |
 | `team` | Global config or environment | A Vercel team ID (`team_...`) or team slug. |
 | `org` | Anywhere | The organization that owns the artifacts. On a pnpr server, one of the organizations it declares under [`artifacts.orgs`](/pnpr/configuration#registry-resolver-and-artifact-surfaces). It also names the organization `pnpm pipeline --report` records a run under. |

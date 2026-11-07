@@ -25,8 +25,8 @@ import {
 
 /**
  * What the fast-update handlers did to the dependency graph, so the
- * maintenance that keeps the lockfile consistent, pruning, the peer-suffix
- * safety check, catalog entry pruning, and the `optional` flag recompute,
+ * maintenance that keeps the lockfile consistent — pruning, the peer-suffix
+ * safety check, catalog entry pruning, and the `optional` flag recompute —
  * runs once over the combined result instead of once per handler.
  */
 export interface GraphEdits {
@@ -80,15 +80,15 @@ export interface ComposeFastUpdatesOptions {
 
 /**
  * Rewrite `candidate` in place of a full resolution, composing every handler
- * with absorbable drift onto the one candidate, no handler requires being
+ * with absorbable drift onto the one candidate — no handler requires being
  * the only change. Removals apply first, then the shared graph epilogue
- * (`finishGraphEdits`), then patch rekeying, after the prune, so its guards
- * see the packages a full resolution would see, the settings block, and the
+ * (`finishGraphEdits`), then patch rekeying — after the prune, so its guards
+ * see the packages a full resolution would see — the settings block, and the
  * two resolver-consulting rewrites last: catalogs before overrides, the order
  * a resolution applies them in. What survives is then held to
  * `everyConfiguredPatchIsApplied`.
  *
- * `false`, drift some handler cannot express, leaves the caller on the
+ * `false` — drift some handler cannot express — leaves the caller on the
  * full-resolution path; `candidate` may be partially rewritten by then, which
  * the coordinator's discard-on-failure makes safe.
  */
@@ -164,9 +164,9 @@ async function applyCatalogsUpdate (
 
 /**
  * Settle the graph after every handler has run. The prune also recomputes
- * each package's `optional` flag from what still reaches it. `false`, a
+ * each package's `optional` flag from what still reaches it. `false` — a
  * surviving peer suffix embeds a dropped package, so its key would need a
- * rewrite, not a prune, leaves the caller on the full-resolution path.
+ * rewrite, not a prune — leaves the caller on the full-resolution path.
  */
 function finishGraphEdits (candidate: LockfileObject, edits: GraphEdits): boolean {
   if (edits.dropped.size > 0 || edits.optionalFlagsAreStale) {

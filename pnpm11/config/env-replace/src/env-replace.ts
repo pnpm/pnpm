@@ -16,7 +16,7 @@ export interface EnvReplaceLossyResult {
   value: string
   /**
    * The list of unresolved placeholders (each including its surrounding `${...}`,
-   * in source order). One entry per occurrence, duplicates appear multiple times.
+   * in source order). One entry per occurrence — duplicates appear multiple times.
    * Callers typically surface each as a warning.
    */
   unresolved: string[]
@@ -26,12 +26,12 @@ export interface EnvReplaceLossyResult {
  * Like {@link envReplace}, but replaces unresolved `${VAR}` placeholders with
  * `''` and reports them in {@link EnvReplaceLossyResult.unresolved} instead of
  * throwing. Resolvable placeholders and `${VAR-default}` / `${VAR:-default}`
- * fallbacks still expand normally, only the genuinely unresolved bare ones are
+ * fallbacks still expand normally — only the genuinely unresolved bare ones are
  * dropped.
  *
  * Use this when leaving the literal `${VAR}` in the substituted value would be
  * worse than dropping it (e.g. auth tokens in `.npmrc` under OIDC trusted
- * publishing, see https://github.com/pnpm/pnpm/issues/11513).
+ * publishing — see https://github.com/pnpm/pnpm/issues/11513).
  */
 export function envReplaceLossy (settingValue: string, env: NodeJS.ProcessEnv): EnvReplaceLossyResult {
   const unresolved: string[] = []

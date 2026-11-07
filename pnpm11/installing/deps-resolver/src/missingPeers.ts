@@ -206,7 +206,7 @@ export function filterMissingPeers (
 
 // The materialized peer set is used (not the manifest's raw peerDependencies)
 // so that peers implied by a peerDependenciesMeta-only declaration participate
-// in missing-peer collection, and therefore in optional-peer hoisting, the
+// in missing-peer collection — and therefore in optional-peer hoisting — the
 // same way explicitly declared peers do.
 export function getMissingPeers (peerDependencies: PeerDependencies): MissingPeers {
   const missingPeers = {} as MissingPeers

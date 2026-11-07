@@ -550,7 +550,7 @@ test.each(['test-git-fetch', 'artifact', 'repository'])('explicitly denied git p
   const opts = testDefaults({ fastUnpack: false, allowBuilds: { [key]: false } })
   for (const allowed of [false, false, true, false]) {
     fs.rmSync('node_modules', { force: true, recursive: true })
-    // eslint-disable-next-line no-await-in-loop, each install reuses the store populated by the previous one
+    // eslint-disable-next-line no-await-in-loop -- each install reuses the store populated by the previous one
     await install(manifest, {
       ...opts,
       allowBuilds: allowed ? { [`test-git-fetch@${gitDependency}`]: true } : { [key]: false },

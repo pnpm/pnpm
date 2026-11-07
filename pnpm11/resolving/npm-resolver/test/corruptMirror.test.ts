@@ -128,7 +128,7 @@ test('a corrupt fragment behind a 304 triggers a cache-bypassing refetch that he
 
   // The mirror rewrite is fire-and-forget; wait for the poisoned bytes to be
   // replaced by the refetched document.
-  /* eslint-disable no-await-in-loop, polls until the fire-and-forget write lands */
+  /* eslint-disable no-await-in-loop -- polls until the fire-and-forget write lands */
   for (let attempt = 0; attempt < 100; attempt++) {
     if (!fs.readFileSync(pkgMirror).equals(corruptContent)) break
     await new Promise((resolve) => setTimeout(resolve, 10))

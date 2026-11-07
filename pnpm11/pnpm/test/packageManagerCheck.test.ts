@@ -836,7 +836,7 @@ test('devEngines.packageManager check runs even when pnpm is invoked via corepac
   expect(status).toBe(0)
   expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
   // Make sure the warning explains that pnpm did not switch the version
-  // because corepack is in charge, otherwise the warning is confusing.
+  // because corepack is in charge — otherwise the warning is confusing.
   expect(stderr.toString()).toContain('Corepack invoked pnpm')
 })
 
@@ -855,7 +855,7 @@ test('devEngines.packageManager onFail=download surfaces a regular error under c
   // switch when COREPACK_ROOT is set. Mismatches fall through to the regular
   // check, which treats onFail=download as shouldError=true. The error
   // message must spell out that pnpm did not switch the version *because*
-  // corepack is in charge, otherwise the user sees a download-on-mismatch
+  // corepack is in charge — otherwise the user sees a download-on-mismatch
   // contract that silently failed to download.
   const { status, stderr } = execPnpmSync(['install'], {
     env: { COREPACK_ROOT: '/fake/corepack' },
@@ -916,7 +916,7 @@ test.each([
 test('pnpm --version exits promptly when devEngines.packageManager matches the running pnpm', async () => {
   // Package-manager integrity resolution can start workers, so the
   // `--version` path must finalize them before returning.
-  // Read the running pnpm version from a fresh empty dir, the previous
+  // Read the running pnpm version from a fresh empty dir — the previous
   // test's prepare() leaves cwd in a manifest with a failing pm check, and
   // checkPackageManager runs before the --version short-circuit.
   prepareEmpty()

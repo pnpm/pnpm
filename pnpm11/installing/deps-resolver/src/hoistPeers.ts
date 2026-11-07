@@ -347,7 +347,7 @@ function getRootRange (
  * package-name match (an `npm:` alias can install the same package under a
  * different slot), and among package-name matches the lexicographically
  * first alias wins so the pick is stable. Only a dependency that has a
- * normalized specifier is a candidate, the callers have nothing to install
+ * normalized specifier is a candidate — the callers have nothing to install
  * or bound the peer with otherwise.
  */
 function findWorkspaceRootDep (

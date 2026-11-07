@@ -70,7 +70,7 @@ tasks:
 ```
 
 | Key | Meaning |
-|,- |,- |
+| --- | --- |
 | `outputs` | Globs, relative to the project directory, naming the files the task produces. Their presence makes the task cacheable. |
 | `inputs` | Globs narrowing what goes into the cache key. Without it, every tracked file of the project counts. An entry prefixed with `+` adds to that default instead of replacing it. |
 | `env` | Environment variable names whose values take part in the key. The values are hashed, never stored. |

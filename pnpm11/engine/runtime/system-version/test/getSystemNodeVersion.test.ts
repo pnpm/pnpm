@@ -94,7 +94,7 @@ test('engineName() honours an explicit nodeVersion over the host probe', () => {
   // The pinned-runtime override path: when a project's
   // `engines.runtime` / `devEngines.runtime` resolves to a specific
   // Node version, the caller forwards it to `engineName(version)`
-  // and the result reflects that pinned Node, not whatever pnpm
+  // and the result reflects that pinned Node — not whatever pnpm
   // itself is running on. Format-stable across `v`-prefixed and
   // bare versions.
   const major22 = `${process.platform};${process.arch};node22`
@@ -105,7 +105,7 @@ test('engineName() honours an explicit nodeVersion over the host probe', () => {
 test('engineName() falls back to the host Node when no override is provided', () => {
   // No-arg call mirrors the pre-runtime-pin behaviour: anchor to
   // `getSystemNodeVersion()` (which itself prefers shell `node` over
-  // `process.version` only when running as a SEA bundle, covered
+  // `process.version` only when running as a SEA bundle — covered
   // by the tests above). Non-SEA test environment, so the system
   // version equals `process.version`.
   isSea = false

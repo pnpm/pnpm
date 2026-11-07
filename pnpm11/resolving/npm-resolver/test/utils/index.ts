@@ -15,7 +15,7 @@ export { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
  */
 export async function retryLoadJsonFile<Parsed> (filePath: string, isReady?: (data: Parsed) => boolean): Promise<Parsed> {
   let lastError: unknown
-  /* eslint-disable no-await-in-loop, each attempt waits for the previous one to fail */
+  /* eslint-disable no-await-in-loop -- each attempt waits for the previous one to fail */
   for (let attempt = 0; attempt < 4; attempt++) {
     await delay(500)
     try {

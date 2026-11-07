@@ -25,7 +25,7 @@ type PathConfig = Partial<Pick<Config, PathKey>>
 
 /**
  * Expand a leading `~/` in the two settings `globalPkgDir` and `bin` are
- * derived from, before that derivation runs, a tilde left in place would
+ * derived from, before that derivation runs — a tilde left in place would
  * become a directory literally named `~`. The `transformPathKeys` pass at
  * the end of `getConfig` reaches these two again, by then a no-op.
  */

@@ -28,8 +28,8 @@ export interface VerifiedFileIntegrity {
 
 /**
  * How many store files had to be re-hashed to verify them, and how long
- * that took. It should be rare for a file's content to be checked, the
- * recorded `checkedAt` usually says the file is untouched, and hashing
+ * that took. It should be rare for a file's content to be checked — the
+ * recorded `checkedAt` usually says the file is untouched — and hashing
  * is expensive, so an install that spends a noticeable amount of time
  * here reports it.
  *
@@ -263,14 +263,14 @@ function verifyFile (
  * can land. Every other dirent stays: the re-fetch replaces a mismatched file
  * atomically (writeBufferToCafs), and unlinking here would race installs in
  * other processes importing from this very path (the pnpm/pnpm#14353 error
- * class), verification also reports a transient read failure the same way as
+ * class) — verification also reports a transient read failure the same way as
  * a real mismatch.
  *
  * A check-then-delete on the live path could delete whatever a concurrent
  * process put there in between, so the dirent is renamed aside first and only
  * then inspected: a directory is removed at its scrub name, and anything
- * else, including a blob a concurrent re-fetch landed after the failed
- * verification, is renamed back where it was. Best-effort throughout; a
+ * else — including a blob a concurrent re-fetch landed after the failed
+ * verification — is renamed back where it was. Best-effort throughout; a
  * crash between the two renames leaves an inert `*.pnpm-scrub-*` entry in the
  * shard directory, which nothing ever resolves.
  */
@@ -282,7 +282,7 @@ function scrubDirectoryAtCafsPath (filename: string): void {
   } catch {
     return
   }
-  // Cheap gate only, the rename + inspect below re-decides
+  // Cheap gate only — the rename + inspect below re-decides
   // authoritatively, so a dirent swapped after this stat is still handled
   // correctly. Without the gate every mismatched *file* would pay the
   // rename round-trip and briefly vanish from its path.
@@ -300,7 +300,7 @@ function scrubDirectoryAtCafsPath (filename: string): void {
       rimrafSync(scrubName)
     } else {
       // The dirent changed between the failed verification and the
-      // rename, a concurrent process replaced the squatter. Put the
+      // rename — a concurrent process replaced the squatter. Put the
       // newcomer back where every reader expects it.
       fs.renameSync(scrubName, filename)
     }
@@ -321,7 +321,7 @@ function tallyVerifyFileIntegrity (
 ): boolean {
   const startedAt = performance.now()
   // A file that vanished under us, and an algorithm this Node can't
-  // hash with, both hash nothing, so they belong in neither half of
+  // hash with, both hash nothing — so they belong in neither half of
   // the tally: the install reports the figures as time spent hashing.
   const data = readFileForIntegrity(filename)
   if (data == null) return false
@@ -349,7 +349,7 @@ export function verifyFileIntegrity (
  * before yielding, which stalls everything else for the length of a large
  * CAS file. Prefer this wherever the caller is already asynchronous.
  *
- * `false`, the caller falls back to fetching the file, when the path cannot
+ * `false` — the caller falls back to fetching the file — when the path cannot
  * be opened at all, when what was opened is not a regular file, when the
  * content does not hash to `integrity`, or when the runtime does not support
  * `integrity.algorithm`. A failure while reading an already-open file is
@@ -407,7 +407,7 @@ function readFileForIntegrity (filename: string): Buffer | null {
 
 /**
  * Whether `data` hashes to the recorded digest, or `null` when no hash
- * could be computed at all, an invalid algorithm, e.g. from a
+ * could be computed at all — an invalid algorithm, e.g. from a
  * corrupted index file. Callers treat `null` as a verification failure;
  * it stays distinct from `false` so nothing that never hashed is
  * reported as time spent hashing.

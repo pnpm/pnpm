@@ -86,7 +86,7 @@ test('lockfileToDepGraph does not create a directory outside the virtual store f
   // Reconstruct the exact install directory the unguarded code would derive:
   // `depPathToFilename` folds the depPath key into a single (contained) store
   // subdir, but the separately-parsed `pkgName` is joined onto its
-  // `node_modules` raw, that raw join is what escapes.
+  // `node_modules` raw — that raw join is what escapes.
   const dirInVirtualStore = path.join(opts.virtualStoreDir, depPathToFilename(`${name}@1.0.0`, opts.virtualStoreDirMaxLength))
   const escaped = path.join(dirInVirtualStore, 'node_modules', name)
   // Guard against the test asserting on a non-escaping path: the derived
@@ -103,7 +103,7 @@ test('lockfileToDepGraph rejects a global-virtual-store slot whose version escap
   // A valid package name but a traversal *version*. The global-virtual-store
   // slot path `@/<name>/<version>/<hash>` inserts the version as a raw path
   // segment, so it escapes the store root even though `safeJoinModulesDir`
-  // accepts the (valid) inner package name, the name guard alone can't catch
+  // accepts the (valid) inner package name — the name guard alone can't catch
   // this, only the slot containment can.
   const lockfile = {
     lockfileVersion: '9.0',

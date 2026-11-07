@@ -236,7 +236,7 @@ test('no command', async () => {
   expect(cmd).toBeNull()
 })
 
-// Regression for pnpm/pnpm#11487, --pm-on-fail must reach the consumer even when
+// Regression for pnpm/pnpm#11487 — --pm-on-fail must reach the consumer even when
 // short-circuited by --help, otherwise users can't bypass the
 // packageManager check just to read help text for a stale-pinned project.
 test('universal options typed in the exploratory parse survive the --help short-circuit', async () => {
@@ -426,7 +426,7 @@ test.each([
     // shouldn't affect its arg parsing. Test both scenarios for good measure.
     const input = [...(testWithCommandFallback ? [] : ['run']), ...testInput.split(' ')]
 
-    // eslint-disable-next-line no-await-in-loop, two variants, asserted one after the other
+    // eslint-disable-next-line no-await-in-loop -- two variants, asserted one after the other
     const { options, cmd, params, fallbackCommandUsed } = await parseCliArgs({
       ...DEFAULT_OPTS,
       fallbackCommand: 'run',
@@ -537,7 +537,7 @@ test('version bootstrap options parse space-separated string values on the --ver
 })
 
 // When both the alias and the canonical option are supplied, the canonical
-// value must win and the alias must be dropped, otherwise --prefix could
+// value must win and the alias must be dropped — otherwise --prefix could
 // silently overwrite an explicit --dir.
 test('canonical option wins when both --prefix and --dir are passed', async () => {
   const { options } = await parseCliArgs({

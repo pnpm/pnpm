@@ -103,7 +103,7 @@ test('records nothing when the in-memory lockfile has no packages', async () => 
 test('records the load-equivalent hash — matches what the next install computes off-disk', async () => {
   // Use a fixture that carries an explicit `undefined` optional field
   // (the real divergence case install-time code produces), then pass
-  // the *writer's return value* to recordLockfileVerified, same flow
+  // the *writer's return value* to recordLockfileVerified — same flow
   // as the production call sites. Passing the in-memory input here
   // instead would silently regress the moment the writer's
   // canonicalization stops matching the reader's output.
@@ -141,7 +141,7 @@ test('records the load-equivalent hash — matches what the next install compute
 test('respects the caller-supplied lockfilePath — git-branch lockfiles record under their branch-suffixed filename', async () => {
   // Simulates `useGitBranchLockfile`: the actual on-disk lockfile is
   // pnpm-lock.<branch>.yaml, not pnpm-lock.yaml. The helper has no
-  // git logic of its own, it records whatever path the caller hands
+  // git logic of its own — it records whatever path the caller hands
   // it, so cache lookups on the same path will hit.
   const branchLockfilePath = path.resolve(lockfileDir, 'pnpm-lock.feature-x.yaml')
   await fs.promises.writeFile(branchLockfilePath, 'lockfileVersion: \'9.0\'\n')
@@ -163,7 +163,7 @@ test('records a cache entry that the next install hits on both the stat shortcut
   // Mirror real call sites: hand `recordLockfileVerified` the
   // writer's return value rather than the in-memory input. With an
   // explicit `undefined` optional field in the fixture, those two
-  // diverge structurally, the in-memory variant would record a hash
+  // diverge structurally — the in-memory variant would record a hash
   // the next install can't match, and this test would silently miss
   // that regression.
   const inMemoryLockfile = {
@@ -195,7 +195,7 @@ test('records a cache entry that the next install hits on both the stat shortcut
   // shortcut bails. This is the CI-checkout / new-worktree path; the hash
   // has to match for the fallback to hit, which is the whole point of
   // hashing the canonical load-equivalent form. Use `size = -1` (impossible
-  // for a real file) rather than zeroing `inode`/`mtimeNs` alone, on
+  // for a real file) rather than zeroing `inode`/`mtimeNs` alone — on
   // Windows `stat.ino` is often 0, which would let the cached record
   // accidentally match and skip the fallback path we want to exercise.
   const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')

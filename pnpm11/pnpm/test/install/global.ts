@@ -215,7 +215,7 @@ test('global add denies scripts for a package prefixed with ! in --allow-build',
 // When `pnpm add -g` installs a package whose build is not pre-allowed,
 // the install succeeds with the build ignored and `globalAdd` then runs
 // `promptApproveGlobalBuilds`. If the user approves, `approve-builds`
-// runs `install.handler` against the install directory, and that is the
+// runs `install.handler` against the install directory — and that is the
 // install run that crashed with `ENOENT` because `modulesDir` was being
 // forwarded as an absolute path and re-joined with `lockfileDir`.
 test('approve-builds during global add does not produce a doubled modules path', async () => {
@@ -701,7 +701,7 @@ test('global add cleans up stale bins when re-adding a package with different bi
   const tarballV2 = path.join(pkgDir, 'my-tool-2.0.0.tgz')
   execPnpmSync(['pack', '--pack-destination', pkgDir], { cwd: path.join(pkgDir, 'package') })
 
-  // Re-add the same package from new tarball, old bins should be cleaned up
+  // Re-add the same package from new tarball — old bins should be cleaned up
   await execPnpm(['add', '-g', tarballV2], { env })
 
   // old-bin should be gone, new-bin should exist
@@ -736,11 +736,11 @@ test('global add refuses to install when bin name conflicts with another global 
   }))
   fs.writeFileSync(path.join(pkgB, 'index.js'), '#!/usr/bin/env node\nconsole.log("b")\n')
 
-  // Install pkg-a globally, should succeed
+  // Install pkg-a globally — should succeed
   await execPnpm(['add', '-g', pkgA], { env })
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'pkg-a')).toBeTruthy()
 
-  // Install pkg-b globally, should fail due to bin conflict
+  // Install pkg-b globally — should fail due to bin conflict
   const result = execPnpmSync(['add', '-g', pkgB], { env })
   expect(result.status).not.toBe(0)
   expect(result.stdout.toString()).toContain('ERR_PNPM_GLOBAL_BIN_CONFLICT')
@@ -933,7 +933,7 @@ test('global remove deletes install group and bin shims', async () => {
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-a-bin'))).toBeTruthy()
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-b-bin'))).toBeTruthy()
 
-  // Remove one package, entire group (both bins) should be removed
+  // Remove one package — entire group (both bins) should be removed
   await execPnpm(['remove', '-g', 'tool-a'], { env })
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-a-bin'))).toBeFalsy()
   expect(fs.existsSync(path.join(pnpmHome, 'bin', 'tool-b-bin'))).toBeFalsy()
@@ -959,7 +959,7 @@ test('global add installs each space-separated package into its own isolated gro
   // Each package lives in its own install dir (they are not bundled together).
   expect(positive!.installDir).not.toBe(negative!.installDir)
 
-  // Removing one only removes that one, the other remains.
+  // Removing one only removes that one — the other remains.
   await execPnpm(['remove', '-g', 'is-positive'], { env })
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-positive')).toBeNull()
   expect(findGlobalPkg(globalPkgDir(pnpmHome), 'is-negative')).toBeTruthy()

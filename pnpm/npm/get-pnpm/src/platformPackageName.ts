@@ -27,7 +27,7 @@ const V12_ONLY_TARGETS = new Set([
  * publishes `@pnpm/exe.<process.platform>-<arch>[-musl]`, while v11 and older
  * publish `@pnpm/<macos|win|linux|linuxstatic>-<arch>`.
  *
- * @throws if pnpm publishes no binary for the host, because the host is not
+ * @throws if pnpm publishes no binary for the host — because the host is not
  * built for at all, because the binary arrived in v12 and an older major was
  * asked for, or because of the v11-only Intel macOS gap.
  */

@@ -66,7 +66,7 @@ export interface CustomResolver {
   /**
    * Called on subsequent installs (when lockfile exists) to determine if this dependency
    * needs re-resolution. This is called before resolution, so the original specifier
-   * from package.json is not available, use depPath and pkgSnapshot to decide.
+   * from package.json is not available — use depPath and pkgSnapshot to decide.
    *
    * This hook is called independently of canResolve. It is invoked for every package
    * in the lockfile, regardless of whether canResolve would match. Resolvers should
@@ -86,7 +86,7 @@ export interface CustomResolver {
  * Portable delegation envelope a custom fetcher may return instead of a
  * `FetchResult`: pnpm rewrites the package's resolution to `delegate` and
  * runs the built-in fetch path on it. The delegated resolution must be a
- * complete fetchable shape (e.g. `{ tarball, integrity }`), a custom-typed
+ * complete fetchable shape (e.g. `{ tarball, integrity }`) — a custom-typed
  * `delegate` is rejected to keep delegation single-step.
  *
  * Both pnpm implementations support this envelope. The Rust CLI also exposes

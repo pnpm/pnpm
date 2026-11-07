@@ -117,7 +117,7 @@ describe('checkGlobalBinConflicts', () => {
     })
     fs.writeFileSync(path.join(globalBinDir, 'npm'), '')
 
-    // New "npm" package provides "npm" bin, name matches, should win
+    // New "npm" package provides "npm" bin — name matches, should win
     const newPkg = makeNewPkg('npm', { npm: './bin/npm-cli.js' })
 
     await expect(
@@ -244,7 +244,7 @@ describe('checkGlobalBinConflicts', () => {
     fs.writeFileSync(path.join(globalBinDir, 'npm'), '')
     fs.writeFileSync(path.join(globalBinDir, 'npx'), '')
 
-    // New "node" package provides "npm" and "npx", the existing package
+    // New "node" package provides "npm" and "npx" — the existing package
     // owns them (real name "npm"), so they should be skipped.
     const newPkg = makeNewPkg('node', {
       node: './bin/node',

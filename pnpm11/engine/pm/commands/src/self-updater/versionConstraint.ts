@@ -22,7 +22,7 @@ export function pinPnpmInEngines (manifest: ProjectManifest, targetVersion: stri
 /**
  * Returns the updated version constraint for devEngines.packageManager.
  * - Exact versions and simple ranges (^, ~) are rewritten to the new version,
- *   preserving the range operator, matching `pnpm update` and `pnpm runtime set`.
+ *   preserving the range operator — matching `pnpm update` and `pnpm runtime set`.
  * - Complex ranges (>=x <y, etc.) that still satisfy the new version are left
  *   unchanged (the exact version is pinned in the lockfile instead).
  * - Complex ranges that no longer satisfy the new version fall back to a caret

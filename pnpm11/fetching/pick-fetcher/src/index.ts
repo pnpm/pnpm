@@ -47,7 +47,7 @@ async function tryPickCustomFetcher (
 ): Promise<PickedFetcher | undefined> {
   for (const customFetcher of customFetchers) {
     if (!customFetcher.canFetch || !customFetcher.fetch) continue
-    // eslint-disable-next-line no-await-in-loop, the first custom fetcher that accepts the resolution wins, so they are asked in order
+    // eslint-disable-next-line no-await-in-loop -- the first custom fetcher that accepts the resolution wins, so they are asked in order
     const canFetch = await callWithLockedIntegrity(resolution, lockedIntegrity, () => customFetcher.canFetch!(packageId, resolution))
     if (canFetch) {
       return createCustomFetchFunction(customFetcher, resolution, lockedIntegrity, fetchers, fetcherByHostingType)

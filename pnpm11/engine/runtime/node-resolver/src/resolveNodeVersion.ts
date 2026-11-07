@@ -88,7 +88,7 @@ export function createAuthenticatedFetch (fetch: FetchFromRegistry, getAuthHeade
   return async (url, opts) => {
     let currentUrl = url
     for (let redirectCount = 0; ; redirectCount++) {
-      // eslint-disable-next-line no-await-in-loop, each redirect hop needs the previous response's location
+      // eslint-disable-next-line no-await-in-loop -- each redirect hop needs the previous response's location
       const response = await fetch(currentUrl, {
         ...opts,
         authHeaderValue: getSecureAuthHeader(getAuthHeader, currentUrl),

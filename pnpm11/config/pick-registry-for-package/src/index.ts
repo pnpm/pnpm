@@ -13,7 +13,7 @@ function getScope (pkgName: string, bareSpecifier?: string): string | null {
     }
     // Unscoped `npm:` alias target (e.g. `"@private/foo": "npm:lodash@^1"`).
     // The package being fetched is unscoped, so the local alias's scope must
-    // not drive registry routing, `lodash` doesn't live on the `@private`
+    // not drive registry routing — `lodash` doesn't live on the `@private`
     // registry. Fall through to the default registry instead.
     return null
   }

@@ -63,7 +63,7 @@ test('createUpdateMatching() scopes exact alias selectors by version line', () =
   expect(updateMatching('pkg', '100.0.0')).toBeTruthy()
   expect(updateMatching('pkg', '100.1.0')).toBeTruthy()
   expect(updateMatching('pkg', '100.2.0')).toBeTruthy()
-  // 101.x is a different major line, must not leak
+  // 101.x is a different major line — must not leak
   expect(updateMatching('pkg', '101.0.0')).toBeFalsy()
   expect(updateMatching('pkg', '101.3.0')).toBeFalsy()
   // Unrelated packages are not matched at all

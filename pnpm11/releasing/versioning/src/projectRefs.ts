@@ -12,7 +12,7 @@ export interface WorkspaceProject {
 
 /**
  * Whether a package reference is a workspace-relative directory path rather
- * than a package name, the additive extension to the changesets format,
+ * than a package name — the additive extension to the changesets format,
  * needed only when workspace projects share a published name.
  */
 export function isDirRef (ref: string): boolean {
@@ -20,8 +20,8 @@ export function isDirRef (ref: string): boolean {
 }
 
 /**
- * Resolves package references, bare names, or `./`-prefixed
- * workspace-relative directories, against the workspace. Names are aliases:
+ * Resolves package references — bare names, or `./`-prefixed
+ * workspace-relative directories — against the workspace. Names are aliases:
  * one that matches several projects cannot identify any of them and callers
  * must treat it as an error, never a silent pick.
  */
@@ -81,7 +81,7 @@ export function privateProjectDirs (projects: WorkspaceProject[], workspaceDir: 
 
 /**
  * Resolves a package reference from `versioning` configuration. An unknown
- * reference is skipped, configuration may outlive a removed project, but an
+ * reference is skipped — configuration may outlive a removed project — but an
  * ambiguous name is an error: it cannot be attributed, and silence here is
  * exactly the name-keying flaw this engine exists to fix.
  */

@@ -60,7 +60,7 @@ async function pruneUnusedIgnoredGhsas (configuredGhsas: string[], auditReport: 
     retained.some((ghsa, index) => ghsa !== configuredGhsas[index])
   if (!retainedDiffers) return
   // Written through the dedicated ignore-list update so the retained
-  // list lands on whichever spelling the manifest uses, replacing
+  // list lands on whichever spelling the manifest uses — replacing
   // only `auditConfig` would let a canonical `audit.ignore` list
   // shadow the pruned result on the next read.
   await writeSettings({

@@ -25,7 +25,7 @@ import { getSaveType } from './getSaveType.js'
 import * as install from './install.js'
 import { warnAboutLinkedPeerDependencies } from './warnAboutLinkedPeerDependencies.js'
 
-// @ts-expect-error, FAKE_WINDOWS is a test-only global that is not declared on globalThis
+// @ts-expect-error -- FAKE_WINDOWS is a test-only global that is not declared on globalThis
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
 
@@ -146,7 +146,7 @@ async function findCurrentProject (opts: LinkOpts): Promise<{ projectDir: string
   const rootDir = opts.rootProjectManifestDir
   let dir = opts.dir
   while (dir !== rootDir && isSubdir(rootDir, dir)) {
-    // eslint-disable-next-line no-await-in-loop, each parent is read only when the nearer directory has no manifest
+    // eslint-disable-next-line no-await-in-loop -- each parent is read only when the nearer directory has no manifest
     const { manifest } = await tryReadProjectManifest(dir, opts)
     if (manifest != null) return { projectDir: dir, manifest }
     dir = path.dirname(dir)

@@ -391,7 +391,7 @@ test('recursive update alias@npm:<pkg>@<version> --lockfile-only --no-save scope
   const result = execPnpmSync(['recursive', 'update', '--lockfile-only', '--no-save', 'alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
   expect(result.status).toBe(0)
 
-  // `alias` is a direct dependency, so the manifest, which `--no-save` keeps,
+  // `alias` is a direct dependency, so the manifest — which `--no-save` keeps —
   // decides: `^100.0.0` supersedes the requested 100.1.0.
   expect(result.stdout.toString()).toContain('the manifest keeps "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0" when updating without saving')
 

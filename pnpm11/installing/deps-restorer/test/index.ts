@@ -1014,7 +1014,7 @@ test('does not write the PnP loader when virtualStoreOnly skips linking', async 
     virtualStoreOnly: true,
   }))
 
-  // The virtual store is still populated, assert an extracted file, so
+  // The virtual store is still populated — assert an extracted file, so
   // the check cannot pass on a directory that was merely created.
   expect(fs.existsSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules/rimraf/package.json')))
     .toBeTruthy()
@@ -1120,7 +1120,7 @@ test('installing in a workspace with node-linker=hoisted quarantines directories
   fs.writeFileSync(path.join(earlierQuarantine, 'hand-edit.js'), 'earlier work')
   const toolCache = path.join(prefix, 'foo/node_modules/.cache')
   fs.mkdirSync(toolCache, { recursive: true })
-  // Not a package, no `package.json`, so not the linker's to remove, however
+  // Not a package — no `package.json` — so not the linker's to remove, however
   // little the hoisting plan has to say about it.
   const buildOutput = path.join(prefix, 'foo/node_modules/build-output')
   fs.mkdirSync(buildOutput, { recursive: true })
@@ -1208,7 +1208,7 @@ test('headlessInstall: peer-variant snapshot without `resolution` does not crash
   ]
 
   // The bug surfaces as a rejection from `headlessInstall`, so awaiting it
-  // is enough, jest fails the test on an unhandled rejection.
+  // is enough — jest fails the test on an unhandled rejection.
   await headlessInstall(await testDefaults({
     lockfileDir: workspaceFixture,
     projects,

@@ -17,8 +17,8 @@ export interface WorkspaceFilter {
   followProdDepsOnly: boolean
   /**
    * Overrides how a `{<dir>}` selector matches, for a selector pnpm
-   * generates rather than the user writing it. Left out, every filter a
-   * user passes, the selector follows the mode the whole pass runs in,
+   * generates rather than the user writing it. Left out — every filter a
+   * user passes — the selector follows the mode the whole pass runs in,
    * which `legacyDirFiltering` chooses.
    */
   useGlobDirFiltering?: boolean
@@ -218,7 +218,7 @@ export async function filterWorkspaceProjects<Pkg extends BaseProject> (
   const unmatchedFilters: string[] = []
 
   for (const chunk of chunks) {
-    // eslint-disable-next-line no-await-in-loop, include and exclude chunks apply in order, so each result depends on the ones before it
+    // eslint-disable-next-line no-await-in-loop -- include and exclude chunks apply in order, so each result depends on the ones before it
     const result = await _filterGraph(projectsGraph, opts, chunk.selectors)
     unmatchedFilters.push(...result.unmatchedFilters)
     applyChunkResult(selectedDirs, chunk.exclude, result.selected)
@@ -291,7 +291,7 @@ async function _filterGraph<Pkg extends BaseProject> (
   }
   const unmatchedFilters = [] as string[]
   for (const selector of projectSelectors) {
-    // eslint-disable-next-line no-await-in-loop, each selector adds to the shared walked sets, which selectEntries mutates
+    // eslint-disable-next-line no-await-in-loop -- each selector adds to the shared walked sets, which selectEntries mutates
     const entryProjects = await findEntryProjects({ projectsGraph, opts, selector, selection })
 
     if (entryProjects.length === 0) {

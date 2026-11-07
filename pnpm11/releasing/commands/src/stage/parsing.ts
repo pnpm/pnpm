@@ -20,7 +20,7 @@ export function parseStagePackageSpec (rawSpec: string): { name: string, rawSpec
 
 /**
  * Validates every stage id in `params`. An empty `params` yields an empty
- * array, the caller decides whether that is an error or a request for
+ * array — the caller decides whether that is an error or a request for
  * interactive selection.
  */
 export function parseStageIds (params: string[], subcommand: StageSubcommand): string[] {

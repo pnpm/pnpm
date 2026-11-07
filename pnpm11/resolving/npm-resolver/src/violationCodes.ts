@@ -5,7 +5,7 @@
  * resolver wrapper, tests) references one source of truth instead of
  * re-typing the string.
  *
- * Lives in its own module, both `index.ts` and `createNpmResolutionVerifier.ts`
+ * Lives in its own module — both `index.ts` and `createNpmResolutionVerifier.ts`
  * import it, so keeping the constants here avoids a cycle.
  */
 export const MINIMUM_RELEASE_AGE_VIOLATION_CODE = 'MINIMUM_RELEASE_AGE_VIOLATION'

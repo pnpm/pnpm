@@ -123,7 +123,7 @@ export function getResolvedPackage (
  * named registry gets the other registry's bytes.
  * The check is limited to named-registry involvement so nothing else can trip
  * it, and within that it is fail-closed: the two are allowed to share an id
- * only when something positively proves they are the same artifact, equal
+ * only when something positively proves they are the same artifact — equal
  * integrity, or failing that an equal tarball URL. Being unable to tell is
  * treated as a collision, because the alternative is handing one dependency
  * the other registry's bytes.

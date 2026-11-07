@@ -36,7 +36,7 @@ export function latestAllowedByPolicy (
  * deps-resolver aggregates the per-resolve `policyViolation` fields into
  * a single set the install command reacts to.
  *
- * Returns `undefined` for resolutions outside the policy, no policy
+ * Returns `undefined` for resolutions outside the policy — no policy
  * active, version excluded by pattern, timestamp missing or malformed,
  * or version mature. Specific-version exclusions (`pkg@1.0.0`) and
  * full-name exclusions (`pkg`) are both honored so an entry already on

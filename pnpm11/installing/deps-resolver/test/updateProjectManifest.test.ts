@@ -368,7 +368,7 @@ test('updates an aliasless selector that resolves to an alias already present in
 
 test('does not misattribute a spec when an aliasless optional dependency fails to resolve', async () => {
   // The survivor omits `normalizedBareSpecifier` so its spec falls back to the
-  // wanted dependency's, the path where a wrong pairing would surface.
+  // wanted dependency's — the path where a wrong pairing would surface.
   const failedOptional = aliaslessWantedDependency('github:owner/missing#1111111111111111111111111111111111111111', true)
   const survivor = aliaslessWantedDependency('github:owner/good#2222222222222222222222222222222222222222')
   const [manifest] = await updateProjectManifest({

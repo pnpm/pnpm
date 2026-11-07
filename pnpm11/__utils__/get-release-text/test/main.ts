@@ -57,7 +57,7 @@ test('appends the shared sponsors fragment exactly once', async () => {
 
   const release = await fs.readFile(path.join(workspaceDir, 'RELEASE.md'), 'utf8')
   expect(release).toContain('Fixed the release notes.')
-  // the fragment is the tail of the description, appended once and only once,
+  // the fragment is the tail of the description, appended once and only once —
   // a second append, or markup left behind in getChangelogEntry, fails here
   expect(release.match(/<!-- sponsors -->/g)).toHaveLength(1)
   expect(release.endsWith(`\n${SPONSORS_FRAGMENT}`)).toBe(true)

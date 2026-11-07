@@ -10,7 +10,7 @@ export const LEDGER_FILENAME = 'ledger.yaml'
 
 /**
  * One consumed release: the workspace-relative directory of the project that
- * released (the engine's unit of identity, package names may collide across
+ * released (the engine's unit of identity — package names may collide across
  * workspace projects) and the ids of the intent files the release consumed.
  * The bare id-list shape is accepted when read, for hand-written entries;
  * its project is then resolved by the package name in the entry key, which
@@ -22,8 +22,8 @@ export type LedgerEntry = string[] | { dir: string, intents: string[] }
  * The committed, append-only record of consumed change intents: maps
  * `<package name>@<released version>` to the released project and the ids of
  * the intent files consumed by that release. Consumption is scoped per
- * project, an intent file is fully consumed only once every project it
- * names has an entry, which is what makes cherry-picked releases on
+ * project — an intent file is fully consumed only once every project it
+ * names has an entry — which is what makes cherry-picked releases on
  * maintenance branches and merge-backs safe, and what lets one intent be
  * half-consumed by a package on a release lane.
  */
@@ -113,7 +113,7 @@ export interface PackageConsumption {
  * Indexes the ledger by workspace-relative project directory in a single
  * pass. Bare id-list entries carry no directory, so their project is
  * resolved from the entry key's package name via `resolveNameDirs`; a name
- * matching several projects cannot be attributed and is an error, write
+ * matching several projects cannot be attributed and is an error — write
  * such entries in the `dir`/`intents` shape instead. Entries whose name no
  * longer exists in the workspace are inert. Projects without entries map to
  * an empty consumption, so lookups never miss.

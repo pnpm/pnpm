@@ -216,12 +216,12 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
   })
 
   test('does not claim <alias>:<version_selector> when no package alias is provided', () => {
-    // No alias means we cannot know the package name, we must not hijack such specifiers.
+    // No alias means we cannot know the package name — we must not hijack such specifiers.
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:^1.0.0', GH_ALIASES, undefined, DEFAULT_TAG)).toBeNull()
   })
 
   test('falls back to the dependency alias for <alias>:<version_selector>, scoped or not', () => {
-    // Mirrors the `npm:^1.0.0` shape, works with both scoped and unscoped aliases.
+    // Mirrors the `npm:^1.0.0` shape — works with both scoped and unscoped aliases.
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:^1.0.0', GH_ALIASES, '@acme/foo', DEFAULT_TAG)).toMatchObject({
       name: '@acme/foo',
       registryName: 'gh',
@@ -265,7 +265,7 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
 
   test('includes the user-facing alias in error messages for user-defined aliases', () => {
     // When `work:@acme` fails validation, the user's alias must appear in the error
-    // so they can find the offending specifier, not a generic `gh` reference.
+    // so they can find the offending specifier — not a generic `gh` reference.
     expect(() => parseNamedRegistrySpecifierToRegistryPackageSpec('work:@acme', new Set(['work']), undefined, DEFAULT_TAG)).toThrow(expect.objectContaining({
       code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME',
       message: expect.stringContaining("'work:'"),

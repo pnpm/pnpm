@@ -486,13 +486,13 @@ test('injected workspace dependency keeps link: when an unrelated dependency is 
 // `q` peer-depends `@pnpm.e2e/foo`; `n` depends on `q` but does not pin `foo`
 // itself, so `q`'s peer is provided by an ancestor. Initially only
 // `foo@100.0.0` exists (via the root), so `q`'s peer resolves to it in both
-// `n`'s own context and `n`'s injected-under-consumer context, the occurrences
+// `n`'s own context and `n`'s injected-under-consumer context — the occurrences
 // match and `consumer` -> `n` dedupes to `link:`.
 //
 // Then `foo@100.1.0` is added to the consumer and a plain install is run. Now
 // the injected `q` under the consumer resolves its `foo` peer to the consumer's
 // `100.1.0`, while `n`'s own context still resolves it to the root's `100.0.0`
-//, a real divergence, so dedupeInjectedDeps keeps the injected copy, and the
+// — a real divergence, so dedupeInjectedDeps keeps the injected copy, and the
 // install records it as a fresh install does.
 // Covers https://github.com/pnpm/pnpm/issues/17057
 test('injected workspace dependency becomes a copy on a plain install when a consumer change makes an ancestor-provided peer diverge', async () => {
@@ -558,7 +558,7 @@ test('injected workspace dependency becomes a copy on a plain install when a con
   const lockfileAfterInstall = rootModules.readLockfile()
   // The consumer change itself must be reflected.
   expect(lockfileAfterInstall.importers.consumer.dependencies!['@pnpm.e2e/foo'].version).toBe('100.1.0')
-  // The peer context genuinely diverged: both foo versions resolved, the
+  // The peer context genuinely diverged: both foo versions resolved — the
   // consumer's direct 100.1.0 (what q's peer resolves to in n's injected
   // context) and the root-provided 100.0.0 (what q's peer resolves to in n's
   // own context).

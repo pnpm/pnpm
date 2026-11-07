@@ -5,16 +5,16 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 /**
  * Result of parsing the structured `_auth` value.
  *
- * - `auth`, `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, ...)
+ * - `auth` — `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, ...)
  *   ready to merge into the existing auth-config pipeline.
- * - `registries`, trusted scope→URL routes inferred from the `_auth`
+ * - `registries` — trusted scope→URL routes inferred from the `_auth`
  *   **environment variable**. `"default"` is set by the `"@"` scope;
  *   `"@org"` by a package scope. The environment is the operator's
- *   channel, a CI runner pointed at a mandated proxy, so these outrank
+ *   channel — a CI runner pointed at a mandated proxy — so these outrank
  *   what any config file declares, and repo-controlled
  *   `pnpm-workspace.yaml` / project `.npmrc` cannot redirect them.
  *   Merged above workspace yaml but below CLI flags.
- * - `fallbackRegistries`, the same routes inferred from the `_auth` of
+ * - `fallbackRegistries` — the same routes inferred from the `_auth` of
  *   the global config **file**. That file is the user's own store rather
  *   than a mandate, so a `registries` / `registry` declared in a yaml or
  *   an `.npmrc` outranks it and it only fills in what nothing else declares.
@@ -46,7 +46,7 @@ export function readJsonAuthEnv (env: Record<string, string | undefined>, warnin
  *
  * Strict: any malformed entry throws. Both sources are user-controlled, so a
  * typo should fail fast rather than silently drop auth. `source` names the
- * origin in errors; raw URL keys are never echoed, they can embed secrets.
+ * origin in errors; raw URL keys are never echoed — they can embed secrets.
  *
  * The exception is a key under a registry URL that does not start with `@`
  * and is not shaped like a scope entry: a field a later pnpm may define. It
@@ -188,7 +188,7 @@ function isJsonAuthScope (scope: string): boolean {
 }
 
 // Validate one scope's credentials and return its `authToken`. Only
-// `authToken` is supported, the deprecated `basicAuth` / `username` +
+// `authToken` is supported — the deprecated `basicAuth` / `username` +
 // `password` forms (any other field) are rejected, as is a missing or
 // non-string token.
 function jsonAuthToken (

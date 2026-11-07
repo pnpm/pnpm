@@ -268,7 +268,7 @@ test('fetch populates global virtual store links/', async () => {
   const storeDir = path.resolve('store')
   const globalVirtualStoreDir = path.join(storeDir, STORE_VERSION, 'links')
 
-  // Generate the lockfile only, no need for a full install
+  // Generate the lockfile only — no need for a full install
   await install.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -282,10 +282,10 @@ test('fetch populates global virtual store links/', async () => {
   await restartWorkerPool()
   closeAllStoreIndexes()
 
-  // Remove the store, simulate a cold start with only the lockfile
+  // Remove the store — simulate a cold start with only the lockfile
   rimrafSync(storeDir)
 
-  // Fetch with enableGlobalVirtualStore, should populate links/
+  // Fetch with enableGlobalVirtualStore — should populate links/
   await fetch.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -311,7 +311,7 @@ test('install after fetch completes linking without recreating node_modules', as
   })
   const storeDir = path.resolve('store')
 
-  // Generate the lockfile only, no need for a full install
+  // Generate the lockfile only — no need for a full install
   await install.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -331,7 +331,7 @@ test('install after fetch completes linking without recreating node_modules', as
   const modulesYamlPath = path.resolve(project.dir(), 'node_modules/.modules.yaml')
   const virtualStoreDir = path.resolve(project.dir(), 'node_modules/.pnpm')
   const virtualStoreInodeBefore = fs.statSync(virtualStoreDir).ino
-  // fetch only populates the virtual store, no importer symlink and no
+  // fetch only populates the virtual store — no importer symlink and no
   // hoisting yet.
   expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pkg-with-1-dep'))).toBeFalsy()
   expect(fs.existsSync(path.resolve(virtualStoreDir, 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBeFalsy()

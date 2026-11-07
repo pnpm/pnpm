@@ -27,7 +27,7 @@ export async function applyInstallSettingsFromAllSources (
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
   // default. Without this, a user-set value would silently fall back to
   // installing an immature version when no mature version satisfies the
-  // requested range, making the setting look like it had no effect.
+  // requested range — making the setting look like it had no effect.
   // The built-in default for `minimumReleaseAge` is intentionally non-strict
   // for backward compatibility. This must run after env var parsing so
   // pnpm_config_minimum_release_age also enables strict mode.
@@ -54,8 +54,8 @@ export async function applyInstallSettingsFromAllSources (
  * Also after the env loop, and after the config files were applied: npm
  * spells the setting `maxsockets`, so every source may carry either
  * spelling and both have to be folded into the one field the rest of
- * pnpm reads. The layers keep their usual rank, command line over
- * environment over config files, and within each layer the canonical
+ * pnpm reads. The layers keep their usual rank — command line over
+ * environment over config files — and within each layer the canonical
  * spelling wins. Ranking the command line here rather than leaving it to
  * the loop's CLI guard is what keeps a `--maxsockets` above a
  * `PNPM_CONFIG_MAX_SOCKETS`, and above a `maxSockets` in the YAML.
@@ -66,7 +66,7 @@ function foldMaxSockets ({ configFromCliOpts, pnpmConfig }: ConfigBuildState, { 
   // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
   const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
   pnpmConfig.maxSockets = maxSocketsFromCli ?? maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
-  // @ts-expect-error, maxsockets (lowercase) comes from npmConfigTypes and is not a Config field
+  // @ts-expect-error -- maxsockets (lowercase) comes from npmConfigTypes and is not a Config field
   delete pnpmConfig['maxsockets']
 }
 

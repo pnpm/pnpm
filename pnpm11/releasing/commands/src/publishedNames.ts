@@ -2,11 +2,11 @@ import type { WorkspaceProject } from '@pnpm/releasing.versioning'
 import type { BaseManifest } from '@pnpm/types'
 
 /**
- * The name a manifest publishes under, its `publishConfig.name` rename, or
+ * The name a manifest publishes under — its `publishConfig.name` rename, or
  * the name it carries in the workspace.
  *
- * The workspace, and so every parked changelog section, the ledger, every
- * intent, and every dependent, keys on the manifest name, while the registry
+ * The workspace — and so every parked changelog section, the ledger, every
+ * intent, and every dependent — keys on the manifest name, while the registry
  * only ever sees the published one. Anything that addresses a project *at the
  * registry* has to resolve the name through here first.
  */

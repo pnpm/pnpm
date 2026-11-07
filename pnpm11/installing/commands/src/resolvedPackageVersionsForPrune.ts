@@ -57,7 +57,7 @@ export async function resolvedPackageVersionsOfProjectLockfiles (
   if (opts.lockfile === false || projectDirs.length === 0) return undefined
   const resolved = new Map<string, Set<string>>()
   for (const projectDir of projectDirs) {
-    // eslint-disable-next-line no-await-in-loop, the first project without a lockfile ends the pass, so later lockfiles need not be read
+    // eslint-disable-next-line no-await-in-loop -- the first project without a lockfile ends the pass, so later lockfiles need not be read
     const lockfile = await readWantedLockfile(projectDir, {
       ignoreIncompatible: true,
       useGitBranchLockfile: opts.useGitBranchLockfile,

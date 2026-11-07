@@ -125,7 +125,7 @@ function isNotModifiedWithoutCacheError (err: unknown): boolean {
  * response to the mirror can hand back a different object, and only the one
  * that reaches the cache is worth remembering. A registry whose full form is
  * no more complete than its abbreviated one still answers `200`, so a
- * successful upgrade has to be marked too, otherwise every dependency edge
+ * successful upgrade has to be marked too — otherwise every dependency edge
  * re-asks for the same full document.
  */
 export function upgradeMetaForCache (
@@ -141,7 +141,7 @@ export function upgradeMetaForCache (
   return meta
 }
 
-// A condensing resolver keeps and mirrors the condensed form, the mirror
+// A condensing resolver keeps and mirrors the condensed form — the mirror
 // only has to carry `time` into the next install; otherwise the unstripped
 // meta is written and kept. The upgrade's response is the full document,
 // mirrored in the abbreviated mirror.

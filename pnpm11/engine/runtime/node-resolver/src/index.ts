@@ -45,7 +45,7 @@ export const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release
 export const UNOFFICIAL_NODE_MIRROR_BASE_URL = 'https://unofficial-builds.nodejs.org/download/release/'
 
 // Node.js archives ship with npm, npx, and corepack. pnpm manages package managers itself,
-// so these are excluded from the runtime install, skipping ~2,800 files out of ~5,800 in the
+// so these are excluded from the runtime install — skipping ~2,800 files out of ~5,800 in the
 // Node.js tarball. The pattern matches paths *after* the archive's top-level
 // `node-vX.Y.Z-<platform>-<arch>/` prefix has been stripped.
 export const NODE_EXTRAS_IGNORE_PATTERN = '^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\\.(?:cmd|ps1))?$)'
@@ -140,7 +140,7 @@ function createNodeRuntimeVersionSpec (
  * The concrete version an exact stable-release specifier names, when the
  * specifier is already in canonical `X.Y.Z` form. Such a specifier needs no
  * release-index lookup: the index would resolve it to itself. Prereleases are
- * excluded, on the `release` channel they never exist, so routing them
+ * excluded — on the `release` channel they never exist, so routing them
  * through the index keeps the canonical not-found error path.
  */
 function exactReleaseVersion (releaseChannel: string, versionSpecifier: string): string | undefined {

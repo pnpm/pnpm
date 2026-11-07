@@ -576,7 +576,7 @@ with matching CLI build features, two warmups and 15 measurements per target.
 The same unchanged pnpr binary served both targets. All eleven scenarios passed.
 
 | npm-only scenario | Baseline mean (ms) | Integration mean (ms) |
-|,- |,-: |,-: |
+| --- | ---: | ---: |
 | Fresh install, cold cache/store | 497.0 | 491.9 |
 | Fresh install, hot cache/store | 249.2 | 243.1 |
 | Fresh install, cold cache/hot store | 424.9 | 419.5 |

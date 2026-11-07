@@ -317,11 +317,11 @@ function formatLine (maxWidth: number, logObj: LifecycleLog): string {
   return line
 }
 
-// eslint-disable-next-line no-control-regex, an SGR (color) sequence starts with ESC
+// eslint-disable-next-line no-control-regex -- an SGR (color) sequence starts with ESC
 const SGR_SEQUENCE = /\u001B\[[\d;:]*m/g
-// eslint-disable-next-line no-control-regex, C1 DCS, SOS, OSC, PM and APC strings, which stripVTControlCharacters does not recognize
+// eslint-disable-next-line no-control-regex -- C1 DCS, SOS, OSC, PM and APC strings, which stripVTControlCharacters does not recognize
 const C1_CONTROL_STRING = /[\u0090\u0098\u009D-\u009F][^\u0007\u001B\u009C]*(?:\u0007|\u009C|\u001B\\)?/g
-// eslint-disable-next-line no-control-regex, matching control characters is the point of this pattern
+// eslint-disable-next-line no-control-regex -- matching control characters is the point of this pattern
 const CONTROL_CHARACTERS_EXCEPT_TAB = /[\u0000-\u0008\u000A-\u001F\u007F-\u009F]/g
 
 const SGR_RESET = '\u001B[0m'

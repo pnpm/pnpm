@@ -418,7 +418,7 @@ async function diffFileNames (commit: string, diffPaths: string[], workspaceDir:
         ...(gitSupportsNoRelative(await getGitVersion()) ? ['--no-relative'] : []),
         '--no-renames',
         // Keeps an option-like `<since>` (`--output=...`) from being
-        // parsed as a git option, git rejects it as a bad revision.
+        // parsed as a git option — git rejects it as a bad revision.
         '--end-of-options',
         commit,
         '--',

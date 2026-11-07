@@ -445,7 +445,7 @@ test('re-installs sibling symlinks even when the parent symlink is already corre
     storeDir,
   }
 
-  // First install, parent + subdep symlink land in the GVS leaf.
+  // First install — parent + subdep symlink land in the GVS leaf.
   await installConfigDeps(lockfile, installOpts)
   const parentRealPath = fs.realpathSync(`node_modules/.pnpm-config/${parentName}`)
   const subdepSiblingPath = path.join(path.dirname(path.dirname(parentRealPath)), subdepName)

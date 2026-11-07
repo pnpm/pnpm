@@ -53,7 +53,7 @@ export function reportError (logObj: Log, config?: ReporterPnpmConfig): string |
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any, the error code determines the extra fields on the log, which the Log type does not carry
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the error code determines the extra fields on the log, which the Log type does not carry
 type LogWithErrorFields = any
 
 type ErrorInfoReporter = (

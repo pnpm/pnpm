@@ -102,12 +102,12 @@ export class FetchTimeoutError extends PnpmError {
 /**
  * A request URL made safe to print: its `user:pass@` userinfo and control
  * characters redacted ({@link redactAndSanitize}), then everything from the
- * query or fragment onwards dropped, a signed tarball or registry URL
+ * query or fragment onwards dropped — a signed tarball or registry URL
  * carries a reusable token there, which credential redaction alone keeps.
  *
  * `[hidden]` when the cut would leave credential material behind. A password
- * containing `?` or `#` defeats the userinfo scan, it reads the `?` as the
- * end of the authority and leaves the whole `user:pa?ss@host` in place, so
+ * containing `?` or `#` defeats the userinfo scan — it reads the `?` as the
+ * end of the authority and leaves the whole `user:pa?ss@host` in place — so
  * cutting there would publish the password's prefix. The authority is
  * therefore checked before the cut, not after: any `@` still in front of the
  * path means the userinfo survived.
@@ -208,7 +208,7 @@ export function redactUrlForDisplay (url: string): string {
  *
  * Line breaks are kept only when doing so redacts exactly as much as
  * collapsing the text would: a newline can fall inside a `user:pass@`
- * authority, git echoes such a URL back verbatim, password included, and
+ * authority — git echoes such a URL back verbatim, password included — and
  * redacting each line separately would leave the credentials split but
  * readable. Whenever the two disagree, the collapsed form wins.
  */

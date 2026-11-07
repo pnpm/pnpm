@@ -61,8 +61,8 @@ const DESCENDANT_LOOKUP_TIMEOUT = 500
 
 async function killProcesses (status: number): Promise<void> {
   if (process.platform === 'win32') {
-    // Enumerating descendant processes on Windows shells out to `wmic`, or,
-    // where wmic has been removed, a PowerShell `Get-CimInstance` fallback,
+    // Enumerating descendant processes on Windows shells out to `wmic` — or,
+    // where wmic has been removed, a PowerShell `Get-CimInstance` fallback —
     // which can take tens of seconds. Instead of enumerating, kill the
     // process trees of the still-running child processes whose PIDs were
     // recorded at their spawn sites.

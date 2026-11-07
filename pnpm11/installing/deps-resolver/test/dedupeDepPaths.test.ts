@@ -116,7 +116,7 @@ test('packages are not deduplicated when versions do not match', async () => {
 
 // When a peer-suffixed variant is a subset of two mutually incompatible larger
 // variants, the dedupe pass has to pick which one to collapse it into. That
-// choice must not depend on the order the importers happen to be processed in,
+// choice must not depend on the order the importers happen to be processed in —
 // otherwise the same workspace resolves to different lockfiles on different
 // machines, and `pnpm dedupe --check` flips between pass and fail.
 test('peer-dependent deduplication does not depend on importer order', async () => {

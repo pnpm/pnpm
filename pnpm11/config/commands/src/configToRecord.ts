@@ -20,7 +20,7 @@ const NON_SETTING_CONFIG_KEYS = new Set([
  * Convert a Config object to a camelCase record for display.
  * Only includes explicitly set values (from CLI, env vars, or workspace yaml),
  * not default values. Auth/registry keys from authConfig are always included,
- * and so is `registries`, the registries the CLI resolves from, merged
+ * and so is `registries` — the registries the CLI resolves from, merged
  * across every source.
  */
 export function configToRecord (config: Config, explicitlySetKeys: Set<string>): Record<string, unknown> {
@@ -42,8 +42,8 @@ export function configToRecord (config: Config, explicitlySetKeys: Set<string>):
   if (audit != null) {
     result.audit = audit
   }
-  // `catalogs` shows the complete resolved catalog set, the singular
-  // `catalog` block is its `default` entry, whichever spelling declared it.
+  // `catalogs` shows the complete resolved catalog set — the singular
+  // `catalog` block is its `default` entry — whichever spelling declared it.
   if (config.catalogs != null && Object.values(config.catalogs).some((catalog) => catalog != null)) {
     result.catalogs = config.catalogs
   }
@@ -88,8 +88,8 @@ function copyAuthSettings (authConfig: Config['authConfig'], result: Record<stri
 }
 
 /**
- * The `registry` / `@scope:registry` rows show the merged routes, the
- * values `config get` answers, so a raw `.npmrc` row cannot contradict
+ * The `registry` / `@scope:registry` rows show the merged routes — the
+ * values `config get` answers — so a raw `.npmrc` row cannot contradict
  * the resolved `registries` view.
  */
 function copyRegistryRoutes (registriesByScope: Config['registriesByScope'], result: Record<string, unknown>): void {

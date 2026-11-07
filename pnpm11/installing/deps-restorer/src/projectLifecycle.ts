@@ -56,7 +56,7 @@ export async function runProjectLifecycleScripts (
     scriptsOpts.extraEnv = addPackageMapOption(scriptsOpts.extraEnv, ctx.rootModulesDir)
   }
   // The projects' own lifecycle scripts import dependency code linked from
-  // the lockfile, so they are held to the same gate as dependency builds,
+  // the lockfile, so they are held to the same gate as dependency builds —
   // also on the `enableModulesDir: false` path that skips buildModules.
   await opts.verifyLockfile?.()
   await runLifecycleHooksConcurrently({

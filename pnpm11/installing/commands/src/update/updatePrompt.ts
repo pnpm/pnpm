@@ -11,7 +11,7 @@ export async function runUpdatePrompt<Answer> (prompt: () => Promise<Answer>): P
   } catch (err: unknown) {
     if (isError(err) && err.name === 'ExitPromptError') {
       globalInfo('Update canceled')
-      // eslint-disable-next-line n/no-process-exit, a declined prompt ends the command with a success status, and there is no result to return to the caller
+      // eslint-disable-next-line n/no-process-exit -- a declined prompt ends the command with a success status, and there is no result to return to the caller
       process.exit(0)
     }
     throw err

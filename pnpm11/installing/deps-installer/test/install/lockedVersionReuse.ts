@@ -192,7 +192,7 @@ test('a moved range falls back when a peer suffix names the version it moves off
 
 /**
  * The importer depends on `@pnpm.e2e/foo@1.0.0` directly, while
- * `@pnpm.e2e/baz`, reached through `@pnpm.e2e/qux`, resolves it as a peer
+ * `@pnpm.e2e/baz` — reached through `@pnpm.e2e/qux` — resolves it as a peer
  * at the version `@pnpm.e2e/qux` provides, `1.2.0`.
  */
 function lockfileWithPeerDependentUnderQux (): LockfileTypesObject {

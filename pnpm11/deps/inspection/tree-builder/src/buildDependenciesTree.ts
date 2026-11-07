@@ -239,7 +239,7 @@ async function expandLinkedProjectsOfEach (
   // Sequential, so that the first occurrence of a linked project is the
   // one expanded, as with the deduplication of a shared lockfile.
   for (const [projectPath, dependenciesHierarchy] of pairs) {
-    // eslint-disable-next-line no-await-in-loop, the first occurrence of a linked project must be the one expanded, so projects are expanded in order
+    // eslint-disable-next-line no-await-in-loop -- the first occurrence of a linked project must be the one expanded, so projects are expanded in order
     await expandLinkedProjects(dependenciesHierarchy, {
       ...ctx,
       walk: { ...linkedWalk, ancestors: new Set([...linkedWalk.ancestors, projectPath]) },
@@ -266,7 +266,7 @@ interface LinkedProjectsContext {
 async function expandLinkedProjects (tree: DependenciesTree, ctx: LinkedProjectsContext): Promise<void> {
   for (const field of DEPENDENCIES_FIELDS) {
     if (tree[field] != null) {
-      // eslint-disable-next-line no-await-in-loop, the walk is sequential so the first occurrence of a linked project is the one expanded
+      // eslint-disable-next-line no-await-in-loop -- the walk is sequential so the first occurrence of a linked project is the one expanded
       tree[field] = await expandLinkedProjectNodes(tree[field], 0, ctx)
     }
   }
@@ -281,10 +281,10 @@ async function expandLinkedProjectNodes (
   for (const node of nodes) {
     let expandedNode: DependencyNode | undefined = node
     if (node.dependencies != null) {
-      // eslint-disable-next-line no-await-in-loop, the walk is sequential so the first occurrence of a linked project is the one expanded
+      // eslint-disable-next-line no-await-in-loop -- the walk is sequential so the first occurrence of a linked project is the one expanded
       expandedNode = keepSearched({ ...node, dependencies: await expandLinkedProjectNodes(node.dependencies, level + 1, ctx) }, ctx)
     } else if (!node.circular && ctx.importers[getLockfileImporterId(ctx.lockfileDir, node.path)] == null) {
-      // eslint-disable-next-line no-await-in-loop, the walk is sequential so the first occurrence of a linked project is the one expanded
+      // eslint-disable-next-line no-await-in-loop -- the walk is sequential so the first occurrence of a linked project is the one expanded
       expandedNode = await expandLinkedProject(node, level, ctx)
     }
     if (expandedNode != null) expanded.push(expandedNode)
@@ -388,7 +388,7 @@ async function dependenciesHierarchyForPackage (
   }
 
   // Handle unsaved dependencies (packages in node_modules but not in lockfile).
-  // When searching, unsaved deps are irrelevant, they aren't in the lockfile
+  // When searching, unsaved deps are irrelevant — they aren't in the lockfile
   // graph and can't have dependency subtrees showing paths to the search target.
   // They aren't workspace projects either, which is all onlyProjects lists.
   if (!opts.search && !opts.onlyProjects) {

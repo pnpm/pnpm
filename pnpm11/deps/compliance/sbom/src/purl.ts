@@ -26,7 +26,7 @@ export function buildPurl (opts: {
   registryUrl?: string
 }): string {
   if (opts.nonSemverVersion) {
-    // Git-hosted or tarball dep, encode the raw version as a qualifier
+    // Git-hosted or tarball dep — encode the raw version as a qualifier
     const encodedUrl = encodeURIComponent(opts.nonSemverVersion)
     return `pkg:npm/${encodePurlName(opts.name)}@${encodeURIComponent(opts.version)}?vcs_url=${encodedUrl}`
   }
@@ -42,7 +42,7 @@ export function buildPurl (opts: {
  * anything that could carry a secret.
  *
  * An SBOM is meant to be published, and a `registriesByPrefix` entry may
- * legitimately embed credentials, as userinfo
+ * legitimately embed credentials — as userinfo
  * (`https://user:token@npm.example.com/`) or in a query string
  * (`?api_key=...`). Origin and path are kept because two registries can
  * differ only by path (`https://npm.example.com/team-a/` vs `/team-b/`),

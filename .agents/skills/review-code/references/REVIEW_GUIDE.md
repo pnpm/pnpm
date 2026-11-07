@@ -1,18 +1,18 @@
-# pnpm code review guide
+# pnpm Code Review Guide
 
 How changes to `pnpm/pnpm` are reviewed, and how the decision to accept, reject, narrow, or
-redesign a change is made, a framework a human or AI reviewer can apply to reach the same bar.
+redesign a change is made — a framework a human or AI reviewer can apply to reach the same bar.
 
 The central question for any PR:
 
 > Does this change solve a real pnpm problem, in the right layer, with a contained
 > user-visible contract, and without unacceptable security, performance, compatibility, or
-> maintenance cost, and is it the *smallest correct version* of itself?
+> maintenance cost — and is it the *smallest correct version* of itself?
 
 This is the canonical review guide for the repository, applied by human reviewers and by two
-automated reviewers, CodeRabbit ([`.coderabbit.yaml`](../../../../.coderabbit.yaml)) and Qodo
-([`.pr_agent.toml`](../../../../.pr_agent.toml)). To cut duplicate comments the bots divide review depth,
-CodeRabbit leads correctness and conventions, Qodo leads security and performance, but every
+automated reviewers — CodeRabbit ([`.coderabbit.yaml`](../../../../.coderabbit.yaml)) and Qodo
+([`.pr_agent.toml`](../../../../.pr_agent.toml)). To cut duplicate comments the bots divide review depth —
+CodeRabbit leads correctness and conventions, Qodo leads security and performance — but every
 reviewer applies the same priority order below. [`AGENTS.md`](../../../../AGENTS.md) points here.
 
 Apply [PHILOSOPHY.md](../../../../PHILOSOPHY.md) when assessing product fit,
@@ -21,18 +21,18 @@ architectural changes, compatibility, and tradeoffs.
 ## Review priorities
 
 1. **Security first** (§1).
-2. **Performance second** (§2), `install`, `add`, `update`, `remove`, resolution, fetching,
+2. **Performance second** (§2) — `install`, `add`, `update`, `remove`, resolution, fetching,
    linking, lockfile handling, store access, and pnpr request paths are hot paths.
-3. **Product fit**, add surface (commands, settings, output) only when the benefit is clear
+3. **Product fit** — add surface (commands, settings, output) only when the benefit is clear
    and the result is maintainable.
-4. **Maintainability always**, prefer the right abstraction and package boundary over a
+4. **Maintainability always** — prefer the right abstraction and package boundary over a
    one-off patch.
 
 ---
 
 ## 1. Security review rules
 
-Security is the first priority, review with a security-first lens. Treat manifests, lockfiles,
+Security is the first priority — review with a security-first lens. Treat manifests, lockfiles,
 registry metadata, tarballs, paths, environment variables, lifecycle scripts, workspace config,
 and git metadata as attacker-controlled. Surface plausible issues even when they're edge cases,
 but always explain the exploit path and impact on the *changed* code; never give generic
@@ -61,13 +61,13 @@ Look especially for:
 - Rust memory, concurrency, and unsafe-FFI issues in pacquet, including panic-on-untrusted-input
   denial of service.
 
-Advisory regression themes, recurring classes from past pnpm advisories:
+Advisory regression themes — recurring classes from past pnpm advisories:
 
 - repo-controlled `.npmrc` and `pnpm-workspace.yaml` must not expand victim environment secrets
   into registry URLs, auth headers, proxy settings, token helpers, or other outbound requests;
 - user-level npm auth credentials must not be bound to a repository-selected registry unless the
   registry scope and trust boundary are explicit;
-- lifecycle/build-script approval gates must cover all dependency sources and phases, git
+- lifecycle/build-script approval gates must cover all dependency sources and phases — git
   dependencies, fetch/prepare/prepack/prepublish paths, `allowBuilds`, ignored-build reporting,
   explicit denials, and every affected pnpm version;
 - opaque dependency identities (git, URL, tarball, file, directory, patch, alias locators) stay
@@ -94,12 +94,12 @@ Recurring judgement calls:
 
 - **Never strip or normalize an attacker-relevant identifier.** Opaque/locator identities (git,
   URL, tarball, jsr/gh prefixes, registry suffixes) stay byte-for-byte exact where used for
-  trust, stripping a suffix can bind a name to a package you don't own.
-- **Atomic, fail-safe file writes.** `wx`/exclusive-create is not atomic, a crash mid-write
+  trust — stripping a suffix can bind a name to a package you don't own.
+- **Atomic, fail-safe file writes.** `wx`/exclusive-create is not atomic — a crash mid-write
   leaves an invalid file in the store. Use temp-file-plus-rename, or write `package.json` last
   as a completion marker.
 - **Repo-controlled `.npmrc`/workspace config** must not expand victim secrets into outbound
-  registry/auth/proxy values. Token helpers are executable code, only from trusted/user
+  registry/auth/proxy values. Token helpers are executable code — only from trusted/user
   config. Suggested copy-paste commands must not embed shell-expandable attacker-controlled keys.
 - **CI/workflow changes** handling fork-influenced artifacts use minimum token permissions and
   scope secrets to the exact step that needs them.
@@ -129,9 +129,9 @@ parsing/scans in resolver/linker loops, noisy logs or expensive checks on the wa
 broad fast-path invalidation for rare cases. Prefer cheap markers and existing invariants.
 
 Benchmarks should use multiple runs (with variance when the gap is small); hot/warm/cold store
-and cold-install rows where relevant; realistic dependency counts (2000 to 3000 packages can be a
+and cold-install rows where relevant; realistic dependency counts (2000–3000 packages can be a
 small project); and evidence the win is on a common path. A negligible gain that adds
-complexity isn't worth it, and the same evidence justifies *refusing* an optimization (cost is
+complexity isn't worth it — and the same evidence justifies *refusing* an optimization (cost is
 sub-0.1% or off the hot path).
 
 ---
@@ -215,7 +215,7 @@ Don't add large or noisy logs unless the user can act on them.
 
 - Spec parsing belongs in resolvers, not scattered callers.
 - Git/tarball policy checks belong in the git/tarball resolvers, returning verifiers that
-  validate resolutions against active policies, the same way the npm resolver verifies
+  validate resolutions against active policies — the same way the npm resolver verifies
   `minimumReleaseAge` and `trustPolicy`.
 - Workspace selection belongs in the CLI dispatch layer, not re-derived inside handlers with
   partial options.
@@ -225,12 +225,12 @@ Don't add large or noisy logs unless the user can act on them.
 Avoid fixes that make unrelated packages learn resolver-specific details; prefer a precise gate
 where the ambiguous value is consumed.
 
-### Reuse before you write, but don't add ceremony
+### Reuse before you write — but don't add ceremony
 
 Duplication is a frequent problem in this monorepo. Search `packages/`, `fs/`, `crypto/`,
 `text/`, `default-reporter`, and the manifest/lockfile utilities first, and prefer a maintained
 package over a custom reimplementation of parsing, serialization, or shell escaping. But reuse
-is the goal, not abstraction for its own sake, don't extract an indirection that doesn't
+is the goal, not abstraction for its own sake — don't extract an indirection that doesn't
 reduce coupling.
 
 ---
@@ -249,7 +249,7 @@ Tests must prove the changed behavior, not just execute nearby code.
   hardlink, and locking behavior.
 - **Conventions**: tests in a separate file; no hardcoded checksums (use registry-mock's
   `getIntegrity()`); don't depend on unreleased Node.js behavior.
-- Never dismiss a failure as "pre-existing", investigate and fix it in the PR.
+- Never dismiss a failure as "pre-existing" — investigate and fix it in the PR.
 
 ---
 
@@ -261,8 +261,8 @@ Tests must prove the changed behavior, not just execute nearby code.
 - **For a pnpm v11 fix, include `"pnpm"` explicitly with a patch bump.**
 - **For a pnpm v12 change, target `pacquet`.** A shared bug fix targets both CLI packages and
   any affected supporting packages.
-- **One changeset per logical change.** The text is a user-facing release note, accurate and
-  concise, no implementation rationale, and it must match what the code actually does.
+- **One changeset per logical change.** The text is a user-facing release note — accurate and
+  concise, no implementation rationale — and it must match what the code actually does.
 - **Package targets determine the release page.** Do not name pnpm release lines or `pacquet` in
   the prose merely to distinguish targets. If release lines have different user-visible behavior,
   use separate changesets with the matching targets and text.
@@ -324,8 +324,8 @@ The voice is short, direct, and specific.
 - **Ask "why," don't just assert.** A question that exposes an unjustified change beats a
   paragraph.
 - **Use GitHub `suggestion` blocks** for exact wording.
-- **Be honest about uncertainty**, and name the scenario that worries you.
-- **When you decline a suggestion, justify it concretely**, the invariant it would break, the
+- **Be honest about uncertainty** — and name the scenario that worries you.
+- **When you decline a suggestion, justify it concretely** — the invariant it would break, the
   cost it would add, or the measurement that makes it moot.
 - **When you accept feedback, link the fixing commit** and reply on the thread before resolving.
 - Don't nitpick what linting already covers.

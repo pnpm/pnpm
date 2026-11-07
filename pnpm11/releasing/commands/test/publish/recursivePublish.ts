@@ -174,7 +174,7 @@ test('print info when no packages are published', async () => {
 test('a package renamed by publishConfig.name is probed under the name the registry knows', async () => {
   preparePackages([
     // The workspace name is unknown to the registry; the published name is
-    // is-positive@1.0.0, which is already there, so nothing is published.
+    // is-positive@1.0.0, which is already there — so nothing is published.
     {
       name: 'workspace-only-name',
       version: '1.0.0',

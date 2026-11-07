@@ -80,7 +80,7 @@ export async function readPendingChangelog (workspaceDir: string, pkgName: strin
   }
 }
 
-/** Removes a parked section. A missing file is not an error, it may already have been collected. */
+/** Removes a parked section. A missing file is not an error — it may already have been collected. */
 export async function removePendingChangelog (workspaceDir: string, pkgName: string, version: string): Promise<void> {
   try {
     await fs.rm(pendingChangelogPath(workspaceDir, pkgName, version))

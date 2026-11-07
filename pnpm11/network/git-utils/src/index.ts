@@ -32,7 +32,7 @@ export async function getCurrentBranch (opts: GitCwdOptions = {}): Promise<strin
 
 /**
  * The branches that contain HEAD, sorted, or an empty array when git cannot
- * answer, a repository without commits, or no repository at all.
+ * answer — a repository without commits, or no repository at all.
  *
  * Remote-tracking branches count under their branch name, because a CI
  * checkout of a commit SHA usually has no local branch at all. The remote
@@ -115,9 +115,9 @@ export async function isRemoteHistoryClean (opts: GitCwdOptions = {}): Promise<b
  * Reads the current branch name from `.git/HEAD` without spawning a git subprocess.
  *
  * Returns:
- * - `string`, the branch name extracted from `ref: refs/heads/<name>`
- * - `null`, HEAD is detached (a raw commit SHA, not a symbolic ref)
- * - `undefined`, `.git/HEAD` could not be read (not a git repo, worktree
+ * - `string` — the branch name extracted from `ref: refs/heads/<name>`
+ * - `null` — HEAD is detached (a raw commit SHA, not a symbolic ref)
+ * - `undefined` — `.git/HEAD` could not be read (not a git repo, worktree
  *   layout not recognized, permissions error, etc.); caller should fall
  *   back to `git symbolic-ref`.
  */
@@ -130,7 +130,7 @@ function readBranchFromHeadFile (cwd?: string): string | null | undefined {
     if (stat.isDirectory()) {
       gitDir = dotGitPath
     } else if (stat.isFile()) {
-      // `.git` is a file, worktree or submodule. It contains `gitdir: <path>`.
+      // `.git` is a file — worktree or submodule. It contains `gitdir: <path>`.
       const content = fs.readFileSync(dotGitPath, 'utf8').trim()
       const match = content.match(/^gitdir:\s*(.+)/)
       if (!match) return undefined

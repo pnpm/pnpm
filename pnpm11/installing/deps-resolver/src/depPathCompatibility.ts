@@ -21,7 +21,7 @@ export function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChi
 // superset-or-equal, which is what lets a package whose child carries a peer
 // suffix absorb the variant whose child does not.
 // Compares dependency/peer *sets* only, not package identity, so callers must
-// pass depPaths already known to share a `pkgIdWithPatchHash`, otherwise two
+// pass depPaths already known to share a `pkgIdWithPatchHash` — otherwise two
 // unrelated leaf packages (both with empty sets) would count as compatible.
 // A pair reached twice is taken as compatible, which is what terminates
 // dependency cycles.

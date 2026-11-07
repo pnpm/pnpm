@@ -44,7 +44,7 @@ interface GraphNodeHashOpts {
 
 export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: IteratePkgsForVirtualStoreOptions): IterableIterator<PkgSnapshotWithLocation> {
   // Resolve the root project's pinned runtime Node version once per
-  // invocation, the result drives every snapshot's GVS hash (or
+  // invocation — the result drives every snapshot's GVS hash (or
   // the side-effects-cache key prefix in the non-GVS runtime
   // branch). `undefined` when no `engines.runtime` / `devEngines.runtime`
   // pin reached the lockfile, in which case the hasher falls through

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, Untyped third-party modules expose opaque values. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Untyped third-party modules expose opaque values. */
 declare module 'bole' {
   const anything: any
   export = anything

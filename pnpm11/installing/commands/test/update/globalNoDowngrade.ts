@@ -9,7 +9,7 @@ import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 // `--latest` resolves the `latest` dist-tag, which can point at an older
-// release than the one installed, that is what rolled a self-updated pnpm back
+// release than the one installed — that is what rolled a self-updated pnpm back
 // in pnpm/pnpm#14270. An update must never move a global package backwards.
 test('global update --latest keeps a package that latest would downgrade', async () => {
   prepare()

@@ -246,7 +246,7 @@ function fullMetadataPolicy (opts: FullMetadataPolicyOptions, supportsTimeField:
  * Whether a full packument, once fetched, is stored and read in pnpm's
  * filtered form rather than verbatim.
  *
- * Answered for the most demanding registry, one that carries no `time`,
+ * Answered for the most demanding registry — one that carries no `time` —
  * because {@link needsFullMetadataForRegistry} can ask for a full document at
  * a registry that {@link shouldFetchFullMetadata} would have left on
  * abbreviated metadata, and both have to agree on which mirror that document

@@ -11,7 +11,7 @@ export interface ProjectSelector {
   followProdDepsOnly?: boolean
   /**
    * Overrides how {@link parentDir} matches, for a selector pnpm generates
-   * rather than the user writing it. Left out, every parsed selector,
+   * rather than the user writing it. Left out — every parsed selector —
    * the selector follows the mode the whole filter pass runs in, which
    * `legacyDirFiltering` chooses.
    */

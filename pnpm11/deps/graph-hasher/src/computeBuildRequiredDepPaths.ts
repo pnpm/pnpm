@@ -7,7 +7,7 @@ import type { DepsGraph } from './types.js'
  * on, one of them.
  *
  * The result gates the engine string in {@link calcGraphNodeHash}: only a
- * package that may run a build script, or that depends on one, keeps the
+ * package that may run a build script — or that depends on one — keeps the
  * engine in its GVS hash. It is computed as one graph-wide reverse closure,
  * so a package inside a dependency cycle gets the same answer no matter
  * which node the hasher reaches it from.

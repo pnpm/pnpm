@@ -29,7 +29,7 @@ export function createCompletionServer (
     if (!env.complete) return
 
     const inputArgv = splitCmd(stripPartialWord(env)).slice(1)
-    // We cannot autocomplete what a user types after "pnpm test,"
+    // We cannot autocomplete what a user types after "pnpm test --"
     if (inputArgv.includes('--')) return
     const { params, options, cmd } = await opts.parseCliArgs(inputArgv)
     tabtab.log(

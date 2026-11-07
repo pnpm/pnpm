@@ -42,7 +42,7 @@ export function verifyRegistrySignature (
 
   // Pick the signature by key rather than by position. A package can carry
   // several, in no guaranteed order, and across a rotation one of them can be
-  // from a key this installer does not pin, which is not a reason to refuse a
+  // from a key this installer does not pin — which is not a reason to refuse a
   // package that another, pinned key also signed.
   const keys = opts.keys ?? NPM_SIGNING_KEYS
   const match = signatures

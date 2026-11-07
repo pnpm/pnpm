@@ -23,7 +23,7 @@ export type TestHeadlessOptions = Partial<HeadlessOptions> & {
   /** Project directories, expanded into `HeadlessOptions.projects`. */
   projects?: string[]
   /**
-   * Forwarded to the package store, which is what reads it, the headless
+   * Forwarded to the package store, which is what reads it — the headless
    * install itself has no such option.
    */
   verifyStoreIntegrity?: boolean

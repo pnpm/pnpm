@@ -19,12 +19,12 @@ export function maxBumpType (types: Array<string | undefined>): ReleaseBumpType 
 export interface NewVersionOptions {
   laneTag?: string
   /**
-   * The highest bump accumulated across the package's lane, the
+   * The highest bump accumulated across the package's lane — the
    * planned bump joined with the bumps of intents consumed by earlier
-   * prereleases, which keeps the stable target stable across `-tag.N` runs.
+   * prereleases — which keeps the stable target stable across `-tag.N` runs.
    */
   cumulativeBump: ReleaseBumpType
-  /** First release: publish `current` verbatim, a stable seed on a lane debuts at its first prerelease. See `unpublishedDirs`. */
+  /** First release: publish `current` verbatim — a stable seed on a lane debuts at its first prerelease. See `unpublishedDirs`. */
   firstRelease: boolean
 }
 

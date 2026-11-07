@@ -51,8 +51,8 @@ export async function tryFastUpdateOverrides (
 
 /**
  * Whether any of `fastOverrides` moves a package a catalog entry records the
- * version of. The entry would have to move with it, which is the catalog
- * rewrite's job, not this one's, so the move goes to the resolver instead.
+ * version of. The entry would have to move with it — which is the catalog
+ * rewrite's job, not this one's — so the move goes to the resolver instead.
  *
  * A `parent>child` selector names no importer edge, and only importer edges
  * are what a catalog entry resolves.
@@ -71,7 +71,7 @@ function movesACatalogedPackage (lockfile: LockfileObject, fastOverrides: FastOv
  * drove the rewrite, recorded alongside it.
  *
  * Returns `false` whenever the move cannot be proven safe from the lockfile
- * plus the resolved manifests, a locked child the new manifest no longer
+ * plus the resolved manifests — a locked child the new manifest no longer
  * admits, or a candidate the freshness check rejects.
  */
 export async function applyFastRewrite (

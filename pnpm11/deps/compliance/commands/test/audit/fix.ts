@@ -366,7 +366,7 @@ test('audit.ignorePrune persists the canonical form even when nothing is removed
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
-  // Both entries match the same advisory (a differently-cased duplicate),
+  // Both entries match the same advisory (a differently-cased duplicate) —
   // nothing gets removed, but the stored list should still collapse to the
   // single canonical entry.
   const { exitCode } = await audit.handler({
@@ -490,7 +490,7 @@ test('audit.ignorePrune updates the canonical audit.ignore list', async () => {
   expect(exitCode).toBe(0)
 
   // The retained list must land back on the canonical `audit.ignore` that
-  // supplied it, writing the deprecated `auditConfig.ignoreGhsas` instead
+  // supplied it — writing the deprecated `auditConfig.ignoreGhsas` instead
   // would let the unchanged canonical list shadow the prune on the next
   // read and restore the stale id.
   const manifest = readYamlFileSync<{ audit?: { ignorePrune?: boolean, ignore?: string[] }, auditConfig?: unknown }>(path.join(tmp, 'pnpm-workspace.yaml'))
@@ -820,8 +820,8 @@ describe('createMinimumReleaseAgeExcludes', () => {
     const advisories = [
       advisory('lodash-es', '<4.18.0', '>=4.18.0'),
     ]
-    // The `time` map spells 4.18.0 with a leading `v` while `versions`, the
-    // source of the deprecation set, does not.
+    // The `time` map spells 4.18.0 with a leading `v` while `versions` — the
+    // source of the deprecation set — does not.
     const publishTimes: Record<string, Record<string, string>> = {
       'lodash-es': { 'v4.18.0': '2026-01-07T23:00:00.000Z', '4.18.1': '2026-01-07T23:30:00.000Z' },
     }

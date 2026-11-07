@@ -133,7 +133,7 @@ test('console a warning when a project-level .npmrc uses an env variable in a re
   prepare()
 
   // Env placeholders in repository-controlled proxy URLs are not
-  // expanded at all, the setting is dropped with a dedicated warning
+  // expanded at all — the setting is dropped with a dedicated warning
   // instead of the generic env-replace one.
   fs.writeFileSync('.npmrc', 'https-proxy=${ENV_VAR_123}', 'utf8')
 
@@ -360,7 +360,7 @@ describe('installConfigDepsAndLoadHooks', () => {
     const { config, context } = buildPnpmfileConfig()
     await installConfigDepsAndLoadHooks(config, context, { forSelfUpdate: true })
 
-    // A repo-controlled .pnpmfile.cjs must not run during self-update, its
+    // A repo-controlled .pnpmfile.cjs must not run during self-update — its
     // updateConfig hook or custom resolvers/fetchers could steer the fetch.
     expect(fs.existsSync('pnpmfile-was-loaded')).toBe(false)
     expect(context.hooks?.updateConfig ?? []).toHaveLength(0)

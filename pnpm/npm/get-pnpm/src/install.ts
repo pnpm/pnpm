@@ -127,11 +127,11 @@ function projectVersionSpec (dir: string): string | undefined {
  * it globally and puts it on the PATH.
  *
  * Every download is checked against the checksum the registry published for it,
- * and that checksum against npm's signature, see `verifyRegistrySignature`.
+ * and that checksum against npm's signature — see `verifyRegistrySignature`.
  *
  * The temporary directory is assembled to look like the release tarball that
- * https://get.pnpm.io/install.sh downloads, the executable next to its `dist/`
- * tree, because `pnpm setup` installs that directory as-is.
+ * https://get.pnpm.io/install.sh downloads — the executable next to its `dist/`
+ * tree — because `pnpm setup` installs that directory as-is.
  *
  * With `modifyPath: false`, `pnpm setup --no-modify-path` leaves the shell
  * config and the Windows registry alone. A pnpm whose setup lacks that option
@@ -161,7 +161,7 @@ export async function installPnpm (
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
   const onSignal = (): void => {
     removeTmpDir()
-    // eslint-disable-next-line n/no-process-exit, a signal listener replaces the default handling, which would have ended the process
+    // eslint-disable-next-line n/no-process-exit -- a signal listener replaces the default handling, which would have ended the process
     process.exit(1)
   }
   for (const signal of signals) {
@@ -233,12 +233,12 @@ function readPathEnv (env: NodeJS.ProcessEnv): string | undefined {
 
 /**
  * Downloads the pnpm executable into `dest`, laid out the way the release
- * tarball lays it out, the executable next to the `dist/` tree it loads.
+ * tarball lays it out — the executable next to the `dist/` tree it loads.
  *
  * Every download is checked against the checksum the registry published for it,
  * and that checksum against npm's signature; see `verifyRegistrySignature`.
- * Nothing outside `dest` is touched, so a caller that manages its own PATH, a
- * CI action, say, can use this without the global install `installPnpm` does.
+ * Nothing outside `dest` is touched, so a caller that manages its own PATH — a
+ * CI action, say — can use this without the global install `installPnpm` does.
  *
  * @returns the version installed and the path to the executable.
  */
@@ -338,7 +338,7 @@ async function fetchPackages (
 
 /**
  * `pnpm setup` installs the directory as a package, writing a minimal manifest
- * when there is none, which is what the release tarball relies on. That
+ * when there is none — which is what the release tarball relies on. That
  * tarball bundles the runtime dependencies inside `dist/`; the registry copy
  * declares them instead, so up to v11 they have to be declared here or the
  * install silently loses them (`@reflink/reflink`, and with it copy-on-write

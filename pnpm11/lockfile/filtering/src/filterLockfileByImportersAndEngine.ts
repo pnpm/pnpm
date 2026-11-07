@@ -32,8 +32,8 @@ export interface FilterLockfileResult {
   /**
    * Dep paths reached by a non-optional edge from an importer or from a
    * package that is itself part of the install. Their installability is
-   * evaluated as non-optional, an incompatible one fails the install under
-   * `engineStrict` instead of being skipped, even when the lockfile marks
+   * evaluated as non-optional — an incompatible one fails the install under
+   * `engineStrict` instead of being skipped — even when the lockfile marks
    * the snapshot `optional: true` because the subtree happens to hang off an
    * optional dependency. Downstream consumers must classify by this set
    * rather than by `pkgSnapshot.optional` so every stage of a headless
@@ -190,15 +190,15 @@ function pickPkgsWithAllDeps (
  * of edge.
  *
  * An edge is only expanded once its source is known to be part of the
- * install, so the optionality of the edge, not the `optional` flag the
- * resolver propagated onto the snapshot, decides whether an incompatible
+ * install, so the optionality of the edge — not the `optional` flag the
+ * resolver propagated onto the snapshot — decides whether an incompatible
  * package is skipped: only a package whose every inbound edge is optional
  * stays out of the install.
  *
  * Traversal is breadth-first over edges rather than depth-first over
  * packages so the verdict does not depend on which edge happens to reach a
  * package first: a package left out on an optional edge is reconsidered when
- * a non-optional one arrives later. Nothing is reported from here, a
+ * a non-optional one arrives later. Nothing is reported from here — a
  * package can be visited once per inbound edge, and its installability must
  * be reported exactly once, which [reportInstallability] does afterwards.
  */
@@ -327,7 +327,7 @@ function toInstallabilityManifest (
 
 /**
  * Extend the picked set over the packages that are reachable but not part of
- * the install, an incompatible optional and everything below it. They stay
+ * the install — an incompatible optional and everything below it. They stay
  * in the filtered lockfile and are recorded as skipped, so a later install on
  * a host that does support them can pick them up without a re-resolution.
  */

@@ -30,7 +30,7 @@ export interface LockfileVerificationDoneMessage extends LockfileVerificationMes
 
 /**
  * Terminal event emitted on every exit path that emitted `started` but
- * didn't succeed, both policy violations (a `PnpmError` is about to be
+ * didn't succeed — both policy violations (a `PnpmError` is about to be
  * thrown with the breakdown) and unexpected throws from the registry
  * fan-out. Lets the reporter close out the transient `started` frame
  * in ansi-diff mode so it isn't left looking like a hung spinner above
@@ -48,7 +48,7 @@ export interface LockfileVerificationFailedMessage extends LockfileVerificationM
  * Emitted instead of a `started`/`done` pair when the verification
  * cache already holds a passing verdict for this lockfile content
  * under the same (or stricter) policy, so the gate short-circuited
- * without contacting the registry. Carries no `entries` count, the
+ * without contacting the registry. Carries no `entries` count — the
  * short-circuit happens before candidates are collected.
  */
 export interface LockfileVerificationCachedMessage extends LockfileVerificationMessageBase {

@@ -133,7 +133,7 @@ test('rejects an optionalDependency declared with a non-exact version', async ()
   prepareEmpty()
   const { storeController, storeDir } = createTempStore()
 
-  // @pnpm.e2e/foobar declares `@pnpm.e2e/bar: "^100.0.0"`, a range, not an exact version.
+  // @pnpm.e2e/foobar declares `@pnpm.e2e/bar: "^100.0.0"` — a range, not an exact version.
   await expect(resolveConfigDeps(['@pnpm.e2e/foobar@100.0.0'], {
     registriesByScope: {
       default: registry,

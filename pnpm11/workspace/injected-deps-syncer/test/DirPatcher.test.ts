@@ -335,7 +335,7 @@ test('removes what the source dropped before replacing the directory that held i
 
   // `became-a-file` is a modification, `became-a-file/dropped.txt` a
   // removal. Hold the removal back so it would land after the
-  // modification has linked a file over its parent, at which point
+  // modification has linked a file over its parent — at which point
   // the path it was given no longer has a directory in it.
   let delayNextRemoval = true
   fs.promises.rm = (async (target: fs.PathLike, options?: fs.RmOptions) => {

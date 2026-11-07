@@ -134,7 +134,7 @@ function parseStringValuedJsonObject (value: string, variable: string): Record<s
  * sources landing on top of earlier ones.
  *
  * A boolean says whether to read and write. It says nothing about the remote
- * tier, so one declared by an earlier source survives it, but it has to
+ * tier, so one declared by an earlier source survives it — but it has to
  * survive as a remote tier rather than by turning the boolean into an object,
  * which would move the whole declaration onto the object branch of
  * {@link resolveSideEffectsCache} and take it out of reach of

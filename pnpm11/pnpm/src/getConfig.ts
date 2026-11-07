@@ -78,9 +78,9 @@ export async function installConfigDepsAndLoadHooks (
     tolerateConfigDependenciesErrors?: boolean
     reconcileConfigDependencies?: boolean
     // Set by `self-update`: don't auto-load the repo-controlled default
-    // `.pnpmfile.(c|m)js`. Its `updateConfig` hook could rewrite any setting,
+    // `.pnpmfile.(c|m)js`. Its `updateConfig` hook could rewrite any setting —
     // including the release-age policy the config reader just resolved for
-    // self-update, and its `customResolvers`/`customFetchers` would take over
+    // self-update — and its `customResolvers`/`customFetchers` would take over
     // the pnpm download the trusted bootstrap registry is there to protect.
     // Pnpmfiles from trusted sources (the `pnpmfile` setting, the global
     // pnpmfile, config-dependency plugins) are still loaded.
@@ -252,7 +252,7 @@ export function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, confi
     if (isPluginName(configDepName)) {
       const pluginDir = path.join(configModulesDir, configDepName)
       // If the plugin directory itself is missing, the install didn't run
-      // (or hasn't run yet), skip silently. If the plugin directory exists
+      // (or hasn't run yet) — skip silently. If the plugin directory exists
       // but contains no pnpmfile, fall through to yield the .cjs path so
       // requireHooks surfaces PNPMFILE_NOT_FOUND for the misconfigured plugin.
       if (!fs.existsSync(pluginDir)) continue

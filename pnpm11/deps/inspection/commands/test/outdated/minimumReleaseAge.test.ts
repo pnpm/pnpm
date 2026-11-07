@@ -39,7 +39,7 @@ function loadHasOutdatedDeps (): void {
 }
 
 // A cutoff so far in the past that EVERY published version is "too new" to be
-// mature, the same technique as the install-side minimumReleaseAge suite
+// mature — the same technique as the install-side minimumReleaseAge suite
 // (allImmatureMinimumReleaseAge). Date-independent, so it does not depend on
 // any registry-mock package's historical publish timestamps.
 const allImmatureMinimumReleaseAge = Date.now() / (60 * 1000)
@@ -68,7 +68,7 @@ test('pnpm outdated honors minimumReleaseAge: immature newer versions are not of
   })
 
   // With every version immature, no upgrade target is mature, so outdated has
-  // nothing to report, exitCode 0 and 2.1.0 must not appear as available.
+  // nothing to report — exitCode 0 and 2.1.0 must not appear as available.
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).not.toContain('2.1.0')
 })

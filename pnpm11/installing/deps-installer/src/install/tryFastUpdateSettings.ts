@@ -74,7 +74,7 @@ function hasNoPeerDependencies (lockfile: LockfileObject, projects: Project[]): 
  * `excludeLinksFromLockfile` decides whether a dependency that resolves to a
  * directory is recorded in the lockfile. Dependencies declared with the
  * `workspace:` protocol are recorded either way, so only the other directory
- * dependencies matter, including plain ranges that `linkWorkspacePackages`
+ * dependencies matter — including plain ranges that `linkWorkspacePackages`
  * turns into links to a workspace project.
  */
 function hasNoLinkedDependencies (

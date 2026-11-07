@@ -5,7 +5,7 @@ type AuditSettings = NonNullable<WorkspaceManifest['audit']>
 
 /**
  * Set the audit ignore list to `ghsas` (the complete desired list) in
- * whichever spelling the manifest uses, the canonical `audit.ignore` wins
+ * whichever spelling the manifest uses — the canonical `audit.ignore` wins
  * over the deprecated `auditConfig.ignoreGhsas`, matching the reader's
  * precedence, so a stale canonical list can't shadow the update on the next
  * read. When both spellings are present, the shadowed deprecated list is

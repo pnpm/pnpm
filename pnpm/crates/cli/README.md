@@ -3,7 +3,7 @@
 [pnpm documentation](https://pnpm.io/pnpm-cli#options)
 
 | Done | Command                 | Notes |
-|,-- |,--------------------- |,--- |
+| ---- | ----------------------- | ----- |
 | ✅   | -C <path>, --dir <path> |       |
 |      | -w, --workspace-root    |       |
 
@@ -21,7 +21,7 @@
 - [ ] Install from Git repository
 
 | Done | Command                       | Notes |
-|,-- |,--------------------------- |,--- |
+| ---- | ----------------------------- | ----- |
 | ✅   | --save-prod                   |       |
 | ✅   | --save-dev                    |       |
 | ✅   | --save-optional               |       |
@@ -38,7 +38,7 @@
 [pnpm documentation](https://pnpm.io/cli/install)
 
 | Done | Command                     | Notes |
-|,-- |,------------------------- |,--- |
+| ---- | --------------------------- | ----- |
 | ✅   | --allow-build               |       |
 |      | --force                     |       |
 | ✅   | --offline                   | Frozen-install only: refuses network fetches; errors with `ERR_PNPM_NO_OFFLINE_TARBALL` when a snapshot isn't cached. Stage 2 resolver will additionally gate metadata fetches. |
@@ -63,7 +63,7 @@
 [pnpm documentation](https://pnpm.io/cli/run)
 
 | Done | Command                      | Notes                                                           |
-|,-- |,-------------------------- |,------------------------------------------------------------- |
+| ---- | ---------------------------- | --------------------------------------------------------------- |
 | ✅   | script-shell                 |                                                                 |
 |      | shell-emulator               |                                                                 |
 | ~    | --recursive                  | Runs every workspace project sequentially; no `--filter` yet    |
@@ -82,7 +82,7 @@
 [pnpm documentation](https://pnpm.io/cli/exec)
 
 | Done | Command                     | Notes                                                        |
-|,-- |,------------------------- |,---------------------------------------------------------- |
+| ---- | --------------------------- | ------------------------------------------------------------ |
 | ✅   | -c, --shell-mode            |                                                              |
 | ~    | --recursive                 | Runs every workspace project sequentially; no `--filter` yet |
 | ✅   | --resume-from <package>     |                                                              |
@@ -96,7 +96,7 @@
 [pnpm documentation](https://pnpm.io/cli/dlx)
 
 | Done | Command               | Notes |
-|,-- |,------------------- |,--- |
+| ---- | --------------------- | ----- |
 | ✅   | --package <pkg>       |       |
 | ✅   | --allow-build         |       |
 | ✅   | -c, --shell-mode      |       |
@@ -117,7 +117,7 @@
 [pnpm documentation](https://pnpm.io/cli/store)
 
 | Done | Command | Notes                                                     |
-|,-- |,----- |,------------------------------------------------------- |
+| ---- | ------- | --------------------------------------------------------- |
 |      | status  |                                                           |
 |      | add     |                                                           |
 | ~    | prune   | Currently prune removes all packages inside the directory |
@@ -132,7 +132,7 @@
 [pnpm documentation](https://pnpm.io/cli/pack)
 
 | Done | Command                      | Notes                                                                          |
-|,-- |,-------------------------- |,---------------------------------------------------------------------------- |
+| ---- | ---------------------------- | ------------------------------------------------------------------------------ |
 | ✅   | --dry-run                    |                                                                                |
 | ✅   | --pack-destination <dir>     |                                                                                |
 | ✅   | --json                       |                                                                                |

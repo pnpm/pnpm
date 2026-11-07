@@ -1696,7 +1696,7 @@ describe('add', () => {
       })
 
     // A catalog entry is read by every project referencing it, so it cannot
-    // hold a path that resolves against the project declaring it, the catalog
+    // hold a path that resolves against the project declaring it — the catalog
     // resolver refuses a `link:` / `file:` entry outright.
     expect(updatedManifest).toEqual({
       name: 'project1',
@@ -2811,7 +2811,7 @@ describe('update', () => {
       mutateOpts
     )
 
-    // The manifest should still have "catalog:", NOT a resolved version like "^1.3.0".
+    // The manifest should still have "catalog:" — NOT a resolved version like "^1.3.0".
     const updatedManifest = updatedProjects[0]?.manifest
     expect(updatedManifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
 
@@ -2916,7 +2916,7 @@ describe('update', () => {
       mutateOpts
     )
 
-    // The manifest should still have "catalog:", NOT a resolved version like "^100.1.0" or "100.1.0".
+    // The manifest should still have "catalog:" — NOT a resolved version like "^100.1.0" or "100.1.0".
     const updatedManifest = updatedProjects[0]?.manifest
     expect(updatedManifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
 
@@ -3125,7 +3125,7 @@ describe('update', () => {
       }
     )
 
-    // The manifest should still have "catalog:", NOT a resolved version.
+    // The manifest should still have "catalog:" — NOT a resolved version.
     expect(updatedManifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
 
     // The catalog should be updated to the latest version.
@@ -3251,7 +3251,7 @@ describe('update', () => {
       mutateOpts
     )
 
-    // project1 manifest should still have "catalog:", NOT a resolved version
+    // project1 manifest should still have "catalog:" — NOT a resolved version
     const project1Manifest = updatedProjects.find(p => p.rootDir.includes('project1'))?.manifest
     expect(project1Manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
   })
@@ -3311,7 +3311,7 @@ describe('update', () => {
       mutateOpts
     )
 
-    // The manifest should still have "catalog:", NOT a resolved version.
+    // The manifest should still have "catalog:" — NOT a resolved version.
     const project1Manifest = updatedProjects.find(p => p.rootDir.includes('project1'))?.manifest
     expect(project1Manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
   })
@@ -3386,7 +3386,7 @@ describe('update', () => {
       mutateOpts
     )
 
-    // Both manifests should still have "catalog:", NOT a resolved version
+    // Both manifests should still have "catalog:" — NOT a resolved version
     expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
     expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
 
@@ -3447,7 +3447,7 @@ describe('update', () => {
       mutateOpts
     )
 
-    // Both manifests should still have "catalog:", NOT a resolved version
+    // Both manifests should still have "catalog:" — NOT a resolved version
     expect(updatedProjects[0]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
     expect(updatedProjects[1]?.manifest?.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
 

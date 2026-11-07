@@ -111,7 +111,7 @@ describe('change command and intent-consuming version -r', () => {
     // Assert the committed-CHANGELOG flow: `repository` storage writes
     // CHANGELOG.md and deletes the consumed intent at version time. The default
     // `registry` storage instead parks the section and defers intent GC until
-    // the registry confirms publication, covered in the versioning package's
+    // the registry confirms publication — covered in the versioning package's
     // lifecycle tests.
     const opts = { ...baseOpts([lib, cli]), versioning: { changelog: { storage: 'repository' } } }
 
@@ -286,7 +286,7 @@ describe('change command and intent-consuming version -r', () => {
 
   it('a package renamed by publishConfig.name is probed under the name the registry knows', async () => {
     const lib = addPkg({ name: 'lib', version: '1100.0.0', publishConfig: { name: 'lib-on-npm' } })
-    // Only the published name is on the registry, the workspace name is either
+    // Only the published name is on the registry — the workspace name is either
     // absent or, as with `pacquet`, someone else's package.
     const opts = { ...baseOpts([lib]), checkVersionPublished: async (name: string) => name === 'lib-on-npm' }
 

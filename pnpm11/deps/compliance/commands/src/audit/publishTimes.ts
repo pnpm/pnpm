@@ -16,7 +16,7 @@ export interface PackumentPublishInfo {
   time: Record<string, string>
   /**
    * Versions the packument marks as deprecated. Deprecated versions are
-   * excluded from patched-version validation, a deprecated release is not a
+   * excluded from patched-version validation — a deprecated release is not a
    * viable fix even though it exists on the registry. Normalized rather than
    * kept as raw keys, because the `time` and `versions` maps may spell the
    * same release differently (`v1.2.3` vs `1.2.3`).
@@ -30,7 +30,7 @@ export type PublishTimesFetcher = (pkgName: string) => Promise<PackumentPublishI
  * Returns a memoized lookup of each package's {@link PackumentPublishInfo}, so
  * callers can tell which versions exist and whether one is young enough that
  * `minimumReleaseAge` would block it. `undefined` means the packument is
- * unknown, the request failed or it carries no `time` field; callers must
+ * unknown — the request failed or it carries no `time` field; callers must
  * treat that as "no information", not as "old".
  */
 export function createPublishTimesFetcher (opts: AuditOptions): PublishTimesFetcher {
@@ -123,8 +123,8 @@ export interface PublishedVersion {
 }
 
 /**
- * Returns the lowest non-deprecated published version satisfying `range`, the
- * version an inferred patched range actually resolves to, or `undefined` when
+ * Returns the lowest non-deprecated published version satisfying `range` — the
+ * version an inferred patched range actually resolves to — or `undefined` when
  * no published version satisfies it, whether it was never published, skipped,
  * yanked, or deprecated.
  *
@@ -169,7 +169,7 @@ function compareFixCandidates (left: semver.SemVer, right: semver.SemVer): numbe
 /**
  * Corrects inferred `patched_versions` ranges against the registry: the
  * inference from `vulnerable_versions` is purely syntactic, so the inferred
- * minimum may not be a viable fix, it may never have been published, been
+ * minimum may not be a viable fix — it may never have been published, been
  * skipped, been yanked, or been deprecated. When the inferred range is
  * satisfiable, it is narrowed to the lowest non-deprecated published version
  * (e.g. `>=4.17.24` becomes `>=4.18.1` when 4.17.24 does not exist and

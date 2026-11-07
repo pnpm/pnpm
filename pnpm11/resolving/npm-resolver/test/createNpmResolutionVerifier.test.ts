@@ -266,7 +266,7 @@ test('createNpmResolutionVerifier() abbreviated shortcut requires the pinned ver
   // Package's `modified` is well before the cutoff (default 1-day window
   // means modified=2010 is fine), but `0.0.2` was unpublished and is no
   // longer in `versions`. The shortcut must NOT return the package-level
-  // `modified` for that version, that would be a fail-open on a
+  // `modified` for that version — that would be a fail-open on a
   // missing pin. The verifier should fall through to the deeper layers
   // and end up reporting a violation (no source could surface the time).
   const abbreviatedMeta = {
@@ -348,7 +348,7 @@ test('createNpmResolutionVerifier() ignoreMissingTimeField passes the entry when
 test('createNpmResolutionVerifier() ignoreMissingTimeField still rejects a version the registry does not list', async () => {
   // The opt-in speaks for a registry that cannot date its releases, not for
   // a pin the registry has never heard of. The packument dates every version
-  // it lists, so the absent timestamp says the version is not there, the
+  // it lists, so the absent timestamp says the version is not there — the
   // same reading the unpublished-pin case gets without the flag.
   const meta = {
     name: 'listed-time-pkg',
@@ -562,7 +562,7 @@ test('createNpmResolutionVerifier() treats an empty-string integrity as missing'
 test('createNpmResolutionVerifier() treats a non-string integrity as missing', async () => {
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   for (const integrity of [true, [], {}] as unknown[]) {
-    // eslint-disable-next-line no-await-in-loop, the cases share one verifier and are checked one by one
+    // eslint-disable-next-line no-await-in-loop -- the cases share one verifier and are checked one by one
     const result = await verifier.verify(
       { integrity, tarball: REGISTRY_TARBALL } as unknown as Resolution,
       { name: 'foo', version: '1.0.0' }
@@ -719,8 +719,8 @@ test('createNpmResolutionVerifier() accepts a non-standard tarball URL that matc
 
 test('createNpmResolutionVerifier() treats a default-port / scheme difference as a match', async () => {
   // The lockfile URL and the registry metadata differ only by an explicit
-  // default port and the http/https scheme, benign normalizations, not
-  // tampering, so `sameTarballUrl` must canonicalize them away.
+  // default port and the http/https scheme — benign normalizations, not
+  // tampering — so `sameTarballUrl` must canonicalize them away.
   const meta = {
     name: 'aged-pkg',
     'dist-tags': { latest: '1.0.0' },
@@ -828,7 +828,7 @@ test('createNpmResolutionVerifier() propagates the registry fetch error instead 
 test('createNpmResolutionVerifier() still flags a version absent from fetched metadata as TARBALL_URL_MISMATCH', async () => {
   // The metadata fetch succeeds but does not list the pinned version. That is a
   // genuine verification failure (not a transport error), so it must stay
-  // TARBALL_URL_MISMATCH, distinct from TARBALL_URL_FETCH_FAILED.
+  // TARBALL_URL_MISMATCH — distinct from TARBALL_URL_FETCH_FAILED.
   const meta = {
     name: 'present-pkg',
     'dist-tags': { latest: '1.0.0' },

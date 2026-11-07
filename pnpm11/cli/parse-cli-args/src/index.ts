@@ -14,7 +14,7 @@ export interface ParsedCliArgs {
     original: string[]
   }
   params: string[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, option values have command-specific types
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
   options: Record<string, any>
   cmd: string | null
   unknownOptions: Map<string, string[]>

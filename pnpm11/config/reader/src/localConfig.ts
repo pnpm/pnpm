@@ -57,7 +57,7 @@ const AUTH_CFG_KEYS = [
  * 1. **Registry & auth:** needed to reach the same package sources
  *    (registries, tokens, certificates).
  * 2. **Node.js download mirrors:** same idea for Node.js runtime tarballs when
- *    those URIs are declared in `pnpm-workspace.yaml`, but only the `release`
+ *    those URIs are declared in `pnpm-workspace.yaml` — but only the `release`
  *    channel. Node publishes a signed `SHASUMS256.txt` for `release` alone, and
  *    the resolver verifies it (`verifySignature: releaseChannel === 'release'`).
  *    A workspace-supplied `rc`/`nightly` mirror would hand a repository both the

@@ -75,9 +75,9 @@ async function extractMetadata (manifest: PackageManifest, files: Map<string, st
 }
 
 // Drop:
-//   - missing / "Unknown", so serializers emit NOASSERTION / absence.
+//   - missing / "Unknown" — so serializers emit NOASSERTION / absence.
 //   - LICENSE-file-detected values that aren't SPDX-valid (e.g. "Eclipse Public
-//     License 1.0"), would produce non-compliant SPDX output. Manifest-declared
+//     License 1.0") — would produce non-compliant SPDX output. Manifest-declared
 //     licenses are trusted as-is; authors use SPDX expressions there.
 function serializableLicense (license: { name: string, licenseFile?: string } | undefined): string | undefined {
   if (!license || license.name === 'Unknown') return undefined

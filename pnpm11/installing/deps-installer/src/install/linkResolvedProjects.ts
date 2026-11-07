@@ -178,8 +178,8 @@ async function writeResolutionFiles (step: LinkContext, result: LinkPackagesResu
   }
   // `.pnp.cjs` is how a PnP project resolves, which makes it a
   // project-level artifact like the importer symlinks and the package
-  // map. `virtualStoreOnly`, how `pnpm fetch` warms a store without
-  // touching the project, must not write it.
+  // map. `virtualStoreOnly` — how `pnpm fetch` warms a store without
+  // touching the project — must not write it.
   if (opts.enablePnp && !opts.virtualStoreOnly) {
     const importerNames = Object.fromEntries(
       projects.map(({ manifest, id }) => [id, manifest.name ?? id])
@@ -254,7 +254,7 @@ async function buildDependencies (
   const depPaths = Object.keys(dependenciesGraph) as DepPath[]
   const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
 
-  // Only point Node at the loader when it was actually written,
+  // Only point Node at the loader when it was actually written —
   // `--require` on a missing file fails the script before it runs.
   const extraEnv = addNodeLoaderEnv(step, opts.scriptsOpts.extraEnv)
   if (!opts.ignoreScripts && !opts.virtualStoreOnly) {
@@ -426,7 +426,7 @@ async function runProjectLifecycleScripts (
     .map((project) => project.mutation === 'uninstallSome' ? { ...project, stages: POST_UNINSTALL_STAGES } : project) as ProjectToBeInstalled[]
   // The projects' own lifecycle scripts import dependency code linked
   // from the lockfile, so they are held to the same gate as dependency
-  // builds, also when no new dep paths made the buildModules branch run.
+  // builds — also when no new dep paths made the buildModules branch run.
   await opts.verifyLockfile?.()
   await runLifecycleHooksConcurrently({
     childConcurrency: opts.childConcurrency,

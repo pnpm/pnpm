@@ -42,7 +42,7 @@ export async function adHocSignMacBinary (target: ParsedTarget, outputFile: stri
 }
 
 // Resolve an external signer (`ldid`) to an absolute path via PATH, skipping
-// any match that resolves inside the project directory, a repo could ship
+// any match that resolves inside the project directory — a repo could ship
 // `node_modules/.bin/ldid` and, if that directory is on the developer's PATH,
 // get an attacker-controlled binary executed when packaging a darwin target.
 // Returns the first match outside the project, or throws PACK_APP_MACOS_SIGN_FAILED.

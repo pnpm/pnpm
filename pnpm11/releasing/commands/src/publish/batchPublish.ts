@@ -42,7 +42,7 @@ interface PackedPkg {
 /**
  * Publish all {@link pkgs} by sending a single `PUT /-/pnpr/v0/publish` request per target
  * registry, instead of one request per package. The endpoint is not part of the standard npm
- * registry API, the registry has to implement it explicitly (pnpr does), so this whole code
+ * registry API — the registry has to implement it explicitly (pnpr does), so this whole code
  * path is opt-in via the `--batch` flag.
  *
  * Every package is packed (and its `prepublishOnly`/`prepublish` scripts run) before anything
@@ -62,7 +62,7 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
     }))
   }
   for (const [registry, group] of packedByRegistry.entries()) {
-    // eslint-disable-next-line no-await-in-loop, a failed registry request stops the publish before the next registry
+    // eslint-disable-next-line no-await-in-loop -- a failed registry request stops the publish before the next registry
     await publishRegistryGroup({ registry, group, opts, publishOptionsByRegistry })
   }
   return packedPkgs.map(({ summary }) => summary)
@@ -90,7 +90,7 @@ async function packPkgsForBatch (pkgs: Project[], opts: BatchPublishOptions): Pr
   const packedByRegistry = new Map<string, PackedPkg[]>()
   const packedPkgs: PackedPkg[] = []
   for (const project of pkgs) {
-    // eslint-disable-next-line no-await-in-loop, projects run their prepublish scripts and pack one at a time, in the order given
+    // eslint-disable-next-line no-await-in-loop -- projects run their prepublish scripts and pack one at a time, in the order given
     const packedPkg = await packPkgForBatch(project, opts)
     const { publishedManifest } = packedPkg
     const { registry } = findRegistryInfo(publishedManifest, opts, getPublishConfigRegistry(publishedManifest.publishConfig, publishedManifest.name))
@@ -128,7 +128,7 @@ async function publishRegistryGroup ({ registry, group, opts, publishOptionsByRe
   }
   if (opts.ignoreScripts) return
   for (const { project } of group) {
-    // eslint-disable-next-line no-await-in-loop, publish scripts run one project at a time, in the order given
+    // eslint-disable-next-line no-await-in-loop -- publish scripts run one project at a time, in the order given
     await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
   }
 }
@@ -164,7 +164,7 @@ async function packPkgForBatch (project: Project, opts: BatchPublishOptions): Pr
   if (!opts.ignoreScripts) {
     await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['prepublishOnly', 'prepublish'], project.manifest)
   }
-  // The tarball is packed into a temporary directory and read into memory right away, the
+  // The tarball is packed into a temporary directory and read into memory right away — the
   // request body carries it base64-encoded, so nothing needs to stay on disk.
   // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
   const { temporaryDirectory } = await import('tempy')
@@ -268,7 +268,7 @@ interface PublishDocument {
 }
 
 /**
- * Build the npm publish document for one package, the same JSON body `libnpmpublish` would
+ * Build the npm publish document for one package — the same JSON body `libnpmpublish` would
  * send as the whole `PUT /:pkg` request. The batch publish request body is an array of these,
  * which lets the registry reuse its single-package publish pipeline per entry.
  */

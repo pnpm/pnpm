@@ -56,7 +56,7 @@ export interface ImportIndexedDirOptions {
 }
 
 // What one call to importIndexedDir is importing, threaded to the helpers that
-// need all of it, including the retries, which re-enter with a rewritten map.
+// need all of it — including the retries, which re-enter with a rewritten map.
 export interface IndexedDirImport {
   importer: Importer
   newDir: string

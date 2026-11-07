@@ -41,7 +41,7 @@ export interface CreateBinaryFetcherOptions {
 export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary: BinaryFetcher } {
   // Snapshot and pre-compile `archiveFilters` at creation time so later mutations to the
   // caller's object can't reintroduce invalid patterns, and so zip extraction doesn't
-  // recompile the regex per fetch. The tarball path still needs the pattern string, it
+  // recompile the regex per fetch. The tarball path still needs the pattern string — it
   // crosses the worker thread boundary, where RegExp instances don't survive structured clone.
   const archiveFilters = compileArchiveFilters(ctx.archiveFilters)
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {

@@ -47,8 +47,8 @@ function isUpdateRequested (
   }
   // A changed specifier forgets the edge's lockfile reference before
   // resolution (e.g. `pnpm audit --fix` widening a vulnerable pin), so
-  // the target would otherwise lose its updateRequested status, and
-  // keep its seeded lockfile pins, at the very moment it is being
+  // the target would otherwise lose its updateRequested status — and
+  // keep its seeded lockfile pins — at the very moment it is being
   // updated. Fall back to matching by the wanted dependency itself.
   return wantedDependencyMatchesUpdateTarget(ctx, updateMatching, wantedDependency)
 }
@@ -114,7 +114,7 @@ export function getResolveDependencyOptions (
  * Whether a wanted dependency without a lockfile reference matches the
  * update target by package name. The name is parsed from the bare
  * specifier, so an `npm:` alias matches by the real package name it
- * installs, `foo@npm:bar@^4` matches an update target of `bar`, not
+ * installs — `foo@npm:bar@^4` matches an update target of `bar`, not
  * `foo`. Exotic specifiers the npm parser rejects fall back to the alias.
  */
 function wantedDependencyMatchesUpdateTarget (

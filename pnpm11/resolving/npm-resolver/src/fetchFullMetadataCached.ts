@@ -26,7 +26,7 @@ export interface FetchMetadataCachedOptions {
    * pnpm's on-disk cache directory. When set, the call issues a conditional
    * GET against the matching mirror the resolver populates: a 304 Not
    * Modified response serves the body from disk, a 200 writes the new body
-   * back. Omit to disable caching, every call re-fetches.
+   * back. Omit to disable caching — every call re-fetches.
    */
   cacheDir?: string
   /**
@@ -56,7 +56,7 @@ export async function fetchFullMetadataCached (
 /**
  * Sibling of {@link fetchFullMetadataCached} that hits the abbreviated
  * metadata endpoint (`Accept: application/vnd.npm.install-v1+json`) and
- * caches under `ABBREVIATED_META_DIR`, the same mirror the resolver
+ * caches under `ABBREVIATED_META_DIR` — the same mirror the resolver
  * populates by default.
  */
 export async function fetchAbbreviatedMetadataCached (
@@ -89,7 +89,7 @@ async function fetchMetadataCached (
   if (!conditional.notModified) return persistFetchedMeta(pkgMirror, conditional, opts.fullMetadata)
 
   // A 304 only resolves as `notModified` when a validator was sent, which
-  // requires cache headers loaded from a mirror, so a null mirror here is an
+  // requires cache headers loaded from a mirror — so a null mirror here is an
   // unreachable invariant breach.
   if (pkgMirror == null) throw new Error(`Unexpected 304 for ${pkgName} without a metadata cache`)
   const cached = await loadMeta(pkgMirror, { hydrateEagerly: true })
@@ -99,7 +99,7 @@ async function fetchMetadataCached (
   // (concurrent store cleanup, antivirus, ...) or a version fragment in it is
   // corrupt, so the 304 now validates nothing. Ask again
   // as a cold cache would, which the registry can only answer with a body or an
-  // error, never another 304.
+  // error — never another 304.
   return persistFetchedMeta(pkgMirror, await refetchBypassingCache(fetchOpts, pkgName, opts), opts.fullMetadata)
 }
 
@@ -134,7 +134,7 @@ async function refetchBypassingCache (
 }
 
 // Persist a freshly downloaded body so the next install can do a headers-only
-// conditional GET, then hand its meta back. Fire-and-forget, a cache-write
+// conditional GET, then hand its meta back. Fire-and-forget — a cache-write
 // failure isn't a reason to fail the caller; the next install just won't get
 // the speedup.
 function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult, mirrorFullMetadata: boolean): PackageMeta {

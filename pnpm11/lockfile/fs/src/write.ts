@@ -31,7 +31,7 @@ export function lockfileYamlDump (obj: object): string {
 }
 
 /**
- * Returns the canonical post-write lockfile, structurally identical
+ * Returns the canonical post-write lockfile — structurally identical
  * to what `readWantedLockfile` would parse back. Lets callers like
  * the verification cache hash the as-saved form without re-reading.
  */
@@ -203,7 +203,7 @@ export function isEmptyLockfile (lockfile: LockfileObject): boolean {
 
 export interface WriteLockfilesResult {
   /**
-   * The canonical "as-saved" wanted lockfile, the inverse converter
+   * The canonical "as-saved" wanted lockfile — the inverse converter
    * applied to the same object that was serialized to YAML. Hashing
    * this is equivalent to hashing the lockfile the next install will
    * load from disk (modulo undefined values that YAML drops, which any

@@ -525,7 +525,7 @@ test('epic selectors are order-dependent: a later include overrides an earlier n
     projects,
     intents: [makeIntent('one', { pnpm: 'major' })],
     ledger: NO_LEDGER,
-    // '!./pkgs/b' first, then './pkgs/**', the later include wins, so b is a member.
+    // '!./pkgs/b' first, then './pkgs/**' — the later include wins, so b is a member.
     versioning: { epics: [{ lead: './pnpm', packages: ['!./pkgs/b', './pkgs/**'] }] },
   })
   expect(plan.releases.map((release) => release.name).sort()).toStrictEqual(['@scope/a', '@scope/b', 'pnpm'])

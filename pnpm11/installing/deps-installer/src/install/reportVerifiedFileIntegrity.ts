@@ -9,7 +9,7 @@ const SLOW_MS = 1000
 
 /**
  * Re-hashing this many files says something keeps invalidating the
- * store even when the hashing itself was quick, worth telling the user
+ * store even when the hashing itself was quick — worth telling the user
  * about before the store grows and the same churn does cost them time.
  */
 const MANY_FILES = 1000
@@ -18,7 +18,7 @@ const MANY_FILES = 1000
  * Tell the user when store verification re-hashed files: how much time
  * it cost, or failing that, that it happened at all on a scale a
  * healthy store never reaches. The two are separate claims, so they are
- * separate messages, and the timed one wins when both hold, it carries
+ * separate messages, and the timed one wins when both hold — it carries
  * the file count anyway.
  *
  * `verified` covers this install alone, and its `ms` is summed across

@@ -4,7 +4,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 /**
  * Check if any custom resolver's shouldRefreshResolution returns true for any
  * package in the lockfile. shouldRefreshResolution is called independently of
- * canResolve, it runs before resolution, so the original specifier is not
+ * canResolve — it runs before resolution, so the original specifier is not
  * available. Each resolver's shouldRefreshResolution is responsible for its own
  * filtering logic.
  */

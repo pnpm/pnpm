@@ -17,7 +17,7 @@ export interface TaskNode {
   taskName: string
   concurrency?: number
   /**
-   * The scripts of the project that the task name selected, several when the
+   * The scripts of the project that the task name selected — several when the
    * task name is a RegExp selector. Empty when the project has no such
    * script: the task is then a pass-through that runs nothing, completes as
    * soon as its dependencies have, and is reported as skipped, so that a
@@ -259,7 +259,7 @@ export interface ResumeTaskGraphOptions {
 
 /**
  * When durable state is available, the graph without exactly those completed
- * tasks. Otherwise, the graph without the anchor's transitive dependencies,
+ * tasks. Otherwise, the graph without the anchor's transitive dependencies —
  * the tasks inferred to have finished before a run would reach the anchor.
  * The anchor itself and unfinished work stay, and edges into the dropped set
  * are treated as satisfied.
@@ -318,7 +318,7 @@ function transitiveDependencies (graph: TaskGraph, anchorKeys: Set<TaskKey>): Se
  * every script-running task lies on one dependency chain, so the graph forces
  * them to run one after another.
  *
- * `sequencedTasks` is {@link sequenceTasks}'s result, the proof the graph is
+ * `sequencedTasks` is {@link sequenceTasks}'s result — the proof the graph is
  * acyclic, and the evaluation order for the longest-chain scan.
  */
 export function isSerialTaskGraph (graph: TaskGraph, sequencedTasks: TaskKey[]): boolean {
@@ -383,7 +383,7 @@ function compareTaskIds (left: DryRunTaskDependency, right: DryRunTaskDependency
 }
 
 /**
- * What plain `--dry-run` prints: one valid linearization of the graph, not
+ * What plain `--dry-run` prints: one valid linearization of the graph — not
  * the order the scheduler will follow. Ties among simultaneously runnable
  * tasks are broken by project directory, so two dry runs of one workspace
  * print the same thing and their diff is meaningful.

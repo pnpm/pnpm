@@ -396,7 +396,7 @@ snapshots:
 
     expect(exitCode).toBe(1)
     const parsed = JSON.parse(output)
-    // DEV_VULN_ONLY_RESP has 2 critical advisories, only those should be
+    // DEV_VULN_ONLY_RESP has 2 critical advisories — only those should be
     // included at audit-level=critical.
     expect(Object.keys(parsed.advisories)).toHaveLength(2)
     for (const advisory of Object.values(parsed.advisories) as Array<{ severity: string }>) {

@@ -113,7 +113,7 @@ export async function resolveProjects (
  * so the target re-resolves exactly as a fresh install would after its
  * lockfile entries were deleted.
  * Caller-supplied preferred versions (audit-fix vulnerability penalties)
- * layer on top of the seed per package name, replacing the seed with
+ * layer on top of the seed per package name — replacing the seed with
  * them would unpin every unrelated package.
  */
 function seedPreferredVersions (ctx: PnpmContext, opts: InstallInContextOptions): PreferredVersions {

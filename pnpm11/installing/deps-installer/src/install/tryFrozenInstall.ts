@@ -128,9 +128,9 @@ async function lockfileIsUpToDateWithProjects (
   { needsFullResolution, untrackedReadPackageHookMayHaveChanged }: FrozenInstallArgs
 ): Promise<boolean> {
   if (needsFullResolution || !opts.preferFrozenLockfile) return false
-  // A `readPackage` hook the pnpmfile checksum cannot vouch for, a
+  // A `readPackage` hook the pnpmfile checksum cannot vouch for — a
   // programmatic one, or one from the checksum-excluded global
-  // pnpmfile, makes "up to date" unverifiable: an edit to it leaves
+  // pnpmfile — makes "up to date" unverifiable: an edit to it leaves
   // no trace the lockfile comparison can see, so the lockfile must
   // not be trusted blindly here. (The explicit `--frozen-lockfile`
   // branch above keeps its contract: it never resolves.)

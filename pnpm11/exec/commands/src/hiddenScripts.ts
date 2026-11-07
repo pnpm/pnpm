@@ -15,7 +15,7 @@ export function throwOrFilterHiddenScripts (specifiedScripts: string[], scriptNa
       hint: 'Scripts starting with "." are hidden and can only be called from other scripts.',
     })
   }
-  // Regex/glob matched both visible and hidden, filter out hidden
+  // Regex/glob matched both visible and hidden — filter out hidden
   const visible = specifiedScripts.filter((scriptName) => !scriptName.startsWith('.'))
   if (visible.length > 0) return visible
   // Only hidden scripts matched

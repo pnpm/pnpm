@@ -172,7 +172,7 @@ export const createTestIpcServer = TestIpcServer.listen
  * constraint by construction.
  */
 function quoteShellArg (arg: string): string {
-  // Anchored allowlist, CodeQL recognizes this as a sanitization barrier for
+  // Anchored allowlist — CodeQL recognizes this as a sanitization barrier for
   // shell-injection sinks.
   if (arg.length === 0 || !/^[\w\-./\\:@ +=,~]+$/.test(arg) || arg.endsWith('\\')) {
     throw new Error(`Unsupported character in shell argument: ${JSON.stringify(arg)}`)

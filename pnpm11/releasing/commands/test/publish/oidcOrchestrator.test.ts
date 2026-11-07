@@ -9,7 +9,7 @@ import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } 
 // CI-specific JWT claims (`repository_visibility` / `project_visibility`). Without one
 // of those flags being true, the visibility branch can't fire.
 //
-// All registry HTTP traffic, token exchange, visibility check, goes through
+// All registry HTTP traffic — token exchange, visibility check — goes through
 // `@pnpm/network.fetch`, which wraps `undici.fetch`. We intercept at the undici layer
 // with `MockAgent` so the wrapper's retry/response-handling code runs for real.
 const ciInfoModule = await import('ci-info')
@@ -32,7 +32,7 @@ const PACKAGE_NAME = '@scope/pkg'
 // Build the URL-escaped form dynamically rather than hardcoding it, both because that's
 // what the source uses (via `npa(...).escapedName`, lowercase percent-encoding) and to
 // avoid spell-checking complaints about the synthesized substring. The global regex
-// keeps CodeQL happy too, npm package names only ever have one `/` (scope separator),
+// keeps CodeQL happy too — npm package names only ever have one `/` (scope separator),
 // but pattern-matching on `replace('/', ...)` would still flag this line.
 const ESCAPED_PACKAGE_NAME = PACKAGE_NAME.replace(/\//g, '%2f')
 const TOKEN_EXCHANGE_PATH = `/-/npm/v1/oidc/token/exchange/package/${ESCAPED_PACKAGE_NAME}`
@@ -113,7 +113,7 @@ describe('fetchTokenAndProvenanceByOidc', () => {
     // Real-world fallback path: on `pnpm publish -r` for a workspace where some packages
     // don't have trusted publishing configured, the registry returns a 4xx and we want the
     // caller to fall back to the static `_authToken`. Critically, we must NOT call the
-    // visibility endpoint after auth has failed, verify by registering only one interceptor
+    // visibility endpoint after auth has failed — verify by registering only one interceptor
     // and asserting it (and only it) was consumed.
     const pool = mockAgent.get(REGISTRY_ORIGIN)
     pool.intercept({ path: TOKEN_EXCHANGE_PATH, method: 'POST' })
@@ -134,7 +134,7 @@ describe('fetchTokenAndProvenanceByOidc', () => {
 
     const result = await fetchTokenAndProvenanceByOidc(PACKAGE_NAME, REGISTRY, baseOptions)
 
-    // The publish itself can still go through with the OIDC token, we just couldn't decide
+    // The publish itself can still go through with the OIDC token — we just couldn't decide
     // whether to flip on provenance. Matches npm CLI behavior.
     expect(result).toEqual({ authToken: 'oidc-auth-token' })
     expect(result?.provenance).toBeUndefined()
@@ -159,7 +159,7 @@ describe('fetchTokenAndProvenanceByOidc', () => {
   })
 
   test('returns undefined silently when no idToken is available — must not call the registry on local publishes', async () => {
-    // The "OIDC not applicable" branch, most common case for any non-CI / un-configured
+    // The "OIDC not applicable" branch — most common case for any non-CI / un-configured
     // publish. Must not warn or hit the network. We register no interceptors; with
     // `disableNetConnect` active, any HTTP attempt would throw.
     delete process.env['NPM_ID_TOKEN']

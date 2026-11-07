@@ -174,7 +174,7 @@ async function runTask (ctx: ExecRunContext, node: TaskNode, key: TaskKey): Prom
 async function runCommandTask (ctx: ExecRunContext, node: TaskNode, key: TaskKey): Promise<TaskCompletion> {
   // Under --bail a failure stops dispatch, and so does a signal that
   // reached pnpm, but a task already queued behind the concurrency
-  // limit has been dispatched in name only, starting it now would
+  // limit has been dispatched in name only — starting it now would
   // grow the failed or interrupted run. It stays 'queued'.
   if ((ctx.opts.bail && ctx.firstError != null) || ctx.interruptedBy) {
     return 'passed'

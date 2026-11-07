@@ -19,7 +19,7 @@ async function runPnpm (): Promise<void> {
     await errorHandler(err)
   } finally {
     // `pnpm --version` short-circuits main() after switchCliVersion has
-    // already spawned the worker pool, drain it here so the event loop
+    // already spawned the worker pool — drain it here so the event loop
     // can exit. Swallow rejections so cleanup never masks the real result.
     try {
       await finishWorkers()

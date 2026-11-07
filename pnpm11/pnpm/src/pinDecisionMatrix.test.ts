@@ -154,7 +154,7 @@ test('pin_decision_matrix', async () => {
   for (const testCase of fixture.cases) {
     recordedAt = undefined
     switchedVersion = undefined
-    // eslint-disable-next-line no-await-in-loop, each case sets process.env.XDG_CONFIG_HOME
+    // eslint-disable-next-line no-await-in-loop -- each case sets process.env.XDG_CONFIG_HOME
     const actual = await runMatrixCase(testCase)
     expect({ id: testCase.id, ...actual }).toEqual({ id: testCase.id, ...testCase.expected })
   }

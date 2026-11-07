@@ -152,7 +152,7 @@ export function encodePkgName (pkgName: string): string {
  * the on-disk `metaDir` split: a `filterMetadata` resolver stores a `clearMeta`-
  * stripped packument, so it must not share a slot with an unfiltered full one
  * (reachable only when a `metaCache` is shared across resolvers with different
- * settings). `filterMetadata` only narrows the full slot, abbreviated metadata
+ * settings). `filterMetadata` only narrows the full slot — abbreviated metadata
  * shares one on-disk mirror regardless, so its key carries no filtered variant.
  * `\x00` can't appear in a registry URL or a package name, so it's an
  * unambiguous separator. The verifier reads this same cache and must build the
@@ -197,7 +197,7 @@ export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: s
 export async function legacyMirrorHint (cacheDir: string, metaDir: string, registry: string, pkgName: string): Promise<string | undefined> {
   for (const legacyMirror of getLegacyPkgMirrorPaths(cacheDir, metaDir, registry, pkgName)) {
     try {
-      // eslint-disable-next-line no-await-in-loop, the candidates are probed in order and the first hit wins
+      // eslint-disable-next-line no-await-in-loop -- the candidates are probed in order and the first hit wins
       await fs.access(legacyMirror)
     } catch {
       continue

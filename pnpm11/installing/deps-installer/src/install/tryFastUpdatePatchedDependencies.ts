@@ -28,9 +28,9 @@ type Rekeys = Map<DepPath, DepPath>
  * them move, which is a rewrite of the loaded lockfile rather than a
  * re-resolve.
  *
- * Returns `false`, nothing changed, a patched package is reachable as a peer,
+ * Returns `false` — nothing changed, a patched package is reachable as a peer,
  * or the new configuration leaves a patch unused while `allowUnusedPatches` is
- * off, which keeps the full-resolution path, where `ERR_PNPM_UNUSED_PATCH` is
+ * off — which keeps the full-resolution path, where `ERR_PNPM_UNUSED_PATCH` is
  * raised.
  */
 export function tryFastUpdatePatchedDependencies (
@@ -61,7 +61,7 @@ export function tryFastUpdatePatchedDependencies (
  * Whether every configured patch still has a package to apply to.
  *
  * A patch with none left is `ERR_PNPM_UNUSED_PATCH`, which only a resolution
- * raises, `verifyPatches` runs from the resolver, so a rewrite that would
+ * raises — `verifyPatches` runs from the resolver — so a rewrite that would
  * produce one has to decline and let the resolver report it. Any handler that
  * drops an edge can produce one, not only a changed patch configuration.
  *

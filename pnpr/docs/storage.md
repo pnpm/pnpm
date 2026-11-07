@@ -226,7 +226,7 @@ metadata:
 ## Options
 
 | Key | Required | Description |
-|,- |,- |,- |
+| --- | --- | --- |
 | `bucket` | yes | Bucket the hosted packages and enabled shared artifacts are stored in. |
 | `region` | no | AWS S3 needs a real region (e.g. `us-east-1`); Cloudflare R2 uses `auto`. |
 | `endpoint` | no | Custom endpoint for S3-compatible providers. Omit for AWS S3; for R2 it's `https://<account-id>.r2.cloudflarestorage.com`; for MinIO it's e.g. `http://127.0.0.1:9000`. |

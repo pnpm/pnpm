@@ -36,8 +36,8 @@ export function toLockfileResolution (
 }
 
 function serializeNonTarballResolution (resolution: Resolution): LockfileResolution {
-  // Nothing checks a git checkout against a hash, the commit pins the
-  // content, so an `integrity` some other tool recorded on a git
+  // Nothing checks a git checkout against a hash — the commit pins the
+  // content — so an `integrity` some other tool recorded on a git
   // resolution is dropped rather than written back, instead of standing
   // in the lockfile as a check that never runs.
   if (resolution.type === 'git' && 'integrity' in resolution) {

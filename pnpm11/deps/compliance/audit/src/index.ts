@@ -106,7 +106,7 @@ function parseBulkResponse (auditUrl: string, rawBody: string): BulkAdvisoriesRe
 }
 
 function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: AuditIndexRequest, auditPathIndex: AuditPathIndex): AuditReport {
-  // Null-prototype map, the id comes from the registry and could be anything.
+  // Null-prototype map — the id comes from the registry and could be anything.
   const advisories: Record<string, AuditAdvisory> = Object.create(null)
   const vulnerabilities: AuditVulnerabilityCounts = { info: 0, low: 0, moderate: 0, high: 0, critical: 0 }
 
@@ -206,7 +206,7 @@ function inferPatchedVersions (vulnerableRange: string): string | undefined {
   // Matches `<X.Y.Z` or `<= X.Y.Z` (with optional whitespace after the operator)
   // at the end of the range, optionally preceded by other comparators like
   // `>=0.8.1 <0.28.0`. Returns undefined if the range doesn't have a
-  // recognizable upper bound, callers must not confuse that with "no fix".
+  // recognizable upper bound — callers must not confuse that with "no fix".
   const trimmed = vulnerableRange.trim()
   const ltMatch = trimmed.match(/(?:^|\s)<\s*(\d+\.\d+\.\d[\w\-.+]*)\s*$/)
   if (ltMatch) return `>=${ltMatch[1]}`

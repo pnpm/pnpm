@@ -101,7 +101,7 @@ function subtractDepPaths (minuend: Set<DepPath>, subtrahend: Set<DepPath>): Set
 
 // Explicit stack rather than recursion: a lockfile is untrusted input, and a
 // deep dependency chain would otherwise overflow the call stack. Order does not
-// matter, the result is the reachable set, so a LIFO walk is equivalent.
+// matter — the result is the reachable set, so a LIFO walk is equivalent.
 function walkReachable (
   lockfile: LockfileObject,
   depPaths: DepPath[],

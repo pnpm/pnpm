@@ -106,7 +106,7 @@ test('project lifecycle scripts do not run when lockfile verification fails even
   rimrafSync('created-by-project-postinstall')
 
   // `enableModulesDir: false` skips the dependency build phase entirely, so
-  // the project's own hooks are the only script-execution path left, they
+  // the project's own hooks are the only script-execution path left — they
   // must still wait for the verification verdict.
   await expect(
     install(manifest, testDefaults({

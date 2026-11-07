@@ -112,8 +112,8 @@ function renderView (frame: LiveFrame, view: string): string {
   const visible = view.slice(viewOffsetOfLine(view, lines, frame.committedLines))
   // `\r` resets the column to 0 in case an external process (e.g. an SSH
   // passphrase prompt) left the cursor mid-line. `ansi-diff` then writes
-  // only the differential, the characters that actually changed between
-  // the previous frame and this one, so sticky blocks like the lockfile
+  // only the differential — the characters that actually changed between
+  // the previous frame and this one — so sticky blocks like the lockfile
   // verdict and deprecation warnings are not re-written on every progress
   // tick. `\x1b[K` erases trailing characters on the current line.
   return `\r${committed}${frame.differ.update(visible)}\x1b[K${ERASE_TO_END_OF_DISPLAY}`
@@ -127,7 +127,7 @@ function renderView (frame: LiveFrame, view: string): string {
  * `ansi-diff` redraws by moving the cursor up from the end of its frame, so
  * it can only reach lines that are still on screen. A frame taller than the
  * terminal has scrolled its top away, and every later redraw then lands that
- * many rows too low, overwriting output above the frame instead of updating
+ * many rows too low — overwriting output above the frame instead of updating
  * it (pnpm/pnpm#14270). Committing the overflow keeps the frame within the
  * terminal, at the cost of no longer being able to revise what was committed.
  */
@@ -139,7 +139,7 @@ function commitOverflow (frame: LiveFrame, lines: string[]): string {
     resetDiffer(frame)
   }
   if (lines.length <= frame.committedLines) {
-    // The view no longer reaches past what was committed, an error frame
+    // The view no longer reaches past what was committed — an error frame
     // replaces it rather than extending it. Render it whole, below.
     frame.committedLines = 0
     resetDiffer(frame)
@@ -151,8 +151,8 @@ function commitOverflow (frame: LiveFrame, lines: string[]): string {
   // below the frame.
   const maxRows = Math.max(rows - 1, 1)
   const layout = layOutFrame(lines, { committedLines: frame.committedLines, width: frame.differWidth, maxRows })
-  // A frame taller than the terminal has scrolled its own top away, whether
-  // because a line outgrew the screen or because the window shrank under it,
+  // A frame taller than the terminal has scrolled its own top away — whether
+  // because a line outgrew the screen or because the window shrank under it —
   // so no cursor move reaches back into it, and growing the window again does
   // not bring it back. Start afresh below instead, reprinting rather than
   // revising, and leave the commit for the next frame, whose layout is one
@@ -195,8 +195,8 @@ function layOutFrame (
   for (let lineIndex = committedLines; lineIndex < lines.length; lineIndex++) {
     uncommittedRows += renderedRows(lines[lineIndex], width)
   }
-  // The last line always stays in the frame, there would be nothing left to
-  // redraw otherwise, so the walk upwards starts one line above it.
+  // The last line always stays in the frame — there would be nothing left to
+  // redraw otherwise — so the walk upwards starts one line above it.
   let firstVisible = lines.length - 1
   let frameRows = renderedRows(lines[firstVisible], width)
   for (let lineIndex = firstVisible - 1; lineIndex >= committedLines; lineIndex--) {

@@ -12,7 +12,7 @@ import { dropIncompletePublishTimes } from './publishTimes.js'
 
 /**
  * Reading a lazily-hydrated version manifest throws this when its fragment
- * bytes are not valid JSON, the index vouched for the span, so the file is
+ * bytes are not valid JSON — the index vouched for the span, so the file is
  * corrupt. Callers treat the whole document like an unreadable mirror (a
  * cache miss), the same way whole-file corruption reads as `null` from
  * {@link loadMeta}; corruption discovered lazily must not degrade into
@@ -57,7 +57,7 @@ export interface MirrorHeadersBody {
  * parses the two records; a version's manifest is parsed on first access.
  *
  * A file whose first line isn't this is the two-line NDJSON layout (headers
- * JSON, newline, packument JSON), which loads eagerly, that is how a
+ * JSON, newline, packument JSON), which loads eagerly — that is how a
  * `filterMetadata` document is still written. Reading an unrecognized line as
  * a cache miss is a backstop, not the compatibility story: a format change
  * bumps the cache directory (see `ABBREVIATED_META_DIR`) so a pnpm version
@@ -70,7 +70,7 @@ interface MirrorIndex {
   distTags?: Record<string, string>
   time?: PackageMeta['time']
   /**
-   * Not part of `PackageMeta`, so nothing on this side reads it back, it is
+   * Not part of `PackageMeta`, so nothing on this side reads it back — it is
    * carried through because the Rust stack's `outdated --long` reads it out
    * of the shared mirror, and rewriting the file without it would blank that
    * column until the next full response.
@@ -119,7 +119,7 @@ export interface LoadMetaOptions {
  * An indexed mirror yields a document whose `versions` values are parsed
  * lazily on first property access; enumeration of the version keys does not
  * parse any manifest. Returns `null` when the file is missing, malformed, or
- * truncated, the caller treats all three as a cache miss.
+ * truncated — the caller treats all three as a cache miss.
  */
 export async function loadMeta (pkgMirror: string, opts?: LoadMetaOptions): Promise<PackageMeta | null> {
   let data: Buffer
@@ -310,7 +310,7 @@ export async function loadMetaHeaders (pkgMirror: string): Promise<MetaHeaders |
 
 /**
  * Formats metadata for disk storage as two-line NDJSON:
- *   Line 1: cache headers (etag, fullEtag, modified), small, fast to read
+ *   Line 1: cache headers (etag, fullEtag, modified) — small, fast to read
  *   Line 2: the registry metadata JSON
  *
  * This layout is kept for `filterMetadata` documents; everything else is

@@ -199,7 +199,7 @@ test('pnpm sbom --lockfile-only', async () => {
   const workspaceDir = tempDir()
   testFixtures.copy('simple-sbom', workspaceDir)
 
-  // No install, just lockfile
+  // No install — just lockfile
   const { output, exitCode } = await sbom.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
@@ -513,7 +513,7 @@ test('pnpm sbom --exclude-peers drops peers reached through a workspace link in 
 
   // Filtered to app-a, which links peer-lib. peer-lib's auto-installed peer
   // (is-odd) is walked through that link, so its peer names must be filtered
-  // too, not only the selected app-a's. The graph the peers are read from must
+  // too — not only the selected app-a's. The graph the peers are read from must
   // therefore cover the whole workspace, not just the selected subset.
   const { output, exitCode } = await sbom.handler({
     ...DEFAULT_OPTS,
