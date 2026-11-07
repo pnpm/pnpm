@@ -670,7 +670,7 @@ consumes. Teams are [registry-scoped](configuration.md#teams).
 | `PUT` | `/-/org/{scope}/team` | Create a team. The body is `{"name": "<team>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
-| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. |
+| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. A username with no account returns `404`. |
 
 Changes are accepted only on a registry with
 [`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api):
@@ -694,11 +694,14 @@ that declares no teams returns an empty array.
 <scope:team>` edit and read the `packages:` rules of a registry with
 [`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api).
 
+The `{team}` path segment is a team name. The stored `team:<id>` token uses
+the immutable team ID returned by the team endpoints.
+
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/team/{scope}/{team}/package` | The `packages:` keys whose `access` list names `team:<team>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
-| `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. Both add `team:<team>` to the package's `access` list. `read-write` adds it to `publish` too, and `read-only` removes it from `publish`. Returns `201`. |
-| `DELETE` | `/-/team/{scope}/{team}/package` | Revoke access. The body is `{"package": "<name>"}`. Removes `team:<team>` from the package's `access`, `publish`, and `unpublish` lists. Returns `204`. |
+| `GET` | `/-/team/{scope}/{team}/package` | The `packages:` keys whose `access` list names `team:<id>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
+| `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. Both add `team:<id>` to the package's `access` list. `read-write` adds it to `publish` too, and `read-only` removes it from `publish`. Returns `201`. |
+| `DELETE` | `/-/team/{scope}/{team}/package` | Revoke access. The body is `{"package": "<name>"}`. Removes `team:<id>` from the package's `access`, `publish`, and `unpublish` lists. Returns `204`. |
 
 - The package must be a `packages:` key of its own, such as `'@acme/app'`.
   A package that only a pattern such as `'@acme/*'` covers returns `400`,
@@ -763,7 +766,7 @@ the same place:
 {
   "access": ["$authenticated"],
   "packages": {
-    "@corp/*": { "access": ["team:platform"], "publish": ["alice"] }
+    "@corp/*": { "access": ["team:platform"], "publish": ["<account-id>"] }
   }
 }
 ```
