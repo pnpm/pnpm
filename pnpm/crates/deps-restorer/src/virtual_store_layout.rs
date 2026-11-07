@@ -50,7 +50,9 @@ use std::{
 /// [`Self::slot_dir`] is the only call site every consumer has to
 /// touch — it returns an absolute directory whose `node_modules/<name>`
 /// subdirectory holds the unpacked package.
+#[derive(Clone)]
 pub struct VirtualStoreLayout {
+    engine_name: Option<String>,
     /// Root containing every per-snapshot subdirectory:
     /// [`Config::virtual_store_dir`].
     ///
@@ -92,6 +94,14 @@ pub struct VirtualStoreLayout {
 }
 
 impl VirtualStoreLayout {
+    pub(crate) fn relocated(&self, root: &Path) -> Self {
+        Self { package_store_dir: root.to_path_buf(), ..self.clone() }
+    }
+
+    pub(crate) fn engine_name(&self) -> Option<&str> {
+        self.engine_name.as_deref()
+    }
+
     /// Construct a layout that always uses the legacy
     /// `<root>/<flat-name>` shape, regardless of any
     /// `enable_global_virtual_store` setting on `Config`. Reserved
@@ -100,6 +110,7 @@ impl VirtualStoreLayout {
     /// directly.
     pub fn legacy(root: impl Into<PathBuf>, virtual_store_dir_max_length: usize) -> Self {
         VirtualStoreLayout {
+            engine_name: None,
             package_store_dir: root.into(),
             gvs_suffixes: None,
             virtual_store_dir_max_length,
@@ -177,6 +188,7 @@ impl VirtualStoreLayout {
         let virtual_store_dir_max_length = config.virtual_store_dir_max_length as usize;
         if !config.enable_global_virtual_store {
             return VirtualStoreLayout {
+                engine_name: engine.map(str::to_owned),
                 package_store_dir,
                 gvs_suffixes: None,
                 virtual_store_dir_max_length,
@@ -239,21 +251,23 @@ impl VirtualStoreLayout {
         });
         let expected = gvs_layout_cache::Expected { snapshots, packages };
         if let Some(gvs_suffixes) = load_cached_suffixes(cache_file, expected) {
-            return Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir);
+            return Self::with_cached_suffixes(config, engine, gvs_suffixes, lockfile_dir);
         }
         let gvs_suffixes = hasher.suffixes(snapshots);
         if let Some(cache_file) = cache_file {
             gvs_layout_cache::store(cache_file, &gvs_suffixes);
         }
-        Self::with_cached_suffixes(config, gvs_suffixes, lockfile_dir)
+        Self::with_cached_suffixes(config, engine, gvs_suffixes, lockfile_dir)
     }
 
     fn with_cached_suffixes(
         config: &Config,
+        engine: Option<&str>,
         gvs_suffixes: HashMap<PackageKey, String>,
         lockfile_dir: Option<&Path>,
     ) -> Self {
         VirtualStoreLayout {
+            engine_name: engine.map(str::to_owned),
             package_store_dir: config.global_virtual_store_dir.clone(),
             gvs_suffixes: Some(gvs_suffixes),
             virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
@@ -289,6 +303,7 @@ impl VirtualStoreLayout {
     ) -> Self {
         let Some(snapshots) = snapshots else {
             return VirtualStoreLayout {
+                engine_name: engine.map(str::to_owned),
                 package_store_dir,
                 gvs_suffixes: Some(HashMap::new()),
                 virtual_store_dir_max_length,
@@ -298,6 +313,7 @@ impl VirtualStoreLayout {
         let mut hasher =
             GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir, platform);
         VirtualStoreLayout {
+            engine_name: engine.map(str::to_owned),
             package_store_dir,
             gvs_suffixes: Some(hasher.suffixes(snapshots)),
             virtual_store_dir_max_length,

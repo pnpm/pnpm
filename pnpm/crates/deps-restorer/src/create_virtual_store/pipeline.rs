@@ -155,6 +155,11 @@ impl<'a> CreateVirtualStore<'a> {
             allow_build_policy: self.ctx.allow_build_policy,
             known_requires_build: self.selection.known_requires_build,
             known_bins: self.selection.known_bins,
+            empty_builds: if self.ctx.config.node_linker == NodeLinker::Loaded {
+                partition::EmptyBuilds::Restore
+            } else {
+                partition::EmptyBuilds::Rerun
+            },
         }
     }
 
@@ -215,12 +220,12 @@ impl<'a> CreateVirtualStore<'a> {
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
             package_bins: partition.package_bins,
-            side_effects_maps_by_snapshot: partition.side_effects.maps,
-            side_effects_by_snapshot: partition.side_effects.diffs,
+            side_effects: partition.side_effects.into(),
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
-            materialized_snapshots: plan.materialized_keys(),
+            snapshot_placement: super::SnapshotPlacement::materialized(plan.materialized_keys()),
             fetch_failed,
             cas_paths_by_pkg_id: indexes.by_pkg_id,
+            cas_paths_by_snapshot: None,
         })
     }
 
