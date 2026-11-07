@@ -3,6 +3,7 @@ import { prepare } from '@pnpm/prepare'
 import { deprecate, undeprecate } from '@pnpm/registry-access.commands'
 import { publish } from '@pnpm/releasing.commands'
 import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { getRegistryMockToken, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { safeExeca as execa } from 'execa'
 
@@ -126,4 +127,23 @@ test('deprecate: should throw error when no package name provided', async () => 
       cliOptions: {},
     }, [])
   }).rejects.toThrow('Package name is required')
+})
+
+test('deprecate and undeprecate name their command on the packument PUT', async () => {
+  await setupMockAgent()
+  try {
+    const registryUrl = 'https://registry.example.com/'
+    const packument = (deprecated?: string) => ({ name: 'pkg', versions: { '1.0.0': { name: 'pkg', version: '1.0.0', deprecated } } })
+    const mockPool = getMockAgent().get('https://registry.example.com')
+    mockPool.intercept({ method: 'GET', path: '/pkg' }).reply(200, packument())
+    mockPool.intercept({ method: 'GET', path: '/pkg' }).reply(200, packument('old'))
+    mockPool.intercept({ method: 'PUT', path: '/pkg', headers: { 'npm-command': 'deprecate' } }).reply(200, {})
+    mockPool.intercept({ method: 'PUT', path: '/pkg', headers: { 'npm-command': 'undeprecate' } }).reply(200, {})
+
+    const opts = { cliOptions: {}, registriesByScope: { default: registryUrl } }
+    await expect(deprecate.handler(opts, ['pkg', 'old'])).resolves.toContain('deprecated 1 version(s)')
+    await expect(undeprecate.handler(opts, ['pkg'])).resolves.toContain('un-deprecated 1 version(s)')
+  } finally {
+    await teardownMockAgent()
+  }
 })

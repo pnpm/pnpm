@@ -64,6 +64,7 @@ fn team_create_succeeds_with_mock_registry() {
 
     let mock = server
         .mock("PUT", "/-/org/myscope/team")
+        .match_header("npm-command", "team")
         .match_header("authorization", "Bearer fake-token")
         .with_status(201)
         .create();

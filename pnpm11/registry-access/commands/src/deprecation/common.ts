@@ -59,6 +59,7 @@ export async function updateDeprecation (
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
+      'npm-command': deprecated != null ? 'deprecate' : 'undeprecate',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify(pkg),
