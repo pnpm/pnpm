@@ -22,7 +22,7 @@ use std::fmt;
 /// another version is refused, and the operator wipes pnpr's metadata tables
 /// by hand so that pnpr creates them afresh. With 1.0 the schema moves to
 /// numbered migrations.
-pub(super) const SCHEMA_VERSION: &str = "0.2";
+pub(super) const SCHEMA_VERSION: &str = "0.3";
 
 /// The table that marks a database as pnpr's metadata. Its one row is the
 /// [`SCHEMA_VERSION`] of the layout that created the tables.
@@ -161,7 +161,7 @@ pub(super) fn table_names(script: &str) -> Vec<String> {
 /// The statements of `script`, without its comments. Each runs on its own:
 /// a libSQL client re-renders the statements of a batch, and its rendering
 /// drops the comma between `STRICT` and `WITHOUT ROWID`.
-fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
+pub(super) fn statements(script: &str) -> impl Iterator<Item = String> + '_ {
     let code: String = script
         .lines()
         .filter(|line| !line.trim_start().starts_with("--"))

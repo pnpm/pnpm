@@ -13,8 +13,11 @@ use super::{
 use pnpr_error::{RegistryError, Result};
 use std::sync::Arc;
 
+pub(super) const PAYLOAD_TABLES: [&str; 5] =
+    ["packages", "accepted_manifests", "release_records", "log_entries", "readmes"];
+
 /// Run `statements` on `db` in one transaction, as an operator would.
-async fn execute(db: &Db, statements: &[&str]) {
+pub(super) async fn execute(db: &Db, statements: &[&str]) {
     let adapter = db.adapter();
     let statements: Vec<String> = statements
         .iter()
@@ -110,6 +113,22 @@ async fn an_empty_database_initializes(db: Db) {
     assert_eq!(marker(&db).await, [SCHEMA_VERSION]);
 }
 
+async fn payload_tables_have_rowids(db: Db) {
+    open(&db).await.unwrap();
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        adapter.read(ReadSource::Replica, &mut |connection| {
+            for table in PAYLOAD_TABLES {
+                connection.query(&format!("SELECT rowid FROM {table} LIMIT 1"), params![])?;
+            }
+            Ok(())
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap();
+}
+
 async fn a_matching_version_opens(db: Db) {
     open(&db).await.unwrap();
     let created = tables(&db).await;
@@ -119,7 +138,7 @@ async fn a_matching_version_opens(db: Db) {
 }
 
 async fn another_version_is_refused(db: Db) {
-    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.0')");
+    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.2')");
     execute(
         &db,
         &[
@@ -130,7 +149,7 @@ async fn another_version_is_refused(db: Db) {
     )
     .await;
     let reason = refused(&db).await;
-    assert!(reason.contains("holds schema version 0.0,"), "{reason}");
+    assert!(reason.contains("holds schema version 0.2,"), "{reason}");
     // Once the operator wipes the tables, pnpr creates them afresh.
     execute(&db, &[&format!("DROP TABLE {MARKER}"), "DROP TABLE catalogs"]).await;
     open(&db).await.unwrap();
@@ -174,6 +193,7 @@ async fn metadata_tables_without_a_marker_are_refused(db: Db) {
 
 conformance! {
     an_empty_database_initializes,
+    payload_tables_have_rowids,
     a_matching_marker_without_its_tables_is_refused,
     a_matching_version_opens,
     another_version_is_refused,
