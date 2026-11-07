@@ -575,3 +575,19 @@ async fn account_router(mut config: Config, auth: AuthState) -> axum::Router {
     }
     pnpr::router_with_auth(config, auth)
 }
+
+#[tokio::test]
+async fn invalid_rename_payloads_are_client_errors() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(&dir)).await;
+    let root = login(&app, "root", "secret").await.unwrap();
+    let id = crate::tokens::account_id(&app, "root").await.unwrap();
+    let path = format!("/-/pnpr/v0/admin/users/{id}");
+    for payload in [json!({"name": 42}), json!({"name": "renamed", "extra": true})] {
+        assert_eq!(
+            send(&app, "PATCH", &path, Some(&root), Some(payload)).await.0,
+            StatusCode::BAD_REQUEST,
+        );
+    }
+    assert_eq!(crate::tokens::account_id(&app, "root").await, Some(id));
+}

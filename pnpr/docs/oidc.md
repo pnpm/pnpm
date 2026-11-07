@@ -117,6 +117,14 @@ CLI opens the browser to sign in and polls until authentication completes. If no
 OIDC provider declares `login:`, `/-/v1/login` returns `404` and the CLI falls back
 to username and password authentication (`/-/user/org.couchdb.user:{name}`).
 
+A passwordless account can create personal access tokens while signed in.
+These are separate account credentials. They carry the account's ordinary
+permissions, not the session's provider-group memberships, and use the expiry
+requested through the token API. Without an expiry, they remain valid until
+revoked, including after browser logout or session expiry. SCIM deactivation
+revokes both kinds of credential. Accounts with a password must provide it to
+create a personal access token.
+
 An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](container-images.md#authentication).
 
 ## GitHub Actions keyless publishing

@@ -788,3 +788,28 @@ async fn audit_log_oci_deletion_operations() {
     assert_eq!(blob_event.fields.get("actor").map(String::as_str), Some("alice"));
     assert_request_span(&blob_event, "DELETE");
 }
+
+#[tokio::test]
+async fn renaming_an_account_audits_its_stable_id_and_new_name() {
+    let logs = init_audit_subscriber();
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path())).await;
+    let root = login(&app, "root", "secret").await;
+    let (_, created) = send(
+        &app,
+        "PUT",
+        "/-/pnpr/v0/admin/users/aud_before",
+        Some(&root),
+        Some(json!({"password": "secret"})),
+    )
+    .await;
+    let id = created["id"].as_str().unwrap();
+    let path = format!("/-/pnpr/v0/admin/users/{id}");
+    let (status, _) =
+        send(&app, "PATCH", &path, Some(&root), Some(json!({"name": "aud_after"}))).await;
+    assert_eq!(status, StatusCode::OK);
+    let event = find_event(&logs, "user.rename", "user_id", id);
+    assert_eq!(event.fields.get("actor").map(String::as_str), Some("root"));
+    assert_eq!(event.fields.get("user").map(String::as_str), Some("aud_after"));
+    assert_request_span(&event, "PATCH");
+}

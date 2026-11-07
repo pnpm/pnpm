@@ -164,12 +164,12 @@ trait AuthSqlBackend: Send + Sync {
         };
         Ok(self.account_name(&record.user_id).await?.map(|_| record))
     }
-    async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
+    async fn list_tokens(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>>;
     async fn delete_token(&self, token_hash: &str) -> Result<()>;
     async fn list_usernames(&self) -> Result<Vec<String>>;
     async fn update_password_hash(
         &self,
-        username: &str,
+        user_id: &str,
         bcrypt_hash: &str,
     ) -> Result<PasswordChange>;
     async fn update_user_hash_if_current(
@@ -268,17 +268,17 @@ where
         }
     }
 
-    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
+    async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        self.db.update_password_hash(username, &hash).await
+        self.db.update_password_hash(user_id, &hash).await
     }
 
     async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
         self.db.update_password_hash(user_id, crate::NO_PASSWORD_HASH).await
     }
 
-    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        self.db.delete_user(username).await
+    async fn delete_user(&self, user_id: &str) -> Result<UserRemoval> {
+        self.db.delete_user(user_id).await
     }
 
     async fn provision_user(&self, username: &str) -> Result<String> {
@@ -318,16 +318,16 @@ where
 {
     async fn issue_token(
         &self,
-        username: &str,
+        user_id: &str,
         new_token: NewToken,
     ) -> Result<(String, TokenRecord)> {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, username);
+        let raw = mint_token(&self.secret, nonce, user_id);
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_seconds();
         let record = TokenRecord {
             owner_name: None,
-            user_id: username.to_string(),
+            user_id: user_id.to_string(),
             created_at: now,
             last_used_at: now,
             readonly: new_token.readonly,
@@ -341,8 +341,8 @@ where
         Ok((raw, record))
     }
 
-    async fn issue(&self, username: &str) -> Result<String> {
-        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
+    async fn issue(&self, user_id: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(user_id, NewToken::default()).await?;
         Ok(raw)
     }
 
@@ -374,8 +374,8 @@ where
         with_auth_timeout(self.timeout, self.db.find_token(key)).await
     }
 
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        with_auth_timeout(self.timeout, self.db.list_tokens(username)).await
+    async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
+        with_auth_timeout(self.timeout, self.db.list_tokens(user_id)).await
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {

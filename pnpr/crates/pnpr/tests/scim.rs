@@ -198,6 +198,7 @@ async fn deactivation_revokes_credentials_and_reactivation_keeps_the_id() {
     let (status, created_token) =
         send(&app, "POST", "/-/npm/v1/tokens", Some(&signed_in), Some(json!({}))).await;
     assert_eq!(status, StatusCode::OK);
+    assert!(created_token.get("expires").is_none());
     assert_eq!(whoami(&app, created_token["token"].as_str().unwrap()).await, StatusCode::OK);
     auth.users.set_password(id, "secret").await.unwrap();
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::CREATED);

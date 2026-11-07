@@ -123,10 +123,12 @@ async fn anonymous_rule_admits_anonymous_and_forbids_authenticated() {
 
 #[tokio::test]
 async fn account_id_in_access_list_grants_only_that_user() {
-    // verdaccio per-user access: `@team/*` is restricted to `alice`.
-    let (_dir, config) =
-        config_from_yaml("packages:\n  '@team/*':\n    access: alice\n  '**':\n    access: $all\n");
-    let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret")]);
+    let auth = pnpr::AuthState::in_memory();
+    let (_, alice_id) = auth.users.add_or_login("alice", "secret").await.unwrap();
+    assert_ne!(alice_id, "alice");
+    let (_dir, config) = config_from_yaml(&format!(
+        "packages:\n  '@team/*':\n    access: {alice_id}\n  '**':\n    access: $all\n",
+    ));
     let app = pnpr::router_with_auth(config, auth);
 
     // Anonymous: no creds for a name-gated package → 401.

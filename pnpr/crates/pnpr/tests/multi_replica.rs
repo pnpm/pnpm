@@ -205,6 +205,15 @@ async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
 
     assert_eq!(slow_publish.await.unwrap(), StatusCode::CONFLICT);
     let packument = slow.packument("claimed-pkg").await;
+    assert_eq!(
+        packument["maintainers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+    let id = crate::tokens::account_id(&fast.app, "bob").await.unwrap();
+    assert_eq!(packument["maintainers"][0]["userId"], id);
     assert_eq!(packument["maintainers"][0]["name"], "bob");
     assert!(packument["versions"].get("1.0.0").is_none());
 }

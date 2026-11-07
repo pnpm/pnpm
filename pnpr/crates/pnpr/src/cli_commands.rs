@@ -251,7 +251,7 @@ fn run_import_htpasswd(
     let target = target.or_else(|| config.identity.auth.users.file.clone());
     let Some(target) = target else {
         return Err(miette::miette!(
-            "no target htpasswd file specified and none configured in identity.auth.users.file; pass --target <path>"
+            "no target account file specified and none configured in identity.auth.users.file; pass --target <path>"
         ));
     };
     let options = crate::htpasswd_import::HtpasswdImportOptions {

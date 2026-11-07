@@ -89,11 +89,7 @@ async fn list_users(
             .map(parse_filter)
             .transpose()?;
         let (directory, _) = read_directory(&state).await?;
-        let ids: Vec<_> = directory.users
-            .keys()
-            .cloned()
-            .collect();
-        let accounts = account_names(&state, &ids).await?;
+        let accounts = account_names(&state, &directory, wanted.as_deref()).await?;
         let mut matching = Vec::new();
         for (id, user) in &directory.users {
             if user.removed {
@@ -365,10 +361,29 @@ async fn ensure_resource_exists(
 
 async fn account_names(
     state: &AppState,
-    user_ids: &[String],
+    directory: &directory::Directory,
+    wanted: Option<&str>,
 ) -> Result<std::collections::HashMap<String, String>, RegistryError> {
-    let accounts = state.inner.identity.auth.users
-        .accounts_by_id(user_ids)
+    let users = &state.inner.identity.auth.users;
+    let user_ids = if let Some(username) = wanted {
+        users
+            .account_id(username)
+            .await?
+            .into_iter()
+            .collect()
+    } else {
+        directory.users
+            .iter()
+            .filter(|(_, user)| !user.removed)
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>()
+    };
+    let user_ids: Vec<_> = user_ids
+        .into_iter()
+        .filter(|id| directory.users.get(id).is_some_and(|user| !user.removed))
+        .collect();
+    let accounts = users
+        .accounts_by_id(&user_ids)
         .await?
         .into_iter()
         .map(|account| (account.id, account.username))

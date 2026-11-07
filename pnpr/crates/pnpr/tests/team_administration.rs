@@ -231,13 +231,22 @@ async fn team_edits_refuse_oversized_bodies() {
 #[tokio::test]
 async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
     let dir = TempDir::new().unwrap();
+    let auth = pnpr::AuthState::in_memory();
+    let (_, bob_id) = auth.users.add_or_login("bob", "secret").await.unwrap();
+    let yaml = CONFIG.replace("members: []", &format!("members: [{bob_id}]"));
+    assert_ne!(yaml, CONFIG);
+    let config = load_config_with(dir.path(), &yaml);
+    let app = router_with_auth(config.clone(), auth.clone());
+    let bob = add_user(&app, "bob").await;
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await.0,
+        StatusCode::NOT_FOUND,
+    );
     let roster = dir.path().join("storage/.team-rosters/npm/local.json");
     std::fs::create_dir_all(roster.parent().unwrap()).unwrap();
     std::fs::write(&roster, "not a roster").unwrap();
-    let config = CONFIG.replace("readers: []", "readers: [bob]");
-    let app = app_router(load_config_with(dir.path(), &config)).await;
+    let app = router_with_auth(config, auth);
 
-    let bob = add_user(&app, "bob").await;
     let (status, _) = send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     let (status, _) = send(&app, "GET", "/npm/lodash", Some(&bob), None).await;

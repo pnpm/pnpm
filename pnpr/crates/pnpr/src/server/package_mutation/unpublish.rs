@@ -85,7 +85,7 @@ async fn collect_package_tombstone_metadata(
     Ok((maintainers, unpublished_versions))
 }
 
-fn collect_maintainers_from_value(val: &Value, maintainers: &mut Vec<String>) {
+pub(super) fn collect_maintainers_from_value(val: &Value, maintainers: &mut Vec<String>) {
     let Some(entries) = val.get("maintainers").and_then(Value::as_array) else { return };
     for entry in entries {
         let Some(user) = entry.get("userId").and_then(Value::as_str) else { continue };

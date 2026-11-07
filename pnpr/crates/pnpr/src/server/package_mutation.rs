@@ -9,6 +9,9 @@ mod maintainers;
 mod unpublish;
 mod version_removal;
 
+#[cfg(test)]
+mod tests;
+
 use axum::{
     body::Body,
     http::{StatusCode, header},
@@ -270,13 +273,7 @@ fn new_tombstone_from_hosted(
     hosted: &Value,
 ) -> PackageTombstone {
     let mut maintainers = Vec::new();
-    if let Some(entries) = hosted.get("maintainers").and_then(Value::as_array) {
-        for entry in entries {
-            if let Some(user) = entry.get("name").and_then(Value::as_str) {
-                maintainers.push(user.to_string());
-            }
-        }
-    }
+    unpublish::collect_maintainers_from_value(hosted, &mut maintainers);
     PackageTombstone {
         package: name.as_str().to_string(),
         unpublished_by: identity.user_id().map(ToString::to_string),

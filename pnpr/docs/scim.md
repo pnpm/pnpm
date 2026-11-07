@@ -30,7 +30,9 @@ login name. The server assigns the immutable account `id`; use it as the
 ## What deprovisioning does
 
 Provisioning creates a passwordless account. An existing login name returns
-`409`; provisioning does not take over a password account.
+`409`; provisioning does not take over a password account. A login request
+cannot establish a password for a provisioned account. Use OIDC to sign in,
+or have an administrator set its password.
 
 Setting `active` to `false` revokes tokens, clears password credentials, and
 ends browser sessions. The account retains its ID and login name. Setting
@@ -66,3 +68,7 @@ unchanged. Groups, bulk operations, sorting, and
 ETags are not supported. Assign teams with OIDC
 [groups](oidc.md#teams-from-groups) or the
 [team endpoints](endpoints.md#team-endpoints).
+
+Account names come from the account store. If a name update returns a storage
+error, fetch the resource by ID before retrying. Its name may have changed while
+its other attributes retain their previous values.

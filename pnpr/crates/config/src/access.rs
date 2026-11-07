@@ -106,13 +106,21 @@ pub(super) fn build_teams(
             .map_err(|reason| RegistryError::InvalidConfig {
                 reason: format!("registry {registry:?} has an invalid team name: {reason}"),
             })?;
-        validate_team_name(&record.name).map_err(|reason| RegistryError::InvalidConfig { reason })?;
+        validate_team_name(&record.name)
+            .map_err(|reason| RegistryError::InvalidConfig {
+                reason: format!(
+                    "registry {registry:?} team {team:?} has an invalid name: {reason}",
+                ),
+            })?;
         if teams
             .values()
             .any(|existing: &pnpr_policy::Team| existing.name == record.name)
         {
             return Err(RegistryError::InvalidConfig {
-                reason: format!("duplicate team name {:?}", record.name),
+                reason: format!(
+                    "registry {registry:?} team {team:?} has duplicate team name {:?}",
+                    record.name,
+                ),
             });
         }
         let members = record.members

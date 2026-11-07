@@ -205,8 +205,8 @@ impl AuthSqlBackend for MysqlDatabase {
         self.find_owned_token_impl(token_hash).await
     }
 
-    async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        self.list_tokens_impl(username).await
+    async fn list_tokens(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
+        self.list_tokens_impl(user_id).await
     }
 
     async fn delete_token(&self, token_hash: &str) -> Result<()> {
@@ -223,13 +223,13 @@ impl AuthSqlBackend for MysqlDatabase {
 
     async fn update_password_hash(
         &self,
-        username: &str,
+        user_id: &str,
         bcrypt_hash: &str,
     ) -> Result<PasswordChange> {
         let updated =
             sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE id = ? AND bcrypt_hash <> '!'")
                 .bind(bcrypt_hash)
-                .bind(username)
+                .bind(user_id)
                 .execute(&self.pool)
                 .await?;
         if updated.rows_affected() > 0 {
@@ -241,22 +241,22 @@ impl AuthSqlBackend for MysqlDatabase {
 
     async fn update_user_hash_if_current(
         &self,
-        username: &str,
+        user_id: &str,
         old_hash: &str,
         new_hash: &str,
     ) -> Result<bool> {
         let updated =
             sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE id = ? AND bcrypt_hash = ?")
                 .bind(new_hash)
-                .bind(username)
+                .bind(user_id)
                 .bind(old_hash)
                 .execute(&self.pool)
                 .await?;
         Ok(updated.rows_affected() > 0)
     }
 
-    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        self.remove_user_record(username).await
+    async fn delete_user(&self, user_id: &str) -> Result<UserRemoval> {
+        self.remove_user_record(user_id).await
     }
 
     async fn check_readiness(&self) -> Result<()> {
@@ -266,11 +266,11 @@ impl AuthSqlBackend for MysqlDatabase {
 }
 
 impl MysqlDatabase {
-    async fn remove_user_record(&self, username: &str) -> Result<UserRemoval> {
+    async fn remove_user_record(&self, user_id: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
         let statement = "UPDATE users SET username = CONCAT('deleted:', id), bcrypt_hash = '!' WHERE id = ? AND bcrypt_hash <> '!'";
         let removed = sqlx::query(statement)
-            .bind(username)
+            .bind(user_id)
             .execute(&mut *tx)
             .await?
             .rows_affected();

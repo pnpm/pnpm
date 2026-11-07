@@ -1,5 +1,6 @@
 use super::{
-    LibsqlAuth, RegistryError, Result, first_row, is_unique_violation, params, validate_username,
+    LibsqlAuth, RegistryError, Result, first_row, is_unique_violation, params,
+    retry_database_conflicts, validate_username,
 };
 
 impl LibsqlAuth {
@@ -33,28 +34,30 @@ impl LibsqlAuth {
         validate_username(username)?;
         let id = crate::new_principal_id();
         let id_ref = id.as_str();
-        self.pool.write(|conn| async move {
-            let tx = conn.transaction().await?;
-            let inserted = tx.execute(
-                "INSERT INTO users (id, username, bcrypt_hash) VALUES (?1, ?2, '*')",
-                params![id_ref, username],
-            )
-            .await;
-            match inserted {
-                Ok(_) => {
-                    tx.execute(
-                        "UPDATE auth_counters SET value = value + 1 WHERE name = 'users'",
-                        (),
-                    )
-                    .await?;
-                    tx.commit().await?;
-                    Ok(())
+        retry_database_conflicts(|| {
+            self.pool.write(|conn| async move {
+                let tx = conn.transaction().await?;
+                let inserted = tx.execute(
+                    "INSERT INTO users (id, username, bcrypt_hash) VALUES (?1, ?2, '*')",
+                    params![id_ref, username],
+                )
+                .await;
+                match inserted {
+                    Ok(_) => {
+                        tx.execute(
+                            "UPDATE auth_counters SET value = value + 1 WHERE name = 'users'",
+                            (),
+                        )
+                        .await?;
+                        tx.commit().await?;
+                        Ok(())
+                    }
+                    Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
+                        reason: format!("username {username:?} is taken"),
+                    }),
+                    Err(err) => Err(err.into()),
                 }
-                Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
-                    reason: format!("username {username:?} is taken"),
-                }),
-                Err(err) => Err(err.into()),
-            }
+            })
         })
         .await?;
         self.sync_replica().await?;
@@ -87,20 +90,22 @@ impl LibsqlAuth {
         if current == username {
             return Ok(());
         }
-        self.pool.write(|conn| async move {
-            match conn.execute(
-                "UPDATE users SET username = ?2 WHERE id = ?1 AND bcrypt_hash <> '!'",
-                params![user_id, username],
-            )
-            .await
-            {
-                Ok(0) => Err(RegistryError::NotFound),
-                Ok(_) => Ok(()),
-                Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
-                    reason: format!("username {username:?} is taken"),
-                }),
-                Err(err) => Err(err.into()),
-            }
+        retry_database_conflicts(|| {
+            self.pool.write(|conn| async move {
+                match conn.execute(
+                    "UPDATE users SET username = ?2 WHERE id = ?1 AND bcrypt_hash <> '!'",
+                    params![user_id, username],
+                )
+                .await
+                {
+                    Ok(0) => Err(RegistryError::NotFound),
+                    Ok(_) => Ok(()),
+                    Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
+                        reason: format!("username {username:?} is taken"),
+                    }),
+                    Err(err) => Err(err.into()),
+                }
+            })
         })
         .await?;
         self.sync_replica().await?;

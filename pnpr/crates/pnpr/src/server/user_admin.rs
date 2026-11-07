@@ -98,9 +98,6 @@ async fn put_user(
     respond(result.await)
 }
 
-/// Delete the account, permanently reserving its username. Revoke tokens
-/// before and after retirement to cover concurrent logins. A failed first
-/// sweep leaves the account active. Retry if the second sweep fails.
 async fn delete_user(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -218,8 +215,19 @@ async fn rename_user(
 ) -> Response {
     let result = async {
         require_admin(&state, &identity, "rename", format!("account {:?}", path.user))?;
-        let RenameUser { name } = serde_json::from_slice(&body)?;
+        let RenameUser { name } = serde_json::from_slice(&body)
+            .map_err(|err| RegistryError::BadRequest {
+                reason: format!("invalid request body: {err}"),
+            })?;
         state.inner.identity.auth.users.rename_user(&path.user, &name).await?;
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "user.rename",
+            actor = %identity.username().unwrap_or("-"),
+            user = %name,
+            user_id = %path.user,
+            "admin user renamed",
+        );
         Ok(json_response(StatusCode::OK, &json!({ "id": path.user, "name": name })))
     };
     respond(result.await)

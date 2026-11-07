@@ -4,7 +4,7 @@ pub(super) use credentials::{bearer_credentials, token_credentials};
 mod accounts;
 mod credentials;
 
-use accounts::account_identity;
+use accounts::{account_identity, active_account_name};
 
 use std::{
     net::IpAddr,
@@ -312,11 +312,7 @@ async fn resolve_caller(
 ) -> Result<(Identity, Option<WorkloadScope>), RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
-            require_active_account(state, &user.user_id).await?;
-            let name = state.inner.identity.auth.users
-                .account_name(&user.user_id)
-                .await?
-                .ok_or(RegistryError::NotFound)?;
+            let name = active_account_name(state, &user.user_id).await?;
             return Ok((
                 super::oidc_groups::session_identity(&state.inner.config, user, name),
                 None,
@@ -329,7 +325,6 @@ async fn resolve_caller(
                 .ok_or_else(|| RegistryError::Unauthenticated {
                     resource: "OIDC workload credentials".to_string(),
                 })?;
-            require_active_account(state, &workload.identity.user_id).await?;
             super::oidc::check_workload_request(&workload, method, path)?;
             let scope = WorkloadScope::new(&state.inner.config, &workload);
             return Ok((account_identity(state, &workload.identity.user_id).await?, Some(scope)));

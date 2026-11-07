@@ -196,7 +196,7 @@ fn format_auth_summary(config: &Config) -> String {
     };
     let (backend, location) = match &config.identity.backend {
         BackendConfig::Local => (
-            "htpasswd",
+            "accounts",
             match &ht.file {
                 Some(path) => path.display().to_string(),
                 None => "in-memory".to_string(),

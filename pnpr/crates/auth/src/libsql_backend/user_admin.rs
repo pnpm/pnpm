@@ -64,11 +64,11 @@ impl LibsqlAuth {
 
     pub(super) async fn update_password(
         &self,
-        username: &str,
+        user_id: &str,
         password: &str,
     ) -> Result<PasswordChange> {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        self.replace_password_hash(username, &hash).await
+        self.replace_password_hash(user_id, &hash).await
     }
 
     pub(super) async fn replace_password_hash(
@@ -96,9 +96,9 @@ impl LibsqlAuth {
         }
     }
 
-    pub(super) async fn remove_user_record(&self, username: &str) -> Result<UserRemoval> {
+    pub(super) async fn remove_user_record(&self, user_id: &str) -> Result<UserRemoval> {
         retry_database_conflicts(|| {
-            self.pool.write(|conn| async move { remove_user_in_transaction(&conn, username).await })
+            self.pool.write(|conn| async move { remove_user_in_transaction(&conn, user_id).await })
         })
         .await
     }
@@ -106,11 +106,11 @@ impl LibsqlAuth {
 
 async fn remove_user_in_transaction(
     conn: &libsql::Connection,
-    username: &str,
+    user_id: &str,
 ) -> Result<UserRemoval> {
     let tx = conn.transaction().await?;
     let statement = "UPDATE users SET username = 'deleted:' || id, bcrypt_hash = '!' WHERE id = ?1 AND bcrypt_hash <> '!'";
-    let removed = tx.execute(statement, params![username]).await?;
+    let removed = tx.execute(statement, params![user_id]).await?;
     if removed > 0 {
         tx.execute(COUNT_ONE_LESS, ()).await?;
     }
