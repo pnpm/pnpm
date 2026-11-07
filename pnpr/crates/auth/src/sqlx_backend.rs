@@ -291,6 +291,7 @@ where
         validate_username(username)?;
         match self.db.insert_user(username, crate::NO_PASSWORD_HASH, MaxUsers::Unlimited).await? {
             InsertUser::Created(id) => Ok(id),
+            InsertUser::Confusable => Err(crate::validation::confusable_username()),
             _ => Err(RegistryError::AdminConflict {
                 reason: format!("username {username:?} is taken"),
             }),

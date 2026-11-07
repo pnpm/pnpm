@@ -5,7 +5,6 @@ use super::{
     hosted_storage, json, not_found, resolve_registry_source,
 };
 use axum::response::IntoResponse;
-use pnpr_policy::{AccessList, AccessToken};
 
 /// `GET /-/org/{scope}/package` — the npm-compatible package-permission map.
 /// Values are useful to npm's account UI; registry UIs such as npmX consume
@@ -217,14 +216,7 @@ pub(super) fn readable_team_registry<'a>(
     if state.inner.config.identity.is_admin(identity) {
         return Ok((name, hosted));
     }
-    let members = AccessList::new(
-        hosted.teams
-            .snapshot()
-            .keys()
-            .map(|id| AccessToken::Team { id: id.clone(), directory: hosted.teams.clone() })
-            .collect(),
-    );
-    if !members.allows(identity) {
+    if !identity.belongs_to_directory(&hosted.teams) {
         return Err(RegistryError::NotFound);
     }
     Ok((name, hosted))
