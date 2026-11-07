@@ -53,8 +53,9 @@ impl LibsqlAuth {
                         Ok(())
                     }
                     Err(err) if is_unique_violation(&err) => {
+                        let conflict = classify_username_conflict(&tx, username).await?;
                         tx.rollback().await?;
-                        Err(classify_username_conflict(&conn, username).await?)
+                        Err(conflict)
                     }
                     Err(err) => Err(err.into()),
                 }
@@ -93,16 +94,22 @@ impl LibsqlAuth {
         }
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
-                match conn.execute(
+                let tx = conn.transaction().await?;
+                match tx.execute(
                     "UPDATE users SET username = ?2, username_skeleton_hash = ?3 WHERE id = ?1 AND bcrypt_hash <> '!'",
                     params![user_id, username, crate::validation::username_skeleton_hash(username)],
                 )
                 .await
                 {
                     Ok(0) => Err(RegistryError::NotFound),
-                    Ok(_) => Ok(()),
+                    Ok(_) => {
+                        tx.commit().await?;
+                        Ok(())
+                    }
                     Err(err) if is_unique_violation(&err) => {
-                        Err(classify_username_conflict(&conn, username).await?)
+                        let conflict = classify_username_conflict(&tx, username).await?;
+                        tx.rollback().await?;
+                        Err(conflict)
                     }
                     Err(err) => Err(err.into()),
                 }
@@ -122,11 +129,13 @@ async fn collect_accounts(mut rows: libsql::Rows) -> Result<Vec<crate::UserAccou
     Ok(accounts)
 }
 
+/// The write transaction keeps this lookup on the primary.
 async fn classify_username_conflict(
-    conn: &libsql::Connection,
+    transaction: &libsql::Transaction,
     username: &str,
 ) -> Result<RegistryError> {
-    let rows = conn.query("SELECT id FROM users WHERE username = ?1", params![username]).await?;
+    let rows =
+        transaction.query("SELECT id FROM users WHERE username = ?1", params![username]).await?;
     let exact_match = first_row(rows, |_| Ok(())).await?.is_some();
     Ok(crate::validation::username_conflict(username, exact_match))
 }

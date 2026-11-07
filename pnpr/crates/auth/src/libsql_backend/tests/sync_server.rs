@@ -188,3 +188,33 @@ async fn retiring_a_passwordless_account_syncs_its_identity() {
     assert_eq!(replica.account_id("oidc-member").await.unwrap(), Some(replacement));
     server.abort();
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn stale_replicas_distinguish_exact_and_confusable_account_conflicts() {
+    let directory = tempfile::tempdir().unwrap();
+    let (_primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let first = LibsqlAuth::connect(
+        &replica_settings(address, directory.path().join("first/auth.db"), Some(0)),
+        MaxUsers::Unlimited,
+    )
+    .await
+    .unwrap();
+    let second = LibsqlAuth::connect(
+        &replica_settings(address, directory.path().join("second/auth.db"), Some(0)),
+        MaxUsers::Unlimited,
+    )
+    .await
+    .unwrap();
+    let other = second.provision_user("other").await.unwrap();
+    first.provision_user("modern").await.unwrap();
+    let error = second.provision_user("modern").await.unwrap_err();
+    assert!(matches!(error, crate::RegistryError::AdminConflict { .. }), "{error:?}");
+    let error = second.provision_user("rnodern").await.unwrap_err();
+    assert!(matches!(error, crate::RegistryError::BadRequest { .. }), "{error:?}");
+    first.provision_user("scope").await.unwrap();
+    let error = second.rename_user(&other, "scope").await.unwrap_err();
+    assert!(matches!(error, crate::RegistryError::AdminConflict { .. }), "{error:?}");
+    let error = second.rename_user(&other, "scоpe").await.unwrap_err();
+    assert!(matches!(error, crate::RegistryError::BadRequest { .. }), "{error:?}");
+    server.abort();
+}
