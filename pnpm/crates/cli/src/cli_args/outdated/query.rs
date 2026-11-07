@@ -144,19 +144,14 @@ pub enum TargetVersion {
     WithinRange,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(super) enum CurrentVersionSource {
-    Lockfile,
-    DeclaredSpecifier,
-}
-
 /// A direct dependency with a newer (or deprecated) registry version.
 ///
-/// `current` is the lockfile-pinned version; `target` is the resolved
-/// [`TargetVersion`]. Both are always present — dependencies without a
-/// lockfile pin, without a registry target, or whose specifier is not a
-/// supported registry specifier are dropped during collection because they cannot
-/// be diffed.
+/// `current` is the lockfile-pinned version, or the lowest version the
+/// declared range allows when the lockfile does not record the dependency;
+/// `target` is the resolved [`TargetVersion`]. Both are always present:
+/// dependencies without a registry target, or whose specifier is not a
+/// supported registry specifier, are dropped during collection because they
+/// cannot be diffed.
 pub struct OutdatedPackage {
     /// The `package.json` key (and `node_modules` directory name). Equals
     /// `package_name` except for aliased registry entries (`"foo": "npm:bar@^1"`).
@@ -380,11 +375,6 @@ async fn collect_node_outdated_for_importer(
         &current_versions,
         &engine_deps,
         &node_query,
-        if lockfile.is_some() {
-            CurrentVersionSource::Lockfile
-        } else {
-            CurrentVersionSource::DeclaredSpecifier
-        },
         &run.catalogs,
     )?;
     let fetches = candidates

@@ -1,9 +1,9 @@
 use super::{
     CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Cow,
-    CurrentVersionSource, DeclaredEngineDep, DependencyGroup, HashMap, LatestQuery, Lockfile,
-    OutdatedMetadata, OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest,
-    ResolverWantedDependency, TargetVersion, Version, dereference_catalog_protocol,
-    min_version_of_spec, resolve_from_catalog,
+    DeclaredEngineDep, DependencyGroup, HashMap, LatestQuery, Lockfile, OutdatedMetadata,
+    OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest, ResolverWantedDependency,
+    TargetVersion, Version, dereference_catalog_protocol, min_version_of_spec,
+    resolve_from_catalog,
 };
 
 pub(super) struct OutdatedCandidate<'a> {
@@ -19,7 +19,6 @@ pub(super) fn collect_importer_candidates<'a>(
     current_versions: &HashMap<String, Version>,
     engine_deps: &'a [DeclaredEngineDep],
     query: &OutdatedQuery<'_>,
-    current_version_source: CurrentVersionSource,
     catalogs: &Catalogs,
 ) -> miette::Result<Vec<OutdatedCandidate<'a>>> {
     let mut candidates = Vec::new();
@@ -31,7 +30,6 @@ pub(super) fn collect_importer_candidates<'a>(
                 bare_specifier,
                 current_versions,
                 query,
-                current_version_source,
                 catalogs,
             )? {
                 candidates.push(candidate);
@@ -68,7 +66,6 @@ fn direct_outdated_candidate<'a>(
     bare_specifier: &'a str,
     current_versions: &HashMap<String, Version>,
     query: &OutdatedQuery<'_>,
-    current_version_source: CurrentVersionSource,
     catalogs: &Catalogs,
 ) -> miette::Result<Option<OutdatedCandidate<'a>>> {
     if !query.matches_name(alias) {
@@ -76,17 +73,7 @@ fn direct_outdated_candidate<'a>(
     }
     let current = match current_versions.get(alias).cloned() {
         Some(current) => Some(current),
-        None => match current_version_source {
-            CurrentVersionSource::DeclaredSpecifier => {
-                current_version_from_specifier(catalogs, alias, bare_specifier)?
-            }
-            CurrentVersionSource::Lockfile
-                if pnpm_tool_protocol::is_tool_specifier(bare_specifier) =>
-            {
-                current_version_from_specifier(catalogs, alias, bare_specifier)?
-            }
-            CurrentVersionSource::Lockfile => None,
-        },
+        None => current_version_from_specifier(catalogs, alias, bare_specifier)?,
     };
     Ok(current.map(|current| OutdatedCandidate {
         alias,

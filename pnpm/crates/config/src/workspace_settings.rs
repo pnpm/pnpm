@@ -128,6 +128,9 @@ impl Config {
         if let Some(overrides) = self.overrides.as_mut() {
             crate::override_version_references::resolve_version_references(overrides, base_dir)?;
         }
+        if !self.applies_package_configs() {
+            return Ok(());
+        }
         if let Some(package_configs) = self.package_configs.as_mut() {
             for package_config in package_configs.values_mut() {
                 if let Some(overrides) = package_config.overrides.as_mut() {

@@ -279,6 +279,42 @@ fn outdated_reports_installed_version_when_lockfile_is_disabled() {
 }
 
 #[test]
+fn outdated_reports_dependency_added_after_install_when_lockfile_is_disabled() {
+    let (root, workspace, anchor) = setup();
+    append_workspace_yaml_key(&workspace, "lockfile", "false");
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "^1.0.0", "{DEP}": "^100.0.0" }}"#));
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    assert_eq!(output.status.code(), Some(1), "outdated deps present should exit 1");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should include the added dependency: {stdout}");
+    assert!(stdout.contains("100.0.0"), "report should show the declared range minimum: {stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_ignores_unresolvable_package_config_overrides_in_a_shared_lockfile() {
+    let (root, workspace, anchor) = setup();
+    append_workspace_yaml_key(
+        &workspace,
+        "packageConfigs",
+        "{ app: { overrides: { foo: $missing } } }",
+    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+    let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "outdated deps present should exit 1: {stderr}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains(DEP), "report should list the dependency: {stdout}\n{stderr}");
+
+    drop((root, anchor));
+}
+
+#[test]
 fn recursive_outdated_reports_installed_versions_when_lockfile_is_disabled() {
     for shared_workspace_lockfile in [true, false] {
         let (root, workspace, anchor) = setup();
@@ -1339,15 +1375,25 @@ fn outdated_reports_cargo_and_python_dependencies() {
 
     let excluded_cargo_output = pacquet(
         &workspace,
-        ["-r", "outdated", "pkg:cargo/foo", "!pkg:cargo/foo", "--offline", "--format", "json"],
+        [
+            "-r",
+            "outdated",
+            "pkg:cargo/foo",
+            "pypi:requests",
+            "!pkg:cargo/foo",
+            "--offline",
+            "--format",
+            "json",
+        ],
     )
     .output()
     .expect("run recursive outdated with an excluded Cargo purl");
-    assert_eq!(excluded_cargo_output.status.code(), Some(0));
+    assert_eq!(excluded_cargo_output.status.code(), Some(1));
     let excluded_cargo_report: serde_json::Value =
         serde_json::from_slice(&excluded_cargo_output.stdout)
             .expect("parse excluded Cargo purl outdated JSON");
     assert!(excluded_cargo_report.get("foo").is_none());
+    assert_eq!(excluded_cargo_report["requests"]["current"], "1.0");
 
     let compat_output =
         pacquet(&workspace, ["outdated", "--compatible", "--offline", "--format", "json"])

@@ -35,15 +35,20 @@ pub(super) fn project_dir(manifest: &PackageManifest) -> &std::path::Path {
 /// The wanted lockfile, or else the current lockfile that install records in
 /// the install state directory, which also exists under `lockfile: false`.
 pub(super) fn loaded_lockfile(state: &State) -> miette::Result<Option<Cow<'_, Lockfile>>> {
-    if let Some(lockfile) = state.lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
-    {
+    if let Some(lockfile) = wanted_lockfile(state)? {
         return Ok(Some(Cow::Borrowed(lockfile)));
     }
     Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
         .into_diagnostic()
         .map(|lockfile| lockfile.map(Cow::Owned))
+}
+
+/// Global groups share one [`Config`], so its install state directory is not
+/// theirs to fall back to.
+fn wanted_lockfile(state: &State) -> miette::Result<Option<&Lockfile>> {
+    state.lockfile
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
 }
 
 pub(super) fn isolated_global_config(config: &Config) -> &'static Config {
@@ -355,7 +360,7 @@ impl OutdatedArgs {
             outdated.extend(
                 collect_outdated(
                     &state.manifest,
-                    loaded_lockfile(&state)?.as_deref(),
+                    wanted_lockfile(&state)?,
                     config,
                     &state.http_client,
                     &query,
