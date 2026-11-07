@@ -4,6 +4,10 @@ use pnpm_network::{
     NetworkSettings, RedirectGuard, ThrottledClient, escaped_package_name, normalize_registry_url,
     origins_redirect_guard,
 };
+use pnpm_network_web_auth::{
+    Clock, EnterKeyListener, OpenUrl, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
+    WebAuthFetchOptions, WebAuthRetryOptions,
+};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use std::{collections::HashMap, time::Duration};
 
@@ -165,3 +169,38 @@ fn publish_network_settings(config: &Config) -> NetworkSettings {
 
 #[cfg(test)]
 mod tests;
+
+/// The web-auth capabilities a registry write drives its OTP challenges
+/// through: the real `pnpm_network_web_auth::Host` in production, a scripted
+/// fake in tests.
+pub(crate) trait OtpHost:
+    Clock + Sleep + WebAuthFetch + StdinIsTty + StdoutIsTty + EnterKeyListener + OpenUrl + PromptOtp
+{
+}
+
+impl<Sys> OtpHost for Sys where
+    Sys: Clock
+        + Sleep
+        + WebAuthFetch
+        + StdinIsTty
+        + StdoutIsTty
+        + EnterKeyListener
+        + OpenUrl
+        + PromptOtp
+{
+}
+
+/// How an OTP challenge polls the registry's `doneUrl`: the configured fetch
+/// timeout and retry settings.
+pub(crate) fn web_auth_fetch_options(config: &Config) -> WebAuthFetchOptions {
+    WebAuthFetchOptions {
+        timeout: Some(config.fetch_timeout),
+        retry: Some(WebAuthRetryOptions {
+            factor: Some(f64::from(config.fetch_retry_factor)),
+            max_timeout: Some(config.fetch_retry_maxtimeout),
+            min_timeout: Some(config.fetch_retry_mintimeout),
+            randomize: None,
+            retries: Some(config.fetch_retries),
+        }),
+    }
+}

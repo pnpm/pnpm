@@ -490,8 +490,10 @@ fn add_encodes_dist_tag_path_segment() {
     drop((root, server));
 }
 
+/// Without a terminal the web-auth challenge cannot be answered, so the
+/// command fails with the shared non-interactive error.
 #[test]
-fn add_reports_web_otp_challenge() {
+fn add_fails_on_a_web_otp_challenge_without_a_terminal() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
@@ -508,14 +510,9 @@ fn add_reports_web_otp_challenge() {
     let output = run_dist_tag(&workspace, &auth_file, &["add", "pkg@1.0.0", "beta"]);
 
     mock.assert();
-    assert!(!output.status.success(), "web OTP challenge must fail with guidance");
+    assert!(!output.status.success(), "web OTP challenge must fail without a terminal");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED")
-            && stderr.contains("https://auth.example/login")
-            && stderr.contains("--otp"),
-        "stderr must include web OTP guidance; got:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "stderr:\n{stderr}");
     drop((root, server));
 }
 
@@ -537,12 +534,8 @@ fn add_rejects_unsafe_web_otp_challenge_urls() {
     mock.assert();
     assert!(!output.status.success(), "unsafe web OTP challenge must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "stderr:\n{stderr}");
-    assert!(
-        !stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED"),
-        "unsafe challenge must not be printed as web OTP guidance:\n{stderr}",
-    );
-    assert!(!stderr.contains("Open javascript:"), "stderr:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "stderr:\n{stderr}");
+    assert!(!stderr.contains("javascript:"), "stderr:\n{stderr}");
     drop((root, server));
 }
 
@@ -566,10 +559,12 @@ fn add_rejects_web_otp_challenge_urls_with_control_chars() {
     mock.assert();
     assert!(!output.status.success(), "unsafe web OTP challenge must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "stderr:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "stderr:\n{stderr}");
     assert!(
-        !stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED"),
-        "unsafe challenge must not be printed as web OTP guidance:\n{stderr}",
+        !stderr
+            .lines()
+            .any(|line| line.trim_start().starts_with("spoof")),
+        "stderr:\n{stderr}"
     );
     drop((root, server));
 }
