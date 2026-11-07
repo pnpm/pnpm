@@ -100,11 +100,24 @@ async fn collection_logs_successful_removals_when_another_archive_cannot_be_dele
 }
 
 #[tokio::test]
-async fn collection_logs_distinguish_identical_archives_in_different_organizations() {
+async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
     let (temp, storage) = setup();
     let repository = name("example/app");
-    for org in ["team-one", "team-two"] {
-        blob(&storage.for_hosted(org, Ecosystem::Oci), &repository, b"orphan").await;
+    for (org, pre_unmapped) in [("team-one", false), ("team-two", true)] {
+        let view = storage.for_hosted(org, Ecosystem::Oci);
+        let digest = blob(&view, &repository, b"orphan").await;
+        if pre_unmapped {
+            view.sql_metadata()
+                .unmap_artifacts(
+                    org,
+                    Ecosystem::Oci,
+                    repository.as_str(),
+                    (None, vec![digest.blob_filename().into()]),
+                )
+                .await
+                .unwrap()
+                .unwrap();
+        }
     }
     let yaml = "storage: ./store\ncache: ./cache\nmetadata: { url: 'sqlite:./metadata.sqlite' }\nregistries:\n  oci:\n    first: { type: hosted, org: team-one, access: '$all' }\n    second: { type: hosted, org: team-two, access: '$all' }\n";
     let config_path = temp.path().join("config.yaml");
@@ -112,12 +125,17 @@ async fn collection_logs_distinguish_identical_archives_in_different_organizatio
     let config =
         crate::Config::from_yaml(&config_path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
     let path = temp.path().join("gc.log");
-    let subscriber = tracing_subscriber::fmt()
-        .json()
-        .with_span_list(false)
-        .with_max_level(tracing::Level::INFO)
-        .with_writer(std::fs::File::create(&path).unwrap())
-        .finish();
+    let logs = pnpr_config::LogConfig {
+        format: pnpr_config::LogFormat::Json,
+        level: pnpr_config::LogLevel::Warn,
+        ..pnpr_config::LogConfig::default()
+    };
+    let subscriber = crate::logging::log_subscriber(
+        &logs,
+        tracing_subscriber::EnvFilter::new(logs.level.as_filter_directive()),
+        std::fs::File::create(&path).unwrap(),
+        false,
+    );
     let _default = tracing::subscriber::set_default(subscriber);
     let report =
         crate::archive_gc::collect_archives(&config, &crate::archive_gc::GcOptions::default())
@@ -138,7 +156,13 @@ async fn collection_logs_distinguish_identical_archives_in_different_organizatio
     {
         assert_eq!(event["span"]["org"], org);
         assert_eq!(event["span"]["ecosystem"], "oci");
-        assert_eq!(event["fields"]["repository"], "example/app");
+        assert_eq!(
+            event["fields"]["repository"].as_str(),
+            (org == "team-one").then_some("example/app"),
+        );
+        assert_eq!(event["target"], "pnpr::audit");
+        assert_eq!(event["fields"]["action"], "gc.remove_archive");
+        assert_eq!(event["fields"]["actor"], "-");
     }
 }
 

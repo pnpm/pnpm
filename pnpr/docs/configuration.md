@@ -967,6 +967,9 @@ Audit events record the `action`, the `actor` (the authenticated username, `"sci
   - `oci.delete_blob`: deleting an OCI blob (`actor`, `repository`, `digest`).
   - `oci.delete_manifest`: deleting an OCI manifest (`actor`, `repository`, `reference`).
 
+- **Archive collection**:
+  - `gc.remove_archive`: reclaiming an unmapped archive (`actor`, `key`, `size`). The collection span names the `org` and `ecosystem`. A removal after unmapping an unreachable image blob also names the `repository`.
+
 ### Prometheus metrics
 
 pnpr serves Prometheus metrics in the standard text format (`text/plain; version=0.0.4`) only when the config has a `metrics` block. The block needs a `token`, a `listen` address, or both:

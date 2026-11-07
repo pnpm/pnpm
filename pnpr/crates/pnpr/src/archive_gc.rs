@@ -62,7 +62,7 @@ pub async fn collect_archives(config: &Config, options: &GcOptions) -> Result<Gc
             manifest_limit: config.http.oci.max_manifest_bytes,
             lease: config.gc.lease,
         };
-        let span = tracing::info_span!("archive collection", org = %org, ecosystem = %ecosystem);
+        let span = tracing::info_span!(target: "pnpr::audit", "archive collection", org = %org, ecosystem = %ecosystem);
         report.add(collection.run(options).instrument(span).await?);
     }
     Ok(report)
@@ -132,7 +132,7 @@ impl Collection<'_> {
         let ids = unmapped.keys().cloned().collect();
         let removed = self.storage.reclaim_blobs_with(ids, |blob| {
             let size = unmapped.get(&blob.id).map_or(0, |row| row.size);
-            tracing::info!(key = %blob.key(), size, "removed archive");
+            tracing::info!(target: "pnpr::audit", action = "gc.remove_archive", actor = "-", key = %blob.key(), size, "removed archive");
         })
         .await?;
         Ok(report_of(&removed, |blob| unmapped.get(&blob.id).map_or(0, |row| row.size)))
