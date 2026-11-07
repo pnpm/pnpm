@@ -269,17 +269,21 @@ function isSkippableShimError (err: NodeJS.ErrnoException): boolean {
 }
 
 // The target marker does not describe the header, so a shim whose target has
-// not moved can still need replacing. Keep these in step with pacquet's
-// `is_sh_shim_hardened`.
-const SH_SHIM_HARDENED_LINES = [
-  '  target=$(run_helper readlink "$link")\n',
-  String.raw`basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')` + '\n',
-  '    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
-  '    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n',
-  '    */node_modules/*|*/node_modules) ;;\n',
-  '  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi\n',
+// not moved can still need replacing. Each entry lists the lines that satisfy
+// it. Keep these in step with pacquet's `is_sh_shim_hardened`.
+const SH_SHIM_HARDENED_LINES: ReadonlyArray<readonly string[]> = [
+  ['  target=$(run_helper readlink "$link")\n'],
+  [
+    String.raw`basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')` + '\n',
+    // pnpm 12 converts only a `$link` with a backslash.
+    String.raw`  *\\*) basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g') ;;` + '\n',
+  ],
+  ['    if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n'],
+  ['    if converted=$(command -p wslpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then\n'],
+  ['    */node_modules/*|*/node_modules) ;;\n'],
+  ['  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi\n'],
 ]
 
 function isShimHardened (content: string): boolean {
-  return SH_SHIM_HARDENED_LINES.every((line) => content.includes(line))
+  return SH_SHIM_HARDENED_LINES.every((lines) => lines.some((line) => content.includes(line)))
 }

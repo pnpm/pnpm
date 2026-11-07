@@ -321,6 +321,31 @@ exec node  "$basedir/../simple/index.js" "$@"
   expect(content).not.toContain('# outdated-echo-basedir')
 })
 
+// pnpm 12 writes the same header, except that it converts only a path with a
+// backslash. Installing with either CLI must keep the other's shim.
+test('linkBins() keeps a shim that converts only a path with a backslash', async () => {
+  const binTarget = temporaryDirectory()
+  const warn = jest.fn()
+  const modulesDir = path.join(testFixtures.prepare('simple-fixture'), 'node_modules')
+  const binLocation = path.join(binTarget, 'simple')
+
+  await linkBins(modulesDir, binTarget, { warn })
+  const original = fs.readFileSync(binLocation, 'utf8')
+  expect(original).toContain(`${PRINTF_BASEDIR_LINE}\n`)
+  const conditional = `case "$link" in
+  *\\\\*) ${PRINTF_BASEDIR_LINE} ;;
+  *) basedir=$link ;;
+esac
+`
+  fs.writeFileSync(binLocation, original.replace(`${PRINTF_BASEDIR_LINE}\n`, conditional) + '# sentinel\n', 'utf8')
+
+  await linkBins(modulesDir, binTarget, { warn })
+
+  const content = fs.readFileSync(binLocation, 'utf8')
+  expect(content).toContain('# sentinel')
+  expect(content).toContain(String.raw`  *\\*) basedir=$(run_helper printf`)
+})
+
 test('linkBins() replaces a shim that converts Windows paths with a helper from PATH', async () => {
   const binTarget = temporaryDirectory()
   const warn = jest.fn()
