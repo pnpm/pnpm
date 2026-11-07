@@ -72,7 +72,7 @@ pub(crate) fn staging_path(integrity: &str) -> String {
 }
 
 pub(crate) async fn token_of(app: &Router, user: &str) -> String {
-    let body = json!({ "name": user, "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": user, "password": "secret123", "type": "user", "roles": [] });
     let response = app
         .clone()
         .oneshot(

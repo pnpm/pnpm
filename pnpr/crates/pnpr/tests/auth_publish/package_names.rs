@@ -7,7 +7,7 @@ use super::{
 async fn publishing_rejects_invalid_new_names_before_storing_them() {
     let temp = TempDir::new().unwrap();
     let app = router(static_config(temp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "publisher", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "publisher", "secret123").await;
     for (name, path) in [
         ("demo-UPPER", "demo-UPPER"),
         ("demo~pkg", "demo%7Epkg"),
@@ -57,7 +57,7 @@ async fn publishing_rejects_invalid_new_names_before_storing_them() {
 async fn staged_and_batch_publishes_reject_invalid_new_names() {
     let temp = TempDir::new().unwrap();
     let app = router(static_config(temp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "publisher", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "publisher", "secret123").await;
     let invalid = publish_doc("demo-UPPER", "1.0.0", b"data");
     for (method, path, body) in [
         ("POST", "/npm/-/stage/package/demo-UPPER", invalid.clone()),
@@ -108,7 +108,7 @@ async fn legacy_names_allow_direct_and_staged_deprecation_but_not_new_versions()
         &serde_json::to_vec(&legacy).unwrap(),
     );
     let app = router(static_config(temp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "publisher", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "publisher", "secret123").await;
     let get = || {
         Request::get("/npm/Upper")
             .body(Body::empty())

@@ -81,7 +81,7 @@ async fn token(app: &Router) -> String {
 }
 
 async fn token_of(app: &Router, user: &str) -> String {
-    let body = json!({ "name": user, "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": user, "password": "secret123", "type": "user", "roles": [] });
     let path = format!("/-/user/org.couchdb.user:{user}");
     let answer = send(app, "PUT", &path, "-", Some(&body)).await;
     assert_eq!(answer.status, StatusCode::CREATED);
@@ -229,8 +229,8 @@ async fn a_retry_needs_current_publish_permission() {
         send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
     assert_eq!(committed.status, StatusCode::CREATED);
 
-    token_of(&app, "bob").await;
-    only_bob_publishes(&rules, &crate::tokens::account_id(&app, "bob").await.unwrap());
+    let bob = token_of(&app, "bob").await;
+    only_bob_publishes(&rules, &crate::tokens::account_id(&app, "bob", Some(&bob)).await.unwrap());
     let retry = send(&app, "PUT", "/npm/revoked", &token, Some(&doc)).await;
     assert_eq!((retry.status, retry.generation), (StatusCode::FORBIDDEN, None));
     assert_eq!(retry.body.get("publication"), None);
@@ -276,7 +276,7 @@ async fn a_batch_is_one_publication() {
     assert_eq!(publication.body["id"], 1);
     assert_eq!(
         publication.body["publisher"].as_str(),
-        crate::tokens::account_id(&app, "alice").await.as_deref(),
+        crate::tokens::account_id(&app, "alice", Some(&token)).await.as_deref(),
     );
     let members: Vec<&str> = publication.body["members"]
         .as_array()
@@ -343,7 +343,11 @@ async fn a_member_lookup_hides_a_package_the_caller_cannot_read() {
     });
     let committed = send(&app, "PUT", "/-/pnpr/v0/publish", &bob, Some(&batch)).await;
     assert_eq!(committed.status, StatusCode::CREATED, "{}", committed.text);
-    only_bob_reads(&rules, "@private/*", &crate::tokens::account_id(&app, "bob").await.unwrap());
+    only_bob_reads(
+        &rules,
+        "@private/*",
+        &crate::tokens::account_id(&app, "bob", Some(&bob)).await.unwrap(),
+    );
 
     let hidden =
         send(&app, "GET", "/-/publications/-?member=npm:@private/hidden@1.0.0", &alice, None).await;

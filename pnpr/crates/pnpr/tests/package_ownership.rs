@@ -150,13 +150,14 @@ async fn get_couchdb_user_endpoint() {
         &["admin_alice", "unprovisioned_admin"],
     );
     let app = app_router(config, &["admin_alice"]).await;
-    let (app, _) = add_user_and_get_token(app, "normal_bob", "secret123").await;
+    let (app, token) = add_user_and_get_token(app, "normal_bob", "secret123").await;
 
     // Check unprovisioned admin user returns NOT_FOUND
     let response = app
         .clone()
         .oneshot(
             Request::get("/-/user/org.couchdb.user:unprovisioned_admin")
+                .header("authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -169,6 +170,7 @@ async fn get_couchdb_user_endpoint() {
         .clone()
         .oneshot(
             Request::get("/-/user/org.couchdb.user:admin_alice")
+                .header("authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -186,6 +188,7 @@ async fn get_couchdb_user_endpoint() {
             .clone()
             .oneshot(
                 Request::get(path)
+                    .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -202,6 +205,7 @@ async fn get_couchdb_user_endpoint() {
         .clone()
         .oneshot(
             Request::get("/-/user/org.couchdb.user:nobody")
+                .header("authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )

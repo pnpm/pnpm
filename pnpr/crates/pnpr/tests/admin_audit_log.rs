@@ -168,7 +168,7 @@ fn load_config(dir: &Path) -> Config {
 }
 
 async fn app_router(config: Config) -> axum::Router {
-    let auth = crate::tokens::seeded_auth(&config, &[("root", "secret")]);
+    let auth = crate::tokens::seeded_auth(&config, &[("root", "secret123")]);
     router_with_auth(config, auth)
 }
 
@@ -179,9 +179,9 @@ async fn send(
     token: Option<&str>,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
-    let path = crate::tokens::admin_path(app, method, path).await;
+    let path = crate::tokens::admin_path(app, method, path, token).await;
     let path = if let Some(name) = path.strip_prefix("/-/pnpr/v0/scim/v2/Users/") {
-        match crate::tokens::account_id(app, name).await {
+        match crate::tokens::account_id(app, name, token).await {
             Some(id) => format!("/-/pnpr/v0/scim/v2/Users/{id}"),
             None => path,
         }
@@ -283,7 +283,7 @@ async fn audit_log_user_admin_and_registration() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path())).await;
-    let root = login(&app, "root", "secret").await;
+    let root = login(&app, "root", "secret123").await;
 
     // 1. user.create
     let (status, _) = send(
@@ -291,7 +291,7 @@ async fn audit_log_user_admin_and_registration() {
         "PUT",
         "/-/pnpr/v0/admin/users/aud_u1",
         Some(&root),
-        Some(json!({ "password": "pass1" })),
+        Some(json!({ "password": "password1" })),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -305,7 +305,7 @@ async fn audit_log_user_admin_and_registration() {
         "PUT",
         "/-/pnpr/v0/admin/users/aud_u1",
         Some(&root),
-        Some(json!({ "password": "pass2" })),
+        Some(json!({ "password": "password2" })),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -314,7 +314,7 @@ async fn audit_log_user_admin_and_registration() {
     assert_request_span(&ev, "PUT");
 
     // Log in to issue a token for aud_u1
-    let _ = login(&app, "aud_u1", "pass2").await;
+    let _ = login(&app, "aud_u1", "password2").await;
     let (status, tokens) =
         send(&app, "GET", "/-/pnpr/v0/admin/users/aud_u1/tokens", Some(&root), None).await;
     assert_eq!(status, StatusCode::OK);
@@ -344,7 +344,7 @@ async fn audit_log_user_admin_and_registration() {
     assert_request_span(&ev, "DELETE");
 
     // 5. user.register
-    let _reg_token = login(&app, "aud_reg_user", "regpass").await;
+    let _reg_token = login(&app, "aud_reg_user", "reg-password").await;
     let ev = find_event(&logs, "user.register", "user", "aud_reg_user");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("aud_reg_user"));
     assert_request_span(&ev, "PUT");
@@ -355,7 +355,7 @@ async fn audit_log_rule_admin() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path())).await;
-    let root = login(&app, "root", "secret").await;
+    let root = login(&app, "root", "secret123").await;
 
     // 1. rules.replace
     let (status, _) = send(
@@ -389,7 +389,7 @@ async fn audit_log_team_admin() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path())).await;
-    let root = login(&app, "root", "secret").await;
+    let root = login(&app, "root", "secret123").await;
 
     // 1. team.create
     let (status, _) = send(
@@ -406,7 +406,7 @@ async fn audit_log_team_admin() {
     assert_eq!(ev.fields.get("scope").map(String::as_str), Some("audscope"));
     assert_request_span(&ev, "PUT");
 
-    login(&app, "audmember", "secret").await;
+    login(&app, "audmember", "secret123").await;
     // 2. team.member_add
     let (status, _) = send(
         &app,
@@ -551,7 +551,7 @@ async fn audit_log_unpublish_and_dist_tags() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path())).await;
-    let publisher = login(&app, "aud_publisher", "pass").await;
+    let publisher = login(&app, "aud_publisher", "password").await;
 
     // Publish package
     let body = publish_doc("audit-unpub-pkg", "1.0.0", b"tarball-contents");
@@ -689,7 +689,7 @@ async fn audit_log_oci_deletion_operations() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
     let app = oci_app(&dir);
-    let user_token = login(&app, "alice", "secret").await;
+    let user_token = login(&app, "alice", "secret123").await;
     let auth = format!("Basic {}", STANDARD.encode(format!("alice:{user_token}")));
 
     // 1. Push a blob
@@ -794,13 +794,13 @@ async fn renaming_an_account_audits_its_stable_id_and_new_name() {
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();
     let app = app_router(load_config(dir.path())).await;
-    let root = login(&app, "root", "secret").await;
+    let root = login(&app, "root", "secret123").await;
     let (_, created) = send(
         &app,
         "PUT",
         "/-/pnpr/v0/admin/users/aud_before",
         Some(&root),
-        Some(json!({"password": "secret"})),
+        Some(json!({"password": "secret123"})),
     )
     .await;
     let id = created["id"].as_str().unwrap();

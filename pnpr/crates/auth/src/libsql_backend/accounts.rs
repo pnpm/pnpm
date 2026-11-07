@@ -38,8 +38,8 @@ impl LibsqlAuth {
             self.pool.write(|conn| async move {
                 let tx = conn.transaction().await?;
                 let inserted = tx.execute(
-                    "INSERT INTO users (id, username, bcrypt_hash) VALUES (?1, ?2, '*')",
-                    params![id_ref, username],
+                    "INSERT INTO users (id, username, bcrypt_hash, username_skeleton_hash) VALUES (?1, ?2, '*', ?3)",
+                    params![id_ref, username, crate::validation::username_skeleton_hash(username)],
                 )
                 .await;
                 match inserted {
@@ -93,8 +93,8 @@ impl LibsqlAuth {
         retry_database_conflicts(|| {
             self.pool.write(|conn| async move {
                 match conn.execute(
-                    "UPDATE users SET username = ?2 WHERE id = ?1 AND bcrypt_hash <> '!'",
-                    params![user_id, username],
+                    "UPDATE users SET username = ?2, username_skeleton_hash = ?3 WHERE id = ?1 AND bcrypt_hash <> '!'",
+                    params![user_id, username, crate::validation::username_skeleton_hash(username)],
                 )
                 .await
                 {

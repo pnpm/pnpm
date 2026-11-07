@@ -1,5 +1,7 @@
 pub(super) mod sqlite;
 
+pub(super) use pnpm_crypto_hash::create_hex_hash_bytes as sha256_hex;
+
 use super::{
     AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
     Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait,
@@ -450,12 +452,6 @@ pub(super) fn mint_token(secret: &[u8; 32], nonce: u64, user_id: &str) -> String
     // 16 bytes of hash → 32 hex chars. Long enough to be
     // unguessable, short enough to keep test logs readable.
     hex_encode(&digest[..16])
-}
-
-pub(super) fn sha256_hex(bytes: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    hex_encode(&hasher.finalize())
 }
 
 pub(super) fn hex_encode(bytes: &[u8]) -> String {

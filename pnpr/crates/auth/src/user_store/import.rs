@@ -74,6 +74,7 @@ fn merge_hashes(
                 }
             },
             None => {
+                super::check_username_skeleton(users, &name, None)?;
                 users.insert(name, StoredAccount::new(hash));
                 merged += 1;
             }

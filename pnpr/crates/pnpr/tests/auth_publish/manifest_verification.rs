@@ -42,7 +42,7 @@ async fn served_version(app: &axum::Router, name: &str, version: &str) -> Value 
 async fn setup() -> (TempDir, axum::Router, String) {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
     (tmp, app, token)
 }
 

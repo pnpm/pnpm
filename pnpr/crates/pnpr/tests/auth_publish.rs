@@ -127,6 +127,7 @@ async fn add_user_and_get_token(
 }
 
 fn router(config: Config) -> axum::Router {
-    let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret"), ("admin", "secret")]);
+    let auth =
+        crate::tokens::seeded_auth(&config, &[("alice", "secret123"), ("admin", "secret123")]);
     pnpr::router_with_auth(config, auth)
 }

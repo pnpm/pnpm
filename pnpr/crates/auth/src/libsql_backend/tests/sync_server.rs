@@ -26,7 +26,7 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
     let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
     let db = Builder::new_local(&primary.path).build().await.unwrap();
     let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited, 4).await.unwrap();
-    backend.add_or_login("alice", "secret").await.unwrap();
+    backend.add_or_login("alice", "secret123").await.unwrap();
     let alice_id = backend
         .account_id("alice")
         .await
@@ -104,7 +104,7 @@ async fn embedded_replica_sets_up_the_schema_on_an_empty_primary() {
     let settings = replica_settings(address, replica_path, None);
     let replica = LibsqlAuth::connect(&settings, MaxUsers::Limited(2)).await.unwrap();
 
-    let (outcome, carol_id) = replica.add_or_login("carol", "secret").await.unwrap();
+    let (outcome, carol_id) = replica.add_or_login("carol", "secret123").await.unwrap();
     assert!(matches!(outcome, UpsertOutcome::Created));
     let token = replica.issue(&carol_id).await.unwrap();
     let owner = replica.lookup(&token).await.unwrap();
@@ -131,7 +131,7 @@ async fn bulk_revocation_refreshes_a_replica_whose_tokens_went_elsewhere() {
     let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
     let db = Builder::new_local(&primary.path).build().await.unwrap();
     let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited, 4).await.unwrap();
-    backend.add_or_login("alice", "secret").await.unwrap();
+    backend.add_or_login("alice", "secret123").await.unwrap();
     let alice_id = backend
         .account_id("alice")
         .await

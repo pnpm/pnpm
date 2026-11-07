@@ -665,8 +665,8 @@ consumes. Teams are [registry-scoped](configuration.md#teams).
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Returns a JSON array of `{"id": ..., "name": ...}`. The scope may be written with or without a leading `@`. |
-| `GET` | `/-/team/{scope}/{team}/user` | Members of one team, as a JSON array of `{"id": ..., "name": ...}`. |
+| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Requires membership in one of its teams or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. The scope may be written with or without a leading `@`. |
+| `GET` | `/-/team/{scope}/{team}/user` | Members of one team. Requires membership in one of the registry's teams or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. |
 | `PUT` | `/-/org/{scope}/team` | Create a team. The body is `{"name": "<team>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
@@ -699,7 +699,7 @@ the immutable team ID returned by the team endpoints.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/team/{scope}/{team}/package` | The `packages:` keys whose `access` list names `team:<id>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
+| `GET` | `/-/team/{scope}/{team}/package` | Requires registry team membership or administrator access. The `packages:` keys whose `access` list names `team:<id>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
 | `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. Both add `team:<id>` to the package's `access` list. `read-write` adds it to `publish` too, and `read-only` removes it from `publish`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}/package` | Revoke access. The body is `{"package": "<name>"}`. Removes `team:<id>` from the package's `access`, `publish`, and `unpublish` lists. Returns `204`. |
 
@@ -726,8 +726,8 @@ resolver-only server that exposes no registry surface.
 | `POST` | `/-/v1/login` | Initiates npm/pnpm browser SSO login. Returns `202 Accepted` with `loginUrl` and `doneUrl` when OIDC login is configured, or `404` to fall back to basic auth. |
 | `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Validates the session and redirects to the configured OIDC provider or renders a provider picker. |
 | `GET` | `/-/v1/login/poll/{session}` | CLI polling endpoint (`doneUrl`). Returns `202 Accepted` with `Retry-After: 1` while pending, or `200 OK` with the bearer token once authenticated. |
-| `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.users.maxUsers` allows registration; existing users can log in with the correct password. Returns a bearer token. |
-| `GET` | `/-/user/{name}` | User lookup endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
+| `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.users.maxUsers` allows registration; New passwords must contain at least 8 characters and at most 71 bytes. Existing users can log in with the correct password. Returns a bearer token. |
+| `GET` | `/-/user/{name}` | Requires authentication. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. The server records a token's last use at most once a minute. |

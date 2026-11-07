@@ -9,7 +9,7 @@ use base64::Engine;
 async fn adduser_creates_user_and_returns_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (_, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (_, token) = add_user_and_get_token(app, "alice", "secret123").await;
     assert!(!token.is_empty(), "token should be non-empty");
 }
 
@@ -17,8 +17,8 @@ async fn adduser_creates_user_and_returns_token() {
 async fn adduser_returns_token_on_repeat_login() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, first) = add_user_and_get_token(app, "alice", "secret").await;
-    let (_, second) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, first) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (_, second) = add_user_and_get_token(app, "alice", "secret123").await;
     assert!(!first.is_empty() && !second.is_empty());
     // We mint a fresh token each call. The important property is
     // that *both* tokens work, not that they're identical.
@@ -29,7 +29,7 @@ async fn adduser_returns_token_on_repeat_login() {
 async fn adduser_rejects_wrong_password_for_existing_user() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, _) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let path = "/-/user/org.couchdb.user:alice";
     let body = json!({
@@ -47,7 +47,7 @@ async fn adduser_rejects_wrong_password_for_existing_user() {
 async fn bearer_token_grants_access_to_protected_package() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let response = app
         .oneshot(
@@ -65,7 +65,7 @@ async fn bearer_token_grants_access_to_protected_package() {
 async fn basic_auth_is_rejected_for_protected_package() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
-    let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, _) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // pnpr does not accept Basic credentials on requests: the header is
     // ignored (treated as anonymous), so a protected package is rejected.
@@ -88,7 +88,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = &npm_tgz("mypkg", "1.0.0", b"fake-tarball-bytes");
     let body = publish_doc("mypkg", "1.0.0", bytes);
@@ -161,8 +161,8 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
     unpublish: admin",
     );
     let app = router(config);
-    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret123").await;
 
     let body = publish_doc("unpub-policy", "1.0.0", b"contents");
     let request = Request::put("/npm/unpub-policy")
@@ -244,8 +244,8 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
     unpublish: admin",
     );
     let app = router(config);
-    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret123").await;
 
     let body = publish_doc("tarball-policy", "1.0.0", b"contents");
     let request = Request::put("/npm/tarball-policy")

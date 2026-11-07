@@ -73,7 +73,7 @@ fn json_body(value: &Value) -> Body {
 }
 
 async fn token(app: &Router) -> String {
-    let body = json!({ "name": "alice", "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": "alice", "password": "secret123", "type": "user", "roles": [] });
     let answer = send(app, "PUT", "/-/user/org.couchdb.user:alice", None, json_body(&body)).await;
     assert_eq!(answer.status, StatusCode::CREATED);
     answer.json()["token"]

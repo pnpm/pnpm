@@ -64,7 +64,7 @@ async fn token(app: &Router) -> String {
 }
 
 async fn token_of(app: &Router, user: &str) -> String {
-    let body = json!({ "name": user, "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": user, "password": "secret123", "type": "user", "roles": [] });
     let path = format!("/-/user/org.couchdb.user:{user}");
     let (status, _, bytes) = send(app, request("PUT", &path, "-", Some(&body))).await;
     assert_eq!(status, StatusCode::CREATED);

@@ -43,7 +43,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
     let storage = tmp.path().to_path_buf();
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let app = router(s3_config(storage.clone(), Arc::clone(&store)));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = &npm_tgz("mypkg", "1.0.0", b"fake-tarball-bytes");
     let body = publish_doc("mypkg", "1.0.0", bytes);
@@ -107,7 +107,7 @@ async fn rejected_publish_uploads_nothing_and_leaves_no_staging_file() {
     let storage = tmp.path().to_path_buf();
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let app = router(s3_config(storage.clone(), Arc::clone(&store)));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let mut body = publish_doc("bad-pkg", "1.0.0", b"actual-bytes");
     // Declare an integrity over different bytes than the body carries,
@@ -135,7 +135,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
     let storage = tmp.path().to_path_buf();
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let app = router(s3_config(storage.clone(), Arc::clone(&store)));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("mypkg", "1.0.0", b"fake-tarball-bytes");
     let request = Request::put("/npm/mypkg")
@@ -246,7 +246,7 @@ async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
     };
 
     let app = router(config);
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("mypkg", "1.0.0", b"fake-tarball-bytes");
     let response = app

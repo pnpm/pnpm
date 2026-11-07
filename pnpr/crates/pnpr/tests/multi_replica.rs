@@ -56,9 +56,9 @@ impl Replica {
             HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() };
         config.storage.metadata =
             MetadataBackend::Sqlite(metadata.0.path().join("metadata.sqlite"));
-        let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret")]);
+        let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret123")]);
         let app = pnpr::router_with_auth(config, auth);
-        let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+        let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
         Replica { app, token, _storage: storage }
     }
 
@@ -193,7 +193,7 @@ async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
     let metadata = SharedMetadata::new();
     let slow = Replica::start(&store, &metadata).await;
     let mut fast = Replica::start(&store, &metadata).await;
-    fast.token = add_user_and_get_token(fast.app.clone(), "bob", "secret").await;
+    fast.token = add_user_and_get_token(fast.app.clone(), "bob", "secret123").await;
 
     objects.pause_write(tarball_key("claimed-pkg", "1.0.0", b"slow"));
     let slow_publish = slow.spawn_publish("claimed-pkg", "1.0.0", b"slow");
@@ -212,7 +212,9 @@ async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
             .len(),
         1,
     );
-    let id = crate::tokens::account_id(&fast.app, "bob").await.unwrap();
+    let id = crate::tokens::account_id(&fast.app, "bob", Some(&fast.token))
+        .await
+        .unwrap();
     assert_eq!(packument["maintainers"][0]["userId"], id);
     assert_eq!(packument["maintainers"][0]["name"], "bob");
     assert!(packument["versions"].get("1.0.0").is_none());

@@ -63,7 +63,7 @@ impl Registry {
         let storage = TempDir::new().unwrap();
         let (primary, address, server) = serve_primary(storage.path().join("primary.db")).await;
         let app = router(libsql_config(&storage.path().join("registry"), address));
-        let body = json!({ "name": "alice", "password": "secret", "type": "user", "roles": [] });
+        let body = json!({ "name": "alice", "password": "secret123", "type": "user", "roles": [] });
         let (status, bytes) =
             send_to(&app, request("PUT", "/-/user/org.couchdb.user:alice", "-", Some(&body))).await;
         assert_eq!(status, StatusCode::CREATED);

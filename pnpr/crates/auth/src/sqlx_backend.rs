@@ -198,6 +198,7 @@ enum InsertUser {
     Created(String),
     Existing(StoredUser),
     CapReached,
+    Confusable,
 }
 
 #[async_trait]
@@ -224,10 +225,12 @@ where
 
         self.check_registration_capacity().await?;
 
+        crate::validation::validate_new_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, self.max_users).await? {
             InsertUser::Created(id) => Ok((UpsertOutcome::Created, id)),
             InsertUser::Existing(stored) => self.verify_and_maybe_upgrade(stored, password).await,
+            InsertUser::Confusable => Err(crate::validation::confusable_username()),
             InsertUser::CapReached => match self.max_users {
                 MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),
                 MaxUsers::Disabled | MaxUsers::Unlimited => {
@@ -260,15 +263,18 @@ where
     /// counts the new user.
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
         validate_username(username)?;
+        crate::validation::validate_new_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, MaxUsers::Unlimited).await? {
             InsertUser::Created(_) => Ok(UserCreation::Created),
             // An uncapped insert cannot reach the cap.
             InsertUser::Existing(_) | InsertUser::CapReached => Ok(UserCreation::NameTaken),
+            InsertUser::Confusable => Err(crate::validation::confusable_username()),
         }
     }
 
     async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
+        crate::validation::validate_new_password(password)?;
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         self.db.update_password_hash(user_id, &hash).await
     }

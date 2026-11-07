@@ -117,14 +117,14 @@ async fn anonymous_rule_admits_anonymous_and_forbids_authenticated() {
     assert_eq!(status_of(app.clone(), get("/npm/@anon/x")).await, StatusCode::NOT_FOUND);
 
     // An authenticated caller is outside the `$anonymous` group → 403.
-    let token = add_user_and_get_token(&app, "alice", "secret").await;
+    let token = add_user_and_get_token(&app, "alice", "secret123").await;
     assert_eq!(status_of(app, get_auth("/npm/@anon/x", &token)).await, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
 async fn account_id_in_access_list_grants_only_that_user() {
     let auth = pnpr::AuthState::in_memory();
-    let (_, alice_id) = auth.users.add_or_login("alice", "secret").await.unwrap();
+    let (_, alice_id) = auth.users.add_or_login("alice", "secret123").await.unwrap();
     assert_ne!(alice_id, "alice");
     let (_dir, config) = config_from_yaml(&format!(
         "packages:\n  '@team/*':\n    access: {alice_id}\n  '**':\n    access: $all\n",
@@ -135,10 +135,10 @@ async fn account_id_in_access_list_grants_only_that_user() {
     assert_eq!(status_of(app.clone(), get("/npm/@team/x")).await, StatusCode::UNAUTHORIZED);
 
     // A different authenticated user is not `alice` → 403.
-    let bob = add_user_and_get_token(&app, "bob", "secret").await;
+    let bob = add_user_and_get_token(&app, "bob", "secret123").await;
     assert_eq!(status_of(app.clone(), get_auth("/npm/@team/x", &bob)).await, StatusCode::FORBIDDEN);
 
     // `alice` is on the list → access granted (404 = allowed but absent).
-    let alice = add_user_and_get_token(&app, "alice", "secret").await;
+    let alice = add_user_and_get_token(&app, "alice", "secret123").await;
     assert_eq!(status_of(app, get_auth("/npm/@team/x", &alice)).await, StatusCode::NOT_FOUND);
 }
