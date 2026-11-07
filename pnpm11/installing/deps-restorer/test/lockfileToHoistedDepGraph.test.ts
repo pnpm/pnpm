@@ -108,7 +108,7 @@ test('custom fetchers do not prevent reuse of an integrity-pinned hoisted packag
 // Two peer variants of one version collapse onto a single hoister node
 // keyed by the first depPath seen for the version, so the walk never
 // records a location under the other variant's depPath. An edge declared
-// against that variant — here `c`'s dependency on `b` — still has to
+// against that variant, here `c`'s dependency on `b`, still has to
 // resolve to the copy the surviving node produced, or `b` drops out of
 // `c`'s children and off `c`'s `node_modules/.bin`.
 test('lockfileToHoistedDepGraph wires an edge declared against a collapsed peer variant', async () => {

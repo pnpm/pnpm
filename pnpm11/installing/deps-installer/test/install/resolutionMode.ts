@@ -100,7 +100,7 @@ test('the lowest version of a direct dependency is installed when a minimum rele
   const project = prepareEmpty()
 
   // `minimumReleaseAge` narrows the versions on offer to the mature ones. It
-  // does not say which end of what is left to take — that is what
+  // does not say which end of what is left to take, that is what
   // `resolutionMode` says.
   await install({
     dependencies: {

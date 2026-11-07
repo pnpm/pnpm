@@ -178,7 +178,7 @@ export interface ResolveDependencyTreeResult {
   wantedToBeSkippedPackageIds: Set<string>
   time?: Record<string, string>
   /**
-   * Policy violations collected inline during resolution — the
+   * Policy violations collected inline during resolution, the
    * resolver pushes to this list whenever it picks a package that
    * trips one of its own checks.
    */

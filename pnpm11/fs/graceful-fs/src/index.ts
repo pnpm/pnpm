@@ -147,10 +147,10 @@ export async function withFileLockRetryAsync<Result> (operation: () => Promise<R
   const retry = createFileLockRetry()
   for (;;) {
     try {
-      // eslint-disable-next-line no-await-in-loop -- the next attempt runs only after this one fails
+      // eslint-disable-next-line no-await-in-loop, the next attempt runs only after this one fails
       return await operation()
     } catch (err) {
-      // eslint-disable-next-line no-await-in-loop -- backs off before the next attempt
+      // eslint-disable-next-line no-await-in-loop, backs off before the next attempt
       await backOffWithFileLockRetryAsync(retry, err)
     }
   }

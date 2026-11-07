@@ -11,14 +11,14 @@ import { npmDefaults } from './npmDefaults.js'
 // or client certificate authored for a different host.
 //
 // Two groups:
-// * auth keys — `_authToken` etc. Pinned to prevent credential leaks. npm
+// * auth keys, `_authToken` etc. Pinned to prevent credential leaks. npm
 //   rejects these unscoped since npm@9 (ERR_INVALID_AUTH); pnpm keeps them
 //   working but warns so users migrate before a future major drops support.
-// * client certificate keys — `cert`/`key` (inline PEM). Pinned to prevent
+// * client certificate keys, `cert`/`key` (inline PEM). Pinned to prevent
 //   a client certificate (and the identity it carries) being presented to
 //   the wrong host. The `certfile`/`keyfile` path variants are not in
 //   `NPM_AUTH_SETTINGS`, so unscoped forms never reach the merged config
-//   in the first place — only the URL-scoped `//host/:certfile=...` and
+//   in the first place, only the URL-scoped `//host/:certfile=...` and
 //   `//host/:keyfile=...` forms are honored, and those are already pinned
 //   to their authoring registry by construction.
 //
@@ -33,7 +33,7 @@ const UNSCOPED_RESCOPABLE_KEYS = [
 ] as const
 
 // Rewrite any unscoped per-registry keys in `source` to their URL-scoped
-// equivalents (`//host[:port]/path/:<key>=...`) using `source.registry` —
+// equivalents (`//host[:port]/path/:<key>=...`) using `source.registry`,
 // or the builtin default registry if the source doesn't declare its own.
 // A URL-scoped key for the same
 // registry already present in `source` wins; we never overwrite an
@@ -44,7 +44,7 @@ export function rescopeUnscopedCreds (
   warnings: string[]
 ): Record<string, unknown> {
   // Bail early if there's nothing to rescope. This skips the nerfDart call
-  // when a source like the builtin pnpmrc has only a `registry=` line —
+  // when a source like the builtin pnpmrc has only a `registry=` line,
   // rescoping there would do nothing anyway.
   if (!UNSCOPED_RESCOPABLE_KEYS.some(key => key in source)) {
     return source
@@ -73,7 +73,7 @@ function nerfSourceRegistry (source: Record<string, unknown>): string | undefine
   }
 }
 
-// `registry=` resolved to something `URL` can't parse — often an
+// `registry=` resolved to something `URL` can't parse, often an
 // unresolved `${VAR}` placeholder that left the string empty. Drop the
 // unscoped keys (a bare token is unsafe to bind anywhere) and warn.
 function dropUnscopedCreds (source: Record<string, unknown>, sourceLabel: string, warnings: string[]): void {

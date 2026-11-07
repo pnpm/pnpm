@@ -115,7 +115,7 @@ async function startPeerHoisting (
 }
 
 async function hoistPeersToImporters (hoisting: PeerHoisting): Promise<void> {
-  /* eslint-disable no-await-in-loop -- each round hoists the peers that the previous round found missing */
+  /* eslint-disable no-await-in-loop, each round hoists the peers that the previous round found missing */
   while (true) {
     const allMissingOptionalPeersByImporters = await Promise.all(
       hoisting.importerResults.map(async (_, index) => hoistRequiredPeersOfImporter(hoisting, index))
@@ -142,7 +142,7 @@ async function hoistRequiredPeersOfImporter (hoisting: PeerHoisting, index: numb
     if (!missingRequiredPeers.length) break
     const dependencies = hoistPeersToImporter(missingRequiredPeers)
     if (!Object.keys(dependencies).length) break
-    // eslint-disable-next-line no-await-in-loop -- the next round depends on the peers this round resolves
+    // eslint-disable-next-line no-await-in-loop, the next round depends on the peers this round resolves
     await resolveHoistedDependencies(hoisting, index, getHoistedRequiredPeers(hoisting, index, dependencies))
   }
   return allMissingOptionalPeers
@@ -327,7 +327,7 @@ async function hoistOptionalPeersOfImporter (
   if (!Object.keys(opts.allMissingOptionalPeers).length || !hoisting.ctx.allPreferredVersions) return false
   const detachedPeers = createDetachedPeerResolutions()
   let optionalDependencies = pickHoistableOptionalPeers(hoisting, opts, detachedPeers)
-  /* eslint-disable no-await-in-loop -- each pick may meet required peers whose ranges the previous pick did not reach */
+  /* eslint-disable no-await-in-loop, each pick may meet required peers whose ranges the previous pick did not reach */
   while (detachedPeers.pending.size > 0) {
     await resolvePendingDetachedPeers(hoisting, opts.index, detachedPeers)
     optionalDependencies = pickHoistableOptionalPeers(hoisting, opts, detachedPeers)

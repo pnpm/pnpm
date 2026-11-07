@@ -77,7 +77,7 @@ export interface PublishConfig extends Record<string, unknown> {
   directory?: string
   /**
    * Publishes the package under a different name than the one its manifest
-   * carries in the workspace — for a project whose name is already taken by a
+   * carries in the workspace, for a project whose name is already taken by a
    * sibling. Only the published artifact is renamed; dependents, the lockfile,
    * and release tooling keep addressing the project by its manifest name.
    */
@@ -265,7 +265,7 @@ export interface WorkspaceTaskSettings {
    * `name` entry names the task in the same project.
    *
    * A task with no declaration behaves as `dependsOn: ['^<its own name>']`.
-   * An entry with `dependsOn` omitted declares an empty dependency list — the
+   * An entry with `dependsOn` omitted declares an empty dependency list, the
    * task depends on nothing and may start immediately.
    */
   dependsOn?: string[]
@@ -353,8 +353,8 @@ export interface PnpmSettings {
 }
 
 /**
- * Where a dependency's build output may be reused from: this machine, and —
- * through `remote` — other machines in the same organization.
+ * Where a dependency's build output may be reused from: this machine, and,
+ * through `remote`, other machines in the same organization.
  */
 export interface SideEffectsCacheSettings {
   /** Restore a package's build from the cache when one is present. */

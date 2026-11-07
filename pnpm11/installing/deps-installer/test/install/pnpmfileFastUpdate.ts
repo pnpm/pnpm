@@ -53,7 +53,7 @@ test('a remove keeps the specifiers a project-rewriting pnpmfile recorded', asyn
   const project = prepareEmpty()
   // The hook pins a direct dependency of the project itself, so the recorded
   // specifier differs from the raw manifest. The fast update must compare
-  // hooked manifests — absorbing the raw specifier would commit a lockfile a
+  // hooked manifests, absorbing the raw specifier would commit a lockfile a
   // full resolution would never write.
   function readPackage (manifest: PackageManifest) {
     if (manifest.dependencies?.['is-positive'] != null) {

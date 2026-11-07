@@ -162,8 +162,8 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
     // Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
     // pre vercel/turborepo#12825): a peer-variant injected workspace
     // snapshot whose base `packages:` entry was dropped now has a null
-    // `resolution`. Reconstruct it from the `file:` depPath — same value
-    // pnpm's writer emits — so every downstream reader sees a complete
+    // `resolution`. Reconstruct it from the `file:` depPath, same value
+    // pnpm's writer emits, so every downstream reader sees a complete
     // snapshot without per-reader guards.
     if (snapshot.resolution == null) {
       const ref = parse(depPath).nonSemverVersion

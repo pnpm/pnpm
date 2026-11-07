@@ -21,7 +21,7 @@ const {
 const dirs: string[] = []
 
 // The homepage and git URL fall back to GITHUB_SERVER_URL, which is set on
-// GitHub Actions runners — the tests assume the https://github.com default.
+// GitHub Actions runners, the tests assume the https://github.com default.
 const originalGithubServerUrl = process.env.GITHUB_SERVER_URL
 
 beforeEach(() => {

@@ -92,8 +92,8 @@ export async function readWantedLockfile (
  * Read the wanted lockfile in its on-disk shape ({@link LockfileFile}),
  * skipping the conversion to the in-memory {@link LockfileObject}.
  *
- * Use this when the caller needs the exact serialized form — e.g. to
- * forward the lockfile to a server that speaks the on-disk format —
+ * Use this when the caller needs the exact serialized form, e.g. to
+ * forward the lockfile to a server that speaks the on-disk format,
  * rather than the in-process representation.
  */
 export async function readWantedLockfileFile (
@@ -300,7 +300,7 @@ async function _readWantedLockfile (
   const lockfileNames = await getWantedLockfileCandidates(opts)
   let result: ReadLockfileResult = { ...NO_LOCKFILE }
   let preMergeImporters: LockfileObject['importers'] | undefined
-  /* eslint-disable no-await-in-loop -- the first lockfile candidate that exists wins, so later ones are not read */
+  /* eslint-disable no-await-in-loop, the first lockfile candidate that exists wins, so later ones are not read */
   for (const lockfileName of lockfileNames) {
     result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
     if (!result.lockfile) continue

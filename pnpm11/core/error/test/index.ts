@@ -74,7 +74,7 @@ test('FetchError drops the query string of a signed URL', () => {
     { status: 404, statusText: 'Not Found' }
   )
   // A signed URL's token is reusable, so it must not reach terminal
-  // scrollback or CI logs — credential redaction alone would keep it.
+  // scrollback or CI logs, credential redaction alone would keep it.
   expect(error.message).toBe('GET https://storage.example.net/pkg.tgz: Not Found - 404')
   expect(error.request.url).toBe('https://storage.example.net/pkg.tgz?X-Amz-Signature=SIGNEDSECRET#frag')
 })
@@ -94,7 +94,7 @@ test('FetchError keeps a path that contains an at sign', () => {
     { status: 403, statusText: 'Forbidden' }
   )
   // The `@` is past the authority, so it is the scope of a package name, not
-  // credential material — and the spelling is echoed, not normalized.
+  // credential material, and the spelling is echoed, not normalized.
   expect(error.message).toBe('GET https://registry.example/@scope%2fpkg: Forbidden - 403')
 })
 

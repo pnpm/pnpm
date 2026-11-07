@@ -1,4 +1,4 @@
-// cspell:ignore Ffoo -- `%2F` percent-encoding of `packages/foo` in the hoisting-limits locator keys
+// cspell:ignore Ffoo, `%2F` percent-encoding of `packages/foo` in the hoisting-limits locator keys
 import { expect, test } from '@jest/globals'
 import { getHoistingLimits, hoist } from '@pnpm/installing.linking.real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'

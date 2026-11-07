@@ -10,7 +10,7 @@ export interface RecordLockfileVerifiedOptions {
   /** Absolute path of the lockfile the next install will read.
    *  Under `useGitBranchLockfile` this is the branch-suffixed name. */
   lockfilePath: string
-  /** The writer's canonical return value — see {@link writeWantedLockfile}.
+  /** The writer's canonical return value, see {@link writeWantedLockfile}.
    *  Passing the raw in-memory write object would record a hash the
    *  next install can't match (YAML drops undefined fields). */
   lockfile: LockfileObject

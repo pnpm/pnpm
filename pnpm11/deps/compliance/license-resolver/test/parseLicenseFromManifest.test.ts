@@ -14,14 +14,14 @@ describe('parseLicenseFromManifest', () => {
   })
 
   test('falls back to the legacy `licenses` array when `license` is absent', () => {
-    // https://github.com/pnpm/pnpm/issues/11248 — busboy, streamsearch, etc.
+    // https://github.com/pnpm/pnpm/issues/11248, busboy, streamsearch, etc.
     expect(parseLicenseFromManifest({
       licenses: [{ type: 'MIT', url: 'http://github.com/mscdex/busboy/raw/master/LICENSE' }],
     })).toBe('MIT')
   })
 
   // Pre-refactor license-scanner preferred `licenses` when both existed; we
-  // intentionally flip that to match npm's modern precedence — see pnpm/pnpm#11248.
+  // intentionally flip that to match npm's modern precedence, see pnpm/pnpm#11248.
   test('prefers modern `license` over legacy `licenses` when both are present', () => {
     expect(parseLicenseFromManifest({
       license: 'Apache-2.0',
@@ -54,7 +54,7 @@ describe('parseLicenseFromManifest', () => {
     })).toBe('MIT')
   })
 
-  // Matches pre-refactor license-scanner — no output change for packages that
+  // Matches pre-refactor license-scanner, no output change for packages that
   // happen to list the same type twice.
   test('does not deduplicate repeated legacy entries', () => {
     expect(parseLicenseFromManifest({

@@ -21,7 +21,7 @@ interface PackumentFixture {
 // The committed packument fixtures carry tarball URLs whose origin is just a
 // placeholder. Rebuild each one against the live registry mock port so the
 // mock agent (which intercepts `http://localhost:${REGISTRY_MOCK_PORT}`) sees
-// the tarball request — this is what lets the test run on any port instead of
+// the tarball request, this is what lets the test run on any port instead of
 // pinning PNPM_REGISTRY_MOCK_PORT to match a baked-in value.
 function loadPackument (fixtureName: string): PackumentFixture {
   const packument = loadJsonFileSync<PackumentFixture>(testFixtures.find(fixtureName))

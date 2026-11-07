@@ -64,7 +64,7 @@ export interface Client {
   resolve: ResolveFunction
   clearResolutionCache: () => void
   /**
-   * List of resolver-side verifiers — one entry per active policy.
+   * List of resolver-side verifiers, one entry per active policy.
    * Empty when no policy is active.
    */
   resolutionVerifiers: ResolutionVerifier[]
@@ -100,7 +100,7 @@ export function createResolver (opts: Omit<ClientOptions, 'storeIndex'>): { reso
  * Wraps a `ResolveFunction` so any inline policy violation surfaced by
  * the resolver is rethrown as a `PnpmError` instead of being returned on
  * the result. Use this from one-shot callers (dlx) that have nowhere to
- * defer a violation to — the install command leaves
+ * defer a violation to, the install command leaves
  * resolution unwrapped because it aggregates violations across the
  * whole tree before deciding what to do.
  *

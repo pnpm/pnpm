@@ -17,7 +17,7 @@ export interface AuditIndexRequest {
   totalDependencies: number
   // Production dependencies: neither dev-only nor optional-only. Kept as a
   // distinct counter because devOnly and optionalOnly aren't mutually
-  // exclusive — a (name, version) can be both — so `total - dev - optional`
+  // exclusive, a (name, version) can be both, so `total - dev - optional`
   // would double-subtract those entries.
   dependencies: number
   devDependencies: number

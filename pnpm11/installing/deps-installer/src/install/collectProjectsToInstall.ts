@@ -26,7 +26,7 @@ export async function collectProjectsToInstall (run: MutationRun): Promise<Impor
   }
 
   // TODO: make it concurrent
-  /* eslint-disable no-await-in-loop -- projects share the lazily computed preferredSpecs */
+  /* eslint-disable no-await-in-loop, projects share the lazily computed preferredSpecs */
   for (const project of projects) {
     await collectProjectToInstall(collector, project)
   }

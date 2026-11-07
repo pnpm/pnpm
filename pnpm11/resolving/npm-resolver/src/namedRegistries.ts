@@ -10,7 +10,7 @@ import { BUILTIN_REGISTRIES_BY_PREFIX } from './parseBareSpecifier.js'
 // rather than as a confusing 404 during resolution. The named-registry
 // resolver runs last in the resolution chain, so an alias that collides with
 // another specifier scheme (e.g. `git`, `github`, `jsr`) is silently shadowed
-// by that scheme's dedicated resolver — no cross-resolver knowledge needed.
+// by that scheme's dedicated resolver, no cross-resolver knowledge needed.
 export function mergeNamedRegistries (userDefined?: Record<string, string>): Record<string, string> {
   const merged: Record<string, string> = { ...BUILTIN_REGISTRIES_BY_PREFIX }
   if (!userDefined) return merged

@@ -78,7 +78,7 @@ test('minimumReleaseAge falls back to immature version when no mature version sa
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
-    // Acknowledge the policy violations without aborting — this test
+    // Acknowledge the policy violations without aborting, this test
     // only inspects the resolved manifest. resolveDependencies refuses
     // to proceed if violations fire and no handler is wired.
     handleResolutionPolicyViolations: async () => {},
@@ -107,7 +107,7 @@ test('strict minimumReleaseAge surfaces every immature pick via handleResolution
 test('time-based resolution repopulates missing lockfile time entries on re-install', async () => {
   // Regression test: when the npm-resolver fast path (peekManifestFromStore) is
   // taken on a re-install, it must surface publishedAt from the lockfile rather
-  // than returning undefined — otherwise lockfiles whose `time:` block is missing
+  // than returning undefined, otherwise lockfiles whose `time:` block is missing
   // entries can never recover them, which breaks downstream time-based filtering
   // for packages with version-pinned optional/platform deps.
   prepareEmpty()
@@ -323,7 +323,7 @@ test('throws error when semver range is used in minimumReleaseAgeExclude', async
 test('minimumReleaseAge is enforced on an existing lockfile entry that does not meet the cutoff', async () => {
   prepareEmpty()
 
-  // Generate a lockfile without minimumReleaseAge — picks the latest 0.1.x (= 0.1.2),
+  // Generate a lockfile without minimumReleaseAge, picks the latest 0.1.x (= 0.1.2),
   // which is immature relative to isOdd011ReleaseDate.
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
   expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
@@ -398,7 +398,7 @@ test('the lockfile minimumReleaseAge gate accepts loose-mode entries already on 
   // is-odd@0.1.2 pulls in is-buffer and kind-of transitively. With the exclude
   // list pre-populated (as the auto-collect would have produced on a previous
   // install), the loose-mode verifier accepts all three and the install
-  // completes — the steady-state shape this feature is built around.
+  // completes, the steady-state shape this feature is built around.
   await expect(
     install(manifest, testDefaults({
       minimumReleaseAge,
@@ -470,16 +470,16 @@ test('versions excluded via minimumReleaseAgeExclude are not surfaced as violati
     minimumReleaseAgeExclude: ['is-odd'],
   })
   // is-odd is excluded, but `is-odd@0.1.2` pulls in is-buffer / is-number /
-  // kind-of transitively — those still produce policy violations. Wire a
+  // kind-of transitively, those still produce policy violations. Wire a
   // no-op handler to acknowledge them.
   const result = await addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     handleResolutionPolicyViolations: async () => {},
   })
 
-  // is-odd is excluded by policy — the install installed 0.1.2 (the highest in
+  // is-odd is excluded by policy, the install installed 0.1.2 (the highest in
   // range) treating it as fully trusted. The verifier short-circuits on the
-  // excluded entry, so it doesn't end up in the violations array — otherwise
+  // excluded entry, so it doesn't end up in the violations array, otherwise
   // every install would re-add the same exclude entry the user just dismissed.
   expect(result.resolutionPolicyViolations.find((violation) => violation.name === 'is-odd')).toBeUndefined()
 })
@@ -497,7 +497,7 @@ test('handleResolutionPolicyViolations throwing aborts the install before the lo
     },
   })).rejects.toThrow(/user denied/)
 
-  // The lockfile must NOT have been written — the throw fires before the
+  // The lockfile must NOT have been written, the throw fires before the
   // resolver finishes, so no on-disk side effects.
   await expect(readWantedLockfile('.', { ignoreIncompatible: false })).resolves.toBeNull()
 })

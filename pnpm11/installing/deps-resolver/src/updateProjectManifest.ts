@@ -125,15 +125,15 @@ function belongsInTheProjectManifest (
 
 /**
  * The specifier the project declares on disk for a direct dependency an
- * override — or another `readPackage` hook — governs in the manifest handed to
+ * override, or another `readPackage` hook, governs in the manifest handed to
  * the resolver. `undefined` when the declaration is what resolution followed,
  * and the update owns it.
  *
  * The version resolution settled on answers the override, not the declaration,
  * so neither manifest's entry is the update's to move: writing the resolved
  * range over them bakes the override into every project that declares the
- * package — replacing a `catalog:` reference with a version (pnpm/pnpm#12115)
- * — and leaves a specifier the hook rewrites away on the next install, which
+ * package, replacing a `catalog:` reference with a version (pnpm/pnpm#12115)
+ *, and leaves a specifier the hook rewrites away on the next install, which
  * `--frozen-lockfile` then rejects (pnpm/pnpm#14224).
  *
  * An override that repeats the declared range verbatim governs it just the

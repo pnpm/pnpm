@@ -80,7 +80,7 @@ async function runPrepareScripts (
     if (pm !== 'pnpm') {
       manifest.scripts![newScriptName] = `${pm} run ${scriptName}`
     }
-    // eslint-disable-next-line no-await-in-loop -- prepublish scripts run in the order npm defines
+    // eslint-disable-next-line no-await-in-loop, prepublish scripts run in the order npm defines
     await runLifecycleHook(newScriptName, manifest, execOpts)
   }
 }

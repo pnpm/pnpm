@@ -96,7 +96,7 @@ test('config deps are not installed before switching to a different pnpm version
 
   execPnpmSync(['install'], { env, stdio: 'pipe' })
 
-  // Config deps should NOT be installed — pnpm 9.3.0 doesn't support them,
+  // Config deps should NOT be installed, pnpm 9.3.0 doesn't support them,
   // and the current pnpm should not have installed them before switching.
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo')).toBeFalsy()
 })
@@ -215,7 +215,7 @@ test('installing a new configurational dependency', async () => {
   )
 })
 
-// Regression tests for https://github.com/pnpm/pnpm/issues/10684 — if the user
+// Regression tests for https://github.com/pnpm/pnpm/issues/10684, if the user
 // has a configDependency stored in a registry that needs auth, the config
 // commands must not crash when pnpm tries to fetch the configDependency before
 // the new setting is written. We reference a non-existent package version so

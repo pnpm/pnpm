@@ -28,7 +28,7 @@ const CHANGELOG_ENTRY = 'package/CHANGELOG.md'
  * Caps the previous tarball we buffer and decompress to compose the changelog.
  * The bytes come from a registry/proxy, so an unbounded read or a highly
  * compressible ("gzip bomb") tarball could OOM release automation. A composed
- * changelog is best-effort — exceeding the cap just skips the history prepend —
+ * changelog is best-effort, exceeding the cap just skips the history prepend,
  * so this bound can be generous while still defeating the amplification attack.
  */
 const MAX_TARBALL_BYTES = 256 * 1024 * 1024
@@ -52,7 +52,7 @@ function createRegistryClient (opts: PreviousChangelogOptions): RegistryClient {
 
 /**
  * The `CHANGELOG.md` packed into the highest published version of `pkgName`
- * that is semver-lower than `version` — the changelog the section for
+ * that is semver-lower than `version`, the changelog the section for
  * `version` is prepended onto in `registry` storage. `undefined` when the
  * package is new, has no earlier published version, or that version's tarball
  * carried no changelog.
@@ -149,8 +149,8 @@ async function downloadTarballChangelog (client: RegistryClient, pkgName: string
 
 /**
  * Reads one entry's contents out of a (optionally gzipped) tarball buffer.
- * Composing the changelog is best-effort, so any decode/parse failure —
- * including a gzip bomb tripping the inflate cap — resolves to `undefined`
+ * Composing the changelog is best-effort, so any decode/parse failure,
+ * including a gzip bomb tripping the inflate cap, resolves to `undefined`
  * (no history prepend) rather than throwing.
  */
 async function extractTarballEntry (tarballData: Buffer, entryName: string): Promise<string | undefined> {
@@ -190,7 +190,7 @@ function skipTarEntry (stream: ExtractEvents['entry'][1], next: () => void, onEr
 /**
  * Inflates a published `.tgz`, capped at `MAX_TARBALL_BYTES` of output so a
  * gzip bomb throws rather than ballooning memory. Returns `undefined` on that
- * cap or any other decode failure — the caller treats it as no changelog.
+ * cap or any other decode failure, the caller treats it as no changelog.
  */
 function gunzipCapped (tarballData: Buffer): Buffer | undefined {
   try {

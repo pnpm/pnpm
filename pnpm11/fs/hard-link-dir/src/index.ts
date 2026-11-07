@@ -13,9 +13,9 @@ import { fastPathTemp } from 'path-temp'
  * are created if they are missing, and a missing `src` leaves them empty and
  * warns.
  *
- * A destination is filled in place, entry by entry. Its own `node_modules` —
+ * A destination is filled in place, entry by entry. Its own `node_modules`,
  * under the hoisted node linker, the dependencies that could not be hoisted any
- * higher — stays where it is, and so does anyone working inside it: the copies
+ * higher, stays where it is, and so does anyone working inside it: the copies
  * of one build chunk run concurrently, so a sibling package may be staging its
  * own copy in there while this one is written. Entries the destination has that
  * `src` does not are left alone for the same reason.

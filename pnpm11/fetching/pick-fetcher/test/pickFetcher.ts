@@ -3,7 +3,7 @@ import type { Fetchers, FetchFunction } from '@pnpm/fetching.fetcher-base'
 import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- the mocks implement only what each test exercises */
+/* eslint-disable @typescript-eslint/no-explicit-any, the mocks implement only what each test exercises */
 
 // Helper to create a mock Fetchers object with only the needed fetcher
 function createMockFetchers (partial: Partial<Fetchers>): Fetchers {

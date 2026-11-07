@@ -113,13 +113,13 @@ test('reinstall from warm global virtual store after deleting node_modules', asy
     return originalFetchPackage(fetchOpts)
   }) as typeof originalFetchPackage
 
-  // Reinstall with frozenLockfile — should reattach from the warm global store
+  // Reinstall with frozenLockfile, should reattach from the warm global store
   await install(manifest, {
     ...opts,
     frozenLockfile: true,
   })
 
-  // fetchPackage should NOT be called — all packages reattached from warm GVS
+  // fetchPackage should NOT be called, all packages reattached from warm GVS
   expect(fetchPackageCalls).toBe(0)
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
@@ -214,7 +214,7 @@ test('GVS hashes are engine-agnostic for packages not in allowBuilds', async () 
     },
   }
 
-  // Scenario 1: No packages allowed to build — all hashes should be engine-agnostic
+  // Scenario 1: No packages allowed to build, all hashes should be engine-agnostic
   const gvsDir1 = path.resolve('links1')
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
@@ -223,7 +223,7 @@ test('GVS hashes are engine-agnostic for packages not in allowBuilds', async () 
   }))
   rimrafSync('node_modules')
 
-  // Scenario 2: Dependency allowed to build — parent hash becomes engine-specific
+  // Scenario 2: Dependency allowed to build, parent hash becomes engine-specific
   // because it transitively depends on a package that is allowed to build
   const gvsDir2 = path.resolve('links2')
   await install(manifest, testDefaults({
@@ -302,7 +302,7 @@ test('GVS re-links when allowBuilds changes', async () => {
   const modulesState = rootModules.readModulesManifest()
   expect(modulesState?.allowBuilds).toEqual({})
 
-  // Step 2: Reinstall with dep allowed to build — hashes should change
+  // Step 2: Reinstall with dep allowed to build, hashes should change
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
@@ -457,7 +457,7 @@ test('GVS removes an optional dependency whose build failed from its slot', asyn
 
   // A repeat install leaves the package removed.
   for (let attempt = 0; attempt < 2; attempt++) {
-    // eslint-disable-next-line no-await-in-loop -- each install must see the store left by the previous one
+    // eslint-disable-next-line no-await-in-loop, each install must see the store left by the previous one
     await install(manifest, opts)
 
     const hashes = fs.readdirSync(failedVersionDir)
@@ -633,7 +633,7 @@ test('GVS .pnpm-needs-build marker triggers re-import on next install', async ()
   // Marker should not be present after successful build
   expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
 
-  // Step 2: Simulate a crash between import and build — write a .pnpm-needs-build
+  // Step 2: Simulate a crash between import and build, write a .pnpm-needs-build
   // marker and remove build artifacts (as if the build never completed)
   // As a build that died mid-way leaves the slot, which only a re-import makes safe to build again.
   fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'started')
@@ -643,7 +643,7 @@ test('GVS .pnpm-needs-build marker triggers re-import on next install', async ()
   // Remove node_modules to force a re-install
   rimrafSync('node_modules')
 
-  // Step 3: Reinstall — the GVS fast path should detect the .pnpm-needs-build
+  // Step 3: Reinstall, the GVS fast path should detect the .pnpm-needs-build
   // marker and force a re-fetch, re-import, and re-build.
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
@@ -765,7 +765,7 @@ test('local directory dependency works with global virtual store', async () => {
 
   project.has('dep')
   // The resolver reads the version off the manifest and the headless install
-  // reads it off the lockfile, where there is none — both have to land on the
+  // reads it off the lockfile, where there is none, both have to land on the
   // same slot or the reinstall would relocate the package.
   expect(fs.realpathSync(path.resolve('node_modules/dep'))).toBe(slotBeforeReinstall)
 })
@@ -782,7 +782,7 @@ test('two projects with a same-named local directory dependency get separate glo
   const slotOfProject1 = await installLocalDirectoryDependency('project-1', globalVirtualStoreDir)
   const slotOfProject2 = await installLocalDirectoryDependency('project-2', globalVirtualStoreDir)
 
-  // Both resolve to `dep@file:dep` with no recorded version — only the project
+  // Both resolve to `dep@file:dep` with no recorded version, only the project
   // they belong to tells the two slots apart.
   expect(slotOfProject1).not.toBe(slotOfProject2)
   expect(fs.readFileSync(path.resolve('project-1/node_modules/dep/index.js'), 'utf8')).toBe("module.exports = 'project-1'")
@@ -852,7 +852,7 @@ test('virtualStoreOnly with enableModulesDir=false works when GVS is enabled', a
   rimrafSync('node_modules')
   rimrafSync(globalVirtualStoreDir)
 
-  // Now install with virtualStoreOnly + enableModulesDir=false + GVS — should NOT throw
+  // Now install with virtualStoreOnly + enableModulesDir=false + GVS, should NOT throw
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,

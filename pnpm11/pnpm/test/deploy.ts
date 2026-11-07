@@ -398,7 +398,7 @@ test('a deployed workspace package keeps its declared peers, so the deployed loc
   }
 })
 
-// `pacquet` is fetched from the real npm registry — registry-mock doesn't
+// `pacquet` is fetched from the real npm registry, registry-mock doesn't
 // carry it (or its platform-specific binary sub-packages), so this test
 // requires the public registry to be reachable. Matches the pattern in
 // `pnpm/test/install/pacquet.ts`.

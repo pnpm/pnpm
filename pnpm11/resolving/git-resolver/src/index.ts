@@ -130,7 +130,7 @@ function createResolutionPkgId (resolution: GitResolution | TarballResolution): 
   return createGitHostedPkgId(resolution)
 }
 
-// Git deps have no concept of "latest" — we'd need to query the host's tag list
+// Git deps have no concept of "latest", we'd need to query the host's tag list
 // to know about newer commits, which isn't a uniform thing across protocols.
 // Claim the dep so the dispatcher stops; the caller still surfaces a
 // ref-mismatch report if the lockfile shifted to a different commit.
@@ -240,7 +240,7 @@ function gitResolveError (err: Error, bareSpecifier: string, repo: string): Erro
 /**
  * Guidance for a specifier that resolved over HTTPS on a machine whose git
  * cannot use that transport, or `undefined` when the resolution already went
- * over SSH — there, the transport that failed is the one the specifier asked
+ * over SSH, there, the transport that failed is the one the specifier asked
  * for.
  *
  * Substituting the transport is git's job rather than pnpm's: the URL pnpm

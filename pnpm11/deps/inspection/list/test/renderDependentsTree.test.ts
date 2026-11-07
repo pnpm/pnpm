@@ -334,7 +334,7 @@ describe('renderDependentsParseable', () => {
   test('depth limits parseable output depth', () => {
     const output = renderDependentsParseable(deepTree(), { long: false, depth: 1 })
     const lines = output.split('\n')
-    // With depth 1, mid-a cannot recurse further — it becomes a leaf
+    // With depth 1, mid-a cannot recurse further, it becomes a leaf
     // So we should get two lines:
     // 1. mid-a > target (mid-a treated as leaf since depth prevents expanding its children)
     // 2. root-project > target (direct dependent)

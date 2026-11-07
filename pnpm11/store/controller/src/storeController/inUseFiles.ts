@@ -70,7 +70,7 @@ async function readRegisteredInstalls (storeDir: string): Promise<RegisteredInst
   const modulesDirs = new Set<string>()
   const resolveModulesDir = createModulesDirResolver()
   for (const projectDir of await getRegisteredProjects(storeDir)) {
-    // eslint-disable-next-line no-await-in-loop -- hold one project's parsed lockfiles at a time
+    // eslint-disable-next-line no-await-in-loop, hold one project's parsed lockfiles at a time
     const lockfiles = await readInstalledLockfiles(projectDir, resolveModulesDir)
     for (const { key, binary } of lockfiles.flatMap(lockfileIndexKeys)) {
       keys.add(key)
@@ -79,7 +79,7 @@ async function readRegisteredInstalls (storeDir: string): Promise<RegisteredInst
     const importerDirs = new Set([projectDir, ...lockfiles.flatMap((lockfile) =>
       Object.keys(lockfile.importers ?? {}).map((importerId) => path.resolve(projectDir, importerId))
     )])
-    // eslint-disable-next-line no-await-in-loop -- one project at a time, as above
+    // eslint-disable-next-line no-await-in-loop, one project at a time, as above
     for (const modulesDir of await Promise.all(Array.from(importerDirs, resolveModulesDir))) {
       modulesDirs.add(modulesDir)
     }

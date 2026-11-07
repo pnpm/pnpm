@@ -81,7 +81,7 @@ test('a change below a cycle member moves the whole cycle to new slots', async (
         },
       },
     })
-    // eslint-disable-next-line no-await-in-loop -- each install builds on the previous one
+    // eslint-disable-next-line no-await-in-loop, each install builds on the previous one
     await execPnpm(['install'])
 
     const first = fs.realpathSync('node_modules/@pnpm.e2e/circular-deps-1-of-2')
@@ -113,7 +113,7 @@ test('approve-builds updates GVS symlinks and runs builds at correct hash direct
   // Build artifacts should NOT be present
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
 
-  // Step 2: approve-builds — updates config then runs install in GVS mode
+  // Step 2: approve-builds, updates config then runs install in GVS mode
   await execPnpm(['approve-builds', '--all'])
 
   // Step 3: Verify GVS hash changed (new engine-specific directory)
@@ -150,13 +150,13 @@ test('warm GVS reinstall skips internal linking', async () => {
     privateHoistPattern: '*',
   })
 
-  // First install — warms GVS store
+  // First install, warms GVS store
   await execPnpm(['install'])
 
   // Delete node_modules
   fs.rmSync(path.resolve('node_modules'), { recursive: true })
 
-  // Reinstall with frozen lockfile — should skip internal GVS linking
+  // Reinstall with frozen lockfile, should skip internal GVS linking
   await execPnpm(['install', '--frozen-lockfile'])
 
   // Verify structure is correct after warm reinstall
@@ -210,7 +210,7 @@ test('the post-install build step preserves the global virtual store directory o
   // A workspace package that is also its own workspace root (its own
   // pnpm-workspace.yaml and lockfile). The root install runs a per-project
   // build pass that must not overwrite the package's recorded global virtual
-  // store directory with the local node_modules/.pnpm — otherwise the next
+  // store directory with the local node_modules/.pnpm, otherwise the next
   // install in that package detects a virtual-store mismatch and prompts to
   // purge node_modules.
   const storeDir = path.resolve('store')

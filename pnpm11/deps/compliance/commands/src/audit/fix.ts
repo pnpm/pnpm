@@ -43,7 +43,7 @@ function getFixableAdvisories (advisories: AuditAdvisory[], ignoreGhsas?: string
   }
   // Only advisories with a known patched range can produce an override.
   // patched_versions is undefined when the range couldn't be inferred from
-  // vulnerable_versions — no override is possible in that case.
+  // vulnerable_versions, no override is possible in that case.
   return advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
 }
 
@@ -136,9 +136,9 @@ export interface CreateMinimumReleaseAgeExcludesOptions {
 
 /**
  * The `minimumReleaseAgeExclude` entries needed to keep the age gate from
- * blocking the patched versions: one entry per fixable advisory whose fix —
+ * blocking the patched versions: one entry per fixable advisory whose fix,
  * the version {@link lowestNonDeprecatedVersion} resolves the patched range
- * to — is younger than the cutoff. A version published at or before the
+ * to, is younger than the cutoff. A version published at or before the
  * cutoff doesn't need a bypass, and a version whose publish time is unknown
  * keeps its entry so a genuinely fresh fix stays installable. An advisory the
  * packument offers no fix for gets no entry.

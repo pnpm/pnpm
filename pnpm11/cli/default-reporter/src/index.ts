@@ -28,7 +28,7 @@ export function initDefaultReporter (
   const proc = opts.context.process ?? process
   // At least one column: `columns - 2` is zero on a two-column terminal, and a
   // caller may pass zero outright. A zero width would make every wrap
-  // calculation — the differ's and `renderedRows`' — meaningless.
+  // calculation, the differ's and `renderedRows`', meaningless.
   const outputMaxWidth = Math.max(1, opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80)
   const output$ = toOutput$({
     ...opts,

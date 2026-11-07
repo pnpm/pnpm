@@ -3,7 +3,6 @@ import path from 'node:path'
 import { execSync } from 'node:child_process'
 
 // Background
-// ----------
 //
 // The published pnpm package contains a bundled node_modules directory at
 // dist/node_modules.
@@ -26,7 +25,6 @@ import { execSync } from 'node:child_process'
 // declares as "external" and resolved at runtime.
 //
 // Strategy
-// --------
 //
 // To create dist/node_modules, we'll run a pnpm deploy and move the results
 // over into the dist dir.
@@ -103,7 +101,7 @@ function createDistNodeModules () {
     cwd: WORKSPACE_DIR,
     stdio: 'inherit',
     // The hoisted node linker turns preferSymlinkedExecutables on, which makes
-    // node_modules/.bin a directory of symlinks — and a symlink cannot travel
+    // node_modules/.bin a directory of symlinks, and a symlink cannot travel
     // inside an npm tarball, so every bin would silently disappear from the
     // published dist/node_modules/.bin. Shell shims survive packing. Passed
     // through the environment rather than as `--config.` because the release-
@@ -124,12 +122,12 @@ createDistNodeModules()
 
 // The bundled dist/node_modules created above already contains every runtime
 // dependency, so the published manifest must not declare dependencies or
-// devDependencies — otherwise pnpm would install them a second time (and the
+// devDependencies, otherwise pnpm would install them a second time (and the
 // internal-only devDependencies, e.g. @pnpm/test-ipc-server, aren't even
 // published, so the install would fail). The workspace .pnpmfile.cjs
 // beforePacking hook drops these fields when packing (the release-pinned
 // pnpm honors it since pnpm/pnpm#12955 was fixed, and the release workflow
 // asserts the packed manifest carries no dependency fields before the first
 // publish). The manifest on disk must stay untouched: stripping it here made
-// every later `pnpm install` — including the verifyDepsBeforeRun gate's
-// spawned one — remove the pnpm package's own node_modules mid-release.
+// every later `pnpm install`, including the verifyDepsBeforeRun gate's
+// spawned one, remove the pnpm package's own node_modules mid-release.

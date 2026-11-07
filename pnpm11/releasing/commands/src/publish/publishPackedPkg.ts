@@ -104,7 +104,7 @@ type StagePublishOptions = PublishOptionsWithDefaultAccess & {
 /**
  * Build the libnpmpublish / npm-registry-fetch options (registry, auth, headers) for publishing
  * {@link manifest}. When `oidc` is `false`, the per-package OIDC token exchange is skipped and only
- * statically configured credentials are used — batch publish sends many packages in one request,
+ * statically configured credentials are used, batch publish sends many packages in one request,
  * which a package-scoped OIDC token cannot authorize.
  *
  * @internal Exported for unit testing of the access / registry / auth fallback rules and for batch
@@ -307,7 +307,7 @@ interface OidcTokenProvenanceResult {
  * in supported CI environments and overwrites a configured `_authToken` on success.
  *
  * @returns the OIDC-derived authToken (and provenance flag) on success, or `undefined` when
- *   OIDC is not applicable / not configured on the registry — in which case callers should
+ *   OIDC is not applicable / not configured on the registry, in which case callers should
  *   fall back to whatever static authentication they already have.
  *
  * @internal Exported for unit testing of the precedence rules. Not part of the package's
@@ -320,10 +320,10 @@ export async function fetchTokenAndProvenanceByOidc (
 ): Promise<OidcTokenProvenanceResult | undefined> {
   const idToken = await getIdTokenUnlessSkipped(registry, options)
   if (!idToken) {
-    // OIDC is not applicable here — either we're outside of CI, or we're in a CI
+    // OIDC is not applicable here, either we're outside of CI, or we're in a CI
     // that doesn't natively drive OIDC and the user hasn't forwarded a token via
     // `NPM_ID_TOKEN`. This is the common case for local publishes, so it must stay
-    // silent — only configuration *errors* in a supported CI environment surface as
+    // silent, only configuration *errors* in a supported CI environment surface as
     // warnings, and those come back as `IdTokenError` and are handled in `getIdTokenUnlessSkipped`.
     return undefined
   }
@@ -399,7 +399,7 @@ async function determineOidcProvenance (
   } catch (error) {
     if (error instanceof ProvenanceError) {
       // Don't lose the OIDC-derived authToken just because we couldn't determine the
-      // provenance flag — the publish itself can still go through, and that's what
+      // provenance flag, the publish itself can still go through, and that's what
       // the npm CLI does too.
       globalWarn(`Skipped setting provenance: ${displayError(error)}`)
       return { authToken }

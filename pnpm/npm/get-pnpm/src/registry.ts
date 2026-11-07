@@ -208,7 +208,7 @@ interface SignedPackument {
 
 /**
  * Streams `meta.dist.tarball` to `dest`, verifying the checksum the registry
- * published for it. A mismatch removes nothing — the caller discards the whole
+ * published for it. A mismatch removes nothing, the caller discards the whole
  * temporary directory.
  *
  * `registry` re-hosts a tarball URL that points at npm onto that registry, so a
@@ -270,8 +270,8 @@ export interface TarballOptions extends ScopedHeadersOptions {
  * Where to download `meta`'s tarball from.
  *
  * Registries that proxy npm hand back npm's own URL. Following it would leave
- * the mirror the metadata came from — for an air-gapped one, it would not
- * resolve at all — so the path is re-hosted onto `registry`. Matched by origin,
+ * the mirror the metadata came from, for an air-gapped one, it would not
+ * resolve at all, so the path is re-hosted onto `registry`. Matched by origin,
  * so a host that merely starts with npm's is left alone.
  */
 export function tarballUrl (meta: VersionMeta, registry?: string): URL {
@@ -294,7 +294,7 @@ function headersFor (url: URL, opts: ScopedHeadersOptions): RequestHeaders | und
  *
  * `integrity` is an SRI string, which may hold several space-separated entries;
  * the first is used. Only the digest that the registry signature covers is
- * accepted — `shasum` is SHA-1, and a package without `integrity` has already
+ * accepted, `shasum` is SHA-1, and a package without `integrity` has already
  * been refused before any download starts.
  */
 function checksum (meta: VersionMeta): [algorithm: string, expected: string] {
@@ -333,11 +333,11 @@ class RequestFailure extends Error {
 async function withRetries<Result> (attempt: () => Promise<Result>): Promise<Result> {
   for (let attemptNo = 1; ; attemptNo++) {
     try {
-      // eslint-disable-next-line no-await-in-loop -- each attempt waits for the previous one to fail
+      // eslint-disable-next-line no-await-in-loop, each attempt waits for the previous one to fail
       return await attempt()
     } catch (err) {
       if (attemptNo >= MAX_ATTEMPTS || !(err instanceof RequestFailure) || !err.retryable) throw err
-      // eslint-disable-next-line no-await-in-loop -- the delay is what spaces the attempts out
+      // eslint-disable-next-line no-await-in-loop, the delay is what spaces the attempts out
       await delay(RETRY_DELAY_MS * attemptNo)
     }
   }
@@ -363,12 +363,12 @@ async function request (
   let currentUrl = url
 
   for (let redirects = 0; ; redirects++) {
-    // eslint-disable-next-line no-await-in-loop -- each hop is known only once the previous one answers
+    // eslint-disable-next-line no-await-in-loop, each hop is known only once the previous one answers
     const response = await fetchHop(currentUrl, { accept, signal, timeoutMs, opts })
     if (!REDIRECT_STATUSES.has(response.status) && response.ok) return response
 
     // Left unread, the body would hold the connection until it is collected.
-    // eslint-disable-next-line no-await-in-loop -- the connection is released before the next hop opens one
+    // eslint-disable-next-line no-await-in-loop, the connection is released before the next hop opens one
     await response.body?.cancel().catch(() => {})
     const target = redirectTarget(response, currentUrl)
     if (redirects >= MAX_REDIRECTS) {
@@ -471,7 +471,7 @@ function isRetryableError (err: unknown, timeoutMs: number): boolean {
 
 /**
  * A 4xx means the request itself is wrong (a missing package, a bad
- * credential) — retrying would just ask the same wrong question again. The
+ * credential), retrying would just ask the same wrong question again. The
  * exceptions are a request timeout and rate limiting, which say "not now"
  * rather than "no". A 5xx is the server's problem, and often a transient one.
  */

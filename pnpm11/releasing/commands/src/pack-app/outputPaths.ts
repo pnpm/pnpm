@@ -67,7 +67,7 @@ export function outputFileName (outputName: string, platform: string): string {
 }
 
 // Refuse to write to `outputFile` when it already exists and is not a regular
-// file — most importantly a symlink, which `node --build-sea` would follow to
+// file, most importantly a symlink, which `node --build-sea` would follow to
 // overwrite a file outside the project. `lstatSync` does not traverse the final
 // component, so a symlink reports `isFile() === false`. A missing path is fine.
 export function rejectNonRegularOutputFile (outputFile: string): void {

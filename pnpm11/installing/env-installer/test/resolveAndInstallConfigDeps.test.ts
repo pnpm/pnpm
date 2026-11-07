@@ -229,7 +229,7 @@ test('takes the tarball of an old-format config dep from the packument', async (
 })
 
 // Stands up a registry that serves its tarballs from a path pnpm cannot derive
-// from the package name, version, and registry URL — the shape of GitLab's npm
+// from the package name, version, and registry URL, the shape of GitLab's npm
 // registry. Packuments are proxied from pnpr with their `dist.tarball` pointed
 // at a `/tarballs/` prefix, and the derivable URL is answered with a 404.
 async function withNonDerivableTarballRegistry (run: (registryUrl: string) => Promise<void>): Promise<void> {
@@ -294,7 +294,7 @@ test('keeps optional subdeps of a pinned config dep out of the lockfile', async 
   const opts = createOpts()
 
   // @pnpm.e2e/foobar declares `@pnpm.e2e/bar: "^100.0.0"` as an
-  // optionalDependency — a range, which a clean specifier forbids.
+  // optionalDependency, a range, which a clean specifier forbids.
   const integrity = getIntegrity('@pnpm.e2e/foobar', '100.0.0')
   await resolveAndInstallConfigDeps({
     '@pnpm.e2e/foobar': `100.0.0+${integrity}`,

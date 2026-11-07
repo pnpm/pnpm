@@ -14,7 +14,7 @@ export interface WarnOnStaleConvergenceOverridesOptions {
 }
 
 /**
- * A convergence override's value is derived state — the best version that
+ * A convergence override's value is derived state, the best version that
  * converges the currently declared ranges. It goes stale when dependents
  * start declaring ranges that admit newer versions: the override then keeps
  * the edges it governs on the old version while newer edges resolve past it,
@@ -27,7 +27,7 @@ export interface WarnOnStaleConvergenceOverridesOptions {
  * already cached from the resolution that just ran, and the release-age
  * policy applies, so the recommendation is a version the resolver would
  * actually pick) and warns when a version newer than the override's value
- * satisfies every declared range — a strictly better convergence.
+ * satisfies every declared range, a strictly better convergence.
  *
  * A range that fails to resolve contributes no candidate but still
  * participates in the satisfies-every-range check, so failures can only

@@ -125,7 +125,7 @@ test('does not print path when running from workspace subdir and lockfile is at 
 
 test('suppresses path when workspaceDir has a trailing separator', async () => {
   const cwd = '/repo'
-  // Workspace dir with a trailing slash — strict === against
+  // Workspace dir with a trailing slash, strict === against
   // path.dirname(lockfilePath) would mismatch; path.relative normalizes.
   const workspaceDir = '/repo/'
   const output$ = toOutput$({

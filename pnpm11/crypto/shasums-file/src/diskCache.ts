@@ -7,7 +7,7 @@ import { threadId } from 'node:worker_threads'
  *
  * A release's SHASUMS file lives under a version-pinned URL
  * (`.../v22.0.0/SHASUMS256.txt`), so its content is immutable: a body fetched
- * once — and, for signed channels, verified once — never needs to be fetched
+ * once, and, for signed channels, verified once, never needs to be fetched
  * again. Entries live under
  * `<cacheDir>/v11/runtime-shasums/<trust>/<host>/<url path>` so clearing the
  * cache directory clears them together with the registry metadata mirror. The
@@ -53,7 +53,7 @@ const MAX_CACHED_SHASUMS_LEN = 1024 * 1024
 
 /**
  * The cached body for `url` as UTF-8 text, via {@link readCachedBytes}.
- * Invalid UTF-8 is a miss — a lossy decode would turn a corrupted entry
+ * Invalid UTF-8 is a miss, a lossy decode would turn a corrupted entry
  * into malformed rows instead of a refetch.
  */
 export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): Promise<string | undefined> {
@@ -69,7 +69,7 @@ export async function readCachedShasums (url: string, opts: ShasumsCacheOpts): P
 const strictUtf8Decoder = new TextDecoder('utf8', { fatal: true })
 
 /**
- * The cached bytes for `url`, or `undefined` on any miss — a URL the mapping
+ * The cached bytes for `url`, or `undefined` on any miss, a URL the mapping
  * cannot represent, a missing or non-regular file, unreadable content, an
  * empty file (never a valid entry, so it only signals a torn write), or a
  * file over {@link MAX_CACHED_SHASUMS_LEN}.
@@ -117,14 +117,14 @@ export async function writeCachedShasums (url: string, body: string | Uint8Array
   if (filePath == null) return
   // The process id alone does not make the temp name unique (worker threads
   // share it), so the thread id and a counter join it. The `wx` flag refuses
-  // to open a path that already exists — a colliding writer or a pre-seeded
-  // symlink fails the open instead of being followed — and any failure just
+  // to open a path that already exists, a colliding writer or a pre-seeded
+  // symlink fails the open instead of being followed, and any failure just
   // skips the write.
   const tempPath = `${filePath}.tmp-${process.pid.toString()}-${threadId.toString()}-${(tempCounter++).toString()}`
   try {
     await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
     // Sync before the rename so a crash cannot persist the renamed name
-    // pointing at partially-written content — a torn SHASUMS prefix still
+    // pointing at partially-written content, a torn SHASUMS prefix still
     // parses and would otherwise be served (missing platform rows) until the
     // cache is cleared.
     const tempFile = await fs.promises.open(tempPath, 'wx')

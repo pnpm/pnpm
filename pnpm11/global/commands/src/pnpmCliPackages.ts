@@ -5,7 +5,7 @@ import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
  * The wrapper packages that ship the pnpm CLI itself: the unscoped `pnpm` and
  * the `@pnpm/exe` native build.
  *
- * `pnpm self-update` owns their global install — it is what points the pnpm
+ * `pnpm self-update` owns their global install, it is what points the pnpm
  * home's bins at a particular release. The ordinary global commands therefore
  * keep away from them: `pnpm add -g` refuses to create such an install, and
  * `pnpm update -g` leaves an existing one alone. Otherwise a global update
@@ -44,7 +44,7 @@ export function selectsPnpmCli (selectors: readonly string[]): boolean {
 /**
  * Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An `npm:`
  * alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm CLI under
- * another name — the install still carries pnpm's own `pnpm` bin.
+ * another name, the install still carries pnpm's own `pnpm` bin.
  */
 export function isPnpmCliDependency (alias: string, spec?: string): boolean {
   return PNPM_CLI_PACKAGE_NAMES.has(npmAliasTarget(spec) ?? alias)

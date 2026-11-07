@@ -63,7 +63,7 @@ function stopWorker (): never {
   // process.exit() in a worker thread may not run C++ destructors,
   // which would leave file descriptors and mmap regions open.
   closeStoreIndexes()
-  // eslint-disable-next-line n/no-process-exit -- in a worker thread this ends only the thread, which is how the pool retires a worker
+  // eslint-disable-next-line n/no-process-exit, in a worker thread this ends only the thread, which is how the pool retires a worker
   process.exit(0)
 }
 

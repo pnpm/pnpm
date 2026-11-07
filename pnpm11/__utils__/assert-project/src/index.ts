@@ -20,7 +20,7 @@ const require = createRequire(import.meta.url)
 export { isExecutable, type Modules }
 
 export interface Project {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a required module can export any shape and tests read arbitrary members from it
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, a required module can export any shape and tests read arbitrary members from it
   requireModule: (moduleName: string) => any
   dir: () => string
   has: (pkgName: string, modulesDir?: string) => void

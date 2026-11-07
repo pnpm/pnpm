@@ -15,7 +15,7 @@ const PACKAGE_SNAPSHOT_DEP_FIELDS = ['dependencies', 'optionalDependencies'] as 
 // would persist: the per-group fields surface a dependency moving between
 // `dependencies`/`devDependencies`/`optionalDependencies`, while `specifiers`
 // surfaces a specifier-only edit (same resolved version). `specifiers` is
-// last so that on a per-alias collision its update wins — rendering the
+// last so that on a per-alias collision its update wins, rendering the
 // specifier delta rather than the re-resolved version, which is cleared in
 // memory for a specifier-mismatched dep.
 const IMPORTER_DRY_RUN_FIELDS = [...DEPENDENCIES_FIELDS, 'specifiers'] as const
@@ -23,7 +23,7 @@ const IMPORTER_DRY_RUN_FIELDS = [...DEPENDENCIES_FIELDS, 'specifiers'] as const
 /**
  * Compute the changes between two lockfiles, as added/removed/updated
  * importer and package snapshots. Unlike {@link dedupeDiffCheck} this never
- * throws — callers that only want to report the diff (e.g. `install
+ * throws, callers that only want to report the diff (e.g. `install
  * --dry-run`) consume the result directly.
  *
  * `includeImporterSpecifiers` also diffs each importer's direct-dependency

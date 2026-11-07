@@ -109,7 +109,7 @@ export function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): st
 }
 
 function getPrepareDir (cachePath: string): string {
-  // base36 (vs hex) keeps this segment short — see createCacheKey for why dlx
+  // base36 (vs hex) keeps this segment short, see createCacheKey for why dlx
   // path length matters on Windows. time+pid stays unique across concurrent
   // dlx processes and across a process's own retries of a failed install.
   const name = `${Date.now().toString(36)}-${process.pid.toString(36)}`

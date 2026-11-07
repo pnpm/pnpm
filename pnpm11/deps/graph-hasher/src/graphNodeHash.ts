@@ -108,7 +108,7 @@ export function calcGraphNodeHash<Meta extends PkgMeta> (
 /**
  * Slot segment that stands in for the version of a package resolved from a
  * local directory. pnpm omits the version from a directory snapshot, so the
- * lockfile has none to offer — and the resolver, which does know it from the
+ * lockfile has none to offer, and the resolver, which does know it from the
  * manifest, must agree with the lockfile or a re-install would relocate the
  * package. The segment is decoration in a store listing; the digest that
  * follows it is what identifies the slot.
@@ -116,7 +116,7 @@ export function calcGraphNodeHash<Meta extends PkgMeta> (
 const LOCAL_DIRECTORY_SEGMENT = 'directory'
 
 /**
- * Whether the package came from a local directory — a file: directory
+ * Whether the package came from a local directory, a file: directory
  * dependency or an injected workspace package.
  */
 function isLocalDirectoryResolution (resolution: LockfileResolution | undefined): boolean {

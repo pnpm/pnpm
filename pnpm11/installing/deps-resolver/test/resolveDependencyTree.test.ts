@@ -105,8 +105,8 @@ test('a targeted update keeps down-chain preferred-version propagation, so it de
   // The `updateRequested` flag must be scoped per wanted-dependency: true
   // only for the user's update target (where the resolver drops the
   // target's lockfile-derived pins), false for every other package on the
-  // chain. Down-chain propagation — a level's resolved versions joining
-  // the next level's preferred map — applies during a fresh install, so
+  // chain. Down-chain propagation, a level's resolved versions joining
+  // the next level's preferred map, applies during a fresh install, so
   // it must keep applying during an update too: the update's result has
   // to match what a fresh install would produce. The fixture nests an
   // exact-pin carrier above a caret consumer in a single dep chain.
@@ -202,7 +202,7 @@ test('a targeted update keeps down-chain preferred-version propagation, so it de
 
   // Primary contract: the caret consumer (inner's transitive t@^1.0.0)
   // dedupes onto the version propagated down the chain from multi's
-  // exact-pin (1.0.0) — exactly what a fresh install of the same
+  // exact-pin (1.0.0), exactly what a fresh install of the same
   // manifests produces. A `t@1.0.1` here would mean the update
   // installed a duplicate version of t that a reinstall from scratch
   // would not reproduce.
@@ -222,7 +222,7 @@ test('a targeted update keeps down-chain preferred-version propagation, so it de
   // carry `updateRequested: true` so the npm picker drops the target's
   // lockfile-derived pins. The carriers (re-resolved because of the
   // broad `update` flag, but NOT the user's target) must carry
-  // `updateRequested: false` — this per-package discrimination is the
+  // `updateRequested: false`, this per-package discrimination is the
   // core distinction over the broad `update` flag.
   for (const resolution of tResolutions) {
     expect(resolution.updateRequested).toBe(true)
@@ -244,10 +244,10 @@ test('a targeted update keeps down-chain preferred-version propagation, so it de
 
 test('updateRequested matches an npm-alias dependency without a lockfile reference by its real package name', async () => {
   // An edge with no lockfile reference (fresh dep, or a specifier changed
-  // right before resolution — e.g. `pnpm audit --fix` widening a vulnerable
+  // right before resolution, e.g. `pnpm audit --fix` widening a vulnerable
   // pin) falls back to matching the update target against the wanted
   // dependency itself. For `aliased@npm:t@^1.0.0` the real package name is
-  // `t`, not the local alias, so a target of `t` must match — and an alias
+  // `t`, not the local alias, so a target of `t` must match, and an alias
   // of a non-targeted package must not.
   const requestLog: Array<{
     alias: string | undefined
@@ -404,7 +404,7 @@ function pickVersionOfT (bareSpecifier: string, preferredVersions: PreferredVers
   // Caret admits 1.0.0 and 1.0.1 (latest). Model the npm-picker
   // contract from `resolving/npm-resolver/src/index.ts`: propagated
   // (plain) preferred versions are honored regardless of
-  // `updateRequested` — only the target's lockfile-derived pins are
+  // `updateRequested`, only the target's lockfile-derived pins are
   // stripped, and this fixture threads none of those.
   if (bareSpecifier === '^1.0.0') {
     return hasPreferredVersion(preferredVersions, 't', '1.0.0') ? '1.0.0' : '1.0.1'
@@ -430,7 +430,7 @@ function createLockfile (): LockfileObject {
  * in `inner`), `inner@1.0.0` (whose own manifest consumes t via caret
  * `^1.0.0`), and `t@1.0.0` (the version both branches resolved to
  * under the older `latest` dist-tag). `infoFromLockfile` is only
- * populated when the package is recorded here — without it the
+ * populated when the package is recorded here, without it the
  * deps-resolver never invokes `updateMatching`.
  */
 function createLockfileWithTPinning (): LockfileObject {
@@ -575,7 +575,7 @@ const manifests: Record<string, PackageManifest> = {
     name: 'inner',
     version: '1.0.0',
     dependencies: {
-      // Caret consumer — admits 1.0.0 (initial) and 1.0.1 (after the
+      // Caret consumer, admits 1.0.0 (initial) and 1.0.1 (after the
       // dist-tag bump that `pnpm up -r t` reacts to).
       t: '^1.0.0',
     },

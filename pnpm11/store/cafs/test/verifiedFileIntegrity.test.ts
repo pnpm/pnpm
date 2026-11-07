@@ -76,7 +76,7 @@ function storeWithOneFile (): { storeDir: string, filePath: string, digest: stri
 
 /**
  * The index row describing that file, with `checkedAt` a minute in the
- * past so the file counts as modified — which is what makes
+ * past so the file counts as modified, which is what makes
  * verification re-hash its content instead of trusting the row.
  */
 function indexEntry (digest: string, size: number, algo = 'sha512') {

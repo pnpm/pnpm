@@ -231,7 +231,7 @@ testFrozenOpen('StoreIndex frozen mode reads a WAL db on a read-only directory a
   const data = { algo: 'sha512', files: new Map([['index.js', { digest: 'abc', size: 100, mode: 0o644 }]]) }
 
   // Seed the WAL db while the directory is still writable, then close
-  // the connection so the on-disk file is a settled WAL db — what a
+  // the connection so the on-disk file is a settled WAL db, what a
   // read-only-store seed-build would leave behind.
   const seed = new StoreIndex(storeDir)
   seed.set(key, data)
@@ -357,7 +357,7 @@ testUnsupportedNode('StoreIndex frozen mode refuses to open on a Node.js without
 // The `immutable=1` URI open only works on Node.js that passes
 // SQLITE_OPEN_URI to SQLite: v22.15.0+, v23.11.0+, and every v24+. On older
 // runtimes (including pnpm's `engines` floor of 22.13) the open throws a clear
-// ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE instead — asserted separately below.
+// ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE instead, asserted separately below.
 function nodeSupportsImmutableSqliteUri (): boolean {
   const [major, minor] = process.versions.node.split('.', 2).map(Number)
   if (major < 22) return false

@@ -18,8 +18,8 @@ import url from 'node:url'
 // The workspace package selectors for each product released apart from
 // pnpm11, keyed by the product's release token. The `pnpm` product is the Rust
 // CLI (published to npm as `pnpm`, named `pacquet` in-repo, carrying its
-// versioning.fixed `@pnpm/napi` sibling). The `pnpm11` product — the
-// TypeScript CLI and the rest of the default lane — has no single positive
+// versioning.fixed `@pnpm/napi` sibling). The `pnpm11` product, the
+// TypeScript CLI and the rest of the default lane, has no single positive
 // selector, so it is expressed as the complement of these (see
 // releaseFilterArgs).
 const SEPARATE_PRODUCT_PACKAGES = {
@@ -60,7 +60,7 @@ function main (): void {
 
 export function parseSelectedProducts (argv: readonly string[]): Set<Product> {
   const selected = new Set<Product>()
-  // `pnpm run bump -- --release ...` forwards the `--` separator to the script,
+  // `pnpm run bump, --release ...` forwards the `--` separator to the script,
   // so a single leading `--` is part of the normal calling convention.
   const start = argv[0] === '--' ? 1 : 0
   for (let argIndex = start; argIndex < argv.length; argIndex++) {

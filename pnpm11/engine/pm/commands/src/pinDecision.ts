@@ -289,7 +289,7 @@ function reportPnpmVersionMismatch (
   }
 ): void {
   let msg = `This project is configured to use ${mismatch.wantedVersion} of pnpm. Your current pnpm is v${mismatch.currentPnpmVersion}`
-  // When pnpm runs under corepack, corepack — not pnpm — selects the
+  // When pnpm runs under corepack, corepack, not pnpm, selects the
   // running version, so users see this mismatch even with onFail='download'
   // (which would normally auto-switch). Spell out that pnpm cannot switch
   // here and point at the two ways out.

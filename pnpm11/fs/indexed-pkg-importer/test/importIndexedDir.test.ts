@@ -288,7 +288,7 @@ test('importIndexedDir() rebuilds a local-dir target even when safeToSkip is set
   fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
 
   // An injected local package is copied at install time, so its target holds
-  // whatever the previous install copied — including files since deleted from
+  // whatever the previous install copied, including files since deleted from
   // the source, which only a rebuild clears.
   const newDir = path.join(tmp, 'dest')
   fs.mkdirSync(newDir, { recursive: true })

@@ -1,4 +1,4 @@
-// Sub-path import to pull only the SPDX module — avoids dragging in the
+// Sub-path import to pull only the SPDX module, avoids dragging in the
 // validation/serialize layers with optional native deps that break esbuild bundling.
 import { fixupSpdxId, isSupportedSpdxId } from '@cyclonedx/cyclonedx-library/SPDX'
 import parseSpdxExpression from 'spdx-expression-parse'
@@ -7,7 +7,7 @@ const SPDX_OPERATORS = ['AND', 'OR', 'WITH']
 
 // Classifies a license string into the appropriate CycloneDX representation.
 // license.id is an enum in the CycloneDX schema, so a value outside the SPDX
-// license list — a typo, or npm's own UNLICENSED — has to reach the BOM as
+// license list, a typo, or npm's own UNLICENSED, has to reach the BOM as
 // license.name or the whole document fails validation.
 // Order matters: check ID first because "MIT" matches both isSupportedSpdxId
 // and isSpdxExpression, but we prefer the more specific license.id form.

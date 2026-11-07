@@ -106,7 +106,7 @@ test('convertToLockfileObject() reconstructs a dropped directory resolution for 
     snapshots: {
       'dir@file:packages/dir(peer@1.0.0)': {},
       'tar@file:vendor/tar-1.0.0.tgz(peer@1.0.0)': {},
-      // Uppercase tarball extensions must be treated as tarballs too — the
+      // Uppercase tarball extensions must be treated as tarballs too, the
       // resolver in resolving/local-resolver/src/parseBareSpecifier.ts
       // matches /\.(?:tgz|tar.gz|tar)$/i, so the boundary applied here at
       // load time has to be case-insensitive in lockstep.

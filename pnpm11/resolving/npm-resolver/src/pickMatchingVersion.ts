@@ -90,7 +90,7 @@ function pickIgnoringReleaseAge (
 }
 
 // Used in shortcut/fall-through paths: if it fails (including with
-// ERR_PNPM_MISSING_TIME), the caller falls through to the next path — e.g.
+// ERR_PNPM_MISSING_TIME), the caller falls through to the next path, e.g.
 // the network fetch that can upgrade abbreviated metadata to full.
 export function pickMatchingVersionFast (
   pickerOpts: PickerOptions,
@@ -156,7 +156,7 @@ export async function pickVersionFromStore (
   }
   const peekManifestFromStore = ctx.peekManifestFromStore
   // Fast path: the pick the preferences already made is installable
-  // offline — one store lookup, no scan.
+  // offline, one store lookup, no scan.
   if (pickedPackage != null && await isVersionInStore(peekManifestFromStore, { name: meta['name'], version: pickedPackage.version, dist: pickedPackage.dist })) {
     return pickedPackage
   }

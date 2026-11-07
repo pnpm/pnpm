@@ -87,7 +87,7 @@ export class RegistryResponseError extends FetchError {
  * input (CodeQL: js/polynomial-redos).
  */
 function stripTrailingSemverSuffix (pkgName: string): string | undefined {
-  // Common case: "name@version" – split on the rightmost '@'.
+  // Common case: "name@version", split on the rightmost '@'.
   // `atIdx > 0` rules out the leading '@' of scoped names like '@scope/foo'.
   const atIdx = pkgName.lastIndexOf('@')
   if (atIdx > 0 && semver.valid(pkgName.slice(atIdx + 1)) != null) {
@@ -283,7 +283,7 @@ function toMetaFetchError (error: any, request: MetadataRequest, attempt: number
   // just the top-level message: a reporter or debugger that renders
   // `error.cause` would otherwise print the raw URL-bearing message. The
   // `stack` string embeds the original (pre-mutation) message, so redact
-  // it too — mutating `message` alone leaves the credentials in `stack`.
+  // it too, mutating `message` alone leaves the credentials in `stack`.
   if (isError(error)) {
     if (typeof error.message === 'string') error.message = redactUrlCredentials(error.message)
     if (typeof error.stack === 'string') error.stack = redactUrlCredentials(error.stack)
@@ -369,13 +369,13 @@ export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
  * When the resolver asked for abbreviated metadata but the registry ignored the
  * `Accept` header and returned the full document (detected via the response
  * `Content-Type`), strip it down to the abbreviated field set so downstream
- * consumers — the in-memory cache, the on-disk mirror, and the resolver — never
+ * consumers, the in-memory cache, the on-disk mirror, and the resolver, never
  * carry the megabytes of install-irrelevant data (scripts, exports, readme,
  * custom fields) that a full document contains.
  *
  * RegistriesByScope that honor the header (e.g. the npm registry) echo the abbreviated
  * `Content-Type`, so this is a no-op for them: no re-serialization, no field
- * stripping — the happy path pays nothing.
+ * stripping, the happy path pays nothing.
  */
 function normalizeAbbreviatedResponse (
   { fullMetadata, meta, response }: {

@@ -9,7 +9,7 @@ import { temporaryDirectory } from 'tempy'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
 const testFixtures = fixtures(import.meta.dirname)
-/* eslint-disable @typescript-eslint/no-explicit-any -- the fixture is an arbitrary registry document */
+/* eslint-disable @typescript-eslint/no-explicit-any, the fixture is an arbitrary registry document */
 const acmePrivateMeta = loadJsonFileSync<any>(testFixtures.find('gh-acme-private.json'))
 const jsrRusGreetMeta = loadJsonFileSync<any>(testFixtures.find('jsr-rus-greet.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */

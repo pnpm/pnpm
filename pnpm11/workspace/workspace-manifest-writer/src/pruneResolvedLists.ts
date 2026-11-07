@@ -16,7 +16,7 @@ interface PrunedExcludeEntry {
 // resolved lockfile no longer contains what it names: exact versions that
 // were not resolved are dropped (the entry goes away once none remain), and a
 // bare-name entry goes away when the package is absent entirely. Glob patterns
-// always stay — they are forward-looking and can't be proven stale. Entries
+// always stay, they are forward-looking and can't be proven stale. Entries
 // that fail to parse stay untouched so cleanup never breaks an install.
 export function pruneExcludeList (
   manifest: Partial<WorkspaceManifest> & { [key in ExcludeListField]?: string[] },

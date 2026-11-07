@@ -237,8 +237,8 @@ function cachePeersResolution<Pkg extends PartialResolvedPackage> (
   const { pkgIdWithPatchHash } = opts.resolvedPackage
   // A cycle re-entry resolves against truncated children (the cycle is broken by
   // dropping the repeated package's subtree), so its empty/partial peer sets are
-  // not authoritative for the package as a whole. Recording that verdict — as
-  // pure or in peersCache — lets it short-circuit other occurrences that *can*
+  // not authoritative for the package as a whole. Recording that verdict, as
+  // pure or in peersCache, lets it short-circuit other occurrences that *can*
   // see the full subtree, dropping their transitivePeerDependencies depending on
   // traversal order and churning the lockfile (https://github.com/pnpm/pnpm/issues/5108).
   const resolvedThroughCycle = ctx.parentDepPathsChain.includes(pkgIdWithPatchHash)

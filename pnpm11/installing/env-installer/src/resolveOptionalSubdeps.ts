@@ -106,7 +106,7 @@ async function tryResolveOptionalSubdep (
   } catch (err: unknown) {
     // Trust-downgrade and release-age violations are security signals that
     // must fail the install even for optional deps; everything else mirrors
-    // npm's optionalDependencies semantics — log and skip.
+    // npm's optionalDependencies semantics, log and skip.
     if (isError(err) && 'code' in err && (err.code === 'ERR_PNPM_TRUST_DOWNGRADE' || err.code === 'ERR_PNPM_BAD_CONFIG_DEP')) {
       throw err
     }

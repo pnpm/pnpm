@@ -15,7 +15,7 @@ const parsedOverrides = [
 ] as never
 
 // Both fixtures declare 12.0 so the only difference between the two cases is
-// the registry qualifier on the dep path — a 9.0 header could not carry the
+// the registry qualifier on the dep path, a 9.0 header could not carry the
 // qualified key in the first place.
 function makeLockfile (depPath: string, ref: string): LockfileObject {
   return {

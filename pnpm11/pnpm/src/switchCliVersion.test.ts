@@ -672,7 +672,7 @@ test('still switches to a release that is not broken', async () => {
   expect(spawnPnpm).toHaveBeenCalledWith(path.join('/store/bin', 'pnpm'), process.argv.slice(2))
 })
 
-/** The fixture above, re-pointed at `version` — same shape, so it still passes the
+/** The fixture above, re-pointed at `version`, same shape, so it still passes the
  * registry-resolution assertion the switcher makes before installing. */
 function envLockfileFor (version: string): EnvLockfile {
   return JSON.parse(JSON.stringify(envLockfile).replaceAll('9.3.0', version)) as EnvLockfile

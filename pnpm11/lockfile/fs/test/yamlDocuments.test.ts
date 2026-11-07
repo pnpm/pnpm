@@ -174,7 +174,7 @@ describe('extractEnvDocument', () => {
     const filePath = path.join(dir, 'test.yaml')
     for (const content of [`---\n${ENV_ONLY}\n`, `---\n${ENV_ONLY}\n---`, '---\nfoo: bar\n', '---\n---\n', '---']) {
       fs.writeFileSync(filePath, content)
-      // eslint-disable-next-line no-await-in-loop -- each case rewrites the same file
+      // eslint-disable-next-line no-await-in-loop, each case rewrites the same file
       expect(await streamReadFirstYamlDocument(filePath, 2)).toBe(extractEnvDocument(content))
     }
   })

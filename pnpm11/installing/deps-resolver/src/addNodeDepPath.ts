@@ -96,7 +96,7 @@ function getCyclicPeerAliases (
   const pendingPeerAliases = new Set(pendingPeerNodes.map(({ alias }) => alias))
   for (const cycle of cycles) {
     // A cycle has to be short-circuited at this level whenever any of
-    // its members is involved in the current resolution — either as
+    // its members is involved in the current resolution, either as
     // currentAlias or among the pending peers we are about to await.
     // When a cycle member hits the `findHit` cache instead of running
     // its own calculateDepPath, only the awaiting siblings at this
@@ -238,8 +238,8 @@ function getPreviouslyResolvedChildren<Pkg extends PartialResolvedPackage> (
  *
  * A package resolved from a named registry keeps its `<registryName>:` in the
  * version slot. Dropping it would let the same name and version from two
- * registries produce one suffix, so two variants of the dependent — each
- * bound to a different peer artifact — would collapse onto a single depPath.
+ * registries produce one suffix, so two variants of the dependent, each
+ * bound to a different peer artifact, would collapse onto a single depPath.
  */
 function peerIdOfResolvedPackage (
   resolvedPackage: { name: string, version: string, id?: PkgResolutionId }

@@ -74,7 +74,7 @@ test.each(resolverSettingNames)('serializes %s independently', async (setting) =
 })
 
 // The mode decides which version every pick lands on, so a server resolving
-// on the client's behalf has to be told it — omitted, it resolves `highest`
+// on the client's behalf has to be told it, omitted, it resolves `highest`
 // and hands back a lockfile the client would never have written.
 test.each(['time-based', 'lowest-direct', 'highest'] as const)('serializes resolutionMode %s', async (resolutionMode) => {
   const request = await captureResolveRequest({ dependencies: {}, resolutionMode })

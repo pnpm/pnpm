@@ -33,7 +33,7 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
   }
   let result = await parseCliArgsLib(libOpts, inputArgv)
   // `pnpm [global-opts] with current <cmd> [args]` is sugar for
-  // `pnpm [global-opts] --pm-on-fail=ignore <cmd> [args]` — re-parse so the
+  // `pnpm [global-opts] --pm-on-fail=ignore <cmd> [args]`, re-parse so the
   // inner command is dispatched directly, in-process. The override is
   // propagated via env var (not --pm-on-fail=ignore in argv) so it survives
   // parseCliArgsLib's special short-circuits like the -v/--version
@@ -60,7 +60,7 @@ export async function parseCliArgs (inputArgv: string[]): Promise<ParsedCliArgsW
 /**
  * Locate the `with current` token pair in argv. We assume the first
  * occurrence that's plausibly the command (not the value of a preceding flag)
- * is the one. Good enough for realistic CLI usage — no pnpm option is
+ * is the one. Good enough for realistic CLI usage, no pnpm option is
  * expected to take the literal value `with`.
  */
 function findWithCurrentIndex (argv: string[], optionTypes: Record<string, unknown>): number {
@@ -68,7 +68,7 @@ function findWithCurrentIndex (argv: string[], optionTypes: Record<string, unkno
     if (argv[tokenIndex] !== 'with' || argv[tokenIndex + 1] !== 'current') continue
     const prev = argv[tokenIndex - 1]
     // A preceding long option that takes a value would consume `with` as its
-    // value, so this `with current` pair isn't the command — skip it. Boolean
+    // value, so this `with current` pair isn't the command, skip it. Boolean
     // flags (e.g. `--color`) and `--no-` negations don't consume a value.
     if (prev != null && longOptionConsumesValue(prev, optionTypes)) continue
     return tokenIndex

@@ -222,7 +222,7 @@ async function handleSplit (
 
     const singleProjectGraph = { [dir as keyof typeof projectsGraph]: entry }
 
-    // eslint-disable-next-line no-await-in-loop -- one project at a time keeps a single project's component graph and license lookups in memory
+    // eslint-disable-next-line no-await-in-loop, one project at a time keeps a single project's component graph and license lookups in memory
     const { output } = await generateSbomForProject(
       { ...opts, selectedProjectsGraph: singleProjectGraph as typeof projectsGraph, allProjectsGraph: undefined, split: false, out: undefined },
       serialOpts,
@@ -337,7 +337,7 @@ function sanitizePathSegment (value: string): string {
   // Control characters (e.g. newlines) would produce confusing filenames and could
   // inject extra lines into the printed `--split --out` summary; filesystem
   // metacharacters are replaced so the value stays a single path segment.
-  // eslint-disable-next-line no-control-regex -- matching control characters is the point of this pattern
+  // eslint-disable-next-line no-control-regex, matching control characters is the point of this pattern
   const sanitized = value.replace(/[/\\:*?"<>|\x00-\x1F\x7F]/g, '-')
   // `.`, `..`, or a blank value would let a crafted name/version escape or replace
   // the intended output directory once interpolated into an `--out` template.

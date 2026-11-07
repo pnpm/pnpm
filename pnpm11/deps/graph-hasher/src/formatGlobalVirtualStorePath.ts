@@ -10,7 +10,7 @@ export function calcLeafGlobalVirtualStorePath (fullPkgId: string, name: string,
  * `subdepIds` maps each direct child's alias to its full pkg id
  * (`${name}@${version}:${integrity}`). Each child contributes a leaf hash
  * (no transitive walk) to the parent's hash, so the resulting path differs
- * whenever the set or versions of children change. One level deep only —
+ * whenever the set or versions of children change. One level deep only,
  * use calcGraphNodeHash when full graph traversal is needed.
  */
 export function calcGlobalVirtualStorePathWithSubdeps (
@@ -36,7 +36,7 @@ export function formatGlobalVirtualStorePath (name: string, version: string, hex
   // and is inserted below as a raw path segment. Every global-virtual-store
   // slot path funnels through here, and callers join the result onto
   // `globalVirtualStoreDir` before passing it to `importPackage`, so a `..`
-  // segment in the version would let the slot escape the store root — even
+  // segment in the version would let the slot escape the store root, even
   // when the package name itself is valid (the name's own traversal is caught
   // downstream by `safeJoinModulesDir`). Reject it at this single choke point.
   assertNoPathTraversal(version)

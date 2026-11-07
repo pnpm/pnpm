@@ -10,7 +10,7 @@ import { getBinNodePaths } from '../src/getBinNodePaths.js'
 // but getBinNodePaths resolves these via fs.promises.realpath (the native
 // implementation that uses GetFinalPathNameByHandleW), returning long paths.
 // Use the same fs.promises.realpath so expected and received paths match.
-// Note: fs.realpathSync does NOT resolve 8.3 names — it uses a JS-only
+// Note: fs.realpathSync does NOT resolve 8.3 names, it uses a JS-only
 // implementation that only resolves symlinks.
 async function tmpdir (): Promise<string> {
   return fsPromises.realpath(temporaryDirectory())

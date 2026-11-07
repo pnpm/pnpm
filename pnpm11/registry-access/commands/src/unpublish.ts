@@ -249,7 +249,7 @@ function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]
 
 async function deleteTarballs (ctx: RegistryMutationContext, tarballs: string[]): Promise<void> {
   const registryUrl = normalizeRegistryUrl(ctx.registryUrl)
-  /* eslint-disable no-await-in-loop -- each DELETE needs the revision produced by the previous one */
+  /* eslint-disable no-await-in-loop, each DELETE needs the revision produced by the previous one */
   for (const tarball of tarballs) {
     const updated = await fetchPackument(ctx.packageUrl, ctx.fetchFromRegistry, ctx.authHeader)
     const tarballPathname = getTarballPathname(tarball, registryUrl)

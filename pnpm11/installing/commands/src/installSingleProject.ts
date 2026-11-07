@@ -358,7 +358,7 @@ async function persistInstallManifests (
   { updatedCatalogs, updatedManifest, newLockfile, resolutionPolicyViolations }: InstallResult
 ): Promise<void> {
   // `opts.save === false` (e.g. `--no-save`) means "don't persist anything
-  // from this install" — both package.json and the workspace manifest.
+  // from this install", both package.json and the workspace manifest.
   // Skip the pick so the info log doesn't claim entries were added that
   // were never written; the next install will resurface them.
   if (opts.save === false || opts.dryRun) return

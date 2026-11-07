@@ -34,7 +34,7 @@ const condensedPackuments = new WeakMap<PackageMeta, PackageMeta>()
  * Reduces a package metadata document to the abbreviated field set that the
  * resolver actually reads, dropping install-irrelevant fields (scripts,
  * exports, readme, custom `_`-prefixed fields, etc.). Retaining unstripped
- * full documents — tens of MB parsed for a popular package — is what drove
+ * full documents, tens of MB parsed for a popular package, is what drove
  * large installs out of memory (https://github.com/pnpm/pnpm/issues/8441).
  * `etag` is carried over so a condensed document can still answer
  * conditional-request headers.

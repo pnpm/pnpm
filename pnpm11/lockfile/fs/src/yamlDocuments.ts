@@ -93,7 +93,7 @@ export async function readLockfileToString (filePath: string): Promise<string | 
 
 /**
  * Refuses a symlinked lockfile before a write, which would land on the link's
- * target — any file the user can write. Reads may follow it: sandboxes stage
+ * target, any file the user can write. Reads may follow it: sandboxes stage
  * `pnpm-lock.yaml` as a symlink, and lockfile content is untrusted either way
  * (https://github.com/pnpm/pnpm/issues/13073).
  */

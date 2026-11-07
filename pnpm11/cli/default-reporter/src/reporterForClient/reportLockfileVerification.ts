@@ -11,7 +11,7 @@ export interface ReportLockfileVerificationOptions {
   cwd: string
   /**
    * The workspace root, when one exists. Used as the "expected"
-   * location for the lockfile — when the lockfile lives there, the
+   * location for the lockfile, when the lockfile lives there, the
    * path is implied and we don't repeat it in the rendered message.
    * Falls back to `cwd` for single-project installs.
    */
@@ -68,7 +68,7 @@ function formatCachedVerdict (verifiedAt: string | undefined): string {
 }
 
 // Returns a leading-space-prefixed `at <path>` suffix only when the
-// lockfile sits outside the obvious project/workspace root — otherwise
+// lockfile sits outside the obvious project/workspace root, otherwise
 // the path is implied and printing it would only add noise to every
 // install. Empty string when the path is omitted or matches the
 // expected location.

@@ -95,7 +95,7 @@ export async function handler (opts: ChangeCommandOptions, params: string[]): Pr
   } catch (err: unknown) {
     if (isError(err) && err.name === 'ExitPromptError') {
       globalInfo('Change canceled')
-      // eslint-disable-next-line n/no-process-exit -- a canceled prompt ends the command without an error, like the other interactive commands
+      // eslint-disable-next-line n/no-process-exit, a canceled prompt ends the command without an error, like the other interactive commands
       process.exit(0)
     }
     throw err
@@ -170,7 +170,7 @@ function assertReleasableRefs ({ params, releasable, workspaceDir, allProjects }
  * packages" heading) and preselected, the rest listed below under "unchanged
  * packages". A name shared by several projects is offered under its directory
  * reference so the written intent stays unambiguous. Change detection is
- * best-effort — outside a git repo, or when no base branch can be found, the
+ * best-effort, outside a git repo, or when no base branch can be found, the
  * list falls back to a flat, unselected picker.
  */
 async function promptForPackages (
@@ -238,7 +238,7 @@ async function detectChangedDirs (
 async function detectBaseCommit (cwd: string): Promise<string | undefined> {
   for (const branch of ['main', 'master']) {
     try {
-      // eslint-disable-next-line no-await-in-loop -- the first branch that exists wins
+      // eslint-disable-next-line no-await-in-loop, the first branch that exists wins
       const { stdout } = await execa('git', ['merge-base', 'HEAD', branch], { cwd })
       const commit = String(stdout).trim()
       if (commit !== '') return commit
@@ -260,7 +260,7 @@ async function promptBumpTypes (pkgRefs: string[]): Promise<Record<string, Inten
   let remaining = [...pkgRefs]
   for (const bumpType of ['major', 'minor'] as const) {
     if (remaining.length === 0) break
-    // eslint-disable-next-line no-await-in-loop -- each prompt offers only the packages the previous one left
+    // eslint-disable-next-line no-await-in-loop, each prompt offers only the packages the previous one left
     const chosen = new Set(await checkbox<string>({
       message: `Which packages should have a ${bumpType} bump?`,
       choices: remaining.map((ref) => ({ value: ref })),
