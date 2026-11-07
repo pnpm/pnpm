@@ -194,6 +194,12 @@ export class PnprContainer extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    try {
+      decodeURIComponent(new URL(request.url).pathname);
+    } catch (error) {
+      if (!(error instanceof URIError)) throw error;
+      return new Response("Malformed percent-encoded path\n", { status: 400 });
+    }
     const headers = new Headers(request.headers);
     headers.set("accept-encoding", "zstd, gzip");
     headers.delete("x-forwarded-for");
@@ -230,6 +236,9 @@ The Worker copies it into `X-Real-IP`, and the
 
 `PNPR_PUBLIC_URL` works because pnpr reads every flag from an environment
 variable with the `PNPR_` prefix. This one is `--public-url`.
+
+Malformed percent-encoded paths receive HTTP `400` before the request reaches
+the container.
 
 Finally, install the two packages the Worker needs:
 
@@ -357,3 +366,49 @@ Adding a custom domain to that Worker does not bypass its limit. Raising
 **There is no spending cap.** `max_instances` and `sleepAfter` bound what a
 forgotten deployment can cost. A budget alert in the dashboard emails you when
 projected spend crosses a threshold, but it does not stop anything.
+
+## Non-browser clients blocked with error 1010
+
+Cloudflare's [Browser Integrity Check](https://developers.cloudflare.com/waf/tools/browser-integrity-check/)
+can reject the default Python `urllib` User-Agent with HTTP `403` and error
+`1010` before the request reaches your Worker. Changing headers inside the
+Worker cannot fix this.
+
+On a custom domain in your Cloudflare zone, create a WAF custom rule with a
+Skip action for Browser Integrity Check. Limit it to the registry hostname
+and paths, for example:
+
+```text
+http.host eq "registry.example.com" and
+(starts_with(http.request.uri.path, "/npm/") or http.request.uri.path eq "/npm")
+```
+
+Include other API prefixes your clients use. Skip only Browser Integrity
+Check, keeping authentication, rate limits, and other WAF protections active.
+Check Security Events if requests still fail, and adjust the specific blocking
+rule for those paths.
+
+On `workers.dev`, [Browser Integrity Check cannot be disabled](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1010/).
+Use a custom domain for clients that need their default User-Agent to work.
+Scripts using the trial hostname can send a descriptive User-Agent:
+
+```python
+import urllib.request
+
+request = urllib.request.Request(
+    "https://pnpr.<your-subdomain>.workers.dev/npm/example-package",
+    headers={"User-Agent": "registry-check/1.0"},
+)
+with urllib.request.urlopen(request) as response:
+    print(response.status)
+```
+
+Verify your deployment with both the script and a malformed path:
+
+```sh
+curl --path-as-is -i 'https://registry.example.com/npm/%E0%A4%A'
+```
+
+The malformed path should return HTTP `400`. On a custom domain with the
+exception, repeat the Python request without the `headers` argument to verify
+that the default User-Agent also reaches the registry.
