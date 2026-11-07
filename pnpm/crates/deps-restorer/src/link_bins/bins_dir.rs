@@ -47,7 +47,7 @@ pub enum SkippedCommands<'a> {
 
 /// Whether builds that run after the pass may still create the candidates'
 /// bin targets.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub enum BinTargets {
     Present,
     /// The pass holds back each bin whose target is missing. See
@@ -98,7 +98,10 @@ pub fn link_bins_dir(
     candidates: BinCandidates<'_>,
     pass: BinsDirPass<'_>,
 ) -> Result<LinkedBinsDir, LinkBinsError> {
-    let build_pending = pass.targets == BinTargets::MayBeBuilt;
+    let build_pending = match pass.targets {
+        BinTargets::Present => false,
+        BinTargets::MayBeBuilt => true,
+    };
     let sources: Vec<PackageBinSource> = read_candidates(modules_dir, candidates)?
         .into_iter()
         .map(|source| {
