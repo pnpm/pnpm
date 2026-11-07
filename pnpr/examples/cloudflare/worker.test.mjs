@@ -10,6 +10,8 @@ const javascript = stripTypeScriptTypes(source.replace(/^import .*;\n/m, ''))
   .replace('export default ', 'const worker = ')
 
 function fixture ({ startupError = false, forwardingError = false, workerError = false } = {}) {
+  const errors = []
+  const logger = { error: (...args) => errors.push(args) }
   class Container {
     constructor () { this.ctx = { container: { running: !startupError } } }
     async startAndWaitForPorts () { throw new Error('private startup details') }
@@ -22,17 +24,20 @@ function fixture ({ startupError = false, forwardingError = false, workerError =
     if (workerError) throw new Error('private Worker details')
     return namespace ?? new classes.PnprContainer({}, {})
   }
-  const classes = new Function('Container', 'getContainer', `${javascript}\nreturn { PnprContainer, worker };`)(Container, getContainer)
-  return classes
+  const classes = new Function('Container', 'getContainer', 'console', `${javascript}\nreturn { PnprContainer, worker };`)(Container, getContainer, logger)
+  return { ...classes, errors }
 }
 
 for (const failure of ['startupError', 'forwardingError', 'workerError']) {
   test(`the deployment Worker hides ${failure} and supplies a retry delay`, async () => {
-    const { worker } = fixture({ [failure]: true })
+    const { worker, errors } = fixture({ [failure]: true })
     const response = await worker.fetch(new globalThis.Request('https://registry.example/npm/widgets'), {})
     assert.equal(response.status, 503)
     assert.equal(response.headers.get('retry-after'), '5')
     assert.equal(await response.text(), 'Registry temporarily unavailable, retry shortly\n')
+    assert.equal(errors.length, 1)
+    assert.equal(errors[0][0], 'Registry request failed')
+    assert.match(errors[0][1].stack, /private .* details/)
   })
 }
 

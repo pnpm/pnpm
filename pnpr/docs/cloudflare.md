@@ -185,13 +185,14 @@ export class PnprContainer extends Container<Env> {
         });
       }
       return await super.fetch(request);
-    } catch {
-      return unavailable();
+    } catch (error) {
+      return unavailable(error);
     }
   }
 }
 
-function unavailable(): Response {
+function unavailable(error: unknown): Response {
+  console.error("Registry request failed", error);
   return new Response("Registry temporarily unavailable, retry shortly\n", {
     status: 503,
     headers: { "Retry-After": "5" },
@@ -220,8 +221,8 @@ export default {
         headers: response.headers,
         encodeBody: "manual",
       });
-    } catch {
-      return unavailable();
+    } catch (error) {
+      return unavailable(error);
     }
   },
 };
