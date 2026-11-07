@@ -11,6 +11,7 @@ use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_package_is_installable::{
     InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest, check_package,
 };
+use pnpm_package_manifest::node_version_from_engines_runtime;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_workspace::Project;
 use std::{
