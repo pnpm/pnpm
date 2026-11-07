@@ -1,4 +1,4 @@
-pub(crate) use project_installability::ProjectHost;
+pub(crate) use project_installability::{ProjectHost, host_requirements};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;

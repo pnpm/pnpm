@@ -293,3 +293,29 @@ fn engine_strict_on_a_repeat_install_rejects_a_project_on_an_unsupported_platfor
     assert!(text.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "{text}");
     drop(root);
 }
+
+#[test]
+fn adding_to_one_project_checks_the_other_workspace_projects() {
+    for shared_lockfile in [true, false] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("sharedWorkspaceLockfile: {shared_lockfile}\n"),
+        )
+        .expect("write workspace settings");
+        write_workspace(&workspace, &serde_json::json!({ "engines": { "pnpm": ">=99.0.0" } }));
+
+        let output = pacquet
+            .with_args(["add", "--workspace-root", "app@workspace:*"])
+            .output()
+            .expect("run pnpm add");
+
+        let text = output_text(&output);
+        assert!(!output.status.success(), "shared lockfile: {shared_lockfile}: {text}");
+        assert!(text.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "{text}");
+        let manifest =
+            fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+        assert!(!manifest.contains("dependencies"), "{manifest}");
+        drop(root);
+    }
+}

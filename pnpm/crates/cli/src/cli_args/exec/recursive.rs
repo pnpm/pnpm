@@ -14,9 +14,10 @@
 use super::{ExecArgs, ExecDirs, ExecError, prepare_command, spawn_in_dir};
 use crate::cli_args::{
     recursive::{
-        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, print_no_projects_matched,
-        projects_to_verify, select_recursive_projects, write_recursive_summary,
+        AutoExcludeRoot, ExecutionStatus, Status, check_workspace_requirements, count_failures,
+        discover_workspace_projects, filtered_projects_dependencies, find_resume_root,
+        print_no_projects_matched, projects_to_verify, select_recursive_projects,
+        write_recursive_summary,
     },
     reporter::{ReporterType, reporter_emit},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
@@ -294,6 +295,7 @@ fn execute_selection(
     reporter: ReporterType,
 ) -> miette::Result<()> {
     let emit = reporter_emit(reporter);
+    check_workspace_requirements(selection, config, workspace_root, emit)?;
     let (task_graph, sequenced_tasks, task_run_state) =
         prepare_exec_tasks(args, config, workspace_root, selection, emit)?;
 
