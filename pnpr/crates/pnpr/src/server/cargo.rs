@@ -23,7 +23,9 @@ use publication::{delete_yank, put_publish, put_unyank};
 
 use super::{
     Action, AppState, AuthedCaller, DiscoverySource, RegistrySource, SearchPage, TargetRegistry,
-    authorize, discovery_sources,
+    authorize,
+    conditional_requests::is_not_modified,
+    discovery_sources,
     documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
@@ -38,7 +40,7 @@ use axum::{
     Router,
     body::{Body, Bytes},
     extract::{Path, RawQuery, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, put},
 };
@@ -222,11 +224,18 @@ async fn get_index_config(
     caller_scoped(&state, ECOSYSTEM, registry.as_deref(), None, response)
 }
 
-fn index_response(text: String) -> Response {
+fn index_response(text: String, headers: &HeaderMap) -> Response {
+    let etag = format!(r#""{}""#, sha256_hex(text.as_bytes()));
+    let (status, body) = if is_not_modified(headers, &etag, None) {
+        (StatusCode::NOT_MODIFIED, Body::empty())
+    } else {
+        (StatusCode::OK, Body::from(text))
+    };
     Response::builder()
-        .status(StatusCode::OK)
+        .status(status)
+        .header(header::ETAG, etag)
         .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
-        .body(Body::from(text))
+        .body(body)
         .expect("static-shape response always builds")
 }
 
@@ -237,6 +246,7 @@ async fn get_index_file(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(params): Path<HashMap<String, String>>,
+    headers: HeaderMap,
 ) -> Response {
     let segments: Vec<&str> = ["a", "b", "c"]
         .iter()
@@ -263,7 +273,7 @@ async fn get_index_file(
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     };
     let response = match index {
-        Ok(Some(text)) => index_response(text),
+        Ok(Some(text)) => index_response(text, &headers),
         Ok(None) => not_found(),
         Err(err) => error_response(err),
     };

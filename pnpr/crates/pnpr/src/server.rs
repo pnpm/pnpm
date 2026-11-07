@@ -60,6 +60,7 @@ use version_tarballs::{VersionTgzCache, serve_package_tarball};
 mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 
+mod conditional_requests;
 mod package_responses;
 mod split_packuments;
 use package_responses::{

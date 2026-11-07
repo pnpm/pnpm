@@ -133,6 +133,9 @@ default namespace). Two hosted registries of the same ecosystem cannot share an
 
 A Cargo registry serves a sparse index at `/cargo/index/` and the crates API at
 `/cargo/api/v1/crates/`, or under `/cargo/~<name>/...` for a named registry.
+Hosted and proxied crate index files send a strong `ETag`. Requests with a
+matching `If-None-Match` receive `304 Not Modified` with no body.
+
 Point `cargo` at it:
 
 ```toml title=".cargo/config.toml"
