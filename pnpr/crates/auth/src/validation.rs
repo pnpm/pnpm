@@ -99,3 +99,11 @@ pub(crate) fn confusable_username() -> RegistryError {
         reason: "username is too similar to an existing username".to_string(),
     }
 }
+
+pub(crate) fn username_conflict(username: &str, exact_match: bool) -> RegistryError {
+    if exact_match {
+        RegistryError::AdminConflict { reason: format!("username {username:?} is taken") }
+    } else {
+        confusable_username()
+    }
+}

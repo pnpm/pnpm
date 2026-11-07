@@ -104,9 +104,10 @@ impl AuthSqlBackend for PostgresDatabase {
         match result {
             Ok(result) if result.rows_affected() > 0 => Ok(()),
             Ok(_) => Err(RegistryError::NotFound),
-            Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
-                reason: format!("username {username:?} is taken"),
-            }),
+            Err(err) if is_unique_violation(&err) => Err(crate::validation::username_conflict(
+                username,
+                self.stored_user(username).await?.is_some(),
+            )),
             Err(err) => Err(err.into()),
         }
     }

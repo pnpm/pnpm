@@ -70,7 +70,7 @@ async fn basic_auth_is_rejected_for_protected_package() {
     // pnpr does not accept Basic credentials on requests: the header is
     // ignored (treated as anonymous), so a protected package is rejected.
     // Clients must authenticate with a bearer token.
-    let basic = BASE64.encode(b"alice:secret");
+    let basic = BASE64.encode(b"alice:secret123");
     let response = app
         .oneshot(
             Request::get("/npm/@pnpm.e2e/needs-auth")

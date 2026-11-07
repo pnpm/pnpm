@@ -32,12 +32,17 @@ async fn password_policy_applies_to_new_credentials_and_preserves_legacy_login()
 
 pub(crate) async fn assert_username_skeletons(users: &dyn crate::UserBackend) {
     users.add_or_login("scope", "password").await.unwrap();
+    let err = users.provision_user("scope").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
+    assert!(matches!(err, crate::RegistryError::AdminConflict { .. }));
     for name in ["scоpe", "scοpe"] {
         let err = users.add_or_login(name, "password").await.unwrap_err();
         assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
         let err = users.create_user(name, "password").await.unwrap_err();
         assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
-        assert!(users.provision_user(name).await.is_err());
+        let err = users.provision_user(name).await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+        assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
         assert!(
             users
                 .account_id(name)
@@ -49,7 +54,12 @@ pub(crate) async fn assert_username_skeletons(users: &dyn crate::UserBackend) {
     users.create_user("modern", "password").await.unwrap();
     assert!(users.add_or_login("rnodern", "password").await.is_err());
     let id = users.provision_user("other").await.unwrap();
-    assert!(users.rename_user(&id, "scоpe").await.is_err());
+    let err = users.rename_user(&id, "scоpe").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
+    let err = users.rename_user(&id, "scope").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
+    assert!(matches!(err, crate::RegistryError::AdminConflict { .. }));
     users.rename_user(&id, "distinct").await.unwrap();
     assert!(users.provision_user("distinсt").await.is_err());
     let scope_id = users

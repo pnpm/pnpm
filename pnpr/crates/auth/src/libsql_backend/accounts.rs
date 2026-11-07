@@ -52,9 +52,10 @@ impl LibsqlAuth {
                         tx.commit().await?;
                         Ok(())
                     }
-                    Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
-                        reason: format!("username {username:?} is taken"),
-                    }),
+                    Err(err) if is_unique_violation(&err) => {
+                        tx.rollback().await?;
+                        Err(classify_username_conflict(&conn, username).await?)
+                    }
                     Err(err) => Err(err.into()),
                 }
             })
@@ -100,9 +101,9 @@ impl LibsqlAuth {
                 {
                     Ok(0) => Err(RegistryError::NotFound),
                     Ok(_) => Ok(()),
-                    Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
-                        reason: format!("username {username:?} is taken"),
-                    }),
+                    Err(err) if is_unique_violation(&err) => {
+                        Err(classify_username_conflict(&conn, username).await?)
+                    }
                     Err(err) => Err(err.into()),
                 }
             })
@@ -119,4 +120,13 @@ async fn collect_accounts(mut rows: libsql::Rows) -> Result<Vec<crate::UserAccou
         accounts.push(crate::UserAccount { id: row.get(0)?, username: row.get(1)? });
     }
     Ok(accounts)
+}
+
+async fn classify_username_conflict(
+    conn: &libsql::Connection,
+    username: &str,
+) -> Result<RegistryError> {
+    let rows = conn.query("SELECT id FROM users WHERE username = ?1", params![username]).await?;
+    let exact_match = first_row(rows, |_| Ok(())).await?.is_some();
+    Ok(crate::validation::username_conflict(username, exact_match))
 }
