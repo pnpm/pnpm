@@ -350,6 +350,22 @@ fn node_version_from_a_downloaded_runtime_range_satisfies_the_engine_range() {
 }
 
 #[test]
+fn downloaded_node_version_skips_runtime_entries_without_a_version() {
+    assert_eq!(
+        downloaded_node_version_from_engines_runtime(&json!({
+            "engines": {
+                "node": ">=24.0.0",
+                "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" },
+            },
+            "devEngines": {
+                "runtime": { "name": "node", "onFail": "download" },
+            },
+        })),
+        Some("24.0.0".to_string()),
+    );
+}
+
+#[test]
 fn node_version_does_not_treat_a_range_as_the_running_runtime() {
     assert_eq!(
         node_version_from_engines_runtime(&json!({
