@@ -17,11 +17,11 @@ This task is that hand-check, written down and repeatable.
 
 For each workspace in `src/workspaces.rs`:
 
-1. **prepare**, write the manifests into two directories, one per resolver.
-2. **cargo**, `cargo generate-lockfile`.
-3. **pnpm**, `pnpm install --lockfile-only --no-frozen-lockfile`.
-4. **compare**, diff the locked crates, crate by crate.
-5. **locked**, drop pnpm's lockfile into a copy of the workspace pnpm never
+1. **prepare** — write the manifests into two directories, one per resolver.
+2. **cargo** — `cargo generate-lockfile`.
+3. **pnpm** — `pnpm install --lockfile-only --no-frozen-lockfile`.
+4. **compare** — diff the locked crates, crate by crate.
+5. **locked** — drop pnpm's lockfile into a copy of the workspace pnpm never
    touched and run `cargo metadata --locked`. A pristine copy, so this asks
    about the lockfile alone rather than the source replacement pnpm writes
    next to it.
@@ -33,7 +33,7 @@ changes what they agree on, not whether they agree.
 ## Run it
 
 From the repo root, with the Rust CLI built (`cargo build --release --bin
-pnpm`), Cargo support exists only in pnpm v12:
+pnpm`) — Cargo support exists only in pnpm v12:
 
 ```sh
 # Whole corpus
@@ -46,8 +46,8 @@ just cargo-equivalence --pnpm ./target/release/pnpm --workspace napi --keep
 Exit code is non-zero only for an **unexpected** result. Each workspace
 lists what it expects:
 
-- `Expectation::Agree`, the resolvers must produce the same crates.
-- `Expectation::Differ { issue }`, a known gap, linked to the issue
+- `Expectation::Agree` — the resolvers must produce the same crates.
+- `Expectation::Differ { issue }` — a known gap, linked to the issue
   tracking it. It reports `KNOWN` and does not fail the run, but it *does*
   fail if the two start agreeing, which is the signal that the issue is
   fixed and the expectation should be raised.
@@ -56,7 +56,7 @@ That second state is what keeps a tracked gap from turning the whole run
 red, and stops it from being quietly forgotten once it is fixed.
 
 A gap excuses a *disagreement* and nothing else. A workspace that will not
-lay out, a resolver that will not run, a lockfile that will not parse, none
+lay out, a resolver that will not run, a lockfile that will not parse — none
 of those are a conclusion about what the two resolvers produce, so they fail
 the run whatever the workspace expects. Otherwise a tracked gap would be a
 blind spot: any regression reaching the same stage would be waved through as

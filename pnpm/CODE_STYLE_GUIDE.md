@@ -1,4 +1,4 @@
-# Code style guide
+# Code Style Guide
 
 ## Introduction
 
@@ -105,7 +105,7 @@ Exempt by construction: setter and builder methods, struct literals with named f
 
 Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/naming.html). Specific naming conventions for generics, variables, and closure parameters are covered in the sections below.
 
-### Module organization
+### Module Organization
 
 - Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`clippy::mod_module_files`](https://rust-lang.github.io/rust-clippy/master/index.html#mod_module_files), which bans `mod.rs` files. (`perfectionist::flat_module_pattern` covered this previously; perfectionist has since removed it in favor of the Clippy rule, so `mod_module_files` is now the sole enforcer.)
 - List `pub mod` declarations first, then `pub use` re-exports, then private imports and items.
@@ -120,7 +120,7 @@ pub use install_package_by_snapshot::InstallPackageBySnapshot;
 pub use install_package_from_registry::InstallPackageFromRegistry;
 ```
 
-### Import organization
+### Import Organization
 
 Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by the [pinned formatter](../CONTRIBUTING.md#rust-formatting); the granularity is enforced by [`perfectionist::import_granularity_mismatch`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/import_granularity_mismatch.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
 
@@ -173,11 +173,11 @@ pub use comver::*;
 pub use load_lockfile::*;
 ```
 
-### Generic parameter naming
+### Generic Parameter Naming
 
 Use descriptive names for type parameters (`Size`, `Name`, `Manifest`, `Store`, `Reporter`) and `const` generics instead of single letters. Enforced by [`perfectionist::single_letter_generic`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_generic.md) and [`perfectionist::single_letter_const_generic`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/single_letter_const_generic.md). The idiomatic `T` for a lone type parameter and `N` for a const-generic array length are accepted at the site with `#[expect(perfectionist::single_letter_generic, …)]` / `#[expect(perfectionist::single_letter_const_generic, …)]`.
 
-### Variable and closure parameter naming
+### Variable and Closure Parameter Naming
 
 Use descriptive names for variables and closure parameters, in test code as well as production code. Single letters are accepted only where the rules' default allowlists permit them: `n`/`f`/`i`/`j`/`k` for their conventional roles, the `sort_by` / `sort_by_key` / `min_by` / `max_by` / `fold` callback shape, and single-expression closure bodies. Multi-line closure bodies and every `let` binding (including in `#[cfg(test)]` code) are flagged. The same applies to single-letter `const`/`static` items. Enforced by:
 
@@ -275,13 +275,13 @@ let b = node_bin_dir(my_path_ref);
 
 ### Getters return the borrowed form
 
-A getter, an inherent `&self` method named for the field it reads, or one named `get_*`, returns the [borrowed] form of that field: `&str` for a `String`, `&Path` for a `PathBuf`, `&[T]` for a `Vec<T>`, `Option<&T>` for an `Option<T>`.
+A getter — an inherent `&self` method named for the field it reads, or one named `get_*` — returns the [borrowed] form of that field: `&str` for a `String`, `&Path` for a `PathBuf`, `&[T]` for a `Vec<T>`, `Option<&T>` for an `Option<T>`.
 
 A getter that copies decides for every caller that they wanted an owned value, and most did not: they compare, print, or pass it on. The borrowed form serves every caller and leaves the one that needs ownership to copy at the call site, where the reader can see it. Where every call site would copy the borrow straight back, name the method `to_*` instead, the prefix for a conversion that costs something.
 
 `perfectionist::cloning_getter` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml). An `Rc` or `Arc` field is exempt, since cloning one bumps a refcount rather than copying what it points at.
 
-### Trait bounds
+### Trait Bounds
 
 Prefer `where` clauses over inline bounds when there are multiple constraints:
 
@@ -296,7 +296,7 @@ where
 }
 ```
 
-### Pattern matching
+### Pattern Matching
 
 When mapping enum variants to values, prefer the concise wrapping style:
 
@@ -498,7 +498,7 @@ impl TryFrom<String> for PackageName {
 
 The same trade-off applies to the infallible `#[serde(from = "...")]` form.
 
-### Error handling
+### Error Handling
 
 - Use `derive_more` for error types. Only derive the traits that are actually used:
   - `Display`: derive when the type needs to be displayed, such as when it is printed to stderr or used in format strings.
@@ -515,7 +515,7 @@ pub enum InstallError {
 }
 ```
 
-### Conditional test skipping: `#[cfg]` vs `#[cfg_attr(..., ignore)]`
+### Conditional Test Skipping: `#[cfg]` vs `#[cfg_attr(..., ignore)]`
 
 When a test cannot run under certain conditions, such as on the wrong platform, prefer `#[cfg_attr(..., ignore)]` over `#[cfg(...)]` to skip it. The test still compiles on every configuration and is only skipped at runtime. This approach catches type errors and regressions that a `#[cfg]` skip would hide.
 
@@ -582,7 +582,7 @@ If the assertion fails, the value of `received` will appear alongside the error 
 
 ### Unit test file layout
 
-Always place unit tests in a dedicated external `tests` submodule (`#[cfg(test)] mod tests;`) rather than inline in the parent file, for `src/foo.rs` the tests live in `src/foo/tests.rs`. This keeps production and test code in separate files and avoids churning git blame. Enforced by [`perfectionist::excessive_inline_tests`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/excessive_inline_tests.md) (configured to `inline_style = "external_only"`), which flags any inline test code so it must move to an external `mod tests;`.
+Always place unit tests in a dedicated external `tests` submodule (`#[cfg(test)] mod tests;`) rather than inline in the parent file — for `src/foo.rs` the tests live in `src/foo/tests.rs`. This keeps production and test code in separate files and avoids churning git blame. Enforced by [`perfectionist::excessive_inline_tests`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/excessive_inline_tests.md) (configured to `inline_style = "external_only"`), which flags any inline test code so it must move to an external `mod tests;`.
 
 ### Cloning `Arc` and `Rc`
 
@@ -593,35 +593,35 @@ Prefer `Arc::clone(&x)` / `Rc::clone(&x)` over `x.clone()` for reference-counted
 Library code should rarely call `std::env::var`, `std::env::var_os`, or `std::env::current_dir` directly. Process state belongs to the running process, not to the operation a function performs, so reaching for it couples the logic to whichever shell invoked pacquet and hides the dependency from the caller. Prefer one of:
 
 - **Take the value as a parameter.** A function that needs a path declares `path: &Path`; one that needs an env-var value takes it as a `&str` argument or an `Option<String>`.
-- **Thread the read through the DI seam.** Declare `Sys: EnvVar` (or `EnvVarOs`, `GetHomeDir`, `GetCurrentDir`, and so on) and call `Sys::var(name)` / `Sys::var_os(name)` / `Sys::home_dir()` / `Sys::current_dir()`. See [Dependency injection for tests](#dependency-injection-for-tests) for the convention. This is how `Config::current` resolves the home dir and the `NPM_CONFIG_WORKSPACE_DIR` lookup, and how `crates/workspace`'s `find_workspace_dir_from_env_with` resolves its env-var lookup, both let tests drive the read without touching the process environment.
+- **Thread the read through the DI seam.** Declare `Sys: EnvVar` (or `EnvVarOs`, `GetHomeDir`, `GetCurrentDir`, and so on) and call `Sys::var(name)` / `Sys::var_os(name)` / `Sys::home_dir()` / `Sys::current_dir()`. See [Dependency injection for tests](#dependency-injection-for-tests) for the convention. This is how `Config::current` resolves the home dir and the `NPM_CONFIG_WORKSPACE_DIR` lookup, and how `crates/workspace`'s `find_workspace_dir_from_env_with` resolves its env-var lookup — both let tests drive the read without touching the process environment.
 
-The narrow case where a direct call is acceptable is computing the default of a `Config` field that has no caller to take the value from, `default_store_dir`, `default_modules_dir`, and `default_virtual_store_dir` are the canonical examples. Even there, route the lookup through the DI seam: write the helper as `default_store_dir<Sys: EnvVar + GetHomeDir + GetCurrentDir>()` and inline the production composition at the `SmartDefault` site (`#[default(_code = "default_store_dir::<Host>()")]`), so the fake-`Sys` test path and the production `Host` path resolve through the same generic. The other accepted boundary reads are program-entry knobs (`RAYON_NUM_THREADS` in `crates/cli`, `TRACE` in `crates/diagnostics`) and the lifecycle-script env snapshot in `crates/executor` and `crates/git-fetcher`, which has to forward the parent environment to spawned children verbatim. If new library code seems to need `env::var` / `env::current_dir` for any other reason, the answer is almost always a `&Path` (or equivalent) parameter, not a process-state read.
+The narrow case where a direct call is acceptable is computing the default of a `Config` field that has no caller to take the value from — `default_store_dir`, `default_modules_dir`, and `default_virtual_store_dir` are the canonical examples. Even there, route the lookup through the DI seam: write the helper as `default_store_dir<Sys: EnvVar + GetHomeDir + GetCurrentDir>()` and inline the production composition at the `SmartDefault` site (`#[default(_code = "default_store_dir::<Host>()")]`), so the fake-`Sys` test path and the production `Host` path resolve through the same generic. The other accepted boundary reads are program-entry knobs (`RAYON_NUM_THREADS` in `crates/cli`, `TRACE` in `crates/diagnostics`) and the lifecycle-script env snapshot in `crates/executor` and `crates/git-fetcher`, which has to forward the parent environment to spawned children verbatim. If new library code seems to need `env::var` / `env::current_dir` for any other reason, the answer is almost always a `&Path` (or equivalent) parameter, not a process-state read.
 
 ### Dependency injection for tests
 
-Side-effecting code, filesystem access, environment variables, network calls, time, process state, has two testing routes. **The default route is a real fixture:** a `tempfile::TempDir` for filesystem work, the mocked registry (`just registry-mock`) for HTTP, an integration test that spawns the actual pacquet binary in a scratch directory for end-to-end flows. Real fixtures keep tests close to what users see and scale with the codebase without per-call-site plumbing; they are the right tool everywhere except the cases enumerated below.
+Side-effecting code — filesystem access, environment variables, network calls, time, process state — has two testing routes. **The default route is a real fixture:** a `tempfile::TempDir` for filesystem work, the mocked registry (`just registry-mock`) for HTTP, an integration test that spawns the actual pacquet binary in a scratch directory for end-to-end flows. Real fixtures keep tests close to what users see and scale with the codebase without per-call-site plumbing; they are the right tool everywhere except the cases enumerated below.
 
 The dependency-injection seam described below is the **narrow second route**. Reach for it only when one of the following applies:
 
-- **Filesystem error branches the host OS won't reproduce portably.** `PermissionDenied`, `ENOSPC`, a directory that disappears mid-walk, a chmod that fails after the file exists, provoking these on real disks is platform-specific, racy, or both. A fake that returns the exact `io::ErrorKind` is the only portable way to drive the branch.
+- **Filesystem error branches the host OS won't reproduce portably.** `PermissionDenied`, `ENOSPC`, a directory that disappears mid-walk, a chmod that fails after the file exists — provoking these on real disks is platform-specific, racy, or both. A fake that returns the exact `io::ErrorKind` is the only portable way to drive the branch.
 - **Deterministic time.** Asserting that `prunedAt` equals a specific HTTP-date (RFC 7231 IMF-fixdate, what `httpdate::fmt_http_date` emits), or that a throttled emitter fires on the second sample, needs the clock to be a known value. The real `SystemTime::now` makes those assertions flaky.
-- **Shared process-global state that tests would otherwise mutate.** When a branch depends on a single per-process slot, environment variables, the current working directory, the umask, signal handlers, the global allocator, the only way to exercise it without DI is to write to that slot, and the write is observed by every other test in the same process. A serialisation lock (the `EnvGuard` pattern that pnpm/pacquet#343 + pnpm/pnpm#11718 retired from `default_store_dir`) restores correctness only by forcing the affected tests to run single-threaded, and leaves an `unsafe { env::set_var(...) }` block at the call site. A capability-trait fake keeps the read deterministic and the mutation contained to the test that needs it, so nextest's in-process parallelism stays useful and `unsafe` stays out of test code. The reverse follows too: a real-fixture happy path should not be promoted to DI just because it crosses a process-global slot, only the *mutation* side of the slot is the problem; reading whatever the shell already has is fine.
-- **External-service happy paths that can't be staged in CI.** pnpm has features whose *normal* flow depends on real external systems, `pnpm login`'s 2FA prompt round-trip, the OIDC token exchange and provenance attestation in `pnpm publish`, and similar, where the happy path itself is what needs faking, not just the error path. When pacquet grows those features, DI is the right tool for their tests too. (As of writing, these are not yet implemented; this exception is documented so the convention is in place when they land.)
+- **Shared process-global state that tests would otherwise mutate.** When a branch depends on a single per-process slot — environment variables, the current working directory, the umask, signal handlers, the global allocator — the only way to exercise it without DI is to write to that slot, and the write is observed by every other test in the same process. A serialisation lock (the `EnvGuard` pattern that pnpm/pacquet#343 + pnpm/pnpm#11718 retired from `default_store_dir`) restores correctness only by forcing the affected tests to run single-threaded, and leaves an `unsafe { env::set_var(...) }` block at the call site. A capability-trait fake keeps the read deterministic and the mutation contained to the test that needs it, so nextest's in-process parallelism stays useful and `unsafe` stays out of test code. The reverse follows too: a real-fixture happy path should not be promoted to DI just because it crosses a process-global slot — only the *mutation* side of the slot is the problem; reading whatever the shell already has is fine.
+- **External-service happy paths that can't be staged in CI.** pnpm has features whose *normal* flow depends on real external systems — `pnpm login`'s 2FA prompt round-trip, the OIDC token exchange and provenance attestation in `pnpm publish`, and similar — where the happy path itself is what needs faking, not just the error path. When pacquet grows those features, DI is the right tool for their tests too. (As of writing, these are not yet implemented; this exception is documented so the convention is in place when they land.)
 - **Unreachable-by-design preconditions.** When a function declares a capability bound but a specific test exercises a branch that never reaches that capability, the fake satisfies the bound with `unreachable!` and documents the precondition. See the worked example below.
 
-A function that takes a `<Sys>` generic but is only ever exercised via real fixtures is a smell, either the DI branches are missing coverage, or the generic is over-design. Either add the tests that justify the seam, or drop the generic and let the real fixture cover everything.
+A function that takes a `<Sys>` generic but is only ever exercised via real fixtures is a smell — either the DI branches are missing coverage, or the generic is over-design. Either add the tests that justify the seam, or drop the generic and let the real fixture cover everything.
 
 The rest of this section is the convention that applies *when DI is the right tool*.
 
 #### Names
 
-- The generic type parameter is named **`Sys`**, short for "system seam," the slot in the function signature that selects between the real OS and the test fake. A single short name makes a generic call site instantly recognisable as the DI seam.
-- The production provider struct is named **`Host`**, unqualified, because the production implementation is the default. Fakes carry behaviour-based names that describe what they do (`FailingRead`, `EmptyRead`, `PermissionDenied`, `FakeHostName`), not what category of thing they are.
+- The generic type parameter is named **`Sys`** — short for "system seam," the slot in the function signature that selects between the real OS and the test fake. A single short name makes a generic call site instantly recognisable as the DI seam.
+- The production provider struct is named **`Host`** — unqualified, because the production implementation is the default. Fakes carry behaviour-based names that describe what they do (`FailingRead`, `EmptyRead`, `PermissionDenied`, `FakeHostName`), not what category of thing they are.
 - Capability traits use the form `<Domain><Action>`: filesystem capabilities are `Fs*` (`FsReadToString`, `FsCreateDirAll`, `FsWrite`, `FsReadDir`, `FsWalkFiles`, `FsSetExecutable`, `FsEnsureExecutableBits`); environment-variable lookup is `EnvVar`; clock reads are `Clock`; hostname lookup is `GetHostName`. The domain prefix lets a reader of a generic bound see which side effect the function reaches for without chasing definitions. Method names mirror their `std` equivalents so the trait is a thin seam over `std::fs::*` / `std::env::var` / `SystemTime::now`, not a re-imagining.
 
 #### Eight principles
 
-1. **Single-purpose traits.** Each capability gets its own trait, one method per side effect, no umbrella trait that bundles `read`, `write`, `create_dir_all` into one bag. A function then binds only the capabilities it actually consumes, and a test fake implements only the methods the function under test exercises.
+1. **Single-purpose traits.** Each capability gets its own trait — one method per side effect, no umbrella trait that bundles `read`, `write`, `create_dir_all` into one bag. A function then binds only the capabilities it actually consumes, and a test fake implements only the methods the function under test exercises.
 
 2. **One generic parameter with multiple bounds.** Compose bounds on a single `Sys`, never introduce a second type parameter per capability:
 
@@ -632,7 +632,7 @@ The rest of this section is the convention that applies *when DI is the right to
        Sys: FsReadToString + Clock,
    { /* ... */ }
 
-   // Bad: a parameter per capability, every call site has to satisfy two slots
+   // Bad: a parameter per capability — every call site has to satisfy two slots
    pub fn read_modules_manifest<Fs, C>(modules_dir: &Path) -> Result<...>
    where Fs: FsReadToString, C: Clock { /* ... */ }
    ```
@@ -670,7 +670,7 @@ The rest of this section is the convention that applies *when DI is the right to
 
    The turbofish makes the production choice visible at the call site instead of relying on type inference; if a future caller wants to swap in a different provider (a test driver, a dry-run shim), the spot to change is obvious.
 
-8. **Capabilities are primitives, not algorithms.** Each trait names a leaf-level effect that maps to a single `std` function (`read_to_string`, `create_dir_all`, `write`, `var`, and so on). Higher-level guarantees, atomic write, retry loops, walk-with-options, become free functions composed on top of those primitives, not new trait methods. That keeps the fake surface dead-simple: a fake declares one method per capability, never a knob-laden builder.
+8. **Capabilities are primitives, not algorithms.** Each trait names a leaf-level effect that maps to a single `std` function (`read_to_string`, `create_dir_all`, `write`, `var`, and so on). Higher-level guarantees — atomic write, retry loops, walk-with-options — become free functions composed on top of those primitives, not new trait methods. That keeps the fake surface dead-simple: a fake declares one method per capability, never a knob-laden builder.
 
 #### Worked example: `modules-yaml`
 
@@ -731,7 +731,7 @@ fn read_propagates_non_not_found_io_error() {
         }
     }
     // `read_modules_manifest`'s bound list is `FsReadToString + Clock`,
-    // so every fake must satisfy both bounds at the type level, Rust
+    // so every fake must satisfy both bounds at the type level — Rust
     // doesn't know that the `prunedAt` branch is unreachable for this
     // input. The convention for capabilities the test won't exercise
     // is a trivial impl whose body is `unreachable!`: the bound is
@@ -778,13 +778,13 @@ where
 { /* ... */ }
 ```
 
-The provider implements each trait independently, so adding a domain to an existing `Sys` is one more `impl X for Host` block, no churn on the production type beyond the new line, and no churn on existing tests beyond the ones whose fakes now need the new method.
+The provider implements each trait independently, so adding a domain to an existing `Sys` is one more `impl X for Host` block — no churn on the production type beyond the new line, and no churn on existing tests beyond the ones whose fakes now need the new method.
 
 #### Sharing a stateful fake across many tests
 
-Reusing a DI fake across tests is optional, most tests read clearest with the fake declared inline in the `#[test]` body (principle 3). When a fake *is* shared across a whole module, a module-local `macro_rules!` that expands the fn-local state at the top of each test body saves repeating the same `thread_local!` / `static` block and capability `impl`s in every test. `login_fake!` in `crates/auth-commands/src/login/support.rs` is the reference implementation; `poll_fake!`, `browser_fake!`, `fake_env!`, `recording_reporter!`, and `recording_browser!` across the test suites follow the same shape.
+Reusing a DI fake across tests is optional — most tests read clearest with the fake declared inline in the `#[test]` body (principle 3). When a fake *is* shared across a whole module, a module-local `macro_rules!` that expands the fn-local state at the top of each test body saves repeating the same `thread_local!` / `static` block and capability `impl`s in every test. `login_fake!` in `crates/auth-commands/src/login/support.rs` is the reference implementation; `poll_fake!`, `browser_fake!`, `fake_env!`, `recording_reporter!`, and `recording_browser!` across the test suites follow the same shape.
 
-The rule bites only in that shared case, and only for items that not every test drives: do **not** emit them all and silence the unused ones with `#[allow(dead_code)]`. That suppression is noise, and it can mask an item that has become genuinely dead. Declare each optional item's existence through a named macro argument instead, emit only the always-used core (such as the state block and `reset`) unconditionally, and generate each optional item only when a test names it. What counts as optional is fake-specific: a `set_*` or query helper, a reporter, or even a capability-impl provider that some tests don't drive, `web_auth_fake!` gates its `FakeHost` this way. The entry arm takes the item names as a variadic list and forwards each to an internal `(@helper $name)` arm; each test invokes the macro naming exactly the items it drives, so every emitted item is used:
+The rule bites only in that shared case, and only for items that not every test drives: do **not** emit them all and silence the unused ones with `#[allow(dead_code)]`. That suppression is noise, and it can mask an item that has become genuinely dead. Declare each optional item's existence through a named macro argument instead — emit only the always-used core (such as the state block and `reset`) unconditionally, and generate each optional item only when a test names it. What counts as optional is fake-specific: a `set_*` or query helper, a reporter, or even a capability-impl provider that some tests don't drive — `web_auth_fake!` gates its `FakeHost` this way. The entry arm takes the item names as a variadic list and forwards each to an internal `(@helper $name)` arm; each test invokes the macro naming exactly the items it drives, so every emitted item is used:
 
 ```rust
 macro_rules! poll_fake {
@@ -811,27 +811,27 @@ Always include the catch-all `(@helper $unknown:ident)` arm. Without it a mistyp
 
 ### Reporter / log events
 
-Pacquet and the TypeScript pnpm CLI share one reporter wire protocol, the NDJSON stream that `@pnpm/cli.default-reporter` parses. Every channel one stack fires must fire from the corresponding site in the other, with the same payload shape and the same firing cadence. The reporter lives in `crates/reporter` (the `Reporter` capability trait, the `LogEvent` enum, the `NdjsonReporter` and `SilentReporter` sinks); this section is the convention for keeping pacquet's emissions in step with that shared contract.
+Pacquet and the TypeScript pnpm CLI share one reporter wire protocol — the NDJSON stream that `@pnpm/cli.default-reporter` parses. Every channel one stack fires must fire from the corresponding site in the other, with the same payload shape and the same firing cadence. The reporter lives in `crates/reporter` (the `Reporter` capability trait, the `LogEvent` enum, the `NdjsonReporter` and `SilentReporter` sinks); this section is the convention for keeping pacquet's emissions in step with that shared contract.
 
 #### Where the events come from
 
-In the TypeScript stack, log events come from one of three call shapes, worth knowing when you cross-reference it to keep an emit in sync:
+In the TypeScript stack, log events come from one of three call shapes — worth knowing when you cross-reference it to keep an emit in sync:
 
-- `globalLogger.<channel>.<level>(...)`, the ergonomic helpers in `core/core-loggers/src/<channel>Logger.ts`.
-- `logger.<level>({ name: 'pnpm:<channel>', ... })`, the raw logger with a name discriminant.
-- Direct `streamParser.write(...)` calls, only in the reporter internals; pacquet wouldn't write through this.
+- `globalLogger.<channel>.<level>(...)` — the ergonomic helpers in `core/core-loggers/src/<channel>Logger.ts`.
+- `logger.<level>({ name: 'pnpm:<channel>', ... })` — the raw logger with a name discriminant.
+- Direct `streamParser.write(...)` calls — only in the reporter internals; pacquet wouldn't write through this.
 
-The emit usually sits immediately before or after the side effect the event describes, e.g., `progressLogger.debug({ status: 'fetched' })` after the tarball finishes downloading, before the import step starts.
+The emit usually sits immediately before or after the side effect the event describes — e.g., `progressLogger.debug({ status: 'fetched' })` after the tarball finishes downloading, before the import step starts.
 
 #### Channel mapping
 
-The channels pacquet currently emits live in `crates/reporter/src/lib.rs`'s `LogEvent` enum. Each variant pins `#[serde(rename = "pnpm:<channel>")]` so the wire string matches the protocol byte-for-byte. The enum is *not* an exhaustive list of every channel, variants are added as pacquet starts emitting them. When a behavior change needs a channel `LogEvent` doesn't yet have, add the variant first (see "To add a new channel" below). The `Stage` and `Progress` channels span the install lifecycle and fire from multiple sites; the rest each fire from a single canonical emit site.
+The channels pacquet currently emits live in `crates/reporter/src/lib.rs`'s `LogEvent` enum. Each variant pins `#[serde(rename = "pnpm:<channel>")]` so the wire string matches the protocol byte-for-byte. The enum is *not* an exhaustive list of every channel — variants are added as pacquet starts emitting them. When a behavior change needs a channel `LogEvent` doesn't yet have, add the variant first (see "To add a new channel" below). The `Stage` and `Progress` channels span the install lifecycle and fire from multiple sites; the rest each fire from a single canonical emit site.
 
-To add a new channel: extend the enum with a `#[serde(rename = "pnpm:<channel>")]` variant whose payload matches the wire shape field-for-field, camelCase via `#[serde(rename_all = "camelCase")]` where applicable, preserving status-tagged-union shapes (see `ProgressMessage` for the pattern). Add a wire-shape unit test to `crates/reporter/src/tests.rs` that asserts the JSON renders exactly what the protocol requires, identical to the TypeScript emitter's output.
+To add a new channel: extend the enum with a `#[serde(rename = "pnpm:<channel>")]` variant whose payload matches the wire shape field-for-field — camelCase via `#[serde(rename_all = "camelCase")]` where applicable, preserving status-tagged-union shapes (see `ProgressMessage` for the pattern). Add a wire-shape unit test to `crates/reporter/src/tests.rs` that asserts the JSON renders exactly what the protocol requires, identical to the TypeScript emitter's output.
 
 #### Threading the reporter
 
-A function that emits is generic over `R: Reporter`. Inside, it calls `R::emit(...)` with a `LogEvent` whose variant matches the channel, `R::emit(&LogEvent::Stage(...))`, `R::emit(&LogEvent::Context(...))`, etc.
+A function that emits is generic over `R: Reporter`. Inside, it calls `R::emit(...)` with a `LogEvent` whose variant matches the channel — `R::emit(&LogEvent::Stage(...))`, `R::emit(&LogEvent::Context(...))`, etc.
 
 ```rust
 fn install_step<R: Reporter>(prefix: String) {
@@ -852,7 +852,7 @@ Install { /* ... */ }.run::<CliReporter>().await
 
 Tests use the no-op `SilentReporter` when they don't care about emits, or a recording fake when they do (see [Testing](#testing-the-emit) below).
 
-The generic costs nothing at runtime, but every distinct `R` compiles its own copy of the code generic over it. So the CLI instantiates commands with `CliReporter` rather than once per sink: change the sink with `select_reporter`, and hide events with `EventFilter` rather than a wrapper `Reporter` type. The ergonomic cost is one `<R: Reporter>` per intermediate fn and one turbofish at the production entry point. When threading reaches into a struct, add `<R: Reporter>` to the impl method or carry an install-scoped state field that the relevant emit depends on (see `link_file::log_method_once`'s `&AtomicU8` parameter for an example of the latter, the function dedupes per-install rather than per-process).
+The generic costs nothing at runtime, but every distinct `R` compiles its own copy of the code generic over it. So the CLI instantiates commands with `CliReporter` rather than once per sink: change the sink with `select_reporter`, and hide events with `EventFilter` rather than a wrapper `Reporter` type. The ergonomic cost is one `<R: Reporter>` per intermediate fn and one turbofish at the production entry point. When threading reaches into a struct, add `<R: Reporter>` to the impl method or carry an install-scoped state field that the relevant emit depends on (see `link_file::log_method_once`'s `&AtomicU8` parameter for an example of the latter — the function dedupes per-install rather than per-process).
 
 #### Where to put the emit
 
@@ -907,14 +907,14 @@ Verify the test catches a regression: temporarily comment out the emit, run the 
 
 #### What not to do
 
-- **Don't reformat the wire messages.** Field names and string values are part of the wire contract, change them and `@pnpm/cli.default-reporter` silently drops the record.
+- **Don't reformat the wire messages.** Field names and string values are part of the wire contract — change them and `@pnpm/cli.default-reporter` silently drops the record.
 - **Don't invent new channels.** The channel set is shared; it expands only when both stacks add a channel together.
-- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason, see `pnpm-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
+- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason — see `pnpm-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
 - **Don't emit at lower granularity, either.** Skipping events the consumer expects (`fetched` after a download succeeds, `imported` after `create_cas_files` Ok) breaks pnpm's reporter counters.
 
 #### Worked example: `pnpm:summary` in `Install::run`
 
-The `Install::run` function brackets the install with `pnpm:stage` events and emits `pnpm:summary` after import completes, once per importer, after its link phase finishes.
+The `Install::run` function brackets the install with `pnpm:stage` events and emits `pnpm:summary` after import completes — once per importer, after its link phase finishes.
 
 In pacquet, the same emit lives at the bottom of `Install::run`:
 
@@ -931,4 +931,4 @@ R::emit(&LogEvent::Stage(StageLog {
 R::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 ```
 
-The recording-fake test that pins the sequence lives in `crates/package-manager/src/install/tests.rs::install_emits_pnpm_event_sequence`. The same pattern carries over to every other channel, only the variant name and payload shape change.
+The recording-fake test that pins the sequence lives in `crates/package-manager/src/install/tests.rs::install_emits_pnpm_event_sequence`. The same pattern carries over to every other channel — only the variant name and payload shape change.

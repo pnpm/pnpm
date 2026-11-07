@@ -46,7 +46,7 @@ refactoring bounded to the change; architectural analysis is not authorization
 for an unrelated redesign.
 
 For a bug fix, check whether the code it touches was fixed recently
-(`git log --since='6 weeks ago', <file>`). If earlier fixes restored the same
+(`git log --since='6 weeks ago' -- <file>`). If earlier fixes restored the same
 property, apply steps 4 and 5 of [defect-hotspots](../defect-hotspots/SKILL.md)
 to them and fix the cause, or say in the PR why this fix is another case of it.
 

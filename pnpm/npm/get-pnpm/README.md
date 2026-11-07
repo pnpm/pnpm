@@ -2,7 +2,7 @@
 
 > Installs pnpm as a standalone executable
 
-Installs pnpm the same way [the standalone install script](https://github.com/pnpm/get.pnpm.io) does, a self-contained executable in `PNPM_HOME`, on your `PATH`, with no dependency on Node.js afterwards, for people who would rather not pipe a script into a shell.
+Installs pnpm the same way [the standalone install script](https://github.com/pnpm/get.pnpm.io) does — a self-contained executable in `PNPM_HOME`, on your `PATH`, with no dependency on Node.js afterwards — for people who would rather not pipe a script into a shell.
 
 ## Usage
 
@@ -34,17 +34,17 @@ pnpm, it installs `latest`.
 
 Then open a new terminal, or source the file the installer names in its output.
 
-If `pnpm --version` still prints an older version, another `pnpm`, from
-`npm install -g pnpm`, Homebrew, Corepack, or Volta, comes before `$PNPM_HOME/bin`
+If `pnpm --version` still prints an older version, another `pnpm` — from
+`npm install -g pnpm`, Homebrew, Corepack, or Volta — comes before `$PNPM_HOME/bin`
 on your `PATH`. The installer looks for one when it is done and says which it found
 and the command that removes it.
 
 ## What it changes
 
-- **`PNPM_HOME`**, pnpm is installed here: `$XDG_DATA_HOME/pnpm` when that is set,
+- **`PNPM_HOME`** — pnpm is installed here: `$XDG_DATA_HOME/pnpm` when that is set,
   otherwise `~/.local/share/pnpm` on Linux, `~/Library/pnpm` on macOS, and
   `%LOCALAPPDATA%\pnpm` on Windows.
-- **Your shell configuration**, on Linux and macOS, `pnpm setup` adds a block like
+- **Your shell configuration** — on Linux and macOS, `pnpm setup` adds a block like
   this to the rc file of your shell (`~/.bashrc`, `~/.zshrc`,
   `~/.config/fish/config.fish`, or `~/.config/nushell/env.nu`), and says which file
   it changed:
@@ -102,7 +102,7 @@ them in the package document (JFrog Artifactory does) is handled: the signatures
 are read from there instead, and still have to cover the checksum the download
 is checked against.
 
-The download goes to the registry npm is configured with (`npm_config_registry`), not to GitHub, including the tarball itself, so a registry that proxies npm and hands back an npmjs.org URL does not send the download off the mirror.
+The download goes to the registry npm is configured with (`npm_config_registry`), not to GitHub — including the tarball itself, so a registry that proxies npm and hands back an npmjs.org URL does not send the download off the mirror.
 
 ### Private registries
 
@@ -129,7 +129,7 @@ These CAs are trusted in addition to the ones Node.js trusts. Node.js 22.19 or 2
 ## Environment variables
 
 | Variable | Description |
-|,- |,- |
+| --- | --- |
 | `PNPM_VERSION` | Version to install when no argument is given. |
 | `PNPM_HOME` | Directory to install pnpm into. |
 | `PNPM_NO_MODIFY_PATH` | Set to `1` for the same as `--no-modify-path`. |
@@ -140,7 +140,7 @@ These CAs are trusted in addition to the ones Node.js trusts. Node.js 22.19 or 2
 
 ## Using it from a program
 
-A caller that manages its own directory, a CI action, say, wants
+A caller that manages its own directory — a CI action, say — wants
 `downloadPnpm`, which verifies and places the executable and nothing else. It
 does not run `pnpm setup` or edit your `PATH`:
 
@@ -159,7 +159,7 @@ A caller that already knows the exact version, and already has everything else
 pnpm ships with, wants `downloadPnpmExecutable`: it places the executable at a
 path you name and touches nothing else. No dist-tags are resolved, so no
 packument is fetched, and the `dist/` tree that travels beside the executable is
-left to the caller. Corepack is the case it exists for, it unpacks the `pnpm`
+left to the caller. Corepack is the case it exists for — it unpacks the `pnpm`
 package itself but installs none of its dependencies, so the executable has to
 arrive separately.
 
@@ -200,7 +200,7 @@ Placement is atomic and tolerates losing a race with a concurrent call.
 
 Pass `keys` to trust a signing key other than the pinned npm one, or
 `verifySignature: false` to download from a registry that carries no npm
-signatures at all, a private mirror that re-published the package. The checksum
+signatures at all — a private mirror that re-published the package. The checksum
 is still enforced either way; what is lost is the assurance that it came from
 somewhere other than the host that served the bytes.
 

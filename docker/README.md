@@ -6,12 +6,12 @@ Official base image for pnpm, published to GitHub Container Registry.
 ghcr.io/pnpm/pnpm
 ```
 
-Based on `debian:stable-slim` with the pnpm standalone binary. Node.js is **not** bundled, install the version you need inside your own image with `pnpm runtime set node <version> -g` (the `-g` flag makes `node` available on `PATH` for subsequent layers and at runtime).
+Based on `debian:stable-slim` with the pnpm standalone binary. Node.js is **not** bundled — install the version you need inside your own image with `pnpm runtime set node <version> -g` (the `-g` flag makes `node` available on `PATH` for subsequent layers and at runtime).
 
 ## Tags
 
 | Tag                   | Meaning                                                                 |
-|,------------------- |,--------------------------------------------------------------------- |
+| --------------------- | ----------------------------------------------------------------------- |
 | `<version>`           | Exact, immutable (e.g. `11.0.0`). Includes prereleases.                 |
 | `<major>`             | Tracks the latest stable release within that major (e.g. `11`).         |
 | `latest`              | Highest stable pnpm version. Not updated for prereleases.               |

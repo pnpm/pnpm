@@ -2,7 +2,7 @@
 
 See also [`CODE_STYLE_GUIDE.md`](./CODE_STYLE_GUIDE.md) for the code style guide.
 
-## Scope and version policy
+## Scope and Version Policy
 
 pacquet is pnpm v12 and the target for new feature development. New commands, settings, and other user-visible features are implemented here and are not backported to the TypeScript pnpm v11 CLI under `../pnpm11/`.
 
@@ -12,7 +12,7 @@ Opening an issue first is optional for a clearly scoped change. Open one when th
 
 Bug fixes, performance improvements, tests, and documentation may be sent directly as pull requests. New features must follow the repository's normal design, documentation, testing, and changeset requirements.
 
-## Commit message convention
+## Commit Message Convention
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 
@@ -32,11 +32,11 @@ type(scope): lowercase description
 
 There are no exceptions to this format. Version release commits follow the same rules as any other commit.
 
-## Writing style
+## Writing Style
 
 Write documentation, comments, and other prose for ease of understanding first. Prefer a formal tone when it does not hurt clarity, and use complete sentences. Avoid mid-sentence breaks introduced by em dashes or long parenthetical clauses. Em dashes are a reliable symptom of loose phrasing; when one appears, restructure the surrounding sentence so each clause stands on its own rather than swapping the em dash for another punctuation mark.
 
-## Code style
+## Code Style
 
 See [`CODE_STYLE_GUIDE.md`](./CODE_STYLE_GUIDE.md). Formatting and lint-level rules are enforced by the [pinned rustfmt fork](../CONTRIBUTING.md#rust-formatting), `taplo format`, and `cargo clippy`; the style guide covers everything those tools cannot enforce.
 
@@ -49,7 +49,7 @@ If perfectionist flags code that is actually correct, or fails to flag code its 
 1. Silence the specific finding at the affected site with `#[expect(perfectionist::rule_name, reason = "...")]`. Always include a `reason`, and write it as a sentence explaining why the lint is wrong here. Do not use `#[allow(...)]`; `#[expect]` errors when the suppression is no longer needed, so the workaround disappears once perfectionist is fixed.
 2. Open a new issue on [`KSXGitHub/perfectionist`](https://github.com/KSXGitHub/perfectionist/issues/new) describing the false positive or false negative, with a minimal repro, and tag `/cc @KSXGitHub` in the issue body.
 
-The same procedure applies when a perfectionist rule itself is wrong, for example, a rule that flags an idiom the rule's documentation says it should permit. Silence the site with `#[expect(..., reason = "...")]`, link the upstream issue from the `reason` if one already exists, and file the issue if it does not. Do not edit `dylint.toml` to globally disable a rule, and do not pin perfectionist to an older `tag` to dodge a finding.
+The same procedure applies when a perfectionist rule itself is wrong — for example, a rule that flags an idiom the rule's documentation says it should permit. Silence the site with `#[expect(..., reason = "...")]`, link the upstream issue from the `reason` if one already exists, and file the issue if it does not. Do not edit `dylint.toml` to globally disable a rule, and do not pin perfectionist to an older `tag` to dodge a finding.
 
 You can run the same check locally with `just dylint`. It requires `cargo-dylint` and `dylint-link`, which `just init` does not install; install them from source as described under [Rust toolchain and git hooks](../CONTRIBUTING.md#rust-toolchain-and-git-hooks) in the root guide.
 
@@ -94,7 +94,7 @@ The pnpr compiler-cache tests require sccache 0.17.0 with WebDAV support,
 installed by `just init`. They run Cargo in isolated checkouts and use separate
 sccache daemons to verify remote reuse and local cache backfill.
 
-## Automated checks
+## Automated Checks
 
 Run this before every commit:
 
@@ -113,19 +113,19 @@ pnpm test:rust-affected
 
 The root `package.json` scripts (`test:rust-affected`, `test:rust`, `test:rust-smoke`, `check:rust`, `lint:rust`, `ready:rust`, `build:pnpm`) wrap the `just` recipes and node scripts this section names, and they are the way to invoke them: a task concurrency group (`concurrencyGroup` on the task and a limit under `concurrencyGroups` in `pnpm-workspace.yaml`) holds the builds and test runs of every worktree on a machine to a limit it can carry, and only a run that starts as `pnpm <script>` is counted. Override a limit for your machine with `PNPM_CONFIG_CONCURRENCY_GROUPS='{"cargo":1}'` in your environment.
 
-This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `pnpm test:rust-affected, -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
+This maps the working tree's changes to crates and runs those crates' tests, with the same sanitized environment `just test` uses. It does not include the CLI end-to-end suite unless you changed `pnpm-cli` itself, so for a user-visible change add the suite modules for the area: `pnpm test:rust-affected -- -p pnpm-cli -E 'test(catalog::)'`. The [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill covers picking them.
 
 When crates depend on what changed without being selected themselves, it also runs the `smoke` profile in their place: one end-to-end test per area of CLI behavior, rather than the dependents' full test sets or nothing at all. `--no-smoke` skips that, and `just smoke` runs the same set on its own.
 
 Scope the tests, not the rest. `just check` and `just lint` stay workspace-wide: both cost far less than the test run, and they catch the cross-crate breakage a `-p` selection hides.
 
-CI runs the full suite on Linux, macOS, and Windows for every pull request, so there is no need to reproduce it locally first. Run everything yourself when the change reaches past the crates you can name, a workspace dependency, `Cargo.lock`, `rust-toolchain.toml`, a shared crate such as `pnpm-testing-utils`, or a rename that crosses crate boundaries:
+CI runs the full suite on Linux, macOS, and Windows for every pull request, so there is no need to reproduce it locally first. Run everything yourself when the change reaches past the crates you can name — a workspace dependency, `Cargo.lock`, `rust-toolchain.toml`, a shared crate such as `pnpm-testing-utils`, or a rename that crosses crate boundaries:
 
 ```sh
 just ready
 ```
 
-`just ready` runs `typos`, the pinned formatter, `just check` (`cargo check --locked --workspace --all-targets`), `just test` (`cargo nextest run` over the whole workspace), and `just lint` (`cargo clippy --locked --workspace --all-targets, --deny warnings`), then prints `git status`. These are the same commands CI runs.
+`just ready` runs `typos`, the pinned formatter, `just check` (`cargo check --locked --workspace --all-targets`), `just test` (`cargo nextest run` over the whole workspace), and `just lint` (`cargo clippy --locked --workspace --all-targets -- --deny warnings`), then prints `git status`. These are the same commands CI runs.
 
 `just test-pacquet` and `just test-pnpr` split the suite along the product boundary when you want more than one crate but less than everything. Select every `pnpr-*` crate together rather than one alone: cargo's feature unification gives a lone crate a bare feature set, and its backend tests then silently skip.
 
@@ -138,7 +138,7 @@ just fix
 `just fix` runs `cargo fixit --clippy --workspace --all-targets --allow-dirty --allow-staged` (via the pinned `cargo-fixit`). It is faster than `cargo clippy --fix` on repeated runs because `cargo fixit` skips the full re-check compile between fix rounds, so iterating on a lint cleanup does not rebuild the workspace each pass. Run `just lint` afterward to confirm no warnings remain (clippy can't autofix everything).
 
 > [!IMPORTANT]
-> A change that touches no Rust source, a documentation edit, a comment change, a config tweak, still needs `typos pnpm pnpr` and the formatter. It does not need the test suite.
+> A change that touches no Rust source — a documentation edit, a comment change, a config tweak — still needs `typos pnpm pnpr` and the formatter. It does not need the test suite.
 
 > [!NOTE]
 > Integration tests that need the local registry mock start `pnpr` automatically. After dependencies are installed, `cargo test`, `cargo nextest run`, and `just test` should not require a separate registry process.

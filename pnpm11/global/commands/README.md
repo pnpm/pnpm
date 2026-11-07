@@ -2,7 +2,7 @@
 
 Command handlers for pnpm's global package management (`pnpm add -g`, `pnpm remove -g`, `pnpm update -g`, `pnpm list -g`).
 
-## Architecture: Isolated global packages
+## Architecture: Isolated Global Packages
 
 Unlike npm, where all global packages share a single `node_modules/` directory, pnpm installs each global package (or group of packages installed together) into its own **isolated installation directory**. This prevents global packages from interfering with each other through peer dependency conflicts, hoisting changes, or version resolution shifts.
 
@@ -80,7 +80,7 @@ Handled by `listGlobalPackages()`:
 3. Filter by glob patterns if provided (via `@pnpm/matcher`).
 4. Sort and display.
 
-### `installGlobalPackages()`, the core install function
+### `installGlobalPackages()` — the core install function
 
 This is a focused ~30-line function that replaces the 450-line `installDeps()` from `plugin-commands-installation`. Global installs don't need workspace logic, recursive installs, update matching, rebuild orchestration, or any of the other complexity in `installDeps()`. The function does exactly:
 

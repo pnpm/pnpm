@@ -10,7 +10,7 @@ fixing test failures.
 
 ## What this project is
 
-`pnpr/` is a pnpm-compatible npm registry server written in Rust,
+`pnpr/` is a pnpm-compatible npm registry server written in Rust —
 roughly the role [verdaccio](https://verdaccio.org/) plays in the JS
 ecosystem. It is a **sibling** of `pnpm/`, not part of it.
 
@@ -67,7 +67,7 @@ pnpr/
 ```
 
 The Rust workspace itself, `rust-toolchain.toml`, `justfile`, and
-`Cargo.lock` live at the **repo root**, run `cargo` and `just` from there.
+`Cargo.lock` live at the **repo root** — run `cargo` and `just` from there.
 `pnpr/crates/*` is wired into the root workspace `members`.
 
 ## Code reuse
@@ -84,7 +84,7 @@ in this crate's `Cargo.toml`.
 
 If a piece of code currently inside `pnpm/` turns out to be genuinely
 shared between the two stacks and living under `pnpm/crates/` becomes
-misleading, propose renaming/relocating it in a dedicated PR, not as a
+misleading, propose renaming/relocating it in a dedicated PR — not as a
 drive-by during feature work.
 
 ### New registry-only crates
@@ -105,7 +105,7 @@ Don't reach for `pnpm-` to name something new on the registry side.
 PolyForm Shield rather than the workspace's MIT, and cargo-deny scores that
 license text below its confidence threshold. A new crate therefore needs both
 an `licenses.exceptions` entry and a `[[licenses.clarify]]` block pinning
-`../../LICENSE.md` by hash, without them `Rust CI / Cargo Deny` fails the
+`../../LICENSE.md` by hash — without them `Rust CI / Cargo Deny` fails the
 crate as `unlicensed`. That job is path-filtered on `Cargo.lock` and
 `deny.toml`, so it only runs on PRs that touch one of them; adding a crate
 always does.
@@ -126,7 +126,7 @@ human request (see [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md#things-not-to-do)).
 Follow the pacquet code-style guide
 ([`../pnpm/CODE_STYLE_GUIDE.md`](../pnpm/CODE_STYLE_GUIDE.md)) and the
 pacquet contributing guide ([`../pnpm/CONTRIBUTING.md`](../pnpm/CONTRIBUTING.md))
-for Rust-level conventions, imports, naming, ownership, error handling,
+for Rust-level conventions — imports, naming, ownership, error handling,
 test layout. They are written for pacquet but apply to any Rust code in
 this workspace.
 
@@ -142,9 +142,9 @@ Run the same checks pacquet does
 
 ```sh
 just check     # cargo check --locked --workspace --all-targets
-just lint      # cargo clippy --workspace --all-targets, --deny warnings
+just lint      # cargo clippy --workspace --all-targets -- --deny warnings
 just fmt       # pinned rustfmt fork + taplo format
-just test-pnpr # the pnpr crates, the usual test selection for a pnpr change
+just test-pnpr # the pnpr crates — the usual test selection for a pnpr change
 ```
 
 `just ready` runs the whole workspace suite. CI does that on three platforms

@@ -247,7 +247,7 @@ only the phase that writes `node_modules`. Rootless podman on the kernel
 `overlay` storage driver with `metacopy` off, backed by btrfs, `--cpus=8`:
 
 | `packageImportMethod` | Link phase | System time | Written |
-|,- |,- |,- |,- |
+| --- | --- | --- | --- |
 | `auto` (hardlinking) | 2.1s | 8.0s | 36.7k files copied up, 366 MB |
 | `copy` | 1.5s | 5.6s | 874 MB, nothing copied up |
 

@@ -10,7 +10,7 @@ remote tarballs, and matches how pnpm avoids re-resolving unchanged trees.
 ## pnpm reference
 
 `installing/deps-resolver/src/resolveDependencies.ts`:
-- `getInfoFromLockfile(lockfile, registries, reference, alias)` (~L1199), look up
+- `getInfoFromLockfile(lockfile, registries, reference, alias)` (~L1199) — look up
   the recorded snapshot for an alias's ref; returns resolution + `dependencyLockfile`
   (the transitive child refs).
 - Reuse predicate in `resolveDependenciesOfDependency` (~L844-881): `update = false`
@@ -19,7 +19,7 @@ remote tarballs, and matches how pnpm avoids re-resolving unchanged trees.
 - `getDepsToResolve` (~L1086) matches each wanted child against `resolvedDependencies[alias]`
   via `satisfiesWanted` (semver-satisfies, not string-equality).
 - Subtree propagation in `resolveChildren` (~L1000): `resolvedDependencies =
-  parentPkg.updated ? undefined : currentResolvedDependencies`, an unchanged parent
+  parentPkg.updated ? undefined : currentResolvedDependencies` — an unchanged parent
   feeds its lockfile child-refs down; an updated parent discards them, forcing the
   whole subtree to re-resolve.
 - `packageRequester.ts` (~L155-277): on `update=false` the request returns
@@ -30,7 +30,7 @@ remote tarballs, and matches how pnpm avoids re-resolving unchanged trees.
 A given package **version's dependency set is immutable**, and the lockfile snapshot
 already reflects any `readPackageHook`/`packageExtensions` that were applied when it
 was written. So for a reused parent version, its transitive subtree is exactly the
-snapshot's recorded child-refs, we can **walk the snapshot subtree (frozen-install
+snapshot's recorded child-refs — we can **walk the snapshot subtree (frozen-install
 style) instead of re-resolving from the parent manifest**, and need neither the
 parent's package.json nor its child *ranges*. `install_frozen_lockfile.rs` already
 performs this snapshot→graph walk and is the reusable building block.
@@ -39,7 +39,7 @@ A *changed* `readPackageHook`/`packageExtensions` config invalidates reuse: the 
 withholds the prior lockfile from the reuse path when its `packageExtensionsChecksum` no
 longer matches the config, so the stale subtree is re-resolved (mirrors pnpm invalidating
 the lockfile on a settings change). `overrides` drift is not yet guarded for transitive
-reuse, see follow-ups.
+reuse — see follow-ups.
 
 ## Design: hybrid resolve
 
@@ -48,14 +48,14 @@ Fresh-resolve new/changed/update-targeted deps + their subtrees through the exis
 `DependenciesGraph`. The reuse decision threads down the recursion exactly like pnpm's
 `resolvedDependencies`.
 
-### Stage 1, plumbing
+### Stage 1 — plumbing
 Thread `wanted_lockfile: Option<Arc<Lockfile>>` from
 `install_with_fresh_lockfile.rs` → `resolve_workspace` → `resolve_importer` →
 `WorkspaceTreeCtx` (`resolve_dependency_tree.rs`). Also thread the active
 `UpdateSeedPolicy` so the gate can suppress reuse for update-targeted names.
-(Lands together with Stage 2, an unused field would trip `-D warnings`.)
+(Lands together with Stage 2 — an unused field would trip `-D warnings`.)
 
-### Stage 2, reuse gate (semver-satisfies)
+### Stage 2 — reuse gate (semver-satisfies)
 Add a recursion parameter carrying the lockfile child-refs for the current subtree
 (`Option<&BTreeMap<alias, resolved-ref>>`); at importer level it comes from
 `lockfile.importers[id]` (`ProjectSnapshot.dependencies` + `.specifiers`).
@@ -69,22 +69,22 @@ resolution + integrity; manifest reconstructed from the snapshot / read from the
 store-index bundled manifest as the tarball-reuse path does) and skip the resolver.
 Children still resolve normally in this stage.
 
-### Stage 3, subtree reuse (the real win)
+### Stage 3 — subtree reuse (the real win)
 When a node is reused and not update-propagated, build its children from the
 snapshot's dep-refs (reuse `install_frozen_lockfile`'s walk) instead of
 `extract_children` + recursion. Carry an `updated` flag down so an updated ancestor
-discards the child-refs (passes `None`) and forces its subtree to re-resolve,
+discards the child-refs (passes `None`) and forces its subtree to re-resolve —
 faithful to `parentPkg.updated ? undefined : refs`.
 
-### Stage 4, update suppression
+### Stage 4 — update suppression
 Wire `UpdateSeedPolicy` (KeepAll / DropAll / DropOnly) into the gate so
 `pacquet update [selector]` / `--latest` bypasses reuse for targeted deps and
 propagates down their subtrees.
 
-### Stage 5, tests + benchmark
+### Stage 5 — tests + benchmark
 - Port pnpm's reuse/update suites (`resolveDependencies`, `install/update.ts`) as
   Rust tests first (per the "port tests before optimizations" rule).
-- Discriminating no-re-resolve test: mockito server + dead-server, like #12096, a
+- Discriminating no-re-resolve test: mockito server + dead-server, like #12096 — a
   second install with an unchanged dep must succeed with the registry down.
 - Peer correctness: verify against the ported peer tests (pacquet's separate peer
   pass is the subtlest interaction).
@@ -96,7 +96,7 @@ pass and the `updated`-propagation boundary are the subtlest parts.
 
 ## Known follow-ups (before un-drafting)
 
-- ~~**Lockfile byte-ordering is build-order-dependent**~~ ([#12117](https://github.com/pnpm/pnpm/issues/12117)), **fixed.**
+- ~~**Lockfile byte-ordering is build-order-dependent**~~ ([#12117](https://github.com/pnpm/pnpm/issues/12117)) — **fixed.**
   The writer now sorts every lockfile map by its rendered key at emit time
   (`serialize_yaml::sorted_map`), matching pnpm's `sortLockfileKeys`, so
   reuse and fresh resolves emit byte-identical lockfiles and a no-op

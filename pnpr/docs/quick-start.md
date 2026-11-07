@@ -29,7 +29,7 @@ registries:
       '@mycompany/*':
         publish: $authenticated
 
-  # The public npm registry. No `packages:` map, it serves every name,
+  # The public npm registry. No `packages:` map — it serves every name,
   # so it must be the last source in the router below.
   npmjs:
     type: upstream

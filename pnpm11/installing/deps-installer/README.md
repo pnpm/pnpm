@@ -130,7 +130,7 @@ An async function is supported.
 
 * `lockfile` - The resolved lockfile object that will be written to `pnpm-lock.yaml`.
 
-### Custom resolvers and fetchers
+### Custom Resolvers and Fetchers
 
 Custom resolvers and fetchers allow you to implement custom package resolution and fetching logic for new package identifier schemes (like `my-protocol:package-name`). These are defined as top-level exports in your `.pnpmfile.cjs`:
 

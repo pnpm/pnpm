@@ -14,7 +14,7 @@ pnpm 12 is the current release line. The `latest` tag on npm points at it, so th
 pnpm 12 ships a prebuilt binary for each of these targets:
 
 | Operating system | Architectures |
-|,- |,- |
+| --- | --- |
 | Linux (glibc) | x64, arm64, riscv64, ppc64le, s390x |
 | Linux (musl) | x64, arm64 |
 | macOS | arm64, x64 |

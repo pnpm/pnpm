@@ -53,7 +53,7 @@ pnpm lane main --filter @example/cli
 A package on a lane releases `X.Y.Z-<lane>.N`, where `X.Y.Z` is the stable version the lane is building toward and `N` counts up from `0`:
 
 | Current version | Pending intent | Lane | New version |
-|,- |,- |,- |,- |
+| --- | --- | --- | --- |
 | `2.0.0` | minor | `alpha` | `2.1.0-alpha.0` |
 | `2.1.0-alpha.0` | patch | `alpha` | `2.1.0-alpha.1` |
 | `2.1.0-alpha.1` | major | `alpha` | `3.0.0-alpha.0` |
