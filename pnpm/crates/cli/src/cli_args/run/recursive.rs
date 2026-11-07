@@ -248,7 +248,21 @@ impl RecursiveRun<'_, '_> {
             Prepared::DryRun => return Ok(RecursiveRunOutcome::Done),
             Prepared::NoMatchingScript => return Ok(RecursiveRunOutcome::NoMatchingScript),
         };
-        self.verify(&prepared.task_graph)?;
+        let verify_dirs = projects_to_verify(
+            prepared.task_graph
+                .values()
+                .filter(|node| !node.scripts.is_empty())
+                .map(|node| node.project.as_path()),
+            self.selection,
+            self.config,
+            self.dir,
+        )?;
+        verify_deps_before_recursive_run(
+            self.workspace_root,
+            verify_dirs,
+            self.config,
+            self.reporter,
+        )?;
         let results = self.execute(&prepared)?;
         // The user ended the run, so pnpm ends the way the interrupted
         // script did rather than reporting the scripts as failed
@@ -271,32 +285,6 @@ impl RecursiveRun<'_, '_> {
         Ok(RecursiveRunOutcome::Done)
     }
 
-    /// Check what the workspace projects require of the host, and that the
-    /// projects with a task to run have their dependencies installed.
-    fn verify(&self, task_graph: &TaskGraph) -> miette::Result<()> {
-        check_workspace_requirements(
-            self.selection,
-            self.config,
-            self.workspace_root,
-            self.script.emit,
-        )?;
-        let verify_dirs = projects_to_verify(
-            task_graph
-                .values()
-                .filter(|node| !node.scripts.is_empty())
-                .map(|node| node.project.as_path()),
-            self.selection,
-            self.config,
-            self.dir,
-        )?;
-        verify_deps_before_recursive_run(
-            self.workspace_root,
-            verify_dirs,
-            self.config,
-            self.reporter,
-        )
-    }
-
     /// Build, resume and sequence the task graph, then start the run-state
     /// journal.
     fn prepare(&self) -> miette::Result<Prepared> {
@@ -305,6 +293,13 @@ impl RecursiveRun<'_, '_> {
         if self.falls_back_to_exec(&full_task_graph) {
             return Ok(Prepared::NoMatchingScript);
         }
+        // Before the run journal below replaces an interrupted run's.
+        check_workspace_requirements(
+            self.selection,
+            self.config,
+            self.workspace_root,
+            self.script.emit,
+        )?;
         let extra_env: HashMap<String, String> = self.config.extra_env_with_node_options();
         let state_settings = run_state_settings(self.config, &extra_env);
         let task_run_state_context = TaskRunStateContext::new(
