@@ -89,12 +89,12 @@ pub struct DirLock {
 
 impl DirLock {
     pub fn acquire_waiting(
-        path: PathBuf,
+        path: &Path,
         wait: Duration,
         abandoned_after: Duration,
     ) -> io::Result<DirLock> {
         loop {
-            if let Some(lock) = Self::acquire(path.clone(), wait, abandoned_after)? {
+            if let Some(lock) = Self::acquire(path.to_path_buf(), wait, abandoned_after)? {
                 return Ok(lock);
             }
             sleep(POLL_INTERVAL);

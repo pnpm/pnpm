@@ -321,13 +321,13 @@ fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
         return Ok(());
     }
     let lock = pnpm_fs::DirLock::acquire_waiting(
-        path.join(".pnpm-build.lock"),
+        &path.join(".pnpm-build.lock"),
         Duration::from_mins(10),
         Duration::from_mins(30),
     )
     .map_err(|error| PruneError::SlotLock { path: path.to_path_buf(), error })?;
     let sequence = NEXT_QUARANTINE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let quarantine = path.with_file_name(format!(".pnpm-prune-{}-{sequence}", std::process::id(),));
+    let quarantine = path.with_file_name(format!(".pnpm-prune-{}-{sequence}", std::process::id()));
     match fs::rename(path, &quarantine) {
         Ok(()) => drop(lock),
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),

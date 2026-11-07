@@ -129,7 +129,7 @@ pub(super) fn hash_dir_marker(
     .is_err()
     {
         return MarkerProbe::Unreadable;
-    };
+    }
     let slot =
         match crate::GlobalVirtualStoreSlot::acquire_existing_path(hash_dir.path(), snapshot_key) {
             Ok(Some(slot)) => slot,

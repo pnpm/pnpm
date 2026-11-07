@@ -66,12 +66,10 @@ pub(super) fn slot_to_build(
         global_slot
             .mark_build_started()
             .map_err(|source| BuildModulesError::WriteBuildMarker { path: marker, source })?;
-    } else {
-        if is_started_build_marker(&marker)
-            .map_err(|source| BuildModulesError::ReadBuildMarker { path: marker.clone(), source })?
-        {
-            return Ok(None);
-        }
+    } else if is_started_build_marker(&marker)
+        .map_err(|source| BuildModulesError::ReadBuildMarker { path: marker.clone(), source })?
+    {
+        return Ok(None);
     }
     Ok(Some((pkg_dir, slot)))
 }

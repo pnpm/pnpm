@@ -87,7 +87,7 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn acquire_path(path: PathBuf, key: &PackageKey) -> Result<Self, GvsSlotLockError> {
-        let lock = DirLock::acquire_waiting(path.join(SLOT_LOCK_DIR), WAIT, ABANDONED_AFTER)
+        let lock = DirLock::acquire_waiting(&path.join(SLOT_LOCK_DIR), WAIT, ABANDONED_AFTER)
             .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?;
         let package_path = path.join("node_modules").join(key.name.to_string());
         let needs_build_marker = package_path.join(crate::NEEDS_BUILD_MARKER);
@@ -95,10 +95,12 @@ impl GlobalVirtualStoreSlot {
         Ok(Self { path, package_path, needs_build_marker, state_file, _lock: lock })
     }
 
+    #[must_use]
     pub fn path(&self) -> &std::path::Path {
         &self.path
     }
 
+    #[must_use]
     pub fn package_path(&self) -> &std::path::Path {
         &self.package_path
     }
@@ -214,6 +216,7 @@ impl GlobalVirtualStoreSlot {
         self.write_state("built")
     }
 
+    #[must_use]
     pub fn linked_archive(&self) -> Option<String> {
         fs::read_to_string(self.path.join(
             crate::create_virtual_store::linked_archives::LINKED_ARCHIVE_RECORD,
