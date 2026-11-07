@@ -7,7 +7,9 @@ use pnpm_lockfile::{IntegrityTarget, LockfileResolution, TarballResolution};
 use pnpm_reporter::{Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
 use pnpm_store_dir::{StoreIndex, store_index_key};
-use pnpm_tarball::{FetchTarballForResolution, IntegrityKind, package_mem_cache_key};
+use pnpm_tarball::{
+    FetchTarballForResolution, IntegrityKind, alias_available_cache_entry, package_mem_cache_key,
+};
 use ssri::Integrity;
 use std::sync::Arc;
 
@@ -82,15 +84,11 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
 
     /// Make the extraction published under `pinned` reachable under `tar` too.
     fn share_archive(&self, url: &str, pinned: &Integrity, tar: &Integrity) {
-        let Some(archive) = self.ctx.mem_cache
-            .get(&package_mem_cache_key(url, Some(pinned), false))
-            .map(|entry| Arc::clone(entry.value()))
-        else {
-            return;
-        };
-        self.ctx.mem_cache
-            .entry(package_mem_cache_key(url, Some(tar), false))
-            .or_insert(archive);
+        alias_available_cache_entry(
+            &self.ctx.mem_cache,
+            &package_mem_cache_key(url, Some(pinned), false),
+            package_mem_cache_key(url, Some(tar), false),
+        );
     }
 
     /// Read the archive once per distinct content to learn its tar
@@ -104,8 +102,8 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let cache_key = format!("tar\t{integrity}\t{}", tarball.tarball);
         let cell = Arc::clone(&self.tar_integrity_cache.entry(cache_key).or_default());
         cell.get_or_try_init(|| async {
-            let _claim = self.claim_download_until_cached(&tarball.tarball, Some(integrity), false);
-            let resolved = FetchTarballForResolution {
+            let claim = self.claim_download_until_settled(&tarball.tarball, Some(integrity), false);
+            let fetch = FetchTarballForResolution {
                 http_client: &self.ctx.fetching.http_client,
                 store: self.ctx.store.resolution_store(),
                 package: pnpm_tarball::TarballPackage {
@@ -121,10 +119,10 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 tar_limits: self.ctx.fetching.tar_limits,
                 manifest_subdir: None,
                 revision_addressed: false,
-            }
-            .run::<SilentReporter>(Some(&self.ctx.mem_cache))
-            .await
-            .map_err(|err| Box::new(err) as ResolveError)?;
+            };
+            let resolved = claim
+                .settle(fetch.run::<SilentReporter>(Some(&self.ctx.mem_cache)).await)
+                .map_err(|err| Box::new(err) as ResolveError)?;
             // The install pass looks the extraction up by the tar integrity
             // the lockfile now records.
             self.claim_download(&tarball.tarball, &resolved.integrity, false);

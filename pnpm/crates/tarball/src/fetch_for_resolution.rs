@@ -202,11 +202,12 @@ impl FetchTarballForResolution<'_> {
                     if self.kind() == IntegrityKind::ResourceOrTar =>
                 {
                     drop(cache_lock);
-                    return match self.fetch_extracted::<Reporter>(None).await? {
-                        FetchedBody::Extracted(extracted) => extracted.into_resolved(self.kind()),
-                        FetchedBody::NotModified(_) => {
+                    let url = self.package.url.to_string();
+                    return match self.fetch_and_publish::<Reporter>(Some(mem_cache), None).await? {
+                        TarballResolutionFetch::Resolved(resolved) => Ok(resolved),
+                        TarballResolutionFetch::NotModified(_) => {
                             Err(TarballError::HttpStatus(crate::HttpStatusError {
-                                url: self.package.url.to_string(),
+                                url,
                                 status: 304,
                             }))
                         }

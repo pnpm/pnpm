@@ -776,6 +776,36 @@ fn slow_first_attempt_body(
     }
 }
 
+async fn assert_waiter_cancellation_releases_download_claim(
+    resolver: &Arc<PrefetchingResolver<SilentReporter>>,
+    mem_cache: &MemCache,
+    cache_key: &str,
+) {
+    mem_cache.insert(
+        cache_key.to_owned(),
+        Arc::new(tokio::sync::RwLock::new(pnpm_tarball::CacheValue::InProgress(Arc::new(
+            tokio::sync::Notify::new(),
+        )))),
+    );
+    let waiting_resolve = {
+        let resolver = Arc::clone(resolver);
+        tokio::spawn(async move {
+            resolver.resolve(&WantedDependency::default(), &ResolveOptions::default()).await
+        })
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !resolver.spawned_downloads.contains(cache_key) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("waiting manifest read claimed download");
+    waiting_resolve.abort();
+    let _ = waiting_resolve.await;
+    assert!(!resolver.spawned_downloads.contains(cache_key));
+    mem_cache.remove(cache_key);
+}
+
 /// <https://github.com/zkochan/pnpm-tasks/issues/23>
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancelled_manifest_read_releases_slot_and_download_claim() {
@@ -823,6 +853,9 @@ async fn cancelled_manifest_read_releases_slot_and_download_claim() {
     request_started.notified().await;
     first_resolve.abort();
     let _ = first_resolve.await;
+    assert!(!resolver.spawned_downloads.contains(&cache_key));
+    assert!(!mem_cache.contains_key(&cache_key));
+    assert_waiter_cancellation_releases_download_claim(&resolver, &mem_cache, &cache_key).await;
 
     let read = tokio::time::timeout(
         std::time::Duration::from_secs(5),

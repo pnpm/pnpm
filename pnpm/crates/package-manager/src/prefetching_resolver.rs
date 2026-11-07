@@ -163,15 +163,19 @@ pub struct PrefetchingResolver<Reporter: self::Reporter> {
 
 pub(super) struct DownloadClaimGuard<'a> {
     spawned_downloads: &'a DashSet<String>,
-    mem_cache: &'a MemCache,
     key: Option<String>,
+}
+
+impl DownloadClaimGuard<'_> {
+    pub(super) fn settle<Value, Err>(mut self, result: Result<Value, Err>) -> Result<Value, Err> {
+        self.key = None;
+        result
+    }
 }
 
 impl Drop for DownloadClaimGuard<'_> {
     fn drop(&mut self) {
-        if let Some(key) = self.key.take()
-            && !self.mem_cache.contains_key(&key)
-        {
+        if let Some(key) = self.key.take() {
             self.spawned_downloads.remove(&key);
         }
     }
@@ -307,21 +311,18 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     }
 
     /// Claim `package_url` for a resolve-time read and release the claim on
-    /// drop if the read was cancelled before settling [`MemCache`].
-    fn claim_download_until_cached(
+    /// drop unless the read finishes and calls [`DownloadClaimGuard::settle`].
+    fn claim_download_until_settled(
         &self,
         package_url: &str,
         integrity: Option<&ssri::Integrity>,
         revision_addressed: bool,
-    ) -> Option<DownloadClaimGuard<'_>> {
-        let integrity = integrity?;
-        let key = package_mem_cache_key(package_url, Some(integrity), revision_addressed);
-        let claimed = self.spawned_downloads.insert(key.clone());
-        Some(DownloadClaimGuard {
-            spawned_downloads: &self.spawned_downloads,
-            mem_cache: &self.ctx.mem_cache,
-            key: claimed.then_some(key),
-        })
+    ) -> DownloadClaimGuard<'_> {
+        let key = integrity.and_then(|integrity| {
+            let key = package_mem_cache_key(package_url, Some(integrity), revision_addressed);
+            self.spawned_downloads.insert(key.clone()).then_some(key)
+        });
+        DownloadClaimGuard { spawned_downloads: &self.spawned_downloads, key }
     }
 
     fn should_skip_prefetch(

@@ -83,7 +83,6 @@ pub(crate) enum CacheSlotClaim<'a> {
 /// parked waiters so they can claim a fresh attempt instead of hanging.
 pub(crate) struct CacheClaimGuard<'a> {
     mem_cache: &'a MemCache,
-    mem_cache_key: String,
     cache_lock: Arc<RwLock<CacheValue>>,
     notify: Arc<Notify>,
     settled: bool,
@@ -110,11 +109,22 @@ impl Drop for CacheClaimGuard<'_> {
         if self.settled {
             return;
         }
-        self.mem_cache.remove_if(&self.mem_cache_key, |_, current| {
-            Arc::ptr_eq(current, &self.cache_lock)
-        });
+        self.mem_cache.retain(|_, current| !Arc::ptr_eq(current, &self.cache_lock));
         self.notify.notify_waiters();
     }
+}
+
+/// Copy a settled [`CacheValue::Available`] entry from `source_key` to
+/// `target_key` if `target_key` is vacant. In-progress or failed slots are
+/// not aliased.
+pub fn alias_available_cache_entry(mem_cache: &MemCache, source_key: &str, target_key: String) {
+    let Some(archive) = mem_cache.get(source_key).map(|entry| Arc::clone(entry.value())) else {
+        return;
+    };
+    if !matches!(archive.try_read().as_deref(), Ok(CacheValue::Available(_))) {
+        return;
+    }
+    mem_cache.entry(target_key).or_insert(archive);
 }
 
 /// Claim the single fetch for this key. Releases the entry guard before
@@ -137,7 +147,6 @@ pub(crate) fn claim_cache_entry<'a>(
             entry.insert(Arc::clone(&cache_lock));
             CacheSlotClaim::Claimed(CacheClaimGuard {
                 mem_cache,
-                mem_cache_key: mem_cache_key.to_owned(),
                 cache_lock,
                 notify,
                 settled: false,

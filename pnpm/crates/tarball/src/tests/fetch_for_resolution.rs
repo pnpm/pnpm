@@ -334,6 +334,8 @@ async fn cancelled_pinned_resolution_read_releases_slot_for_next_caller() {
             .await
     });
     wait_until_claimed(mem_cache, &cache_key).await;
+    crate::alias_available_cache_entry(mem_cache, &cache_key, "alias".to_owned());
+    assert!(!mem_cache.contains_key("alias"));
     request_started.notified().await;
     read_task.abort();
     let _ = read_task.await;
@@ -347,6 +349,8 @@ async fn cancelled_pinned_resolution_read_releases_slot_for_next_caller() {
     .expect("subsequent ingest must not hang on a cancelled resolution read")
     .expect("ingest succeeds after previous owner was cancelled");
     assert!(files.contains_key("package.json"));
+    crate::alias_available_cache_entry(mem_cache, &cache_key, "alias".to_owned());
+    assert!(mem_cache.contains_key("alias"));
     mock.assert_async().await;
     drop(store_dir_keep);
 }

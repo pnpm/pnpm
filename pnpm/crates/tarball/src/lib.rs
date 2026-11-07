@@ -29,7 +29,7 @@ pub use local_tarball::*;
 pub(crate) use mem_cache::{
     CacheClaimGuard, CacheSlotClaim, claim_cache_entry, wait_for_cached_tarball,
 };
-pub use mem_cache::{CacheValue, CachedTarball, MemCache};
+pub use mem_cache::{CacheValue, CachedTarball, MemCache, alias_available_cache_entry};
 pub use pnpm_network::RetryOpts;
 pub use prefetch::*;
 pub use zip_archive::*;
