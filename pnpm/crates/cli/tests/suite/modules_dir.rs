@@ -572,7 +572,7 @@ fn registry_bin_sets_node_path(project_dir: &Path) -> bool {
 #[test]
 fn a_modules_dir_outside_the_project_is_the_root_projects_only() {
     for linker in ["isolated", "hoisted"] {
-        for setting in [ModulesDirSetting::Absolute, ModulesDirSetting::Climbing] {
+        for setting in MODULES_DIR_SETTINGS {
             install_with_modules_dir_outside_the_project(linker, setting);
         }
     }
@@ -588,7 +588,13 @@ enum IsPositive {
 enum ModulesDirSetting {
     Absolute,
     Climbing,
+    /// An absolute path through a symlink to a directory at another depth,
+    /// as macOS `/var` is to `/private/var`.
+    ThroughSymlink,
 }
+
+const MODULES_DIR_SETTINGS: [ModulesDirSetting; 3] =
+    [ModulesDirSetting::Absolute, ModulesDirSetting::Climbing, ModulesDirSetting::ThroughSymlink];
 
 fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSetting) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -694,29 +700,47 @@ fn set_modules_dir_outside_the_project(
     workspace: &Path,
     setting: ModulesDirSetting,
 ) -> (PathBuf, PathBuf) {
-    // Spelled by its real path: an absolute `modulesDir` spelled through a
-    // symlink, such as macOS `/var`, gets broken links to `link:` targets.
-    let root_modules_dir = dunce::canonicalize(workspace.parent().expect("workspace parent"))
-        .expect("canonicalize the workspace parent")
-        .join("vendor");
+    let parent = dunce::canonicalize(workspace.parent().expect("workspace parent"))
+        .expect("canonicalize the workspace parent");
+    let root_modules_dir = match setting {
+        ModulesDirSetting::Absolute | ModulesDirSetting::Climbing => parent.join("vendor"),
+        ModulesDirSetting::ThroughSymlink => {
+            let real = parent.join("real/deep");
+            fs::create_dir_all(&real).expect("create the symlink target");
+            pnpm_fs::symlink_dir(&real, &parent.join("alias")).expect("create the symlink");
+            parent.join("alias/vendor")
+        }
+    };
     let modules_dir = match setting {
-        ModulesDirSetting::Absolute => root_modules_dir.to_string_lossy().replace('\\', "/"),
         ModulesDirSetting::Climbing => "../vendor".to_string(),
+        _ => root_modules_dir.to_string_lossy().replace('\\', "/"),
     };
     append_workspace_yaml_key(workspace, "modulesDir", &modules_dir);
     (root_modules_dir, workspace.join("project-1/vendor"))
 }
 
 #[test]
-fn links_excluded_from_the_lockfile_go_to_a_modules_dir_outside_the_project() {
+fn linked_dependencies_go_to_a_modules_dir_outside_the_project() {
     for linker in ["isolated", "hoisted"] {
-        for setting in [ModulesDirSetting::Absolute, ModulesDirSetting::Climbing] {
-            link_with_modules_dir_outside_the_project(linker, setting);
+        for setting in MODULES_DIR_SETTINGS {
+            for links in [Links::InLockfile, Links::ExcludedFromLockfile] {
+                link_with_modules_dir_outside_the_project(linker, setting, links);
+            }
         }
     }
 }
 
-fn link_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSetting) {
+#[derive(Debug, Clone, Copy)]
+enum Links {
+    InLockfile,
+    ExcludedFromLockfile,
+}
+
+fn link_with_modules_dir_outside_the_project(
+    linker: &str,
+    setting: ModulesDirSetting,
+    links: Links,
+) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -724,7 +748,11 @@ fn link_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSe
         set_modules_dir_outside_the_project(&workspace, setting);
     append_workspace_yaml_key(&workspace, "nodeLinker", linker);
     append_workspace_yaml_key(&workspace, "packages", "['project-1']");
-    append_workspace_yaml_key(&workspace, "excludeLinksFromLockfile", true);
+    append_workspace_yaml_key(
+        &workspace,
+        "excludeLinksFromLockfile",
+        matches!(links, Links::ExcludedFromLockfile),
+    );
     fs::create_dir_all(workspace.join("linked")).expect("create the linked package");
     fs::write(workspace.join("linked/bin.js"), "#!/usr/bin/env node\n").expect("write bin.js");
     write_manifest(
@@ -745,7 +773,7 @@ fn link_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSe
     );
 
     for args in [&["install"][..], &["install", "--frozen-lockfile"]] {
-        let context = format!("{linker} {setting:?} {args:?}");
+        let context = format!("{linker} {setting:?} {links:?} {args:?}");
         pacquet_in(&workspace)
             .with_args(args)
             .assert()
@@ -756,7 +784,7 @@ fn link_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSe
         assert!(!workspace.join("vendor").exists(), "{context}");
     }
 
-    let context = format!("{linker} {setting:?} --prod");
+    let context = format!("{linker} {setting:?} {links:?} --prod");
     pacquet_in(&workspace)
         .with_args(["install", "--prod"])
         .assert()
@@ -769,7 +797,7 @@ fn link_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSe
 
 #[test]
 fn the_loaded_linker_links_bins_into_a_modules_dir_outside_the_project() {
-    for setting in [ModulesDirSetting::Absolute, ModulesDirSetting::Climbing] {
+    for setting in MODULES_DIR_SETTINGS {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;

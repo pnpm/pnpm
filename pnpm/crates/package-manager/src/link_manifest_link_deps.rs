@@ -41,6 +41,8 @@ pub(crate) fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
             ))
         });
         let modules_dir = modules_dirs.of(project_dir);
+        let modules_dir =
+            pnpm_fs::symlinked_dir_real_path(project_dir, &modules_dir).unwrap_or(modules_dir);
         let project = ProjectLinks {
             project_dir,
             modules_dir: &modules_dir,

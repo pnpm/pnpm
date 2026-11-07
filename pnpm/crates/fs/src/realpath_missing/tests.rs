@@ -50,3 +50,20 @@ fn symlinked_dir_real_path_skips_real_directories_below_the_base() {
     assert_eq!(symlinked_dir_real_path(&base, &base.join("node_modules")), None);
     assert_eq!(symlinked_dir_real_path(&base, &base.join("node_modules/missing")), None);
 }
+
+#[test]
+fn symlinked_dir_real_path_resolves_a_dir_outside_the_base_through_any_symlink() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = dunce::canonicalize(temp.path()).unwrap();
+    let real = root.join("real/deep");
+    fs::create_dir_all(&real).unwrap();
+    crate::symlink_dir(&real, &root.join("alias")).unwrap();
+    let project = root.join("project");
+    fs::create_dir(&project).unwrap();
+
+    assert_eq!(
+        symlinked_dir_real_path(&project, &root.join("alias/vendor")),
+        Some(real.join("vendor")),
+    );
+    assert_eq!(symlinked_dir_real_path(&project, &root.join("real/deep/vendor")), None);
+}
