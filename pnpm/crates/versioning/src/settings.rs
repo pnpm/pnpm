@@ -63,8 +63,8 @@ pub struct EpicSettings {
 }
 
 /// Settings for native workspace release management, declared under the
-/// `versioning` key of pnpm-workspace.yaml. Mirrors the TypeScript type of
-/// the same name field for field.
+/// `versioning` key of pnpm-workspace.yaml. Mirrors the TypeScript settings
+/// of the same name, and adds `includePrivatePackages`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct VersioningSettings {
@@ -78,6 +78,11 @@ pub struct VersioningSettings {
     /// propagation.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ignore: Vec<String>,
+    /// When `false`, private packages are not releasable. `pnpm change` and
+    /// `pnpm lane` leave them out, and naming one is rejected. Absent or
+    /// `true` keeps private packages releasable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_private_packages: Option<bool>,
     /// Caps the bump a release from the current checkout may apply. Enforced
     /// on the final assembled release plan, after dependent propagation and
     /// fixed-group resolution.
