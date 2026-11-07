@@ -30,6 +30,8 @@ async fn search_paginates_visible_results_and_filters_by_maintainer() {
     let page = body_json(page.into_body()).await;
     assert_eq!(page["total"], json!(3));
     assert_eq!(page["objects"][0]["package"]["name"], json!("tool-b"));
+    assert_eq!(page["objects"][0]["package"]["maintainers"][0]["username"], json!("bob"));
+    assert!(page["objects"][0]["package"].get("links").is_none());
 
     let maintained = app
         .oneshot(
