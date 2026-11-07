@@ -220,11 +220,13 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn mark_build_started(&self) -> io::Result<()> {
-        self.write_state("building")
+        self.write_state("building")?;
+        fs::write(&self.needs_build_marker, b"started")
     }
 
     pub fn mark_build_pending(&self) -> io::Result<()> {
-        self.write_state("build-pending")
+        self.write_state("build-pending")?;
+        fs::write(&self.needs_build_marker, b"")
     }
 
     pub fn mark_build_finished(&self) -> io::Result<()> {

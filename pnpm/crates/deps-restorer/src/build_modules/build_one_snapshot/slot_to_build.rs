@@ -36,8 +36,9 @@ pub(super) fn slot_to_build(
     else {
         return Ok(None);
     };
-    if context.directories.pkg_roots_by_key.is_some()
-        || !(candidate.patch.is_some() || candidate.should_run_scripts)
+    if !(candidate.patch.is_some() || candidate.should_run_scripts)
+        || (context.directories.pkg_roots_by_key.is_some()
+            && !context.directories.layout.enable_global_virtual_store())
     {
         return Ok(Some((pkg_dir, None)));
     }

@@ -359,10 +359,7 @@ fn clear_global_virtual_store_build_markers(
     built: bool,
     build_pending: bool,
 ) -> Result<(), BuildModulesError> {
-    if (!built && !build_pending)
-        || !context.directories.layout.enable_global_virtual_store()
-        || context.directories.pkg_roots_by_key.is_some()
-    {
+    if (!built && !build_pending) || !context.directories.layout.enable_global_virtual_store() {
         return Ok(());
     }
     if let Some(slot) = slot {

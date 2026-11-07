@@ -166,7 +166,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     if context.cache.frozen_store && context.directories.layout.enable_global_virtual_store() {
         return frozen_store_slot_carries_overlay(context, snapshot_key, overlay);
     }
-    let Some(_slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay)? else {
+    let Some(slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay)? else {
         return Ok(true);
     };
     // The overlay carries the patched / built contents, so it has to reach
@@ -202,7 +202,19 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
             }
         }
     }
+    mark_global_slot_built(slot_lock)?;
     Ok(true)
+}
+
+fn mark_global_slot_built(
+    slot: Option<crate::GlobalVirtualStoreSlot>,
+) -> Result<(), BuildModulesError> {
+    let Some(slot) = slot else { return Ok(()) };
+    slot.mark_build_finished()
+        .map_err(|source| BuildModulesError::WriteBuildMarker {
+            path: slot.package_path().join(NEEDS_BUILD_MARKER),
+            source,
+        })
 }
 
 fn trace_side_effects_cache_hit(snapshot_key: &PackageKey, cache_key: &str) {
@@ -239,7 +251,7 @@ fn lock_slot_missing_overlay(
     snapshot_key: &PackageKey,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> Result<Option<Option<crate::GlobalVirtualStoreSlot>>, BuildModulesError> {
-    let slot = if context.directories.pkg_roots_by_key.is_none() {
+    let slot = if context.directories.layout.enable_global_virtual_store() {
         crate::GlobalVirtualStoreSlot::acquire(context.directories.layout, snapshot_key)
             .map_err(BuildModulesError::SlotLock)?
     } else {

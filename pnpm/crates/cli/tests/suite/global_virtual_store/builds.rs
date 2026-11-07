@@ -742,6 +742,8 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
         assert!(!marker.exists());
 
         eprintln!("Simulating a crash after import but before the build...");
+        fs::remove_file(sole_hash_dir(&version_dir).join(".pnpm-slot-state"))
+            .expect("remove slot state to simulate a legacy store");
         fs::write(&marker, "").expect("write the incomplete-build marker");
         fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
         corrupt_pristine_file(&package_manifest);
@@ -761,6 +763,8 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
         );
 
         eprintln!("Marking the slot again to exercise the optimistic repeat-install paths...");
+        fs::remove_file(sole_hash_dir(&version_dir).join(".pnpm-slot-state"))
+            .expect("remove slot state to simulate a legacy store");
         fs::write(&marker, "").expect("write the second incomplete-build marker");
         fs::remove_file(&postinstall_artifact).expect("remove the rebuilt artifact");
         fs::write(&package_manifest, "{}").expect("corrupt the pristine file again");
