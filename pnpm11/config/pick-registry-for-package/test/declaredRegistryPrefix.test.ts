@@ -4,6 +4,7 @@ import {
   normalizeRegistryKey,
   pickAliasKeyPrefix,
   pickDeclaredRegistryPrefix,
+  pickSmallestDeclaredPrefix,
 } from '@pnpm/config.pick-registry-for-package'
 
 test('normalizeRegistryKey() compares the scheme and host case-insensitively and appends a trailing slash', () => {
@@ -50,6 +51,12 @@ test('pickDeclaredRegistryPrefix() treats a declared built-in alias like any oth
 test('pickDeclaredRegistryPrefix() never qualifies the keys of the default registry', () => {
   expect(pickDeclaredRegistryPrefix(registries({ npmjs: DEFAULT }), DEFAULT)).toBeUndefined()
   expect(pickDeclaredRegistryPrefix(registries({ work: 'https://REGISTRY.example.com' }), DEFAULT)).toBeUndefined()
+})
+
+test('pickSmallestDeclaredPrefix() names a prefix of any registry, the default one included', () => {
+  expect(pickSmallestDeclaredPrefix({ zeta: DEFAULT, work: 'https://REGISTRY.example.com' }, DEFAULT)).toBe('work')
+  expect(pickSmallestDeclaredPrefix({ work: DEFAULT }, 'https://other.example.com/')).toBeUndefined()
+  expect(pickSmallestDeclaredPrefix(undefined, DEFAULT)).toBeUndefined()
 })
 
 test('pickDeclaredRegistryPrefix() ignores a prefix whose URL does not parse', () => {

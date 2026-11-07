@@ -22,6 +22,7 @@ import {
   BUILTIN_REGISTRIES_BY_PREFIX,
   type NpmAliasTarget,
   parseBareSpecifier,
+  parseNamedRegistrySpecifierToRegistryPackageSpec,
   parseNpmAliasTarget,
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
@@ -48,6 +49,7 @@ export {
   type PackageMeta,
   type PackageMetaCache,
   parseBareSpecifier,
+  parseNamedRegistrySpecifierToRegistryPackageSpec,
   parseNpmAliasTarget,
   pickPackageFromMeta,
   pickVersionByVersionRange,

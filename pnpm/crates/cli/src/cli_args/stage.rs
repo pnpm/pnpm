@@ -36,8 +36,8 @@ use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use registry::{
-    StageContext, fetch_stage_items, fetch_stage_tarball, stage_endpoint_url, stage_json_request,
-    stage_request_in_session, stage_request_with_otp,
+    StageContext, fetch_stage_items, fetch_stage_tarball, registry_prefixes, stage_endpoint_url,
+    stage_json_request, stage_request_in_session, stage_request_with_otp,
 };
 use render::{
     json_pretty, render_stage_item, render_stage_publish_summary, render_tarball_summary,
@@ -350,6 +350,7 @@ impl StageArgs {
         let registry = normalize_registry_url(&registry).into_owned();
         let auth_header = config.auth_headers.for_url_with_package(&registry, package_name);
         Ok(StageContext {
+            registry_prefixes: registry_prefixes(config, &registry),
             registry,
             auth_header,
             http_client: build_registry_client(config)?,

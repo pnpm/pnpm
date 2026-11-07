@@ -1,5 +1,5 @@
-use pnpm_pack::WorkspacePackageManifest;
-use std::{collections::HashMap, sync::Arc};
+use pnpm_pack::WorkspacePackageManifests;
+use std::sync::Arc;
 
 /// Which publish a package is part of.
 #[derive(Clone, Copy)]
@@ -8,7 +8,7 @@ pub(crate) enum PublishScope<'a> {
     /// is its version note.
     Single { summary: Option<&'a str> },
     /// One package of `pnpm publish --recursive`.
-    Recursive { workspace_packages: &'a Arc<HashMap<String, WorkspacePackageManifest>> },
+    Recursive { workspace_packages: &'a Arc<WorkspacePackageManifests> },
 }
 
 impl<'a> PublishScope<'a> {
@@ -19,9 +19,7 @@ impl<'a> PublishScope<'a> {
         }
     }
 
-    pub(super) fn workspace_packages(
-        self,
-    ) -> Option<&'a Arc<HashMap<String, WorkspacePackageManifest>>> {
+    pub(super) fn workspace_packages(self) -> Option<&'a Arc<WorkspacePackageManifests>> {
         match self {
             PublishScope::Single { .. } => None,
             PublishScope::Recursive { workspace_packages } => Some(workspace_packages),

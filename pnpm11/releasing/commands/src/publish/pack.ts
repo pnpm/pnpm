@@ -102,6 +102,8 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 // config `createFetchFromRegistry` needs.
 | 'versioning'
 | 'registriesByScope'
+| 'registriesByPrefix'
+| 'workspaceRegistryPrefixes'
 | 'configByUri'
 | 'fetchRetries'
 | 'fetchRetryFactor'

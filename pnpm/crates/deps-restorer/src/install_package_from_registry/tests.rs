@@ -140,6 +140,7 @@ fn create_config(
         remote_side_effects_cache: None,
         remote_cache: None,
         registries_by_prefix: Default::default(),
+        workspace_registry_prefixes: Default::default(),
         registry_options_by_url: Default::default(),
         auto_install_peers: false,
         auto_install_peers_from_highest_match: false,
