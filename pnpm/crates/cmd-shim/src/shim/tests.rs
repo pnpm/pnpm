@@ -96,8 +96,10 @@ fn generate_sh_shim_header_carries_the_hardened_helper_line() {
     );
     assert!(
         !is_sh_shim_hardened(&body.replace(
-            SH_SHIM_PATH_PRINTF_LINE,
-            r#"basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')"#,
+            &format!(
+                "case \"$link\" in\n{SH_SHIM_PATH_PRINTF_LINE}\n  *) basedir=$link ;;\nesac\n"
+            ),
+            "basedir=$(run_helper printf '%s\\n' \"$link\" | run_helper sed -e 's,\\\\,/,g')\n",
         )),
         "a shim that converts every $link, backslash or not, must be replaced",
     );
