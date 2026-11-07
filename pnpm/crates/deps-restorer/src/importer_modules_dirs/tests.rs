@@ -43,7 +43,7 @@ fn removals_inside_the_root_modules_dir_are_bound_by_it() {
     assert_eq!(dirs.removal_bound(Path::new("/elsewhere/mods")), Path::new("/elsewhere/mods"));
     assert_eq!(
         dirs.removal_bound(Path::new("/elsewhere/mods/.pnpm")),
-        Path::new("/elsewhere/mods")
+        Path::new("/elsewhere/mods"),
     );
     assert_eq!(dirs.removal_bound(Path::new("/elsewhere")), Path::new("/ws"));
     assert_eq!(dirs.removal_bound(Path::new("/ws/packages/foo/mods")), Path::new("/ws"));
