@@ -28,17 +28,25 @@ export function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest, run
 }
 
 export function getDownloadedNodeVersionFromEnginesRuntime (manifest: ProjectManifest, runtimeOnFail?: string): string | undefined {
+  const nodeRuntime = findNodeRuntime(manifest)
+  if (typeof nodeRuntime?.version !== 'string') return undefined
+  if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return undefined
+  return getDownloadedRuntimeVersion(nodeRuntime.version, manifest.engines?.node)
+}
+
+function getDownloadedRuntimeVersion (version: string, nodeEngine?: string): string | undefined {
+  const runtimeRange = semver.validRange(version.trim())
+  if (runtimeRange == null) return undefined
+  const engineRange = semver.validRange(nodeEngine ?? '*')
+  if (engineRange == null) return semver.minVersion(runtimeRange)?.version
+  return minVersionFromRangeIntersection(runtimeRange, engineRange)
+}
+
+function findNodeRuntime (manifest: ProjectManifest): { name: string, version?: unknown, onFail?: string } | undefined {
   for (const runtime of [manifest.devEngines?.runtime, manifest.engines?.runtime]) {
     const runtimes = runtime == null ? [] : Array.isArray(runtime) ? runtime : [runtime]
     const nodeRuntime = runtimes.find((entry) => entry.name === 'node')
-    if (typeof nodeRuntime?.version !== 'string') continue
-    const version = nodeRuntime.version.trim()
-    if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return undefined
-    const runtimeRange = semver.validRange(version)
-    if (runtimeRange == null) return undefined
-    const engineRange = semver.validRange(manifest.engines?.node ?? '*')
-    if (engineRange == null) return semver.minVersion(runtimeRange)?.version
-    return minVersionFromRangeIntersection(runtimeRange, engineRange)
+    if (nodeRuntime != null) return nodeRuntime
   }
   return undefined
 }
