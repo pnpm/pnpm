@@ -38,7 +38,7 @@ pub(super) struct VersionRows {
     /// The manifest without its README, deprecation, and interpretation.
     pub(super) manifest: Map<String, Value>,
     pub(super) interpretation: Interpretation,
-    pub(super) published_at: Option<String>,
+    pub(super) published_at: Option<i64>,
     pub(super) readme: Readme,
     pub(super) deprecated: Option<Value>,
 }
@@ -126,7 +126,15 @@ pub(super) fn decompose(bytes: &[u8]) -> Result<PackumentRows> {
         let time = time.as_object_mut().ok_or_else(|| bad_request("`time` must be an object"))?;
         for (version, rows) in &mut versions {
             if let Some(Value::String(published_at)) = time.get(version) {
-                rows.published_at = Some(published_at.clone());
+                rows.published_at = Some(
+                    chrono::DateTime::parse_from_rfc3339(published_at)
+                        .map_err(|_| {
+                            bad_request(&format!(
+                                "publication time of version {version:?} must be RFC 3339"
+                            ))
+                        })?
+                        .timestamp_millis(),
+                );
                 time.shift_remove(version);
             }
         }

@@ -31,7 +31,7 @@ mod sweep;
 
 use super::{RegistryError, Result};
 use crate::metadata::{StagedEntry, StagedId, StagedRecord, StagedState};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 /// Reserved namespace of the hosted store holding staged archives.
 const STAGED_ARCHIVES_DIR: &str = ".staged-archives";
@@ -62,7 +62,7 @@ const STAGE_ATTEMPTS: usize = 8;
 
 /// How long ago `record` was last uploaded.
 fn age(record: &StagedRecord, now: u64) -> Duration {
-    Duration::from_secs(now.saturating_sub(record.staged_at))
+    Duration::from_millis(now.saturating_sub(record.staged_at))
 }
 
 fn lifetime(record: &StagedRecord) -> Duration {
@@ -172,7 +172,7 @@ fn principal_namespace(principal: &str) -> String {
 }
 
 fn unix_now() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_secs())
+    crate::publish::now_millis() as u64
 }
 
 #[cfg(test)]

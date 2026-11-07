@@ -17,6 +17,7 @@ mod reclaims;
 mod records;
 mod schema;
 mod staged_failure;
+mod timestamps;
 
 use crate::{
     DocumentWrite, HostedDocumentVersion, Storage,

@@ -8,7 +8,7 @@ use super::{
     SqlMetadata,
     adapter::{Connection, Query, Row},
     batch::WriteTransaction,
-    blobs::{NOW, id_from, json_array, rows_from},
+    blobs::{id_from, json_array, rows_from},
     to_column, to_generation,
     transactions::Freshness,
 };
@@ -97,15 +97,14 @@ impl SqlMetadata {
         let catalog = catalog.to_string();
         self.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
-            let sql = format!(
-                "UPDATE blobs SET state = 'gone', changed_at = {NOW}
+            let now = crate::publish::now_millis();
+            let sql = "UPDATE blobs SET state = 'gone', changed_at = ?5
                  WHERE catalog = ?1 AND ecosystem = ?2 AND integrity = ?3 AND incarnation = ?4
-                   AND state = 'reclaiming'",
-            );
+                   AND state = 'reclaiming'";
             let ecosystem = ecosystem.as_str();
             for blob in &reclaimed {
                 let (id, incarnation) = (blob.id.as_str(), to_column(blob.incarnation));
-                transaction.execute(&sql, params![catalog, ecosystem, id, incarnation])?;
+                transaction.execute(sql, params![catalog, ecosystem, id, incarnation, now])?;
             }
             transaction.commit()
         })
@@ -122,15 +121,14 @@ impl SqlMetadata {
         lease: Duration,
     ) -> Result<Vec<BlobRef>> {
         let catalog = catalog.to_string();
-        let lease = i64::try_from(lease.as_secs()).unwrap_or(i64::MAX);
+        let lease = i64::try_from(lease.as_millis()).unwrap_or(i64::MAX);
         self.read(catalog.clone(), Freshness::Current, move |connection, _| {
-            let sql = format!(
-                "SELECT integrity, incarnation FROM blobs
+            let now = crate::publish::now_millis();
+            let sql = "SELECT integrity, incarnation FROM blobs
                  WHERE catalog = ?1 AND ecosystem = ?2 AND state = 'reclaiming'
-                   AND changed_at <= {NOW} - ?3",
-            );
+                   AND changed_at <= ?4 - ?3";
             connection
-                .query(&sql, params![catalog, ecosystem.as_str(), lease])?
+                .query(sql, params![catalog, ecosystem.as_str(), lease, now])?
                 .into_iter()
                 .map(blob_ref_from)
                 .collect()
@@ -181,14 +179,16 @@ fn mark(
             .flatten()
             .collect(),
     )?;
-    let sql = format!(
-        "UPDATE blobs SET state = 'reclaiming', changed_at = {NOW}
-         WHERE catalog = ?1 AND ecosystem = ?2 AND integrity = ?3 AND incarnation = ?4",
-    );
+    let now = crate::publish::now_millis();
+    let sql = "UPDATE blobs SET state = 'reclaiming', changed_at = ?5
+         WHERE catalog = ?1 AND ecosystem = ?2 AND integrity = ?3 AND incarnation = ?4";
     let mut marked = Vec::with_capacity(rows.len());
     for (id, row) in rows {
         let incarnation = to_column(row.incarnation);
-        transaction.execute(&sql, params![catalog, ecosystem.as_str(), id.as_str(), incarnation])?;
+        transaction.execute(
+            sql,
+            params![catalog, ecosystem.as_str(), id.as_str(), incarnation, now],
+        )?;
         marked.push(BlobRef { id, incarnation: row.incarnation });
     }
     transaction.commit()?;
@@ -273,13 +273,16 @@ fn write_gone(
     (catalog, ecosystem): (&str, Ecosystem),
     blob: &BlobRef,
 ) -> Result<()> {
-    let sql = format!(
+    let now = crate::publish::now_millis();
+    let sql =
         "INSERT INTO blobs (catalog, ecosystem, integrity, incarnation, state, size, changed_at)
-         VALUES (?1, ?2, ?3, ?4, 'gone', 0, {NOW})
+         VALUES (?1, ?2, ?3, ?4, 'gone', 0, ?5)
          ON CONFLICT (catalog, ecosystem, integrity) DO UPDATE
          SET incarnation = excluded.incarnation, state = 'gone',
-             changed_at = excluded.changed_at",
-    );
+             changed_at = excluded.changed_at";
     let incarnation = to_column(blob.incarnation);
-    transaction.execute(&sql, params![catalog, ecosystem.as_str(), blob.id.as_str(), incarnation])
+    transaction.execute(
+        sql,
+        params![catalog, ecosystem.as_str(), blob.id.as_str(), incarnation, now],
+    )
 }

@@ -1,5 +1,7 @@
 -- Large payloads use rowid tables so interior index pages hold only keys.
 
+-- Timestamps are INTEGER milliseconds since the Unix epoch. Registry-generated
+-- timestamps use the application clock; published_at records the supplied event time.
 -- The current generation of each hosted catalog.
 CREATE TABLE IF NOT EXISTS catalogs (
     catalog TEXT NOT NULL PRIMARY KEY,
@@ -29,7 +31,7 @@ CREATE TABLE IF NOT EXISTS versions (
     version TEXT NOT NULL,
     revision_key TEXT NOT NULL,
     integrity TEXT NOT NULL,
-    published_at TEXT,
+    published_at INTEGER,
     accepted_generation INTEGER NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, version, revision_key),
     FOREIGN KEY (catalog, ecosystem, name)
@@ -139,7 +141,7 @@ CREATE TABLE IF NOT EXISTS tag_history (
     previous TEXT,
     target TEXT,
     principal TEXT,
-    changed_at TEXT NOT NULL,
+    changed_at INTEGER NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, tag, generation)
 ) STRICT, WITHOUT ROWID;
 
@@ -178,7 +180,7 @@ CREATE TABLE IF NOT EXISTS publications (
     id INTEGER NOT NULL,
     name TEXT,
     principal TEXT,
-    committed_at TEXT NOT NULL,
+    committed_at INTEGER NOT NULL,
     PRIMARY KEY (catalog, id)
 ) STRICT;
 -- The versions a commit accepted, which are its publication's members.
@@ -228,7 +230,7 @@ CREATE TABLE IF NOT EXISTS notes (
     name TEXT NOT NULL,
     subject TEXT NOT NULL,
     text TEXT,
-    modified_at TEXT NOT NULL,
+    modified_at INTEGER NOT NULL,
     principal TEXT,
     initial_digest TEXT,
     PRIMARY KEY (catalog, kind, ecosystem, name, subject)
@@ -242,7 +244,7 @@ CREATE TABLE IF NOT EXISTS note_history (
     ecosystem TEXT NOT NULL,
     name TEXT NOT NULL,
     subject TEXT NOT NULL,
-    changed_at TEXT NOT NULL,
+    changed_at INTEGER NOT NULL,
     principal TEXT,
     previous TEXT,
     next TEXT
@@ -252,7 +254,7 @@ CREATE TABLE IF NOT EXISTS note_history (
 -- the incarnation stored under `<integrity>.<incarnation>` now, `live`,
 -- `reclaiming`, or `gone`. Never removed, so incarnations only grow and a key
 -- a reclaim may remove is never written again. `changed_at` is when `state`
--- last changed, in seconds since the Unix epoch.
+-- last changed.
 CREATE TABLE IF NOT EXISTS blobs (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
@@ -267,7 +269,7 @@ CREATE INDEX IF NOT EXISTS blobs_by_state ON blobs (catalog, ecosystem, state);
 
 -- Each public file name of a package, mapped to the blob holding its bytes,
 -- by the commit that publishes it or an image blob's upload, and dropped
--- with its version or package. `mapped_at` is in seconds since the epoch.
+-- with its version or package.
 CREATE TABLE IF NOT EXISTS artifact_blobs (
     catalog TEXT NOT NULL,
     ecosystem TEXT NOT NULL,
@@ -286,8 +288,8 @@ CREATE INDEX IF NOT EXISTS artifact_blobs_by_integrity
 -- of its bytes ahead of the commit that claims it. The bytes stay in the
 -- hosted store under `<digest>.<incarnation>`. `state` is `incomplete`,
 -- `complete`, or `gone`; never removed, so incarnations only grow and a key
--- a sweep may remove is never written again. `staged_at` is in seconds since
--- the epoch, `0` once given back or claimed.
+-- a sweep may remove is never written again. `staged_at` is `0` once given
+-- back or claimed.
 CREATE TABLE IF NOT EXISTS staged_archives (
     principal TEXT NOT NULL,
     digest TEXT NOT NULL,

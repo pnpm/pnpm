@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     metadata::{Note, NoteChange, validate_note},
-    publish::now_iso,
+    publish::{iso_from_unix_millis, now_millis},
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
@@ -83,7 +83,7 @@ fn note_query(subject: &NoteSubject) -> Query<'_> {
 fn note_row(mut row: Row) -> Result<Note> {
     Ok(Note {
         text: row.get(0)?,
-        modified: row.get(1)?,
+        modified: iso_from_unix_millis(row.get(1)?),
         principal: row.get(2)?,
         initial_digest: row.get(3)?,
     })
@@ -169,7 +169,7 @@ fn write_note(
     principal: Option<&str>,
     initial_digest: Option<&str>,
 ) -> Result<()> {
-    let now = now_iso();
+    let now = now_millis();
     transaction.execute(
         "INSERT INTO note_history (catalog, kind, ecosystem, name, subject, changed_at, principal,
                                    previous, next)

@@ -164,7 +164,11 @@ fn version_entries_from(key: &PackageKey, rows: Vec<Row>) -> Result<Vec<VersionE
                 renderer: RENDERER_VERSION,
                 annotation_generation: row.get::<Option<i64>>(2)?.map(to_generation),
             };
-            Ok(VersionEntry { version, published_at: row.get(1)?, fragment })
+            Ok(VersionEntry {
+                version,
+                published_at: row.get::<Option<i64>>(1)?.map(crate::publish::iso_from_unix_millis),
+                fragment,
+            })
         })
         .collect()
 }

@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     metadata::{TagChange, TagUpdate, validate_dist_tag, validate_dist_tag_target},
-    publish::now_iso,
+    publish::{iso_from_unix_millis, now_iso, now_millis},
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
@@ -90,7 +90,7 @@ pub(super) fn record_tag_move(commit: &Commit<'_>, change: &TagMove<'_>) -> Resu
             change.previous,
             change.target,
             change.principal,
-            now_iso(),
+            now_millis(),
         ],
     )?;
     Ok(())
@@ -241,7 +241,7 @@ pub(super) fn tag_history(
                 previous: row.get(1)?,
                 target: row.get(2)?,
                 principal: row.get(3)?,
-                changed_at: row.get(4)?,
+                changed_at: iso_from_unix_millis(row.get(4)?),
             })
         })
         .collect()
