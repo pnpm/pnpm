@@ -126,20 +126,20 @@ pub(super) fn decompose(bytes: &[u8]) -> Result<PackumentRows> {
         let time = time.as_object_mut().ok_or_else(|| bad_request("`time` must be an object"))?;
         for (version, rows) in &mut versions {
             if let Some(Value::String(published_at)) = time.get(version) {
-                rows.published_at = Some(
-                    chrono::DateTime::parse_from_rfc3339(published_at)
-                        .map_err(|_| {
-                            bad_request(&format!(
-                                "publication time of version {version:?} must be RFC 3339"
-                            ))
-                        })?
-                        .timestamp_millis(),
-                );
+                rows.published_at = Some(publication_time(version, published_at)?);
                 time.shift_remove(version);
             }
         }
     }
     Ok(PackumentRows { state, tags, versions })
+}
+
+fn publication_time(version: &str, value: &str) -> Result<i64> {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .map(|time| time.timestamp_millis())
+        .map_err(|_| {
+            bad_request(&format!("publication time of version {version:?} must be RFC 3339"))
+        })
 }
 
 fn take_tags(state: &mut Map<String, Value>) -> Result<BTreeMap<String, String>> {

@@ -10,8 +10,10 @@ use super::{
     batch::Batch,
     to_column, to_generation,
 };
-use crate::metadata::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome};
-use crate::publish::{iso_from_unix_millis, now_millis};
+use crate::{
+    metadata::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome},
+    publish::{iso_from_unix_millis, now_millis},
+};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
 use std::time::Duration;

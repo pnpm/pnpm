@@ -2,7 +2,7 @@
 
 use super::{Db, npm, packument, read, storage, try_write, write};
 use crate::{
-    metadata::sql::adapter::ReadSource,
+    metadata::sql::adapter::{Connection, ReadSource},
     publish::{iso_from_unix_millis, now_millis},
 };
 use serde_json::json;
@@ -44,36 +44,45 @@ async fn metadata_timestamps_are_integer_milliseconds(db: Db) {
         .unwrap();
     let adapter = db.adapter();
     tokio::task::spawn_blocking(move || {
-        adapter.read(ReadSource::Primary, &mut |connection| {
-            for (table, column) in [
-                ("versions", "published_at"),
-                ("publications", "committed_at"),
-                ("tag_history", "changed_at"),
-                ("notes", "modified_at"),
-                ("note_history", "changed_at"),
-            ] {
-                let rows = connection.query(
-                    &format!("SELECT {column}, typeof({column}) FROM {table}"),
-                    params![],
-                )?;
-                assert!(!rows.is_empty(), "{table}");
-                for mut row in rows {
-                    assert_eq!(row.get::<String>(1)?, "integer", "{table}");
-                    let millis: i64 = row.get(0)?;
-                    if table == "versions" {
-                        assert_eq!(iso_from_unix_millis(millis), "2026-01-01T00:00:00.000Z");
-                    } else {
-                        assert!((before..=now_millis()).contains(&millis), "{table}: {millis}");
-                    }
-                }
-            }
-            Ok(())
-        })?;
+        adapter.read(ReadSource::Primary, &mut |connection| assert_timestamps(connection, before))?;
         Ok::<_, pnpr_error::RegistryError>(())
     })
     .await
     .unwrap()
     .unwrap();
+}
+
+fn assert_timestamps(connection: &dyn Connection, before: i64) -> pnpr_error::Result<()> {
+    for columns in [
+        ("versions", "published_at"),
+        ("publications", "committed_at"),
+        ("tag_history", "changed_at"),
+        ("notes", "modified_at"),
+        ("note_history", "changed_at"),
+    ] {
+        assert_timestamp_column(connection, columns, before)?;
+    }
+    Ok(())
+}
+
+fn assert_timestamp_column(
+    connection: &dyn Connection,
+    (table, column): (&str, &str),
+    before: i64,
+) -> pnpr_error::Result<()> {
+    let rows =
+        connection.query(&format!("SELECT {column}, typeof({column}) FROM {table}"), params![])?;
+    assert!(!rows.is_empty(), "{table}");
+    for mut row in rows {
+        assert_eq!(row.get::<String>(1)?, "integer", "{table}");
+        let millis: i64 = row.get(0)?;
+        if table == "versions" {
+            assert_eq!(iso_from_unix_millis(millis), "2026-01-01T00:00:00.000Z");
+        } else {
+            assert!((before..=now_millis()).contains(&millis), "{table}: {millis}");
+        }
+    }
+    Ok(())
 }
 
 async fn every_timestamp_column_has_integer_affinity(db: Db) {
@@ -94,15 +103,11 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
                 ("artifact_blobs", "mapped_at"),
                 ("staged_archives", "staged_at"),
             ] {
-                let rows = connection.query(&format!("PRAGMA table_info({table})"), params![])?;
-                let mut found = false;
-                for mut row in rows {
-                    if row.get::<String>(1)? == column {
-                        assert_eq!(row.get::<String>(2)?, "INTEGER", "{table}.{column}");
-                        found = true;
-                    }
-                }
-                assert!(found, "{table}.{column}");
+                let mut row = connection.query_one(
+                    "SELECT type FROM pragma_table_info(?1) WHERE name = ?2",
+                    params![table, column],
+                )?;
+                assert_eq!(row.get::<String>(0)?, "INTEGER", "{table}.{column}");
             }
             Ok(())
         })?;
@@ -123,7 +128,7 @@ async fn an_invalid_publication_time_refuses_the_write(db: Db) {
     assert!(
         org.read_hosted_document(&npm("example")).await
             .unwrap()
-            .is_none()
+            .is_none(),
     );
 }
 
