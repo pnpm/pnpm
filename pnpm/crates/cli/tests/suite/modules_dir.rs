@@ -569,9 +569,6 @@ fn registry_bin_sets_node_path(project_dir: &Path) -> bool {
     fs::read_to_string(project_dir.join(shim)).expect("read the shim").contains("NODE_PATH=")
 }
 
-/// A `modulesDir` that is absolute or climbs out of the project is the root
-/// project's modules directory. Every other project keeps its dependencies in
-/// the directory of the setting's last component inside it.
 #[test]
 fn a_modules_dir_outside_the_project_is_the_root_projects_only() {
     for linker in ["isolated", "hoisted"] {
@@ -579,6 +576,12 @@ fn a_modules_dir_outside_the_project_is_the_root_projects_only() {
             install_with_modules_dir_outside_the_project(linker, setting);
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum IsPositive {
+    Declared,
+    Removed,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -604,11 +607,12 @@ fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDi
     append_workspace_yaml_key(&workspace, "nodeLinker", linker);
     append_workspace_yaml_key(&workspace, "packages", "['project-1']");
     append_workspace_yaml_key(&workspace, "allowBuilds", "{'@pnpm.e2e/generated-bins': true}");
-    let write_manifests = |is_positive: bool| {
+    let write_manifests = |is_positive: IsPositive| {
         let dependencies = |version: &str| {
             let mut dependencies = serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" });
-            if is_positive {
-                dependencies["is-positive"] = version.into();
+            match is_positive {
+                IsPositive::Declared => dependencies["is-positive"] = version.into(),
+                IsPositive::Removed => {}
             }
             dependencies
         };
@@ -652,7 +656,7 @@ fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDi
         assert!(!workspace.join("vendor").exists(), "{context}");
         assert!(!root_modules_dir.join("../project-1").exists(), "{context}");
     };
-    write_manifests(true);
+    write_manifests(IsPositive::Declared);
 
     for args in [&["install"][..], &["install", "--frozen-lockfile"]] {
         let context = format!("{linker} {setting:?} {args:?}");
@@ -674,7 +678,7 @@ fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDi
         .with_arg("install")
         .assert()
         .success();
-    write_manifests(false);
+    write_manifests(IsPositive::Removed);
     pacquet_in(&workspace)
         .with_arg("install")
         .assert()

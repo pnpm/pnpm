@@ -99,12 +99,15 @@ fn is_strictly_inside(dir: &Path, parent: &Path) -> bool {
         .is_ok_and(|relative| relative.components().next().is_some())
 }
 
-/// Whether `dir` sits lexically inside `confine_root`.
+/// Whether `dir` sits inside `confine_root`, both as spelled and once its
+/// parent is resolved, so a symlinked scope container cannot redirect the
+/// removal.
 fn confined(dir: &Path, confine_root: &Path) -> bool {
     let confined = dir.starts_with(confine_root)
         && dir
             .components()
-            .all(|part| !matches!(part, std::path::Component::ParentDir));
+            .all(|part| !matches!(part, std::path::Component::ParentDir))
+        && resolves_inside(dir, confine_root);
     if !confined {
         tracing::warn!(
             ?dir,
@@ -113,6 +116,13 @@ fn confined(dir: &Path, confine_root: &Path) -> bool {
         );
     }
     confined
+}
+
+fn resolves_inside(dir: &Path, confine_root: &Path) -> bool {
+    let (Some(parent), Ok(root)) = (dir.parent(), std::fs::canonicalize(confine_root)) else {
+        return false;
+    };
+    std::fs::canonicalize(parent).is_ok_and(|parent| parent.starts_with(root))
 }
 
 /// Move a package directory pnpm has no record of installing into the
