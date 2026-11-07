@@ -84,6 +84,26 @@ impl ImporterModulesDirs {
         self.of(&self.lockfile_dir.join(importer_id))
     }
 
+    /// The directory that removals under `dir` must stay inside: the root's
+    /// modules directory when `dir` is in it and it is configured outside
+    /// the lockfile directory, else the lockfile directory.
+    #[must_use]
+    pub fn removal_bound(&self, dir: &Path) -> &Path {
+        let lockfile_dir = lexical_normalize(&self.lockfile_dir);
+        if !self.root.starts_with(&lockfile_dir) && lexical_normalize(dir).starts_with(&self.root) {
+            &self.root
+        } else {
+            &self.lockfile_dir
+        }
+    }
+
+    /// The canonical path of `modules_dir` when it resolves inside its
+    /// [`Self::removal_bound`]. See [`crate::confined_modules_dir`].
+    #[must_use]
+    pub fn confined(&self, modules_dir: &Path) -> Option<PathBuf> {
+        crate::confined_modules_dir(modules_dir, self.removal_bound(modules_dir))
+    }
+
     #[must_use]
     pub fn lockfile_dir(&self) -> &Path {
         &self.lockfile_dir

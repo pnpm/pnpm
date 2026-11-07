@@ -57,7 +57,6 @@ async fn build_generated_peer_bin_is_considered_without_lockfile_has_bin() {
         },
         directories: crate::BuildPhaseDirectories {
             workspace_root: temp_dir.path(),
-            top_level_bin_root: temp_dir.path(),
             layout: &layout,
             hoisted_pkg_roots_by_key: None,
             is_hoisted: false,
@@ -136,7 +135,6 @@ async fn directory_peer_bin_is_considered_without_lockfile_has_bin() {
         },
         directories: crate::BuildPhaseDirectories {
             workspace_root: temp_dir.path(),
-            top_level_bin_root: temp_dir.path(),
             layout: &layout,
             hoisted_pkg_roots_by_key: None,
             is_hoisted: false,
@@ -251,7 +249,6 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
         },
         directories: crate::BuildPhaseDirectories {
             workspace_root: temp_dir.path(),
-            top_level_bin_root: temp_dir.path(),
             layout: &layout,
             hoisted_pkg_roots_by_key: None,
             is_hoisted: false,

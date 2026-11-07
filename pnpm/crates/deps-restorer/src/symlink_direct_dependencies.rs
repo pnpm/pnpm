@@ -25,7 +25,6 @@ use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
@@ -149,6 +148,10 @@ where
 
             dependency_groups,
             workspace_root_real: std::fs::canonicalize(self.context.workspace_root).ok(),
+            modules_dirs: crate::ImporterModulesDirs::from_config(
+                self.context.config,
+                self.context.workspace_root,
+            ),
 
             // One bin lookup for the whole pass: the `hasBin` gate and
             // the shim probe memo are importer-invariant.
@@ -172,6 +175,7 @@ struct ImporterPass<'a> {
     pub policy: crate::DirectLinkPolicy<'a>,
     dependency_groups: Vec<DependencyGroup>,
     workspace_root_real: Option<PathBuf>,
+    modules_dirs: crate::ImporterModulesDirs,
     bin_lookup: crate::PrefetchedBinLookup<'a>,
 }
 
@@ -179,8 +183,6 @@ impl ImporterPass<'_> {
     fn run<Reporter: self::Reporter>(
         &self,
     ) -> Result<crate::ClaimedCommands, SymlinkDirectDependenciesError> {
-        let modules_dir_name: &OsStr = self.context.config.modules_dir_name();
-
         // Sorted so the fallible upfront validation below rejects a
         // hostile lockfile on a deterministic importer. `pnpm:root`
         // event order is not pinned — the per-importer work runs on
@@ -210,7 +212,6 @@ impl ImporterPass<'_> {
                         self.link_importer::<Reporter>(
                             importer_id,
                             group.real_dir.as_deref(),
-                            modules_dir_name,
                             root_targets.as_ref(),
                         )
                     })
@@ -263,7 +264,6 @@ impl ImporterPass<'_> {
         &self,
         importer_id: &str,
         real_dir: Option<&Path>,
-        modules_dir_name: &OsStr,
         root_targets: Option<&BTreeMap<String, PathBuf>>,
     ) -> Result<(PathBuf, HashSet<String>), SymlinkDirectDependenciesError> {
         // Safe: the task groups were built from `importers.keys()`.
@@ -275,7 +275,7 @@ impl ImporterPass<'_> {
             real_dir,
             importer_id,
         );
-        let modules_dir = pnpm_fs::lexical_normalize(&modules_parent.join(modules_dir_name));
+        let modules_dir = pnpm_fs::lexical_normalize(&self.modules_dirs.of(modules_parent));
         let real_modules_dir = pnpm_fs::symlinked_dir_real_path(modules_parent, &modules_dir);
 
         // Only non-root importers get deduped against root: the

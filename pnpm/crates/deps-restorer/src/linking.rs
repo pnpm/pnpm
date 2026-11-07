@@ -238,7 +238,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
         context: crate::ImporterLinkContext {
             config,
             layout: inputs.ctx.linker.layout,
-            workspace_root: inputs.projects.symlink_root,
+            workspace_root: inputs.ctx.workspace_root,
             link_options: inputs.ctx.linker.bin_options,
         },
         graph: crate::ImporterDependencyGraph {
@@ -436,7 +436,6 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
                         manifests: inputs.projects.manifests,
                         package_map_manifests: inputs.projects.package_map_manifests,
                         walker_lockfile_dir: inputs.ctx.workspace_root,
-                        symlink_workspace_root: inputs.projects.symlink_root,
                     },
                     config: inputs.ctx.config,
                     host_node: inputs.host_node,

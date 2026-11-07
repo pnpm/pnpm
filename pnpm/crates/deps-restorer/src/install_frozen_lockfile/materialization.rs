@@ -99,7 +99,6 @@ impl<'a> InstallFrozenLockfile<'a> {
                     manifests: install.projects.manifests,
                     package_map_manifests: install.projects.package_map_manifests,
                     dependency_groups: install.projects.dependency_groups,
-                    symlink_root: install.projects.workspace_root,
                     trusted_importer_ids: &trusted_importer_ids,
                     root_component_importers: &root_component_importers,
                 },
@@ -313,7 +312,6 @@ fn build_directories<'a>(
 ) -> crate::BuildPhaseDirectories<'a> {
     crate::BuildPhaseDirectories {
         workspace_root,
-        top_level_bin_root: workspace_root,
         layout: ctx.linker.layout,
         hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
         is_hoisted: ctx.is_hoisted(),

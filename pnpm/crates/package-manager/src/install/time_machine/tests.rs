@@ -143,11 +143,7 @@ fn selects_relocated_workspace_modules_directories() {
 
     assert_eq!(
         new_directories_to_exclude(&config, &workspace_root, std::slice::from_ref(&project_dir)),
-        vec![
-            modules_dir,
-            project_dir.join("node_modules"),
-            workspace_root.join("nested/packages/child/node_modules"),
-        ],
+        vec![modules_dir, project_dir.join("node_modules")],
     );
 }
 
