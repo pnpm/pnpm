@@ -80,3 +80,14 @@ for (const path of ['/npm/widget', '/npm/@example%2Fwidget', '/npm/%E2%9C%93', '
   })
 }
 
+test('container URI errors return an availability response', async () => {
+  const { worker, errors } = fixture()
+  const error = new URIError('origin failure')
+  const response = await worker.fetch(new globalThis.Request('https://registry.example/npm/widget'), {
+    PNPR: { fetch () { throw error } },
+  })
+  assert.equal(response.status, 503)
+  assert.equal(response.headers.get('retry-after'), '5')
+  assert.equal(await response.text(), 'Registry temporarily unavailable, retry shortly\n')
+  assert.equal(errors[0][1], error)
+})
