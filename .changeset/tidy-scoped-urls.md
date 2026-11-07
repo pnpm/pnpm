@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-pnpm preserves scoped package URL paths in log output while redacting credentials.
+pnpr logs scoped package URLs such as `https://registry.npmjs.org/@babel/cli` with their registry host intact. It previously logged them as `https://redacted@babel/cli`.
