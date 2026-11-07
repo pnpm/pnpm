@@ -53,6 +53,10 @@ impl Collection<'_> {
         // A repository that moved on since it was read is left for a later
         // collection.
         let Some(removed) = unmapped.await? else { return Ok(GcReport::default()) };
+        for blob in &removed {
+            let size = rows.get(&blob.id).map_or(0, |row| row.size);
+            tracing::info!(key = %blob.key(), size, repository = %name, "removed archive");
+        }
         Ok(report_of(&removed, |blob| rows.get(&blob.id).map_or(0, |row| row.size)))
     }
 

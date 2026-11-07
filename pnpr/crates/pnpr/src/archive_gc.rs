@@ -129,6 +129,10 @@ impl Collection<'_> {
         let unmapped = self.storage.unmapped_blobs().await?;
         let ids = unmapped.keys().cloned().collect();
         let removed = self.storage.reclaim_blobs(ids).await?;
+        for blob in &removed {
+            let size = unmapped.get(&blob.id).map_or(0, |row| row.size);
+            tracing::info!(key = %blob.key(), size, "removed archive");
+        }
         Ok(report_of(&removed, |blob| unmapped.get(&blob.id).map_or(0, |row| row.size)))
     }
 
