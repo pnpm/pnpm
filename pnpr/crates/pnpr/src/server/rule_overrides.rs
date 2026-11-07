@@ -1,7 +1,7 @@
 use super::{
     AppState, RegistryError,
     ecosystem::sha256_hex,
-    managed_state::{WRITE_ATTEMPTS, store_registry_record},
+    managed_state::{WRITE_ATTEMPTS, read_with_deadline, store_registry_record},
 };
 use pnpr_config::{TeamDirectory, compile_access_list};
 use pnpr_policy::{AccessList, AccessToken, RuleOverride, RuleTable};
@@ -52,7 +52,7 @@ enum Compile {
 /// that cannot be read or applied fail closed: every list of the registry
 /// admits nobody until a read succeeds. Reports whether the read succeeded.
 pub(super) async fn reload_rules(state: &AppState, registry: &str, base: &RuleTable) -> bool {
-    let (table, read) = match read_rules(state, registry, base).await {
+    let (table, read) = match read_with_deadline(read_rules(state, registry, base)).await {
         Ok((table, _)) => (table, true),
         Err(err) => {
             tracing::error!(registry, error = %err, "could not apply a registry's stored rules; it admits nobody");

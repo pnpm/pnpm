@@ -28,6 +28,7 @@ mod cargo_registry;
 mod cargo_resolve;
 mod cross_ecosystem_publish;
 mod htpasswd_import;
+mod managed_refresh;
 mod multi_replica;
 mod oci_registry;
 mod package_ownership;

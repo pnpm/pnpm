@@ -1,6 +1,6 @@
 use super::{
     AppState, RegistryError,
-    managed_state::{WRITE_ATTEMPTS, store_registry_record},
+    managed_state::{WRITE_ATTEMPTS, read_with_deadline, store_registry_record},
 };
 use pnpr_config::Teams;
 use pnpr_storage::RegistryRecord;
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Publish one registry's stored roster, or an empty one when it cannot be
 /// read. Reports whether the read succeeded.
 pub(super) async fn reload_roster(state: &AppState, registry: &str, seed: &Teams) -> bool {
-    let (teams, read) = match read_roster(state, registry, seed).await {
+    let (teams, read) = match read_with_deadline(read_roster(state, registry, seed)).await {
         Ok(teams) => (teams, true),
         Err(err) => {
             tracing::error!(registry, error = %err, "could not read a team roster; its teams admit nobody");

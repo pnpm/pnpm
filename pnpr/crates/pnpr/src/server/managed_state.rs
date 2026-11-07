@@ -9,10 +9,13 @@ use pnpr_config::{Management, Teams};
 use pnpr_policy::RuleTable;
 use pnpr_storage::{DocumentWrite, RegistryRecord};
 use std::{
+    future::Future,
     sync::{Arc, Mutex, PoisonError},
-    time::{Duration, Instant},
+    time::Duration,
 };
-use tokio::sync::OwnedMutexGuard;
+use tokio::{sync::OwnedMutexGuard, time::Instant};
+
+const READ_DEADLINE: Duration = Duration::from_secs(5);
 
 /// Minimum interval between successful request-triggered background reloads.
 const STATE_TTL: Duration = Duration::from_secs(10);
@@ -101,23 +104,41 @@ pub(super) async fn refresh_managed_state(state: &AppState) {
     }
 }
 
-/// Read every managed record concurrently, publishing each as soon as its own
-/// read finishes, so a slow registry does not hold back another's change.
-/// Rosters load before rules, because a rule can name a team.
+/// Reload SCIM alongside registry rosters and rules, publishing each record
+/// as its read finishes. Rosters load before rules, because a rule can name a team.
 async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     let managed = &state.inner.identity.managed;
+    let directory = async {
+        match &managed.scim {
+            Some(scim) => reload_directory(&state, scim).await,
+            None => true,
+        }
+    };
+    let registries = reload_registries(&state);
+    let (registries_read, scim_read) = tokio::join!(registries, directory);
+    let all_read = registries_read && scim_read;
+    managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
+}
+
+async fn reload_registries(state: &AppState) -> bool {
+    let managed = &state.inner.identity.managed;
     let rosters =
-        managed.roster_seeds.iter().map(|(registry, seed)| reload_roster(&state, registry, seed));
+        managed.roster_seeds.iter().map(|(registry, seed)| reload_roster(state, registry, seed));
     let rosters_read = join_all(rosters).await.into_iter().all(|read| read);
     let rules =
-        managed.rule_bases.iter().map(|(registry, base)| reload_rules(&state, registry, base));
+        managed.rule_bases.iter().map(|(registry, base)| reload_rules(state, registry, base));
     let rules_read = join_all(rules).await.into_iter().all(|read| read);
-    let scim_read = match &managed.scim {
-        Some(scim) => reload_directory(&state, scim).await,
-        None => true,
-    };
-    let all_read = rosters_read && rules_read && scim_read;
-    managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
+    rosters_read && rules_read
+}
+
+/// Bound refresh reads without cancelling writes whose commit outcome could be unknown.
+pub(super) async fn read_with_deadline<Output>(
+    read: impl Future<Output = Result<Output, RegistryError>>,
+) -> Result<Output, RegistryError> {
+    tokio::time::timeout(READ_DEADLINE, read).await
+        .map_err(|_| RegistryError::Internal {
+            reason: "the managed authorization record read exceeded its deadline".to_string(),
+        })?
 }
 
 /// Canonicalize a registry key as `<ecosystem>/<local_name>`, regardless of
