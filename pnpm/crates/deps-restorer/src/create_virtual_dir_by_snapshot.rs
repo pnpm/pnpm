@@ -186,10 +186,11 @@ impl CreateVirtualDirBySnapshot<'_> {
         &self,
     ) -> Result<(SlotPaths, Option<crate::GlobalVirtualStoreSlot>, bool), CreateVirtualDirError>
     {
+        let slot = SlotPaths::new(self.layout, self.dependencies.package_key)?;
         let global_slot =
             crate::GlobalVirtualStoreSlot::acquire(self.layout, self.dependencies.package_key)
                 .map_err(CreateVirtualDirError::SlotLock)?;
-        let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
+        slot.create_dirs()?;
         let interrupted_build = match &global_slot {
             Some(global_slot) => global_slot
                 .has_build_marker()

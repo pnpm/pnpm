@@ -18,7 +18,7 @@ pub(super) struct SlotPaths {
 }
 
 impl SlotPaths {
-    pub(super) fn create(
+    pub(super) fn new(
         layout: &VirtualStoreLayout,
         package_key: &PackageKey,
     ) -> Result<Self, CreateVirtualDirError> {
@@ -30,17 +30,14 @@ impl SlotPaths {
         }
         let slot_dir = layout.slot_dir(package_key);
         let node_modules = slot_dir.join("node_modules");
-        // Two direct `mkdir`s instead of one `create_dir_all` on the
-        // deepest path: the recursive form probes bottom-up with a
-        // failing `mkdir` per missing ancestor before creating them
-        // top-down, which on the APFS-serialized metadata path costs a
-        // large install ~3 extra syscalls per slot. The virtual-store
-        // root exists (steady state) — only its absence falls back to
-        // the recursive form.
-        create_slot_dirs(&slot_dir, &node_modules)?;
         let save_path = safe_join_modules_dir(&node_modules, &package_key.name.to_string())
             .map_err(CreateVirtualDirError::InvalidAlias)?;
         Ok(Self { node_modules, save_path })
+    }
+
+    pub(super) fn create_dirs(&self) -> Result<(), CreateVirtualDirError> {
+        let slot_dir = self.node_modules.parent().expect("node_modules has a slot parent");
+        create_slot_dirs(slot_dir, &self.node_modules)
     }
 }
 
