@@ -293,8 +293,6 @@ impl RecursiveRun<'_, '_> {
         if self.falls_back_to_exec(&full_task_graph) {
             return Ok(Prepared::NoMatchingScript);
         }
-        // Before the run journal below replaces an interrupted run's.
-        self.check_workspace_requirements()?;
         let extra_env: HashMap<String, String> = self.config.extra_env_with_node_options();
         let state_settings = run_state_settings(self.config, &extra_env);
         let task_run_state_context = TaskRunStateContext::new(
@@ -321,6 +319,8 @@ impl RecursiveRun<'_, '_> {
         }
 
         self.validate_requested_scripts(&mut task_graph, &full_task_graph)?;
+        // Before the run journal replaces an interrupted run's.
+        self.check_workspace_requirements()?;
 
         let task_run_state = task_run_state_context.start(&initially_completed_tasks(
             &full_task_graph,

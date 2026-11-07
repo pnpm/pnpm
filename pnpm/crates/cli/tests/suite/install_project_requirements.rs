@@ -294,7 +294,6 @@ fn engine_strict_on_a_repeat_install_rejects_a_project_on_an_unsupported_platfor
     drop(root);
 }
 
-/// `pnpm add` without `-r` acts on one project and checks the others.
 #[test]
 fn adding_to_one_project_checks_the_other_workspace_projects() {
     for shared_lockfile in [true, false] {

@@ -189,6 +189,26 @@ fn a_rejected_run_starts_no_run_journal() {
     }
 }
 
+/// A dry run runs nothing, so it checks nothing and its `--json` plan gets
+/// no warning mixed in.
+#[test]
+fn a_dry_run_checks_no_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &json!({ "engines": { "node": ">=99.0.0" } }), &json!({}));
+
+    let output = pacquet
+        .with_args(["-r", "--config.verify-deps-before-run=false", "run", "--dry-run", "--json"])
+        .with_arg("build")
+        .output()
+        .expect("run pnpm -r run --dry-run --json");
+
+    let text = output_text(&output);
+    assert!(output.status.success(), "{text}");
+    assert!(text.contains(r#""tasks""#), "{text}");
+    assert!(!text.contains("Unsupported engine for"), "{text}");
+    drop(root);
+}
+
 /// `pnpm -r <name>` hands a name no project has a script for to `exec`,
 /// which checks the projects once.
 #[test]
