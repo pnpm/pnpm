@@ -98,9 +98,8 @@ fn a_projects_direct_dependency_wins_a_command_over_other_packages() {
     let modules = temp.path().join("node_modules");
     package(&modules, "a-other", "a-other", Some("tool"));
     package(&modules, "z-direct", "z-direct", Some("tool"));
-    let options = LinkBinsOptions::default();
+    let options = LinkBinsOptions { force: true, ..LinkBinsOptions::default() };
     for (direct, winner) in [("z-direct", "z-direct"), ("a-other", "a-other")] {
-        fs::remove_dir_all(modules.join(".bin")).ok();
         link_bins_dir(
             &modules,
             BinCandidates::ProjectModulesDir(&[direct.to_string()]),

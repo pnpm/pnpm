@@ -159,22 +159,31 @@ pub fn link_bins_dir(
         )?;
         return Ok(LinkedBinsDir { linked_commands, held_back: false, sources });
     }
+    let cache = match candidates {
+        BinCandidates::Prefetched(_, lookup) => Some(&lookup.shim_cache),
+        _ => None,
+    };
+    link_sources(sources, &bins_dir, pass, cache)
+}
+
+fn link_sources(
+    sources: Vec<PackageBinSource>,
+    bins_dir: &Path,
+    pass: BinsDirPass<'_>,
+    cache: Option<&ShimTargetCache>,
+) -> Result<LinkedBinsDir, LinkBinsError> {
     let skipped = match pass.skip {
         SkippedCommands::None => Cow::Owned(HashSet::new()),
         SkippedCommands::Listed(commands) => Cow::Borrowed(commands),
-        SkippedCommands::AlreadyLinked => Cow::Owned(existing_commands(&bins_dir)?),
+        SkippedCommands::AlreadyLinked => Cow::Owned(existing_commands(bins_dir)?),
     };
     let default_cache = ShimTargetCache::default();
-    let cache = match candidates {
-        BinCandidates::Prefetched(_, lookup) => &lookup.shim_cache,
-        _ => &default_cache,
-    };
     let outcome = link_bins_of_packages_outcome::<Host>(
         &sources,
-        &bins_dir,
+        bins_dir,
         &skipped,
         pass.link_options,
-        cache,
+        cache.unwrap_or(&default_cache),
     )?;
     Ok(LinkedBinsDir {
         linked_commands: outcome.linked_commands,
