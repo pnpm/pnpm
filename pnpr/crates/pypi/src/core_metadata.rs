@@ -1,6 +1,5 @@
-use crate::{ProjectFile, escape_html};
 use serde::{Deserialize, Deserializer, Serialize};
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::collections::BTreeMap;
 
 /// Availability and optional digests of a PEP 658 metadata sidecar.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,23 +28,6 @@ impl CoreMetadata {
                         |(algorithm, digest)| format!("{algorithm}={digest}"),
                     ),
             ),
-        }
-    }
-}
-
-impl ProjectFile {
-    #[must_use]
-    pub fn metadata(&self) -> Option<&CoreMetadata> {
-        self.core_metadata
-            .as_ref()
-            .or(self.dist_info_metadata.as_ref())
-            .or(self.data_dist_info_metadata.as_ref())
-    }
-
-    pub(super) fn render_metadata_attributes(&self, html: &mut String) {
-        let Some(value) = self.metadata().and_then(CoreMetadata::html_value) else { return };
-        for attribute in ["data-core-metadata", "data-dist-info-metadata"] {
-            let _ = write!(html, r#" {attribute}="{}""#, escape_html(&value));
         }
     }
 }

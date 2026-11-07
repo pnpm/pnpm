@@ -1,7 +1,7 @@
-use crate::{CoreMetadata, Yanked, file_url};
+use crate::{CoreMetadata, Yanked, escape_html, file_url};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 /// One distribution file of a project, in the PEP 691 key spelling.
 ///
@@ -70,5 +70,20 @@ impl ProjectFile {
     #[must_use]
     pub fn sha256(&self) -> Option<&str> {
         self.hashes.get("sha256").map(String::as_str)
+    }
+
+    #[must_use]
+    pub fn metadata(&self) -> Option<&CoreMetadata> {
+        self.core_metadata
+            .as_ref()
+            .or(self.dist_info_metadata.as_ref())
+            .or(self.data_dist_info_metadata.as_ref())
+    }
+
+    pub(super) fn render_metadata_attributes(&self, html: &mut String) {
+        let Some(value) = self.metadata().and_then(CoreMetadata::html_value) else { return };
+        for attribute in ["data-core-metadata", "data-dist-info-metadata"] {
+            let _ = write!(html, r#" {attribute}="{}""#, escape_html(&value));
+        }
     }
 }
