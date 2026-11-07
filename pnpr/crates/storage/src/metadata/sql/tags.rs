@@ -5,14 +5,14 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::Batch,
     commit::{Commit, PackageRow, package_row_from, package_row_query},
-    packument::TIME,
+    packument::{ORDINARY, TIME},
     to_column,
 };
 use crate::{
     metadata::{TagChange, TagUpdate},
     publish::now_iso,
 };
-use pnpr_error::Result;
+use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -106,13 +106,20 @@ pub(super) fn change_tag(
     if key.ecosystem != Ecosystem::Npm {
         return Ok(TagUpdate::NotFound);
     }
-    let reads = [package_row_query(key), stored_tags_query(key)];
+    let reads = [package_row_query(key), stored_tags_query(key), tag_target_query(key, change)];
     let (mut batch, results) = Batch::begin_with(connection, &key.catalog, &reads)?;
     let mut results = results.into_iter();
     let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
         return Ok(TagUpdate::NotFound);
     };
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
+    validate_target(
+        change,
+        !results
+            .next()
+            .unwrap_or_default()
+            .is_empty(),
+    )?;
     if !move_tag(&batch.package(key), &package, &tags, change)? {
         let generation = Some(key.generation(package.generation));
         return Ok(TagUpdate::Committed { generation, moved: false });
@@ -122,6 +129,46 @@ pub(super) fn change_tag(
         .finish()?
         .map(|value| key.generation(value));
     Ok(TagUpdate::Committed { generation, moved: true })
+}
+
+fn tag_target_query<'query>(
+    key: &'query PackageKey,
+    change: &'query OwnedTagChange,
+) -> Query<'query> {
+    let (catalog, ecosystem, name) = key.params();
+    match change.target.as_deref() {
+        Some(target) => query!(
+            "SELECT version FROM versions
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4
+               AND version = ?5 LIMIT 1",
+            catalog,
+            ecosystem,
+            name,
+            ORDINARY,
+            target,
+        ),
+        None => query!(
+            "SELECT version FROM versions
+             WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND revision_key = ?4 LIMIT 1",
+            catalog,
+            ecosystem,
+            name,
+            ORDINARY,
+        ),
+    }
+}
+
+fn validate_target(change: &OwnedTagChange, version_exists: bool) -> Result<()> {
+    let reason = match change.target.as_deref() {
+        Some(version) if !version_exists => {
+            format!("dist-tag {:?} target {version:?} is not a published version", change.tag)
+        }
+        None if change.tag == "latest" && version_exists => {
+            r#"cannot remove dist-tag "latest" while published versions exist"#.to_string()
+        }
+        _ => return Ok(()),
+    };
+    Err(RegistryError::BadRequest { reason })
 }
 
 /// Point a tag of the package where `change` says, reporting whether it

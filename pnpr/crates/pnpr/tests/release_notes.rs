@@ -253,7 +253,7 @@ async fn an_unpublished_version_serves_no_note() {
 }
 
 #[tokio::test]
-async fn a_version_spelled_dist_tag_names_the_version_it_points_at() {
+async fn a_version_spelled_dist_tag_is_rejected() {
     let tmp = TempDir::new().unwrap();
     let app = app(&tmp);
     let token = token(&app).await;
@@ -268,9 +268,9 @@ async fn a_version_spelled_dist_tag_names_the_version_it_points_at() {
         Body::from(r#""1.0.0""#),
     )
     .await;
-    assert_eq!(tag.status, StatusCode::CREATED, "{}", tag.text());
+    assert_eq!(tag.status, StatusCode::BAD_REQUEST, "{}", tag.text());
     let note = send(&app, "GET", "/npm/tagged/v9.9.9/notes", None, Body::empty()).await;
-    assert_eq!((note.status, note.text()), (StatusCode::OK, "- one\n"));
+    assert_eq!(note.status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
