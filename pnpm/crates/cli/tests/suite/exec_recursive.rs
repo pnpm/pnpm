@@ -175,6 +175,44 @@ fn recursive_exec_runs_command_in_every_project() {
     drop(root);
 }
 
+#[test]
+fn recursive_exec_checks_node_engines_against_each_projects_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-1\n  - project-2\nengineStrict: true\n",
+    )
+    .expect("write workspace settings");
+    for (name, version) in [("project-1", "22.20.0"), ("project-2", "24.0.0")] {
+        fs::write(
+            workspace.join(name).join("package.json"),
+            json!({
+                "name": name,
+                "version": "1.0.0",
+                "engines": { "node": version },
+                "devEngines": { "runtime": { "name": "node", "version": version, "onFail": "download" } },
+            })
+            .to_string(),
+        )
+        .expect("write project manifest");
+    }
+
+    pacquet
+        .with_args(["exec", "-r"])
+        .with_args([
+            "node".to_owned(),
+            "-e".to_owned(),
+            "require('fs').writeFileSync('runtime.txt', process.version)".to_owned(),
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(workspace.join("project-1/runtime.txt")).unwrap(), "v22.20.0");
+    assert_eq!(fs::read_to_string(workspace.join("project-2/runtime.txt")).unwrap(), "v24.0.0");
+    drop(root);
+}
+
 /// pnpm's own options are parsed up to the command name, so `-r` after the
 /// `exec` keyword still selects every project rather than reaching the
 /// command.

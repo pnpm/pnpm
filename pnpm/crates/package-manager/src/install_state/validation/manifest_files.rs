@@ -18,7 +18,7 @@ mod stand_ins;
 /// `optional` flag. A record keeps these, so a manifest rebuilt from them
 /// answers both checks the way the file does. Any other value stays out of
 /// the workspace state. A change to the list bumps [`FIELDS_REVISION`].
-const CHECKED_FIELDS: [(&str, Option<&str>); 14] = [
+const CHECKED_FIELDS: [(&str, Option<&str>); 15] = [
     ("name", None),
     ("version", None),
     ("dependencies", None),
@@ -30,13 +30,14 @@ const CHECKED_FIELDS: [(&str, Option<&str>); 14] = [
     ("directories", Some("bin")),
     ("publishConfig", Some("directory")),
     ("engines", None),
+    ("devEngines", None),
     ("os", None),
     ("cpu", None),
     ("libc", None),
 ];
 
 /// The revision of [`CHECKED_FIELDS`] a record is written with.
-const FIELDS_REVISION: u32 = 1;
+const FIELDS_REVISION: u32 = 2;
 
 /// The fields `file` records, when it records the current [`CHECKED_FIELDS`].
 pub(super) fn current_fields(
@@ -316,3 +317,6 @@ fn peer_optional_flags(meta: &serde_json::Value) -> serde_json::Value {
         .collect::<serde_json::Map<_, _>>()
         .into()
 }
+
+#[cfg(test)]
+mod tests;

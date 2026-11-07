@@ -139,7 +139,10 @@ pub(crate) fn check_workspace_requirements(
         .values()
         .map(|node| node.package.project);
     let host = ProjectHost::new(config, workspace_root);
-    for warning in host.check_every_project(&host_requirements(projects))? {
+    for warning in host.check_every_project(&host_requirements(
+        projects,
+        config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ))? {
         emit(&warning);
     }
     Ok(())

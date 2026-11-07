@@ -305,7 +305,10 @@ pub(crate) fn check_root_project_engine(
     else {
         return Ok(());
     };
-    let Some(requirements) = pnpm_deps_restorer::project_host_requirements(manifest.value()) else {
+    let Some(requirements) = pnpm_deps_restorer::project_host_requirements(
+        manifest.value(),
+        config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ) else {
         return Ok(());
     };
     let host = ProjectHost::new(config, project_dir);

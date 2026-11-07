@@ -191,32 +191,3 @@ function selectPackageManagerEngine (engines: EngineDependency[]): SelectedPacka
   const lastEngine = engines[engines.length - 1]
   return { pmEngine: engines[0], onFail: lastEngine.onFail ?? 'error' }
 }
-
-export function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest): string | undefined {
-  for (const enginesFieldName of ['devEngines', 'engines'] as const) {
-    const resolved = resolveNodeVersionFromEnginesRuntime(manifest[enginesFieldName]?.runtime)
-    if (resolved != null) return resolved.version
-  }
-  return undefined
-}
-
-/**
- * Returns undefined when this runtime field names no usable Node.js version,
- * so the next field is consulted. A defined result ends the search, even when
- * the version it carries is undefined.
- */
-function resolveNodeVersionFromEnginesRuntime (
-  enginesRuntime: DevEngines['runtime']
-): { version: string | undefined } | undefined {
-  if (enginesRuntime == null) return undefined
-  const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
-  const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
-  if (typeof nodeRuntime?.version !== 'string') return undefined
-  const version = nodeRuntime.version.trim()
-  if (!semver.validRange(version)) return undefined
-  if (nodeRuntime.onFail !== 'download') {
-    return { version: semver.valid(version) ?? undefined }
-  }
-  const minVersion = semver.minVersion(version)
-  return minVersion != null ? { version: minVersion.version } : undefined
-}

@@ -152,7 +152,10 @@ fn check_project_requirements<Reporter: self::Reporter>(
     projects: &[pnpm_workspace::Project],
 ) -> miette::Result<()> {
     let host = ProjectHost::new(cfg, workspace_root);
-    for warning in host.check_projects(&host_requirements(projects))? {
+    for warning in host.check_projects(&host_requirements(
+        projects,
+        cfg.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ))? {
         Reporter::emit(&warning);
     }
     Ok(())

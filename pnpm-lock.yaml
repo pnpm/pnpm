@@ -11103,6 +11103,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/text.ordinal-comparator':
         specifier: workspace:*
         version: link:../../text/ordinal-comparator

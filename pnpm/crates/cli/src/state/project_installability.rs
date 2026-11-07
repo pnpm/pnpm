@@ -47,6 +47,17 @@ impl<'a> ProjectHost<'a> {
         })
     }
 
+    /// The Node.js a project's scripts run on: the one pnpm downloads for it,
+    /// unless `nodeVersion` is configured or runtimes are skipped.
+    fn project_node_version<'v>(&'v self, downloaded: Option<&'v str>) -> &'v str {
+        match downloaded {
+            Some(version) if self.config.node_version.is_none() && !self.config.skip_runtimes => {
+                version
+            }
+            _ => self.node_version(),
+        }
+    }
+
     fn root_runtime_node_version(&self) -> Option<String> {
         if self.config.skip_runtimes {
             return None;
@@ -63,27 +74,31 @@ impl<'a> ProjectHost<'a> {
     pub(crate) fn check(
         &self,
         project_dir: &Path,
-        requirements: &PackageInstallabilityManifest,
+        requirements: &pnpm_deps_restorer::ProjectHostRequirements,
     ) -> Result<Vec<LogEvent>, InitStateError> {
         let engines = PackageInstallabilityManifest {
-            engines: requirements.engines.clone(),
+            engines: requirements.installability.engines.clone(),
             ..PackageInstallabilityManifest::default()
         };
-        let platform = PackageInstallabilityManifest { engines: None, ..requirements.clone() };
+        let platform =
+            PackageInstallabilityManifest { engines: None, ..requirements.installability.clone() };
         [engines, platform]
             .iter()
-            .filter_map(|part| self.check_part(project_dir, part).transpose())
+            .filter_map(|part| {
+                self.check_part(project_dir, requirements.node_version.as_deref(), part).transpose()
+            })
             .collect()
     }
 
     fn check_part(
         &self,
         project_dir: &Path,
+        downloaded_node_version: Option<&str>,
         requirements: &PackageInstallabilityManifest,
     ) -> Result<Option<LogEvent>, InitStateError> {
         let wanted_engine = requirements.engines.as_ref();
         let node_version = match wanted_engine.and_then(|engine| engine.node.as_ref()) {
-            Some(_) => self.node_version(),
+            Some(_) => self.project_node_version(downloaded_node_version),
             None => "",
         };
         let pnpm_version =
@@ -114,7 +129,7 @@ impl<'a> ProjectHost<'a> {
     /// the warnings to emit, so that a run that fails emits none.
     pub(crate) fn check_projects(
         &self,
-        projects: &[(PathBuf, PackageInstallabilityManifest)],
+        projects: &[(PathBuf, pnpm_deps_restorer::ProjectHostRequirements)],
     ) -> Result<Vec<LogEvent>, InitStateError> {
         let root_dir = pnpm_fs::lexical_normalize(self.root_dir);
         self.check_each(
@@ -127,14 +142,14 @@ impl<'a> ProjectHost<'a> {
     /// [`Self::check_projects`], the project in the root directory included.
     pub(crate) fn check_every_project(
         &self,
-        projects: &[(PathBuf, PackageInstallabilityManifest)],
+        projects: &[(PathBuf, pnpm_deps_restorer::ProjectHostRequirements)],
     ) -> Result<Vec<LogEvent>, InitStateError> {
         self.check_each(projects.iter())
     }
 
     fn check_each<'p>(
         &self,
-        projects: impl Iterator<Item = &'p (PathBuf, PackageInstallabilityManifest)>,
+        projects: impl Iterator<Item = &'p (PathBuf, pnpm_deps_restorer::ProjectHostRequirements)>,
     ) -> Result<Vec<LogEvent>, InitStateError> {
         let mut warnings = Vec::new();
         for (project_dir, requirements) in projects {
@@ -148,11 +163,12 @@ impl<'a> ProjectHost<'a> {
 /// host, keyed by its directory.
 pub(crate) fn host_requirements<'p>(
     projects: impl IntoIterator<Item = &'p Project>,
-) -> Vec<(PathBuf, PackageInstallabilityManifest)> {
+    runtime_on_fail: Option<&str>,
+) -> Vec<(PathBuf, pnpm_deps_restorer::ProjectHostRequirements)> {
     projects
         .into_iter()
         .filter_map(|project| {
-            pnpm_deps_restorer::project_host_requirements(project.manifest.value())
+            pnpm_deps_restorer::project_host_requirements(project.manifest.value(), runtime_on_fail)
                 .map(|requirements| (project.root_dir.clone(), requirements))
         })
         .collect()

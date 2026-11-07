@@ -42,6 +42,49 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     }
 }
 
+#[test]
+fn recursive_run_checks_node_engines_against_each_projects_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                json!({
+                    "name": "project-1",
+                    "engines": { "node": "22.20.0" },
+                    "devEngines": { "runtime": { "name": "node", "version": "22.20.0", "onFail": "download" } },
+                    "scripts": { "test": r#"node -e "require('fs').writeFileSync('runtime.txt', process.version)""# },
+                }),
+            ),
+            (
+                "project-2",
+                json!({
+                    "name": "project-2",
+                    "engines": { "node": "24.0.0" },
+                    "devEngines": { "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" } },
+                    "scripts": { "test": r#"node -e "require('fs').writeFileSync('runtime.txt', process.version)""# },
+                }),
+            ),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-1\n  - project-2\nengineStrict: true\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet
+        .with_args(["run", "-r", "test"])
+        .output()
+        .expect("run recursive script");
+
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(fs::read_to_string(workspace.join("project-1/runtime.txt")).unwrap(), "v22.20.0");
+    assert_eq!(fs::read_to_string(workspace.join("project-2/runtime.txt")).unwrap(), "v24.0.0");
+    drop(root);
+}
+
 /// Place a runnable `name` in `bin_dir` whose program is the Node source
 /// `body`, standing in for an installed dependency's bin on `PATH`.
 ///
