@@ -59,8 +59,9 @@ export async function removeBinsOfDependency (
 }
 
 /**
- * Returns `undefined` when the manifest is missing or malformed, so that its
- * bins are left in place instead of blocking the dependency's removal.
+ * Returns `undefined` when the manifest is missing or malformed, or its path
+ * runs through a file, so that its bins are left in place instead of blocking
+ * the dependency's removal. Rethrows every other read error.
  */
 export async function safeReadDependencyManifest (dependencyDir: string): Promise<DependencyManifest | undefined> {
   try {

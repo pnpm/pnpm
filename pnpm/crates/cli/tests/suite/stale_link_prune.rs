@@ -122,12 +122,28 @@ fn a_removed_link_dependency_is_reported() {
     }
 }
 
-/// With a bin, the link leaves a real `.bin`, so the removal reads the
-/// manifest to remove its bins.
-fn remove_a_link_dependency_with_a_malformed_manifest(with_bin: bool) {
+/// Whether the removed dependency declares a bin. With one, the link
+/// leaves a real `.bin`, so the removal reads the manifest to remove its
+/// bins.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinkedBins {
+    None,
+    One,
+}
+
+/// What [`remove_a_link_dependency_with_a_malformed_manifest`] saw.
+#[derive(Debug)]
+struct MalformedManifestRemoval {
+    has_bins_dir: bool,
+    present_after: bool,
+    /// The `(alias, version)` of each [`removals`] entry.
+    removed: Vec<(String, Value)>,
+}
+
+fn remove_a_link_dependency_with_a_malformed_manifest(bins: LinkedBins) {
     let observed = under_each_linker(|pacquet, workspace| {
         let mut manifest = json!({ "name": "lib", "version": "1.0.0" });
-        if with_bin {
+        if bins == LinkedBins::One {
             manifest["bin"] = json!("cli.js");
         }
         write_json(&workspace.join("lib/package.json"), &manifest);
@@ -139,28 +155,31 @@ fn remove_a_link_dependency_with_a_malformed_manifest(with_bin: bool) {
 
         write_root_manifest(workspace, &json!({}));
         let records = install(pacquet_in(workspace));
-        let removed: Vec<_> = removals(&records)
-            .into_iter()
-            .map(|(_, alias, version)| (alias, version))
-            .collect();
-        (has_bins_dir, fs::symlink_metadata(workspace.join("node_modules/lib")).is_ok(), removed)
+        MalformedManifestRemoval {
+            has_bins_dir,
+            present_after: fs::symlink_metadata(workspace.join("node_modules/lib")).is_ok(),
+            removed: removals(&records)
+                .into_iter()
+                .map(|(_, alias, version)| (alias, version))
+                .collect(),
+        }
     });
-    dbg!(with_bin, &observed);
-    for (linker, (has_bins_dir, present_after, removed)) in observed {
-        assert_eq!(has_bins_dir, with_bin, "nodeLinker: {linker}");
-        assert!(!present_after, "nodeLinker: {linker}");
-        assert_eq!(removed, [("lib".to_owned(), Value::Null)], "nodeLinker: {linker}");
+    dbg!(bins, &observed);
+    for (linker, removal) in observed {
+        assert_eq!(removal.has_bins_dir, bins == LinkedBins::One, "nodeLinker: {linker}");
+        assert!(!removal.present_after, "nodeLinker: {linker}");
+        assert_eq!(removal.removed, [("lib".to_owned(), Value::Null)], "nodeLinker: {linker}");
     }
 }
 
 #[test]
 fn a_removed_link_dependency_with_a_malformed_manifest_is_unlinked() {
-    remove_a_link_dependency_with_a_malformed_manifest(false);
+    remove_a_link_dependency_with_a_malformed_manifest(LinkedBins::None);
 }
 
 #[test]
 fn a_removed_link_dependency_with_bins_and_a_malformed_manifest_is_unlinked() {
-    remove_a_link_dependency_with_a_malformed_manifest(true);
+    remove_a_link_dependency_with_a_malformed_manifest(LinkedBins::One);
 }
 
 /// The root names `packages/shared` as `link:packages/shared`, the project
