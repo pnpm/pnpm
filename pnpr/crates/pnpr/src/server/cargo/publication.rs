@@ -179,7 +179,7 @@ pub(super) fn refuse_invalid_publication(
 ) -> impl Fn(&CrateDocument) -> Result<(), RegistryError> {
     let (name, vers) = (entry.name.clone(), entry.vers.clone());
     move |document: &CrateDocument| {
-        if !document.versions.is_empty() && !document.name.eq_ignore_ascii_case(&name) {
+        if !document.versions.is_empty() && document.name != name {
             return Err(RegistryError::BadRequest {
                 reason: format!(
                     "crate `{name}` was first published as `{}`; use that spelling for new versions",

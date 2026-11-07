@@ -535,22 +535,26 @@ defaultRegistry: main
             .into_iter()
             .find(|alias| *alias != published)
             .unwrap();
-        let response = app
-            .clone()
-            .oneshot(publish_request(
-                Some(&token),
-                publish_body(&metadata(other, "0.2.0"), &crate_archive(other, "0.2.0")),
-            ))
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        let error: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-        assert!(
-            error["errors"][0]["detail"]
-                .as_str()
-                .unwrap()
-                .contains(published),
-        );
+        let alternate_case = published.to_ascii_uppercase();
+        for rejected in [other, alternate_case.as_str()] {
+            let response = app
+                .clone()
+                .oneshot(publish_request(
+                    Some(&token),
+                    publish_body(&metadata(rejected, "0.2.0"), &crate_archive(rejected, "0.2.0")),
+                ))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            let error: Value =
+                serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+            assert!(
+                error["errors"][0]["detail"]
+                    .as_str()
+                    .unwrap()
+                    .contains(published),
+            );
+        }
         for name in aliases {
             let response = app
                 .clone()
