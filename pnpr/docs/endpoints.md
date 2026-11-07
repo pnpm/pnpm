@@ -259,8 +259,10 @@ returns npm's abbreviated install-v1 packument shape. If it sends
 [its own package document](#pnprs-package-document). Package documents carry a
 `pnpr-registry` response header.
 
-Packument responses emit strong `ETag` and `Vary: Accept` headers. Public
-packuments set `Cache-Control: public, max-age=<ttl>` based on upstream or
+Packument responses emit strong `ETag` and `Vary: Accept` headers at the origin.
+A reverse proxy that changes the content coding may weaken the ETag.
+[Cloudflare documents this behavior](https://developers.cloudflare.com/cache/reference/etag-headers/).
+Public packuments set `Cache-Control: public, max-age=<ttl>` based on upstream or
 global packument TTL configuration, while private or caller-scoped responses
 set `Cache-Control: private, no-store` and `Vary: Accept, Authorization`.
 Conditional requests sending `If-None-Match` or `If-Modified-Since` receive
