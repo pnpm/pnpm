@@ -852,33 +852,34 @@ fn commands_find_each_projects_modules_dir_outside_the_project() {
             .with_arg("install")
             .assert()
             .success();
-
-        for (dir, modules_dir) in
-            [(&workspace, &root_modules_dir), (&project_dir, &project_modules_dir)]
-        {
-            let context = format!("{setting:?} {}", dir.display());
-            let real = |path: &str| {
-                dunce::canonicalize(path.trim())
-                    .unwrap_or_else(|error| panic!("{context}: canonicalize {path:?}: {error}"))
-            };
-            assert_eq!(
-                real(&probe_stdout(dir, &["root"])),
-                dunce::canonicalize(modules_dir).unwrap(),
-                "{context}",
-            );
-            assert_eq!(
-                real(&probe_stdout(dir, &["bin"])),
-                dunce::canonicalize(modules_dir.join(".bin")).unwrap(),
-                "{context}",
-            );
-            for args in [&["run", "greet"][..], &["exec", "hello-world-js-bin"]] {
-                pacquet_in(dir)
-                    .with_args(args)
-                    .assert()
-                    .success();
-            }
-        }
-
+        assert_commands_use(&workspace, &root_modules_dir, setting);
+        assert_commands_use(&project_dir, &project_modules_dir, setting);
         drop((root, mock_instance));
+    }
+}
+
+/// `pnpm root` and `pnpm bin` in `dir` print `modules_dir`, and `pnpm run`
+/// and `pnpm exec` find the commands installed in it.
+fn assert_commands_use(dir: &Path, modules_dir: &Path, setting: ModulesDirSetting) {
+    let context = format!("{setting:?} {}", dir.display());
+    let real = |path: &str| {
+        dunce::canonicalize(path.trim())
+            .unwrap_or_else(|error| panic!("{context}: canonicalize {path:?}: {error}"))
+    };
+    assert_eq!(
+        real(&probe_stdout(dir, &["root"])),
+        dunce::canonicalize(modules_dir).unwrap(),
+        "{context}",
+    );
+    assert_eq!(
+        real(&probe_stdout(dir, &["bin"])),
+        dunce::canonicalize(modules_dir.join(".bin")).unwrap(),
+        "{context}",
+    );
+    for args in [&["run", "greet"][..], &["exec", "hello-world-js-bin"]] {
+        pacquet_in(dir)
+            .with_args(args)
+            .assert()
+            .success();
     }
 }
