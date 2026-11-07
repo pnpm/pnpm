@@ -10,12 +10,8 @@ use super::{
     serve_tarball_via_upstream, tar_integrities_of, tarball_response,
 };
 use axum::response::IntoResponse;
-
 mod version_documents;
-
-// --------------------------------------------------------------------
 // Handler bodies.
-// --------------------------------------------------------------------
 
 pub(super) async fn serve_packument(
     state: &AppState,
@@ -33,7 +29,6 @@ pub(super) async fn serve_packument(
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
-// --------------------------------------------------------------------
 // Registry dispatch. A `/~<name>/` request resolves the package to
 // exactly one concrete origin through the validated registry graph
 // ([`pnpr_registry`]) and serves it there — authoritatively. Every concrete
@@ -45,7 +40,6 @@ pub(super) async fn serve_packument(
 // (the via-upstream path returns `UpstreamUnavailable`), so a down private
 // source can never be reported as "not found" and pushed onto a public origin
 // one layer out.
-// --------------------------------------------------------------------
 
 /// The concrete origin a `/~<name>/` request resolved to, owned so it can be
 /// held across an `await` without borrowing the config.

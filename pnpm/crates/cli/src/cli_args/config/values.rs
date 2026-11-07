@@ -110,10 +110,7 @@ const STRING_ONLY_INI_KEYS: &[&str] = &["_auth", "_authToken", "_password", "use
 pub(super) fn is_string_only_ini_key(key: &str) -> bool {
     STRING_ONLY_INI_KEYS.contains(&key) || key.starts_with('@') || key.starts_with("//")
 }
-
-// ---------------------------------------------------------------------------
 // config get / list
-// ---------------------------------------------------------------------------
 
 /// `configGet`: resolve and render the value at `key`.
 pub(super) fn config_get(

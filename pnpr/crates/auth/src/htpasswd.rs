@@ -1,9 +1,6 @@
 use super::{AtomicU64, HashMap, Ordering, Path, PathBuf, RegistryError, Result, UpsertOutcome};
 use crate::validation::validate_username;
-
-// ---------------------------------------------------------------
 // htpasswd I/O
-// ---------------------------------------------------------------
 
 /// Parse bcrypt and Apache `{SHA}` credentials for import.
 pub fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
@@ -157,10 +154,7 @@ pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
         None => PathBuf::from(name),
     }
 }
-
-// ---------------------------------------------------------------
 // bcrypt helpers
-// ---------------------------------------------------------------
 
 const DUMMY_BCRYPT_BODY: &str = "L6Bc/AlTQHyd9liGgGEZyOFLPHNgyxeEPfgYfBCVxJ7JIlwxyVU3u";
 
