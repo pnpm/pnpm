@@ -1,9 +1,8 @@
 use super::{
-    HashMap, Host, LinkBinsOptions, Path, PathBuf, PreparedPackageBins, fs,
-    link_top_level_bins_cached,
+    HashMap, Host, LinkBinsOptions, Path, PathBuf, PreparedPackageBins, link_top_level_bins_cached,
 };
 use pnpm_cmd_shim::DirectoryBinPlan;
-use std::collections::HashSet;
+use std::{collections::HashSet, fs};
 
 #[test]
 fn cached_importer_sources_keep_selected_alias_order_and_fall_back_for_new_locations() {

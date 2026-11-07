@@ -1,13 +1,11 @@
-use super::{build_has_bin_set, existing_commands, pkg_dir_under, read_location_bin_sources};
+use super::{build_has_bin_set, pkg_dir_under};
 use crate::PackageManifests;
 use pnpm_cmd_shim::{
-    BinOrigin, Host, LinkBinsError, LinkBinsOptions, LinkBinsOutcome, PackageBinSource,
-    ShimTargetCache, collect_packages_in_modules_dir, link_bins_of_packages,
-    link_bins_of_packages_outcome,
+    BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
+    collect_packages_in_modules_dir, link_bins_of_packages,
 };
 use pnpm_lockfile::{PackageKey, PackageMetadata};
 use pnpm_package_manifest::{find_parent_publish_manifest, parse_manifest_bytes};
-use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
     fs, io,
@@ -15,44 +13,8 @@ use std::{
     sync::Arc,
 };
 
-/// Read the `package.json` of every direct dependency under `modules_dir`
-/// and link its bins into `<modules_dir>/.bin`.
-///
-/// `dep_names` is the list of direct-dependency keys as they appear in
-/// `package.json`, the same names already symlinked under `<modules_dir>/`
-/// by [`crate::SymlinkDirectDependencies`]. We resolve `package.json` via
-/// the symlink (`fs::read` follows it transparently) so the read targets
-/// the real package contents in the virtual store.
-///
-/// Driven on rayon because each location's read+parse is independent.
-pub fn link_direct_dep_bins(
-    modules_dir: &Path,
-    dep_names: &[String],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let deps: Vec<(&str, Option<&Path>)> = dep_names
-        .iter()
-        .map(|name| (name.as_str(), None))
-        .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options, false).map(|_| ())
-}
-/// [`link_direct_dep_bins`] for a `.bin` under the hoisted linker that is
-/// linked again after the builds. Every bin whose target is missing is held
-/// back until then, so a dependency's lifecycle scripts cannot reach a shim of
-/// a file they have yet to create. See [`PackageBinSource::build_pending`].
-pub fn link_direct_dep_bins_before_builds(
-    modules_dir: &Path,
-    dep_names: &[String],
-    link_options: &LinkBinsOptions,
-) -> Result<LinkBinsOutcome, LinkBinsError> {
-    let deps: Vec<(&str, Option<&Path>)> = dep_names
-        .iter()
-        .map(|name| (name.as_str(), None))
-        .collect();
-    link_named_dep_bins(modules_dir, &deps, link_options, true)
-}
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
-/// `(alias, slot package dir)` pairs [`link_direct_dep_bins_resolved`]
+/// `(alias, slot package dir)` pairs [`crate::BinCandidates::Resolved`]
 /// takes — the same slot derivation `symlink_hoisted_dependencies`
 /// used to create the aliases.
 #[must_use]
@@ -67,44 +29,7 @@ pub fn resolve_hoisted_bin_deps(
         })
         .collect()
 }
-/// [`link_direct_dep_bins`] for callers that also know each symlink's
-/// destination (the virtual-store slot the alias points at): threading
-/// it through as [`PackageBinSource::resolved_location`] keeps the
-/// shim `NODE_PATH` derivation syscall-free.
-pub fn link_direct_dep_bins_resolved(
-    modules_dir: &Path,
-    deps: &[(String, PathBuf)],
-    link_options: &LinkBinsOptions,
-) -> Result<HashSet<String>, LinkBinsError> {
-    link_direct_dep_bins_resolved_excluding(modules_dir, deps, &HashSet::new(), link_options)
-}
-pub(crate) fn link_direct_dep_bins_resolved_with_sources(
-    modules_dir: &Path,
-    deps: &[(String, PathBuf)],
-    link_options: &LinkBinsOptions,
-) -> Result<(HashSet<String>, Vec<PackageBinSource>), LinkBinsError> {
-    let deps: Vec<(&str, Option<&Path>)> = deps
-        .iter()
-        .map(|(name, target)| (name.as_str(), Some(target.as_path())))
-        .collect();
-    link_named_dep_bins_excluding(modules_dir, &deps, &HashSet::new(), link_options, false)
-        .map(|(outcome, sources)| (outcome.linked_commands, sources))
-}
-/// [`link_direct_dep_bins_resolved`] skipping command names in `exclude_bins`.
-pub fn link_direct_dep_bins_resolved_excluding(
-    modules_dir: &Path,
-    deps: &[(String, PathBuf)],
-    exclude_bins: &HashSet<String>,
-    link_options: &LinkBinsOptions,
-) -> Result<HashSet<String>, LinkBinsError> {
-    let deps: Vec<(&str, Option<&Path>)> = deps
-        .iter()
-        .map(|(name, target)| (name.as_str(), Some(target.as_path())))
-        .collect();
-    link_named_dep_bins_excluding(modules_dir, &deps, exclude_bins, link_options, false)
-        .map(|(outcome, _)| outcome.linked_commands)
-}
-/// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
+/// One direct dep of a [`crate::BinCandidates::Prefetched`] pass:
 /// the alias under `node_modules/`, the symlink's destination, and the
 /// resolved snapshot key (`None` for `link:` workspace siblings, which
 /// have no lockfile row).
@@ -134,7 +59,7 @@ pub struct PrefetchedBinLookup<'a> {
     /// Per-target shim probe memo, shared so each virtual-store bin
     /// file's shebang read and executable-bit fix-up run once per pass
     /// rather than once per importer.
-    shim_cache: ShimTargetCache,
+    pub(super) shim_cache: ShimTargetCache,
     /// See [`Self::with_scheduled_builds`].
     scheduled_builds: Option<&'a crate::build_modules::ScheduledBuilds<'a>>,
 }
@@ -158,7 +83,7 @@ impl<'a> PrefetchedBinLookup<'a> {
         self
     }
 
-    fn is_build_pending(&self, snapshot_key: Option<&PackageKey>) -> bool {
+    pub(super) fn is_build_pending(&self, snapshot_key: Option<&PackageKey>) -> bool {
         let (Some(scheduled), Some(key)) = (self.scheduled_builds, snapshot_key) else {
             return false;
         };
@@ -180,50 +105,6 @@ impl<'a> PrefetchedBinLookup<'a> {
             scheduled_builds: None,
         }
     }
-}
-/// [`link_direct_dep_bins_resolved`] with the per-dep `package.json`
-/// read replaced by lockfile metadata for snapshots the prefetch
-/// proved build-free: those whose lockfile row says `hasBin: false`
-/// are skipped without touching the filesystem, and those with bins
-/// take their manifest from the store-index prefetch. Deps outside the
-/// lookup's reach (`link:` siblings, snapshots that may run build
-/// scripts, prefetch misses, a lockfile without a `packages:` section)
-/// keep the `NotFound`-tolerant disk read.
-pub fn link_direct_dep_bins_prefetched(
-    modules_dir: &Path,
-    deps: &[PrefetchedDepBin],
-    lookup: &PrefetchedBinLookup<'_>,
-    link_options: &LinkBinsOptions,
-) -> Result<HashSet<String>, LinkBinsError> {
-    let bin_sources: Vec<PackageBinSource> = deps
-        .par_iter()
-        .filter_map(|(name, target, snapshot_key)| {
-            let source = match prefetched_bin_source(
-                modules_dir,
-                name,
-                target,
-                snapshot_key.as_ref(),
-                lookup,
-            ) {
-                PrefetchedBin::NoBins => None,
-                PrefetchedBin::Source(source) => Some(Ok(source)),
-                PrefetchedBin::ReadFromDisk => read_dep_bin_source(modules_dir, name, target),
-            };
-            let build_pending = lookup.is_build_pending(snapshot_key.as_ref());
-            source.map(|source| source.map(|source| source.with_build_pending(build_pending)))
-        })
-        .collect::<Result<_, _>>()?;
-    if bin_sources.is_empty() {
-        return Ok(HashSet::new());
-    }
-    link_bins_of_packages_outcome::<Host>(
-        &bin_sources,
-        &modules_dir.join(".bin"),
-        &HashSet::new(),
-        link_options,
-        &lookup.shim_cache,
-    )
-    .map(|outcome| outcome.linked_commands)
 }
 /// What the prefetched facts say about one direct dependency's bins.
 pub(super) enum PrefetchedBin {
@@ -286,28 +167,12 @@ fn read_manifest_at(manifest_path: &Path) -> Result<Option<serde_json::Value>, L
         .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path.to_path_buf(), error })
 }
 
-/// The disk-read arm of [`link_direct_dep_bins_prefetched`], with the
-/// same `NotFound`-tolerant / other-IO-fatal policy as
-/// [`link_direct_dep_bins`].
-pub(super) fn read_dep_bin_source(
-    modules_dir: &Path,
-    name: &str,
-    target: &Path,
-) -> Option<Result<PackageBinSource, LinkBinsError>> {
-    read_dep_manifest(modules_dir, name, Some(target))
-        .map(|result| {
-            result.map(|(location, manifest)| {
-                PackageBinSource::new(location, Arc::new(manifest))
-                    .with_resolved_location(target.to_path_buf())
-            })
-        })
-}
 /// Reads `<modules_dir>/<name>/package.json`. A dependency linked to an
 /// existing `publishConfig.directory` that has no manifest of its own
 /// falls back to the manifest of the project that declares that
 /// directory, found through `target`. A publish directory that does not
 /// exist yet has no bins to link; a build creates it later.
-fn read_dep_manifest(
+pub(super) fn read_dep_manifest(
     modules_dir: &Path,
     name: &str,
     target: Option<&Path>,
@@ -335,107 +200,6 @@ fn read_existing_publish_manifest(
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(LinkBinsError::ResolvePath { path: target.to_path_buf(), error }),
     }
-}
-pub(super) fn link_named_dep_bins(
-    modules_dir: &Path,
-    deps: &[(&str, Option<&Path>)],
-    link_options: &LinkBinsOptions,
-    build_pending: bool,
-) -> Result<LinkBinsOutcome, LinkBinsError> {
-    link_named_dep_bins_with_sources(modules_dir, deps, link_options, build_pending)
-        .map(|(outcome, _)| outcome)
-}
-
-pub(crate) fn link_named_dep_bins_with_sources(
-    modules_dir: &Path,
-    deps: &[(&str, Option<&Path>)],
-    link_options: &LinkBinsOptions,
-    build_pending: bool,
-) -> Result<(LinkBinsOutcome, Vec<PackageBinSource>), LinkBinsError> {
-    link_named_dep_bins_excluding(modules_dir, deps, &HashSet::new(), link_options, build_pending)
-}
-
-fn link_named_dep_bins_excluding(
-    modules_dir: &Path,
-    deps: &[(&str, Option<&Path>)],
-    exclude_bins: &HashSet<String>,
-    link_options: &LinkBinsOptions,
-    build_pending: bool,
-) -> Result<(LinkBinsOutcome, Vec<PackageBinSource>), LinkBinsError> {
-    // Swallow only `NotFound`: a direct-dep symlink target can
-    // legitimately be missing right after a partial pacquet run, or
-    // be an in-progress install. Every other IO error (permission
-    // denied, EIO, etc.) and every JSON parse error must surface as
-    // `LinkBinsError::{ReadManifest, ParseManifest}` so the failure
-    // is diagnosable rather than hiding behind a missing `.bin`
-    // entry. Matches the read-side error policy in
-    // `pnpm_cmd_shim::link_bins`.
-    let bin_sources: Vec<PackageBinSource> = deps
-        .par_iter()
-        .filter_map(|(name, resolved)| {
-            let (location, manifest) = match read_dep_manifest(modules_dir, name, *resolved)? {
-                Ok(found) => found,
-                Err(err) => return Some(Err(err)),
-            };
-            let mut source = PackageBinSource::new(location, Arc::new(manifest))
-                .with_build_pending(build_pending);
-            if let Some(resolved) = resolved {
-                source = source.with_resolved_location(resolved.to_path_buf());
-            }
-            Some(Ok(source))
-        })
-        .collect::<Result<_, _>>()?;
-    let outcome = link_bins_of_packages_outcome::<Host>(
-        &bin_sources,
-        &modules_dir.join(".bin"),
-        exclude_bins,
-        link_options,
-        &ShimTargetCache::default(),
-    )?;
-    Ok((outcome, bin_sources))
-}
-/// Link bins from resolved direct-dependency locations without requiring
-/// importer symlinks. This is the `symlink: false` counterpart of
-/// [`link_direct_dep_bins`]: `PnP` still exposes dependency executables in
-/// `<modules_dir>/.bin` even though `<modules_dir>/<name>` is absent.
-pub fn link_direct_dep_bins_from_locations(
-    modules_dir: &Path,
-    locations: &[PathBuf],
-    link_options: &LinkBinsOptions,
-) -> Result<HashSet<String>, LinkBinsError> {
-    link_bins_from_locations_excluding(modules_dir, locations, &HashSet::new(), link_options)
-}
-/// [`link_direct_dep_bins_from_locations`] skipping command names in `exclude_bins`.
-pub fn link_bins_from_locations_excluding(
-    modules_dir: &Path,
-    locations: &[PathBuf],
-    exclude_bins: &HashSet<String>,
-    link_options: &LinkBinsOptions,
-) -> Result<HashSet<String>, LinkBinsError> {
-    let bin_sources = read_location_bin_sources(locations)?;
-    if bin_sources.is_empty() {
-        return Ok(HashSet::new());
-    }
-    link_bins_of_packages_outcome::<Host>(
-        &bin_sources,
-        &modules_dir.join(".bin"),
-        exclude_bins,
-        link_options,
-        &ShimTargetCache::default(),
-    )
-    .map(|outcome| outcome.linked_commands)
-}
-/// [`link_direct_dep_bins_from_locations`] that leaves every command
-/// already in `<modules_dir>/.bin` in place, so the packages at
-/// `locations` only add commands nothing else provides.
-pub fn link_new_bins_from_locations(
-    modules_dir: &Path,
-    locations: &[PathBuf],
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkBinsError> {
-    let bins_dir = modules_dir.join(".bin");
-    let existing = existing_commands(&bins_dir)?;
-    link_bins_from_locations_excluding(modules_dir, locations, &existing, link_options).map(|_| ())
 }
 /// Link a project's top-level bins while preserving direct-dependency
 /// precedence over every other package present in its `node_modules`.

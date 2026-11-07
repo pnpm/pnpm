@@ -1,13 +1,11 @@
-use super::read_location_bin_sources;
+use super::{direct::read_dep_manifest, read_location_bin_sources};
 use pnpm_cmd_shim::{
     BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, PreparedPackageBins,
     ShimTargetCache, link_bins_of_packages_outcome, link_bins_of_packages_precomputed,
 };
-use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
-    fs, io,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -102,41 +100,26 @@ pub(crate) fn link_top_level_bins_cached(
         .map(|outcome| outcome.linked_commands),
     }
 }
-/// Read each `<modules_dir>/<name>/package.json` and assemble the
-/// list of [`PackageBinSource`]s. Same `NotFound`-tolerant /
-/// other-IO-fatal policy as [`super::link_direct_dep_bins`]; factored out
-/// so [`link_top_level_bins`] can reuse the read pass for both
-/// direct and hoisted candidate lists.
+/// The direct or hoisted candidates named `dep_names`, read as
+/// [`BinCandidates::Aliases`](super::BinCandidates::Aliases) reads them unless
+/// `cached` already holds them.
 fn read_bin_sources(
     modules_dir: &Path,
     dep_names: &[String],
     cached: Option<&HashMap<PathBuf, PreparedPackageBins>>,
 ) -> Result<Vec<PackageBinSource>, LinkBinsError> {
-    let locations: Vec<PathBuf> = dep_names
-        .iter()
-        .map(|name| modules_dir.join(name))
-        .collect();
-    locations
+    dep_names
         .par_iter()
-        .filter_map(|location| {
-            if let Some(source) = cached.and_then(|sources| sources.get(location)) {
+        .filter_map(|name| {
+            if let Some(source) = cached.and_then(|sources| sources.get(&modules_dir.join(name))) {
                 return Some(Ok(source.source().clone()));
             }
-            let manifest_path = location.join("package.json");
-            let bytes = match fs::read(&manifest_path) {
-                Ok(bytes) => bytes,
-                Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
-                }
-            };
-            let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
-                }
-            };
-            Some(Ok(PackageBinSource::new(location.clone(), Arc::new(manifest))))
+            read_dep_manifest(modules_dir, name, None)
+                .map(|result| {
+                    result.map(|(location, manifest)| {
+                        PackageBinSource::new(location, Arc::new(manifest))
+                    })
+                })
         })
         .collect()
 }
