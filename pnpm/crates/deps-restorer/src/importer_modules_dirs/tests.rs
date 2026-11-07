@@ -58,7 +58,7 @@ fn removals_inside_the_workspace_are_bound_by_it_when_the_root_modules_dir_conta
     );
     assert_eq!(
         dirs.removal_bound(Path::new("/parent/ws/packages/foo/node_modules")),
-        Path::new("/parent/ws")
+        Path::new("/parent/ws"),
     );
     assert_eq!(dirs.removal_bound(Path::new("/parent/.pnpm")), Path::new("/parent"));
 }
