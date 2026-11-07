@@ -13,7 +13,7 @@ import type { DependencyManifest, DepPath, HoistedDependencies, ProjectId } from
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
 import { getDirectDependencyAliases } from './directDependencyAliases.js'
 import { forgetReplacedHoistedLocations } from './forgetReplacedHoistedLocations.js'
-import { isStrictlyInside } from './importerModulesDir.js'
+import { importerModulesDir, isStrictlyInside } from './importerModulesDir.js'
 import { linkHoistedModules } from './linkHoistedModules.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 import { symlinkDirectDependencies } from './symlinkDirectDependencies.js'
@@ -103,13 +103,18 @@ async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph
  * older layout put elsewhere. A recorded location that leaves the lockfile
  * directory, or names the directory itself, is ignored.
  */
-function previousPackageDirs ({ opts }: HeadlessContext, prevGraph: DependenciesGraph): string[] {
+function previousPackageDirs ({ opts, rootModulesDir }: HeadlessContext, prevGraph: DependenciesGraph): string[] {
+  const configuredRootModulesDir = importerModulesDir(opts.lockfileDir, opts)
+  const isPermittedDir = (dir: string) =>
+    isStrictlyInside(dir, opts.lockfileDir) ||
+    isStrictlyInside(dir, rootModulesDir) ||
+    isStrictlyInside(dir, configuredRootModulesDir)
   const recorded = Object.values(opts.modulesFile?.hoistedLocations ?? {})
     .flat()
     .filter((location) => !path.isAbsolute(location))
     .map((location) => path.join(opts.lockfileDir, location))
     .filter((dir) => isStrictlyInside(dir, opts.lockfileDir))
-  return [...Object.keys(prevGraph), ...recorded]
+  return [...Object.keys(prevGraph).filter(isPermittedDir), ...recorded]
 }
 
 async function hoistWorkspacePackagesToRoot (ctx: HeadlessContext, depGraph: HeadlessDepGraph): Promise<HoistedDependencies> {

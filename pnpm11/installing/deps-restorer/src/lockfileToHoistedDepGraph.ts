@@ -18,7 +18,7 @@ import type { AllowBuild, DepPath, ProjectId, RegistryContext, SupportedArchitec
 
 import { pickResolvableImporterIds } from './currentLockfileImporters.js'
 import { fetchDeps, type FetchDepsOptions, type SkipFetchingOption } from './fetchHoistedDeps.js'
-import { importerModulesDir } from './importerModulesDir.js'
+import { importerModulesDir, isStrictlyInside } from './importerModulesDir.js'
 
 export interface LockfileToHoistedDepGraphOptions extends RegistryContext {
   allowBuild?: AllowBuild
@@ -71,9 +71,15 @@ export async function lockfileToHoistedDepGraph (
 ): Promise<LockfileToDepGraphResult> {
   let prevGraph!: DependenciesGraph
   if (currentLockfile?.packages != null) {
+    const prevImporterIds = Array.from(new Set([
+      ...opts.importerIds,
+      ...(Object.keys(currentLockfile.importers) as ProjectId[]).filter((importerId) =>
+        isSafeImporterId(importerId, opts.lockfileDir)
+      ),
+    ]))
     prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
       ...opts,
-      importerIds: pickResolvableImporterIds(currentLockfile, opts.importerIds),
+      importerIds: pickResolvableImporterIds(currentLockfile, prevImporterIds),
       force: true,
       includeIncompatiblePackages: true,
       skipFetching: true,
@@ -86,6 +92,12 @@ export async function lockfileToHoistedDepGraph (
     ...(await _lockfileToHoistedDepGraph(lockfile, opts)),
     prevGraph,
   }
+}
+
+function isSafeImporterId (importerId: string, lockfileDir: string): boolean {
+  if (importerId === '.') return true
+  if (path.isAbsolute(importerId)) return false
+  return isStrictlyInside(path.resolve(lockfileDir, importerId), lockfileDir)
 }
 
 async function _lockfileToHoistedDepGraph (

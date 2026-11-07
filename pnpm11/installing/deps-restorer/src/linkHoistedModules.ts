@@ -127,8 +127,10 @@ async function removeDirsOutsidePlan (
 ): Promise<void> {
   // TODO: remove nested node modules first
   const holdsImporter = holdsAnyOf([lockfileDir, ...importerDirs, ...Object.keys(hierarchy)])
+  const rootModulesDir = importerModulesDir(lockfileDir, { lockfileDir, modulesDir })
+  const isPermittedDir = (dir: string) => isStrictlyInside(dir, lockfileDir) || isStrictlyInside(dir, rootModulesDir)
   const dirsToRemove = difference(previousDirs, Object.keys(graph))
-    .filter((dir) => !holdsImporter(dir))
+    .filter((dir) => !holdsImporter(dir) && isPermittedDir(dir))
   // A directory the previous install recorded is pnpm's to delete. One that only
   // the on-disk scan found is not: pnpm has no record of putting it there, so it
   // is quarantined instead, the way an alien package directory already is.

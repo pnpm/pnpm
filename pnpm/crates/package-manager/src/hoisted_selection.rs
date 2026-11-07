@@ -7,22 +7,25 @@ use std::{collections::HashSet, path::Path};
 /// tree, and the install prunes whatever the new hoist leaves out. So a
 /// selected hoisted install also keeps each importer whose dependencies
 /// `hoisted_prior`, the previous install's current lockfile, records, as long
-/// as the wanted `lockfile` still has that importer. An importer no install
-/// materialized a dependency for stays out, so the selection still decides
-/// what a first install brings in.
+/// as the wanted `lockfile` still has that importer and the project is present
+/// on disk (`real_importer_ids`). An importer no install materialized a
+/// dependency for, or whose project is missing from disk, stays out.
 ///
 /// Pass `hoisted_prior` only for a hoisted layout. Other layouts give each
 /// importer its own `node_modules`, so the selection alone is complete.
 pub(crate) fn selected_materialization_ids(
     lockfile: &Lockfile,
     selected: &HashSet<String>,
+    real_importer_ids: Option<&HashSet<String>>,
     hoisted_prior: Option<&Lockfile>,
 ) -> HashSet<String> {
     let previously_materialized = hoisted_prior
         .into_iter()
         .flat_map(|prior| &prior.importers)
         .filter(|(importer_id, snapshot)| {
-            records_a_dependency(snapshot) && lockfile.importers.contains_key(*importer_id)
+            records_a_dependency(snapshot)
+                && lockfile.importers.contains_key(*importer_id)
+                && real_importer_ids.is_none_or(|real| real.contains(*importer_id))
         })
         .map(|(importer_id, _)| importer_id);
     selected
@@ -36,11 +39,13 @@ pub(crate) fn selected_materialization_ids(
 ///
 /// Applies `groups` (`--prod`, `--dev`, `--no-optional`) to `selected` and
 /// any importers reached from `selected`, while preserving the dependency
-/// groups `hoisted_prior` already materialized for unselected importers.
+/// groups `hoisted_prior` already materialized for unselected importers that
+/// are present on disk (`real_importer_ids`).
 pub(crate) fn selected_materialization_closure(
     lockfile: &Lockfile,
     workspace_root: &Path,
     selected: &HashSet<String>,
+    real_importer_ids: Option<&HashSet<String>>,
     hoisted_prior: Option<&Lockfile>,
     groups: &crate::GroupSelection,
     skipped: &crate::SkippedSnapshots,
@@ -48,7 +53,7 @@ pub(crate) fn selected_materialization_closure(
     let mut selected_closure =
         crate::materialization_closure(lockfile, workspace_root, selected, groups, skipped);
     let Some((retained_source, retained_ids)) = hoisted_prior.and_then(|prior| {
-        retained_prior_importers(lockfile, prior, &selected_closure)
+        retained_prior_importers(lockfile, prior, real_importer_ids, &selected_closure)
     }) else {
         return selected_closure;
     };
@@ -66,6 +71,7 @@ pub(crate) fn selected_materialization_closure(
 fn retained_prior_importers(
     lockfile: &Lockfile,
     prior: &Lockfile,
+    real_importer_ids: Option<&HashSet<String>>,
     selected_closure: &crate::MaterializationClosure,
 ) -> Option<(Lockfile, HashSet<String>)> {
     let mut retained_source = lockfile.clone();
@@ -74,6 +80,7 @@ fn retained_prior_importers(
         .iter()
         .filter(|(importer_id, prior_snapshot)| {
             !selected_closure.importer_ids.contains(*importer_id)
+                && real_importer_ids.is_none_or(|real| real.contains(*importer_id))
                 && records_a_dependency(prior_snapshot)
         })
         .filter_map(|(importer_id, prior_snapshot)| {

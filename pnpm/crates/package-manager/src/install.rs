@@ -133,7 +133,7 @@ use lockfile_freshness::{
 };
 use materialize::{MaterializationInputs, Materialized, materialize};
 use modules_state::{
-    build_modules_manifest, current_contains_dep_path, drain_settled_projects,
+    build_modules_manifest, current_contains_ignored_build, drain_settled_projects,
     gvs_build_marker_present, gvs_build_markers_may_require_recovery,
     has_newly_allowed_ignored_builds, keep_recorded_layout, manifest_string_field,
     merge_filtered_modules_metadata, merge_pending_builds, modules_consistent_with,

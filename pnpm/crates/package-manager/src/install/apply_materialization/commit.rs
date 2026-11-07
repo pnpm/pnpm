@@ -1,7 +1,7 @@
 use super::super::{
     Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules,
     PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
-    current_contains_dep_path, keep_recorded_layout, merge_filtered_modules_metadata,
+    current_contains_ignored_build, keep_recorded_layout, merge_filtered_modules_metadata,
     merge_pending_builds, project_requires_lifecycle_scripts, write_modules_manifest,
 };
 
@@ -344,7 +344,7 @@ pub(super) fn retain_current_ignored_builds(
 ) {
     let Some(previous_ignored) = previous.ignored_builds.as_ref() else { return };
     for dep_path in previous_ignored {
-        if current_contains_dep_path(current, dep_path.as_str())
+        if current_contains_ignored_build(current, dep_path.as_str())
             && allow_build_policy.check(dep_path.as_str()).is_none()
         {
             next.ignored_builds.get_or_insert_default().insert(dep_path.clone());
