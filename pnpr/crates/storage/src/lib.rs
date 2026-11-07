@@ -39,7 +39,7 @@ pub use staged_archives::{
 
 pub use staged_records::PipelineRunKey;
 
-pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
+pub use tombstones::PackageTombstone;
 
 pub use layout_state::HostedLayout;
 
@@ -106,9 +106,6 @@ use layout::{
     ARCHIVES_DIR, BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, blob_segment, package_segments,
 };
 pub const DOCUMENT_WRITE_RETRIES: usize = 8;
-/// Retries a tombstone write allows: higher than the request-path budget
-/// because the write has to converge while every replica may be racing it.
-pub(crate) const COMMIT_DOCUMENT_WRITE_RETRIES: usize = 32;
 const DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 5;
 const MAX_DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 250;
 
@@ -354,18 +351,6 @@ impl Storage {
         self.hosted.local_scratch_root()
     }
 
-    // --- Staged publishes (`-/stage`) -------------------------------------
-    //
-    // A staged publish is a publish document held back until it is approved
-    // (`POST /-/stage/:id/approve`) or rejected (`DELETE /-/stage/:id`). Each
-    // record is two objects in the hosted backend, keyed by the stage id:
-    // a small metadata JSON (listed and served as-is) and the full original
-    // publish body (replayed through the regular publish flow on approval).
-    // Records live under the reserved `.staged/` namespace of the *root*
-    // hosted store — never a per-org view — because the stage id is the only
-    // thing a later `view`/`approve`/`reject` request carries; the record's
-    // metadata remembers which registry the stage was addressed through.
-
     // --- Pipeline runs (`/-/pnpr/v0/pipeline`) ----------------------------
     //
     // A run record is the account `pnpm pipeline` gave of one run: testimony
@@ -392,3 +377,10 @@ fn validated_record_name(name: &str) -> Result<&str> {
 
 #[cfg(test)]
 mod tests;
+
+/// An authoritative record and the generation a conditional write replaces.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetadataRecord {
+    pub bytes: Vec<u8>,
+    pub generation: i64,
+}

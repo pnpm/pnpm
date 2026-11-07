@@ -48,7 +48,7 @@ use super::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_search::percent_decode;
-use pnpr_storage::{DocumentWrite, publish::extract_attachments};
+use pnpr_storage::publish::extract_attachments;
 use std::time::Duration;
 
 pub const STAGED_RECORD_FORMAT_VERSION: u32 = 1;
@@ -93,11 +93,9 @@ struct StagedRecord {
     approving_since: Option<String>,
 }
 
-/// A staged record as the store holds it. The bytes are what a conditional
-/// rewrite compares against, so they are the stored ones rather than a
-/// re-serialization of `record`.
+/// A staged record with the generation a conditional rewrite replaces.
 struct StoredStagedRecord {
-    bytes: Vec<u8>,
+    stored: pnpr_storage::MetadataRecord,
     record: StagedRecord,
 }
 
@@ -106,7 +104,7 @@ struct StoredStagedRecord {
 struct ApprovalClaim {
     record: StagedRecord,
     unclaimed_bytes: Vec<u8>,
-    claimed_bytes: Vec<u8>,
+    claimed: pnpr_storage::MetadataRecord,
 }
 
 /// How long a claim on a staged record is honored. An approval releases its
@@ -466,10 +464,10 @@ async fn read_staged_record(
     state: &AppState,
     stage_id: &str,
 ) -> Result<Option<StoredStagedRecord>, RegistryError> {
-    let Some(bytes) = state.inner.storage.read_staged_meta(stage_id).await? else {
+    let Some(stored) = state.inner.storage.read_staged_meta(stage_id).await? else {
         return Ok(None);
     };
-    let record: StagedRecord = serde_json::from_slice(&bytes).map_err(RegistryError::Json)?;
+    let record: StagedRecord = serde_json::from_slice(&stored.bytes).map_err(RegistryError::Json)?;
     if record.format_version > STAGED_RECORD_FORMAT_VERSION {
         return Err(RegistryError::DocumentFormatTooNew {
             document: format!("staged record {stage_id}"),
@@ -477,7 +475,7 @@ async fn read_staged_record(
             supported_version: STAGED_RECORD_FORMAT_VERSION,
         });
     }
-    Ok(Some(StoredStagedRecord { bytes, record }))
+    Ok(Some(StoredStagedRecord { stored, record }))
 }
 
 /// A fresh random (version 4) UUID from the OS CSPRNG — the stage id

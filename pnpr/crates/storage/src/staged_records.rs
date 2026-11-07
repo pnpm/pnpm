@@ -1,13 +1,8 @@
-use super::{DocumentWrite, RegistryError, Result, Storage, validated_record_name};
+use super::{MetadataRecord, RegistryError, Result, Storage, validated_record_name};
 
 /// Reserved directory (fs) / key segment (S3) holding staged publishes.
 pub(crate) const STAGED_DIR: &str = ".staged";
-const STAGED_META_SUFFIX: &str = ".json";
 const STAGED_BODY_SUFFIX: &str = ".body.json";
-
-fn staged_meta_object(stage_id: &str) -> Result<String> {
-    Ok(format!("{}{STAGED_META_SUFFIX}", validated_stage_id(stage_id)?))
-}
 
 fn staged_body_object(stage_id: &str) -> Result<String> {
     Ok(format!("{}{STAGED_BODY_SUFFIX}", validated_stage_id(stage_id)?))
@@ -25,21 +20,17 @@ fn validated_stage_id(stage_id: &str) -> Result<&str> {
     }
 }
 
-pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
-    if object.ends_with(STAGED_BODY_SUFFIX) {
-        return None;
-    }
-    object.strip_suffix(STAGED_META_SUFFIX)
-}
-
 impl Storage {
-    pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
-        self.root.read_record(STAGED_DIR, &staged_meta_object(stage_id)?).await
+    pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<MetadataRecord>> {
+        self.database.read_record(staged_key(stage_id)?).await
     }
 
     pub async fn create_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
-        let key = staged_meta_object(stage_id)?;
-        if self.root.create_record(STAGED_DIR, &key, bytes).await? {
+        if self.database
+            .write_record(staged_key(stage_id)?, None, bytes)
+            .await?
+            .is_some()
+        {
             return Ok(());
         }
         // Stage ids are minted from the CSPRNG, so a taken key is not a
@@ -49,21 +40,15 @@ impl Storage {
 
     /// Rewrite a staged record's metadata only while it still holds
     /// `expected`, so an approval acts on the record it read or not at all.
-    /// [`DocumentWrite::Conflict`] means another writer claimed or removed
+    /// `None` means another writer claimed or removed
     /// the record in the meantime.
     pub async fn replace_staged_meta_if_current(
         &self,
         stage_id: &str,
-        expected: &[u8],
+        expected: &MetadataRecord,
         bytes: &[u8],
-    ) -> Result<DocumentWrite> {
-        self.root.replace_record_if_current(
-            STAGED_DIR,
-            &staged_meta_object(stage_id)?,
-            expected,
-            bytes,
-        )
-        .await
+    ) -> Result<Option<MetadataRecord>> {
+        self.database.write_record(staged_key(stage_id)?, Some(expected.generation), bytes).await
     }
 
     pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
@@ -87,7 +72,7 @@ impl Storage {
     /// reader, and an error here would misreport that while leaving nothing
     /// for a retry to find (bodies are only discovered through metadata).
     pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
-        let removed = self.root.remove_record(STAGED_DIR, &staged_meta_object(stage_id)?).await?;
+        let removed = self.database.remove_record(staged_key(stage_id)?).await?;
         if let Err(err) = self.root.remove_record(STAGED_DIR, &staged_body_object(stage_id)?).await
         {
             tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
@@ -98,12 +83,7 @@ impl Storage {
     /// Every staged record's id, in unspecified order (the listing endpoint
     /// sorts by staging time).
     pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
-        let keys = self.root.list_record_keys(STAGED_DIR).await?;
-        Ok(keys
-            .iter()
-            .filter_map(|key| staged_id_of_meta_object(key))
-            .map(str::to_string)
-            .collect())
+        self.database.staged_ids().await
     }
 
     pub async fn read_pipeline_run(&self, key: &PipelineRunKey<'_>) -> Result<Option<Vec<u8>>> {
@@ -163,4 +143,8 @@ impl PipelineRunKey<'_> {
             validated_record_name(self.run_id)?,
         ))
     }
+}
+
+fn staged_key(stage_id: &str) -> Result<crate::metadata::sql::RecordKey> {
+    Ok(crate::metadata::sql::RecordKey::Staged(validated_stage_id(stage_id)?.to_string()))
 }

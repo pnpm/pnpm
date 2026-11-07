@@ -76,10 +76,10 @@ async fn read_rules(
     else {
         return Ok((base.clone(), rules_version(None)));
     };
-    let changes = parse_changes(registry, Some(&bytes))?;
+    let changes = parse_changes(registry, Some(&bytes.bytes))?;
     let table = apply_changes(state, registry, base, changes, Compile::Stored)
         .map_err(|reason| RegistryError::Internal { reason })?;
-    Ok((table, rules_version(Some(&bytes))))
+    Ok((table, rules_version(Some(&bytes.bytes))))
 }
 
 /// The version of a registry's stored rule changes, for `ETag` and
@@ -125,8 +125,8 @@ pub(super) async fn replace_rules(
     for _ in 0..WRITE_ATTEMPTS {
         let kind = RegistryRecord::RuleOverrides;
         let stored = state.inner.storage.read_registry_record(kind, &canonical).await?;
-        check_version(registry, stored.as_deref(), expected)?;
-        if store_registry_record(state, kind, registry, stored.as_deref(), &bytes).await? {
+        check_version(registry, stored.as_ref().map(|record| record.bytes.as_slice()), expected)?;
+        if store_registry_record(state, kind, registry, stored.as_ref(), &bytes).await? {
             publish_rules(state, registry, table.clone());
             return Ok((table, rules_version(Some(&bytes))));
         }
@@ -156,7 +156,8 @@ where
     for _ in 0..WRITE_ATTEMPTS {
         let kind = RegistryRecord::RuleOverrides;
         let stored = state.inner.storage.read_registry_record(kind, &canonical).await?;
-        let mut changes = parse_changes(registry, stored.as_deref())?;
+        let mut changes =
+            parse_changes(registry, stored.as_ref().map(|record| record.bytes.as_slice()))?;
         let ecosystem =
             state.inner.config.routing.registries.ecosystem(registry).unwrap_or_default();
         if ecosystem == Ecosystem::Cargo || ecosystem == Ecosystem::Pypi {
@@ -168,7 +169,7 @@ where
         let bytes = serde_json::to_vec(&changes)?;
         let table = apply_changes(state, registry, base, changes, Compile::Strict)
             .map_err(|reason| RegistryError::BadRequest { reason })?;
-        if store_registry_record(state, kind, registry, stored.as_deref(), &bytes).await? {
+        if store_registry_record(state, kind, registry, stored.as_ref(), &bytes).await? {
             publish_rules(state, registry, table);
             return Ok(());
         }

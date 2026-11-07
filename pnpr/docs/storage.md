@@ -6,9 +6,9 @@ title: Storage backends (S3 / R2)
 pnpr keeps two kinds of data:
 
 - **Hosted**: the source of truth. It holds packages published to this server plus
-  anything served in static mode. Lives under `storage`. Packages awaiting
-  approval through [staged publishing](endpoints.md#staged-publishing-endpoints)
-  are held here too, under a reserved `.staged/` namespace.
+  anything served in static mode. Lives under `storage`. The bodies of packages
+  awaiting approval through [staged publishing](endpoints.md#staged-publishing-endpoints)
+  are held under `.staged/`. Their approval records live in the metadata database.
 - **Cache**: the disposable mirror of upstream registries plus the resolver
   cache, lockfile-verdict cache, local shared-artifact store, and S3 upload
   staging scratch. Lives under `cache` (defaults to
@@ -73,7 +73,14 @@ metadata:
 ```
 
 Archives stay in the hosted store. The database holds every hosted package's
-metadata in every ecosystem. pnpr keeps metadata only in a database: an `s3:`
+metadata in every ecosystem, former maintainers and unpublished versions, team
+rosters, rule overrides, SCIM users, and staged-publish approval records. An
+unpublish records former maintainers and removed versions in one transaction.
+Back up this database for package ownership and managed access settings,
+alongside the hosted store for archives and staged bodies. Transparency log
+tiles and checkpoints, and pipeline run streams also stay in the hosted store.
+
+pnpr keeps metadata only in a database: an `s3:`
 block of a registry that hosts packages needs a [libSQL](#libsql-metadata)
 `url`, and pnpr refuses to start on a
 `metadata` block that still names a `backend`. Earlier releases could keep
@@ -94,8 +101,8 @@ With SQL metadata:
   under the interpretation profile it was accepted under and with the digests
   of the archive's `package.json` and `npm-shrinkwrap.json`.
 - The database keeps every unpublished version, including the versions of an
-  unpublished package, and refuses to accept one again with `403`, even when
-  the package's tombstone is gone.
+  unpublished package, and refuses to accept one again with `403`. Former
+  maintainers retain their claim to the package name in the same database.
 - A dist-tag change rewrites only that tag, and pnpr keeps the history of
   every move of a tag: when it moved, from which version to which, and who
   moved it. A publish, a document update, and a dist-tag change each record
@@ -136,7 +143,8 @@ To start that pnpr, wipe pnpr's metadata tables by hand: drop the
 them afresh. Leave the tables of the [auth backend](auth-backends.md) in
 place when it shares the database. A SQLite database that holds only the
 metadata, as the default `<storage>/.metadata/metadata.sqlite` does, can be
-deleted instead, with its `-wal` and `-shm` files.
+deleted instead, with its `-wal` and `-shm` files. Before accepting traffic,
+republish packages and recreate managed access settings and staged publishes.
 
 ## Metadata in libSQL {#libsql-metadata}
 

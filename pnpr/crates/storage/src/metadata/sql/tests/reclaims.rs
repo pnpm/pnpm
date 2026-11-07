@@ -46,7 +46,7 @@ async fn only_live_blobs_nothing_maps_are_marked(db: Db) {
 
     assert!(
         storage
-            .remove_package(&npm("pkg"))
+            .remove_package(&npm("pkg"), None)
             .await
             .unwrap(),
     );

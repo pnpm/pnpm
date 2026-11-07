@@ -13,6 +13,7 @@ mod log;
 mod notes;
 mod publications;
 mod reclaims;
+mod records;
 mod schema;
 
 use crate::{
@@ -580,7 +581,7 @@ async fn removing_versions_and_packages(db: Db) {
     assert!(document["time"].get("1.0.0").is_none());
     assert!(
         storage
-            .remove_package(&npm("pkg"))
+            .remove_package(&npm("pkg"), None)
             .await
             .unwrap(),
     );
@@ -618,7 +619,7 @@ async fn a_removed_version_is_never_accepted_again(db: Db) {
     );
     assert!(
         storage
-            .remove_package(&npm("pkg"))
+            .remove_package(&npm("pkg"), None)
             .await
             .unwrap(),
     );

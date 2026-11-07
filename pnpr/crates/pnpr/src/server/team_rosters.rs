@@ -27,7 +27,7 @@ async fn read_roster(
 ) -> Result<Teams, RegistryError> {
     let canonical = super::managed_state::canonical_registry_key(state, registry);
     match state.inner.storage.read_registry_record(RegistryRecord::TeamRoster, &canonical).await? {
-        Some(bytes) => parse_roster(registry, &bytes),
+        Some(bytes) => parse_roster(registry, &bytes.bytes),
         None => Ok(seed.clone()),
     }
 }
@@ -53,11 +53,11 @@ where
         let stored =
             state.inner.storage.read_registry_record(RegistryRecord::TeamRoster, &canonical).await?;
         let mut teams = match &stored {
-            Some(bytes) => parse_roster(registry, bytes)?,
+            Some(bytes) => parse_roster(registry, &bytes.bytes)?,
             None => seed.clone(),
         };
         edit(&mut teams)?;
-        if store_roster(state, registry, stored.as_deref(), &teams).await? {
+        if store_roster(state, registry, stored.as_ref(), &teams).await? {
             publish_roster(state, registry, teams);
             return Ok(());
         }
@@ -70,7 +70,7 @@ where
 async fn store_roster(
     state: &AppState,
     registry: &str,
-    expected: Option<&[u8]>,
+    expected: Option<&pnpr_storage::MetadataRecord>,
     teams: &Teams,
 ) -> Result<bool, RegistryError> {
     let bytes = serde_json::to_vec(&RosterRecord::from(teams))?;

@@ -641,9 +641,9 @@ one-time-password challenge of its own at either point. The `--otp` flag on
 `pnpm stage approve` is for registries that do.
 
 A stage id is a v4 UUID drawn from the OS CSPRNG, so the id itself acts as an
-unguessable handle. Held records live under a reserved `.staged/` namespace in
-the hosted store (both the filesystem and S3 backends), and a record is only
-visible through the same base it was created with. One staged through
+unguessable handle. Held publish bodies live under a reserved `.staged/` namespace in
+the hosted store (both the filesystem and S3 backends). Approval records live
+in the metadata database. A record is only visible through the same base it was created with. One staged through
 `/npm/~<name>/` is not addressable on the npm base, and vice versa.
 
 | Method | Path | Description |

@@ -239,6 +239,13 @@ fn apply_packument(
     records: &ReleaseRecords,
 ) -> Result<bool> {
     validate_packument_tags(&stored.tags, &rows)?;
+    if stored.versions
+        .keys()
+        .any(|version| !rows.versions.contains_key(version))
+        && let Some(row) = &stored.row
+    {
+        super::removed::record_package(commit.transaction, commit.key, &row.state, principal)?;
+    }
     let state = serde_json::to_vec(&rows.state)?;
     let mut changed = stored.row
         .as_ref()
@@ -405,6 +412,7 @@ fn apply_tags(
 pub(super) fn remove_package(
     connection: &dyn Connection,
     key: &PackageKey,
+    principal: Option<&str>,
 ) -> Result<Option<Vec<BlobId>>> {
     let (catalog, ecosystem, name) = key.params();
     let mapped = query!(
@@ -417,9 +425,10 @@ pub(super) fn remove_package(
     let (mut batch, results) =
         Batch::begin_with(connection, &key.catalog, &[package_row_query(key), mapped])?;
     let mut results = results.into_iter();
-    if results.next().is_none_or(|rows| rows.is_empty()) {
+    let Some(row) = package_row_from(results.next().unwrap_or_default())? else {
         return Ok(None);
-    }
+    };
+    super::removed::record_package(batch.transaction(), key, &row.state, principal)?;
     let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
     batch.transaction().execute(
         "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)

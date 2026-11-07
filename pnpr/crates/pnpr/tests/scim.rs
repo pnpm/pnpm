@@ -275,9 +275,17 @@ async fn reactivation_cleans_up_credentials_left_during_deactivation() {
 #[tokio::test]
 async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
     let dir = TempDir::new().unwrap();
-    let record = dir.path().join("storage/.scim-users/directory.json");
-    std::fs::create_dir_all(record.parent().unwrap()).unwrap();
-    std::fs::write(&record, "not a directory").unwrap();
+    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    let kind = pnpr_storage::RegistryRecord::ScimUsers;
+    storage
+        .create_registry_record(kind, pnpr_storage::SCIM_DIRECTORY, b"not a directory")
+        .await
+        .unwrap();
+    let record = storage
+        .read_registry_record(kind, pnpr_storage::SCIM_DIRECTORY)
+        .await
+        .unwrap()
+        .unwrap();
     let auth = AuthState::in_memory();
     auth.users.create_user("alice", "secret123").await.unwrap();
     let id = auth.users
@@ -291,7 +299,16 @@ async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
     assert_eq!(whoami(&app, &token).await, StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::INTERNAL_SERVER_ERROR);
 
-    std::fs::write(&record, r#"{"users":{}}"#).unwrap();
+    storage
+        .replace_registry_record_if_current(
+            kind,
+            pnpr_storage::SCIM_DIRECTORY,
+            &record,
+            br#"{"users":{}}"#,
+        )
+        .await
+        .unwrap()
+        .unwrap();
     // A failed read is retried a second later, in the background of the
     // first request after that.
     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -314,11 +331,26 @@ async fn deleting_retries_cleanup_after_the_resource_was_marked_removed() {
     let (_, created) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
     let id = created["id"].as_str().unwrap();
     let token = auth.tokens.issue(id).await.unwrap();
-    let stored = dir.path().join("storage/.scim-users/directory.json");
-    let mut directory: Value = serde_json::from_slice(&std::fs::read(&stored).unwrap()).unwrap();
+    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    let kind = pnpr_storage::RegistryRecord::ScimUsers;
+    let stored = storage
+        .read_registry_record(kind, pnpr_storage::SCIM_DIRECTORY)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut directory: Value = serde_json::from_slice(&stored.bytes).unwrap();
     directory["users"][id]["active"] = json!(false);
     directory["users"][id]["removed"] = json!(true);
-    std::fs::write(&stored, directory.to_string()).unwrap();
+    storage
+        .replace_registry_record_if_current(
+            kind,
+            pnpr_storage::SCIM_DIRECTORY,
+            &stored,
+            &serde_json::to_vec(&directory).unwrap(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
         scim(&app, "DELETE", &format!("{USERS}/{id}"), None).await.0,
         StatusCode::NO_CONTENT,

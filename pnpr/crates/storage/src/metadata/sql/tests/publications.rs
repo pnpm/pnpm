@@ -119,7 +119,7 @@ async fn an_unpublished_member_invalidates_the_recorded_outcome(db: Db) {
     .await
     .unwrap();
     assert!(
-        org.remove_package(&npm("widgets")).await
+        org.remove_package(&npm("widgets"), None).await
             .unwrap(),
     );
     assert!(
@@ -244,7 +244,7 @@ async fn a_publication_cannot_bring_back_a_removed_version(db: Db) {
     let batch = vec![document("core", &packument("core", &["1.0.0"]))];
     commit(database, batch, request("one", None)).await.unwrap();
     let removed = org
-        .remove_package(&npm("core"))
+        .remove_package(&npm("core"), None)
         .await
         .unwrap();
     assert!(removed);

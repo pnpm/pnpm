@@ -168,17 +168,19 @@ async fn npm_operations_make_few_round_trips_to_a_libsql_primary() {
     // cache lacks in one more, before its write: the round trip that takes
     // the write lock with every read the write compares with, and the one
     // that sends every change with the commit. The rows of the blobs a
-    // publish stores are read with its document. An unpublish removes the
+    // publish stores are read with its document. The early authorization
+    // and staging checks each read package ownership from the database;
+    // those reads replace the hosted-record reads. An unpublish removes the
     // package in its write's two round trips, then reclaims the archives
     // nothing maps any more: two round trips move them to `reclaiming`, and
     // one more records them gone once their keys are removed.
     let expected = vec![
-        ("the first publish", 4),
-        ("a publish of another version", 5),
+        ("the first publish", 7),
+        ("a publish of another version", 8),
         ("a dist-tag move", 2),
         ("a view read that renders a version", 2),
         ("a view read the cache answers", 1),
-        ("an unpublish", 6),
+        ("an unpublish", 5),
     ];
     assert_eq!(counts, expected, "\n{}", listing(&operations));
 }

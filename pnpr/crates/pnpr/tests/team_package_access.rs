@@ -154,8 +154,13 @@ async fn a_grant_stores_only_the_lists_it_changes() {
     let grant = json!({ "package": "@acme/app", "permissions": "read-only" });
     assert_eq!(send(&app, "PUT", PACKAGES, Some(&root), Some(grant)).await.0, StatusCode::CREATED);
 
-    let record = dir.path().join("storage/.rule-overrides/npm/local.json");
-    let stored: Value = serde_json::from_slice(&std::fs::read(record).unwrap()).unwrap();
+    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    let record = storage
+        .read_registry_record(pnpr_storage::RegistryRecord::RuleOverrides, "npm/local")
+        .await
+        .unwrap()
+        .unwrap();
+    let stored: Value = serde_json::from_slice(&record.bytes).unwrap();
     assert_eq!(stored, json!({ "packages": { "@acme/app": { "access": ["root", "team:devs"] } } }));
 }
 

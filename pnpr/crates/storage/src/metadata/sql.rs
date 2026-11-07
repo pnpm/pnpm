@@ -31,6 +31,7 @@ pub(crate) mod adapter;
 
 pub use cache::RenderStats;
 pub use mappings::{Mapping, Unmapping};
+pub(crate) use records::RecordKey;
 pub(crate) use staged::{StagedEntry, StagedId};
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
@@ -51,6 +52,8 @@ mod packument;
 mod publications;
 mod publish;
 mod reclaims;
+mod records;
+mod removed;
 mod render;
 mod schema;
 mod sqlite;

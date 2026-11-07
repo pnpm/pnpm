@@ -299,3 +299,34 @@ CREATE TABLE IF NOT EXISTS staged_archives (
 -- them without the tombstones of every archive it ever staged.
 CREATE INDEX IF NOT EXISTS staged_archives_held
     ON staged_archives (principal) WHERE state != 'gone';
+
+CREATE TABLE IF NOT EXISTS registry_records (
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    generation INTEGER NOT NULL,
+    body BLOB NOT NULL,
+    PRIMARY KEY (kind, name)
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS staged_metadata (
+    id TEXT PRIMARY KEY NOT NULL,
+    generation INTEGER NOT NULL,
+    body BLOB NOT NULL
+) STRICT, WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS removed_packages (
+    catalog TEXT NOT NULL,
+    ecosystem TEXT NOT NULL,
+    name TEXT NOT NULL,
+    maintainers TEXT NOT NULL,
+    unpublished_at TEXT NOT NULL,
+    unpublished_by TEXT,
+    PRIMARY KEY (catalog, ecosystem, name)
+) STRICT, WITHOUT ROWID;
+
+-- Generations stay unique after a record is removed and recreated.
+CREATE TABLE IF NOT EXISTS record_generation (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    generation INTEGER NOT NULL
+) STRICT;
+INSERT INTO record_generation (singleton, generation) VALUES (1, 0);

@@ -4,8 +4,9 @@
 //! state as rows of a SQL database and renders documents from them. The
 //! registry's handlers reach one namespace of it through [`Storage`]: reading
 //! a package view, committing a package document, changing a tag, removing a
-//! package. Archives and the records beside them stay in the hosted backend;
-//! the metadata owns only what a package's document says about them.
+//! package. The database also owns removed-package claims, registry records,
+//! and staged-publish metadata. Archives and staged bodies stay in the hosted
+//! backend.
 
 pub(crate) mod sql;
 
