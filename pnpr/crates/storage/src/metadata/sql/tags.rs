@@ -9,10 +9,10 @@ use super::{
     to_column,
 };
 use crate::{
-    metadata::{TagChange, TagUpdate, validate_dist_tag},
+    metadata::{TagChange, TagUpdate, validate_dist_tag, validate_dist_tag_target},
     publish::now_iso,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -114,7 +114,7 @@ pub(super) fn change_tag(
         return Ok(TagUpdate::NotFound);
     };
     let tags = tags_from_rows(results.next().unwrap_or_default())?;
-    validate_target(
+    validate_dist_tag_target(
         &change.tag,
         change.target.as_deref(),
         !results
@@ -166,25 +166,12 @@ pub(super) fn validate_packument_tags(
 ) -> Result<()> {
     for (tag, target) in &rows.tags {
         validate_dist_tag(tag)?;
-        validate_target(tag, Some(target), rows.versions.contains_key(target))?;
+        validate_dist_tag_target(tag, Some(target), rows.versions.contains_key(target))?;
     }
     if stored.contains_key("latest") && !rows.tags.contains_key("latest") {
-        validate_target("latest", None, !rows.versions.is_empty())?;
+        validate_dist_tag_target("latest", None, !rows.versions.is_empty())?;
     }
     Ok(())
-}
-
-fn validate_target(tag: &str, target: Option<&str>, has_version: bool) -> Result<()> {
-    let reason = match target {
-        Some(version) if !has_version => {
-            format!("dist-tag {tag:?} target {version:?} is not a published version")
-        }
-        None if tag == "latest" && has_version => {
-            r#"cannot remove dist-tag "latest" while published versions exist"#.to_string()
-        }
-        _ => return Ok(()),
-    };
-    Err(RegistryError::BadRequest { reason })
 }
 
 /// Point a tag of the package where `change` says, reporting whether it

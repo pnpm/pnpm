@@ -13,7 +13,8 @@ pub use blobs::{
     ArtifactBlob, BlobFence, BlobLookup, BlobRef, BlobRow, BlobState, MappedArtifact, PublishBase,
     PublishIncarnation, Uncommitted,
 };
-pub use dist_tags::validate_dist_tag;
+pub(crate) use dist_tags::validate_dist_tag_target;
+pub use dist_tags::{validate_dist_tag, validate_document_dist_tags};
 pub use notes::{
     MAX_NOTE_BYTES, Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note,
 };
