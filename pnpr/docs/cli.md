@@ -203,7 +203,9 @@ repository whose retained manifest is missing or corrupt keeps every blob, and
 no key pnpr stores archives under is never removed.
 
 For unmapped archives, `gc` logs each reclaimed archive's key and size at info
-level, including the image repository for OCI removals.
+level. When it unmaps an unreachable image blob, the removal record also names
+the repository. Collection logs include the organization and ecosystem.
+Successful removals are logged even if another archive cannot be removed.
 
 The metadata database fences every removal; no step depends on timing. A
 reclaim first moves the bytes' live incarnation to `reclaiming`, in a

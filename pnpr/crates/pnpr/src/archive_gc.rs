@@ -21,6 +21,7 @@ use pnpr_storage::{
     metadata::{BlobRef, BlobRow, BlobState, Uncommitted},
 };
 use std::{collections::BTreeMap, time::Duration};
+use tracing::Instrument as _;
 
 /// What `pnpr gc` collects, and how.
 #[derive(Debug, Default, Clone)]
@@ -61,7 +62,8 @@ pub async fn collect_archives(config: &Config, options: &GcOptions) -> Result<Gc
             manifest_limit: config.http.oci.max_manifest_bytes,
             lease: config.gc.lease,
         };
-        report.add(collection.run(options).await?);
+        let span = tracing::info_span!("archive collection", org = %org, ecosystem = %ecosystem);
+        report.add(collection.run(options).instrument(span).await?);
     }
     Ok(report)
 }
@@ -128,11 +130,11 @@ impl Collection<'_> {
     async fn reclaim_unmapped(&self) -> Result<GcReport> {
         let unmapped = self.storage.unmapped_blobs().await?;
         let ids = unmapped.keys().cloned().collect();
-        let removed = self.storage.reclaim_blobs(ids).await?;
-        for blob in &removed {
+        let removed = self.storage.reclaim_blobs_with(ids, |blob| {
             let size = unmapped.get(&blob.id).map_or(0, |row| row.size);
             tracing::info!(key = %blob.key(), size, "removed archive");
-        }
+        })
+        .await?;
         Ok(report_of(&removed, |blob| unmapped.get(&blob.id).map_or(0, |row| row.size)))
     }
 
