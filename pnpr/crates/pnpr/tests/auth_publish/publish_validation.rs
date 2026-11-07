@@ -1074,6 +1074,8 @@ async fn unpublish_rejects_invalid_versions() {
     }
     for path in [
         "/npm/widgets@not-a-version",
+        "/npm/widgets@not-a-version+r1",
+        "/npm/@example/widgets@not-a-version+r1",
         "/npm/@example/widgets@not-a-version",
         "/npm/widgets/-/widgets-not-a-version.tgz",
         "/npm/@example/widgets/-/widgets-not-a-version.tgz",
@@ -1093,5 +1095,18 @@ async fn unpublish_rejects_invalid_versions() {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
         let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
         assert!(reason.contains("not valid semver"), "{reason}");
+    }
+    for path in ["/npm/widgets@1.0.0+r1", "/npm/@example/widgets@1.0.0+r1"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::delete(path)
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
 }
