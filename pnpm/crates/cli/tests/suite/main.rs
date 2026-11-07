@@ -167,6 +167,7 @@ mod publish_recursive;
 mod publish_variants;
 mod python;
 mod rebuild_recursive;
+mod recursive_project_requirements;
 mod registry_metadata_mismatch;
 mod registry_prefix_keys;
 mod registry_routes;

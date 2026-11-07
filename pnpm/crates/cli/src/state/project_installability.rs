@@ -13,6 +13,7 @@ use pnpm_package_is_installable::{
 };
 use pnpm_package_manifest::node_version_from_engines_runtime;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_workspace::Project;
 use std::{
     cell::OnceCell,
     path::{Path, PathBuf},
@@ -116,15 +117,45 @@ impl<'a> ProjectHost<'a> {
         projects: &[(PathBuf, PackageInstallabilityManifest)],
     ) -> Result<Vec<LogEvent>, InitStateError> {
         let root_dir = pnpm_fs::lexical_normalize(self.root_dir);
+        self.check_each(
+            projects
+                .iter()
+                .filter(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) != root_dir),
+        )
+    }
+
+    /// [`Self::check_projects`], the project in the root directory included.
+    pub(crate) fn check_every_project(
+        &self,
+        projects: &[(PathBuf, PackageInstallabilityManifest)],
+    ) -> Result<Vec<LogEvent>, InitStateError> {
+        self.check_each(projects.iter())
+    }
+
+    fn check_each<'p>(
+        &self,
+        projects: impl Iterator<Item = &'p (PathBuf, PackageInstallabilityManifest)>,
+    ) -> Result<Vec<LogEvent>, InitStateError> {
         let mut warnings = Vec::new();
         for (project_dir, requirements) in projects {
-            if pnpm_fs::lexical_normalize(project_dir) == root_dir {
-                continue;
-            }
             warnings.extend(self.check(project_dir, requirements)?);
         }
         Ok(warnings)
     }
+}
+
+/// What each of `projects` that declares any requirement requires of the
+/// host, keyed by its directory.
+pub(crate) fn host_requirements<'p>(
+    projects: impl IntoIterator<Item = &'p Project>,
+) -> Vec<(PathBuf, PackageInstallabilityManifest)> {
+    projects
+        .into_iter()
+        .filter_map(|project| {
+            pnpm_deps_restorer::project_host_requirements(project.manifest.value())
+                .map(|requirements| (project.root_dir.clone(), requirements))
+        })
+        .collect()
 }
 
 fn fails(error: &InstallabilityError, engine_strict: bool) -> bool {
