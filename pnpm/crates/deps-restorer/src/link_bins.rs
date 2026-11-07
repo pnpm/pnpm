@@ -1,13 +1,9 @@
 pub use bins_dir::{
-    BinCandidates, BinTargets, BinsDirPass, LinkedBinsDir, SkippedCommands, link_bins_dir,
+    BinCandidates, BinTargets, BinsDirPass, LinkedBinsDir, SkippedCommands, TopLevelCandidates,
+    link_bins_dir,
 };
-pub use direct::{
-    PrefetchedBinLookup, PrefetchedDepBin, link_project_bins, resolve_hoisted_bin_deps,
-};
+pub use direct::{PrefetchedBinLookup, PrefetchedDepBin, resolve_hoisted_bin_deps};
 pub use shim_options::{hoisted_node_paths, shim_link_options};
-
-pub use top_level::link_top_level_bins;
-pub(crate) use top_level::link_top_level_bins_cached;
 
 mod scan;
 use scan::{existing_commands, read_location_bin_sources, read_package, run_with_readdir};
@@ -15,7 +11,6 @@ use scan::{existing_commands, read_location_bin_sources, read_package, run_with_
 mod bins_dir;
 mod direct;
 mod shim_options;
-mod top_level;
 
 use crate::{PackageBins, PackageManifests, SkippedSnapshots};
 use derive_more::{Display, Error};

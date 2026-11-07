@@ -1,8 +1,8 @@
 use super::{
     super::{
         Config, DependencyGroup, HashMap, HashSet, InstallError, NodeLinker, PackageManifest, Path,
-        PathBuf, Reporter, RunPostinstallHooks, link_project_bins,
-        project_requires_implicit_gyp_build, run_project_lifecycle_stages,
+        PathBuf, Reporter, RunPostinstallHooks, project_requires_implicit_gyp_build,
+        run_project_lifecycle_stages,
     },
     project_lifecycle_extra_env,
 };
@@ -84,10 +84,10 @@ impl ProjectScriptRunner<'_> {
         manifest: &PackageManifest,
         stages: &[&str],
     ) -> Result<(), InstallError> {
-        link_project_bins(
+        crate::link_bins_dir(
             &self.modules_dirs.of(project_dir),
-            &direct_dep_names(manifest),
-            &self.link_options,
+            crate::BinCandidates::ProjectModulesDir(&direct_dep_names(manifest)),
+            crate::BinsDirPass::new(&self.link_options),
         )
         .map_err(InstallError::ProjectBinLink)?;
         let stages = if self.root_preinstall_ran
