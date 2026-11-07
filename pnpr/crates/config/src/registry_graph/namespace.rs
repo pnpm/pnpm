@@ -10,24 +10,21 @@ pub(in super::super) fn validate_registry_key(key: &str) -> Result<(), RegistryE
 }
 
 /// A registry's `packages:` keys in the spelling its ecosystem matches
-/// requests by. Crate names are compared lowercase and Python project names
-/// normalized (PEP 503), so a `cargo` or `pypi` registry's exact-name keys
-/// are canonicalized here, and a key no registry of that ecosystem could
-/// serve is a config error. Only the catch-all `**` applies to every ecosystem.
+/// requests by. Rejects invalid patterns and duplicate canonical keys.
 pub(in super::super) fn ecosystem_package_keys(
     registry: &str,
     ecosystem: Ecosystem,
     packages: IndexMap<String, Option<PackageAccess>>,
-) -> Result<IndexMap<String, Option<PackageAccess>>, RegistryError> {
+) -> Result<IndexMap<String, (PackagePattern, Option<PackageAccess>)>, RegistryError> {
     let mut normalized = IndexMap::new();
     for (key, access) in packages {
         // Through the pattern language, so a wildcard shape is normalized as
         // itself rather than failing the ecosystem's name rules.
-        let normalized_key = PackagePattern::parse(&key, ecosystem)
-            .map(|pattern| pattern.to_string())
+        let pattern = PackagePattern::parse(&key, ecosystem)
             .map_err(|error| RegistryError::InvalidConfig {
                 reason: format!("{ecosystem} registry {registry:?} `packages:` key: {error}"),
             })?;
+        let normalized_key = pattern.to_string();
         if normalized.contains_key(&normalized_key) {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
@@ -35,7 +32,7 @@ pub(in super::super) fn ecosystem_package_keys(
                 ),
             });
         }
-        normalized.insert(normalized_key, access);
+        normalized.insert(normalized_key, (pattern, access));
     }
     Ok(normalized)
 }

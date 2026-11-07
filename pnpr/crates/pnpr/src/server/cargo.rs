@@ -13,10 +13,8 @@
 //!
 //! In a multi-ecosystem registry, both families answer under `/cargo/` (the
 //! default target) and `/cargo/~<name>/` (a named registry). A Cargo-only
-//! registry omits `/cargo`. Crate names are case-insensitive:
-//! the index path `cargo` requests is lowercase, so hosted documents and cache
-//! entries are keyed by the lowercase name while archives keep the name as
-//! published.
+//! registry omits `/cargo`. Crate keys fold ASCII case and map `_` to `-`;
+//! archives and index entries keep the published name.
 
 pub(super) use publication::{CratePublication, authorize_crate_publish, verify_crate_archive};
 
@@ -106,7 +104,8 @@ async fn get_search(
                 .expect("search response serializes"),
         )
     };
-    let Some(text) = pnpr_search::parse_query(&query_string).map(pnpr_search::SearchText::Package)
+    let Some(text) = pnpr_search::parse_query(&query_string)
+        .map(|query| pnpr_search::SearchText::Package(query.replace('_', "-")))
     else {
         return respond(Vec::new(), 0);
     };
@@ -159,9 +158,10 @@ async fn add_crates_to_page(
     names: Vec<String>,
 ) {
     for name in names {
-        let Ok(key) = CanonicalPackageName::parse(&name, ECOSYSTEM) else {
+        if !is_safe_path_segment(&name) {
             continue;
-        };
+        }
+        let key = CanonicalPackageName::from_stored(&name, ECOSYSTEM);
         if page.push_name(&name) {
             page.objects.push(search_crate(storage, &key).await);
         }
@@ -278,8 +278,15 @@ async fn load_upstream_index(
     path: &str,
 ) -> Result<Option<String>, RegistryError> {
     let (upstream, namespace) = upstream_for(state, identity, source, key)?;
-    let request =
-        UpstreamDocument { name: key, relative_path: path, accept: None, limit: INDEX_FILE_LIMIT };
+    // Sparse-index paths distinguish separator aliases even when claims share a key.
+    let index_name = path.rsplit('/').next().unwrap_or(path);
+    let cache_key = CanonicalPackageName::from_stored(index_name, ECOSYSTEM);
+    let request = UpstreamDocument {
+        name: &cache_key,
+        relative_path: path,
+        accept: None,
+        limit: INDEX_FILE_LIMIT,
+    };
     let bytes = load_upstream_document(state, upstream, &namespace, request, |document| {
         decode_index_text(document.bytes, path).map(String::into_bytes)
     })

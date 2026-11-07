@@ -150,8 +150,11 @@ Use a pnpr token as the registry token. `cargo` sends it as a bare
 that is not anonymously readable advertises `auth-required`, so `cargo` sends
 the token on index and download requests too.
 
-Crate names are compared case-insensitively, and an exact `packages:` key must
-be a valid crate name.
+Crate names are compared case-insensitively, with `_` and `-` treated as
+equivalent. An exact `packages:` claim covers both spellings, including when
+the crate has not been published yet. Keys must be valid crate names.
+Use the first published spelling in Cargo dependency declarations and when
+publishing new versions.
 
 `cargo search` works against a pnpr registry, matching on crate name over the
 crates it hosts. Each result reports the crate's newest release that is not

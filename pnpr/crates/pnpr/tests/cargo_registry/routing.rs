@@ -4,6 +4,7 @@ use super::{
     publish_request, router_with_auth, sha256_hex,
 };
 use crate::tokens::issue_token;
+use pnpr::Config;
 use pnpr_storage::layout::blob_segment;
 
 #[tokio::test]
@@ -240,7 +241,7 @@ async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_re
 #[tokio::test]
 async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     let mut upstream = mockito::Server::new_async().await;
-    let archive = crate_archive("serde", "1.0.0");
+    let archive = crate_archive("sample_crate", "1.0.0");
     let config_mock = upstream
         .mock("GET", "/config.json")
         .with_body(
@@ -251,7 +252,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
         .create_async()
         .await;
     let index_line = json!({
-        "name": "serde",
+        "name": "sample_crate",
         "vers": "1.0.0",
         "deps": [],
         "cksum": sha256_hex(&archive),
@@ -260,13 +261,13 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
         "v": 1,
     });
     let index_mock = upstream
-        .mock("GET", "/se/rd/serde")
+        .mock("GET", "/sa/mp/sample_crate")
         .with_body(format!("{index_line}\n"))
         .expect(1)
         .create_async()
         .await;
     let download_mock = upstream
-        .mock("GET", "/dl/serde/1.0.0")
+        .mock("GET", "/dl/sample_crate/1.0.0")
         .with_body(archive.clone())
         .expect(1)
         .create_async()
@@ -282,7 +283,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/cargo/index/se/rd/serde")
+            Request::get("/cargo/index/sa/mp/sample_crate")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -297,7 +298,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/cargo/api/v1/crates/serde/1.0.0/download")
+                Request::get("/cargo/api/v1/crates/sample_crate/1.0.0/download")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -311,7 +312,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     download_mock.assert_async().await;
     let cache = tmp.path().join(".pnpr-cache");
     assert!(
-        find_file(&cache, &blob_segment("serde", "serde-1.0.0.crate")).is_some(),
+        find_file(&cache, &blob_segment("sample-crate", "sample_crate-1.0.0.crate")).is_some(),
         "download is cached",
     );
 
@@ -463,4 +464,251 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     corrected.assert_async().await;
     config_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn hosted_claims_cover_cargo_separator_aliases() {
+    for (claim, published, aliases) in [
+        ("demo-crate", "demo_crate", ["demo-crate", "demo_crate"]),
+        ("Demo_Crate", "demo_crate", ["demo-crate", "demo_crate"]),
+        ("_demo_crate", "_demo_crate", ["_demo_crate", "_demo-crate"]),
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let auth = AuthState::in_memory();
+        let token = issue_token(&auth, "publisher").await;
+        let mut upstream = mockito::Server::new_async().await;
+        let upstream_requests = upstream
+            .mock("GET", mockito::Matcher::Any)
+            .expect(0)
+            .create_async()
+            .await;
+        let yaml = format!(
+            "
+registries:
+  crates:
+    type: hosted
+    ecosystem: cargo
+    org: crates
+    access: $all
+    packages:
+      {claim}: {{}}
+  cratesio:
+    type: upstream
+    ecosystem: cargo
+    url: {upstream_url}
+    public: true
+  main:
+    type: router
+    sources: [crates, cratesio]
+defaultRegistry: main
+",
+            upstream_url = upstream.url(),
+        );
+        let config_path = tmp.path().join("pnpr.yaml");
+        std::fs::write(&config_path, format!("storage: storage\n{yaml}")).unwrap();
+        let config =
+            Config::from_yaml(&config_path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
+        let app = router_with_auth(config, auth);
+        for name in aliases {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/index/{}", pnpr_cargo::sparse_index_path(name)))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+        let archive = crate_archive(published, "0.1.0");
+        let response = app
+            .clone()
+            .oneshot(publish_request(
+                Some(&token),
+                publish_body(&metadata(published, "0.1.0"), &archive),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let other = aliases
+            .into_iter()
+            .find(|alias| *alias != published)
+            .unwrap();
+        let alternate_case = published.to_ascii_uppercase();
+        for rejected in [other, alternate_case.as_str()] {
+            let response = app
+                .clone()
+                .oneshot(publish_request(
+                    Some(&token),
+                    publish_body(&metadata(rejected, "0.2.0"), &crate_archive(rejected, "0.2.0")),
+                ))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            let error: Value =
+                serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+            assert!(
+                error["errors"][0]["detail"]
+                    .as_str()
+                    .unwrap()
+                    .contains(published),
+            );
+        }
+        for name in aliases {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/index/{}", pnpr_cargo::sparse_index_path(name)))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+            assert_eq!(index.lines().count(), 1);
+            let entry: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
+            assert_eq!(entry["name"], published);
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/api/v1/crates/{name}/0.1.0/download"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(body_bytes(response.into_body()).await, archive);
+        }
+        for query in ["demo", aliases[0], aliases[1]] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/api/v1/crates?q={query}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let result: Value =
+                serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+            assert_eq!(result["meta"]["total"], 1);
+            assert_eq!(result["crates"][0]["name"], published);
+        }
+        upstream_requests.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn upstream_index_cache_keeps_separator_spellings_separate() {
+    for names in [["demo_crate", "demo-crate"], ["demo-crate", "demo_crate"]] {
+        let mut upstream = mockito::Server::new_async().await;
+        let config_mock = upstream
+            .mock("GET", "/config.json")
+            .with_body(
+                json!({"dl": format!("{}/dl/{{crate}}/{{version}}", upstream.url())}).to_string(),
+            )
+            .expect(1)
+            .create_async()
+            .await;
+        let tmp = TempDir::new().unwrap();
+        let app = router_with_auth(
+            cargo_config(tmp.path().to_path_buf(), &upstream.url(), "$all"),
+            AuthState::in_memory(),
+        );
+        let mut mocks = Vec::new();
+        for name in names {
+            let archive = crate_archive(name, "0.1.0");
+            let entry = json!({"name": name, "vers": "0.1.0", "deps": [], "features": {}, "cksum": sha256_hex(&archive)});
+            mocks.push(
+                upstream
+                    .mock("GET", format!("/de/mo/{name}").as_str())
+                    .with_body(format!("{entry}\n"))
+                    .expect(1)
+                    .create_async()
+                    .await,
+            );
+            mocks.push(
+                upstream
+                    .mock("GET", format!("/dl/{name}/0.1.0").as_str())
+                    .with_body(archive)
+                    .expect(1)
+                    .create_async()
+                    .await,
+            );
+        }
+        for name in names.into_iter().cycle().take(4) {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/index/de/mo/{name}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let entry: Value =
+                serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+            assert_eq!(entry["name"], name);
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/api/v1/crates/{name}/0.1.0/download"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(body_bytes(response.into_body()).await, crate_archive(name, "0.1.0"));
+        }
+        for mock in mocks {
+            mock.assert_async().await;
+        }
+        config_mock.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn missing_upstream_separator_alias_does_not_replace_cached_index() {
+    let present_case = ("demo_crate", StatusCode::OK);
+    let absent_case = ("demo-crate", StatusCode::NOT_FOUND);
+    for names in [[present_case, absent_case], [absent_case, present_case]] {
+        let mut upstream = mockito::Server::new_async().await;
+        let present = upstream
+            .mock("GET", "/de/mo/demo_crate")
+            .with_body("{\"name\":\"demo_crate\",\"vers\":\"0.1.0\"}\n")
+            .expect(1)
+            .create_async()
+            .await;
+        let absent = upstream
+            .mock("GET", "/de/mo/demo-crate")
+            .with_status(404)
+            .expect(2)
+            .create_async()
+            .await;
+        let tmp = TempDir::new().unwrap();
+        let app = router_with_auth(
+            cargo_config(tmp.path().to_path_buf(), &upstream.url(), "$all"),
+            AuthState::in_memory(),
+        );
+        for (name, expected) in names.into_iter().cycle().take(4) {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/cargo/index/de/mo/{name}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected);
+        }
+        present.assert_async().await;
+        absent.assert_async().await;
+    }
 }
