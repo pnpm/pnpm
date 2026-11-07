@@ -6,6 +6,7 @@ name: NetBSD VM build
 on:
   pull_request:
     paths:
+      - .github/actions/install-crates/**
       - .github/actions/netbsd-vm/**
       - .github/scripts/netbsd-vm/**
       - .github/workflows/netbsd-vm.yml

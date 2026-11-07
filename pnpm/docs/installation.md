@@ -23,7 +23,7 @@ pnpm 12 ships a prebuilt binary for each of these targets:
 | NetBSD | x64 |
 | Android | arm64, x64 |
 
-FreeBSD, ppc64le, s390x, RISC-V, and Android were added in v12.4.0. The NetBSD binary needs NetBSD 10 or newer. On a target with no binary, install the JavaScript [pnpm 11](https://www.npmjs.com/package/pnpm/v/11) instead.
+FreeBSD, ppc64le, s390x, RISC-V, and Android were added in v12.4.0. The NetBSD binary is built and tested on NetBSD 10. On a target with no binary, install the JavaScript [pnpm 11](https://www.npmjs.com/package/pnpm/v/11) instead.
 
 For StackBlitz WebContainers, see the experimental [WebAssembly distribution](./webcontainers.md).
 
