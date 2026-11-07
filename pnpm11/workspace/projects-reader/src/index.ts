@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { packageIsInstallable } from '@pnpm/cli.utils'
+import { getNodeVersionFromEnginesRuntime, packageIsInstallable } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
@@ -46,6 +46,7 @@ export async function findWorkspaceProjects (
   for (const project of projects) {
     packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
+      nodeVersion: opts?.nodeVersion ?? getNodeVersionFromEnginesRuntime(project.manifest),
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
@@ -69,6 +70,7 @@ export function findWorkspaceProjectsSync (
   for (const project of projects) {
     packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
+      nodeVersion: opts?.nodeVersion ?? getNodeVersionFromEnginesRuntime(project.manifest),
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],

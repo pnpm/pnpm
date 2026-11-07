@@ -82,8 +82,18 @@ impl<'a> ProjectHost<'a> {
         requirements: &PackageInstallabilityManifest,
     ) -> Result<Option<LogEvent>, InitStateError> {
         let wanted_engine = requirements.engines.as_ref();
+        let project_node_version = if self.config.node_version.is_none()
+            && !self.config.skip_runtimes
+            && wanted_engine.and_then(|engine| engine.node.as_ref()).is_some()
+        {
+            pnpm_workspace::try_read_project_manifest(project_dir)
+                .map_err(InitStateError::ManifestRead)?
+                .and_then(|(_, manifest)| node_version_from_engines_runtime(manifest.value()))
+        } else {
+            None
+        };
         let node_version = match wanted_engine.and_then(|engine| engine.node.as_ref()) {
-            Some(_) => self.node_version(),
+            Some(_) => project_node_version.as_deref().unwrap_or_else(|| self.node_version()),
             None => "",
         };
         let pnpm_version =

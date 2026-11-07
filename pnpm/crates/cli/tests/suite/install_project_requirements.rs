@@ -105,6 +105,28 @@ fn engine_strict_rejects_a_workspace_project_node_mismatch() {
 }
 
 #[test]
+fn a_workspace_project_checks_node_engines_against_its_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\n")
+        .expect("write workspace settings");
+    write_workspace(
+        &workspace,
+        &serde_json::json!({
+            "engines": { "node": ">=99.0.0" },
+            "devEngines": { "runtime": { "name": "node", "version": "99.0.0" } },
+        }),
+    );
+
+    let output = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .output()
+        .expect("run pnpm install");
+
+    assert!(output.status.success(), "{}", output_text(&output));
+    drop(root);
+}
+
+#[test]
 fn a_workspace_project_on_an_unsupported_platform_warns() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\n")

@@ -1,6 +1,7 @@
 import { packageManager } from '@pnpm/cli.meta'
 
 export * from './packageIsInstallable.js'
+export { getNodeVersionFromEnginesRuntime } from '@pnpm/config.package-is-installable'
 export * from './promptPageSize.js'
 export * from './readDepNameCompletions.js'
 export * from './readProjectManifest.js'
