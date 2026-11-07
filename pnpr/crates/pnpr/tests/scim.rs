@@ -71,7 +71,7 @@ async fn scim(
 
 /// Log in (or register) `username`, returning the status and the token.
 async fn log_in(app: &axum::Router, username: &str) -> (StatusCode, Option<String>) {
-    let body = json!({ "name": username, "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": username, "password": "secret123", "type": "user", "roles": [] });
     let path = format!("/-/user/org.couchdb.user:{username}");
     let (status, payload) = send(app, "PUT", &path, None, Some(body)).await;
     (status, payload["token"].as_str().map(str::to_string))
@@ -167,7 +167,7 @@ async fn deactivation_revokes_credentials_and_reactivation_keeps_the_id() {
     let app = router_with_auth(load_config(dir.path()), auth.clone());
     let (_, created) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
     let id = created["id"].as_str().unwrap();
-    auth.users.set_password(id, "secret").await.unwrap();
+    auth.users.set_password(id, "secret123").await.unwrap();
     let (_, token) = log_in(&app, "alice").await;
     let token = token.unwrap();
     let path = format!("{USERS}/{id}");
@@ -200,7 +200,7 @@ async fn deactivation_revokes_credentials_and_reactivation_keeps_the_id() {
     assert_eq!(status, StatusCode::OK);
     assert!(created_token.get("expires").is_none());
     assert_eq!(whoami(&app, created_token["token"].as_str().unwrap()).await, StatusCode::OK);
-    auth.users.set_password(id, "secret").await.unwrap();
+    auth.users.set_password(id, "secret123").await.unwrap();
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::CREATED);
 }
 
@@ -265,7 +265,7 @@ async fn reactivation_cleans_up_credentials_left_during_deactivation() {
     let id = created["id"].as_str().unwrap();
     let path = format!("{USERS}/{id}");
     scim(&app, "PATCH", &path, Some(deactivate())).await;
-    auth.users.set_password(id, "secret").await.unwrap();
+    auth.users.set_password(id, "secret123").await.unwrap();
     let leftover = auth.tokens.issue(id).await.unwrap();
     assert_eq!(scim(&app, "PUT", &path, Some(new_user("alice"))).await.0, StatusCode::OK);
     assert_eq!(whoami(&app, &leftover).await, StatusCode::UNAUTHORIZED);
@@ -279,7 +279,7 @@ async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
     std::fs::create_dir_all(record.parent().unwrap()).unwrap();
     std::fs::write(&record, "not a directory").unwrap();
     let auth = AuthState::in_memory();
-    auth.users.create_user("alice", "secret").await.unwrap();
+    auth.users.create_user("alice", "secret123").await.unwrap();
     let id = auth.users
         .account_id("alice")
         .await

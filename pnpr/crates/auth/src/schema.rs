@@ -4,7 +4,7 @@ use rusqlite::OptionalExtension as _;
 use std::future::Future;
 
 /// Current version of the auth database schema.
-pub const CURRENT_SCHEMA_VERSION: i64 = 3;
+pub const CURRENT_SCHEMA_VERSION: i64 = 4;
 
 /// Table storing schema migrations applied to the auth database.
 pub(crate) const SCHEMA_MIGRATIONS_TABLE_SQL: &str =
@@ -46,7 +46,7 @@ fn apply_sqlite_v1(conn: &rusqlite::Connection) -> Result<()> {
     conn.execute(super::token_store::sqlite::TOKENS_INDEX_SQL, [])?;
     let now = unix_seconds() as i64;
     conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (3, ?1) ON CONFLICT (version) DO NOTHING",
+        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (4, ?1) ON CONFLICT (version) DO NOTHING",
         rusqlite::params![now],
     )?;
     Ok(())
@@ -84,7 +84,7 @@ async fn apply_libsql_v1(conn: &libsql::Connection) -> Result<()> {
     conn.execute(super::AUTH_COUNTERS_TABLE_SQL, ()).await?;
     let now = unix_seconds() as i64;
     conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (3, ?1) ON CONFLICT (version) DO NOTHING",
+        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (4, ?1) ON CONFLICT (version) DO NOTHING",
         libsql::params![now],
     )
     .await?;
@@ -113,7 +113,7 @@ async fn apply_postgres_v1(pool: &sqlx::PgPool) -> Result<()> {
     sqlx::query(super::token_store::sqlite::TOKENS_INDEX_SQL).execute(pool).await?;
     sqlx::query(super::AUTH_COUNTERS_TABLE_SQL).execute(pool).await?;
     let now = unix_seconds() as i64;
-    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (3, $1) ON CONFLICT (version) DO NOTHING")
+    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (4, $1) ON CONFLICT (version) DO NOTHING")
         .bind(now)
         .execute(pool)
         .await?;
@@ -141,6 +141,7 @@ async fn apply_mysql_v1(pool: &sqlx::MySqlPool) -> Result<()> {
         "CREATE TABLE IF NOT EXISTS users (
             id           VARCHAR(64) PRIMARY KEY,
             username     VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin UNIQUE NOT NULL,
+            username_skeleton_hash CHAR(64) UNIQUE,
             bcrypt_hash  TEXT NOT NULL
         )",
     )
@@ -165,7 +166,7 @@ async fn apply_mysql_v1(pool: &sqlx::MySqlPool) -> Result<()> {
     create_token_index_mysql(pool).await?;
     sqlx::query(super::AUTH_COUNTERS_TABLE_SQL).execute(pool).await?;
     let now = unix_seconds() as i64;
-    sqlx::query("INSERT IGNORE INTO auth_schema_migrations (version, applied_at) VALUES (3, ?)")
+    sqlx::query("INSERT IGNORE INTO auth_schema_migrations (version, applied_at) VALUES (4, ?)")
         .bind(now)
         .execute(pool)
         .await?;

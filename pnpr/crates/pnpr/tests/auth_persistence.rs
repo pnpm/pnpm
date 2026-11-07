@@ -88,7 +88,7 @@ async fn user_and_token_survive_restart() {
     // adduser pulls a fresh token out of the response body.
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -131,7 +131,7 @@ async fn user_and_token_survive_restart() {
     // The existing username must accept the same password and not
     // be re-registered as a brand-new user.
     let response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -159,7 +159,7 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
 
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -176,7 +176,7 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
         let path = format!("/-/user/org.couchdb.user:{encoded_username}");
         let response = app
             .clone()
-            .oneshot(put_json(&path, adduser_body(username, "secret")))
+            .oneshot(put_json(&path, adduser_body(username, "secret123")))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case} username");
@@ -192,7 +192,7 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
         .await
         .expect("reload after restart");
     // The reloaded htpasswd still logs the user in with the original password.
-    let (_, username) = auth.users.add_or_login("alice", "secret").await.unwrap();
+    let (_, username) = auth.users.add_or_login("alice", "secret123").await.unwrap();
     assert_eq!(Some(username), auth.users.account_id("alice").await.unwrap());
     assert_eq!(std::fs::read_to_string(&htpasswd).unwrap(), original_htpasswd);
 }
@@ -352,13 +352,13 @@ async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
 
     let first = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(first.status(), StatusCode::CREATED);
 
     let second = app
-        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret123")))
         .await
         .unwrap();
     assert_eq!(second.status(), StatusCode::FORBIDDEN);

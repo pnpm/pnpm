@@ -385,3 +385,18 @@ fn active_names_by_id(users: &Users) -> HashMap<String, String> {
         .map(|(name, account)| (account.id.clone(), name.clone()))
         .collect()
 }
+
+fn check_username_skeleton(users: &Users, username: &str, own_id: Option<&str>) -> Result<()> {
+    let skeleton = crate::validation::username_skeleton_hash(username);
+    if users
+        .iter()
+        .any(|(name, account)| {
+            account.password_hash != crate::DELETED_USER_HASH
+                && Some(account.id.as_str()) != own_id
+                && crate::validation::username_skeleton_hash(name) == skeleton
+        })
+    {
+        return Err(crate::validation::confusable_username());
+    }
+    Ok(())
+}

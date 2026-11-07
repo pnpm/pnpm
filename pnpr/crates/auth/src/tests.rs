@@ -80,7 +80,7 @@ fn username_validation_rejects_names_that_trim_differently() {
 async fn user_store_rejects_invalid_username_before_persisting() {
     let store = test_user_store();
     for username in INVALID_USERNAMES {
-        let err = store.add_or_login(username, "secret").await.unwrap_err();
+        let err = store.add_or_login(username, "secret123").await.unwrap_err();
         assert_eq!(
             err.status_code(),
             axum::http::StatusCode::BAD_REQUEST,
@@ -96,13 +96,13 @@ async fn user_store_rejects_invalid_username_before_persisting() {
 #[tokio::test]
 async fn user_store_rejects_invalid_username_before_lookup() {
     let store = test_user_store();
-    let hash = bcrypt::hash("secret", TEST_COST).unwrap();
+    let hash = bcrypt::hash("secret123", TEST_COST).unwrap();
     for username in INVALID_USERNAMES {
         store.insert_user_for_test((*username).to_string(), hash.clone());
     }
 
     for username in INVALID_USERNAMES {
-        let err = store.add_or_login(username, "secret").await.unwrap_err();
+        let err = store.add_or_login(username, "secret123").await.unwrap_err();
         assert_eq!(
             err.status_code(),
             axum::http::StatusCode::BAD_REQUEST,
@@ -114,11 +114,11 @@ async fn user_store_rejects_invalid_username_before_lookup() {
 #[tokio::test]
 async fn adduser_creates_then_validates() {
     let store = test_user_store();
-    let outcome = store.add_or_login("alice", "secret").await.unwrap();
+    let outcome = store.add_or_login("alice", "secret123").await.unwrap();
     assert!(matches!(outcome, (UpsertOutcome::Created, _)));
     assert_eq!(Some(outcome.1), store.account_id("alice").await.unwrap());
 
-    let outcome = store.add_or_login("alice", "secret").await.unwrap();
+    let outcome = store.add_or_login("alice", "secret123").await.unwrap();
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
     assert_eq!(Some(outcome.1), store.account_id("alice").await.unwrap());
 
@@ -130,7 +130,7 @@ async fn adduser_creates_then_validates() {
 #[tokio::test]
 async fn adduser_rejects_existing_user_with_wrong_password() {
     let store = test_user_store();
-    store.add_or_login("alice", "secret").await.unwrap();
+    store.add_or_login("alice", "secret123").await.unwrap();
     let err = store.add_or_login("alice", "different").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
@@ -152,8 +152,8 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
         })
     };
 
-    let add_a = spawn_adduser("pw-a");
-    let add_b = spawn_adduser("pw-b");
+    let add_a = spawn_adduser("password-a");
+    let add_b = spawn_adduser("password-b");
     barrier.wait().await;
 
     let result_a = add_a.await.unwrap();
@@ -176,8 +176,8 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
     assert_eq!(unauthorized, 1, "the losing registration must be rejected");
     // Exactly one of the two passwords is the one that was stored: logging in
     // with it succeeds, the other is rejected as unauthorized.
-    let login_a = store.add_or_login("alice", "pw-a").await;
-    let login_b = store.add_or_login("alice", "pw-b").await;
+    let login_a = store.add_or_login("alice", "password-a").await;
+    let login_b = store.add_or_login("alice", "password-b").await;
     let logged_in = [login_a.as_ref(), login_b.as_ref()]
         .into_iter()
         .filter(|result| matches!(result, Ok((UpsertOutcome::LoggedIn, _))))
@@ -202,12 +202,12 @@ async fn adduser_persists_across_reopen() {
     let path = tmp.path().join("htpasswd");
 
     let store = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
-    store.add_or_login("alice", "secret").await.unwrap();
+    store.add_or_login("alice", "secret123").await.unwrap();
     drop(store);
 
     // Cold-load from disk; the hashed entry should still log in.
     let reopened = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
-    let outcome = reopened.add_or_login("alice", "secret").await.unwrap();
+    let outcome = reopened.add_or_login("alice", "secret123").await.unwrap();
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
 }
 
@@ -216,7 +216,7 @@ async fn adduser_writes_bcrypt_2y_format() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("htpasswd");
     let store = UserStore::open_with_cost(path.clone(), MaxUsers::Unlimited, TEST_COST).unwrap();
-    store.add_or_login("alice", "secret").await.unwrap();
+    store.add_or_login("alice", "secret123").await.unwrap();
 
     let records: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
@@ -231,7 +231,7 @@ async fn adduser_writes_bcrypt_2y_format() {
 #[tokio::test]
 async fn max_users_minus_one_disables_registration() {
     let store = UserStore::in_memory_with_cost(MaxUsers::Disabled, TEST_COST);
-    let err = store.add_or_login("alice", "secret").await.unwrap_err();
+    let err = store.add_or_login("alice", "secret123").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
@@ -240,19 +240,19 @@ async fn in_memory_store_honors_the_registration_cap() {
     // An unset `auth.users.file` must not re-open sign-ups that the
     // configured cap denied: the in-memory store enforces it too.
     let store = UserStore::in_memory_with_max_users(MaxUsers::Disabled);
-    let err = store.add_or_login("alice", "secret").await.unwrap_err();
+    let err = store.add_or_login("alice", "secret123").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
 async fn max_users_caps_new_registrations() {
     let store = UserStore::in_memory_with_cost(MaxUsers::Limited(2), TEST_COST);
-    store.add_or_login("alice", "x").await.unwrap();
-    store.add_or_login("bob", "x").await.unwrap();
-    let err = store.add_or_login("carol", "x").await.unwrap_err();
+    store.add_or_login("alice", "password-x").await.unwrap();
+    store.add_or_login("bob", "password-x").await.unwrap();
+    let err = store.add_or_login("carol", "password-x").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
     // Existing users may still log in once the cap is hit.
-    store.add_or_login("alice", "x").await.unwrap();
+    store.add_or_login("alice", "password-x").await.unwrap();
 }
 
 #[tokio::test]
@@ -607,8 +607,22 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
 /// The admin operations every [`UserBackend`] supports, starting from an
 /// empty store.
 pub(crate) async fn assert_admin_round_trip(users: &dyn UserBackend) {
-    assert_eq!(users.create_user("alice", "first").await.unwrap(), UserCreation::Created);
-    assert_eq!(users.create_user("alice", "other").await.unwrap(), UserCreation::NameTaken);
+    for password in ["short", "ééééééé", &"a".repeat(72)] {
+        let err = users.create_user("alice", password).await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    }
+    assert!(
+        users
+            .account_id("alice")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(users.create_user("alice", "first-password").await.unwrap(), UserCreation::Created);
+    assert_eq!(
+        users.create_user("alice", "other-password").await.unwrap(),
+        UserCreation::NameTaken,
+    );
     assert_eq!(users.list_users().await.unwrap(), ["alice"]);
 
     let id = users
@@ -616,13 +630,16 @@ pub(crate) async fn assert_admin_round_trip(users: &dyn UserBackend) {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(users.set_password(&id, "second").await.unwrap(), PasswordChange::Changed);
-    assert!(users.add_or_login("alice", "first").await.is_err());
+    let err = users.set_password(&id, "short").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    users.add_or_login("alice", "first-password").await.unwrap();
+    assert_eq!(users.set_password(&id, "second-password").await.unwrap(), PasswordChange::Changed);
+    assert!(users.add_or_login("alice", "first-password").await.is_err());
     assert!(matches!(
-        users.add_or_login("alice", "second").await.unwrap(),
+        users.add_or_login("alice", "second-password").await.unwrap(),
         (UpsertOutcome::LoggedIn, _),
     ));
-    assert_eq!(users.set_password("bob", "x").await.unwrap(), PasswordChange::NoSuchUser);
+    assert_eq!(users.set_password("bob", "password-x").await.unwrap(), PasswordChange::NoSuchUser);
 
     assert_eq!(users.delete_user(&id).await.unwrap(), UserRemoval::Removed);
     assert_eq!(users.delete_user(&id).await.unwrap(), UserRemoval::NoSuchUser);
@@ -645,8 +662,8 @@ async fn admin_created_users_bypass_disabled_registration_and_persist() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("htpasswd");
     let store = UserStore::open_with_cost(path.clone(), MaxUsers::Disabled, TEST_COST).unwrap();
-    assert_eq!(store.create_user("alice", "secret").await.unwrap(), UserCreation::Created);
-    assert_eq!(store.create_user("bob", "secret").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.create_user("alice", "secret123").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.create_user("bob", "secret123").await.unwrap(), UserCreation::Created);
     assert_eq!(
         store
             .delete_user(
@@ -676,7 +693,7 @@ async fn concurrent_edits_leave_the_file_matching_memory() {
         let store = Arc::clone(&store);
         edits.spawn(async move {
             let name = format!("user{index}");
-            store.create_user(&name, "x").await.unwrap();
+            store.create_user(&name, "password-x").await.unwrap();
             if index % 2 == 0 {
                 store
                     .delete_user(
@@ -705,7 +722,7 @@ async fn a_failed_write_changes_nothing_and_can_be_repeated() {
     // A directory where the file belongs makes the write's rename fail.
     std::fs::create_dir(&path).unwrap();
 
-    assert!(store.create_user("alice", "x").await.is_err());
+    assert!(store.create_user("alice", "password-x").await.is_err());
     assert!(
         store
             .list_users()
@@ -715,7 +732,7 @@ async fn a_failed_write_changes_nothing_and_can_be_repeated() {
     );
 
     std::fs::remove_dir(&path).unwrap();
-    assert_eq!(store.create_user("alice", "x").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.create_user("alice", "password-x").await.unwrap(), UserCreation::Created);
     let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
 }
@@ -724,7 +741,7 @@ async fn a_failed_write_changes_nothing_and_can_be_repeated() {
 async fn local_tokens_of_a_removed_owner_stop_authenticating() {
     let users = Arc::new(test_user_store());
     let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
-    users.create_user("alice", "x").await.unwrap();
+    users.create_user("alice", "password-x").await.unwrap();
     let id = users
         .account_id("alice")
         .await
@@ -1037,7 +1054,7 @@ async fn file_backed_user_store_picks_up_external_edits() {
     let store1 = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
     let store2 = UserStore::open(htpasswd_path, MaxUsers::Unlimited).unwrap();
 
-    assert_eq!(store1.create_user("alice", "pass1").await.unwrap(), UserCreation::Created);
+    assert_eq!(store1.create_user("alice", "password1").await.unwrap(), UserCreation::Created);
     // store2 (simulating a running server or other process) should observe alice
     assert!(
         store2
@@ -1056,14 +1073,14 @@ async fn file_backed_user_store_picks_up_external_edits() {
                     .await
                     .unwrap()
                     .unwrap(),
-                "pass2"
+                "password2"
             )
             .await
             .unwrap(),
         PasswordChange::Changed,
     );
     // store1 adds bob
-    assert_eq!(store1.create_user("bob", "pass3").await.unwrap(), UserCreation::Created);
+    assert_eq!(store1.create_user("bob", "password3").await.unwrap(), UserCreation::Created);
 
     // Both stores should observe both alice and bob without losing either edit
     assert!(
@@ -1088,7 +1105,7 @@ async fn holds_fails_closed_on_corrupt_htpasswd_and_reflects_deletion() {
     let htpasswd_path = dir.path().join("htpasswd");
     let store = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
 
-    assert_eq!(store.create_user("alice", "pass1").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.create_user("alice", "password1").await.unwrap(), UserCreation::Created);
     let id = store
         .account_id("alice")
         .await
@@ -1113,7 +1130,7 @@ async fn concurrent_lookups_during_removal_and_replacement_do_not_deadlock() {
     let store =
         std::sync::Arc::new(UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap());
 
-    assert_eq!(store.create_user("alice", "pass1").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.create_user("alice", "password1").await.unwrap(), UserCreation::Created);
 
     let mut handles = Vec::new();
     for index in 0..10 {

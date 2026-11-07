@@ -473,6 +473,7 @@ pub enum UserRemoval {
 pub(crate) const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
     id           VARCHAR(64) PRIMARY KEY,
     username     VARCHAR(255) UNIQUE NOT NULL,
+    username_skeleton_hash CHAR(64) UNIQUE,
     bcrypt_hash  TEXT NOT NULL
 )";
 

@@ -5,6 +5,7 @@ use super::{
     hosted_storage, json, not_found, resolve_registry_source,
 };
 use axum::response::IntoResponse;
+use pnpr_policy::{AccessList, AccessToken};
 
 /// `GET /-/org/{scope}/package` — the npm-compatible package-permission map.
 /// Values are useful to npm's account UI; registry UIs such as npmX consume
@@ -205,6 +206,30 @@ pub(super) fn team_registry<'a>(
     Ok((name, hosted))
 }
 
+pub(super) fn readable_team_registry<'a>(
+    state: &'a AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
+    let (name, hosted) = team_registry(state, identity, registry, scope)?;
+    super::require_caller(identity, "team listing")?;
+    if state.inner.config.identity.is_admin(identity) {
+        return Ok((name, hosted));
+    }
+    let members = AccessList::new(
+        hosted.teams
+            .snapshot()
+            .keys()
+            .map(|id| AccessToken::Team { id: id.clone(), directory: hosted.teams.clone() })
+            .collect(),
+    );
+    if !members.allows(identity) {
+        return Err(RegistryError::NotFound);
+    }
+    Ok((name, hosted))
+}
+
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
 /// — list the teams of the hosted registry that claims `@{scope}`, in the
 /// shape the pnpm team command consumes: an array of `{"name": ...}`.
@@ -214,7 +239,7 @@ pub(super) fn get_org_teams(
     registry: Option<&str>,
     scope: &str,
 ) -> Response {
-    let hosted = match team_registry(state, identity, registry, scope) {
+    let hosted = match readable_team_registry(state, identity, registry, scope) {
         Ok((_, hosted)) => hosted,
         Err(err) => return err.into_response(),
     };
@@ -236,7 +261,7 @@ pub(super) async fn get_team_members(
     scope: &str,
     team: &str,
 ) -> Response {
-    let hosted = match team_registry(state, identity, registry, scope) {
+    let hosted = match readable_team_registry(state, identity, registry, scope) {
         Ok((_, hosted)) => hosted,
         Err(err) => return err.into_response(),
     };

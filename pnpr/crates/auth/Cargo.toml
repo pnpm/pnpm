@@ -36,6 +36,7 @@ sha2 = { workspace = true }
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+unicode-security = { workspace = true }
 url = { workspace = true }
 ssri = { workspace = true }
 

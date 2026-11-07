@@ -364,14 +364,14 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
         Duration::from_secs(30),
     );
 
-    let err = auth.add_or_login("alice", "secret").await.unwrap_err();
+    let err = auth.add_or_login("alice", "secret123").await.unwrap_err();
 
     assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
 }
 
 #[tokio::test]
 async fn add_or_login_returns_the_immutable_id_for_existing_users() {
-    let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
+    let bcrypt_hash = bcrypt::hash("secret123", 4).unwrap();
     let auth = SqlAuth::new(
         CanonicalBackend {
             user: StoredUser {
@@ -384,7 +384,7 @@ async fn add_or_login_returns_the_immutable_id_for_existing_users() {
         Duration::from_secs(30),
     );
 
-    let outcome = auth.add_or_login("alice", "secret").await.unwrap();
+    let outcome = auth.add_or_login("alice", "secret123").await.unwrap();
 
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
     assert_eq!(outcome.1, "account-id");
@@ -401,14 +401,14 @@ async fn add_or_login_rejects_invalid_usernames_without_db_lookup() {
     let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
 
     for username in ["", " alice", "alice ", "#alice", "alice:admin", "alice\nadmin"] {
-        let err = auth.add_or_login(username, "secret").await.unwrap_err();
+        let err = auth.add_or_login(username, "secret123").await.unwrap_err();
         assert_eq!(
             err.status_code(),
             axum::http::StatusCode::BAD_REQUEST,
             "expected {username:?} to be rejected",
         );
     }
-    let err = auth.add_or_login(&overlong, "secret").await.unwrap_err();
+    let err = auth.add_or_login(&overlong, "secret123").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
 }
@@ -423,7 +423,7 @@ async fn add_or_login_rate_limits_capped_reconciliation() {
     );
 
     for username in ["alice", "bob", "carol"] {
-        let err = auth.add_or_login(username, "secret").await.unwrap_err();
+        let err = auth.add_or_login(username, "secret123").await.unwrap_err();
         assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }));
     }
 

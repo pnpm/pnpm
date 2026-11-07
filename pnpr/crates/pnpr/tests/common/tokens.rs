@@ -78,12 +78,17 @@ pub(crate) fn seeded_auth(config: &pnpr::Config, accounts: &[(&str, &str)]) -> A
     AuthState { users, tokens: Arc::new(tokens) }
 }
 
-pub(crate) async fn account_id(app: &axum::Router, name: &str) -> Option<String> {
+pub(crate) async fn account_id(
+    app: &axum::Router,
+    name: &str,
+    token: Option<&str>,
+) -> Option<String> {
     use tower::ServiceExt as _;
     let response = app
         .clone()
         .oneshot(
             axum::http::Request::get(format!("/-/user/{name}"))
+                .header("authorization", format!("Bearer {}", token.unwrap_or("invalid")))
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )
@@ -96,7 +101,12 @@ pub(crate) async fn account_id(app: &axum::Router, name: &str) -> Option<String>
     serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["id"].as_str().map(str::to_string)
 }
 
-pub(crate) async fn admin_path(app: &axum::Router, method: &str, path: &str) -> String {
+pub(crate) async fn admin_path(
+    app: &axum::Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+) -> String {
     let prefix = "/-/pnpr/v0/admin/users/";
     let Some(rest) = path.strip_prefix(prefix) else {
         return path.to_string();
@@ -107,7 +117,7 @@ pub(crate) async fn admin_path(app: &axum::Router, method: &str, path: &str) -> 
     let (name, tail) = rest
         .split_once('/')
         .map_or((rest, ""), |(name, tail)| (name, tail));
-    let Some(id) = account_id(app, name).await else {
+    let Some(id) = account_id(app, name, token).await else {
         return path.to_string();
     };
     if tail.is_empty() { format!("{prefix}{id}") } else { format!("{prefix}{id}/{tail}") }

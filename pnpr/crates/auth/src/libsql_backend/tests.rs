@@ -55,11 +55,11 @@ async fn with_auth_timeout_passes_a_fast_read_through() {
 async fn add_or_login_creates_then_logs_in() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     assert!(matches!(
-        backend.add_or_login("alice", "secret").await.unwrap(),
+        backend.add_or_login("alice", "secret123").await.unwrap(),
         (UpsertOutcome::Created, _),
     ));
     assert!(matches!(
-        backend.add_or_login("alice", "secret").await.unwrap(),
+        backend.add_or_login("alice", "secret123").await.unwrap(),
         (UpsertOutcome::LoggedIn, _),
     ));
 }
@@ -67,7 +67,7 @@ async fn add_or_login_creates_then_logs_in() {
 #[tokio::test]
 async fn add_or_login_rejects_existing_user_with_wrong_password() {
     let backend = local_backend(MaxUsers::Unlimited).await;
-    backend.add_or_login("alice", "secret").await.unwrap();
+    backend.add_or_login("alice", "secret123").await.unwrap();
     let err = backend.add_or_login("alice", "different").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
@@ -75,14 +75,14 @@ async fn add_or_login_rejects_existing_user_with_wrong_password() {
 #[tokio::test]
 async fn max_users_disabled_rejects_registration() {
     let backend = local_backend(MaxUsers::Disabled).await;
-    let err = backend.add_or_login("alice", "x").await.unwrap_err();
+    let err = backend.add_or_login("alice", "password-x").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
 async fn add_or_login_rejects_invalid_username_before_insert() {
     let backend = local_backend(MaxUsers::Unlimited).await;
-    let err = backend.add_or_login("alice ", "secret").await.unwrap_err();
+    let err = backend.add_or_login("alice ", "secret123").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
 
     let mut rows = backend.pool
@@ -104,7 +104,7 @@ async fn add_or_login_rejects_invalid_username_before_insert() {
 #[tokio::test]
 async fn add_or_login_rejects_existing_invalid_username() {
     let backend = local_backend(MaxUsers::Unlimited).await;
-    let hash = bcrypt::hash("secret", 4).unwrap();
+    let hash = bcrypt::hash("secret123", 4).unwrap();
     backend.pool
         .connect()
         .unwrap()
@@ -115,7 +115,7 @@ async fn add_or_login_rejects_existing_invalid_username() {
         .await
         .unwrap();
 
-    let err = backend.add_or_login("alice ", "secret").await.unwrap_err();
+    let err = backend.add_or_login("alice ", "secret123").await.unwrap_err();
 
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
 }
@@ -133,7 +133,7 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
         .await
         .unwrap();
 
-    let err = backend.add_or_login("alice", "secret").await.unwrap_err();
+    let err = backend.add_or_login("alice", "secret123").await.unwrap_err();
 
     assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
 }
@@ -141,12 +141,12 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
 #[tokio::test]
 async fn max_users_caps_registration() {
     let backend = local_backend(MaxUsers::Limited(1)).await;
-    backend.add_or_login("alice", "x").await.unwrap();
-    let err = backend.add_or_login("bob", "x").await.unwrap_err();
+    backend.add_or_login("alice", "password-x").await.unwrap();
+    let err = backend.add_or_login("bob", "password-x").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
     // The capped-out registrant can't sneak in, but existing users
     // still log in.
-    backend.add_or_login("alice", "x").await.unwrap();
+    backend.add_or_login("alice", "password-x").await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -156,7 +156,7 @@ async fn registration_cap_is_strict_under_concurrency() {
     for index in 0..6 {
         let backend = std::sync::Arc::clone(&backend);
         handles.push(tokio::spawn(async move {
-            backend.add_or_login(&format!("user{index}"), "x").await
+            backend.add_or_login(&format!("user{index}"), "password-x").await
         }));
     }
     let mut created = 0;
@@ -200,7 +200,7 @@ async fn registration_cap_is_strict_across_backend_instances() {
         let barrier = std::sync::Arc::clone(&barrier);
         handles.push(tokio::spawn(async move {
             barrier.wait().await;
-            backend.add_or_login(&format!("user{index}"), "x").await
+            backend.add_or_login(&format!("user{index}"), "password-x").await
         }));
     }
     let mut created = 0;
@@ -271,7 +271,7 @@ async fn ensure_user_counter_reconciles_a_stale_counter() {
 #[tokio::test]
 async fn registration_cap_self_heals_an_overcounted_counter() {
     let backend = local_backend(MaxUsers::Limited(1)).await;
-    backend.add_or_login("alice", "x").await.unwrap();
+    backend.add_or_login("alice", "password-x").await.unwrap();
     backend.pool
         .connect()
         .unwrap()
@@ -279,9 +279,10 @@ async fn registration_cap_self_heals_an_overcounted_counter() {
         .await
         .unwrap();
 
-    assert!(
-        matches!(backend.add_or_login("bob", "x").await.unwrap(), (UpsertOutcome::Created, _),),
-    );
+    assert!(matches!(
+        backend.add_or_login("bob", "password-x").await.unwrap(),
+        (UpsertOutcome::Created, _),
+    ),);
 
     let mut rows = backend.pool
         .connect()
@@ -302,7 +303,7 @@ async fn registration_cap_self_heals_an_overcounted_counter() {
 #[tokio::test]
 async fn tokens_round_trip_and_revoke() {
     let backend = local_backend(MaxUsers::Unlimited).await;
-    backend.create_user("alice", "x").await.unwrap();
+    backend.create_user("alice", "password-x").await.unwrap();
     let alice_id = backend
         .account_id("alice")
         .await
@@ -527,8 +528,8 @@ async fn libsql_supports_the_admin_operations() {
 #[tokio::test]
 async fn admin_created_users_count_against_the_registration_cap() {
     let backend = local_backend(MaxUsers::Limited(1)).await;
-    assert_eq!(backend.create_user("alice", "secret").await.unwrap(), UserCreation::Created);
-    let err = backend.add_or_login("bob", "secret").await.unwrap_err();
+    assert_eq!(backend.create_user("alice", "secret123").await.unwrap(), UserCreation::Created);
+    let err = backend.add_or_login("bob", "secret123").await.unwrap_err();
     assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }), "{err:?}");
 
     assert_eq!(
@@ -545,7 +546,7 @@ async fn admin_created_users_count_against_the_registration_cap() {
         UserRemoval::Removed,
     );
     assert!(matches!(
-        backend.add_or_login("bob", "secret").await.unwrap(),
+        backend.add_or_login("bob", "secret123").await.unwrap(),
         (UpsertOutcome::Created, _),
     ));
 }
@@ -553,7 +554,7 @@ async fn admin_created_users_count_against_the_registration_cap() {
 #[tokio::test]
 async fn a_removed_owner_disables_its_tokens_but_not_their_cleanup() {
     let backend = local_backend(MaxUsers::Unlimited).await;
-    backend.create_user("alice", "x").await.unwrap();
+    backend.create_user("alice", "password-x").await.unwrap();
     let alice_id = backend
         .account_id("alice")
         .await
@@ -635,7 +636,7 @@ async fn libsql_schema_migrations_runs_and_records_version() {
 #[tokio::test]
 async fn libsql_tokens_persist_scopes_and_kind() {
     let backend = local_backend(MaxUsers::Unlimited).await;
-    backend.add_or_login("alice", "secret").await.unwrap();
+    backend.add_or_login("alice", "secret123").await.unwrap();
 
     let new_token = crate::NewToken::new()
         .with_scopes(Some(vec!["scope:read".to_string(), "scope:write".to_string()]))
@@ -746,4 +747,27 @@ async fn one_row_cursor() -> axum::body::Body {
 async fn immutable_account_ids_are_not_reassigned() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     crate::retirement_tests::assert_account_identity(&*backend).await;
+}
+
+#[tokio::test]
+async fn libsql_rejects_confusable_names() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    crate::validation::tests::assert_username_skeletons(&*backend).await;
+}
+
+#[tokio::test]
+async fn libsql_concurrent_confusable_registrations_create_only_one_account() {
+    let backend = local_backend(MaxUsers::Limited(2)).await;
+    let modern = backend.add_or_login("modern", "password");
+    let rnodern = backend.add_or_login("rnodern", "password");
+    let (first, second) = tokio::join!(modern, rnodern);
+    assert_ne!(first.is_ok(), second.is_ok());
+    assert_eq!(
+        backend
+            .list_users()
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
 }

@@ -31,7 +31,7 @@ async fn default_registration_cannot_mint_a_resolver_credential() {
     let registration = json!({
         "_id": "org.couchdb.user:outsider",
         "name": "outsider",
-        "password": "secret",
+        "password": "secret123",
         "email": "outsider@example.test",
         "type": "user",
         "roles": [],
@@ -342,7 +342,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let registration = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
-        "password": "secret",
+        "password": "secret123",
         "email": "alice@example.test",
         "type": "user",
         "roles": [],

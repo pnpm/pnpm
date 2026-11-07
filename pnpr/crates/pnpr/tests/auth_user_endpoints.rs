@@ -165,7 +165,7 @@ impl UserBackend for CanonicalUserBackend {
 async fn whoami_returns_username_for_authenticated_caller() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let response = app
         .oneshot(get_with_bearer("/-/whoami", &token))
@@ -187,7 +187,7 @@ async fn adduser_issues_token_for_canonical_username() {
 
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -212,7 +212,7 @@ async fn adduser_accepts_bare_user_route_without_couchdb_prefix() {
 
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -276,7 +276,7 @@ async fn whoami_returns_401_for_unknown_bearer() {
 async fn whoami_rejects_duplicate_authorization_headers() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
     let mut request = get_with_bearer("/-/whoami", &token);
     request
         .headers_mut()
@@ -305,7 +305,7 @@ async fn whoami_rejects_non_text_authorization_header() {
 async fn profile_returns_user_info() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let response = app
         .oneshot(get_with_bearer("/-/npm/v1/user", &token))
@@ -341,13 +341,15 @@ async fn profile_returns_401_when_unauthenticated() {
 async fn token_list_returns_only_callers_tokens() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, _bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, _bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
     // Issue a second token to alice so the listing has more than one.
-    let (app, _alice_token_2) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, _alice_token_2) = add_user_and_get_token(app, "alice", "secret123").await;
 
-    let alice_id = crate::tokens::account_id(&app, "alice").await.unwrap();
+    let alice_id = crate::tokens::account_id(&app, "alice", Some(&alice_token))
+        .await
+        .unwrap();
     let response = app
         .oneshot(get_with_bearer("/-/npm/v1/tokens", &alice_token))
         .await
@@ -386,8 +388,8 @@ async fn token_list_returns_401_when_unauthenticated() {
 async fn revoke_token_by_key_removes_the_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, victim_token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, victim_token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Read the key for the victim token via the list endpoint.
     let response = app
@@ -451,7 +453,7 @@ async fn uses_token(app: &axum::Router, raw_token: &str, candidate_key: &str) ->
 async fn revoke_token_by_key_404s_for_unknown_key() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let path = format!("/-/npm/v1/tokens/token/{}", "0".repeat(64));
     let response = app
@@ -465,8 +467,8 @@ async fn revoke_token_by_key_404s_for_unknown_key() {
 async fn revoke_token_by_key_rejects_revoking_someone_elses_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
     // Pull bob's key out of bob's listing.
     let response = app
@@ -518,7 +520,7 @@ async fn revoke_token_by_key_requires_auth() {
 async fn logout_deletes_the_callers_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let path = format!("/-/user/token/{token}");
     let response = app
@@ -540,7 +542,7 @@ async fn logout_deletes_the_callers_token() {
 async fn logout_returns_404_for_unknown_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let path = "/-/user/token/not-a-real-token";
     let response = app
@@ -554,8 +556,8 @@ async fn logout_returns_404_for_unknown_token() {
 async fn logout_requires_caller_to_own_the_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
     // Alice asks to log out using bob's token — forbidden.
     let path = format!("/-/user/token/{bob_token}");
@@ -598,8 +600,8 @@ async fn logout_requires_auth() {
 async fn auth_endpoints_set_private_no_cache_headers() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
     // Bob's key — used to drive the 403 cross-user revoke branch below.
     let response = app
@@ -679,7 +681,7 @@ async fn revocation_survives_restart() {
         .await
         .expect("first boot");
     let app = router_with_auth(config.clone(), auth);
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Logout (revoke own token).
     let path = format!("/-/user/token/{token}");
@@ -757,4 +759,35 @@ async fn login_rate_limiting_enforces_retry_after_after_repeated_failures() {
     let payload = body_json(res.into_body()).await;
     assert_eq!(payload["error"], "too many failed login attempts, please try again later");
     assert_eq!(payload["error"], payload["reason"]);
+}
+
+#[tokio::test]
+async fn user_lookup_requires_authentication_before_checking_existence() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "member", "password").await;
+    for (path, expected) in [
+        ("/-/user/member", StatusCode::OK),
+        ("/-/user/missing", StatusCode::NOT_FOUND),
+        ("/~missing/-/user/member", StatusCode::OK),
+        ("/~missing/-/user/missing", StatusCode::NOT_FOUND),
+        ("/-/user/org.couchdb.user:member", StatusCode::OK),
+        ("/-/user/org.couchdb.user:missing", StatusCode::NOT_FOUND),
+    ] {
+        let anonymous = Request::get(path)
+            .body(Body::empty())
+            .unwrap();
+        for (request, expected) in [
+            (anonymous, StatusCode::UNAUTHORIZED),
+            (get_with_bearer(path, "invalid"), StatusCode::UNAUTHORIZED),
+            (get_with_bearer(path, &token), expected),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(request)
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected, "{path}");
+        }
+    }
 }

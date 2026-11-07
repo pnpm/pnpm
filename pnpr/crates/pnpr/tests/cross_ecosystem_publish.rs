@@ -186,7 +186,7 @@ async fn token_for(app: &axum::Router, username: &str) -> String {
     let body = json!({
         "_id": format!("org.couchdb.user:{username}"),
         "name": username,
-        "password": "secret",
+        "password": "secret123",
         "email": "foo@bar.net",
         "type": "user",
         "roles": [],
