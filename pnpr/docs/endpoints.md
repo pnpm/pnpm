@@ -726,7 +726,7 @@ resolver-only server that exposes no registry surface.
 | `POST` | `/-/v1/login` | Initiates npm/pnpm browser SSO login. Returns `202 Accepted` with `loginUrl` and `doneUrl` when OIDC login is configured, or `404` to fall back to basic auth. |
 | `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Validates the session and redirects to the configured OIDC provider or renders a provider picker. |
 | `GET` | `/-/v1/login/poll/{session}` | CLI polling endpoint (`doneUrl`). Returns `202 Accepted` with `Retry-After: 1` while pending, or `200 OK` with the bearer token once authenticated. |
-| `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.users.maxUsers` allows registration; New passwords must contain at least 8 characters and at most 71 bytes. Existing users can log in with the correct password. Returns a bearer token. |
+| `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.users.maxUsers` allows registration. New passwords must contain at least 8 characters and at most 71 bytes. Existing users can log in with the correct password. Returns a bearer token. |
 | `GET` | `/-/user/{name}` | Requires authentication. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |
