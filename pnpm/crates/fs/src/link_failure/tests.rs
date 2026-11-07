@@ -71,6 +71,6 @@ fn every_failure_has_one_answer_under_each_policy() {
     assert_eq!(expected.len(), LinkFailure::ALL.len());
     for (failure, next_method, copy_one_file) in expected {
         assert_eq!(failure.fallback(LinkFallbackPolicy::NextMethod), next_method, "{failure:?}");
-        assert_eq!(failure.fallback(LinkFallbackPolicy::CopyOneFile), copy_one_file, "{failure:?}",);
+        assert_eq!(failure.fallback(LinkFallbackPolicy::CopyOneFile), copy_one_file, "{failure:?}");
     }
 }
