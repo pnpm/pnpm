@@ -42,11 +42,11 @@ export interface PackageManagerNetworkConfig {
  * or populated later by the CLI harness (e.g. workspace filtering, hook loading).
  */
 export interface ConfigContext {
-  //, Runtime state,
+  // Runtime state
   hooks?: Hooks
   finders?: Record<string, Finder>
 
-  //, Workspace context,
+  // Workspace context
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
@@ -78,7 +78,7 @@ export interface ConfigContext {
    */
   nodeVersionFromEnginesRuntime?: boolean
 
-  //, CLI metadata,
+  // CLI metadata
   cliOptions: Record<string, any> // eslint-disable-line
   /** The `--config.<key>=<value>` options as given, forwarded to a child pnpm the command spawns. */
   rawCliConfig?: Record<string, unknown>

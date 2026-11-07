@@ -53,7 +53,7 @@ the directory, it refuses user credentials until a read succeeds.
 All paths are under `/-/pnpr/v0/scim/v2`.
 
 | Method | Path | Description |
-| --- | --- | --- |
+|,- |,- |,- |
 | `GET` | `/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas` | What pnpr supports. |
 | `GET` | `/Users` | Provisioned users, as a `ListResponse`. `filter` supports only `userName eq "<name>"`. `startIndex` and `count` page the list. |
 | `POST` | `/Users` | Provision a user. Returns `201`, or `409` with `scimType: uniqueness` when the `userName` exists. |

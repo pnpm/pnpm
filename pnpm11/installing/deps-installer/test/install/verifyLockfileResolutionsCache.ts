@@ -326,7 +326,7 @@ describe('recordVerification', () => {
   test('shared policy field is stored once, not duplicated', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     // Two verifiers both contribute minimumReleaseAge with the same value
-    //, the merged bag stores it once.
+    // the merged bag stores it once.
     recordVerification(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60), mraVerifier(60)], hashLockfile: hashLockfileFor('lockfilePath'),

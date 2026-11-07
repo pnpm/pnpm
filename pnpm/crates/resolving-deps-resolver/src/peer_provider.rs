@@ -21,7 +21,7 @@
 //! in their tiers and range check:
 //!
 //! | Peer     | Tiers                          | Range check                    |
-//! |,------ |,---------------------------- |,---------------------------- |
+//! | -------- | ------------------------------ | ------------------------------ |
 //! | required | the versions this run resolved | `includePrerelease`, one range |
 //! | optional | [`ProviderTiers::optional`]    | strict, every recorded range   |
 

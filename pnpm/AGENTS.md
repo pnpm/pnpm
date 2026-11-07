@@ -2,7 +2,7 @@
 
 Guidance for AI coding agents working in `pnpm/`.
 
-**Read [`../AGENTS.md`](../AGENTS.md) first.** It covers the conventions that apply across the whole monorepo — GitHub PR workflow, signing agent-authored content, conventional commit messages, code-reuse philosophy, "never ignore test failures," and the PR-conflict resolution script. This file specializes those rules for pacquet's Rust code and adds pacquet-only ones.
+**Read [`../AGENTS.md`](../AGENTS.md) first.** It covers the conventions that apply across the whole monorepo, GitHub PR workflow, signing agent-authored content, conventional commit messages, code-reuse philosophy, "never ignore test failures," and the PR-conflict resolution script. This file specializes those rules for pacquet's Rust code and adds pacquet-only ones.
 
 ## What this project is
 
@@ -50,8 +50,8 @@ Working rules:
    only when they can't cover the branch.** Most happy paths and
    error paths should be tested with a `tempfile::TempDir`, the
    mocked registry, or an integration test that spawns the actual
-   binary. Use the DI seam — a capability trait on the `Host`
-   provider, threaded as `Sys: <Bounds>` — only for branches a real
+   binary. Use the DI seam, a capability trait on the `Host`
+   provider, threaded as `Sys: <Bounds>`, only for branches a real
    fixture can't reach portably: filesystem error kinds
    (`PermissionDenied`, `ENOSPC`, and so on), deterministic time, shared
    process-global state a test would otherwise mutate
@@ -135,15 +135,15 @@ TypeScript side" below is its TypeScript counterpart):
 
 ## Repo layout (inside `pnpm/`)
 
-- `crates/` — library and binary crates that make up pacquet.
-  - `cli`, `package-manager`, `package-manifest`, `lockfile`, `store-dir`,
+- `crates/`: library and binary crates that make up pacquet.
+  - `cli`: `package-manager`, `package-manifest`, `lockfile`, `store-dir`,
     `tarball`, `registry`, `network`, `npmrc`, `fs`, `executor`,
     `diagnostics`, `testing-utils`.
-- `tasks/` — developer tooling: `integrated-benchmark`, `micro-benchmark`,
+- `tasks/`: developer tooling: `integrated-benchmark`, `micro-benchmark`,
   `registry-mock`.
-- `CONTRIBUTING.md` — commit-message format, writing style, setup, and the
+- `CONTRIBUTING.md`: commit-message format, writing style, setup, and the
   automated checks to run before submitting. Read it before submitting code.
-- `CODE_STYLE_GUIDE.md` — manual code-style conventions beyond what `cargo
+- `CODE_STYLE_GUIDE.md`: manual code-style conventions beyond what `cargo
   fmt`, `taplo`, and clippy enforce: imports, modules, naming, ownership
   and borrowing, trait bounds, pattern matching, `pipe-trait`, error
   handling, test layout, and `Arc`/`Rc` cloning. Read it before submitting
@@ -163,37 +163,37 @@ in `pnpm-workspace.yaml`) hold the builds and test runs of every worktree on
 a machine to a limit it can carry; a bare `cargo` slips past it. Drop down to `cargo` / `taplo` / etc. only for a
 one-off that no script covers.
 
-- `pnpm ready:rust` (`just ready`) — run the same checks CI runs (typos, fmt,
+- `pnpm ready:rust` (`just ready`), run the same checks CI runs (typos, fmt,
   check, test, lint). It runs all ~11,000 tests in the workspace. CI already
   does that on three platforms for every pull request, so run it locally only
   when a change reaches past the crates you can name (see
   [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks)).
-- `pnpm test:rust-affected` (`just test-affected`) — the tests of the crates
+- `pnpm test:rust-affected` (`just test-affected`), the tests of the crates
   the working tree changes, plus the smoke profile when unselected crates
   depend on them. The default way to test a change; `--help` lists its flags.
-- `pnpm test:rust -p <crate>` (`node pnpm/scripts/run-rust-tests.mjs`) — one
+- `pnpm test:rust -p <crate>` (`node pnpm/scripts/run-rust-tests.mjs`), one
   crate's tests, with the sanitized environment `just test` uses.
   `-E '<filterset>'` narrows further: `test(<substring>)` for one test. Prefer
   `-p` over a `package()` filterset when picking crates by hand: `-p`
   restricts what cargo builds, a filterset only selects among what was built.
-  Reach for `rdeps()` only at the edge of the dependency graph — for a core
+  Reach for `rdeps()` only at the edge of the dependency graph, for a core
   crate it selects most of the workspace. The
   [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill has the
   measured fan-out and how to pick a selection.
-- `pnpm test:rust-smoke` (`just smoke`) — one end-to-end test per area of CLI
+- `pnpm test:rust-smoke` (`just smoke`), one end-to-end test per area of CLI
   behavior, listed in the `smoke` profile in `.config/nextest.toml`.
   `test:rust-affected` runs it automatically when unselected crates depend on
   what changed, standing in for their full test sets; this runs it on its own.
-- `pnpm test:rust` (`just test`) — `cargo nextest run` over the whole workspace.
+- `pnpm test:rust` (`just test`), `cargo nextest run` over the whole workspace.
 - `pnpm ci:rust-test` / `pnpm ci:pnpr-test` (`just test-pacquet` /
-  `just test-pnpr`) — one product's crates.
-- `pnpm lint:rust` (`just lint`) — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
-- `pnpm check:rust` (`just check`) — `cargo check --locked --workspace --all-targets`.
-- `pnpm build:pnpm` — `cargo build --release --bin pnpm`.
-- `just fmt` — the pinned fork (`node pnpm/scripts/rustfmt.mjs --all`) + `taplo format`.
-- `just cli -- <args>` — run the pacquet binary.
-- `just registry-mock <args>` — manage the mock registry used by tests.
-- `just integrated-benchmark <args>` — compare revisions or compare against
+  `just test-pnpr`), one product's crates.
+- `pnpm lint:rust` (`just lint`), `cargo clippy --locked --workspace --all-targets, --deny warnings`.
+- `pnpm check:rust` (`just check`), `cargo check --locked --workspace --all-targets`.
+- `pnpm build:pnpm`: `cargo build --release --bin pnpm`.
+- `just fmt`: the pinned fork (`node pnpm/scripts/rustfmt.mjs --all`) + `taplo format`.
+- `just cli, <args>`: run the pacquet binary.
+- `just registry-mock <args>`: manage the mock registry used by tests.
+- `just integrated-benchmark <args>`: compare revisions or compare against
   pnpm itself (see `CONTRIBUTING.md`).
 
 Warnings are errors (`--deny warnings` in lint). Do not silence them with
@@ -209,7 +209,7 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   `crates/cli/tests/suite/` is a module of `tests/suite/main.rs`. Put a new
   test file there and declare it in `main.rs`. A file added directly under
   `crates/cli/tests/` becomes its own binary instead, and every such binary
-  statically links the whole dependency graph — `pnpr` included — so it costs
+  statically links the whole dependency graph, `pnpr` included, so it costs
   another ~240 MB to link on each change to the crate. `cargo nextest` runs
   every test in its own process regardless of how many binaries there are.
   Paths in file-relative macros (`include_str!`, `include_bytes!`) resolve
@@ -222,14 +222,14 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 - Tests that need the mocked registry start `pnpr` through
   `pnpm-testing-utils`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
-- When a bug fix spans both versions, keep their tests in sync — give
+- When a bug fix spans both versions, keep their tests in sync, give
   pacquet a Rust test for the same scenario the TypeScript stack covers (and
   vice versa) whenever it translates. Matching test coverage is the easiest
   way to prove the shared bug is fixed consistently.
 - The active test-porting plan lives in
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It enumerates the
   upstream TypeScript tests scheduled to be ported (with file paths and line
-  numbers) and the conventions expected of the ports — `known_failures`
+  numbers) and the conventions expected of the ports, `known_failures`
   modules, `pnpm_testing_utils::allow_known_failure!` at the
   not-yet-implemented boundary, and the practice of temporarily breaking the
   subject under test to verify the ported test actually catches the
@@ -239,7 +239,7 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
   regression, or for any other experiment), revert with `git restore <file>`,
   never by moving a saved backup copy into place. Cargo's freshness check is
   mtime-based, and an mtime-preserving restore leaves the binary compiled
-  from the broken source looking fresh — later test runs then fail in
+  from the broken source looking fresh, later test runs then fail in
   impossible-looking, "flaky" ways with nothing pointing at the stale
   artifact. Details in the "Test the tests" section of
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). If test outcomes ever
@@ -270,18 +270,18 @@ fn my_test() {
 ```
 
 are forbidden. If the test needs a tool, call into it and let the
-existing `.unwrap()` / `.expect(...)` panic when the tool is absent — a
+existing `.unwrap()` / `.expect(...)` panic when the tool is absent, a
 failing test in an under-provisioned environment is the correct signal.
 Tolerance defeats the purpose of testing: if the environment really
 doesn't have the required tools, that's the *environment's* fault and it
 needs to be fixed.
 
-This applies in particular to `git`, `node`, and `npm` — git is ubiquitous
+This applies in particular to `git`, `node`, and `npm`, git is ubiquitous
 on developer machines, and Node.js is a documented prerequisite for
 building pnpm. There is no realistic environment in which pacquet's tests
 should run *and* these tools should be absent.
 
-The only marginally acceptable exception is platform-locked tools — APIs
+The only marginally acceptable exception is platform-locked tools, APIs
 or binaries that exist on one OS but not another. Even then, prefer
 `#[cfg_attr(target_os = "windows", ignore = "...")]` (or the matching
 `#[cfg(unix)]` gate already used in this crate for `/bin/sh` shims) over a
@@ -344,7 +344,7 @@ them in `crates/cli/tests/suite/process_lifetime/`.
   doesn't force extra copies.
 - Prefer `Arc::clone(&x)` / `Rc::clone(&x)` over `x.clone()` for reference-
   counted types, so the cost is visible at the call site.
-- Follow the test-logging guidance in the style guide — log before non-
+- Follow the test-logging guidance in the style guide, log before non-
   `assert_eq!` assertions, `dbg!` complex structures, skip logging for simple
   scalar `assert_eq!`.
 - Follow [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/naming.html)
@@ -431,7 +431,7 @@ crates / keep deps at the right level" rules from
 Pacquet-specific notes:
 
 - Shared helpers tend to live in `crates/fs`, `crates/testing-utils`, and
-  `crates/diagnostics` — check there first.
+  `crates/diagnostics`, check there first.
 - Check whether the workspace already depends on something suitable (see
   `[workspace.dependencies]` in the root `Cargo.toml`) before adding a new
   dependency.
@@ -442,7 +442,7 @@ Pacquet-specific notes:
 ## Errors and diagnostics
 
 User-facing errors go through `miette` via the `pnpm-diagnostics` crate.
-Match pnpm's error codes and messages where pnpm defines them — error codes
+Match pnpm's error codes and messages where pnpm defines them, error codes
 are part of the public contract, not implementation detail. See
 <https://pnpm.io/errors> for the canonical list.
 
@@ -456,7 +456,7 @@ are part of the public contract, not implementation detail. See
 - Before pushing, run `typos`, the formatter, `pnpm check:rust`,
   `pnpm lint:rust`, and the tests for the crates you touched. Keep `check` and
   `lint` workspace-wide; scope the tests. Reach for the full `pnpm ready:rust`
-  only when the change reaches past the crates you can name — CI runs the
+  only when the change reaches past the crates you can name, CI runs the
   whole suite on three platforms anyway. See
   [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks) and the
   [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill.

@@ -37,7 +37,7 @@ fn registries(entries: Vec<(&str, Registry)>, default_registry: Option<&str>) ->
     Registries::new(map, default_registry.map(str::to_string))
 }
 
-//,- PackagePattern::parse,-----------------------------------------------
+// PackagePattern::parse
 
 #[test]
 fn parses_recognized_shapes() {
@@ -96,7 +96,7 @@ fn rejects_scope_pattern_whose_scope_is_not_a_valid_scope() {
     }
 }
 
-//,- PackagePattern::matches,---------------------------------------------
+// PackagePattern::matches
 
 #[test]
 fn matches_by_shape() {
@@ -125,7 +125,7 @@ fn scoped_patterns_require_a_name_segment() {
     }
 }
 
-//,- PackagePattern::covers,----------------------------------------------
+// PackagePattern::covers
 
 #[test]
 fn covers_relation() {
@@ -175,7 +175,7 @@ fn covers_agrees_with_matches_on_malformed_scoped_exacts() {
     assert!(pattern("@acme/*").covers(&pattern("@acme/foo")));
 }
 
-//,- resolution,----------------------------------------------------------
+// resolution
 
 #[test]
 fn pattern_less_concrete_registry_resolves_to_itself_for_any_name() {
@@ -283,7 +283,7 @@ fn resolve_default_without_target_is_unknown() {
     assert_eq!(registry.resolve_default(Ecosystem::Npm, "react"), Resolved::UnknownRegistry);
 }
 
-//,- validation,----------------------------------------------------------
+// validation
 
 #[test]
 fn valid_config_passes() {
@@ -533,7 +533,7 @@ fn rejects_router_with_no_sources() {
     );
 }
 
-//,- Ecosystems,-----------------------------------------------------------
+// Ecosystems
 
 #[test]
 fn registries_are_npm_unless_declared_otherwise() {
@@ -651,7 +651,7 @@ fn an_ecosystem_needs_a_concrete_registry() {
     ));
 }
 
-//,- image repository patterns,-------------------------------------------
+// image repository patterns
 
 fn image_pattern(raw: &str) -> PackagePattern {
     PackagePattern::parse(raw, Ecosystem::Oci).expect("image pattern parses")

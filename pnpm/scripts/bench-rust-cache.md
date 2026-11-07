@@ -22,7 +22,7 @@ just bench-rust-cache --package pnpm-store-dir --source pnpm/crates/store-dir/sr
 Each round compares:
 
 | Mode | Cargo output | Incremental | Compiler cache |
-| --- | --- | --- | --- |
+|,- |,- |,- |,- |
 | `incremental` | Separate directories | Enabled | None |
 | `sccache` | Separate directories | Disabled | One isolated local disk cache |
 | `shared-target` | One writable directory | Enabled | None |
@@ -85,7 +85,7 @@ the correctness results, but overlapped other compilation during some phases,
 so its timings are omitted here. Snapshot times below include the reflink copy.
 
 | Strategy | Small: first B | Small: edit B | Larger: first B | Larger: edit B | Output checks |
-| --- | ---: | ---: | ---: | ---: | --- |
+|,- |,-: |,-: |,-: |,-: |,- |
 | Separate incremental builds | 1.43 s | 0.15 s | 4.75 s | 0.30 s | Passed |
 | Shared local sccache | 1.70 s | 0.23 s | 5.71 s | 0.74 s | Passed |
 | Shared writable target | Disqualified | Disqualified | Disqualified | Disqualified | A returned B's edited code |
@@ -146,7 +146,7 @@ invocations outside its task runner.
 There are two different cache contracts:
 
 | Artifact | On a hit | Required identity |
-| --- | --- | --- |
+|,- |,- |,- |
 | Completed task outputs | Restore outputs and skip execution | All task inputs, including upstream task inputs or outputs and the build environment |
 | Incremental build state | Restore private state, then execute the task | A validated snapshot compatibility model plus source identity; never treat a state hit as task completion |
 

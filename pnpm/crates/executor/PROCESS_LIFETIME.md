@@ -23,7 +23,7 @@ its reason.
 ## Single command
 
 | pnpm ends because | What the command left running | Tests |
-| --- | --- | --- |
+|,- |,- |,- |
 | the command succeeded or failed | keeps running | `single_command::*`, for `exec`, `run`, `dlx`, a lifecycle script, and on Windows `exec` with pnpm launched by Node |
 | the user pressed `Ctrl+C` | keeps running, unless the interrupt itself ended it, as it would without pnpm | `interrupt::ctrl_c_leaves_the_same_processes_running_as_without_pnpm` |
 | on Windows, a second `Ctrl+C` while the command ignores them | pnpm ends the command itself and then exits on its own, so what the command left running keeps running | `interrupt::repeated_ctrl_c_ends_a_command_that_ignores_it_but_not_its_leftovers` |

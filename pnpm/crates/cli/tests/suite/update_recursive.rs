@@ -387,9 +387,9 @@ fn recursive_update_accepts_a_version_declared_by_any_project() {
     drop((root, anchor));
 }
 
-/// A selector that names no single version, a tag or a range, has nothing
-/// to record either, but updating within the dependents' ranges is a
-/// reasonable reading of it. Those warn rather than fail.
+/// A selector that names a tag or range does not pin a version. Recursive
+/// update can still apply it within the dependents' ranges, so these
+/// selectors warn rather than fail.
 #[test]
 fn recursive_update_allows_a_tag_for_a_transitive_only_selector() {
     let (root, workspace, anchor) = setup();

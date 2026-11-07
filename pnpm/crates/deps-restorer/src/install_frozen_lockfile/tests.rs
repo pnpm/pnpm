@@ -54,7 +54,7 @@ fn empty_dependencies_yields_none() {
     assert_eq!(find_own_runtime_node_major(&snapshot), None);
 }
 
-//,- load_custom_fetcher_session,-
+// - load_custom_fetcher_session
 
 #[tokio::test]
 async fn load_custom_fetcher_session_is_none_without_a_pnpmfile() {

@@ -36,7 +36,7 @@ fn walker_empty_lockfile_produces_empty_result() {
     assert_eq!(result.direct_dependencies_by_importer_id.len(), 1);
     assert!(result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY].is_empty());
 }
-//,- prev_graph tests,----------------------------------------------
+// prev_graph tests
 
 /// When no current lockfile is supplied, `prev_graph` is `None`
 /// (the empty-graph fallback), the linker treats it the same as an

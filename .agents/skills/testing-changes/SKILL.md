@@ -16,12 +16,12 @@ Run `pnpm test:rust-affected` (`just test-affected`). It decides three things fo
 What it cannot decide is which end-to-end tests exercise *your* change. Smoke gives breadth across areas, not depth in the one you touched, so for a user-visible change add the suite modules for that area:
 
 ```sh
-pnpm test:rust-affected -- -p pnpm-cli -E 'test(catalog::)'
+pnpm test:rust-affected, -p pnpm-cli -E 'test(catalog::)'
 ```
 
 Each file under `crates/cli/tests/suite/` is a module of one test target, so `test(<file_stem>::)` selects that file's tests.
 
-For anything narrower, `pnpm test:rust` (`node pnpm/scripts/run-rust-tests.mjs`) takes the same arguments `cargo nextest run` does — `-p <crate>` for one crate, `-E 'test(<name>)'` for one test. Prefer `-p` over a `package()` filterset: `-p` restricts what cargo builds, a filterset only selects among binaries that were built anyway.
+For anything narrower, `pnpm test:rust` (`node pnpm/scripts/run-rust-tests.mjs`) takes the same arguments `cargo nextest run` does, `-p <crate>` for one crate, `-E 'test(<name>)'` for one test. Prefer `-p` over a `package()` filterset: `-p` restricts what cargo builds, a filterset only selects among binaries that were built anyway.
 
 ### Gotchas that make a scoped run lie
 

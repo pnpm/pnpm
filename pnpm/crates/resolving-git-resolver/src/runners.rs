@@ -79,7 +79,7 @@ fn probe_verdict(status: Option<StatusCode>) -> Option<bool> {
 
 /// Production [`GitCommandRunner`].
 ///
-/// Shells out to `git ls-remote, <repo> [<ref> <ref>^{}]` via
+/// Shells out to `git ls-remote -- <repo> [<ref> <ref>^{}]` via
 /// `tokio::task::spawn_blocking` (the system git CLI is synchronous,
 /// and the rest of pacquet keeps the async runtime free of blocking
 /// work).

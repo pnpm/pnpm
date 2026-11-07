@@ -43,7 +43,7 @@ pub(crate) fn rewrite(cmd: &Command, mut argv: Vec<OsString>) -> Vec<OsString> {
         match scan_for_positional(&argv, subcommand_index + 1, &top_level, &subcommand_union) {
             Some(PositionalScan::Positional(_)) => true,
             // nopt strips the `--` terminator and treats what follows as
-            // positionals, so `pnpm install, <pkg>` names a package too.
+            // positionals, so `pnpm install -- <pkg>` names a package too.
             Some(PositionalScan::Separator(separator_index)) => separator_index + 1 < argv.len(),
             None => false,
         };

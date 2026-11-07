@@ -240,7 +240,7 @@ fn base64_decode_matches_atob() {
     assert_eq!(base64_decode("  ").as_deref(), Some(""));
 }
 
-//,- Proxy parsing and cascade tests,-
+// - Proxy parsing and cascade tests
 
 #[test]
 fn parses_https_proxy_from_ini() {
@@ -471,7 +471,7 @@ fn ca_with_an_unresolved_placeholder_still_builds_a_client() {
     .expect("an unresolved `ca` placeholder is ignored, not fatal");
 }
 
-//,- Per-registry TLS tests,-
+// - Per-registry TLS tests
 
 #[test]
 fn parses_scoped_inline_ca() {

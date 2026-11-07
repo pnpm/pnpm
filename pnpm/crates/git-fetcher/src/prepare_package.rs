@@ -400,7 +400,7 @@ fn probe_host(wanted: &WantedPm) -> bool {
         .as_deref()
         .and_then(|range| node_semver::Range::parse(range).ok());
     // A dependency's scripts reach for any of the package manager's names
-    //, `yarnpkg` as readily as `yarn`, and nothing says two of them on
+    // `yarnpkg` as readily as `yarn`, and nothing says two of them on
     // one host are the same install, so each has to answer for itself.
     shim_names(wanted.pm)
         .all(|name| {

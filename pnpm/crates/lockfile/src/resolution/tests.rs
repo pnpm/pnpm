@@ -84,7 +84,7 @@ fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
 const SHA512: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
 const REVISION_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
-//,- Custom resolutions,-
+// - Custom resolutions
 
 fn custom_cdn_resolution() -> LockfileResolution {
     let mut extra = serde_json::Map::new();

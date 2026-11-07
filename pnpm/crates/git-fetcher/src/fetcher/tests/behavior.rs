@@ -671,7 +671,7 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     .unwrap();
 
     let invocations = parse_shim_log(&log_path);
-    // `git clone, <repo_url> <some_path>`, we accept any temp-dir
+    // `git clone -- <repo_url> <some_path>`. We accept any temp-dir
     // path argument, but pin the leading argv slots. The `--` keeps a
     // `-`-leading repo out of git's option parser.
     assert!(

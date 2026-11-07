@@ -4537,7 +4537,7 @@ test.skip('read only supported settings from config', async () => {
   })
 
   expect(config.storeDir).toBe('__store__')
-  // @ts-expect-error, foo is not a Config field
+  // @ts-expect-error -- foo is not a Config field
   expect(config['foo']).toBeUndefined() // NOTE: This line current fails as there are yet a way to verify fields in pnpm-workspace.yaml
   expect(config.authConfig['foo']).toBe('bar')
 })
@@ -4553,7 +4553,7 @@ test('all CLI options are added to the config', async () => {
     },
   })
 
-  // @ts-expect-error, fooBar is not a Config field
+  // @ts-expect-error -- fooBar is not a Config field
   expect(config['fooBar']).toBe('qar')
 })
 

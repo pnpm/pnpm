@@ -227,7 +227,7 @@ pub(super) async fn serve_registry_tarball(
             serve_tarball_via_upstream(state, identity, source, name.as_str(), filename).await
         }
         // A hosted denial is a not-found mask, inside `serve_hosted_tarball`
-        //, see `serve_registry_packument`.
+        // see `serve_registry_packument`.
         RegistrySource::Hosted(source) => {
             serve_hosted_tarball(state, identity, source, &name, filename).await
         }

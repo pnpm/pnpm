@@ -123,7 +123,7 @@ fn root_importers(deps: &[(&str, &str)]) -> HashMap<String, ProjectSnapshot> {
     )])
 }
 
-//,- frozen-store build backstop,-------------------------------------
+// frozen-store build backstop
 
 /// A `pnpm-workspace.yaml`-shaped patch entry for one package. The
 /// `patch_file_path` is left `None` because the frozen-store backstop

@@ -188,7 +188,7 @@ fn list_only_projects_omits_unsaved_dependencies() {
     drop(root);
 }
 
-//,- ports of the TypeScript listing command tests,-------------------------
+// ports of the TypeScript listing command tests
 //
 // Sources: pnpm11/deps/inspection/commands/test/listing/{index.ts,json.ts,
 // recursive.ts} and pnpm11/pnpm/test/list.ts.

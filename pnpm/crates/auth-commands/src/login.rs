@@ -114,7 +114,7 @@ impl<Sys> LoginHost for Sys where
 /// probe with HTTP 404 or 405. Either path may satisfy a two-factor challenge
 /// before returning.
 ///
-/// The web-based flow runs without an interactive terminal, it prints the
+/// The web-based flow runs without an interactive terminal. It prints the
 /// authentication URL and polls the registry until the browser approval
 /// completes. Only the classic flow's credential prompts require a TTY.
 pub async fn login<Sys, Reporter>(

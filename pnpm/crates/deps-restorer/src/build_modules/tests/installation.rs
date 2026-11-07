@@ -704,7 +704,7 @@ async fn upload_error_does_not_interrupt_install() {
         let _ = fs::set_permissions(pkg_dir.join("unreadable"), fs::Permissions::from_mode(0o644));
     }
 }
-//,- pkg_root_for_key,-------------------------------------------------
+// pkg_root_for_key
 
 /// Without an override map (the isolated linker), the helper falls
 /// through to `virtual_store_dir_for_key` and returns

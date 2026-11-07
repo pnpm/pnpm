@@ -19,9 +19,9 @@ pub enum UpdateReuseScope {
 }
 
 /// The major and minor of a version, which is how far an exact update
-/// selector reaches. `pacquet update foo@1.2.3` targets only the copies of
-/// `foo` that could resolve to `1.2.3`: the same major, or, on `0.x`,
-/// where the minor is the compatibility boundary, the same minor. Copies
+/// selector reaches. `pacquet update foo@1.2.3` targets only copies of
+/// `foo` that could resolve to `1.2.3`. It targets the same major, or the
+/// same minor for `0.x` packages. Copies
 /// on another line keep their locked resolution, so bumping one line of a
 /// package the workspace depends on twice leaves the other alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -37,8 +37,8 @@ impl VersionLine {
         VersionLine { major: version.major, minor: version.minor }
     }
 
-    /// The line a version selector pins, or `None` when it pins none, a
-    /// range, a tag and an `npm:` alias spec all name no single version.
+    /// The line a version selector pins. `None` means the spec is a range,
+    /// tag, or `npm:` alias without one.
     #[must_use]
     pub fn parse(version_spec: &str) -> Option<Self> {
         node_semver::Version::parse(version_spec)
@@ -56,7 +56,7 @@ impl VersionLine {
 
 /// The packages a `pacquet update` targets, each mapped to the version
 /// lines its selectors scoped it to or the exact versions its caller named
-///or to `None` when a selector named no single version, which targets
+/// or `None` when a selector names no single version. `None` targets
 /// the package at every version. See [`VersionLine`].
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<TargetedVersions>>>);
@@ -128,8 +128,8 @@ impl UpdateTargets {
     }
 
     /// Whether the edge resolved to `version` under `name` is an update
-    /// target. A `None` version, an edge with no locked resolution to
-    /// judge yet, matches by name alone, mirroring pnpm's version-less
+    /// target. A `None` version means the edge has no locked resolution to
+    /// judge yet. It matches by name alone, mirroring pnpm's version-less
     /// `updateMatching` calls.
     #[must_use]
     pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
@@ -193,7 +193,7 @@ impl UpdateScope<'_> {
 
 /// `true` when a node named `name`, locked at `version`, is a `pacquet
 /// update` target at `depth`, and so excluded from reuse. A `None` version
-/// is judged by name alone, see [`crate::UpdateTargets::covers`]. Past the
+/// is judged by name alone. See [`crate::UpdateTargets::covers`]. Past the
 /// `--depth` ceiling the update no longer reaches, so every node keeps its
 /// locked resolution.
 fn update_excludes(

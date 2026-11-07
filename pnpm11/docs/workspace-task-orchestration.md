@@ -32,7 +32,7 @@ tasks:
 Each `dependsOn` entry has one of these forms:
 
 | Entry | Meaning |
-| --- | --- |
+|,- |,- |
 | `build` | The `build` task in the same project |
 | `^build` | The `build` task in each selected workspace dependency of the project |
 

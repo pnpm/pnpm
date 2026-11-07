@@ -51,7 +51,7 @@ fn scoped_auth_token<'a>(auth: &'a NpmrcAuth, uri: &str, scope: &str) -> Option<
         .map(|creds| creds.auth_token.as_deref())
 }
 
-//,- TLS + local-address tests,-
+// - TLS + local-address tests
 
 /// Same self-signed cert as `crates/network/src/tests.rs`; loaded from
 /// the shared fixture under `crates/network/tests/fixtures/test-ca.pem`

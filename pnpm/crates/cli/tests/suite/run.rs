@@ -44,7 +44,7 @@ fn run_executes_declared_script() {
 
 /// Positional arguments after the script name flow through to the
 /// spawned shell verbatim, joined by spaces. Mirrors
-/// `pnpm run <script>, <args>` minus the npm `--` separator
+/// `pnpm run <script> -- <args>` minus the npm `--` separator
 /// (pacquet does not require it).
 #[cfg(unix)]
 #[test]
@@ -84,7 +84,7 @@ fn run_passes_extra_arguments_to_the_script() {
     drop(root);
 }
 
-/// `pnpm run <script>, <args>` forwards the separator, so an argument
+/// `pnpm run <script> -- <args>` forwards the separator, so an argument
 /// shaped like an option of the script's own program reaches the script
 /// instead of being claimed by it (pnpm/pnpm#13295). Asserts what the
 /// script received rather than the echoed command line, and mirrors the

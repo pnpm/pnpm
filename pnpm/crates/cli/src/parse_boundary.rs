@@ -51,7 +51,7 @@ const COMMAND_PREFIXES: [&str; 3] = ["recursive", "multi", "m"];
 pub(crate) fn passthrough_from(argv: &[OsString]) -> Option<usize> {
     // Scanned independently of the command: a separator ends parsing even
     // for a command that would otherwise own the rest of argv, as in
-    // `pnpm install, --config.foo=bar`.
+    // `pnpm install -- --config.foo=bar`.
     let separator = argv
         .iter()
         .position(|arg| arg == "--")
@@ -235,7 +235,7 @@ pub(crate) fn union_arity() -> &'static ArgTable {
 }
 
 /// Whether a positional follows `from`. nopt strips the `--` terminator
-/// and treats what follows as positionals, so `pnpm install, <pkg>`
+/// and treats what follows as positionals, so `pnpm install -- <pkg>`
 /// names a package too.
 fn names_a_package(argv: &[OsString], from: usize, arity: &ArgTable) -> bool {
     next_positional(argv, from, arity)

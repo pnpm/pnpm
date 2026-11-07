@@ -55,7 +55,7 @@ fn list(entries: &[&str]) -> NoProxySetting {
     )
 }
 
-//,- TLS / local-address tests,-
+// - TLS / local-address tests
 
 /// Minimal self-signed certificate used to assert `Certificate::from_pem`
 /// accepts well-formed PEM. Lives at
@@ -77,7 +77,7 @@ fn list(entries: &[&str]) -> NoProxySetting {
 /// `Certificate::from_pem` accepts.
 const TEST_CA_PEM: &str = include_str!("../tests/fixtures/test-ca.pem");
 
-//,- PKCS#1 / rustls regression tests,-
+// - PKCS#1 / rustls regression tests
 
 /// PKCS#1 client cert + key fixture. Generated with:
 ///

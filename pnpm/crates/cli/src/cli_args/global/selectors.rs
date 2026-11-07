@@ -225,7 +225,7 @@ fn npm_alias_target(spec: Option<&str>) -> Option<String> {
     parse_wanted_dependency(spec?.strip_prefix("npm:")?).alias
 }
 
-//,- param grouping (split/resolve helpers),-----------------------------
+// param grouping (split/resolve helpers)
 
 pub(super) fn split_into_groups(params: &[AddRequest], base_dir: &Path) -> Vec<SelectorGroup> {
     params

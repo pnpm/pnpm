@@ -208,7 +208,7 @@ log:
     assert_eq!(config.logs.level, LogLevel::Debug);
 }
 
-//,--- config_file_in (existence gating),------------------------------
+// config_file_in (existence gating)
 
 #[test]
 fn config_file_in_returns_none_for_none_dir() {

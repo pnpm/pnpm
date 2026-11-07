@@ -155,7 +155,7 @@ function canComposeOntoLockfile (
     // it to every project manifest and a changed pnpmfile surfaces as
     // `pnpmfileChecksum` drift. A hook the checksum cannot vouch for, a
     // programmatic one, or one from the checksum-excluded global pnpmfile
-    //, keeps forcing the resolver.
+    // keeps forcing the resolver.
     !checksums.untrackedReadPackageHookMayHaveChanged &&
     !checksums.pnpmfileChecksumIgnored &&
     !opts.hooks.preResolution?.length &&

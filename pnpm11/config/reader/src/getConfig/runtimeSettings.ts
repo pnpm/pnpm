@@ -118,7 +118,7 @@ function resolveProxySettings (pnpmConfig: PnpmConfigInProgress): void {
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
   }
   if (!pnpmConfig.noProxy) {
-    // @ts-expect-error, noproxy (lowercase) is a config-file key, not a Config field
+    // @ts-expect-error -- noproxy (lowercase) is a config-file key, not a Config field
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
 }

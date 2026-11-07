@@ -34,7 +34,7 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
     // dir: a stray `node_modules` and a lockfile at the adopted workspace
     // root. A later self-update must succeed with them in place (each
     // update installs into a fresh slot) and must not touch that lockfile
-    //, it is the env lockfile's home.
+    // it is the env lockfile's home.
     fs::create_dir_all(global_pkg_dir.join("node_modules").join(".pnpm"))
         .expect("create leftover node_modules");
     let leftover_lockfile = "lockfileVersion: '9.0'\n";

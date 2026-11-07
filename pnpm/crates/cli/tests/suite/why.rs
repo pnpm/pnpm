@@ -446,7 +446,7 @@ fn why_is_recursive_by_default_inside_a_workspace() {
     );
 }
 
-//,- ports of the TypeScript why command tests,------------------------------
+// ports of the TypeScript why command tests
 //
 // Source: pnpm11/deps/inspection/commands/test/listing/why.ts.
 

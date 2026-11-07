@@ -182,7 +182,7 @@ async function installImportedWorkspaceLockfile (
   checkWorkspaceCycles(opts, sequenceGraph(selectedProjectsGraph).cycles)
   await recursive(allProjects,
     params,
-    // @ts-expect-error, the import options do not declare bail and linkWorkspacePackages, which RecursiveOptions requires
+    // @ts-expect-error -- the import options do not declare bail and linkWorkspacePackages, which RecursiveOptions requires
     {
       ...opts,
       lockfileOnly: true,

@@ -351,7 +351,7 @@ fn dependencies_meta_injected_per_dep_overrides_global_off() {
     );
 
     // `lockfile.settings.injectWorkspacePackages` stays absent / false
-    //, this is the per-dep branch, not the global one.
+    // this is the per-dep branch, not the global one.
     assert!(
         !lockfile.contains("injectWorkspacePackages: true"),
         "global `injectWorkspacePackages` must remain off in the lockfile settings; \

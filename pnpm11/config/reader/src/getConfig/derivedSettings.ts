@@ -66,7 +66,7 @@ function foldMaxSockets ({ configFromCliOpts, pnpmConfig }: ConfigBuildState, { 
   // @ts-expect-error - maxsockets (lowercase) comes from npmConfigTypes, maxSockets (camelCase) is the Config field
   const maxSocketsFromFiles: number | undefined = pnpmConfig.maxSockets ?? pnpmConfig['maxsockets']
   pnpmConfig.maxSockets = maxSocketsFromCli ?? maxSocketsFromEnv ?? maxsocketsFromEnv ?? maxSocketsFromFiles ?? npmDefaults.maxsockets
-  // @ts-expect-error, maxsockets (lowercase) comes from npmConfigTypes and is not a Config field
+  // @ts-expect-error -- maxsockets (lowercase) comes from npmConfigTypes and is not a Config field
   delete pnpmConfig['maxsockets']
 }
 

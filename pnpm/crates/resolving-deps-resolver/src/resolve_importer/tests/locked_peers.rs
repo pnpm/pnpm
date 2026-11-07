@@ -782,7 +782,7 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
     }
     // The sibling already supplies x@1.0.0 / y@1.0.0 / z@1.0.0, so the
     // hoist-picker must reuse that exact version via preferred-versions
-    //, never the peer's `^1.0.0` range arm. (The resolver may still be
+    // never the peer's `^1.0.0` range arm. (The resolver may still be
     // called multiple times with the same `1.0.0` spec because the
     // tree walker doesn't gate the `resolve()` call on dedup; what
     // matters here is that `^1.0.0` never appears.)

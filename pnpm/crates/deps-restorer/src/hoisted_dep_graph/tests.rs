@@ -25,7 +25,7 @@ fn sample_resolution() -> LockfileResolution {
 /// `hoistedAliases` read-side compatibility.
 const ACCEPTS_DEP_PATH: &str = "accepts@1.3.7";
 
-//,- Walker tests,--------------------------------------------------
+// Walker tests
 
 use pnpm_lockfile::{
     ComVer, Lockfile, LockfileSettings, LockfileVersion, PackageKey, PackageMetadata, PkgName,
@@ -105,7 +105,7 @@ fn lockfile_with(
     }
 }
 
-//,- Installability tests,------------------------------------------
+// Installability tests
 
 fn host_aware_opts() -> LockfileToHoistedDepGraphOptions<'static> {
     // Concrete platform values so the installability check has
@@ -131,7 +131,7 @@ fn metadata_with_os(os: &str) -> PackageMetadata {
     PackageMetadata { os: Some(vec![os.to_string()]), ..metadata_stub() }
 }
 
-//,- Multi-importer (workspace) walker tests,------------------------
+// Multi-importer (workspace) walker tests
 
 /// Build a multi-importer workspace fixture lockfile. Each
 /// importer in `importer_deps` becomes a `ProjectSnapshot`

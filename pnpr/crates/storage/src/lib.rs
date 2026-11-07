@@ -297,7 +297,7 @@ impl Storage {
         self.metadata.package_names().await
     }
 
-    //,- Authoritative (hosted) store,---------------------------------
+    // Authoritative (hosted) store
 
     /// Read the authoritative document for `name`, fresh or stale.
     /// Hosted content has no TTL, it is the source of truth.
@@ -354,7 +354,7 @@ impl Storage {
         self.hosted.local_scratch_root()
     }
 
-    //,- Staged publishes (`-/stage`),-----------------------------------
+    // Staged publishes (`-/stage`)
     //
     // A staged publish is a publish document held back until it is approved
     // (`POST /-/stage/:id/approve`) or rejected (`DELETE /-/stage/:id`). Each
@@ -366,7 +366,7 @@ impl Storage {
     // thing a later `view`/`approve`/`reject` request carries; the record's
     // metadata remembers which registry the stage was addressed through.
 
-    //,- Pipeline runs (`/-/pnpr/v0/pipeline`),--------------------------
+    // Pipeline runs (`/-/pnpr/v0/pipeline`)
     //
     // A run record is the account `pnpm pipeline` gave of one run: testimony
     // about something that happened once, not derived data a replica can

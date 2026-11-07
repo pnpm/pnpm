@@ -492,7 +492,7 @@ test('injected workspace dependency keeps link: when an unrelated dependency is 
 // Then `foo@100.1.0` is added to the consumer and a plain install is run. Now
 // the injected `q` under the consumer resolves its `foo` peer to the consumer's
 // `100.1.0`, while `n`'s own context still resolves it to the root's `100.0.0`
-//, a real divergence, so dedupeInjectedDeps keeps the injected copy, and the
+// a real divergence, so dedupeInjectedDeps keeps the injected copy, and the
 // install records it as a fresh install does.
 // Covers https://github.com/pnpm/pnpm/issues/17057
 test('injected workspace dependency becomes a copy on a plain install when a consumer change makes an ancestor-provided peer diverge', async () => {

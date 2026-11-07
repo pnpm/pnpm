@@ -106,7 +106,7 @@ function lockedPeerProviderIsStable<Pkg extends PartialResolvedPackage> (
   if (ctx.resolvedPeerProviderPaths?.get(peerNodeId) !== previousPeerDepPath) return false
   // Only pin providers that have no peer context of their own. A provider
   // whose locked depPath carries a peer suffix is itself context-dependent
-  //, and self-referential for cyclic peers, so reusing it can re-expand
+  // and self-referential for cyclic peers, so reusing it can re-expand
   // cyclic suffixes and break the deterministic resolution that
   // https://github.com/pnpm/pnpm/issues/8155 established. Stable leaf
   // providers are the ones worth pinning; anything else falls back to

@@ -14,7 +14,7 @@ non-root `pnpr` user and listens on port `7677`.
 ## Tags
 
 | Tag         | Meaning                                                       |
-| ----------- | ------------------------------------------------------------ |
+|,--------- |,---------------------------------------------------------- |
 | `<version>` | Exact, immutable (e.g. `0.2.3`). Includes prereleases.       |
 | `latest`    | Most recent stable release. Not updated for prereleases.     |
 

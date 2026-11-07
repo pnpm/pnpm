@@ -7,7 +7,7 @@ import { describe, expect, test } from '@jest/globals'
 import { cmdShim } from '@pnpm/bins.cmd-shim'
 import { familySync } from 'detect-libc'
 
-// @ts-expect-error, JS helper without type declarations
+// @ts-expect-error -- JS helper without type declarations
 import { exePlatformPkgName, missingPlatformPkgMessage } from '../platform-pkg-name.js'
 
 const exeDir = path.resolve(import.meta.dirname, '..')
@@ -339,7 +339,7 @@ function buildWinSetupSandbox (): string {
   // hardlinks it again into the sandbox @pnpm/exe dir; downstream tests can
   // invoke the resulting `pnpx.exe` (etc.) and assert the alias actually ran.
   // A hardlink is enough and avoids copying ~80MB, but it can't span volumes
-  //, on GitHub's Windows runners the workspace (and node) sit on `D:` while
+  // on GitHub's Windows runners the workspace (and node) sit on `D:` while
   // `os.tmpdir()` is on `C:`, so fall back to a copy when the link is
   // cross-device. The seed's identity doesn't matter here; the assertions
   // exercise setup.js's own intra-sandbox hardlinking.

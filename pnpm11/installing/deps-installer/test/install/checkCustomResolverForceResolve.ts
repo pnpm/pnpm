@@ -77,7 +77,7 @@ describe('checkCustomResolverForceResolve', () => {
 
   test('shouldRefreshResolution is called independently of canResolve', async () => {
     // canResolve returning false should NOT prevent shouldRefreshResolution from
-    // being called, they operate on different paths.
+    // being called. They operate on different paths.
     const resolver: CustomResolver = {
       canResolve: () => false,
       shouldRefreshResolution: () => true,
@@ -213,7 +213,7 @@ describe('checkCustomResolverForceResolve', () => {
 
   test('shouldRefreshResolution can inspect pkgSnapshot resolution type', async () => {
     // A resolver that uses the resolution type to decide whether to force
-    // re-resolution, this is the pattern for custom protocol resolvers.
+    // re-resolution. This is the pattern for custom protocol resolvers.
     const resolver: CustomResolver = {
       shouldRefreshResolution: (_depPath, pkgSnapshot) => {
         const resolution = pkgSnapshot.resolution as Record<string, unknown>

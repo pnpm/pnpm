@@ -96,7 +96,7 @@ fn remote_tarball_integrity_survives_unrelated_install() {
     // The mocked registry is `http://127.0.0.1:PORT/`; pointing at the
     // same loopback server via `localhost` keeps the URL from matching
     // the registry prefix, so the TarballResolver, not the npm resolver
-    //, claims it. `localhost` resolves to 127.0.0.1, so the tarball is
+    // claims it. `localhost` resolves to 127.0.0.1, so the tarball is
     // still downloadable from that server.
     let tarball = format!(
         "{}is-positive/-/is-positive-1.0.0.tgz",

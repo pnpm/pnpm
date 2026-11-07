@@ -5,7 +5,7 @@ use pretty_assertions::assert_eq;
 use std::{collections::HashMap, path::PathBuf};
 use tempfile::tempdir;
 
-//,- bin_dirs_in_all_parent_dirs,--------------------------------------
+// bin_dirs_in_all_parent_dirs
 
 /// Top-level hoisted package: the helper must produce one entry per
 /// ancestor `node_modules/.bin` from `pkg_root` up to (and including)

@@ -3,7 +3,7 @@ use super::{
     read_long_pkg_info,
 };
 
-//,- parseable,-------------------------------------------------------------
+// parseable
 
 pub(crate) struct RenderParseableOptions {
     pub long: bool,
@@ -116,7 +116,7 @@ pub(super) fn flatten<'a>(
     packages
 }
 
-//,- JSON,------------------------------------------------------------------
+// JSON
 
 pub(crate) fn render_json(projects: &[ProjectHierarchy], long: bool) -> String {
     let arr: Vec<Value> = projects

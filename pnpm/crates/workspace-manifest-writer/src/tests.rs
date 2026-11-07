@@ -227,7 +227,7 @@ fn run_age_excludes(original: Option<&str>, excludes: &[&str]) -> Option<String>
     fs::read_to_string(&path).ok()
 }
 
-//,- generic top-level field set/delete (pnpm config set / delete),-
+// - generic top-level field set/delete (pnpm config set / delete)
 
 fn run_update_field(
     original: Option<&str>,

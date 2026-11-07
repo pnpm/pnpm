@@ -64,7 +64,7 @@ pub(super) fn package_frame(
 ) -> serde_json::Value {
     // A registry-resolved package's `tarball_url` is the packument's
     // `dist.tarball`, which a split-domain registry hosts on a different origin
-    //, route it by the registry, not the tarball host, so a private package
+    // route it by the registry, not the tarball host, so a private package
     // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
     let tarball_url = if hint.from_registry {
         router.route_registry_url(hint.identity.name, hint.identity.version, hint.tarball_url)

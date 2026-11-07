@@ -163,7 +163,7 @@ pub(crate) fn write_cached_shasums(
     // The process id alone does not make the temp name unique (worker
     // threads and concurrent tasks share it), so a process-wide counter
     // joins it. `create_new` refuses to open a path that already exists
-    //, a colliding writer or a pre-seeded symlink fails the open
+    // a colliding writer or a pre-seeded symlink fails the open
     // instead of being followed, and any failure just skips the write.
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
     let mut temp_name = path

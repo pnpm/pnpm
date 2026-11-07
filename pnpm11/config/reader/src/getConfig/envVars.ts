@@ -151,7 +151,7 @@ function applyEnvSetting ({ explicitlySetKeys, pnpmConfig }: ConfigBuildState, k
     return
   }
 
-  // @ts-expect-error, the value's type depends on which key this is
+  // @ts-expect-error -- the value's type depends on which key this is
   pnpmConfig[key] = value
   explicitlySetKeys.add(key)
 

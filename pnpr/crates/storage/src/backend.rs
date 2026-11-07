@@ -50,7 +50,7 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
         version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite>;
 
-    //,- Archives,--------------------------------------------------------
+    // Archives
     //
     // A namespace's archives are stored by key (see [`crate::BlobId::key`]),
     // never by a public file name. A key is written only with the bytes its
@@ -109,7 +109,7 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// `std::fs` and needs a real path.
     fn local_scratch_root(&self) -> &Path;
 
-    //,- Records,-------------------------------------------------------
+    // Records
     //
     // The store also holds what the registry itself keeps beside the packages:
     // staged publishes waiting for approval, pipeline run records. Each such

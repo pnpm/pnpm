@@ -565,7 +565,7 @@ fn for_installs_with_malformed_client_identity_errors() {
     assert!(is_invalid, "err={err:?}: expected Tls(InvalidClientIdentity)");
 }
 
-//,- Per-registry routing tests,-
+// - Per-registry routing tests
 
 #[test]
 fn for_installs_builds_per_registry_clients() {

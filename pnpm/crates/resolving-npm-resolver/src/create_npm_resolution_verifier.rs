@@ -375,7 +375,7 @@ impl ResolutionVerifier for NpmResolutionVerifier {
 
         // Maturity: a previously cached run under a larger cutoff
         // (stricter window) is trustworthy under a smaller current one
-        //, the set of accepted versions is a subset of today's.
+        // the set of accepted versions is a subset of today's.
         // Tightening the cutoff invalidates the cached run.
         let past_min_age = cached_policy
             .get("minimumReleaseAge")
