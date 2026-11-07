@@ -7190,6 +7190,7 @@ dependencies = [
  "libsql",
  "openidconnect",
  "p256 0.14.0",
+ "pnpm-crypto-hash",
  "pnpm-network",
  "pnpm-testing-utils",
  "pnpr-config",

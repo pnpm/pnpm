@@ -91,7 +91,7 @@ pub(crate) fn token_scopes_to_sql(scopes: Option<&[String]>) -> Option<String> {
 
 pub(crate) fn username_skeleton_hash(username: &str) -> String {
     let skeleton: String = unicode_security::confusable_detection::skeleton(username).collect();
-    crate::sha256_hex(skeleton.as_bytes())
+    pnpm_crypto_hash::create_hex_hash(&skeleton)
 }
 
 pub(crate) fn confusable_username() -> RegistryError {
