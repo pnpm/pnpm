@@ -531,6 +531,26 @@ defaultRegistry: main
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+        let other = aliases
+            .into_iter()
+            .find(|alias| *alias != published)
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(publish_request(
+                Some(&token),
+                publish_body(&metadata(other, "0.2.0"), &crate_archive(other, "0.2.0")),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let error: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert!(
+            error["errors"][0]["detail"]
+                .as_str()
+                .unwrap()
+                .contains(published),
+        );
         for name in aliases {
             let response = app
                 .clone()
@@ -543,6 +563,7 @@ defaultRegistry: main
                 .unwrap();
             assert_eq!(response.status(), StatusCode::OK);
             let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+            assert_eq!(index.lines().count(), 1);
             let entry: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
             assert_eq!(entry["name"], published);
             let response = app

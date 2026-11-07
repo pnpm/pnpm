@@ -153,6 +153,7 @@ the token on index and download requests too.
 Crate names are compared case-insensitively, with `_` and `-` treated as
 equivalent. An exact `packages:` claim covers both spellings, including when
 the crate has not been published yet. Keys must be valid crate names.
+Publish new versions with the separator spelling used for the first version.
 
 `cargo search` works against a pnpr registry, matching on crate name over the
 crates it hosts. Each result reports the crate's newest release that is not
