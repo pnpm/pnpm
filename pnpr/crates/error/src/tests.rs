@@ -5,6 +5,22 @@ use tokio::net::TcpListener;
 
 use super::RegistryError;
 
+#[test]
+fn log_message_preserves_scoped_package_urls() {
+    assert_eq!(
+        super::redact_url_credentials("https://registry.npmjs.org/@babel/cli"),
+        "https://registry.npmjs.org/@babel/cli",
+    );
+}
+
+#[test]
+fn log_message_redacts_credentials_in_scoped_package_urls() {
+    assert_eq!(
+        super::redact_url_credentials("https://user:secret@registry.npmjs.org/@babel/cli"),
+        "https://redacted@registry.npmjs.org/@babel/cli",
+    );
+}
+
 /// `reqwest::Error` has no public constructor, so the only way to
 /// get a real `is_timeout()` error in a test is to actually time
 /// out. Spin up a TCP listener that accepts and holds the socket
