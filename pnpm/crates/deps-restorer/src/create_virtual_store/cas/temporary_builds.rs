@@ -26,6 +26,7 @@ pub(super) async fn build<Report: Reporter>(
         || config.frozen_store
         || !config.side_effects_cache_read()
         || !config.side_effects_cache_write()
+        || pins_a_root_runtime(installer)
     {
         return Ok(HashSet::new());
     }
@@ -82,6 +83,16 @@ async fn build_in<Report: Reporter>(
     )?;
     selected.retain(|key, _| !fetched.fetch_failed.contains(key));
     promote::retain(installer, &layout, temporary, selected)
+}
+
+/// A temporary build's graph holds only the built package's dependencies, so
+/// it would run on the host Node.js. Its output would still be cached under
+/// the pinned runtime's engine, so these packages build in the global virtual
+/// store, whose builds run on the runtime.
+fn pins_a_root_runtime(installer: &CreateVirtualStore<'_>) -> bool {
+    installer.entries.snapshots.is_some_and(|snapshots| {
+        crate::find_root_runtime_node_key(installer.importers, snapshots).is_some()
+    })
 }
 
 fn candidates(
