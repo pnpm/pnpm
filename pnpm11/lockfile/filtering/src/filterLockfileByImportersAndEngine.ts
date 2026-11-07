@@ -17,7 +17,7 @@ import type {
   PackageSnapshots,
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { nameVerFromPkgSnapshot, packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import type { DependenciesField, DepPath, ProjectId, SupportedArchitectures } from '@pnpm/types'
 import { map as mapValues, pickBy, unnest } from 'ramda'
@@ -287,7 +287,7 @@ function reportInstallability (ctx: PickPkgsContext, opts: PickPkgsOptions): voi
     const installable =
       opts.includeIncompatiblePackages ||
       packageIsInstallable(
-        pkgSnapshot.id ?? depPath,
+        packageIdFromSnapshot(depPath, pkgSnapshot),
         toInstallabilityManifest(depPath, pkgSnapshot, opts.engineStrict),
         {
           // A subtree hanging off an `optionalDependencies` entry stays
