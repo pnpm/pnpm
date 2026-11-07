@@ -7,11 +7,7 @@ use crate::{
     package_map::{PackageMapOptions, lockfile_to_package_map},
 };
 use pnpm_lockfile::PkgIdWithPatchHash;
-use std::{
-    collections::{BTreeMap, HashMap},
-    io,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeMap, io, path::Path};
 use url::Url;
 
 use pnpm_config::{
@@ -153,44 +149,34 @@ fn package_files(
     snapshot: Option<&pnpm_lockfile::PackageKey>,
 ) -> io::Result<BTreeMap<String, String>> {
     let key = PkgIdWithPatchHash::from(pnpm_deps_path::get_pkg_id_with_patch_hash(id).to_string());
-    let snapshot_paths =
-        snapshot.and_then(|snapshot| inputs.packages.cas_paths_by_snapshot.as_ref()?.get(snapshot));
-    let paths: HashMap<String, PathBuf> = snapshot_paths
-        .map(|paths| {
-            paths
-                .iter()
-                .map(|(name, path)| (name.clone(), path.clone()))
-                .collect()
-        })
-        .or_else(|| {
-            inputs.packages.cas_paths_by_pkg_id
-                .as_ref()
-                .and_then(|paths| paths.get(&key))
-                .map(|paths| {
-                    paths.cas_paths
-                        .iter()
-                        .map(|(name, file)| (name.clone(), file.path.clone()))
-                        .collect()
-                })
-        })
-        .ok_or_else(|| io::Error::other(format!("Missing CAS files for {id}")))?;
     let files_dir = inputs.ctx.config.store_dir.root().join("files");
-    paths
+    let to_entry = |name: &String, path: &Path| -> io::Result<(String, String)> {
+        let relative = path
+            .strip_prefix(&files_dir)
+            .map_err(|_| {
+                io::Error::other(format!("{id} has non-CAS files; add it to nodeLinker.excluded"))
+            })?;
+        let hash = relative
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy())
+            .collect::<String>();
+        Ok((name.clone(), hash))
+    };
+    if let Some(paths) =
+        snapshot.and_then(|snapshot| inputs.packages.cas_paths_by_snapshot.as_ref()?.get(snapshot))
+    {
+        return paths
+            .iter()
+            .map(|(name, path)| to_entry(name, path))
+            .collect();
+    }
+    inputs.packages.cas_paths_by_pkg_id
+        .as_ref()
+        .and_then(|paths| paths.get(&key))
+        .ok_or_else(|| io::Error::other(format!("Missing CAS files for {id}")))?
+        .cas_paths
         .iter()
-        .map(|(name, path)| {
-            let relative = path
-                .strip_prefix(&files_dir)
-                .map_err(|_| {
-                    io::Error::other(format!(
-                        "{id} has non-CAS files; add it to nodeLinker.excluded",
-                    ))
-                })?;
-            let hash = relative
-                .components()
-                .map(|part| part.as_os_str().to_string_lossy())
-                .collect::<String>();
-            Ok((name.clone(), hash))
-        })
+        .map(|(name, file)| to_entry(name, &file.path))
         .collect()
 }
 

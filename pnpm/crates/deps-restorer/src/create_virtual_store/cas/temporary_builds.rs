@@ -90,9 +90,9 @@ async fn build_in<Report: Reporter>(
 /// the pinned runtime's engine, so these packages build in the global virtual
 /// store, whose builds run on the runtime.
 fn pins_a_root_runtime(installer: &CreateVirtualStore<'_>) -> bool {
-    installer.entries.snapshots.is_some_and(|snapshots| {
-        crate::find_root_runtime_node_key(installer.importers, snapshots).is_some()
-    })
+    installer.entries.snapshots
+        .and_then(|snapshots| crate::find_root_runtime_node_key(installer.importers, snapshots))
+        .is_some_and(|runtime| !installer.selection.skipped.contains(runtime))
 }
 
 fn candidates(
