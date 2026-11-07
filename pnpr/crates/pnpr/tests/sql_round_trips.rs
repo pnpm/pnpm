@@ -216,3 +216,26 @@ async fn keyed(registry: &Registry, batch: &Value) -> StatusCode {
         .insert("idempotency-key", header::HeaderValue::from_static("k1"));
     send_to(&registry.app, request).await.0
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_staged_page_reads_all_its_metadata_in_one_round_trip() {
+    let registry = Registry::start().await;
+    let document = publish_doc("example-package", "1.0.0", b"archive");
+    for _ in 0..3 {
+        let (status, _) =
+            registry.send("POST", "/npm/-/stage/package/example-package", Some(&document)).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+    registry.round_trips();
+    let (status, body) = send_to(
+        &registry.app,
+        request("GET", "/npm/-/stage?page=0&perPage=1", &registry.token, None),
+    )
+    .await;
+    let trips = registry.round_trips();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total"], 3);
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
+    assert_eq!(trips.len(), 1, "{}", listing(&[("staged list", trips)]));
+}

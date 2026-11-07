@@ -44,7 +44,8 @@ impl Storage {
     ) -> Result<bool> {
         Ok(self.database
             .write_record(record_key(kind, registry)?, None, bytes)
-            .await?
+            .await
+            .map_err(|failure| failure.error)?
             .is_some())
     }
 
@@ -57,8 +58,10 @@ impl Storage {
         expected: &MetadataRecord,
         bytes: &[u8],
     ) -> Result<Option<MetadataRecord>> {
-        self.database.write_record(record_key(kind, registry)?, Some(expected.generation), bytes)
+        self.database
+            .write_record(record_key(kind, registry)?, Some(expected.generation), bytes)
             .await
+            .map_err(|failure| failure.error)
     }
 
     pub async fn remove_registry_record(

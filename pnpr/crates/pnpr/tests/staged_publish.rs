@@ -779,3 +779,24 @@ async fn approving_a_tolerated_difference_sends_its_notice() {
         "{notice:?}",
     );
 }
+
+#[tokio::test]
+async fn a_failed_metadata_write_removes_the_staged_body_without_the_database() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "publisher", "secret123").await;
+    let connection =
+        rusqlite::Connection::open(tmp.path().join(".metadata/metadata.sqlite")).unwrap();
+    connection.execute_batch("DROP TABLE staged_metadata").unwrap();
+    let doc = publish_doc("example-package", "1.0.0", b"archive");
+    let response = app
+        .oneshot(json_request("POST", "/npm/-/stage/package/example-package", &doc, Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let files = std::fs::read_dir(tmp.path().join(".staged"))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert!(files.is_empty(), "failed metadata left staged bodies: {files:?}");
+}

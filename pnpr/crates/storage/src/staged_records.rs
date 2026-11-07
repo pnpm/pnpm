@@ -25,17 +25,26 @@ impl Storage {
         self.database.read_record(staged_key(stage_id)?).await
     }
 
+    /// Commit metadata for a newly stored body. A failed commit is removed
+    /// before its body, since its acknowledgement may have been lost.
     pub async fn create_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
-        if self.database
-            .write_record(staged_key(stage_id)?, None, bytes)
-            .await?
-            .is_some()
-        {
-            return Ok(());
+        match self.database.write_record(staged_key(stage_id)?, None, bytes).await {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) => Err(RegistryError::Internal {
+                reason: format!("staged record {stage_id} already exists"),
+            }),
+            Err(failure) => {
+                let cleanup = if failure.may_have_committed {
+                    self.remove_staged(stage_id).await
+                } else {
+                    self.remove_staged_body(stage_id).await
+                };
+                if let Err(error) = cleanup {
+                    tracing::warn!(%error, stage_id, "staged publish cleanup failed after its metadata write failed");
+                }
+                Err(failure.error)
+            }
         }
-        // Stage ids are minted from the CSPRNG, so a taken key is not a
-        // publisher's doing.
-        Err(RegistryError::Internal { reason: format!("staged record {stage_id} already exists") })
     }
 
     /// Rewrite a staged record's metadata only while it still holds
@@ -48,7 +57,10 @@ impl Storage {
         expected: &MetadataRecord,
         bytes: &[u8],
     ) -> Result<Option<MetadataRecord>> {
-        self.database.write_record(staged_key(stage_id)?, Some(expected.generation), bytes).await
+        self.database
+            .write_record(staged_key(stage_id)?, Some(expected.generation), bytes)
+            .await
+            .map_err(|failure| failure.error)
     }
 
     pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
@@ -65,6 +77,10 @@ impl Storage {
         })
     }
 
+    async fn remove_staged_body(&self, stage_id: &str) -> Result<bool> {
+        self.root.remove_record(STAGED_DIR, &staged_body_object(stage_id)?).await
+    }
+
     /// Remove a staged record — the metadata first, so a concurrent list
     /// never surfaces a record whose body is already gone. `Ok(false)` when
     /// no metadata existed. A body-removal failure is logged rather than
@@ -73,8 +89,7 @@ impl Storage {
     /// for a retry to find (bodies are only discovered through metadata).
     pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
         let removed = self.database.remove_record(staged_key(stage_id)?).await?;
-        if let Err(err) = self.root.remove_record(STAGED_DIR, &staged_body_object(stage_id)?).await
-        {
+        if let Err(err) = self.remove_staged_body(stage_id).await {
             tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
         }
         Ok(removed)
@@ -84,6 +99,11 @@ impl Storage {
     /// sorts by staging time).
     pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
         self.database.staged_ids().await
+    }
+
+    /// The staged records from one current database snapshot.
+    pub async fn list_staged_meta(&self) -> Result<Vec<(String, MetadataRecord)>> {
+        self.database.staged_metadata().await
     }
 
     pub async fn read_pipeline_run(&self, key: &PipelineRunKey<'_>) -> Result<Option<Vec<u8>>> {

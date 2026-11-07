@@ -46,7 +46,7 @@ With `metadata.url`, use the path that URL names.
 pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
 ```
 
-An export is not a complete backup of the metadata. It leaves out three things only the database holds: the unpublished versions pnpr never accepts again, the record of every dist-tag move (its versions, time, and principal), and release notes.
+An export does not include unpublished versions, former maintainer claims, dist-tag history, release notes, team rosters, rule overrides, SCIM users, or staged-publish approval records. Back up the [metadata database](storage.md#sqlite-metadata) to retain those records.
 
 ### Restore
 

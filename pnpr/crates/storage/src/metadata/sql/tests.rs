@@ -15,6 +15,7 @@ mod publications;
 mod reclaims;
 mod records;
 mod schema;
+mod staged_failure;
 
 use crate::{
     DocumentWrite, HostedDocumentVersion, Storage,

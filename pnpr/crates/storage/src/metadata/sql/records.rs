@@ -6,7 +6,17 @@ use super::{
 };
 use crate::MetadataRecord;
 use pnpr_error::{RegistryError, Result};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
+#[derive(Debug)]
+pub(crate) struct RecordWriteError {
+    pub(crate) error: RegistryError,
+    /// A commit may succeed even when its acknowledgement fails.
+    pub(crate) may_have_committed: bool,
+}
 
 pub(crate) enum RecordKey {
     Registry { kind: String, name: String },
@@ -49,8 +59,10 @@ impl SqlMetadata {
         key: RecordKey,
         expected: Option<i64>,
         body: &[u8],
-    ) -> Result<Option<MetadataRecord>> {
+    ) -> std::result::Result<Option<MetadataRecord>, RecordWriteError> {
         let body = body.to_vec();
+        let commit_started = Arc::new(AtomicBool::new(false));
+        let committing = Arc::clone(&commit_started);
         self.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
             let (table, predicate, mut parameters) = key.identity();
@@ -63,9 +75,13 @@ impl SqlMetadata {
                 RecordKey::Staged(_) => "INSERT INTO staged_metadata (id, generation, body) VALUES (?1, ?2, ?3) ON CONFLICT (id) DO UPDATE SET generation = excluded.generation, body = excluded.body",
             };
             transaction.execute(statement, &parameters)?;
+            committing.store(true, Ordering::Release);
             transaction.commit()?;
             Ok(Some(MetadataRecord { generation, bytes: body.clone() }))
-        }).await
+        }).await.map_err(|error| RecordWriteError {
+            error,
+            may_have_committed: commit_started.load(Ordering::Acquire),
+        })
     }
 
     pub(crate) async fn remove_record(self: &Arc<Self>, key: RecordKey) -> Result<bool> {
@@ -78,6 +94,22 @@ impl SqlMetadata {
             transaction.execute(&format!("DELETE FROM {table} WHERE {predicate}"), &parameters)?;
             transaction.commit()?;
             Ok(exists)
+        })
+        .await
+    }
+
+    pub(crate) async fn staged_metadata(self: &Arc<Self>) -> Result<Vec<(String, MetadataRecord)>> {
+        self.read(String::new(), Freshness::Current, |connection, _| {
+            connection
+                .query("SELECT id, generation, body FROM staged_metadata", params![])?
+                .into_iter()
+                .map(|mut row| {
+                    Ok((
+                        row.get(0)?,
+                        MetadataRecord { generation: row.get(1)?, bytes: row.get(2)? },
+                    ))
+                })
+                .collect()
         })
         .await
     }

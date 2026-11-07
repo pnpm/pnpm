@@ -271,11 +271,7 @@ async fn store_staged(
 ) -> Result<(), RegistryError> {
     state.inner.storage.create_staged_body(stage_id, body).await?;
     let meta_bytes = serde_json::to_vec(record).expect("a staged record serializes");
-    if let Err(err) = state.inner.storage.create_staged_meta(stage_id, &meta_bytes).await {
-        let _ = state.inner.storage.remove_staged(stage_id).await;
-        return Err(err);
-    }
-    Ok(())
+    state.inner.storage.create_staged_meta(stage_id, &meta_bytes).await
 }
 
 /// `GET /-/stage?page=&perPage=&package=` — the staged records visible to
@@ -288,13 +284,13 @@ async fn serve_staged_list(
     query: &StagedListQuery,
 ) -> Response {
     let per_page = query.per_page.clamp(1, MAX_PER_PAGE);
-    let ids = match state.inner.storage.list_staged_ids().await {
-        Ok(ids) => ids,
+    let staged = match state.inner.storage.list_staged_meta().await {
+        Ok(records) => records,
         Err(err) => return err.into_response(),
     };
     let mut records: Vec<StagedRecord> = Vec::new();
-    for stage_id in ids {
-        let Ok(Some(stored)) = read_staged_record(state, &stage_id).await else {
+    for (stage_id, stored) in staged {
+        let Ok(stored) = parse_staged_record(&stage_id, stored) else {
             continue;
         };
         let record = stored.record;
@@ -467,6 +463,13 @@ async fn read_staged_record(
     let Some(stored) = state.inner.storage.read_staged_meta(stage_id).await? else {
         return Ok(None);
     };
+    parse_staged_record(stage_id, stored).map(Some)
+}
+
+fn parse_staged_record(
+    stage_id: &str,
+    stored: pnpr_storage::MetadataRecord,
+) -> Result<StoredStagedRecord, RegistryError> {
     let record: StagedRecord = serde_json::from_slice(&stored.bytes).map_err(RegistryError::Json)?;
     if record.format_version > STAGED_RECORD_FORMAT_VERSION {
         return Err(RegistryError::DocumentFormatTooNew {
@@ -475,7 +478,7 @@ async fn read_staged_record(
             supported_version: STAGED_RECORD_FORMAT_VERSION,
         });
     }
-    Ok(Some(StoredStagedRecord { stored, record }))
+    Ok(StoredStagedRecord { stored, record })
 }
 
 /// A fresh random (version 4) UUID from the OS CSPRNG — the stage id
