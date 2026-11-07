@@ -28,26 +28,30 @@ pub(crate) async fn put_login(
 ) -> Response {
     let name = strip_couchdb_user_prefix(&path.user);
     let ip_address = client_ip.map(|axum::extract::Extension(super::ClientIp(ip))| ip);
-    if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(ip_address, name) {
-        return login_throttled_response(&state, retry_after);
-    }
-    add_user(&state, ip_address, name, &body).await
+    let mut response = match state.inner.identity.login_rate_limiter.check(ip_address, name) {
+        Err(retry_after) => login_throttled_response(&state, retry_after),
+        Ok(()) => add_user(&state, ip_address, name, &body).await,
+    };
+    response.extensions_mut().insert(super::authentication::PasswordAuthentication);
+    response
 }
 
 pub(crate) fn login_throttled_response(state: &AppState, retry_after: u64) -> Response {
     state.inner.metrics.record_login_throttled();
-    (
+    let mut response = super::routing::npm_errors::json_error(
         StatusCode::TOO_MANY_REQUESTS,
-        [
-            (header::CONTENT_TYPE, "application/json"),
-            (header::RETRY_AFTER, &retry_after.to_string()),
-        ],
-        json!({
-            "error": "too many failed login attempts, please try again later"
-        })
-        .to_string(),
-    )
-        .into_response()
+        "too many failed login attempts, please try again later",
+    );
+    response
+        .headers_mut()
+        .insert(
+            header::RETRY_AFTER,
+            retry_after
+                .to_string()
+                .parse()
+                .expect("integer is a valid header value"),
+        );
+    response
 }
 
 pub(crate) async fn get_profile(
@@ -77,16 +81,9 @@ pub(crate) async fn get_user(
                 "roles": [],
             }),
         ),
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            [(header::CONTENT_TYPE, "application/json")],
-            json!({
-                "error": "not_found",
-                "reason": "User not found",
-            })
-            .to_string(),
-        )
-            .into_response(),
+        Ok(false) => {
+            super::routing::npm_errors::json_error(StatusCode::NOT_FOUND, "User not found")
+        }
         Err(err) => err.into_response(),
     })
 }

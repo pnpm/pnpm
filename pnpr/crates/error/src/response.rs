@@ -4,6 +4,10 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+/// The safe client message attached to an error response for protocol renderers.
+#[derive(Clone)]
+pub struct PublicErrorMessage(pub String);
+
 impl RegistryError {
     /// Whether a failed upstream fetch is a transient *availability* failure —
     /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
@@ -260,7 +264,11 @@ impl IntoResponse for RegistryError {
         } else {
             tracing::warn!(err = %self, %error_kind, %status, "request failed");
         }
-        let mut response = (status, self.public_message()).into_response();
+        let message = self.public_message();
+        let mut response = (status, message.clone()).into_response();
+        response
+            .extensions_mut()
+            .insert(PublicErrorMessage(message));
         if let Some(delay) = self.retry_after() {
             let seconds = delay
                 .as_secs()

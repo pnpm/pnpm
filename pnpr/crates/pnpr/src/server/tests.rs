@@ -1,5 +1,6 @@
 use super::tokens::token_timestamp_millis;
 mod compiler_cache;
+mod npm_errors;
 mod observability;
 mod oidc_groups;
 mod web_ui;

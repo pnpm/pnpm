@@ -29,6 +29,15 @@ endpoints, the `/-/pnpr/v0/` protocol endpoints, and the image `/v2/` API sit
 on the server root. Cargo, Python, and image endpoints are documented on their
 own pages.
 
+## npm error responses
+
+Errors on npm registry and account endpoints use `application/json` with matching
+`error` and `reason` fields containing the server's explanation. Server faults
+hide internal details. A `401` includes a `WWW-Authenticate: Bearer` challenge.
+When a supplied token is invalid, the explanation is "Invalid authentication
+token" and the challenge includes `error="invalid_token"`. Missing credentials
+produce an "Authentication required" explanation.
+
 ## Always available
 
 | Method | Path | Description |

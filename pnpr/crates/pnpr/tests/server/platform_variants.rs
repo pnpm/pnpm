@@ -203,7 +203,10 @@ async fn rejection(variants: &[(&str, Value)]) -> String {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    String::from_utf8(body_bytes(response.into_body()).await).unwrap()
+    body_json(response.into_body()).await["error"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 #[tokio::test]
