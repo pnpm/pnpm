@@ -39,6 +39,49 @@ test.each([
   })
 })
 
+test.each(['dependencies', 'devDependencies', 'optionalDependencies'] as const)(
+  'drops an excluded resolved catalog link from %s while preserving unresolved entries',
+  (dependencyField) => {
+    const dependency: ResolvedDirectDependency & { isLinkedDependency: true } = {
+      alias: 'workspace-dep',
+      catalogLookup: {
+        catalogName: 'default',
+        specifier: '^1.0.0',
+        userSpecifiedBareSpecifier: 'catalog:',
+      },
+      dev: dependencyField === 'devDependencies',
+      isLinkedDependency: true,
+      name: 'workspace-dep',
+      optional: dependencyField === 'optionalDependencies',
+      pkgId: 'link:../new-workspace-dep' as PkgResolutionId,
+      resolution: { type: 'directory', directory: '../new-workspace-dep' },
+      version: '1.0.0',
+    }
+    const specifiers = { 'workspace-dep': 'catalog:', 'unresolved-dep': '^1.0.0' }
+    const projectSnapshot = addDirectDependenciesToLockfile({
+      directDependencies: [dependency],
+      excludeLinksFromLockfile: true,
+      linkedPackages: [{ alias: 'workspace-dep' }],
+      newManifest: { [dependencyField]: specifiers },
+      projectSnapshot: {
+        [dependencyField]: {
+          'workspace-dep': 'link:../old-workspace-dep',
+          'unresolved-dep': '1.0.0',
+        },
+        specifiers,
+      },
+    })
+
+    expect(projectSnapshot).toStrictEqual({
+      dependencies: {},
+      devDependencies: {},
+      optionalDependencies: {},
+      [dependencyField]: { 'unresolved-dep': '1.0.0' },
+      specifiers,
+    })
+  }
+)
+
 test('addDirectDependenciesToLockfile() locks a dependency whose alias is an Object.prototype key', () => {
   const projectSnapshot = addDirectDependenciesToLockfile({
     directDependencies: [{

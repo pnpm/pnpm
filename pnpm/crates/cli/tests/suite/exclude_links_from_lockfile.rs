@@ -92,7 +92,7 @@ fn catalog_workspace_protocol_links_survive_frozen_reinstall() {
             .assert()
             .success();
         let link = workspace.join("packages/app/node_modules").join(alias);
-        assert!(is_symlink_or_junction(&link).unwrap());
+        assert!(is_symlink_or_junction(&link).unwrap(), "missing link: {}", link.display());
         assert_eq!(
             link.canonicalize().unwrap(),
             workspace
