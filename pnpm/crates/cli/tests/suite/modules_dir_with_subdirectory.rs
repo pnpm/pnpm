@@ -69,7 +69,8 @@ fn bin_prints_the_whole_nested_modules_dir() {
         format!(
             "{}\n",
             workspace
-                .join("www/modules")
+                .join("www")
+                .join("modules")
                 .join(".bin")
                 .display()
         ),

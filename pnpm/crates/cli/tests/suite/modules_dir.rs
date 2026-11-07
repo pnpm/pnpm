@@ -826,3 +826,73 @@ fn the_loaded_linker_links_bins_into_a_modules_dir_outside_the_project() {
         drop((root, mock_instance));
     }
 }
+
+#[test]
+fn commands_find_each_projects_modules_dir_outside_the_project() {
+    for setting in MODULES_DIR_SETTINGS {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let (root_modules_dir, project_modules_dir) =
+            set_modules_dir_outside_the_project(&workspace, setting);
+        append_workspace_yaml_key(&workspace, "packages", "['project-1']");
+        let project_dir = workspace.join("project-1");
+        // Each project gets its own command: the root's `.bin` is on every
+        // project's `PATH`, so a shared one would hide a missed member `.bin`.
+        for (dir, name, to_workspace) in
+            [(&workspace, "root", "."), (&project_dir, "project-1", "..")]
+        {
+            let tool = workspace.join(format!("{name}-tool"));
+            fs::create_dir_all(&tool).expect("create the tool package");
+            fs::write(tool.join("bin.js"), "#!/usr/bin/env node\n").expect("write bin.js");
+            write_manifest(
+                &tool,
+                &serde_json::json!({
+                    "name": format!("{name}-tool"),
+                    "version": "1.0.0",
+                    "bin": { format!("{name}-tool"): "bin.js" },
+                }),
+            );
+            write_manifest(
+                dir,
+                &serde_json::json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "scripts": { "greet": format!("{name}-tool") },
+                    "dependencies": { format!("{name}-tool"): format!("link:{to_workspace}/{name}-tool") },
+                }),
+            );
+        }
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_commands_use(&workspace, &root_modules_dir, "root-tool", setting);
+        assert_commands_use(&project_dir, &project_modules_dir, "project-1-tool", setting);
+        drop((root, mock_instance));
+    }
+}
+
+fn assert_commands_use(dir: &Path, modules_dir: &Path, command: &str, setting: ModulesDirSetting) {
+    let context = format!("{setting:?} {}", dir.display());
+    let real = |path: &str| {
+        dunce::canonicalize(path.trim())
+            .unwrap_or_else(|error| panic!("{context}: canonicalize {path:?}: {error}"))
+    };
+    assert_eq!(
+        real(&probe_stdout(dir, &["root"])),
+        dunce::canonicalize(modules_dir).unwrap(),
+        "{context}",
+    );
+    assert_eq!(
+        real(&probe_stdout(dir, &["bin"])),
+        dunce::canonicalize(modules_dir.join(".bin")).unwrap(),
+        "{context}",
+    );
+    for args in [&["run", "greet"][..], &["exec", command]] {
+        pacquet_in(dir)
+            .with_args(args)
+            .assert()
+            .success();
+    }
+}

@@ -262,17 +262,26 @@ impl Config {
     }
 
     /// The modules directory an install gives the project at
-    /// `project_dir`: the `packageConfigs` entry naming it, else the
-    /// configured `modulesDir`, resolved against `project_dir` and
-    /// lexically normalized. Unlike [`Self::modules_dir_name_for`] it
-    /// keeps a multi-component or absolute setting whole, as pnpm's
-    /// `pathAbsolute` does.
+    /// `project_dir`, lexically normalized:
+    ///
+    /// - a project that shares a lockfile with others but is not in the
+    ///   lockfile directory gets [`Self::modules_dir_name`] inside it;
+    /// - any other project gets the `packageConfigs` entry naming it, else
+    ///   the configured `modulesDir`, resolved against `project_dir` whole,
+    ///   as pnpm's `pathAbsolute` does.
     #[must_use]
     pub fn project_modules_dir(
         &self,
         project_dir: &Path,
         project_name: Option<&str>,
     ) -> std::path::PathBuf {
+        let project_dir = pnpm_fs::lexical_normalize(project_dir);
+        if self.shares_one_lockfile()
+            && pnpm_fs::lexical_normalize(self.lockfile_dir_for(&project_dir)) != project_dir
+        {
+            return pnpm_fs::lexical_normalize(&project_dir.join(self.modules_dir_name()));
+        }
+        let project_dir = project_dir.as_path();
         let modules_dir = self
             .applies_package_configs()
             .then(|| {
