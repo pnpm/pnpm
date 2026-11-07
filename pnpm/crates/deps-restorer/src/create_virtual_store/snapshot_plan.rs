@@ -270,6 +270,12 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     if !slot_probe_applies(probe, snapshot_key) {
         return Ok(false);
     }
+    if slot.is_none()
+        && !probe.layout.frozen_store()
+        && probe.layout.hashed_slot_dir(snapshot_key).is_some()
+    {
+        return Ok(false);
+    }
     if !slot_state_allows_reuse(slot)? {
         return Ok(false);
     }
