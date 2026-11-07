@@ -1,4 +1,4 @@
-use super::CreateVirtualStoreError;
+use super::{CreateVirtualStoreError, PackageBins};
 use crate::{
     install_package_by_snapshot::unverified_fetch_is_allowed, platform_selection::VariantPlatforms,
     store_index_key_for_resolution,
@@ -341,4 +341,22 @@ pub(super) fn tarball_cache_key(
         value: store_index_key_for_resolution(resolution, pkg_id, !ignore_scripts),
         is_git_hosted: tarball.is_git_hosted(),
     })
+}
+
+/// Look up the precalculated bin map for `snapshot_key` when the snapshot is
+/// unpatched. Checks the exact snapshot key first, then the peer-stripped
+/// package key.
+#[must_use]
+pub fn lookup_known_bins<'a>(
+    known_bins: Option<&'a PackageBins>,
+    snapshot_key: &PackageKey,
+) -> Option<&'a std::sync::Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>>
+{
+    if crate::snapshot_has_patch(snapshot_key) {
+        return None;
+    }
+    let known = known_bins?;
+    known
+        .get(snapshot_key)
+        .or_else(|| known.get(&snapshot_key.without_peer()))
 }

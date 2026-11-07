@@ -220,22 +220,53 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     }
     let slot = crate::GlobalVirtualStoreSlot::acquire_existing(probe.layout, snapshot_key)
         .map_err(CreateVirtualStoreError::SlotLock)?;
-    if let Some(slot) = &slot {
-        let state = slot
-            .state(&slot.package_path().join("package.json"), false)
-            .map_err(|error| CreateVirtualStoreError::ReadSlotState {
-                path: slot.path().to_path_buf(),
-                error,
-            })?;
-        if matches!(
-            state.phase,
-            crate::GlobalVirtualStoreSlotPhase::Missing
-                | crate::GlobalVirtualStoreSlotPhase::Populating
-                | crate::GlobalVirtualStoreSlotPhase::Building
-        ) {
-            return Ok(false);
-        }
+    if !slot_state_allows_reuse(slot.as_ref())? {
+        return Ok(false);
     }
+    if !warm_slot_contents_match::<Reporter>(probe, snapshot_key, snapshot, markers, slot.as_ref())?
+    {
+        return Ok(false);
+    }
+    let needs_rebuild = gvs_slot_needs_rebuild(
+        probe.layout,
+        probe.allow_build_policy,
+        snapshot_key,
+        slot.as_ref(),
+    )?;
+    markers.keys.insert(snapshot_key.clone());
+    if needs_rebuild {
+        markers.rebuilds.insert(snapshot_key.clone());
+    }
+    Ok(!needs_rebuild)
+}
+
+fn slot_state_allows_reuse(
+    slot: Option<&crate::GlobalVirtualStoreSlot>,
+) -> Result<bool, CreateVirtualStoreError> {
+    let Some(slot) = slot else {
+        return Ok(true);
+    };
+    let state = slot
+        .state(&slot.package_path().join("package.json"), false)
+        .map_err(|error| CreateVirtualStoreError::ReadSlotState {
+            path: slot.path().to_path_buf(),
+            error,
+        })?;
+    Ok(!matches!(
+        state.phase,
+        crate::GlobalVirtualStoreSlotPhase::Missing
+            | crate::GlobalVirtualStoreSlotPhase::Populating
+            | crate::GlobalVirtualStoreSlotPhase::Building,
+    ))
+}
+
+fn warm_slot_contents_match<Reporter: self::Reporter>(
+    probe: &WarmSlotProbe<'_, '_>,
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    markers: &mut MarkerProbes,
+    slot: Option<&crate::GlobalVirtualStoreSlot>,
+) -> Result<bool, CreateVirtualStoreError> {
     let current_entry_unchanged = current_entry_unchanged(probe, snapshot_key, snapshot);
     // A global-virtual-store slot path is content-addressed: the graph
     // hash covers the snapshot's wiring, integrity, and engine, so an
@@ -258,27 +289,14 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     )? {
         return Ok(false);
     }
-    if super::linked_archives::slot_holds_other_variant(
+    let slot_holds_other_variant = super::linked_archives::slot_holds_other_variant(
         probe.layout,
         (snapshot_key, probe.packages),
         probe.policy.supported_architectures,
-        slot.as_ref(),
+        slot,
     )
-    .map_err(CreateVirtualStoreError::SlotLock)?
-    {
-        return Ok(false);
-    }
-    let needs_rebuild = gvs_slot_needs_rebuild(
-        probe.layout,
-        probe.allow_build_policy,
-        snapshot_key,
-        slot.as_ref(),
-    )?;
-    markers.keys.insert(snapshot_key.clone());
-    if needs_rebuild {
-        markers.rebuilds.insert(snapshot_key.clone());
-    }
-    Ok(!needs_rebuild)
+    .map_err(CreateVirtualStoreError::SlotLock)?;
+    Ok(!slot_holds_other_variant)
 }
 
 /// Whether a slot probe can judge this snapshot at all. The hoisted

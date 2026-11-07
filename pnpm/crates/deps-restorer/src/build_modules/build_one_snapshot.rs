@@ -121,20 +121,40 @@ fn build_candidate<Reporter: self::Reporter>(
         (candidate.patch.is_some() || candidate.should_run_scripts) && candidate.build_pending,
     )?;
 
+    upload_candidate_side_effects(
+        context,
+        snapshot_key,
+        candidate,
+        &pkg_dir,
+        cache_key,
+        is_patched,
+        has_side_effects,
+    );
+
+    Ok(())
+}
+
+fn upload_candidate_side_effects(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+    pkg_dir: &Path,
+    cache_key: Option<&str>,
+    is_patched: bool,
+    has_side_effects: bool,
+) {
     upload_side_effects_cache(
         context,
         snapshot_key,
         &SideEffectsUpload {
             metadata_key: &candidate.metadata_key,
-            pkg_dir: &pkg_dir,
+            pkg_dir,
             cache_key,
             patch: candidate.patch,
             is_patched,
             has_side_effects,
         },
     );
-
-    Ok(())
 }
 
 /// A snapshot whose build scripts or patch this install applies, with

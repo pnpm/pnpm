@@ -25,12 +25,12 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use std::time::Duration;
 use std::{
     collections::HashSet,
     fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 mod mark;

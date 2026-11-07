@@ -1,5 +1,6 @@
 pub(crate) mod cas;
 pub(crate) mod linked_archives;
+pub use cache_keys::lookup_known_bins;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
@@ -62,24 +63,6 @@ pub type PackageBins = HashMap<
     PkgNameVerPeer,
     std::sync::Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>,
 >;
-
-/// Look up the precalculated bin map for `snapshot_key` when the snapshot is
-/// unpatched. Checks the exact snapshot key first, then the peer-stripped
-/// package key.
-#[must_use]
-pub fn lookup_known_bins<'a>(
-    known_bins: Option<&'a PackageBins>,
-    snapshot_key: &PackageKey,
-) -> Option<&'a std::sync::Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>>
-{
-    if crate::snapshot_has_patch(snapshot_key) {
-        return None;
-    }
-    let known = known_bins?;
-    known
-        .get(snapshot_key)
-        .or_else(|| known.get(&snapshot_key.without_peer()))
-}
 
 /// Per-snapshot side-effects-cache overlays, keyed by the snapshot's
 /// `PackageKey` and then by the dep-state cache key (the string

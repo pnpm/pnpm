@@ -336,52 +336,21 @@ where
         return Ok(());
     }
 
-    let mut slot_keys: Vec<PackageKey> = with_bin
-        .iter()
-        .map(|(_, child_key, _)| child_key.clone())
-        .collect();
-    slot_keys.push(slot_key.clone());
-    slot_keys.sort_by_key(|key| context.layout.slot_dir(key));
-    slot_keys.dedup();
-    let _slot_locks = slot_keys
-        .iter()
-        .map(|key| {
-            crate::GlobalVirtualStoreSlot::acquire_existing(context.layout, key)
-                .map_err(LinkVirtualStoreBinsError::SlotLock)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let _slot_locks = lock_bin_slots(context, slot_key, &with_bin)?;
 
     let modules_dir = context.layout.slot_dir(slot_key).join("node_modules");
     let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);
     let bins_dir = self_pkg_dir.join("node_modules/.bin");
 
-    let mut bin_sources: Vec<PackageBinSource> =
-        Vec::with_capacity(with_bin.len() + usize::from(self_has_bin));
-    push_child_bin_sources::<Sys>(&mut bin_sources, context, &modules_dir, with_bin)?;
-
-    // Packages the tarball ships in its own `node_modules` are not
-    // lockfile children, so nothing above sees them; their bins are
-    // reachable only from inside the bundling package and have to be
-    // shimmed straight from disk.
-    if self_bundles {
-        bin_sources.extend(
-            collect_packages_in_modules_dir::<Sys>(&self_pkg_dir.join("node_modules"))
-                .map_err(LinkVirtualStoreBinsError::LinkBins)?,
-        );
-    }
-
-    // The slot's own package dir is a real directory already, so it
-    // doubles as its own resolved location.
-    if self_has_bin {
-        push_bin_source::<Sys>(
-            &mut bin_sources,
-            context,
-            slot_key,
-            &self_metadata_key,
-            self_pkg_dir.clone(),
-            self_pkg_dir,
-        )?;
-    }
+    let bin_sources = slot_bin_sources::<Sys>(
+        context,
+        slot_key,
+        with_bin,
+        self_has_bin,
+        self_bundles,
+        &modules_dir,
+        self_pkg_dir,
+    )?;
 
     if bin_sources.is_empty() {
         return Ok(());
@@ -394,6 +363,62 @@ where
     )
     .map(|_| ())
     .map_err(LinkVirtualStoreBinsError::LinkBins)
+}
+
+fn lock_bin_slots(
+    context: &SlotBinContext<'_>,
+    slot_key: &PackageKey,
+    with_bin: &[(&PkgName, PackageKey, PackageKey)],
+) -> Result<Vec<Option<crate::GlobalVirtualStoreSlot>>, LinkVirtualStoreBinsError> {
+    let mut slot_keys: Vec<PackageKey> = with_bin
+        .iter()
+        .map(|(_, child_key, _)| child_key.clone())
+        .collect();
+    slot_keys.push(slot_key.clone());
+    slot_keys.sort_by_key(|key| context.layout.slot_dir(key));
+    slot_keys.dedup();
+    slot_keys
+        .iter()
+        .map(|key| {
+            crate::GlobalVirtualStoreSlot::acquire_existing(context.layout, key)
+                .map_err(LinkVirtualStoreBinsError::SlotLock)
+        })
+        .collect()
+}
+
+fn slot_bin_sources<Sys>(
+    context: &SlotBinContext<'_>,
+    slot_key: &PackageKey,
+    with_bin: Vec<(&PkgName, PackageKey, PackageKey)>,
+    self_has_bin: bool,
+    self_bundles: bool,
+    modules_dir: &Path,
+    self_pkg_dir: PathBuf,
+) -> Result<Vec<PackageBinSource>, LinkVirtualStoreBinsError>
+where
+    Sys: FsReadDir + FsReadFile + FsReadToString + FsReadHead + FsCreateDirAll + FsWalkFiles,
+{
+    let self_metadata_key = slot_key.without_peer();
+    let mut bin_sources: Vec<PackageBinSource> =
+        Vec::with_capacity(with_bin.len() + usize::from(self_has_bin));
+    push_child_bin_sources::<Sys>(&mut bin_sources, context, modules_dir, with_bin)?;
+    if self_bundles {
+        bin_sources.extend(
+            collect_packages_in_modules_dir::<Sys>(&self_pkg_dir.join("node_modules"))
+                .map_err(LinkVirtualStoreBinsError::LinkBins)?,
+        );
+    }
+    if self_has_bin {
+        push_bin_source::<Sys>(
+            &mut bin_sources,
+            context,
+            slot_key,
+            &self_metadata_key,
+            self_pkg_dir.clone(),
+            self_pkg_dir,
+        )?;
+    }
+    Ok(bin_sources)
 }
 
 fn push_child_bin_sources<Sys: FsReadFile>(

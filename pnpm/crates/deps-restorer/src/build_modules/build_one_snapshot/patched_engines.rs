@@ -13,38 +13,69 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
 ) -> Result<bool, BuildModulesError> {
-    let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
-    if !context.scripts.patched_engines.engine_strict || candidate.patch.is_none() {
+    if !should_check_patched_engines(context, candidate) {
         return Ok(false);
     }
-    let slot = if context.directories.pkg_roots_by_key.is_none()
-        && context.directories.layout.enable_global_virtual_store()
-    {
-        crate::GlobalVirtualStoreSlot::acquire_existing(context.directories.layout, snapshot_key)
-            .map_err(BuildModulesError::SlotLock)?
-    } else {
-        None
-    };
-    if let Some(slot) = &slot {
-        let state = slot
-            .state(&slot.package_path().join("package.json"), false)
-            .map_err(|source| BuildModulesError::ReadBuildMarker {
-                path: slot.package_path().join(crate::NEEDS_BUILD_MARKER),
-                source,
-            })?;
-        if matches!(
-            state.phase,
-            crate::GlobalVirtualStoreSlotPhase::Populating
-                | crate::GlobalVirtualStoreSlotPhase::Building
-        ) {
-            return Ok(false);
-        }
+    let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
+    let slot = acquire_slot_for_engine_check(context, snapshot_key)?;
+    if slot_is_mutating(slot.as_ref())? {
+        return Ok(false);
     }
     let Some(details) =
         enforce_patched_engines(context, snapshot_key, candidate, optional, slot.as_ref())?
     else {
         return Ok(false);
     };
+    emit_skipped_optional::<EventReporter>(context, snapshot_key, candidate, details);
+    remove_linked_copies(context, snapshot_key);
+    Ok(true)
+}
+
+fn should_check_patched_engines(
+    context: &BuildOneSnapshot<'_>,
+    candidate: &BuildCandidate<'_>,
+) -> bool {
+    context.scripts.patched_engines.engine_strict && candidate.patch.is_some()
+}
+
+fn acquire_slot_for_engine_check(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+) -> Result<Option<crate::GlobalVirtualStoreSlot>, BuildModulesError> {
+    if context.directories.pkg_roots_by_key.is_some()
+        || !context.directories.layout.enable_global_virtual_store()
+    {
+        return Ok(None);
+    }
+    crate::GlobalVirtualStoreSlot::acquire_existing(context.directories.layout, snapshot_key)
+        .map_err(BuildModulesError::SlotLock)
+}
+
+fn slot_is_mutating(
+    slot: Option<&crate::GlobalVirtualStoreSlot>,
+) -> Result<bool, BuildModulesError> {
+    let Some(slot) = slot else {
+        return Ok(false);
+    };
+    let state = slot
+        .state(&slot.package_path().join("package.json"), false)
+        .map_err(|source| BuildModulesError::ReadBuildMarker {
+            path: slot.package_path().join(crate::NEEDS_BUILD_MARKER),
+            source,
+        })?;
+    Ok(matches!(
+        state.phase,
+        crate::GlobalVirtualStoreSlotPhase::Populating
+            | crate::GlobalVirtualStoreSlotPhase::Building,
+    ))
+}
+
+fn emit_skipped_optional<EventReporter: Reporter>(
+    context: &BuildOneSnapshot<'_>,
+    snapshot_key: &PackageKey,
+    candidate: &BuildCandidate<'_>,
+    details: String,
+) {
     EventReporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
         level: LogLevel::Debug,
         details: Some(details),
@@ -57,8 +88,6 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
         prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
         reason: SkippedOptionalReason::UnsupportedEngine,
     }));
-    remove_linked_copies(context, snapshot_key);
-    Ok(true)
 }
 
 /// Remove an engine-incompatible optional dependency and every link to it.

@@ -62,7 +62,7 @@ pub(crate) fn slot_carries_overlay(
     };
     matches!(
         state.phase,
-        crate::GlobalVirtualStoreSlotPhase::Populated | crate::GlobalVirtualStoreSlotPhase::Built
+        crate::GlobalVirtualStoreSlotPhase::Populated | crate::GlobalVirtualStoreSlotPhase::Built,
     ) && pkg_dir.is_dir()
         && overlay.files
             .keys()

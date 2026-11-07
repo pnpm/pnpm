@@ -12,6 +12,20 @@ use std::{fs, io, path::PathBuf, time::Duration};
 const SLOT_LOCK_DIR: &str = ".pnpm-build.lock";
 const SLOT_STATE_FILE: &str = ".pnpm-slot-state";
 
+fn parse_phase(state: &str) -> io::Result<GlobalVirtualStoreSlotPhase> {
+    match state {
+        "populating" => Ok(GlobalVirtualStoreSlotPhase::Populating),
+        "populated" => Ok(GlobalVirtualStoreSlotPhase::Populated),
+        "build-pending" => Ok(GlobalVirtualStoreSlotPhase::BuildPending),
+        "building" => Ok(GlobalVirtualStoreSlotPhase::Building),
+        "built" => Ok(GlobalVirtualStoreSlotPhase::Built),
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid global virtual store slot state",
+        )),
+    }
+}
+
 /// How long each acquisition attempt waits before checking the lock again.
 const WAIT: Duration = Duration::from_mins(10);
 
@@ -117,54 +131,57 @@ impl GlobalVirtualStoreSlot {
                 linked_archive,
             });
         }
-        match fs::read_to_string(&self.state_file) {
-            Ok(state) => {
-                let mut phase = match state.as_str() {
-                    "populating" => GlobalVirtualStoreSlotPhase::Populating,
-                    "populated" => GlobalVirtualStoreSlotPhase::Populated,
-                    "build-pending" => GlobalVirtualStoreSlotPhase::BuildPending,
-                    "building" => GlobalVirtualStoreSlotPhase::Building,
-                    "built" => GlobalVirtualStoreSlotPhase::Built,
-                    _ => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "invalid global virtual store slot state",
-                        ));
-                    }
-                };
-                if matches!(
-                    phase,
-                    GlobalVirtualStoreSlotPhase::Populated | GlobalVirtualStoreSlotPhase::Built
-                ) {
-                    phase = self.legacy_build_marker_phase(phase)?;
-                }
-                return Ok(GlobalVirtualStoreSlotState { phase, linked_archive });
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
-        }
-        match fs::metadata(completion_marker) {
-            Ok(metadata) if metadata.is_file() => {}
-            Ok(_) => {
-                return Ok(GlobalVirtualStoreSlotState {
-                    phase: GlobalVirtualStoreSlotPhase::Populating,
-                    linked_archive,
-                });
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                return Ok(GlobalVirtualStoreSlotState {
-                    phase: GlobalVirtualStoreSlotPhase::Populating,
-                    linked_archive,
-                });
-            }
-            Err(error) => return Err(error),
-        }
-        let phase = self.legacy_build_marker_phase(if requires_build {
-            GlobalVirtualStoreSlotPhase::Built
-        } else {
-            GlobalVirtualStoreSlotPhase::Populated
-        })?;
+        let phase = self
+            .read_state_file()?
+            .map_or_else(
+                || self.legacy_state(completion_marker, requires_build),
+                |phase| self.reconcile_legacy_marker(phase),
+            )?;
         Ok(GlobalVirtualStoreSlotState { phase, linked_archive })
+    }
+
+    fn read_state_file(&self) -> io::Result<Option<GlobalVirtualStoreSlotPhase>> {
+        match fs::read_to_string(&self.state_file) {
+            Ok(state) => parse_phase(&state).map(Some),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn reconcile_legacy_marker(
+        &self,
+        phase: GlobalVirtualStoreSlotPhase,
+    ) -> io::Result<GlobalVirtualStoreSlotPhase> {
+        if matches!(
+            phase,
+            GlobalVirtualStoreSlotPhase::Populated | GlobalVirtualStoreSlotPhase::Built,
+        ) {
+            self.legacy_build_marker_phase(phase)
+        } else {
+            Ok(phase)
+        }
+    }
+
+    fn legacy_state(
+        &self,
+        completion_marker: &std::path::Path,
+        requires_build: bool,
+    ) -> io::Result<GlobalVirtualStoreSlotPhase> {
+        match fs::metadata(completion_marker) {
+            Ok(metadata) if metadata.is_file() => {
+                let absent_phase = if requires_build {
+                    GlobalVirtualStoreSlotPhase::Built
+                } else {
+                    GlobalVirtualStoreSlotPhase::Populated
+                };
+                self.legacy_build_marker_phase(absent_phase)
+            }
+            Ok(_) => Ok(GlobalVirtualStoreSlotPhase::Populating),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                Ok(GlobalVirtualStoreSlotPhase::Populating)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     fn legacy_build_marker_phase(
@@ -185,7 +202,7 @@ impl GlobalVirtualStoreSlot {
             state.phase,
             GlobalVirtualStoreSlotPhase::Populating
                 | GlobalVirtualStoreSlotPhase::BuildPending
-                | GlobalVirtualStoreSlotPhase::Building
+                | GlobalVirtualStoreSlotPhase::Building,
         ))
     }
 
@@ -238,53 +255,4 @@ impl GlobalVirtualStoreSlot {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{GlobalVirtualStoreSlot, GlobalVirtualStoreSlotPhase};
-    use tempfile::tempdir;
-
-    #[test]
-    fn slot_state_changes_only_through_the_locked_owner() {
-        let root = tempdir().expect("temporary slot root");
-        let key = "dep@1.0.0".parse().expect("package key");
-        let slot = GlobalVirtualStoreSlot::acquire_path(root.path().join("slot"), &key)
-            .expect("lock slot");
-        let completion_marker = slot.package_path().join("package.json");
-
-        assert_eq!(
-            slot.state(&completion_marker, true).expect("read missing slot").phase,
-            GlobalVirtualStoreSlotPhase::Missing,
-        );
-        std::fs::create_dir_all(slot.package_path()).expect("create package directory");
-        std::fs::write(&completion_marker, "{}").expect("write completion marker");
-        slot.finish_population(false).expect("mark slot populated");
-        assert_eq!(
-            slot.state(&completion_marker, false).expect("read populated slot").phase,
-            GlobalVirtualStoreSlotPhase::Populated,
-        );
-        std::fs::write(slot.package_path().join(crate::NEEDS_BUILD_MARKER), "")
-            .expect("write pending marker");
-        slot.finish_population(true).expect("mark build pending");
-        assert_eq!(
-            slot.state(&completion_marker, true).expect("read pending build").phase,
-            GlobalVirtualStoreSlotPhase::BuildPending,
-        );
-        slot.mark_build_started().expect("mark build started");
-        assert_eq!(
-            slot.state(&completion_marker, true).expect("read active build").phase,
-            GlobalVirtualStoreSlotPhase::Building,
-        );
-        slot.mark_build_finished().expect("mark build finished");
-        assert_eq!(
-            slot.state(&completion_marker, true).expect("read finished build").phase,
-            GlobalVirtualStoreSlotPhase::Built,
-        );
-        slot.record_linked_archive("sha512-archive").expect("record linked archive");
-        assert_eq!(
-            slot.state(&completion_marker, true)
-                .expect("read linked archive")
-                .linked_archive
-                .as_deref(),
-            Some("sha512-archive"),
-        );
-    }
-}
+mod tests;

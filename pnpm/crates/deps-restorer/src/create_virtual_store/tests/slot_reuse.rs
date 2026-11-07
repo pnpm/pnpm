@@ -43,7 +43,7 @@ fn an_unchanged_integrity_keeps_the_slot() {
     assert!(
         !reuse
             .must_replace(&key())
-            .expect("compare unchanged slot")
+            .expect("compare unchanged slot"),
     );
 }
 
@@ -61,7 +61,7 @@ fn a_changed_integrity_replaces_the_slot() {
     assert!(
         reuse
             .must_replace(&key())
-            .expect("compare changed slot")
+            .expect("compare changed slot"),
     );
 }
 
@@ -81,7 +81,7 @@ fn force_replaces_the_slot_with_or_without_previous_records() {
             reuse
                 .must_replace(&key())
                 .expect("compare forced slot"),
-            "force must replace even unchanged packages"
+            "force must replace even unchanged packages",
         );
     }
 }
@@ -101,7 +101,7 @@ fn a_first_install_without_force_leaves_the_verdict_to_the_import() {
     assert!(
         !reuse
             .must_replace(&key())
-            .expect("compare unchanged slot")
+            .expect("compare unchanged slot"),
     );
 }
 
@@ -164,21 +164,21 @@ fn a_slot_holding_another_archive_is_replaced() {
         reuse
             .must_replace(&key())
             .expect("compare archive variant"),
-        "the any archive's slot is replaced by the host's variant"
+        "the any archive's slot is replaced by the host's variant",
     );
     write_slot(&layout, None);
     assert!(
         reuse
             .must_replace(&key())
             .expect("compare missing archive"),
-        "a slot without a record is replaced"
+        "a slot without a record is replaced",
     );
     write_slot(&layout, Some(NEW));
     assert!(
         !reuse
             .must_replace(&key())
             .expect("compare linked variant"),
-        "the linked variant's slot is kept"
+        "the linked variant's slot is kept",
     );
 }
 
@@ -210,7 +210,7 @@ fn a_slot_the_install_did_not_import_is_not_recorded() {
         reuse
             .must_replace(&key())
             .expect("compare unrecorded slot"),
-        "the slot is imported once the snapshot is installed"
+        "the slot is imported once the snapshot is installed",
     );
 
     record_linked_archives(&layout, (&[key()], &packages), None, &std::collections::HashSet::new())
@@ -219,6 +219,6 @@ fn a_slot_the_install_did_not_import_is_not_recorded() {
     assert!(
         !reuse
             .must_replace(&key())
-            .expect("compare recorded slot")
+            .expect("compare recorded slot"),
     );
 }

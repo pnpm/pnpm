@@ -596,13 +596,13 @@ fn gvs_installs_in_two_projects_build_a_shared_slot_once_at_a_time() {
         first
             .wait()
             .expect("wait for first install")
-            .success()
+            .success(),
     );
     assert!(
         second
             .wait()
             .expect("wait for second install")
-            .success()
+            .success(),
     );
 
     let hash_dir = sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0"));
@@ -616,13 +616,13 @@ fn gvs_installs_in_two_projects_build_a_shared_slot_once_at_a_time() {
         workspace
             .join("node_modules")
             .join(PKG)
-            .exists()
+            .exists(),
     );
     assert!(
         second_workspace
             .join("node_modules")
             .join(PKG)
-            .exists()
+            .exists(),
     );
 
     drop((root, mock_instance));
