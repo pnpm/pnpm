@@ -1,3 +1,4 @@
+pub(super) mod retry;
 pub(super) mod variants;
 
 pub(super) use atomic::{
@@ -197,50 +198,33 @@ pub(super) async fn publish_package(
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
-    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
-        Ok(n) => n,
-        Err(err) => return err.into_response(),
-    };
+    retry::retry_reclaimed(&state.inner.locks.publish_replays, body, |body| {
+        publish_attempt(state, identity, registry, raw_name, body)
+    })
+    .await
+    .unwrap_or_else(IntoResponse::into_response)
+}
 
-    let mut incoming: Value = match serde_json::from_slice(&body) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    if let Err(err) = check_body_name(&name, &incoming) {
-        return err.into_response();
-    }
-
+async fn publish_attempt(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_name: &str,
+    body: axum::body::Bytes,
+) -> Result<Response, RegistryError> {
+    let name = CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm)?;
+    let mut incoming: Value = serde_json::from_slice(&body)?;
+    drop(body);
+    check_body_name(&name, &incoming)?;
     let request = publication_request(identity, &incoming, None, None, Some(&name));
-    let notes = match single_publish_notes(&mut incoming) {
-        Ok(notes) => notes,
-        Err(err) => return err.into_response(),
-    };
-
-    // Routing, masking, and the publish rule all run inside
-    // `validate_publish_doc`: the write resolves to a hosted registry (or
-    // fails closed), and that registry's `packages:` rules authorize it.
+    let notes = single_publish_notes(&mut incoming)?;
     let (validated, target) =
-        match validate_publish_doc(state, identity, registry, name, incoming).await {
-            Ok(validated) => validated,
-            Err(err) => return err.into_response(),
-        };
-    // Serialize the read-merge-write against other writers of this same
-    // package on this instance, so a concurrent publish can't read the
-    // same `existing`, merge a different version, and overwrite ours.
-    // Held until this function returns, past the packument write below.
+        validate_publish_doc(state, identity, registry, name, incoming).await?;
     let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
-    // A retry is authorized like any publish, so only a caller still allowed
-    // to make it gets the outcome of the request it repeats. It is looked up
-    // under the lock, so a retry that waited for the original sees its commit.
-    match replayed_outcome(state, &target.org, request.as_ref()).await {
-        Ok(Some(replayed)) => return replayed,
-        Ok(None) => {}
-        Err(err) => return err.into_response(),
+    if let Some(replayed) = replayed_outcome(state, &target.org, request.as_ref()).await? {
+        return Ok(replayed);
     }
-
-    stage_and_commit(state, identity, validated, &target.org, (notes, request))
-        .await
-        .unwrap_or_else(IntoResponse::into_response)
+    stage_and_commit(state, identity, validated, &target.org, (notes, request)).await
 }
 
 /// Stage one validated publish into `org` and commit it, then give back the
