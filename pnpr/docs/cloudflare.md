@@ -238,7 +238,7 @@ The Worker copies it into `X-Real-IP`, and the
 variable with the `PNPR_` prefix. This one is `--public-url`.
 
 Malformed percent-encoded paths receive HTTP `400` before the request reaches
-the container or any custom cache route parser.
+the container.
 
 Finally, install the two packages the Worker needs:
 
