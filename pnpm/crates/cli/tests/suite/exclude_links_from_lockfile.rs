@@ -77,20 +77,14 @@ fn catalog_workspace_protocol_links_survive_frozen_reinstall() {
         let lockfile_path = workspace.join("pnpm-lock.yaml");
         let before = fs::read_to_string(&lockfile_path).expect("read lockfile");
         let lockfile: Lockfile = serde_saphyr::from_str(&before).expect("parse lockfile");
-        let dependency = &lockfile.importers["packages/app"]
-            .dependencies
+        let dependency = &lockfile.importers["packages/app"].dependencies
             .as_ref()
             .expect("app dependencies")[&PkgName::parse(alias).unwrap()];
         assert_eq!(dependency.specifier, reference);
-        assert_eq!(
-            dependency.version,
-            ImporterDepVersion::Link("../workspace-dep".to_string()),
-        );
+        assert_eq!(dependency.version, ImporterDepVersion::Link("../workspace-dep".to_string()),);
 
-        for modules in [
-            workspace.join("node_modules"),
-            workspace.join("packages/app/node_modules"),
-        ] {
+        for modules in [workspace.join("node_modules"), workspace.join("packages/app/node_modules")]
+        {
             fs::remove_dir_all(modules).expect("remove node_modules");
         }
         pacquet_at(&workspace)
@@ -101,7 +95,10 @@ fn catalog_workspace_protocol_links_survive_frozen_reinstall() {
         assert!(is_symlink_or_junction(&link).unwrap());
         assert_eq!(
             link.canonicalize().unwrap(),
-            workspace.join("packages/workspace-dep").canonicalize().unwrap(),
+            workspace
+                .join("packages/workspace-dep")
+                .canonicalize()
+                .unwrap(),
         );
         assert_eq!(fs::read_to_string(lockfile_path).unwrap(), before);
         drop((root, mock_instance));

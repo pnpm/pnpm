@@ -21,10 +21,8 @@ fn excluded_catalog_links_keep_workspace_specifiers() {
             "dependencies": { "shared": reference },
         }));
         let graph = DependenciesGraph::default();
-        let direct = BTreeMap::from([(
-            "shared".to_string(),
-            DepPath::from("link:../shared".to_string()),
-        )]);
+        let direct =
+            BTreeMap::from([("shared".to_string(), DepPath::from("link:../shared".to_string()))]);
         let catalogs = BTreeMap::from([(
             name.to_string(),
             BTreeMap::from([("shared".to_string(), specifier.to_string())]),
