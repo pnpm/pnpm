@@ -47,7 +47,6 @@ const TARGETS = [
   { platform: 'linux', arch: 'x64', libc: 'musl', codeTarget: 'linux-x64-musl', packageTarget: 'linux-x64-musl' },
   { platform: 'linux', arch: 'arm64', libc: 'musl', codeTarget: 'linux-arm64-musl', packageTarget: 'linux-arm64-musl' },
   { platform: 'freebsd', arch: 'x64', codeTarget: 'freebsd-x64', packageTarget: 'freebsd-x64' },
-  { platform: 'netbsd', arch: 'x64', codeTarget: 'netbsd-x64', packageTarget: 'netbsd-x64' },
   { platform: 'android', arch: 'arm64', codeTarget: 'android-arm64', packageTarget: 'android-arm64' },
   { platform: 'android', arch: 'x64', codeTarget: 'android-x64', packageTarget: 'android-x64' },
 ]

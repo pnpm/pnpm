@@ -895,12 +895,6 @@ jobs:
             target: x86_64-unknown-freebsd
             code-target: freebsd-x64
 
-          # Built natively in a NetBSD VM, which needs KVM: see the VM build step.
-          - os: ubuntu-24.04
-            target: x86_64-unknown-netbsd
-            code-target: netbsd-x64
-            vm: netbsd
-
           - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-linux-android
             code-target: android-arm64
@@ -936,7 +930,6 @@ jobs:
           container-build: 'true'
 
       - name: Build NAPI addon with cross
-        if: matrix.vm != 'netbsd'
         # musl targets enable `crt-static` by default, but a `cdylib` (the
         # `.node` addon) can't be produced with a statically linked CRT. Disable
         # it so the addon builds as a shared object that dynamically links musl
@@ -955,17 +948,6 @@ jobs:
             export RUSTFLAGS="-C target-feature=-crt-static"
           fi
           .github/scripts/cross-build.sh --locked -p pnpm-napi --profile napi-release --target="$TARGET"
-
-      - name: Start the NetBSD VM
-        if: matrix.vm == 'netbsd'
-        uses: $/.github/actions/netbsd-vm
-
-      - name: Build NAPI addon in the NetBSD VM
-        if: matrix.vm == 'netbsd'
-        shell: bash
-        env:
-          TARGET: ${{ matrix.target }}
-        run: .github/scripts/netbsd-vm/vm.sh build --locked -p pnpm-napi --profile napi-release --target="$TARGET"
 
       - name: Prepare NAPI addon
         shell: bash
