@@ -47,7 +47,7 @@ pub struct LinkPackageData<'a> {
     pub package_bins: Option<&'a PackageBins>,
     /// Per-snapshot `requiresBuild` flags from the store-index prefetch,
     /// gating the importer bin pass's use of `package_manifests` — see
-    /// [`crate::link_direct_dep_bins_prefetched`]. `None` when the
+    /// [`crate::BinCandidates::Prefetched`]. `None` when the
     /// caller has no prefetch (the fresh-lockfile installer).
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,

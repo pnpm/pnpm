@@ -6,6 +6,9 @@ use publish::remove_publish_modules_link;
 mod report;
 use report::emit_root_added;
 
+mod entry_bins;
+use entry_bins::link_entry_bins;
+
 mod resolve;
 use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets};
 
@@ -59,7 +62,7 @@ where
 
     /// Parsed manifests recovered from the store-index prefetch
     /// ([`crate::PackageManifests`]), when the caller has them. Feeds
-    /// [`crate::link_direct_dep_bins_prefetched`] so an importer's bin
+    /// [`crate::BinCandidates::Prefetched`] so an importer's bin
     /// pass reads no `package.json` for a prefetched dep; `None` keeps
     /// every dep on the disk-read fallback.
     pub package_manifests: Option<&'a crate::PackageManifests>,
@@ -67,7 +70,7 @@ where
 
     /// Per-snapshot `requiresBuild` flags from the same prefetch,
     /// gating [`Self::package_manifests`] — see
-    /// [`crate::link_direct_dep_bins_prefetched`].
+    /// [`crate::BinCandidates::Prefetched`].
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
 
     /// The builds that run after this pass. See
@@ -557,35 +560,8 @@ fn link_one_importer<Reporter: self::Reporter>(
             )
         })?;
 
-    // After the symlinks exist, walk them to discover each
-    // direct dep's `package.json` and link declared bins into
-    // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
-    // destination, so the bin pass gets the resolved location for
-    // free.
-    let claimed = if symlink {
-        let deps = resolved_entry_bins(&entries);
-        crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
-            .map_err(SymlinkDirectDependenciesError::LinkBins)?
-    } else {
-        let locations: Vec<PathBuf> = entries
-            .iter()
-            .map(|entry| entry.target.clone())
-            .collect();
-        crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
-            .map_err(SymlinkDirectDependenciesError::LinkBins)?
-    };
-
-    Ok(claimed)
-}
-
-fn resolved_entry_bins(entries: &[ResolvedEntry<'_>]) -> Vec<crate::PrefetchedDepBin> {
-    entries
-        .iter()
-        .map(|entry| {
-            let snapshot_key = entry.spec.version.resolved_key(entry.name);
-            (entry.name_str.clone(), entry.target.clone(), snapshot_key)
-        })
-        .collect()
+    link_entry_bins(modules_dir, &entries, symlink, bin_lookup, link_options)
+        .map_err(SymlinkDirectDependenciesError::LinkBins)
 }
 
 #[cfg(test)]

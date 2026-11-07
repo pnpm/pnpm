@@ -109,13 +109,17 @@ impl HoistedLinkScope<'_> {
         if !changed && self.already_linked(&linked_names, initial_sources) {
             return Ok((false, None));
         }
-        crate::link_direct_dep_bins_before_builds(&self.modules_dir, &linked_names, link_options)
-            .map_err(|source| {
-                HoistedLinkerError::SymlinkDirectDependencies(
-                    SymlinkDirectDependenciesError::LinkBins(source),
-                )
-            })
-            .map(|outcome| (changed, Some(outcome.linked_commands)))
+        crate::link_bins_dir(
+            &self.modules_dir,
+            crate::BinCandidates::Aliases(&linked_names),
+            crate::BinsDirPass::new(link_options).with_targets(crate::BinTargets::MayBeBuilt),
+        )
+        .map_err(|source| {
+            HoistedLinkerError::SymlinkDirectDependencies(SymlinkDirectDependenciesError::LinkBins(
+                source,
+            ))
+        })
+        .map(|outcome| (changed, Some(outcome.linked_commands)))
     }
 
     // Both passes precede lifecycle execution and use identical hoisted shim options.

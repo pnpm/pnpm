@@ -12,7 +12,7 @@ use crate::{
     install_frozen_lockfile::{
         HoistPlan, HoistedLinkerError, HoistedLinkerInputs, run_hoisted_linker,
     },
-    link_direct_dep_bins_resolved_excluding, link_root_component_members,
+    link_root_component_members,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -359,14 +359,17 @@ fn finish_project_bins(
     if !bin_deps.is_empty() {
         let empty = HashSet::new();
         let excluded = claimed_importer_bins.get(&config.modules_dir).unwrap_or(&empty);
-        let workspace_hoist_bins = link_direct_dep_bins_resolved_excluding(
+        let workspace_hoist_bins = crate::link_bins_dir(
             &config.modules_dir,
-            bin_deps,
-            excluded,
-            inputs.ctx.linker.bin_options,
+            crate::BinCandidates::Resolved(bin_deps),
+            crate::BinsDirPass::new(inputs.ctx.linker.bin_options)
+                .skipping(crate::SkippedCommands::Listed(excluded)),
         )
         .map_err(LinkPhaseError::LinkBins)?;
-        claimed_importer_bins.claim_recorded(&config.modules_dir, workspace_hoist_bins);
+        claimed_importer_bins.claim_recorded(
+            &config.modules_dir,
+            workspace_hoist_bins.linked_commands,
+        );
     }
     Ok(())
 }

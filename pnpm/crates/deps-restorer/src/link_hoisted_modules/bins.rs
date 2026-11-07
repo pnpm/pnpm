@@ -1,10 +1,8 @@
 use super::{DepHierarchy, HeldBackBinsDir, LinkHoistedModulesError, LinkHoistedModulesOpts};
-use pnpm_cmd_shim::{
-    Host, PackageBinSource, ShimTargetCache, collect_packages_in_modules_dir,
-    link_bins_of_packages_outcome,
-};
+use crate::{BinCandidates, BinTargets, BinsDirPass};
+use pnpm_cmd_shim::PackageBinSource;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -45,21 +43,16 @@ pub(super) fn link_hierarchy_bins(
     if dep_names.is_empty() {
         return Ok(HoistedBinLinkOutput::default());
     }
-    let deps = dep_names
-        .iter()
-        .map(|name| (name.as_str(), None))
-        .collect::<Vec<_>>();
-    let (outcome, packages) = crate::link_bins::link_named_dep_bins_with_sources(
+    let linked = crate::link_bins_dir(
         modules_dir,
-        &deps,
-        opts.link_options,
-        true,
+        BinCandidates::Aliases(&dep_names),
+        BinsDirPass::new(opts.link_options).with_targets(BinTargets::MayBeBuilt),
     )
     .map_err(LinkHoistedModulesError::LinkBins)?;
     let mut output = HoistedBinLinkOutput::default();
-    output.claimed_commands.claim(modules_dir, outcome.linked_commands);
-    output.sources.insert(modules_dir.to_path_buf(), packages.into());
-    if outcome.held_back {
+    output.claimed_commands.claim(modules_dir, linked.linked_commands);
+    output.sources.insert(modules_dir.to_path_buf(), linked.sources.into());
+    if linked.held_back {
         output.held_back_bins_dirs.push(HeldBackBinsDir {
             modules_dir: modules_dir.to_path_buf(),
             dep_names,
@@ -85,22 +78,15 @@ pub(super) fn link_bundled_bins(
             continue;
         }
         let modules_dir = child_dir.join("node_modules");
-        let packages: Vec<PackageBinSource> = collect_packages_in_modules_dir::<Host>(&modules_dir)
-            .map_err(LinkHoistedModulesError::LinkBins)?
-            .into_iter()
-            .map(|package| package.with_build_pending(true))
-            .collect();
-        let outcome = link_bins_of_packages_outcome::<Host>(
-            &packages,
-            &modules_dir.join(".bin"),
-            &HashSet::new(),
-            opts.link_options,
-            &ShimTargetCache::default(),
+        let linked = crate::link_bins_dir(
+            &modules_dir,
+            BinCandidates::ModulesDir,
+            BinsDirPass::new(opts.link_options).with_targets(BinTargets::MayBeBuilt),
         )
         .map_err(LinkHoistedModulesError::LinkBins)?;
-        output.claimed_commands.claim(&modules_dir, outcome.linked_commands);
-        if outcome.held_back {
-            let dep_names = packages
+        output.claimed_commands.claim(&modules_dir, linked.linked_commands);
+        if linked.held_back {
+            let dep_names = linked.sources
                 .iter()
                 .filter_map(|package| package.location.strip_prefix(&modules_dir).ok())
                 .map(|name| name.to_string_lossy().into_owned())
@@ -110,7 +96,7 @@ pub(super) fn link_bundled_bins(
                 dep_names,
             });
         }
-        output.sources.insert(modules_dir, packages.into());
+        output.sources.insert(modules_dir, linked.sources.into());
     }
     Ok(output)
 }

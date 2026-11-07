@@ -1,6 +1,6 @@
 use super::{BuildPhaseError, BuildPhaseInputs};
 use crate::build_options::HoistedBinPlans;
-use pnpm_cmd_shim::{Host, LinkBinsOptions, link_bins};
+use pnpm_cmd_shim::{Host, LinkBinsOptions};
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use std::{
     borrow::Cow,
@@ -64,8 +64,12 @@ fn relink_hoisted_bins(
         if refresh_cached_directory(plans, &modules, roots, selection.1, options)? {
             continue;
         }
-        link_bins::<Host>(&modules, &modules.join(".bin"), options)
-            .map_err(BuildPhaseError::TopLevelBinLink)?;
+        crate::link_bins_dir(
+            &modules,
+            crate::BinCandidates::ModulesDir,
+            crate::BinsDirPass::new(options),
+        )
+        .map_err(BuildPhaseError::TopLevelBinLink)?;
     }
     Ok(())
 }

@@ -177,8 +177,12 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
     // targets without a `package.json` (Bit's manifest-less
     // component links), so a bin-less link is a no-op.
     if !linked_aliases.is_empty() {
-        crate::link_direct_dep_bins(project.modules_dir, &linked_aliases, project.link_options)
-            .map_err(LinkManifestLinkDepsError::LinkBins)?;
+        crate::link_bins_dir(
+            project.modules_dir,
+            crate::BinCandidates::Aliases(&linked_aliases),
+            crate::BinsDirPass::new(project.link_options),
+        )
+        .map_err(LinkManifestLinkDepsError::LinkBins)?;
     }
     Ok(())
 }

@@ -413,14 +413,14 @@ fn link_workspace_hoists(
         .map(|(_, _, project_dir)| project_dir)
         .collect();
     let root_claimed = claimed_commands.commands_mut(modules_dir);
-    let linked = crate::link_bins_from_locations_excluding(
+    let linked = crate::link_bins_dir(
         modules_dir,
-        &project_dirs,
-        root_claimed,
-        link_options,
+        crate::BinCandidates::Locations(&project_dirs),
+        crate::BinsDirPass::new(link_options)
+            .skipping(crate::SkippedCommands::Listed(root_claimed)),
     )
     .map_err(HoistedLinkerError::HoistLinkBins)?;
-    root_claimed.extend(linked);
+    root_claimed.extend(linked.linked_commands);
     Ok(())
 }
 

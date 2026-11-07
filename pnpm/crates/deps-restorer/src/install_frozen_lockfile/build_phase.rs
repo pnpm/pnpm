@@ -368,10 +368,10 @@ fn link_held_back_bins(inputs: &BuildPhaseInputs<'_>) -> Result<(), BuildPhaseEr
         return Ok(());
     };
     for held_back in &pending.held_back_bins_dirs {
-        crate::link_direct_dep_bins(
+        crate::link_bins_dir(
             &held_back.modules_dir,
-            &held_back.dep_names,
-            inputs.directories.link_options,
+            crate::BinCandidates::Aliases(&held_back.dep_names),
+            crate::BinsDirPass::new(inputs.directories.link_options),
         )
         .map_err(BuildPhaseError::TopLevelBinLink)?;
     }
