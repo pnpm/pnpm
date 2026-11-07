@@ -135,14 +135,14 @@ impl<'a> ProjectHost<'a> {
     /// [`Self::check_projects`], the project in the root directory included.
     pub(crate) fn check_every_project(
         &self,
-        projects: &[(PathBuf, PackageInstallabilityManifest)],
+        projects: &[(PathBuf, pnpm_deps_restorer::ProjectHostRequirements)],
     ) -> Result<Vec<LogEvent>, InitStateError> {
         self.check_each(projects.iter())
     }
 
     fn check_each<'p>(
         &self,
-        projects: impl Iterator<Item = &'p (PathBuf, PackageInstallabilityManifest)>,
+        projects: impl Iterator<Item = &'p (PathBuf, pnpm_deps_restorer::ProjectHostRequirements)>,
     ) -> Result<Vec<LogEvent>, InitStateError> {
         let mut warnings = Vec::new();
         for (project_dir, requirements) in projects {
@@ -156,11 +156,12 @@ impl<'a> ProjectHost<'a> {
 /// host, keyed by its directory.
 pub(crate) fn host_requirements<'p>(
     projects: impl IntoIterator<Item = &'p Project>,
-) -> Vec<(PathBuf, PackageInstallabilityManifest)> {
+    runtime_on_fail: Option<&str>,
+) -> Vec<(PathBuf, pnpm_deps_restorer::ProjectHostRequirements)> {
     projects
         .into_iter()
         .filter_map(|project| {
-            pnpm_deps_restorer::project_host_requirements(project.manifest.value())
+            pnpm_deps_restorer::project_host_requirements(project.manifest.value(), runtime_on_fail)
                 .map(|requirements| (project.root_dir.clone(), requirements))
         })
         .collect()
