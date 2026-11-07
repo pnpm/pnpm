@@ -6,8 +6,6 @@
 pub(crate) mod files_field;
 
 mod default_rules;
-#[cfg(test)]
-mod disappearing_entry_tests;
 mod rule;
 mod segment;
 #[cfg(test)]
@@ -90,26 +88,9 @@ struct Walker<'a> {
 impl Walker<'_> {
     fn walk_dir(&mut self, dir: &Path, rules: &DirRules<'_>, depth: usize) -> io::Result<()> {
         for entry in fs::read_dir(dir)? {
-            self.visit_listed_entry(&entry?, rules, depth)?;
+            self.visit_entry(&entry?, rules, depth)?;
         }
         Ok(())
-    }
-
-    fn visit_listed_entry(
-        &mut self,
-        entry: &fs::DirEntry,
-        rules: &DirRules<'_>,
-        depth: usize,
-    ) -> io::Result<()> {
-        match self.visit_entry(entry, rules, depth) {
-            // Atomic writes can remove a listed temporary entry before it is visited.
-            Err(error)
-                if error.kind() == io::ErrorKind::NotFound && !entry.path().try_exists()? =>
-            {
-                Ok(())
-            }
-            result => result,
-        }
     }
 
     fn visit_entry(
@@ -216,10 +197,11 @@ enum Named {
 
 fn is_pruned(name: &str, depth: usize) -> bool {
     (depth == 0
-        && matches!(
-            name,
-            "node_modules" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "bun.lockb",
-        ))
+        && (crate::is_lockfile_staging_file(name)
+            || matches!(
+                name,
+                "node_modules" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "bun.lockb",
+            )))
         || ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&name)
 }
 
