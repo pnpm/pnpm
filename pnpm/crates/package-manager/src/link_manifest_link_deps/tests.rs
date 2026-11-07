@@ -188,9 +188,9 @@ fn relink_replaces_stale_symlink() {
 }
 
 /// The lockfile passes own an alias already resolved by the importer,
-/// even when the manifest spells it as a `link:`.
-/// so a `dedupeDirectDeps` decision (no symlink under the importer)
-/// is not undone by the manifest pass.
+/// even when the manifest spells it as a `link:`. A `dedupeDirectDeps`
+/// decision (no symlink under the importer) is not undone by the
+/// manifest pass.
 #[test]
 fn lockfile_tracked_alias_is_skipped() {
     use pnpm_lockfile::{ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
