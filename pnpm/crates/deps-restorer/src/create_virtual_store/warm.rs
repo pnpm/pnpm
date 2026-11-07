@@ -136,19 +136,22 @@ pub(super) fn gvs_slot_needs_rebuild(
     layout: &crate::VirtualStoreLayout,
     allow_build_policy: &crate::AllowBuildPolicy,
     snapshot_key: &PackageKey,
-) -> bool {
+    slot: Option<&crate::GlobalVirtualStoreSlot>,
+) -> Result<bool, CreateVirtualStoreError> {
     if !layout.enable_global_virtual_store() {
-        return false;
+        return Ok(false);
     }
     let can_build = crate::snapshot_has_patch(snapshot_key)
         || allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true);
-    can_build
-        && layout
-            .slot_dir(snapshot_key)
-            .join("node_modules")
-            .join(snapshot_key.name.to_string())
-            .join(crate::NEEDS_BUILD_MARKER)
-            .is_file()
+    if !can_build {
+        return Ok(false);
+    }
+    let Some(slot) = slot else { return Ok(false) };
+    slot.has_build_marker()
+        .map_err(|error| CreateVirtualStoreError::ReadSlotState {
+            path: slot.package_path().join(crate::NEEDS_BUILD_MARKER),
+            error,
+        })
 }
 /// The pristine CAS paths of every warm snapshot whose package may publish
 /// shared side effects.
@@ -201,8 +204,8 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
     let warm_slots: Vec<SlotLink<'_>> = warm
         .iter()
         .map(|(snapshot_key, snapshot, cas_paths, cache_key, needs_build_marker)| {
-            let force_import = batch.reuse.must_replace(snapshot_key);
-            SlotLink {
+            let force_import = batch.reuse.must_replace(snapshot_key)?;
+            Ok(SlotLink {
                 source: crate::SlotImportSource {
                     is_mutable: false,
                     source_exists: true,
@@ -227,9 +230,9 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
                     force_import,
                 ),
                 removed_aliases: removed_aliases_for(batch.removed_aliases_by_key, snapshot_key),
-            }
+            })
         })
-        .collect();
+        .collect::<Result<_, CreateVirtualStoreError>>()?;
     link_slots_parallel::<Reporter>(LinkSlotsParallel {
         batch: "warm",
         slots: &warm_slots,

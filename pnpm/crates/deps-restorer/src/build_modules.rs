@@ -13,8 +13,7 @@ pub use skills_policy::SkillsPolicy;
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
     PkgRoots, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
-    is_started_build_marker, mark_global_virtual_store_build_started, materialize_side_effects,
-    slot_carries_overlay,
+    is_started_build_marker, materialize_side_effects, slot_carries_overlay,
 };
 
 mod build_requirements;
@@ -58,6 +57,19 @@ use std::{
 pub enum BuildModulesError {
     #[diagnostic(transparent)]
     SlotLock(#[error(source)] crate::gvs_slot_lock::GvsSlotLockError),
+
+    #[display("Failed to update the build marker at {}: {source}", path.display())]
+    WriteBuildMarker {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    #[display(
+        "Cannot build {dep_path} because its global virtual store slot is incomplete at {path:?}"
+    )]
+    #[diagnostic(code(ERR_PNPM_GVS_SLOT_INCOMPLETE))]
+    IncompleteGvsSlot { dep_path: String, path: PathBuf },
 
     /// A completed dependency build's executable could not be relinked before its consumer ran.
     #[diagnostic(transparent)]

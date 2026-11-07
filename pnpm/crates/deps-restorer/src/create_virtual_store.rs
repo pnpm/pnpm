@@ -278,6 +278,16 @@ pub enum CreateVirtualStoreError {
     },
     #[diagnostic(transparent)]
     LoadedBins(#[error(source)] crate::LinkVirtualStoreBinsError),
+    SlotLock(#[error(source)] crate::GvsSlotLockError),
+
+    #[display("Failed to read global virtual store slot state at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_READ_GVS_SLOT_STATE))]
+    ReadSlotState {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
+
     #[display("Cannot install with nodeLinker.type=loaded: {message}")]
     #[diagnostic(code(ERR_PNPM_CAS_CONFIGURATION))]
     CasConfiguration { message: &'static str },

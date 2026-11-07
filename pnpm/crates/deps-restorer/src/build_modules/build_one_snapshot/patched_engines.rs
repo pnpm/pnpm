@@ -14,7 +14,35 @@ pub(super) fn skip_incompatible_optional<EventReporter: Reporter>(
     candidate: &BuildCandidate<'_>,
 ) -> Result<bool, BuildModulesError> {
     let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
-    let Some(details) = enforce_patched_engines(context, snapshot_key, candidate, optional)? else {
+    if !context.scripts.patched_engines.engine_strict || candidate.patch.is_none() {
+        return Ok(false);
+    }
+    let slot = if context.directories.pkg_roots_by_key.is_none()
+        && context.directories.layout.enable_global_virtual_store()
+    {
+        crate::GlobalVirtualStoreSlot::acquire_existing(context.directories.layout, snapshot_key)
+            .map_err(BuildModulesError::SlotLock)?
+    } else {
+        None
+    };
+    if let Some(slot) = &slot {
+        let state = slot
+            .state(&slot.package_path().join("package.json"), false)
+            .map_err(|source| BuildModulesError::ReadBuildMarker {
+                path: slot.package_path().join(crate::NEEDS_BUILD_MARKER),
+                source,
+            })?;
+        if matches!(
+            state.phase,
+            crate::GlobalVirtualStoreSlotPhase::Populating
+                | crate::GlobalVirtualStoreSlotPhase::Building
+        ) {
+            return Ok(false);
+        }
+    }
+    let Some(details) =
+        enforce_patched_engines(context, snapshot_key, candidate, optional, slot.as_ref())?
+    else {
         return Ok(false);
     };
     EventReporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
@@ -66,11 +94,15 @@ pub(super) fn enforce_patched_engines(
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
     optional: bool,
+    slot: Option<&crate::GlobalVirtualStoreSlot>,
 ) -> Result<Option<String>, BuildModulesError> {
     if !context.scripts.patched_engines.engine_strict || candidate.patch.is_none() {
         return Ok(None);
     }
-    let Some(pkg_dir) = context.pkg_roots().canonical(snapshot_key) else {
+    let pkg_dir = slot
+        .map(|slot| slot.package_path().to_path_buf())
+        .or_else(|| context.pkg_roots().canonical(snapshot_key));
+    let Some(pkg_dir) = pkg_dir else {
         return Ok(None);
     };
     let manifest = read_package_json(&pkg_dir)

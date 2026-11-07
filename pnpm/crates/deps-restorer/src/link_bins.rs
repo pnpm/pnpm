@@ -32,6 +32,9 @@ use std::{
 /// Error type of [`LinkVirtualStoreBins`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkVirtualStoreBinsError {
+    #[diagnostic(transparent)]
+    SlotLock(#[error(source)] crate::GvsSlotLockError),
+
     #[display("Failed to read virtual store directory at {dir:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_READ_VIRTUAL_STORE))]
     ReadVirtualStore {
@@ -332,6 +335,21 @@ where
     if with_bin.is_empty() && !self_has_bin && !self_bundles {
         return Ok(());
     }
+
+    let mut slot_keys: Vec<PackageKey> = with_bin
+        .iter()
+        .map(|(_, child_key, _)| child_key.clone())
+        .collect();
+    slot_keys.push(slot_key.clone());
+    slot_keys.sort_by_key(|key| context.layout.slot_dir(key));
+    slot_keys.dedup();
+    let _slot_locks = slot_keys
+        .iter()
+        .map(|key| {
+            crate::GlobalVirtualStoreSlot::acquire_existing(context.layout, key)
+                .map_err(LinkVirtualStoreBinsError::SlotLock)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let modules_dir = context.layout.slot_dir(slot_key).join("node_modules");
     let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);

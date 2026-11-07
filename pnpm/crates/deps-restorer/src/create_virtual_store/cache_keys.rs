@@ -268,14 +268,23 @@ impl SlotReuse<'_> {
     /// Whether an existing slot holds a different artifact than the one
     /// this install wants, so its completion marker must not be taken
     /// as proof that the slot is already correct.
-    pub(super) fn must_replace(&self, snapshot_key: &PackageKey) -> bool {
-        self.force
-            || package_content_changed(self.current_packages, self.packages, snapshot_key)
-            || super::linked_archives::slot_holds_other_variant(
-                self.layout,
-                (snapshot_key, self.packages),
-                self.supported_architectures,
-            )
+    pub(super) fn must_replace(
+        &self,
+        snapshot_key: &PackageKey,
+    ) -> Result<bool, CreateVirtualStoreError> {
+        if self.force || package_content_changed(self.current_packages, self.packages, snapshot_key)
+        {
+            return Ok(true);
+        }
+        let slot = crate::GlobalVirtualStoreSlot::acquire_existing(self.layout, snapshot_key)
+            .map_err(CreateVirtualStoreError::SlotLock)?;
+        super::linked_archives::slot_holds_other_variant(
+            self.layout,
+            (snapshot_key, self.packages),
+            self.supported_architectures,
+            slot.as_ref(),
+        )
+        .map_err(CreateVirtualStoreError::SlotLock)
     }
 }
 pub(super) fn variant_cache_key(

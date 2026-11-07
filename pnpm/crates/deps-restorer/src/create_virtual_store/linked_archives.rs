@@ -82,12 +82,23 @@ pub(crate) fn slot_holds_other_variant(
     layout: &VirtualStoreLayout,
     (snapshot_key, packages): (&PackageKey, &HashMap<PackageKey, PackageMetadata>),
     supported: Option<&SupportedArchitectures>,
-) -> bool {
+    locked_slot: Option<&crate::GlobalVirtualStoreSlot>,
+) -> Result<bool, crate::GvsSlotLockError> {
     let Some(linked) = snapshot_linked_integrity(snapshot_key, packages, supported) else {
-        return false;
+        return Ok(false);
     };
-    package_dir(layout, snapshot_key).is_dir()
-        && !record_names(&record_path(layout, snapshot_key), &linked)
+    if layout.hashed_slot_dir(snapshot_key).is_some() {
+        let owned_slot = match locked_slot {
+            Some(_) => None,
+            None => crate::GlobalVirtualStoreSlot::acquire_existing(layout, snapshot_key)?,
+        };
+        let slot = locked_slot.or(owned_slot.as_ref());
+        let Some(slot) = slot else { return Ok(false) };
+        return Ok(slot.package_path().is_dir()
+            && slot.linked_archive().as_deref() != Some(linked.as_str()));
+    }
+    Ok(package_dir(layout, snapshot_key).is_dir()
+        && !record_names(&record_path(layout, snapshot_key), &linked))
 }
 
 /// Record in each slot this pass imported, of a package with platform
@@ -99,7 +110,7 @@ pub(crate) fn record_linked_archives(
     (imported, packages): (&[PackageKey], &HashMap<PackageKey, PackageMetadata>),
     supported: Option<&SupportedArchitectures>,
     fetch_failed: &HashSet<PackageKey>,
-) {
+) -> Result<(), crate::GvsSlotLockError> {
     for snapshot_key in imported
         .iter()
         .filter(|key| !fetch_failed.contains(*key))
@@ -107,10 +118,25 @@ pub(crate) fn record_linked_archives(
         let Some(linked) = snapshot_linked_integrity(snapshot_key, packages, supported) else {
             continue;
         };
-        if package_dir(layout, snapshot_key).is_dir() {
+        if layout.hashed_slot_dir(snapshot_key).is_some() {
+            let Some(slot) = crate::GlobalVirtualStoreSlot::acquire_existing(layout, snapshot_key)?
+            else {
+                continue;
+            };
+            if slot.package_path().is_dir()
+                && let Err(error) = slot.record_linked_archive(&linked)
+            {
+                tracing::debug!(
+                    path = %slot.path().join(LINKED_ARCHIVE_RECORD).display(),
+                    %error,
+                    "could not record the linked archive",
+                );
+            }
+        } else if package_dir(layout, snapshot_key).is_dir() {
             write_record(&record_path(layout, snapshot_key), &linked);
         }
     }
+    Ok(())
 }
 
 /// Import again each present hoisted package with platform variants whose

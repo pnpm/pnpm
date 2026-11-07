@@ -1,8 +1,8 @@
 //! Locating and repairing the virtual-store slot a build runs in.
 
 use super::{
-    BuildModulesError, HashMap, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, PackageKey, Path,
-    PathBuf, Reporter, import_indexed_dir,
+    BuildModulesError, HashMap, ImportIndexedDirOpts, PackageKey, Path, PathBuf, Reporter,
+    import_indexed_dir,
 };
 use pnpm_store_dir::SideEffectsOverlay;
 use std::{fs, io};
@@ -45,16 +45,25 @@ pub(crate) fn virtual_store_dir_for_key(
 /// The overlay is the resolved post-build file set, so a slot still
 /// carrying only the pristine tarball is missing whatever the build
 /// added and fails the check. The file set alone cannot see a build
-/// that *only deleted* files, which is why [`NEEDS_BUILD_MARKER`] is
+/// that *only deleted* files, which is why [`crate::NEEDS_BUILD_MARKER`] is
 /// checked first: a pristine re-import of a package that needs building
 /// carries the marker, so it reports unseeded no matter what the overlay
 /// looks like.
 ///
 /// Only reached for packages that both pass the build-allow policy and
 /// have a cache entry — a handful per install, not the whole tree.
-pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &SideEffectsOverlay) -> bool {
-    !pkg_dir.join(NEEDS_BUILD_MARKER).exists()
-        && pkg_dir.is_dir()
+pub(crate) fn slot_carries_overlay(
+    slot: &crate::GlobalVirtualStoreSlot,
+    overlay: &SideEffectsOverlay,
+) -> bool {
+    let pkg_dir = slot.package_path();
+    let Ok(state) = slot.state(&pkg_dir.join("package.json"), false) else {
+        return false;
+    };
+    matches!(
+        state.phase,
+        crate::GlobalVirtualStoreSlotPhase::Populated | crate::GlobalVirtualStoreSlotPhase::Built
+    ) && pkg_dir.is_dir()
         && overlay.files
             .keys()
             .all(|relative| pkg_dir.join(relative).exists())
@@ -81,36 +90,6 @@ pub(crate) fn is_started_build_marker(marker: &Path) -> std::io::Result<bool> {
         Ok(content) => Ok(content == STARTED_BUILD_MARKER.as_bytes()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(error),
-    }
-}
-
-/// Mark a snapshot's global-virtual-store slot as mid-build, before its
-/// patch or build script writes into it.
-///
-/// A successful build removes the marker. A failed patch or build script,
-/// or a process that dies mid-build, leaves it in place instead of the
-/// slot being removed: other projects whose dependency graph hashes to it
-/// may already link it. The next install that reaches the slot then
-/// re-imports its pristine files and builds it again.
-///
-/// No-op outside the isolated global virtual store: the next install
-/// rebuilds a project-local slot from scratch anyway. A failed write is
-/// logged and swallowed; the build itself is what the install reports.
-pub(crate) fn mark_global_virtual_store_build_started(pkg_roots: PkgRoots<'_>, key: &PackageKey) {
-    if !pkg_roots.layout.enable_global_virtual_store() || pkg_roots.by_key.is_some() {
-        return;
-    }
-    let marker = virtual_store_dir_for_key(pkg_roots.layout, key).join(NEEDS_BUILD_MARKER);
-    if let Err(error) = std::fs::write(&marker, STARTED_BUILD_MARKER)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        tracing::warn!(
-            target: "pacquet::build",
-            ?error,
-            dep_path = %key,
-            marker = %marker.display(),
-            "failed to mark the global virtual store slot as mid-build",
-        );
     }
 }
 

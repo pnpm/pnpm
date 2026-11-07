@@ -5,10 +5,7 @@ use std::path::Path;
 use pnpm_lockfile::LockfileResolution;
 
 use super::{
-    super::{
-        BuildModulesError, NEEDS_BUILD_MARKER, PackageKey, PathBuf, is_started_build_marker,
-        mark_global_virtual_store_build_started,
-    },
+    super::{BuildModulesError, NEEDS_BUILD_MARKER, PackageKey, PathBuf, is_started_build_marker},
     BuildCandidate, BuildOneSnapshot,
 };
 
@@ -28,10 +25,8 @@ pub(super) struct SlotToBuild<'a> {
 
 pub(super) fn slot_to_build(
     input: SlotToBuild<'_>,
-) -> Result<Option<(PathBuf, Option<pnpm_fs::DirLock>)>, BuildModulesError> {
-    let SlotToBuild {
-        context, snapshot_key, candidate, ..
-    } = input;
+) -> Result<Option<(PathBuf, Option<crate::GlobalVirtualStoreSlot>)>, BuildModulesError> {
+    let SlotToBuild { context, snapshot_key, candidate, .. } = input;
     let Some(pkg_dir) = context
         .pkg_roots()
         .canonical(snapshot_key)
@@ -44,23 +39,42 @@ pub(super) fn slot_to_build(
     {
         return Ok(Some((pkg_dir, None)));
     }
+    let slot = crate::GlobalVirtualStoreSlot::acquire(context.directories.layout, snapshot_key)
+        .map_err(BuildModulesError::SlotLock)?;
     let marker = pkg_dir.join(NEEDS_BUILD_MARKER);
-    let awaiting_build = marker.is_file();
-    let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
-        context.directories.layout,
-        snapshot_key,
-    )
-    .map_err(BuildModulesError::SlotLock)?;
-    let started = is_started_build_marker(&marker)
-        .map_err(|source| BuildModulesError::ReadBuildMarker { path: marker.clone(), source })?;
-    if started || (awaiting_build && !marker.is_file()) {
-        return Ok(None);
-    }
     if built_by_an_earlier_install(&input, &marker)? {
         return Ok(None);
     }
-    mark_global_virtual_store_build_started(context.pkg_roots(), snapshot_key);
-    Ok(Some((pkg_dir, lock)))
+    if let Some(global_slot) = &slot {
+        let state = global_slot
+            .state(&pkg_dir.join("package.json"), true)
+            .map_err(|source| BuildModulesError::ReadBuildMarker {
+                path: marker.clone(),
+                source,
+            })?;
+        if state.phase == crate::GlobalVirtualStoreSlotPhase::Populating {
+            return Err(BuildModulesError::IncompleteGvsSlot {
+                dep_path: snapshot_key.to_string(),
+                path: global_slot.path().to_path_buf(),
+            });
+        }
+        if state.phase == crate::GlobalVirtualStoreSlotPhase::Building
+            || (state.phase == crate::GlobalVirtualStoreSlotPhase::Built
+                && context.rebuild.is_none())
+        {
+            return Ok(None);
+        }
+        global_slot
+            .mark_build_started()
+            .map_err(|source| BuildModulesError::WriteBuildMarker { path: marker, source })?;
+    } else {
+        if is_started_build_marker(&marker)
+            .map_err(|source| BuildModulesError::ReadBuildMarker { path: marker.clone(), source })?
+        {
+            return Ok(None);
+        }
+    }
+    Ok(Some((pkg_dir, slot)))
 }
 
 fn built_by_an_earlier_install(

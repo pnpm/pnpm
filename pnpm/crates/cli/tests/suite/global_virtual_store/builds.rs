@@ -520,6 +520,7 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
     // As a build that died mid-way leaves the slot, which only a re-import
     // makes safe to build again.
     fs::write(pkg.join(".pnpm-needs-build"), "started").expect("mark the slot mid-build");
+    fs::write(hash_dir.join(".pnpm-slot-state"), "building").expect("mark the slot as building");
     fs::remove_file(pkg.join("README.md")).expect("remove a pristine file");
 
     let lock = DirLock::acquire(
@@ -557,6 +558,72 @@ fn gvs_install_waits_for_another_install_building_the_same_slot() {
     assert!(pkg.join("generated-by-postinstall.js").exists());
     assert!(pkg.join("README.md").exists());
     assert!(!pkg.join(".pnpm-needs-build").exists());
+    assert_eq!(fs::read_to_string(hash_dir.join(".pnpm-slot-state")).unwrap(), "built");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn gvs_installs_in_two_projects_build_a_shared_slot_once_at_a_time() {
+    const PKG: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    let second_workspace = root.path().join("second-workspace");
+    fs::create_dir(&second_workspace).expect("create second workspace");
+    fs::copy(workspace.join(".npmrc"), second_workspace.join(".npmrc"))
+        .expect("share registry configuration");
+    write_manifest(&workspace, &serde_json::json!({ PKG: "1.0.0" }));
+    write_manifest(&second_workspace, &serde_json::json!({ PKG: "1.0.0" }));
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[(PKG, true)]));
+    fs::copy(workspace.join("pnpm-workspace.yaml"), second_workspace.join("pnpm-workspace.yaml"))
+        .expect("share global virtual store configuration");
+
+    let mut first = pacquet(&workspace)
+        .arg("install")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn first install");
+    let mut second = pacquet(&second_workspace)
+        .arg("install")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn second install");
+    assert!(
+        first
+            .wait()
+            .expect("wait for first install")
+            .success()
+    );
+    assert!(
+        second
+            .wait()
+            .expect("wait for second install")
+            .success()
+    );
+
+    let hash_dir = sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0"));
+    let package = pkg_in_slot(&hash_dir, PKG);
+    assert!(package.join("generated-by-postinstall.js").is_file());
+    assert_eq!(
+        fs::read_to_string(hash_dir.join(".pnpm-slot-state")).expect("read slot state"),
+        "built",
+    );
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(PKG)
+            .exists()
+    );
+    assert!(
+        second_workspace
+            .join("node_modules")
+            .join(PKG)
+            .exists()
+    );
 
     drop((root, mock_instance));
 }

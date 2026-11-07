@@ -83,6 +83,20 @@ pub enum CreateVirtualDirError {
     #[diagnostic(transparent)]
     SlotLock(#[error(source)] crate::gvs_slot_lock::GvsSlotLockError),
 
+    #[display("Failed to read the build marker at {path:?}: {source}")]
+    ReadBuildMarker {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Failed to update global virtual store slot state at {path:?}: {source}")]
+    WriteSlotState {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
     #[diagnostic(transparent)]
     SymlinkPackage(#[error(source)] SymlinkPackageError),
 
@@ -108,7 +122,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         let _link_concurrency_guard =
             self.link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let (slot, _slot_lock, interrupted_build) = self.open_slot()?;
+        let (slot, global_slot, interrupted_build) = self.open_slot()?;
         let marked_cas_paths = cas_paths_with_build_marker(
             self.cas_paths,
             &slot.save_path,
@@ -117,8 +131,14 @@ impl CreateVirtualDirBySnapshot<'_> {
         );
         let cas_paths = marked_cas_paths.as_ref().unwrap_or(self.cas_paths);
 
-        let import_package =
-            || self.import_slot::<Reporter>(&slot.save_path, cas_paths, interrupted_build);
+        let import_package = || {
+            self.import_slot::<Reporter>(
+                &slot.save_path,
+                cas_paths,
+                interrupted_build,
+                global_slot.as_ref(),
+            )
+        };
         if self.dependencies.symlink {
             // `rayon::join` runs both closures in parallel on rayon's pool,
             // returning only once both finish. `import_indexed_dir` is itself
@@ -169,25 +189,24 @@ impl CreateVirtualDirBySnapshot<'_> {
         Ok(())
     }
 
-    /// The slot's directories, and whether it carries a `.pnpm-needs-build`
-    /// marker. The marker is also there while another install builds the
-    /// slot, which a forced re-import would clobber, so a marked slot is
-    /// returned with its lock held.
     fn open_slot(
         &self,
-    ) -> Result<(SlotPaths, Option<pnpm_fs::DirLock>, bool), CreateVirtualDirError> {
+    ) -> Result<(SlotPaths, Option<crate::GlobalVirtualStoreSlot>, bool), CreateVirtualDirError>
+    {
+        let global_slot =
+            crate::GlobalVirtualStoreSlot::acquire(self.layout, self.dependencies.package_key)
+                .map_err(CreateVirtualDirError::SlotLock)?;
         let slot = SlotPaths::create(self.layout, self.dependencies.package_key)?;
-        let marker = slot.save_path.join(NEEDS_BUILD_MARKER);
-        if !marker.is_file() {
-            return Ok((slot, None, false));
-        }
-        let lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(
-            self.layout,
-            self.dependencies.package_key,
-        )
-        .map_err(CreateVirtualDirError::SlotLock)?;
-        let interrupted_build = marker.is_file();
-        Ok((slot, lock, interrupted_build))
+        let interrupted_build = match &global_slot {
+            Some(global_slot) => global_slot
+                .has_build_marker()
+                .map_err(|source| CreateVirtualDirError::ReadBuildMarker {
+                    path: slot.save_path.join(NEEDS_BUILD_MARKER),
+                    source,
+                })?,
+            None => slot.save_path.join(NEEDS_BUILD_MARKER).is_file(),
+        };
+        Ok((slot, global_slot, interrupted_build))
     }
 
     fn import_method(&self) -> PackageImportMethod {
@@ -199,6 +218,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         save_path: &Path,
         cas_paths: &pnpm_fs::CasPaths,
         interrupted_build: bool,
+        global_slot: Option<&crate::GlobalVirtualStoreSlot>,
     ) -> Result<(), CreateVirtualDirError> {
         // An interrupted build and a forced import both re-import with
         // `force`, which the cache's fresh-destination clone cannot serve.
@@ -219,7 +239,21 @@ impl CreateVirtualDirBySnapshot<'_> {
                 cas_paths,
             )
         {
+            if let Some(slot) = global_slot {
+                slot.finish_population(cas_paths.contains_key(NEEDS_BUILD_MARKER))
+                    .map_err(|source| CreateVirtualDirError::WriteSlotState {
+                        path: slot.path().to_path_buf(),
+                        source,
+                    })?;
+            }
             return Ok(());
+        }
+        if let Some(slot) = global_slot {
+            slot.begin_population()
+                .map_err(|source| CreateVirtualDirError::WriteSlotState {
+                    path: slot.path().to_path_buf(),
+                    source,
+                })?;
         }
         import_indexed_dir::<Reporter>(
             self.import.logged_methods,
@@ -237,7 +271,15 @@ impl CreateVirtualDirBySnapshot<'_> {
                 self.import.swap_lock,
             ),
         )
-        .map_err(CreateVirtualDirError::ImportIndexedDir)
+        .map_err(CreateVirtualDirError::ImportIndexedDir)?;
+        if let Some(slot) = global_slot {
+            slot.finish_population(cas_paths.contains_key(NEEDS_BUILD_MARKER))
+                .map_err(|source| CreateVirtualDirError::WriteSlotState {
+                    path: slot.path().to_path_buf(),
+                    source,
+                })?;
+        }
+        Ok(())
     }
 
     fn link_children(&self, node_modules: &Path) -> Result<(), CreateVirtualDirError> {

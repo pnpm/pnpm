@@ -104,6 +104,10 @@ pub use virtual_store_layout::*;
 
 mod custom_fetcher;
 mod gvs_slot_lock;
+pub use gvs_slot_lock::{
+    GlobalVirtualStoreSlot, GlobalVirtualStoreSlotPhase, GlobalVirtualStoreSlotState,
+    GvsSlotLockError,
+};
 mod installed_hoisted_state;
 mod link_pool;
 mod prune_extraneous_deps;

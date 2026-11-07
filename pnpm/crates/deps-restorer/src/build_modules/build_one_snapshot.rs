@@ -116,9 +116,10 @@ fn build_candidate<Reporter: self::Reporter>(
 
     clear_global_virtual_store_build_markers(
         context,
-        snapshot_key,
+        slot_lock.as_ref(),
         (candidate.patch.is_some() || candidate.should_run_scripts) && !candidate.build_pending,
-    );
+        (candidate.patch.is_some() || candidate.should_run_scripts) && candidate.build_pending,
+    )?;
 
     upload_side_effects_cache(
         context,
@@ -322,42 +323,34 @@ fn apply_configured_patch<Reporter: self::Reporter>(
 
 // A removed GVS slot may have been imported pristine while its cached build row survived.
 fn global_slot_carries_overlay(
-    context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
+    slot: &crate::GlobalVirtualStoreSlot,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> bool {
-    context.directories.layout.enable_global_virtual_store()
-        && context
-            .pkg_roots()
-            .canonical(snapshot_key)
-            .is_some_and(|pkg_dir| slot_carries_overlay(&pkg_dir, overlay))
+    slot_carries_overlay(slot, overlay)
 }
 
 /// A slot the isolated global virtual store just built no longer needs its
 /// `.pnpm-needs-build` marker.
 fn clear_global_virtual_store_build_markers(
     context: &BuildOneSnapshot<'_>,
-    snapshot_key: &PackageKey,
+    slot: Option<&crate::GlobalVirtualStoreSlot>,
     built: bool,
-) {
-    if !built
+    build_pending: bool,
+) -> Result<(), BuildModulesError> {
+    if (!built && !build_pending)
         || !context.directories.layout.enable_global_virtual_store()
         || context.directories.pkg_roots_by_key.is_some()
     {
-        return;
+        return Ok(());
     }
-    for built_dir in context.pkg_roots().all(snapshot_key) {
-        if let Err(error) = std::fs::remove_file(built_dir.join(NEEDS_BUILD_MARKER))
-            && error.kind() != std::io::ErrorKind::NotFound
-        {
-            tracing::warn!(
-                target: "pacquet::build",
-                ?error,
-                dep_path = %snapshot_key,
-                "failed to remove the global virtual store build marker",
-            );
-        }
+    if let Some(slot) = slot {
+        let result = if built { slot.mark_build_finished() } else { slot.mark_build_pending() };
+        result.map_err(|source| BuildModulesError::WriteBuildMarker {
+            path: slot.package_path().join(NEEDS_BUILD_MARKER),
+            source,
+        })?;
     }
+    Ok(())
 }
 
 fn is_build_candidate(requires_build: bool, has_patch: bool) -> bool {

@@ -40,7 +40,11 @@ fn an_unchanged_integrity_keeps_the_slot() {
         layout: &layout(Path::new("/nonexistent")),
         supported_architectures: None,
     };
-    assert!(!reuse.must_replace(&key()));
+    assert!(
+        !reuse
+            .must_replace(&key())
+            .expect("compare unchanged slot")
+    );
 }
 
 #[test]
@@ -54,7 +58,11 @@ fn a_changed_integrity_replaces_the_slot() {
         layout: &layout(Path::new("/nonexistent")),
         supported_architectures: None,
     };
-    assert!(reuse.must_replace(&key()));
+    assert!(
+        reuse
+            .must_replace(&key())
+            .expect("compare changed slot")
+    );
 }
 
 #[test]
@@ -69,7 +77,12 @@ fn force_replaces_the_slot_with_or_without_previous_records() {
             layout: &layout(Path::new("/nonexistent")),
             supported_architectures: None,
         };
-        assert!(reuse.must_replace(&key()), "force must replace even unchanged packages");
+        assert!(
+            reuse
+                .must_replace(&key())
+                .expect("compare forced slot"),
+            "force must replace even unchanged packages"
+        );
     }
 }
 
@@ -85,7 +98,11 @@ fn a_first_install_without_force_leaves_the_verdict_to_the_import() {
         layout: &layout(Path::new("/nonexistent")),
         supported_architectures: None,
     };
-    assert!(!reuse.must_replace(&key()));
+    assert!(
+        !reuse
+            .must_replace(&key())
+            .expect("compare unchanged slot")
+    );
 }
 
 /// `dep-a` with an `any` archive of integrity `OLD` and a variant for the
@@ -143,11 +160,26 @@ fn a_slot_holding_another_archive_is_replaced() {
     };
 
     write_slot(&layout, Some(OLD));
-    assert!(reuse.must_replace(&key()), "the any archive's slot is replaced by the host's variant");
+    assert!(
+        reuse
+            .must_replace(&key())
+            .expect("compare archive variant"),
+        "the any archive's slot is replaced by the host's variant"
+    );
     write_slot(&layout, None);
-    assert!(reuse.must_replace(&key()), "a slot without a record is replaced");
+    assert!(
+        reuse
+            .must_replace(&key())
+            .expect("compare missing archive"),
+        "a slot without a record is replaced"
+    );
     write_slot(&layout, Some(NEW));
-    assert!(!reuse.must_replace(&key()), "the linked variant's slot is kept");
+    assert!(
+        !reuse
+            .must_replace(&key())
+            .expect("compare linked variant"),
+        "the linked variant's slot is kept"
+    );
 }
 
 /// Only a slot this pass imported is recorded: one the install skips, such as
@@ -171,11 +203,22 @@ fn a_slot_the_install_did_not_import_is_not_recorded() {
         supported_architectures: None,
     };
 
-    record_linked_archives(&layout, (&[], &packages), None, &std::collections::HashSet::new());
+    record_linked_archives(&layout, (&[], &packages), None, &std::collections::HashSet::new())
+        .expect("skip an unimported slot");
     assert!(!record.exists(), "a skipped slot is not certified");
-    assert!(reuse.must_replace(&key()), "the slot is imported once the snapshot is installed");
+    assert!(
+        reuse
+            .must_replace(&key())
+            .expect("compare unrecorded slot"),
+        "the slot is imported once the snapshot is installed"
+    );
 
-    record_linked_archives(&layout, (&[key()], &packages), None, &std::collections::HashSet::new());
+    record_linked_archives(&layout, (&[key()], &packages), None, &std::collections::HashSet::new())
+        .expect("record imported slot");
     assert_eq!(fs::read_to_string(&record).expect("an imported slot is recorded"), NEW);
-    assert!(!reuse.must_replace(&key()));
+    assert!(
+        !reuse
+            .must_replace(&key())
+            .expect("compare recorded slot")
+    );
 }

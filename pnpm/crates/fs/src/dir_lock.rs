@@ -88,6 +88,19 @@ pub struct DirLock {
 }
 
 impl DirLock {
+    pub fn acquire_waiting(
+        path: PathBuf,
+        wait: Duration,
+        abandoned_after: Duration,
+    ) -> io::Result<DirLock> {
+        loop {
+            if let Some(lock) = Self::acquire(path.clone(), wait, abandoned_after)? {
+                return Ok(lock);
+            }
+            sleep(POLL_INTERVAL);
+        }
+    }
+
     /// Take the lock at `path`, waiting up to `wait` for whoever holds
     /// it. Returns `None` when the wait ran out.
     ///

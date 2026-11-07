@@ -75,7 +75,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     let mut markers = MarkerProbes::default();
     let (survivors, has_git_hosted_survivor) =
         survivors::<Reporter>(snapshots, &probe, &mut markers, cache_keys)?;
-    let marker_rebuilds = marker_rebuilds(markers, &survivors, &probe);
+    let marker_rebuilds = marker_rebuilds(markers, &survivors, &probe)?;
     let skipped_entries = skipped_entries(snapshots, &survivors, probe.policy.skipped, cache_keys);
     Ok(SnapshotPlan { survivors, skipped_entries, marker_rebuilds, has_git_hosted_survivor })
 }
@@ -117,20 +117,26 @@ fn marker_rebuilds(
     markers: MarkerProbes,
     survivors: &[SnapshotWithCacheKey<'_>],
     probe: &WarmSlotProbe<'_, '_>,
-) -> HashSet<PackageKey> {
+) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
     let MarkerProbes { keys: probed, mut rebuilds } = markers;
     if !probe.policy.is_hoisted {
-        rebuilds.extend(
-            survivors
-                .iter()
-                .filter(|(snapshot_key, _, _)| !probed.contains(*snapshot_key))
-                .filter(|(snapshot_key, _, _)| {
-                    gvs_slot_needs_rebuild(probe.layout, probe.allow_build_policy, snapshot_key)
-                })
-                .map(|(snapshot_key, _, _)| (*snapshot_key).clone()),
-        );
+        for (snapshot_key, _, _) in survivors
+            .iter()
+            .filter(|(snapshot_key, _, _)| !probed.contains(*snapshot_key))
+        {
+            let slot = crate::GlobalVirtualStoreSlot::acquire_existing(probe.layout, snapshot_key)
+                .map_err(CreateVirtualStoreError::SlotLock)?;
+            if gvs_slot_needs_rebuild(
+                probe.layout,
+                probe.allow_build_policy,
+                snapshot_key,
+                slot.as_ref(),
+            )? {
+                rebuilds.insert((*snapshot_key).clone());
+            }
+        }
     }
-    rebuilds
+    Ok(rebuilds)
 }
 
 /// The snapshots the warm-slot probe left alone, with the lenient
@@ -212,6 +218,24 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     if !slot_probe_applies(probe, snapshot_key) {
         return Ok(false);
     }
+    let slot = crate::GlobalVirtualStoreSlot::acquire_existing(probe.layout, snapshot_key)
+        .map_err(CreateVirtualStoreError::SlotLock)?;
+    if let Some(slot) = &slot {
+        let state = slot
+            .state(&slot.package_path().join("package.json"), false)
+            .map_err(|error| CreateVirtualStoreError::ReadSlotState {
+                path: slot.path().to_path_buf(),
+                error,
+            })?;
+        if matches!(
+            state.phase,
+            crate::GlobalVirtualStoreSlotPhase::Missing
+                | crate::GlobalVirtualStoreSlotPhase::Populating
+                | crate::GlobalVirtualStoreSlotPhase::Building
+        ) {
+            return Ok(false);
+        }
+    }
     let current_entry_unchanged = current_entry_unchanged(probe, snapshot_key, snapshot);
     // A global-virtual-store slot path is content-addressed: the graph
     // hash covers the snapshot's wiring, integrity, and engine, so an
@@ -238,11 +262,18 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
         probe.layout,
         (snapshot_key, probe.packages),
         probe.policy.supported_architectures,
-    ) {
+        slot.as_ref(),
+    )
+    .map_err(CreateVirtualStoreError::SlotLock)?
+    {
         return Ok(false);
     }
-    let needs_rebuild =
-        gvs_slot_needs_rebuild(probe.layout, probe.allow_build_policy, snapshot_key);
+    let needs_rebuild = gvs_slot_needs_rebuild(
+        probe.layout,
+        probe.allow_build_policy,
+        snapshot_key,
+        slot.as_ref(),
+    )?;
     markers.keys.insert(snapshot_key.clone());
     if needs_rebuild {
         markers.rebuilds.insert(snapshot_key.clone());
