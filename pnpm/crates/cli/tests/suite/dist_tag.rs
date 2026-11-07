@@ -490,8 +490,6 @@ fn add_encodes_dist_tag_path_segment() {
     drop((root, server));
 }
 
-/// Without a terminal the web-auth challenge cannot be answered, so the
-/// command fails with the shared non-interactive error.
 #[test]
 fn add_fails_on_a_web_otp_challenge_without_a_terminal() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

@@ -16,8 +16,6 @@ fn dist_tag_args(registry: &str, params: &[&str]) -> DistTagArgs {
     }
 }
 
-/// A 401 carrying `authUrl` / `doneUrl` starts the web-auth flow, and the
-/// `PUT` is retried with the token it yields.
 #[tokio::test]
 async fn add_answers_a_web_auth_challenge_and_retries_with_the_token() {
     web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
@@ -61,8 +59,6 @@ async fn add_answers_a_web_auth_challenge_and_retries_with_the_token() {
     retry_mock.assert_async().await;
 }
 
-/// A classic OTP challenge prompts for a code, and the `DELETE` is retried
-/// with it.
 #[tokio::test]
 async fn rm_answers_a_classic_otp_challenge_with_the_prompted_code() {
     web_auth_fake!(FakeHost, RecordingReporter, set_input);
