@@ -7,7 +7,7 @@ mod report;
 use report::emit_root_added;
 
 mod entry_bins;
-use entry_bins::link_entry_bins;
+use entry_bins::{link_symlinked_entry_bins, link_unlinked_entry_bins};
 
 mod resolve;
 use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets};
@@ -560,8 +560,12 @@ fn link_one_importer<Reporter: self::Reporter>(
             )
         })?;
 
-    link_entry_bins(modules_dir, &entries, symlink, bin_lookup, link_options)
-        .map_err(SymlinkDirectDependenciesError::LinkBins)
+    if symlink {
+        link_symlinked_entry_bins(modules_dir, &entries, bin_lookup, link_options)
+    } else {
+        link_unlinked_entry_bins(modules_dir, &entries, link_options)
+    }
+    .map_err(SymlinkDirectDependenciesError::LinkBins)
 }
 
 #[cfg(test)]
