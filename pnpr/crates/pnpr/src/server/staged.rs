@@ -40,7 +40,9 @@ use serde_json::{Value, json};
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize_package,
     commit_publishes, json_response, not_found, private_no_cache,
-    publishing::{ValidatedPublish, cleanup_tmp_slots},
+    publishing::{
+        ValidatedPublish, check_body_name, cleanup_tmp_slots, validate_staged_publish_name,
+    },
     resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;
@@ -223,22 +225,14 @@ async fn serve_staged_publish(
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let body_name = incoming.get("name").and_then(Value::as_str);
-    if body_name.is_some_and(|body_name| body_name != name.as_str()) {
-        return RegistryError::BadRequest {
-            reason: format!(
-                "package in URL ({:?}) does not match body ({:?})",
-                name.as_str(),
-                body_name.unwrap_or(""),
-            ),
-        }
-        .into_response();
+    if let Err(err) = check_body_name(&name, &incoming) {
+        return err.into_response();
     }
 
     // The same routing + `publish`-rule + attachment validation a direct
     // publish runs; conflicts with already-published versions are checked
     // when the stage is approved, against the registry state at that time.
-    let (validated, _target) =
+    let (validated, target) =
         match validate_publish_doc(state, identity, registry, name, incoming).await {
             Ok(validated) => validated,
             Err(err) => return err.into_response(),
@@ -259,6 +253,9 @@ async fn serve_staged_publish(
 
     let stage_id = generate_stage_id();
     let record = staged_record(&validated, identity, registry, &stage_id);
+    if let Err(err) = validate_staged_publish_name(state, validated, &target.org).await {
+        return err.into_response();
+    }
 
     if let Err(err) = store_staged(state, &stage_id, body, &record).await {
         return err.into_response();

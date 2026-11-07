@@ -181,6 +181,15 @@ impl CanonicalPackageName {
         Ok(Self { raw: raw.to_string(), basename, ecosystem })
     }
 
+    /// Check the naming rules for publishing a new npm package. Reads retain
+    /// the legacy grammar used by [`Self::parse`].
+    pub fn validate_npm_publish(&self) -> Result<(), RegistryError> {
+        if !pnpm_package_name::is_valid_new_npm_package_name(&self.raw) {
+            return Err(RegistryError::InvalidPackageName { name: self.raw.clone() });
+        }
+        Ok(())
+    }
+
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.raw

@@ -63,6 +63,12 @@ endpoints all work under a registry prefix. The `~` prefix keeps registry
 names out of the package-name namespace (a package name can never begin with
 `~`).
 
+npm publishes require a lowercase, URL-safe package name of at most 214
+characters. The package part cannot contain `~'!()*`. Unscoped names cannot
+start with `.`, `_`, or `-`, and Node.js built-in module names, `node_modules`,
+and `favicon.ico` are reserved. Existing upstream names retain their legacy
+read behavior.
+
 The npm base (`/npm/`) aliases the registry named by `defaultRegistry`. With
 no `defaultRegistry` configured, it serves no registry and only the
 `/npm/~<name>/` bases answer.

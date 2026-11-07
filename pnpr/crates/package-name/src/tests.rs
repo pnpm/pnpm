@@ -183,3 +183,17 @@ fn accepts_sigstore_names() {
     assert!(unscoped.parse_sigstore_name("foo-1.0.0.tgz").is_err());
     assert!(unscoped.parse_sigstore_name("../foo-1.0.0.sigstore").is_err());
 }
+
+#[test]
+fn publishing_rejects_names_that_reads_accept() {
+    for name in ["Upper", "a~b", "_pkg", "pkg@x", "@scope/pkg@x", "café", "http"] {
+        let parsed = CanonicalPackageName::parse(name, Ecosystem::Npm).unwrap();
+        assert!(parsed.validate_npm_publish().is_err(), "{name}");
+    }
+    for name in ["pkg", "@scope/pkg", "pkg_name", "@scope/_pkg"] {
+        CanonicalPackageName::parse(name, Ecosystem::Npm)
+            .unwrap()
+            .validate_npm_publish()
+            .unwrap();
+    }
+}

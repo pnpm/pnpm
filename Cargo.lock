@@ -7354,6 +7354,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "pep508_rs",
+ "pnpm-package-name",
  "pnpr-error",
  "serde",
  "strum",

@@ -6,6 +6,7 @@ pub(super) use atomic::{
 };
 pub(super) use attachments::{
     StagedBase, StagedPublish, ValidatedPublish, Verification, stage_publish, validate_publish_doc,
+    validate_staged_publish_name,
 };
 pub(super) use notes::{refuse_notes_of_published_python_versions, take_note, take_version_note};
 pub(super) use tombstones::check_publish_tombstone;
@@ -263,7 +264,10 @@ async fn stage_and_commit(
 /// Reject a publish whose body name disagrees with the URL. npm and verdaccio
 /// answer 400 here too; without this check a misrouted `PUT` would overwrite
 /// another package's document.
-fn check_body_name(name: &CanonicalPackageName, incoming: &Value) -> Result<(), RegistryError> {
+pub(super) fn check_body_name(
+    name: &CanonicalPackageName,
+    incoming: &Value,
+) -> Result<(), RegistryError> {
     let body_name = incoming.get("name").and_then(Value::as_str);
     if body_name.is_none_or(|body_name| body_name == name.as_str()) {
         return Ok(());
