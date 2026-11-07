@@ -81,7 +81,7 @@ fn catalog_workspace_protocol_links_survive_frozen_reinstall() {
             .as_ref()
             .expect("app dependencies")[&PkgName::parse(alias).unwrap()];
         assert_eq!(dependency.specifier, reference);
-        assert_eq!(dependency.version, ImporterDepVersion::Link("../workspace-dep".to_string()),);
+        assert_eq!(dependency.version, ImporterDepVersion::Link("../workspace-dep".to_string()));
 
         for modules in [workspace.join("node_modules"), workspace.join("packages/app/node_modules")]
         {
