@@ -290,12 +290,16 @@ pub enum CreateVirtualStoreError {
 
     #[display("Cannot install with nodeLinker.type=loaded: {message}")]
     #[diagnostic(code(ERR_PNPM_CAS_CONFIGURATION))]
-    CasConfiguration { message: &'static str },
+    CasConfiguration {
+        message: &'static str,
+    },
     #[display(
         "Package {package} needs materialization with the loaded linker. Add its name to nodeLinker.excluded."
     )]
     #[diagnostic(code(ERR_PNPM_CAS_REQUIRES_MATERIALIZATION))]
-    CasRequiresMaterialization { package: String },
+    CasRequiresMaterialization {
+        package: String,
+    },
     #[diagnostic(transparent)]
     InstallPackageBySnapshot(#[error(source)] InstallPackageBySnapshotError),
 
@@ -303,7 +307,10 @@ pub enum CreateVirtualStoreError {
         "Lockfile has a snapshot entry `{snapshot_key}` with no matching metadata entry (`{metadata_key}`) in `packages:`."
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGE_METADATA))]
-    MissingPackageMetadata { snapshot_key: String, metadata_key: String },
+    MissingPackageMetadata {
+        snapshot_key: String,
+        metadata_key: String,
+    },
 
     #[display(
         "Lockfile has a `snapshots:` section but no `packages:` section; every entry in `snapshots:` must have a matching metadata entry. The lockfile is malformed."

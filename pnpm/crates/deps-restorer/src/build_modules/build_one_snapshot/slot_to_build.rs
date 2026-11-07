@@ -26,7 +26,9 @@ pub(super) struct SlotToBuild<'a> {
 pub(super) fn slot_to_build(
     input: SlotToBuild<'_>,
 ) -> Result<Option<(PathBuf, Option<crate::GlobalVirtualStoreSlot>)>, BuildModulesError> {
-    let SlotToBuild { context, snapshot_key, candidate, .. } = input;
+    let SlotToBuild {
+        context, snapshot_key, candidate, ..
+    } = input;
     let Some(pkg_dir) = context
         .pkg_roots()
         .canonical(snapshot_key)
@@ -58,10 +60,7 @@ pub(super) fn slot_to_build(
                 path: global_slot.path().to_path_buf(),
             });
         }
-        if state.phase == crate::GlobalVirtualStoreSlotPhase::Building
-            || (state.phase == crate::GlobalVirtualStoreSlotPhase::Built
-                && context.rebuild.is_none())
-        {
+        if state.phase == crate::GlobalVirtualStoreSlotPhase::Building {
             return Ok(None);
         }
         global_slot

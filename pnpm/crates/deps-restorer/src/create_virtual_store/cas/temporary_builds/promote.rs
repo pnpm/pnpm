@@ -21,12 +21,27 @@ pub(super) fn retain(
         if !moved.insert(target.clone()) {
             continue;
         }
-        let _slot_lock = crate::gvs_slot_lock::lock_global_virtual_store_slot(layout, key);
+        let slot = crate::GlobalVirtualStoreSlot::acquire(layout, key)
+            .map_err(CreateVirtualStoreError::SlotLock)?;
+        if let Some(slot) = &slot {
+            slot.begin_population()
+                .map_err(|error| CreateVirtualStoreError::ReadSlotState {
+                    path: slot.path().to_path_buf(),
+                    error,
+                })?;
+        }
         promote(temporary, layout, key, &target)
             .map_err(|source| CreateVirtualStoreError::LoadedBuildIo {
                 path: target.clone(),
                 source,
             })?;
+        if let Some(slot) = &slot {
+            slot.finish_population(false)
+                .map_err(|error| CreateVirtualStoreError::ReadSlotState {
+                    path: slot.path().to_path_buf(),
+                    error,
+                })?;
+        }
     }
     Ok(retained)
 }

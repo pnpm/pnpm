@@ -374,7 +374,7 @@ pub fn parse_name_version_from_key(key: &str) -> (String, String) {
 }
 
 pub(crate) fn built_slot_is_complete(directory: &Path) -> Result<bool, BuildModulesError> {
-    let marker = directory.join(NEEDS_BUILD_MARKER);
+    let marker = directory.join(crate::NEEDS_BUILD_MARKER);
     let exists = |path: &Path| {
         path.try_exists()
             .map_err(|source| BuildModulesError::ReadBuildMarker {
