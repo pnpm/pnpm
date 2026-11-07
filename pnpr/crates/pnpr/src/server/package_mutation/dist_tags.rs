@@ -52,7 +52,8 @@ pub(crate) async fn get_dist_tags(
 }
 
 fn validate_dist_tag(tag: &str) -> Result<(), RegistryError> {
-    if tag.is_empty()
+    if node_semver::Range::parse(tag).is_ok()
+        || tag.is_empty()
         || tag
             .chars()
             .any(|character| character.is_control() || character.is_whitespace())

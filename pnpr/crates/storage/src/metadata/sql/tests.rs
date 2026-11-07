@@ -453,12 +453,14 @@ async fn a_version_reads_without_the_package_view(db: Db) {
 
 async fn tag_moves_are_recorded(db: Db) {
     let storage = storage(&db);
-    let published = serde_json::to_vec(&packument("pkg", &["1.0.0", "2.0.0"])).unwrap();
+    let mut document = packument("pkg", &["1.0.0", "2.0.0"]);
+    document["dist-tags"]["next"] = json!("2.0.0");
+    let published = serde_json::to_vec(&document).unwrap();
     storage
         .write_hosted_document_if_current(&npm("pkg"), &published, None, Some("carol"))
         .await
         .unwrap();
-    let set = TagChange { tag: "latest", target: Some("1.0.0"), principal: Some("alice") };
+    let set = TagChange { tag: "next", target: Some("1.0.0"), principal: Some("alice") };
     storage
         .change_dist_tag(&npm("pkg"), set)
         .await
@@ -467,14 +469,14 @@ async fn tag_moves_are_recorded(db: Db) {
         .change_dist_tag(&npm("pkg"), set)
         .await
         .unwrap();
-    let remove = TagChange { tag: "latest", target: None, principal: Some("bob") };
+    let remove = TagChange { tag: "next", target: None, principal: Some("bob") };
     storage
         .change_dist_tag(&npm("pkg"), remove)
         .await
         .unwrap();
     let history = storage
         .sql_metadata()
-        .tag_history(&npm("pkg"), "", "latest")
+        .tag_history(&npm("pkg"), "", "next")
         .await
         .unwrap();
     let moves: Vec<_> = history
@@ -498,6 +500,46 @@ async fn tag_moves_are_recorded(db: Db) {
         .await
         .unwrap();
     assert_eq!(missing, TagUpdate::NotFound);
+}
+
+async fn invalid_tag_changes_leave_metadata_unchanged(db: Db) {
+    let storage = storage(&db);
+    write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
+    write(&storage, "pkg", &packument("pkg", &["2.0.0"])).await;
+    let before = read(&storage, "pkg").await;
+    let generation_before = generation(&storage, "pkg").await;
+    for (tag, target) in [
+        ("ghost", Some("9.9.9")),
+        ("junk", Some("not a version")),
+        ("removed", Some("1.0.0")),
+        ("latest", Some("9.9.9")),
+        ("latest", None),
+    ] {
+        let change = TagChange { tag, target, principal: None };
+        let error = storage
+            .change_dist_tag(&npm("pkg"), change)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, RegistryError::BadRequest { .. }), "{error:?}");
+        assert_eq!(generation(&storage, "pkg").await, generation_before);
+        assert_eq!(read(&storage, "pkg").await, before);
+        let history = storage
+            .sql_metadata()
+            .tag_history(&npm("pkg"), "", tag)
+            .await
+            .unwrap();
+        if tag != "latest" {
+            assert!(history.is_empty());
+        }
+    }
+    write(&storage, "pkg", &packument("pkg", &[])).await;
+    let remove = TagChange { tag: "latest", target: None, principal: None };
+    assert!(
+        storage
+            .change_dist_tag(&npm("pkg"), remove)
+            .await
+            .is_ok(),
+    );
 }
 
 async fn removing_versions_and_packages(db: Db) {
@@ -598,6 +640,7 @@ conformance! {
     a_tag_change_reuses_every_fragment,
     a_deprecation_rerenders_one_fragment,
     tag_moves_are_recorded,
+    invalid_tag_changes_leave_metadata_unchanged,
     a_version_reads_without_the_package_view,
     removing_versions_and_packages,
     a_removed_version_is_never_accepted_again,

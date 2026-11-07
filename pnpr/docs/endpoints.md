@@ -468,8 +468,8 @@ a hosted registry.
 | `DELETE` | `/@scope/{name}@{version}` | Unpublish a scoped version, as above. Requires `unpublish`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
 | `DELETE` | `/{name}/-/{filename}` | Unpublish the unscoped version the tarball belongs to, as above. Requires `unpublish`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
 | `DELETE` | `/@scope/{name}/-/{filename}` | Unpublish the scoped version the tarball belongs to, as above. Requires `unpublish`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
-| `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string version, for example `"1.0.0"`. Requires `publish`. |
-| `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Requires `publish`. |
+| `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string naming a published version, for example `"1.0.0"`. Names that parse as semver ranges and targets that are missing or unpublished return `400`. Requires `publish`. |
+| `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Removing `latest` while published versions exist returns `400`. Requires `publish`. |
 
 Every key under `versions` and its manifest's `version` must be valid SemVer.
 pnpr rejects an invalid version with `400`.
