@@ -467,6 +467,33 @@ fn windows_rename_failure_with_missing_destination_is_not_reusable() {
     assert!(!staging.exists(), "the staged junction must be cleaned up");
 }
 
+/// `junction::create` makes the staging directory before it writes the
+/// reparse point. A target too long for the reparse buffer fails after
+/// that, and the staging directory must not stay behind
+/// (pnpm/tasks#279).
+#[cfg(windows)]
+#[test]
+fn windows_failed_junction_leaves_no_staging_directory() {
+    let root = tempdir().expect("create temp dir");
+    let parent = root.path().join("node_modules");
+    fs::create_dir(&parent).expect("create link parent");
+    let link = parent.join("pkg");
+    // 25 components of 200 characters exceed the buffer's ~4,000 characters.
+    let target = root
+        .path()
+        .join(vec!["t".repeat(200); 25].join(r"\"));
+
+    let error = super::windows::create_junction(&target, &link)
+        .expect_err("a target longer than the reparse buffer must fail");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "{error}");
+    let leftovers: Vec<_> = fs::read_dir(&parent)
+        .expect("read link parent")
+        .map(|entry| entry.expect("read entry").file_name())
+        .collect();
+    assert!(leftovers.is_empty(), "no staging directory may remain: {leftovers:?}");
+}
+
 /// An editor or dev server holding a file under a directory installed by
 /// another package manager keeps that directory from being moved aside.
 #[cfg(windows)]

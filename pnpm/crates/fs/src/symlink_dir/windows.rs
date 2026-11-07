@@ -102,8 +102,25 @@ fn stage_junction(original: &Path, link: &Path) -> io::Result<PathBuf> {
         match junction::create(original, &candidate) {
             Ok(()) => return Ok(candidate),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error),
+            Err(error) => return Err(discard_failed_staging(&candidate, error)),
         }
+    }
+}
+
+/// `junction::create` makes the directory before it sets the reparse
+/// point, and leaves it behind when that later step fails. Remove it so a
+/// failed link doesn't leave a `.pnpm-junction-*` directory next to it.
+/// `remove_dir` only removes an empty directory, and `NotFound` means the
+/// directory was never created. The error keeps its kind either way,
+/// because callers branch on it.
+fn discard_failed_staging(candidate: &Path, error: io::Error) -> io::Error {
+    match fs::remove_dir(candidate) {
+        Ok(()) => error,
+        Err(cleanup) if cleanup.kind() == io::ErrorKind::NotFound => error,
+        Err(cleanup) => io::Error::new(
+            error.kind(),
+            format!("{error}; staged junction cleanup failed at {candidate:?}: {cleanup}"),
+        ),
     }
 }
 
