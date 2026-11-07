@@ -5,7 +5,7 @@ const paths = execFileSync('git', ['ls-files', '-z', '--', '*.rs', '*.ts'], { en
   .split('\0')
   .filter(Boolean)
 const separator = /-{6,}/
-const tableDivider = /^\s*\/\/!?\s*\|[\s:|=-]+\|\s*$/
+const tableDivider = /^\s*\/\/[!/]?\s*\|[\s:|=-]+\|\s*$/
 let failed = false
 
 for (const path of paths) {
