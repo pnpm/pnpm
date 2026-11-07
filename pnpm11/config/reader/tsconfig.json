@@ -61,9 +61,6 @@
       "path": "../matcher"
     },
     {
-      "path": "../package-is-installable"
-    },
-    {
       "path": "../registry-auth-key"
     }
   ]

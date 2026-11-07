@@ -122,7 +122,7 @@ test('findWorkspaceProjects() keeps an explicitly configured Node.js version abo
   fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
     name: 'app',
     engines: { node: '>=99.0.0' },
-    devEngines: { runtime: { name: 'node', version: '99.0.0' } },
+    devEngines: { runtime: { name: 'node', version: '99.0.0', onFail: 'download' } },
   }))
 
   await expect(findWorkspaceProjects(workspaceDir, {

@@ -9,6 +9,7 @@ interface WantedPackageManagerResult {
   pm?: WantedPackageManager
   warnings: string[]
 }
+
 export function getWantedPackageManager (manifest: ProjectManifest): WantedPackageManagerResult {
   const pmFromDevEngines = parseDevEnginesPackageManager(manifest.devEngines)
   if (pmFromDevEngines) {

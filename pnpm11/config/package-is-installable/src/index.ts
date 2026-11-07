@@ -3,8 +3,7 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-version'
-import type { ProjectManifest, SupportedArchitectures } from '@pnpm/types'
-import semver from 'semver'
+import type { SupportedArchitectures } from '@pnpm/types'
 
 import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine.js'
 import { checkPlatform, UnsupportedPlatformError } from './checkPlatform.js'
@@ -13,54 +12,6 @@ import { inferPlatformFromPackageName } from './inferPlatformFromPackageName.js'
 export type { Engine } from './checkEngine.js'
 export type { Platform, WantedPlatform } from './checkPlatform.js'
 export { inferPlatformFromPackageName } from './inferPlatformFromPackageName.js'
-
-export function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest, runtimeOnFail?: string): string | undefined {
-  for (const runtime of [manifest.devEngines?.runtime, manifest.engines?.runtime]) {
-    const runtimes = runtime == null ? [] : Array.isArray(runtime) ? runtime : [runtime]
-    const nodeRuntime = runtimes.find((entry) => entry.name === 'node')
-    if (typeof nodeRuntime?.version !== 'string') continue
-    const version = nodeRuntime.version.trim()
-    if (!semver.validRange(version)) continue
-    if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return semver.valid(version) ?? undefined
-    return semver.minVersion(version)?.version
-  }
-  return undefined
-}
-
-export function getDownloadedNodeVersionFromEnginesRuntime (manifest: ProjectManifest, runtimeOnFail?: string): string | undefined {
-  const nodeRuntime = findNodeRuntime(manifest)
-  if (typeof nodeRuntime?.version !== 'string') return undefined
-  if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return undefined
-  return getDownloadedRuntimeVersion(nodeRuntime.version, manifest.engines?.node)
-}
-
-function getDownloadedRuntimeVersion (version: string, nodeEngine?: string): string | undefined {
-  const runtimeRange = semver.validRange(version.trim())
-  if (runtimeRange == null) return undefined
-  const engineRange = semver.validRange(nodeEngine ?? '*')
-  if (engineRange == null) return semver.minVersion(runtimeRange)?.version
-  return minVersionFromRangeIntersection(runtimeRange, engineRange)
-}
-
-function findNodeRuntime (manifest: ProjectManifest): { name: string, version?: unknown, onFail?: string } | undefined {
-  for (const runtime of [manifest.devEngines?.runtime, manifest.engines?.runtime]) {
-    const runtimes = runtime == null ? [] : Array.isArray(runtime) ? runtime : [runtime]
-    const nodeRuntime = runtimes.find((entry) => entry.name === 'node')
-    if (typeof nodeRuntime?.version === 'string') return nodeRuntime
-  }
-  return undefined
-}
-
-function minVersionFromRangeIntersection (runtimeRange: string, engineRange: string): string | undefined {
-  const runtimeSets = new semver.Range(runtimeRange).set
-  const engineSets = new semver.Range(engineRange).set
-  const intersections = runtimeSets.flatMap((runtimeSet) => engineSets.map((engineSet) => {
-    const range = [...runtimeSet, ...engineSet].map((comparator) => comparator.value).join(' ')
-    return semver.minVersion(range || '*')
-  })).filter((version): version is semver.SemVer => version != null)
-  if (intersections.length === 0) return semver.minVersion(runtimeRange)?.version
-  return intersections.reduce((minimum, version) => semver.lt(version, minimum) ? version : minimum).version
-}
 
 export {
   UnsupportedEngineError,

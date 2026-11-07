@@ -317,62 +317,58 @@ fn node_version_keeps_an_exact_pin() {
 }
 
 #[test]
-fn node_version_does_not_use_a_runtime_that_is_not_downloaded() {
+fn node_version_keeps_the_lower_bound_of_a_range_pnpm_downloads() {
     assert_eq!(
-        downloaded_node_version_from_engines_runtime(&json!({
+        node_version_from_engines_runtime(&json!({
             "devEngines": {
-                "runtime": { "name": "node", "version": "24.6.0" },
+                "runtime": { "name": "node", "version": ">=22.12.0", "onFail": "download" },
             },
         })),
-        None,
-    );
-    assert_eq!(
-        downloaded_node_version_from_engines_runtime(&json!({
-            "devEngines": {
-                "runtime": { "name": "node", "version": "24.6.0", "onFail": "warn" },
-            },
-        })),
-        None,
+        Some("22.12.0".to_string()),
     );
 }
 
 #[test]
-fn node_version_from_a_downloaded_runtime_range_satisfies_the_engine_range() {
+fn downloaded_node_version_ignores_a_runtime_pnpm_does_not_download() {
+    for runtime in [
+        json!({ "name": "node", "version": "24.6.0" }),
+        json!({ "name": "node", "version": "24.6.0", "onFail": "warn" }),
+    ] {
+        let manifest = json!({ "devEngines": { "runtime": runtime } });
+        assert_eq!(downloaded_node_version_from_engines_runtime(&manifest, None), None);
+    }
+}
+
+#[test]
+fn downloaded_node_version_follows_the_runtime_on_fail_override() {
+    let manifest = json!({
+        "devEngines": { "runtime": { "name": "node", "version": "^24.2.0", "onFail": "warn" } },
+    });
     assert_eq!(
-        downloaded_node_version_from_engines_runtime(&json!({
-            "engines": { "node": ">=24.5.0" },
-            "devEngines": {
-                "runtime": { "name": "node", "version": "^24.0.0", "onFail": "download" },
-            },
-        })),
-        Some("24.5.0".to_string()),
+        downloaded_node_version_from_engines_runtime(&manifest, Some("download")),
+        Some("24.2.0".to_string()),
     );
+    let manifest = json!({
+        "devEngines": { "runtime": { "name": "node", "version": "24.2.0", "onFail": "download" } },
+    });
+    assert_eq!(downloaded_node_version_from_engines_runtime(&manifest, Some("error")), None);
 }
 
 #[test]
 fn downloaded_node_version_skips_runtime_entries_without_a_version() {
     assert_eq!(
-        downloaded_node_version_from_engines_runtime(&json!({
-            "engines": {
-                "node": ">=24.0.0",
-                "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" },
-            },
-            "devEngines": {
-                "runtime": { "name": "node", "onFail": "download" },
-            },
-        })),
+        downloaded_node_version_from_engines_runtime(
+            &json!({
+                "engines": {
+                    "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" },
+                },
+                "devEngines": {
+                    "runtime": { "name": "node", "onFail": "download" },
+                },
+            }),
+            None,
+        ),
         Some("24.0.0".to_string()),
-    );
-    assert_eq!(
-        downloaded_node_version_from_engines_runtime(&json!({
-            "devEngines": {
-                "runtime": [
-                    { "name": "node", "onFail": "download" },
-                    { "name": "node", "version": "24.0.0", "onFail": "download" },
-                ],
-            },
-        })),
-        None,
     );
 }
 

@@ -1,7 +1,8 @@
 import path from 'node:path'
 
-import { getDownloadedNodeVersionFromEnginesRuntime, packageIsInstallable } from '@pnpm/cli.utils'
+import { packageIsInstallable } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
+import { getDownloadedNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 import { convertPathToPattern } from 'tinyglobby'

@@ -2,15 +2,19 @@ use super::platform::read_string_list;
 use pnpm_package_is_installable::{PackageInstallabilityManifest, WantedEngine};
 use serde_json::Value;
 
+/// What a project requires of the host, per [`project_host_requirements`].
 #[derive(Debug, Clone)]
 pub struct ProjectHostRequirements {
     pub installability: PackageInstallabilityManifest,
+    /// The Node.js pnpm downloads for the project, which its scripts run on.
+    /// `None` when they run on the shared Node.js.
     pub node_version: Option<String>,
 }
 
 /// What a project `manifest` requires of the host: its `engines.node`,
-/// `engines.pnpm`, `os`, `cpu`, and `libc`. `None` when it declares none of
-/// them.
+/// `engines.pnpm`, `os`, `cpu`, and `libc`, and the Node.js its own runtime
+/// pin downloads under `runtime_on_fail` (the `runtimeOnFail` setting).
+/// `None` when it declares none of the requirements.
 #[must_use]
 pub fn project_host_requirements(
     manifest: &Value,
@@ -41,18 +45,12 @@ pub fn project_host_requirements(
         || requirements.cpu.is_some()
         || requirements.os.is_some()
         || requirements.libc.is_some();
-    declares_any.then(|| {
-        let node_version = if let Some(runtime_on_fail) = runtime_on_fail {
-            let mut effective_manifest = manifest.clone();
-            pnpm_package_manifest::apply_runtime_on_fail_override(
-                &mut effective_manifest,
-                runtime_on_fail,
-            );
-            pnpm_package_manifest::downloaded_node_version_from_engines_runtime(&effective_manifest)
-        } else {
-            pnpm_package_manifest::downloaded_node_version_from_engines_runtime(manifest)
-        };
-        ProjectHostRequirements { installability: requirements, node_version }
+    declares_any.then(|| ProjectHostRequirements {
+        installability: requirements,
+        node_version: pnpm_package_manifest::downloaded_node_version_from_engines_runtime(
+            manifest,
+            runtime_on_fail,
+        ),
     })
 }
 

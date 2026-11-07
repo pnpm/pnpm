@@ -50,6 +50,12 @@ In a workspace, these checks apply to every workspace project, even when
 `pnpm exec -r` run them too, before running anything. A project whose `os`,
 `cpu`, or `libc` excludes the current platform prints a warning.
 
+A project's `engines.node` is checked against the Node.js that pnpm downloads
+for it through [`devEngines.runtime`](#devenginesruntime): the pinned version,
+or the lowest version of a pinned range. A project without one is checked
+against the [`nodeVersion`](./settings/cli.md#nodeversion) setting, the root
+project's runtime pin, or the system Node.js.
+
 ## engines.runtime
 
 Specifies the Node.js runtime required by a dependency. When declared, pnpm will automatically install the specified Node.js version.

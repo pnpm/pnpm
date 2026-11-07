@@ -47,6 +47,17 @@ impl<'a> ProjectHost<'a> {
         })
     }
 
+    /// The Node.js a project's scripts run on: the one pnpm downloads for it,
+    /// unless `nodeVersion` is configured or runtimes are skipped.
+    fn project_node_version<'v>(&'v self, downloaded: Option<&'v str>) -> &'v str {
+        match downloaded {
+            Some(version) if self.config.node_version.is_none() && !self.config.skip_runtimes => {
+                version
+            }
+            _ => self.node_version(),
+        }
+    }
+
     fn root_runtime_node_version(&self) -> Option<String> {
         if self.config.skip_runtimes {
             return None;
@@ -73,26 +84,21 @@ impl<'a> ProjectHost<'a> {
             PackageInstallabilityManifest { engines: None, ..requirements.installability.clone() };
         [engines, platform]
             .iter()
-            .filter_map(|part| self.check_part(project_dir, requirements, part).transpose())
+            .filter_map(|part| {
+                self.check_part(project_dir, requirements.node_version.as_deref(), part).transpose()
+            })
             .collect()
     }
 
     fn check_part(
         &self,
         project_dir: &Path,
-        host_requirements: &pnpm_deps_restorer::ProjectHostRequirements,
+        downloaded_node_version: Option<&str>,
         requirements: &PackageInstallabilityManifest,
     ) -> Result<Option<LogEvent>, InitStateError> {
         let wanted_engine = requirements.engines.as_ref();
-        let node_engine = wanted_engine.and_then(|engine| engine.node.as_ref());
-        let project_node_version = self.config.node_version.is_none()
-            && !self.config.skip_runtimes
-            && node_engine.is_some();
-        let node_version = match node_engine {
-            Some(_) if project_node_version => {
-                host_requirements.node_version.as_deref().unwrap_or_else(|| self.node_version())
-            }
-            Some(_) => self.node_version(),
+        let node_version = match wanted_engine.and_then(|engine| engine.node.as_ref()) {
+            Some(_) => self.project_node_version(downloaded_node_version),
             None => "",
         };
         let pnpm_version =

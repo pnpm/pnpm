@@ -1,7 +1,6 @@
 import os from 'node:os'
 
-import { getNodeVersionFromEnginesRuntime } from '@pnpm/config.package-is-installable'
-import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
+import { applyRuntimeOnFailOverride, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
 
 import { transformPathKeys } from '../transformPath.js'
 import type { ConfigBuildState, PnpmConfigInProgress } from './configBuildState.js'

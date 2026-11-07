@@ -2757,9 +2757,6 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../matcher
-      '@pnpm/config.package-is-installable':
-        specifier: workspace:*
-        version: link:../package-is-installable
       '@pnpm/config.registry-auth-key':
         specifier: workspace:*
         version: link:../registry-auth-key
@@ -11106,6 +11103,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/text.ordinal-comparator':
         specifier: workspace:*
         version: link:../../text/ordinal-comparator
