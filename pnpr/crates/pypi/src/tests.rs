@@ -352,3 +352,18 @@ fn malformed_optional_metadata_does_not_hide_project_files() {
     let html = document.render_html("/files/sample-pkg");
     assert!(html.contains(r#"data-dist-info-metadata="true""#), "{html}");
 }
+
+#[test]
+fn current_metadata_declaration_takes_precedence_over_legacy_availability() {
+    let page = json!({"name": "sample-pkg", "files": [{
+        "filename": "sample_pkg-1.0-py3-none-any.whl",
+        "core-metadata": false,
+        "dist-info-metadata": true,
+        "data-dist-info-metadata": true,
+    }]});
+    let document = ProjectDocument::parse(&serde_json::to_vec(&page).unwrap()).unwrap();
+    assert_eq!(document.render_json("/files/sample-pkg")["files"][0]["core-metadata"], false);
+    let html = document.render_html("/files/sample-pkg");
+    assert!(!html.contains("data-core-metadata"), "{html}");
+    assert!(!html.contains("data-dist-info-metadata"), "{html}");
+}

@@ -182,7 +182,8 @@ verified against its `sha256`, and cached. Upstream core-metadata declarations
 (PEP 658/714) are preserved in JSON and HTML pages. Clients can download
 `<filename>.metadata` through the proxy without downloading the distribution.
 Metadata is cached and checked against a published SHA-256, SHA-384, or
-SHA-512 digest when available. Legacy metadata declarations are accepted,
+SHA-512 digest when available. Hash declarations without a supported digest
+are rejected. Legacy metadata declarations are accepted,
 and JSON pages expose them using `core-metadata` for compatibility with pip.
 The project list at `/pypi/simple/` enumerates hosted projects only.
 
