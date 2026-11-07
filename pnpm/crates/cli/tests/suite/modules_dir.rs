@@ -694,9 +694,10 @@ fn set_modules_dir_outside_the_project(
     workspace: &Path,
     setting: ModulesDirSetting,
 ) -> (PathBuf, PathBuf) {
-    let root_modules_dir = workspace
-        .parent()
-        .expect("workspace parent")
+    // Spelled by its real path: an absolute `modulesDir` spelled through a
+    // symlink, such as macOS `/var`, gets broken links to `link:` targets.
+    let root_modules_dir = dunce::canonicalize(workspace.parent().expect("workspace parent"))
+        .expect("canonicalize the workspace parent")
         .join("vendor");
     let modules_dir = match setting {
         ModulesDirSetting::Absolute => root_modules_dir.to_string_lossy().replace('\\', "/"),
