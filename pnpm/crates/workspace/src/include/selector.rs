@@ -1,6 +1,6 @@
 use super::{
     Delegation, INCLUDE_KEY, Include, IncludeError, IncludeSource, SETTINGS_FORBIDDEN_TO_PACKAGES,
-    UNRESTRICTED,
+    UNRESTRICTED, is_yaml_extension,
 };
 use std::{fmt, path::Path};
 use yaml_serde::{Mapping, Value};
@@ -138,7 +138,7 @@ fn parse_source(spec: &str, base_dir: &Path) -> Result<IncludeSource, IncludeErr
     let is_yaml = path
         .extension()
         .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| matches!(extension, "yaml" | "yml"));
+        .is_some_and(is_yaml_extension);
     if !is_yaml {
         return Err(invalid("the file must have a .yaml or .yml extension"));
     }
