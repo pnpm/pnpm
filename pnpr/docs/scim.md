@@ -44,12 +44,9 @@ A later `POST` using that name creates a different account ID with no inherited
 grants. A removed resource cannot be reactivated. `PUT` and `PATCH` can change
 `userName` while retaining the same ID.
 
-Other replicas start a background reload when a request arrives after their
-state is 10 seconds old. That request can still use the existing state, so a
-change can take effect later than 10 seconds after it is made. Reloading a
-deactivation ends that replica's browser sessions. If a replica cannot read
-the directory, it refuses user credentials until a read succeeds. It retries
-on a request arriving at least one second after the failed read.
+Other replicas follow the [replica reload timing](configuration.md#replica-reloads).
+Applying a deactivation ends their browser sessions. If a replica cannot read
+the directory, it refuses user credentials until a read succeeds.
 
 ## Endpoints
 

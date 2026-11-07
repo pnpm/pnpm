@@ -175,8 +175,7 @@ them, and the grammar is deliberately small:
 | `team:<id>` | The members of a [team](#teams) declared on this registry. |
 | `<account-id>` | Exactly that account ID. Bare tokens are account IDs. |
 
-Tokens are validated at config load and every near-miss is rejected loudly,
-rather than being read as a username that happens to admit nobody:
+Tokens are validated at config load:
 
 - `$` is reserved for the three built-ins. Any other `$token` is an error.
 - `all`, `authenticated`, `anonymous`, and `@`-prefixed spellings like `@all`
@@ -184,9 +183,9 @@ rather than being read as a username that happens to admit nobody:
 - `team:` is the only typed prefix; any other `<kind>:` prefix is an error.
   (IDs cannot contain `:`.)
 - `team:<id>` must resolve to a team the **same registry** declares. An
-  undeclared name is a config error, so a typo can't silently grant to nobody.
+  undeclared team ID is a config error, so a typo can't silently grant to nobody.
 - One entry is one token: an entry containing whitespace is an error, so write
-  `[alice, bob]` rather than `alice bob`.
+  `[<account-id-1>, <account-id-2>]` rather than `<account-id-1> <account-id-2>`.
 - The empty string is an error. To admit nobody, write `[]`; to take the
   default, omit the field.
 
@@ -394,12 +393,12 @@ registries:
       type: bearer
       tokenEnv: CORP_NPM_TOKEN
     teams:
-      platform: { name: platform, members: [alice, bob] }
-      frontend: { name: frontend, members: [carol, dave] }
-    access: team:platform
+      <platform-team-id>: { name: platform, members: [<account-id-1>, <account-id-2>] }
+      <frontend-team-id>: { name: frontend, members: [<account-id-3>, <account-id-4>] }
+    access: team:<platform-team-id>
     packages:
       '@corp/ui':
-        access: [team:platform, team:frontend]
+        access: [team:<platform-team-id>, team:<frontend-team-id>]
 ```
 
 Teams are **registry-scoped**: a registry can only reference teams it declares
@@ -411,14 +410,14 @@ registries:
   private:
     type: hosted
     teams: &corpTeams
-      platform: { name: platform, members: [alice, bob] }
-    access: team:platform
+      <platform-team-id>: { name: platform, members: [<account-id-1>, <account-id-2>] }
+    access: team:<platform-team-id>
 
   corp:
     type: upstream
     url: https://npm.corp.example.com/
     teams: *corpTeams
-    access: team:platform
+    access: team:<platform-team-id>
 ```
 
 A team's members are account IDs. A team cannot contain another team. An
@@ -442,14 +441,14 @@ registries:
     type: hosted
     teamsManagedBy: api
     teams:
-      platform: { name: platform, members: [alice] }
+      <platform-team-id>: { name: platform, members: [<account-id>] }
     packages:
       '@corp/*':
-        access: [team:platform]
+        access: [team:<platform-team-id>]
 ```
 
-- pnpr stores the roster in the hosted store, so every replica serves the same
-  one. A replica rereads it at most 10 seconds after another replica changes it.
+- pnpr stores the roster in the hosted store. Other replicas follow the
+  [replica reload timing](#replica-reloads).
 - If pnpr cannot read a stored roster, that registry's `team:` grants admit
   nobody until a read succeeds. Other access rules are not affected.
 - The `teams:` map is used only until the first change is stored. After that,
@@ -479,7 +478,7 @@ registries:
   The keys themselves stay in the config, because they decide which registry
   serves a name.
 - A change applies at once on the replica that took it. pnpr stores changes in
-  the hosted store, so other replicas apply them within 10 seconds.
+  the hosted store. Other replicas follow the [replica reload timing](#replica-reloads).
 - A shared cache in front of pnpr, such as a CDN, can keep serving a package
   that a change makes private. A packument stays until its `max-age`, the
   [`packumentTtl`](#packumentttl), runs out. A tarball carries no `max-age`, so
@@ -493,6 +492,14 @@ registries:
 
 See [Admin endpoints](endpoints.md#admin-endpoints) and
 [Team package access](endpoints.md#team-package-access).
+
+## Replica reloads {#replica-reloads}
+
+Team rosters, managed access rules, and the [SCIM directory](scim.md) reload
+when a request arrives after the replica's state is 10 seconds old. That
+request starts a background reload and can still use the existing state, so
+a change can take effect later than 10 seconds after it is made. After a
+failed read, pnpr retries on a request arriving at least one second later.
 
 ## `oci`
 
@@ -777,8 +784,8 @@ artifacts:
   enabled: true
   orgs:
     acme:
-      access: [ci-builder, alice, bob]
-      publish: ci-builder
+      access: [<workload-account-id>, <account-id-1>, <account-id-2>]
+      publish: <workload-account-id>
 ```
 
   The CLI flag `--disable-artifacts` overrides this setting. With artifacts off,
@@ -795,7 +802,7 @@ artifacts:
   - its [Cargo compilation cache](compiler-cache.md),
   - its [pipeline run records](pipeline-runs.md).
 
-  `access` and `publish` list pnpr usernames, or `$authenticated` for every
+  `access` and `publish` list pnpr account IDs, or `$authenticated` for every
   signed-in account. Teams are declared per registry, so `team:` entries are
   refused here. Publishing also requires `access`. An empty list denies
   everyone. An organization nobody may read is invisible: requests for it answer
@@ -919,6 +926,7 @@ Audit events record the `action`, the `actor` (the authenticated username, `"sci
 - **User management**:
   - `user.create`: creating an account (`actor`, `user`).
   - `user.password_update`: changing an account password (`actor`, `user`).
+  - `user.rename`: renaming an account (`actor`, `user`, `user_id`).
   - `user.token_revoke`: revoking user tokens (`actor`, `user`, `token_key`).
   - `user.delete`: deleting an account (`actor`, `user`, `tokens_revoked`).
   - `user.register`: self-registering a new account (`actor`, `user`).

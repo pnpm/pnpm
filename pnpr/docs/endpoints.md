@@ -766,7 +766,7 @@ the same place:
 {
   "access": ["$authenticated"],
   "packages": {
-    "@corp/*": { "access": ["team:platform"], "publish": ["<account-id>"] }
+    "@corp/*": { "access": ["team:<team-id>"], "publish": ["<account-id>"] }
   }
 }
 ```

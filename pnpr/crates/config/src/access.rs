@@ -68,10 +68,7 @@ impl AccessSpec {
         Ok(AccessList::new(tokens))
     }
 
-    /// The `teams:` membership reading: each entry is one username
-    /// ([`validate_member_name`]), in declared order. Unlike
-    /// [`Self::to_access_list`] the entries are not access tokens — a
-    /// built-in group or `team:` reference among the members is an error.
+    /// Account IDs in declared order, rejecting access tokens among the members.
     pub(super) fn member_names(&self) -> Result<&[String], String> {
         for member in self.entries() {
             validate_member_name(member)?;
@@ -80,7 +77,7 @@ impl AccessSpec {
     }
 }
 
-/// The declared team names for an undeclared-reference error, so a typo'd
+/// The declared team IDs for an undeclared-reference error, so a typo'd
 /// `team:` token points at what exists.
 pub(super) fn declared_teams(teams: &Teams) -> String {
     if teams.is_empty() {
@@ -94,8 +91,6 @@ pub(super) fn declared_teams(teams: &Teams) -> String {
     format!("; its declared teams are {names}")
 }
 
-/// Compile one registry's `teams:` map, validating team names (they must be
-/// writable after `team:` in a token) and member lists.
 pub(super) fn build_teams(
     registry: &str,
     file: &IndexMap<String, TeamFile>,
@@ -174,11 +169,7 @@ pub fn validate_team_name(team: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// A team member is one plain username. The built-in groups — in any
-/// spelling — and typed tokens are rejected: `[$authenticated]` in a member
-/// list would otherwise silently become a user literally named
-/// `$authenticated`, narrowing the team to a name nobody holds, the same
-/// trap `validate_access_token` closes for access lists.
+/// Validate one literal account reference, rejecting group and team tokens.
 pub fn validate_member_name(member: &str) -> Result<(), String> {
     validate_single_token(member)?;
     let bare = member.strip_prefix('@').unwrap_or(member);
@@ -197,13 +188,7 @@ pub fn validate_member_name(member: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Reject an access-list entry that is not exactly one recognized token: an
-/// unknown `$...` built-in, an unknown `<type>:` prefix (only `team:` exists;
-/// htpasswd forbids `:` in usernames, so the character is free to reserve),
-/// or one of verdaccio's alias spellings of the built-ins (`@all`, bare
-/// `all`, ...), which must not silently become a username that admits nobody.
-/// This loud rejection at the YAML boundary is what lets `AccessToken`
-/// parsing stay infallible.
+/// Reject unknown built-ins and typed prefixes, reserved aliases, and malformed IDs.
 pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
     validate_single_token(token)?;
     if let Some(builtin) = token.strip_prefix('$') {

@@ -20,8 +20,8 @@ artifacts:
   enabled: true
   orgs:
     acme:
-      access: [ci-builder, alice, bob]
-      publish: ci-builder
+      access: [<workload-account-id>, <account-id-1>, <account-id-2>]
+      publish: <workload-account-id>
 ```
 
 Each caller supplies its own pnpr token. `access` is required for reads and

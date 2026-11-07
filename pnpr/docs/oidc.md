@@ -61,7 +61,7 @@ auth:
           teams:
             - group: 7f3c2a10-0000-0000-0000-000000000000
               registry: private
-              teamId: platform
+              teamId: <team-id>
 ```
 
 - `claim` names the ID-token claim that lists the groups, either as a list of
@@ -220,10 +220,10 @@ Every block rejects unknown keys.
 | `issuer` | yes | The provider's issuer URL. |
 | `audience` | yes | The expected `aud` claim. For browser sign-in, the client ID. |
 | `login.clientSecret` | no | Client secret for browser sign-in. Omit for public clients with PKCE. |
-| `login.users` | yes, with `login` | Bindings of `subject`, `username`, and optional `claims`. |
+| `login.users` | yes, with `login` | Bindings of `subject`, `userId`, and optional `claims`. |
 | `login.groups.claim` | no | The ID-token claim that lists groups. Defaults to `groups`. |
-| `login.groups.teams` | yes, with `groups` | Grants of `group`, `registry`, and `team`. See [Teams from groups](#teams-from-groups). |
-| `workloads[].identity` | yes | A binding of `subject`, `username`, and optional `claims`. |
+| `login.groups.teams` | yes, with `groups` | Grants of `group`, `registry`, and `teamId`. See [Teams from groups](#teams-from-groups). |
+| `workloads[].identity` | yes | A binding of `subject`, `userId`, and optional `claims`. |
 | `workloads[].registry` | yes | The hosted npm registry the workload publishes to. |
 | `workloads[].packages` | yes | The exact package names the workload may publish. |
 
