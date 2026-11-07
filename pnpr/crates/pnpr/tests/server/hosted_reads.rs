@@ -194,6 +194,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let tarball = &crate::npm::npm_tgz("@acme/widget", "1.0.0", b"acme-widget-1.0.0-bytes");
     let body = json!({
         "name": "@acme/widget",
+        "access": null,
         "dist-tags": { "latest": "1.0.0" },
         "versions": { "1.0.0": {
             "name": "@acme/widget",
@@ -260,6 +261,12 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         .unwrap();
     assert_eq!(read.status(), StatusCode::OK);
     let doc = body_json(read.into_body()).await;
+    assert!(doc.get("formatVersion").is_none());
+    assert!(doc.get("access").is_none());
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["tarball"],
+        json!("http://example.test/npm/~acme/@acme/widget@1.0.0"),
+    );
     assert!(doc["versions"]["1.0.0"].is_object());
     assert_eq!(
         doc["versions"]["1.0.0"]["_npmUser"]["name"],

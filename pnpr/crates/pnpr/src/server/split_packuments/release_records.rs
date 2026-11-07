@@ -247,9 +247,14 @@ fn without_pnpr_facts(manifest: &mut Value) {
     }
 }
 
-/// Remove pnpr's facts from every version of a document served in npm's
-/// format.
+/// Remove storage metadata and archive facts from a document served in npm's format.
 pub(in super::super) fn without_pnpr_facts_in(doc: &mut Value) {
+    if let Some(document) = doc.as_object_mut() {
+        document.remove("formatVersion");
+        if document.get("access").is_some_and(Value::is_null) {
+            document.remove("access");
+        }
+    }
     let versions = doc.get_mut("versions").and_then(Value::as_object_mut);
     versions
         .into_iter()
