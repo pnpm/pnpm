@@ -144,7 +144,7 @@ fn returns_skipped_when_overrides_drift() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
-/// Drift in `dedupePeers` invalidates the cached state — the condition
+/// Drift in `dedupePeers` invalidates the cached state, the condition
 /// the optimistic-repeat-install gate checks here.
 #[test]
 fn returns_skipped_when_dedupe_peers_drift() {

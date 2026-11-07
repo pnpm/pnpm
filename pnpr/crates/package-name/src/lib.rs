@@ -110,7 +110,7 @@ pub enum OciNameError {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CanonicalPackageName {
     raw: String,
-    /// The unscoped portion — for `@scope/name` and `namespace/image` this is
+    /// The unscoped portion, for `@scope/name` and `namespace/image` this is
     /// the last component, for `name` this is the whole thing. Used to
     /// validate tarball filenames, which are always `<basename>-<version>.tgz`.
     basename: String,
@@ -391,7 +391,7 @@ fn is_safe_segment(segment: &str) -> bool {
 /// traversal, no separators, no absolute-path or Windows drive prefixes). The
 /// upstream tarball path uses it to admit a non-canonical basename preserved
 /// from an upstream `dist.tarball` (see `rewrite_tarball_urls`) into the
-/// cache layout — the packument match is what authorizes the name; this only
+/// cache layout, the packument match is what authorizes the name; this only
 /// keeps it on disk safely.
 #[must_use]
 pub fn is_safe_path_segment(filename: &str) -> bool {

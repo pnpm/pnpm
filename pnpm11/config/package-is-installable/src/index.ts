@@ -29,8 +29,8 @@ export interface InstallabilityManifest {
 }
 
 /**
- * The installability verdict on its own — `null` when the package is
- * installable — without the logging and the `engineStrict` throw that
+ * The installability verdict on its own, `null` when the package is
+ * installable, without the logging and the `engineStrict` throw that
  * [packageIsInstallable] wraps around it. Callers that have to classify a
  * package before they know how to report it use this, so the report is
  * emitted exactly once.
@@ -130,7 +130,7 @@ interface PlatformFields {
  * platform-specific binary the package name carries the same information, so
  * each missing field is filled from the name's tokens. A package that
  * declares no platform fields at all is treated as platform-specific only
- * when its name has an operating system and a cpu or libc token — a lone
+ * when its name has an operating system and a cpu or libc token, a lone
  * name segment (e.g. `arm` or `windows` on its own) never marks it as such.
  * https://github.com/pnpm/pnpm/issues/11702
  */

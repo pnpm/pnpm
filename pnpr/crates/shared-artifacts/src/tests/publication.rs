@@ -218,7 +218,7 @@ async fn reclamation_preserves_blobs_referenced_by_committed_envelopes() {
 /// An entry can hold artifacts that apply to one consumer: a store written
 /// before this rule, or one whose withdrawal could not finish. Neither of them
 /// is *the* artifact for those consumers, so republishing either is refused
-/// rather than reported as already published — which would hide the state and
+/// rather than reported as already published, which would hide the state and
 /// leave nobody to repair it.
 #[tokio::test]
 async fn an_entry_crowded_with_overlapping_artifacts_refuses_publication() {
@@ -369,7 +369,7 @@ async fn publications_that_never_finished_stop_filling_the_limit() {
 
 /// A replica that does not keep registration times shares this document, so a
 /// publication can be registered without one. Writing it off at once would let
-/// a collector run beside one still in flight, so it is stamped instead — and
+/// a collector run beside one still in flight, so it is stamped instead, and
 /// the pass reports that it changed something, because a stamp nobody persists
 /// is re-made on every read and outlives every expiry.
 #[tokio::test]
@@ -441,7 +441,7 @@ async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() 
 }
 
 /// A publication says at intervals that it is still working, so one that is
-/// merely slow is never mistaken for one that stopped — which is what keeps a
+/// merely slow is never mistaken for one that stopped, which is what keeps a
 /// collector from running beside it and taking what it has not finished with.
 #[tokio::test]
 async fn a_publication_still_working_says_so() {

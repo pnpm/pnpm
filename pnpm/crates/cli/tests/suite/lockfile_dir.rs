@@ -28,7 +28,7 @@ fn reported_up_to_date(ndjson: &str) -> bool {
         .any(|line| line.contains(r#""message":"Already up to date""#))
 }
 
-/// The `importers:` keys of the lockfile at `lockfile_dir`, sorted —
+/// The `importers:` keys of the lockfile at `lockfile_dir`, sorted,
 /// the parsed map is a `HashMap`, so only the serialized file is ordered.
 fn importer_ids(lockfile_dir: &Path) -> Vec<String> {
     let mut ids: Vec<String> = pnpm_lockfile::Lockfile::load_wanted_from_dir(lockfile_dir)
@@ -201,7 +201,7 @@ fn adopting_lockfile_dir_re_installs_at_the_pin() {
 }
 
 /// A repeat install against a pinned lockfile reads the state the
-/// previous one wrote at the pin, so it short-circuits — and the
+/// previous one wrote at the pin, so it short-circuits, and the
 /// `verifyDepsBeforeRun` gate reads the same state, so `pnpm run` finds
 /// the dependencies current instead of reinstalling before every script.
 #[cfg(unix)]
@@ -263,7 +263,7 @@ fn a_pinned_install_is_current_for_repeat_installs_and_for_run() {
 
 /// `sharedWorkspaceLockfile: false` asks for a lockfile per project, but
 /// an explicit `lockfileDir` names the one directory they all share, so
-/// the pin wins — as it does in pnpm, whose recursive dispatch routes any
+/// the pin wins, as it does in pnpm, whose recursive dispatch routes any
 /// run with a `lockfileDir` through its shared-lockfile branch.
 #[test]
 fn a_pin_overrides_dedicated_per_project_lockfiles() {

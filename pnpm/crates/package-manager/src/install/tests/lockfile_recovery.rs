@@ -26,7 +26,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     let dirs = InstallDirs::new();
 
     let manifest_path = dirs.path().join("package.json");
-    // Deliberately omit the `placeholder` dep — this drifts from
+    // Deliberately omit the `placeholder` dep, this drifts from
     // `PARTIAL_INSTALL_LOCKFILE`'s importer entry.
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
@@ -245,15 +245,15 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
         Ok(&*workspace_root),
     );
 }
-/// Regression: a single-project install with NO lockfile anywhere —
+/// Regression: a single-project install with NO lockfile anywhere,
 /// `pnpm-lock.yaml` is gone and the virtual store has no current
-/// `lock.yaml` to stand in for it — must NOT short-circuit, even when
+/// `lock.yaml` to stand in for it, must NOT short-circuit, even when
 /// `node_modules` and the workspace-state file survive. There is
 /// nothing to content-check the manifests against and nothing to
-/// regenerate `pnpm-lock.yaml` from, so the full install must run —
+/// regenerate `pnpm-lock.yaml` from, so the full install must run,
 /// the missing-lockfile case converts into `upToDate: false`. When
 /// the current lockfile IS present, the fast path instead treats it
-/// as the wanted lockfile —
+/// as the wanted lockfile,
 /// see `regenerates_missing_wanted_lockfile_from_current_when_manifests_unchanged`
 /// in the `optimistic_repeat_install` tests. Companion to the
 /// workspace-mode tolerance proved by
@@ -284,7 +284,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
     manifest.save().unwrap();
 
     // Deliberately do NOT write `pnpm-lock.yaml` and do NOT seed a
-    // current `lock.yaml` in the virtual store — that's the scenario
+    // current `lock.yaml` in the virtual store, that's the scenario
     // under test.
 
     let mut config = Config::new();
@@ -300,7 +300,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
         optional_dependencies: false,
     };
 
-    // Seed `.modules.yaml` and a fresh workspace state — same shape
+    // Seed `.modules.yaml` and a fresh workspace state, same shape
     // as the happy-path optimistic test above. The only difference
     // is the missing `pnpm-lock.yaml`.
     let seed_modules = Modules {
@@ -350,7 +350,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
     )
     .expect("seed workspace state");
 
-    // We're not testing the full install pipeline here — without a
+    // We're not testing the full install pipeline here, without a
     // lockfile on disk the fresh-resolve path would try to resolve
     // `link:../sibling` against a directory that doesn't exist. We
     // only need to prove the optimistic short-circuit did NOT fire,
@@ -421,7 +421,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
 }
 /// A fresh install records its lockfile-verification verdict, so a
 /// repeat install that reaches the full path (the optimistic fast
-/// path is disabled here — it would otherwise absorb the touched
+/// path is disabled here, it would otherwise absorb the touched
 /// manifest via the content re-check) hits the cache and never fans
 /// out to the registry.
 #[tokio::test]

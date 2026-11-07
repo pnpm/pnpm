@@ -140,7 +140,7 @@ fn fast_fail_client_with_connect_timeout(connect_timeout: Duration) -> Throttled
 
 /// Default `RetryOpts` for unit tests. We don't want the suite to
 /// sit through pnpm's 10 s + 60 s production backoff just to assert
-/// that an unreachable URL eventually fails — every test that
+/// that an unreachable URL eventually fails, every test that
 /// exercises a network call here either short-circuits to a cache
 /// hit or expects the failure path. `retries: 0` keeps the failure
 /// path deterministic and bounded by [`fast_fail_client`]'s 1 s
@@ -196,7 +196,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
 
 /// Build a gzipped tar that inflates to more than
 /// [`MAX_UNTRUSTED_PREALLOC_BYTES`] from a compressed body small enough
-/// that [`should_stream_extract`] sees nothing suspicious about it — the
+/// that [`should_stream_extract`] sees nothing suspicious about it, the
 /// gzip bomb the eager decode ceiling exists for.
 ///
 /// `generated` entries are `(path, size)` pairs of filler produced
@@ -281,7 +281,7 @@ fn gzip_bytes(bytes: &[u8]) -> Vec<u8> {
 /// Real pnpm-published tarball (`@fastify/error@3.3.0`, 4.4 KiB).
 /// Embedded so the retry-success test below has a body that
 /// integrity-checks and extracts successfully on the retry attempt
-/// — which is the only way to exercise the post-network steps of
+///, which is the only way to exercise the post-network steps of
 /// the retry loop without going to the live registry.
 const FASTIFY_ERROR_TARBALL: &[u8] =
     include_bytes!("../../../tasks/micro-benchmark/fixtures/@fastify+error-3.3.0.tgz");
@@ -346,8 +346,8 @@ fn gzipped_archive(entries: &[(&str, &str)]) -> Vec<u8> {
 /// entries. Entries are stored uncompressed (`Stored`) so the test
 /// doesn't depend on the deflate backend the production reader
 /// uses; the zip reader handles both transparently. The high byte
-/// of `unix_mode` is the entry type per stat(2) — `0o100000` for a
-/// regular file — and the low bytes are the permission bits.
+/// of `unix_mode` is the entry type per stat(2), `0o100000` for a
+/// regular file, and the low bytes are the permission bits.
 fn build_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
     use std::io::Write;
     let mut buf = Vec::new();

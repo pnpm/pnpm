@@ -32,7 +32,7 @@ fn a_corepack_build_is_not_part_of_the_pinned_version() {
 
     assert_eq!(sync.version, PNPM_VERSION);
     // The specifier records the pin as the manifest writes it, the way the
-    // TypeScript CLI does — both stacks write the same lockfile.
+    // TypeScript CLI does, both stacks write the same lockfile.
     assert_eq!(sync.specifier, pin);
 }
 
@@ -48,7 +48,7 @@ fn a_range_pin_is_left_as_written() {
 }
 
 /// Every expectation is npm's own answer, read off
-/// `semver.satisfies(version, range, { includePrerelease: true })` — the
+/// `semver.satisfies(version, range, { includePrerelease: true })`, the
 /// call the TypeScript CLI checks the same pins with.
 #[test]
 fn a_version_is_matched_against_a_pin_the_way_npm_matches_it() {
@@ -59,7 +59,7 @@ fn a_version_is_matched_against_a_pin_the_way_npm_matches_it() {
         ("12.0.0-rc.7", ">=12", true),
         ("12.0.0-rc.7", "^11 || ^12", true),
         // A prerelease sorts below its own release, so a pin naming a later
-        // one — or the release itself — leaves it behind.
+        // one, or the release itself, leaves it behind.
         ("12.0.0-rc.7", ">=12.0.0-rc.9", false),
         ("12.0.0-rc.7", "^12.0.0-rc.11", false),
         ("12.0.0-rc.7", "12.0.0", false),

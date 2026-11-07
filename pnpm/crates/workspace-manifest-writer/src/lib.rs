@@ -127,7 +127,7 @@ pub enum UpdateWorkspaceManifestError {
 ///
 /// The block-style writers splice `value` into a single `key: value` /
 /// `- item` line. A control character forces a multi-line scalar and
-/// corrupts the document outright; a separator is subtler — the emitter
+/// corrupts the document outright; a separator is subtler, the emitter
 /// folds the scalar and the parser reads back the folding indentation as
 /// part of the value, so the write silently succeeds with a mangled
 /// value. The values these writers handle (GHSA ids, version-policy
@@ -456,7 +456,7 @@ pub enum EditManifestFieldError {
 
 /// Set or delete a top-level field of the YAML document `original`, returning
 /// the text to write back rather than touching the filesystem, so a caller that
-/// owns its own I/O — `pnpm login` writing through its capability seam — can
+/// owns its own I/O, `pnpm login` writing through its capability seam, can
 /// reuse the format-preserving edit. [`update_manifest_field`] is this function
 /// plus the read and the atomic write.
 ///

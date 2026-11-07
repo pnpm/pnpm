@@ -74,7 +74,7 @@ pub enum BuildModulesError {
     #[diagnostic(code(ERR_PNPM_PATCHED_MANIFEST_UNREADABLE))]
     PatchedManifestUnreadable { dep_path: String },
 
-    /// `ERR_PNPM_PATCH_FILE_PATH_MISSING` — fired when a snapshot's
+    /// `ERR_PNPM_PATCH_FILE_PATH_MISSING`, fired when a snapshot's
     /// resolved patch carries a hash but
     /// no `patch_file_path`. The hash-without-path shape can come
     /// from the lockfile when no live config provides the path, so
@@ -105,9 +105,9 @@ pub enum BuildModulesError {
     /// inside the store, so applying a patch or running an approved
     /// lifecycle script writes into the store. `frozen_store` promises
     /// the store is complete and read-only, so the build cannot run.
-    /// A complete seed never reaches here — patched and built packages
+    /// A complete seed never reaches here, patched and built packages
     /// are imported from the side-effects cache and skipped by the
-    /// `is_built` gate — so this means the seed is missing build
+    /// `is_built` gate, so this means the seed is missing build
     /// output, surfaced as `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`.
     #[display("Cannot build {package} because the store is read-only (frozenStore is enabled)")]
     #[diagnostic(
@@ -160,7 +160,7 @@ pub enum BuildModulesError {
 ///
 /// Effect on [`BuildModules`]: a selected package is built even when the
 /// side-effects cache reports it already built (an explicit rebuild always
-/// re-runs the scripts). The allow-policy gate is unchanged — a rebuild
+/// re-runs the scripts). The allow-policy gate is unchanged, a rebuild
 /// never builds a disallowed package. A package outside the selection is
 /// neither inspected nor built, as under pnpm's `rebuild <pkg>`; the
 /// ignored-builds record keeps the entries of the packages a partial
@@ -168,7 +168,7 @@ pub enum BuildModulesError {
 #[derive(Debug, Default, Clone)]
 pub struct RebuildOptions {
     /// Allow-build keys (the package name for registry deps, the full
-    /// pkgId for git/tarball artifacts — see
+    /// pkgId for git/tarball artifacts, see
     /// [`allow_build_key_from_ignored_build`]) to force past the
     /// side-effects `is_built` gate. `None` forces every build-needing
     /// package (`pnpm rebuild` with no arguments); `Some(keys)` forces
@@ -178,7 +178,7 @@ pub struct RebuildOptions {
     pub selected_names: Option<HashSet<String>>,
 
     /// Importer ids whose own deferred install scripts this rebuild
-    /// should run — `pnpm rebuild --pending` reads them out of
+    /// should run, `pnpm rebuild --pending` reads them out of
     /// `.modules.yaml`'s `pendingBuilds`. A dependency's build is settled
     /// by the rebuild itself; a project's is only settled by running its
     /// scripts, which nothing else in the rebuild path does.
@@ -213,7 +213,7 @@ impl RebuildOptions {
     }
 
     /// Whether this rebuild discharges the workspace project recorded
-    /// under `importer_id`, which only running its own scripts can do —
+    /// under `importer_id`, which only running its own scripts can do,
     /// dropping one the rebuild never ran would forget the debt rather
     /// than settle it.
     #[must_use]
@@ -227,7 +227,7 @@ impl RebuildOptions {
     /// `dep_path`, which it does by rebuilding it.
     ///
     /// The caller decides which of the two a `.modules.yaml`
-    /// `pendingBuilds` entry is — an importer id and a dep path are both
+    /// `pendingBuilds` entry is, an importer id and a dep path are both
     /// plain strings on disk, and a workspace directory named
     /// `foo@1.0.0` parses as either.
     #[must_use]
@@ -264,7 +264,7 @@ pub struct BuildModules<'a> {
     /// disk.
     pub skipped: &'a SkippedSnapshots,
 
-    /// Forced-rebuild selection. `None` for a normal install — every
+    /// Forced-rebuild selection. `None` for a normal install, every
     /// package follows the standard `requires_build` + allow-policy +
     /// side-effects-cache gates. `Some` (a `pacquet rebuild` /
     /// `approve-builds`) restricts the inspection and the build to the
@@ -287,12 +287,12 @@ pub struct BuildModulesOutput {
     /// ignored. These become `.modules.yaml`'s `pendingBuilds`, which
     /// `pnpm rebuild --pending` later drains.
     ///
-    /// Peers are kept here — unlike `ignored_builds`, whose keys are an
+    /// Peers are kept here, unlike `ignored_builds`, whose keys are an
     /// `allowBuilds` lookup, these address a materialized slot.
     pub deferred_builds: Vec<String>,
 
     /// Whether any linked slot's contents may have changed during the
-    /// build phase — a side-effects overlay was applied, a patch ran,
+    /// build phase, a side-effects overlay was applied, a patch ran,
     /// or a lifecycle script was attempted. `false` on the common warm
     /// install where every candidate was ignored, deferred, or already
     /// built, which lets the post-build importer bin relink skip
@@ -322,7 +322,7 @@ fn empty_build_output(bin_state: &crate::build_options::BuildBinState) -> BuildM
 
 impl BuildModules<'_> {
     /// Run the build, reporting the packages that needed one but did
-    /// not get it — see [`BuildModulesOutput`].
+    /// not get it, see [`BuildModulesOutput`].
     pub fn run<Reporter: self::Reporter>(self) -> Result<BuildModulesOutput, BuildModulesError> {
         self.run_with_bin_state::<Reporter>(&crate::build_options::BuildBinState::default())
     }
@@ -350,7 +350,7 @@ impl BuildModules<'_> {
         );
 
         // Collect peer-stripped keys so the final list is unique and
-        // sorted lexicographically — matches `dedupePackageNamesFromIgnoredBuilds`.
+        // sorted lexicographically, matches `dedupePackageNamesFromIgnoredBuilds`.
         // `Mutex` for the same parallelism reason as the dep-state cache.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
         let project_bin_dirs = self.project_bin_dirs(snapshots);
@@ -369,7 +369,7 @@ impl BuildModules<'_> {
 
         // If a scheduler worker panicked while holding the
         // `ignored_builds` lock, the scheduler will have
-        // already propagated the panic (or returned an Err) — so a
+        // already propagated the panic (or returned an Err), so a
         // poisoned mutex here can only mean the protected state is
         // mid-insertion. A `BTreeSet::insert` is one atomic
         // operation from the data-structure's POV (no torn writes),
@@ -499,7 +499,7 @@ impl BuildModules<'_> {
     }
 
     /// Build the dep graph + state cache only when the
-    /// side-effects-cache gate has a chance of firing — on either the
+    /// side-effects-cache gate has a chance of firing, on either the
     /// READ side (prefetch surfaced cache rows) or the WRITE side (the
     /// install will be populating new cache entries after a successful
     /// build).
@@ -512,7 +512,7 @@ impl BuildModules<'_> {
     /// produces the exact same cache keys as the full graph for every
     /// root we'll query. A pure-JS install with no `requires_build`
     /// snapshots feeds in an empty root iterator and the function
-    /// returns immediately — O(0) walk for that path.
+    /// returns immediately, O(0) walk for that path.
     fn dep_states(
         &self,
         snapshots: &HashMap<PackageKey, SnapshotEntry>,

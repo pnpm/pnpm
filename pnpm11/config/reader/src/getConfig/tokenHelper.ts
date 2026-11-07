@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 
 /**
  * tokenHelper names an executable pnpm runs, so it must only come from trusted,
- * non-repo config sources (~/.npmrc and the global auth.ini) — never from a
+ * non-repo config sources (~/.npmrc and the global auth.ini), never from a
  * workspace or project .npmrc, which could otherwise execute arbitrary commands.
  * The trusted config merges exactly those trusted sources and excludes the repo ones.
  */

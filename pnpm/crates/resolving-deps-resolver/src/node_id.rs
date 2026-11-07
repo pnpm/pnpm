@@ -8,13 +8,13 @@ use std::sync::{
 /// A [`NodeId`] is either a number from a monotonic counter or a string
 /// reused for leaf packages (no children, no peers). String ids for
 /// `link:<rel-path>` linked local workspace packages aren't produced
-/// yet — workspace-link resolution hasn't been implemented.
+/// yet, workspace-link resolution hasn't been implemented.
 ///
 /// Leaves share a single tree node across every parent that references
 /// them.
 ///
-/// The derived ordering — counters before leaves, counters by their
-/// numeric value, leaves by package id — is what the peer-resolution
+/// The derived ordering, counters before leaves, counters by their
+/// numeric value, leaves by package id, is what the peer-resolution
 /// passes sort by to keep their output independent of hash iteration
 /// order.
 ///

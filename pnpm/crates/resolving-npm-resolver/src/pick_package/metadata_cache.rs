@@ -41,7 +41,7 @@ pub trait PackageMetaCache: Send + Sync {
     fn get(&self, key: &str) -> Option<CachedPackument>;
     /// Insert/overwrite `meta` under `key`. The orchestrator inserts
     /// after a fresh fetch and after any disk-fast-path that returns
-    /// successfully — populating the cache from the disk read avoids
+    /// successfully, populating the cache from the disk read avoids
     /// re-paying the `spawn_blocking` + `serde_json::from_str` for
     /// every later resolve of the same `(registry, name)` within the
     /// install. The cache is install-scoped, so a disk-loaded entry
@@ -60,8 +60,8 @@ pub trait PackageMetaCache: Send + Sync {
     /// registry-unverified: it was parsed straight from the on-disk
     /// mirror without a validating registry round-trip, so it may
     /// predate versions the registry has. [`fn@crate::pick_package`] uses the
-    /// state to fall through to a conditional registry request —
-    /// instead of failing the pick — when a cache hit on such an entry
+    /// state to fall through to a conditional registry request,
+    /// instead of failing the pick, when a cache hit on such an entry
     /// can't satisfy the requested spec and the resolver isn't offline.
     /// The verified [`PackageMetaCache::set`] the fetch then performs
     /// replaces the entry, so each package revalidates at most once.
@@ -83,7 +83,7 @@ pub trait PackageMetaCache: Send + Sync {
 /// Both maps key on the string [`PackageMetaCache`] uses
 /// (`{registry}\x00{name}` for abbreviated, `{registry}\x00{name}:full` for
 /// full), so two callers asking for different forms of the same packument
-/// don't accidentally serialize — the `metaDir` differentiator is embedded
+/// don't accidentally serialize, the `metaDir` differentiator is embedded
 /// in the key.
 ///
 /// The state is install-scoped rather than hung on [`Package`] because a
@@ -146,7 +146,7 @@ pub fn shared_packument_fetch_locker() -> PackumentFetchLocker {
 /// Shared across [`crate::NpmResolver`] (default + JSR registries)
 /// and [`crate::NamedRegistryResolver`] (`<alias>:` specifiers).
 /// The key includes `registry` because two registries can serve
-/// different artifacts under the same `name@version` — a public
+/// different artifacts under the same `name@version`, a public
 /// `lodash@4.17.21` and a privately-hosted package of the same
 /// name-version pair are not interchangeable, and a registry-
 /// agnostic key would hand one resolver the other's manifest,
@@ -167,7 +167,7 @@ pub fn shared_picked_manifest_cache() -> PickedManifestCache {
 ///
 /// Every resolve edge consults the cache before anything else, so on
 /// a large graph the map takes tens of thousands of lookups from all
-/// runtime workers at once — a single `Mutex<HashMap>` here was the
+/// runtime workers at once, a single `Mutex<HashMap>` here was the
 /// top contention point of a warm-resolve time profile.
 #[derive(Debug, Default)]
 pub struct InMemoryPackageMetaCache {

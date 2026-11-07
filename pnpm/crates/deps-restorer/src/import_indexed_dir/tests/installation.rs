@@ -112,7 +112,7 @@ fn valid_windows_filename_is_not_sanitized_without_an_import_error() {
 }
 
 /// Default opts (isolated linker) short-circuit when the target holds the
-/// completion marker — the load-bearing invariant that a fully-imported
+/// completion marker, the load-bearing invariant that a fully-imported
 /// virtual-store slot is never re-imported. A marker-less directory is
 /// repaired instead (see [`partial_dir_without_marker_is_repaired`]).
 #[test]
@@ -190,7 +190,7 @@ fn fresh_target_creates_nested_directories() {
     assert_eq!(fs::read(target.join("lib/deep/nested/file.js")).unwrap(), b"deeper");
 }
 /// Two staging paths produced back-to-back in the same process must
-/// differ — otherwise concurrent rayon workers would collide on the
+/// differ, otherwise concurrent rayon workers would collide on the
 /// rename target. Uses the function indirectly via two force re-installs
 /// in parallel.
 #[test]

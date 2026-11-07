@@ -47,7 +47,7 @@ export function createTarballFileWriterFactory (storeDir: string): TarballFileWr
     },
     publish: async () => {
       for (const file of pending) {
-        // eslint-disable-next-line no-await-in-loop -- a digest is reused after its first publication
+        // eslint-disable-next-line no-await-in-loop, a digest is reused after its first publication
         await reuseOrPublishFile(file)
       }
     },

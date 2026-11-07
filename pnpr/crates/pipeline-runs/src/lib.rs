@@ -1,11 +1,11 @@
 //! The pipeline run-record store: append-only CI run summaries and event
-//! streams, namespaced by organization and workspace. Tier 1 of the pnpm CI-server design —
+//! streams, namespaced by organization and workspace. Tier 1 of the pnpm CI-server design,
 //! the server remembers what `pnpm pipeline` runs reported, and nothing
 //! more: it schedules nothing and executes nothing.
 //!
 //! Records are testimony about something that happened once, not
-//! regenerable derived data, so they live in the hosted store — the
-//! authoritative one every replica of a deployment shares — rather than on
+//! regenerable derived data, so they live in the hosted store, the
+//! authoritative one every replica of a deployment shares, rather than on
 //! the replica that happened to receive the submission.
 
 use pnpr_error::{RegistryError, Result};
@@ -27,7 +27,7 @@ const RECORD_SUFFIX: &str = ".json";
 
 /// One submitted run: the machine-readable account `pnpm pipeline`
 /// produced, verbatim. The server stores the summary and events as
-/// opaque JSON — their shape belongs to the client, so a client update
+/// opaque JSON, their shape belongs to the client, so a client update
 /// does not require a server release.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,7 +68,7 @@ impl PipelineRunStore {
     }
 
     /// Record one run. Append-only: a run id that already exists for the
-    /// workspace is refused rather than overwritten — a results store
+    /// workspace is refused rather than overwritten, a results store
     /// whose history can be rewritten protects nothing.
     pub async fn publish(&self, run: &PublishPipelineRun) -> Result<()> {
         validate_name(&run.org, "org")?;
@@ -96,7 +96,7 @@ impl PipelineRunStore {
         })
     }
 
-    /// The most recent runs across `orgs`, newest first — run ids sort by
+    /// The most recent runs across `orgs`, newest first, run ids sort by
     /// their leading timestamp. `workspace` narrows the listing to one
     /// workspace.
     ///
@@ -129,7 +129,7 @@ impl PipelineRunStore {
         Ok(entries)
     }
 
-    /// One run's full record — summary and event stream — or `None` when
+    /// One run's full record, summary and event stream, or `None` when
     /// nothing was recorded under that identity.
     pub async fn get(
         &self,
@@ -169,7 +169,7 @@ struct RunIdentity {
 /// Keep the `limit` highest run identities of one organization's listing.
 ///
 /// Only what this store writes is a run: anything else under the
-/// organization — a nested path, a file with another suffix — is passed over
+/// organization, a nested path, a file with another suffix, is passed over
 /// rather than failing the listing.
 fn keep_newest_runs(
     newest: &mut BTreeSet<RunIdentity>,
@@ -197,8 +197,8 @@ fn keep_newest_runs(
 
 /// The identifiers key filesystem paths, so their alphabet is closed:
 /// ASCII alphanumerics plus `.`, `_`, `-`, never starting with a dot.
-/// Anything else — separators, traversal, control characters, an empty
-/// string — is refused before it reaches a path join.
+/// Anything else, separators, traversal, control characters, an empty
+/// string, is refused before it reaches a path join.
 fn validate_name(name: &str, field: &str) -> Result<()> {
     let valid = !name.is_empty()
         && name.len() <= MAX_NAME_LEN

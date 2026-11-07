@@ -1,7 +1,7 @@
 use super::{WorkspaceSettings, assert_eq};
 
-/// An empty `scope` is a value like any other — it would clear a scope the
-/// global `config.yaml` set — so it is refused like a non-empty one, while a
+/// An empty `scope` is a value like any other, it would clear a scope the
+/// global `config.yaml` set, so it is refused like a non-empty one, while a
 /// file that names no scope reports nothing.
 #[test]
 fn an_empty_scope_is_refused_and_a_missing_one_is_not_reported() {

@@ -1,6 +1,6 @@
 //! Resolves `deno@runtime:<spec>` dependencies. Two pieces:
 //!
-//! 1. **Version selection** delegates to the npm resolver — Deno
+//! 1. **Version selection** delegates to the npm resolver, Deno
 //!    publishes a `deno` package on the registry whose `manifest.version`
 //!    field tracks every GitHub release. Using the registry avoids the
 //!    paginated GitHub releases API and keeps `minimumReleaseAge`

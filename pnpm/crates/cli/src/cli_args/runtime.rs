@@ -117,7 +117,7 @@ impl RuntimeArgs {
     /// directory. Mirrors pnpm's `runtime set … -g`, which runs
     /// `pnpm add <name>@runtime:<version> --global` against the pnpm home
     /// directory. `--save-dev` / `--save-prod` are ignored for a global
-    /// install — like every `pnpm add -g`, the global group always saves to
+    /// install, like every `pnpm add -g`, the global group always saves to
     /// `dependencies`.
     pub async fn run_global<Reporter: self::Reporter + 'static>(
         self,

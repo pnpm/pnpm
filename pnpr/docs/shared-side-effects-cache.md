@@ -140,7 +140,7 @@ Every field of the section is also settable from the environment, which wins
 over both files. This is the shape a CI runner wants for material it must not commit:
 
 | Environment variable | Setting |
-| --- | --- |
+|,- |,- |
 | `PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS` | `trustedKeys` (JSON object) |
 | `PNPM_SIDE_EFFECTS_CACHE_REMOTE_PRIVATE_KEY` | `privateKey` |
 | `PNPM_SIDE_EFFECTS_CACHE_REMOTE_PUBLISH` | `publish` |
@@ -207,11 +207,11 @@ variant), rather than expecting `publish` to bypass the lookup.
 
 Generate a key pair with Node.js:
 
-<!-- cspell:disable -->
+<!-- cspell:disable,>
 ```sh
 node -e "const {generateKeyPairSync}=require('node:crypto');const {privateKey,publicKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});console.log('private='+privateKey.export({format:'der',type:'pkcs8'}).toString('base64'));console.log('public='+publicKey.export({format:'der',type:'spki'}).toString('base64'))"
 ```
-<!-- cspell:enable -->
+<!-- cspell:enable,>
 
 Keep the private key in the builder's environment, and hand the public key to
 every machine that installs, under the same key id.

@@ -51,7 +51,7 @@ impl SharedArtifactStore {
     /// holding reclamation shut. Renewing keeps that from reaching a
     /// publication that is merely slow: it takes every renewal across the
     /// expiry failing for a live one to go quiet long enough. That is why the
-    /// recovery afterwards is not redundant — renewals can fail — but it is
+    /// recovery afterwards is not redundant, renewals can fail, but it is
     /// what makes needing it rare rather than ordinary.
     ///
     /// The renewals are a branch of the select rather than a handler around it,
@@ -108,7 +108,7 @@ impl SharedArtifactStore {
             // The scopes stay claimed. Giving them back here cannot be ordered
             // against a publication of the same envelope, which recognises these
             // markers rather than creating its own and can store the artifact at
-            // any point around the giving back — every arrangement of reading
+            // any point around the giving back, every arrangement of reading
             // and deleting leaves one interleaving that takes the scopes out
             // from under an artifact that is stored. Reclamation runs only when
             // no publication is in flight, so it can tell a scope no artifact
@@ -335,7 +335,7 @@ impl SharedArtifactStore {
     ///
     /// The winner is read before the quota is released and inspected after, so
     /// that a store error here cannot return while this publication is still
-    /// charged for an envelope it did not store — a leak that would accumulate
+    /// charged for an envelope it did not store, a leak that would accumulate
     /// silently and eventually refuse publications that fit.
     pub(super) async fn settle_envelope(
         &self,

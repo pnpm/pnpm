@@ -2,7 +2,7 @@
 //!
 //! `pnpm_reporter::Reporter` is a compile-time trait with an associated
 //! `emit(event)` and no `&self`, so an implementation cannot capture a
-//! per-call closure — any state must live in a `static`. [`NodeBridgeReporter`]
+//! per-call closure, any state must live in a `static`. [`NodeBridgeReporter`]
 //! therefore forwards each event, serialized to JSON, into a process-global
 //! [`ThreadsafeFunction`] that a JS host installs for the duration of one
 //! engine call. pacquet's `LogEvent` stream is wire-compatible with
@@ -124,7 +124,7 @@ pub fn take_stats() -> InstallStats {
 
 /// RAII guard over one engine call's global reporter state. Installs `sink`
 /// (when the caller supplied one) as the process-global log sink and restores
-/// the previously installed sink on drop — including on unwind. Without this, a
+/// the previously installed sink on drop, including on unwind. Without this, a
 /// panic in a worker thread would leave a stale sink installed, misrouting a
 /// later caller's log events to a dead JS callback. Any un-taken stats are also
 /// discarded on drop so a panicked call cannot bleed counts into the next one.

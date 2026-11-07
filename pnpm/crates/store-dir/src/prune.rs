@@ -2,14 +2,14 @@
 //!
 //! Mark-and-sweep over `<store_dir>/links/<scope>/<name>/<version>/<hash>`:
 //!
-//! 1. **Mark** — walk every registered project (see
+//! 1. **Mark**, walk every registered project (see
 //!    [`crate::get_registered_projects`]). For each project, find every
 //!    `node_modules/` directory (root + workspace packages), follow every
 //!    symlink it contains, and if the symlink target lands under
 //!    `<store_dir>/links/...` record the slot path
 //!    (`<scope>/<name>/<version>/<hash>`) as reachable. Then recurse
 //!    into the slot's own `node_modules/` for transitive deps.
-//! 2. **Sweep** — walk the four-level
+//! 2. **Sweep**, walk the four-level
 //!    `<scope>/<name>/<version>/<hash>` tree and remove every `<hash>`
 //!    that isn't in the reachable set. Empty `<version>/` and `<name>/`
 //!    parents are removed in a second pass.
@@ -57,7 +57,7 @@ pub enum PruneError {
     #[diagnostic(transparent)]
     StoreLock(#[error(source)] StoreLockError),
 
-    /// Surface from the read-side of the project registry — stale
+    /// Surface from the read-side of the project registry, stale
     /// entries that can't be unlinked, inaccessible registry dirs,
     /// or projects whose `stat` returned a permission error.
     #[diagnostic(transparent)]
@@ -304,7 +304,7 @@ fn list_subdirs(dir: &Path) -> Result<Vec<std::ffi::OsString>, PruneError> {
 
 /// Recursively remove an unreferenced slot directory and everything
 /// under it (`<store>/links/<scope>/<name>/<version>/<hash>/`). Used
-/// for the actual sweep target — that subtree is known unreachable
+/// for the actual sweep target, that subtree is known unreachable
 /// at this point, so a recursive remove is safe.
 fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
     match fs::remove_dir_all(path) {
@@ -322,7 +322,7 @@ fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
 /// propagates any other I/O error.
 ///
 /// Pacquet deliberately diverges from pnpm here. pnpm recursively
-/// removes the empty `<version>/`, `<name>/`, and `<scope>/` parents —
+/// removes the empty `<version>/`, `<name>/`, and `<scope>/` parents,
 /// a concurrent install that materialises a fresh slot in the window
 /// between [`list_subdirs`] and the parent cleanup would have its
 /// just-written tree wiped by that recursive remove. Using

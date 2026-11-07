@@ -97,7 +97,7 @@ fn run_flags_requires_build_when_binding_gyp_present() {
 fn run_returns_none_manifest_for_bit_workspace_directory_without_package_json() {
     // `safe_read_package_json_from_dir` returns `Ok(None)` when no
     // manifest variant exists (the `ENOENT` case). The fetcher must
-    // surface that as `manifest: None` rather than erroring — the
+    // surface that as `manifest: None` rather than erroring, the
     // Bit-workspace shape, where a directory has no `package.json`.
     let dir = tempdir().unwrap();
     let root = dir.path();

@@ -281,7 +281,7 @@ async fn install_emits_pnpm_event_sequence() {
     // Spot-check the context payload: pacquet's directories must
     // round-trip through the wire shape, and `currentLockfileExists`
     // is `false` on this first install because no `lock.yaml` exists
-    // in the (just-created) virtual store yet — pacquet writes the
+    // in the (just-created) virtual store yet, pacquet writes the
     // file at end-of-install, so the next install would see `true`.
     let LogEvent::Context(ContextLog {
         current_lockfile_exists,
@@ -457,14 +457,14 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
 
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
+    // Manifest must match `PARTIAL_INSTALL_LOCKFILE`, the freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    // Opt out of the GVS layout — see the rationale on
+    // Opt out of the GVS layout, see the rationale on
     // [`warm_reinstall_skips_snapshot_when_current_lockfile_matches`].
     // The pre-seeded `<dirs.virtual_store_dir>/<flat-name>` slot is the
     // legacy shape the probe matches; the BrokenModules emit fires
@@ -473,7 +473,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.install_state_dir = dirs.virtual_store_dir.clone();
-    // Skip fetch retries entirely — the install is expected to fail
+    // Skip fetch retries entirely, the install is expected to fail
     // after emitting `_broken_node_modules`, so any retry budget is
     // pure waste here.
     config.fetch_retries = 0;
@@ -485,7 +485,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         .expect("parse partial-install fixture lockfile");
 
     // Pre-seed the current lockfile but deliberately *not* the
-    // virtual-store slot — the cache key matches but the directory is
+    // virtual-store slot, the cache key matches but the directory is
     // gone (the `rm -rf node_modules/.pnpm/<slot>` scenario).
     std::fs::create_dir_all(&dirs.virtual_store_dir).unwrap();
     lockfile
@@ -493,7 +493,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         .expect("seed current lockfile");
 
     // The install will attempt to fetch the placeholder (bogus URL),
-    // which fails — what we're testing is that the broken-modules
+    // which fails, what we're testing is that the broken-modules
     // signal fires *before* the fetch happens. So we look for the
     // event in the captured set regardless of the final install
     // result.
@@ -574,7 +574,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
 /// The skip path drops the snapshot from both the warm and cold
 /// batches, so a warm reinstall must report `added: 0` and emit
 /// zero `pnpm:progress imported` events. Pre-seeds `lock.yaml` and
-/// the virtual-store slot manually here — the
+/// the virtual-store slot manually here, the
 /// [`context_log_reflects_current_lockfile_after_first_install`]
 /// test covers the read-after-write loop on its own, so this one
 /// can focus on the skip's reporter-visible effect.
@@ -597,14 +597,14 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
+    // Manifest must match `PARTIAL_INSTALL_LOCKFILE`, the freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    // Opt out of the GVS layout — the pre-seeded
+    // Opt out of the GVS layout, the pre-seeded
     // `<dirs.virtual_store_dir>/<flat-name>` slot is the legacy shape the
     // skip probe matches under
     // [`warm_reinstall_skips_snapshot_when_current_lockfile_matches`].
@@ -678,7 +678,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     .await
     .expect("warm reinstall should succeed via the skip path");
 
-    // Stats reports `added: 0` — the only snapshot is the one that
+    // Stats reports `added: 0`, the only snapshot is the one that
     // got skipped.
     let added: Vec<u64> = EVENTS
         .lock()
@@ -694,7 +694,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         .collect();
     assert_eq!(added, vec![0], "warm reinstall must report added: 0; got {added:?}");
 
-    // No per-snapshot `imported` progress event — the skip path
+    // No per-snapshot `imported` progress event, the skip path
     // removes the snapshot from both warm and cold batches.
     let imported_count = EVENTS
         .lock()
@@ -743,7 +743,7 @@ fn quick_verification_of_many_files_is_reported_as_churn() {
     );
 }
 /// Both thresholds are exclusive, and a healthy store sits far below
-/// either — the install says nothing at all.
+/// either, the install says nothing at all.
 #[test]
 fn verification_below_both_thresholds_is_not_reported() {
     for verified in [

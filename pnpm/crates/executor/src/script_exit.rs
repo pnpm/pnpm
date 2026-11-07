@@ -3,8 +3,8 @@ use std::fmt;
 
 /// How a script finished.
 ///
-/// A script either runs as a child shell — `sh -c`, `cmd /d /s /c`, or a
-/// custom `scriptShell` — or, under `shellEmulator`, inside pacquet's own
+/// A script either runs as a child shell, `sh -c`, `cmd /d /s /c`, or a
+/// custom `scriptShell`, or, under `shellEmulator`, inside pacquet's own
 /// process, where there is no child and therefore no [`ExitStatus`].
 /// Both answer the two questions every caller asks: did it succeed, and
 /// with which code.

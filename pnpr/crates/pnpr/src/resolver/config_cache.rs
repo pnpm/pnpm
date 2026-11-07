@@ -45,7 +45,7 @@ impl EffectiveResolverSettings {
     /// The client's own values whenever it sends them. A client that sends
     /// none (one older than
     /// [pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)) falls
-    /// back to the input lockfile on a frozen request — nothing is
+    /// back to the input lockfile on a frozen request, nothing is
     /// re-resolved there, the freshness gate compares these against the
     /// config, and the server's defaults would call a lockfile that is valid
     /// for its owner stale. On an update-capable request it falls back to the
@@ -85,7 +85,7 @@ impl EffectiveResolverSettings {
 /// configuration, interned by its canonical JSON so repeat requests reuse
 /// it. Returns `None` when the config can't be safely interned:
 ///
-/// * once `max_interned` distinct configurations have been interned — a
+/// * once `max_interned` distinct configurations have been interned, a
 ///   leaked config can never be reclaimed, so refusing to leak more is the
 ///   only real bound on the per-request leak (eviction would just let the
 ///   same key be re-leaked); or
@@ -149,7 +149,7 @@ pub(super) fn intern_config(
 /// Key on a sorted view of `overrides`: `serde_json` preserves insertion order
 /// and `IndexMap` is insertion-ordered, so the same overrides sent with a
 /// different key order would otherwise hash to distinct cache keys and intern
-/// duplicate leaked configs — defeating dedup and burning the cap faster.
+/// duplicate leaked configs, defeating dedup and burning the cap faster.
 pub(super) fn config_cache_key(
     request: &ResolveRequest,
     registry: &str,

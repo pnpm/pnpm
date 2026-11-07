@@ -4,7 +4,7 @@
 //! the hash-symlink helpers, the cache key) and the pure helpers of
 //! `@pnpm/global.commands` (bin-conflict detection, the `list -g`
 //! renderers). The command orchestration that drives an install per group
-//! lives in the CLI crate, alongside the install pipeline it needs —
+//! lives in the CLI crate, alongside the install pipeline it needs,
 //! mirroring how pnpm's `global.commands` sit above `installing.deps-installer`.
 
 pub use cache_key::create_global_cache_key;
@@ -38,7 +38,7 @@ use std::path::Path;
 ///
 /// A downloaded runtime (`node`/`deno`/`bun`) is stored under
 /// `devEngines.runtime` / `engines.runtime` on disk, not under a
-/// dependency field — the manifest writer folds `<name>: runtime:<v>`
+/// dependency field, the manifest writer folds `<name>: runtime:<v>`
 /// into it on save. Reifying it back into `dependencies` /
 /// `devDependencies` here (the same conversion
 /// [`pnpm_package_manifest::PackageManifest`] applies on read) lets

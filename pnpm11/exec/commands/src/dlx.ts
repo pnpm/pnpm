@@ -190,7 +190,7 @@ function createDlxResolver (opts: DlxCommandOptions): DlxResolve {
     },
     timeout: opts.fetchTimeout,
   })
-  // dlx has nowhere to "defer to" — it runs the resolved package directly.
+  // dlx has nowhere to "defer to", it runs the resolved package directly.
   // Wrap the resolver under any policy that wants to reject violations
   // up-front: strict minimumReleaseAge (refuse immature picks) and
   // `trustPolicy: 'no-downgrade'` (refuse versions whose trust evidence
@@ -354,7 +354,7 @@ async function getBinName (cachedDir: string, opts: Pick<DlxCommandOptions, 'eng
     // wild for `node@runtime:<version>` whose CAS slot was materialized by
     // a code path that didn't run pnpm's `appendManifest`, leaving the slot without
     // the `package.json` runtime archives don't ship themselves. Fall back
-    // to the scopeless package name — for single-bin packages (the dlx
+    // to the scopeless package name, for single-bin packages (the dlx
     // common case) it matches what `manifest.bin` would have named, and
     // the `node_modules/.bin/<name>` symlink the install already wired up
     // from the resolution's bin info is what `execa` resolves against.
@@ -397,7 +397,7 @@ function scopeless (pkgName: string): string {
  * `promptApproveGlobalBuilds` in @pnpm/global.commands.
  *
  * In non-interactive mode (no TTY, no commands map) this is a no-op and
- * the install is persisted to the dlx cache with builds skipped — same
+ * the install is persisted to the dlx cache with builds skipped, same
  * behavior as `pnpm add -g` in CI. Users who need the skipped scripts
  * to run can re-invoke dlx with `--allow-build=<pkg>`, which produces a
  * different cache key and forces a fresh install.

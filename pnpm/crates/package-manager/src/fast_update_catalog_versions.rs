@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 /// An override moves a package everywhere it appears. A catalog entry
 /// governs only the importers that reference it, so anything else
 /// reaching the package would have to keep the old version while those
-/// importers move — a graph holding both, which this cannot express.
+/// importers move, a graph holding both, which this cannot express.
 pub(crate) async fn try_fast_update_catalog_versions(
     context: &RewriteContext<'_>,
     catalogs: &Catalogs,
@@ -79,8 +79,8 @@ fn catalog_version_update(
         return Some(CatalogVersionUpdate::Unmoved(entry.clone()));
     }
     // Read after the unchanged case, which holds for an entry with no
-    // version of its own — a `file:` / `link:` entry records its path
-    // here — so one of those does not close the path for its siblings.
+    // version of its own, a `file:` / `link:` entry records its path
+    // here, so one of those does not close the path for its siblings.
     let locked = Version::parse(&entry.version).ok()?;
     // A specifier the locked version still satisfies moves nothing
     // but the specifier, exactly as the range-only path would.

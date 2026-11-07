@@ -16,8 +16,8 @@ use pnpm_workspace_spec::WorkspaceSpec;
 /// `catalog:` has no variant. The text after it names a catalog, not a
 /// package, so `catalog:foo` carries no name to key an entry by.
 pub(super) enum ProtocolSelector {
-    /// `npm:<name>[@<spec>]`. Nothing here is aliased — the install name is
-    /// the real package name — so the entry is saved as the plain
+    /// `npm:<name>[@<spec>]`. Nothing here is aliased, the install name is
+    /// the real package name, so the entry is saved as the plain
     /// `<name>[@<spec>]` request would be.
     Npm { name: String, spec: Option<String> },
     /// `jsr:@<scope>/<name>[@<selector>]`.
@@ -83,7 +83,7 @@ pub(super) fn protocol_package_name(name: &str, selector: &str) -> Result<String
 ///
 /// JSR ships every package on npm under the `@jsr` scope, so the version is
 /// picked through the same registry path a plain `@jsr/<scope>__<name>` add
-/// takes. `None` when that pick finds no version — the caller then keeps the
+/// takes. `None` when that pick finds no version, the caller then keeps the
 /// argument verbatim, as it does for any other unresolvable specifier.
 pub(super) async fn resolve_jsr_save_specifier(
     spec: &JsrSpec,

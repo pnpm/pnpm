@@ -4,7 +4,7 @@
 //! global `config.yaml`, `PNPM_CONFIG_*`, CLI flags) into one value per
 //! key and resolves the proxy cascade once over the result. A layer that
 //! names a key occupies it even when the value reads as unset, so the
-//! cascade falls through to *other keys* and to the environment — never
+//! cascade falls through to *other keys* and to the environment, never
 //! back to a lower-priority layer of the same key.
 //!
 //! [`ProxyKeys`] is that merged view: layers overwrite the keys they set,
@@ -22,7 +22,7 @@ use pnpm_network::ProxyConfig;
 /// non-strings, while a command-line flag carries its value verbatim.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum ProxyValue {
-    /// No layer configured this key — either none named it, or one named
+    /// No layer configured this key, either none named it, or one named
     /// it with a value that reads as unset. The two are indistinguishable
     /// once lower layers have been folded in, which is the point: a named
     /// key masks the layers below it whatever its value.
@@ -30,7 +30,7 @@ pub enum ProxyValue {
     Unset,
     Url(String),
     /// Proxying is off. Unlike [`Self::Unset`] this does not fall through
-    /// to the environment. Only the legacy `proxy` key has this form —
+    /// to the environment. Only the legacy `proxy` key has this form,
     /// `https-proxy` and `http-proxy` are tested for truthiness, so a
     /// `false` there reads as unset.
     Disabled,
@@ -138,7 +138,7 @@ impl ProxyKeys {
 /// One arm of the cascade, resolved.
 ///
 /// [`Self::Disabled`] and [`Self::Unset`] both end as "no proxy", but only
-/// `Disabled` stops the walk — see [`ProxyValue::Disabled`].
+/// `Disabled` stops the walk, see [`ProxyValue::Disabled`].
 enum Resolved<'a> {
     Url(&'a str),
     Disabled,

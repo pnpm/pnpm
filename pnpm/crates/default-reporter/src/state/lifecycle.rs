@@ -7,7 +7,7 @@ use super::{
 use std::fmt::Write as _;
 
 impl ReporterState {
-    // --- lifecycle --------------------------------------------------------
+    //,- lifecycle,------------------------------------------------------
 
     pub(super) fn on_lifecycle(&mut self, message: &LifecycleMessage) {
         let quiet = self.options.max_log_level < crate::MaxLogLevel::Info;

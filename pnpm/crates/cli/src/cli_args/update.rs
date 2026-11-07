@@ -346,7 +346,7 @@ impl UpdateArgs {
     /// Validate `--workspace` against the rest of the invocation,
     /// returning the workspace root the link targets are read from.
     /// `Ok(None)` means the flag was not passed. Every dispatch path
-    /// calls this before any resolution happens, `--global` included —
+    /// calls this before any resolution happens, `--global` included,
     /// the global directory is never a workspace.
     fn check_workspace_option<'root>(
         &self,

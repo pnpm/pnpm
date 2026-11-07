@@ -34,7 +34,7 @@ pub(super) fn assert_connection_closes(mut connection: std::net::TcpStream) {
 
     // A socket accepted from a non-blocking listener inherits that mode on
     // Windows, which makes the read below return `WouldBlock` at once and
-    // the timeout moot — the assertion would race the job object's cleanup
+    // the timeout moot, the assertion would race the job object's cleanup
     // rather than wait for it.
     connection.set_nonblocking(false).expect("set detached child connection blocking");
     connection

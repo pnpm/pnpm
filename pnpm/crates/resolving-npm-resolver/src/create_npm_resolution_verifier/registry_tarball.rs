@@ -29,7 +29,7 @@ pub(super) fn npm_registry_tarball(resolution: &LockfileResolution) -> Option<Op
             }
             Some(Some(t.tarball.as_str()))
         }
-        // Custom resolutions have no packument lookup — the pnpmfile
+        // Custom resolutions have no packument lookup, the pnpmfile
         // custom resolver, not the npm registry, is their authority.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)

@@ -1,4 +1,4 @@
-//! Integration tests for `PUT /-/pnpr/v0/publish` — one publish transaction
+//! Integration tests for `PUT /-/pnpr/v0/publish`, one publish transaction
 //! carrying packages of more than one ecosystem. Static-mode (no upstream) to
 //! keep the tests hermetic.
 

@@ -9,15 +9,15 @@ use axum::{
 pub struct PublicErrorMessage(pub String);
 
 impl RegistryError {
-    /// Whether a failed upstream fetch is a transient *availability* failure —
+    /// Whether a failed upstream fetch is a transient *availability* failure,
     /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
-    /// is an authoritative response about *this* request — `401`/`403` (auth),
-    /// `429` (throttle), `400`/`410`, etc. — and is **not** transient: it must
+    /// is an authoritative response about *this* request, `401`/`403` (auth),
+    /// `429` (throttle), `400`/`410`, etc., and is **not** transient: it must
     /// surface immediately rather than be masked (e.g. by serving a stale cache
     /// entry), which would let a revoked credential or a `410 Gone` keep being
     /// answered from old bytes.
     ///
-    /// A `404` never reaches here — it is modeled as a distinct not-found
+    /// A `404` never reaches here, it is modeled as a distinct not-found
     /// outcome, not an error.
     #[must_use]
     pub fn is_transient_upstream_error(&self) -> bool {
@@ -175,16 +175,16 @@ impl RegistryError {
     /// Map the error to the HTTP status the proxy should return to the
     /// client. Follows the standard gateway semantics:
     ///
-    /// * `502 Bad Gateway` — upstream returned a response the proxy cannot
+    /// * `502 Bad Gateway`, upstream returned a response the proxy cannot
     ///   use (5xx, malformed JSON, generic transport failure).
-    /// * `503 Service Unavailable` — couldn't reach upstream at all
+    /// * `503 Service Unavailable`, couldn't reach upstream at all
     ///   (DNS, connection refused, network unreachable). Distinct from
     ///   502 so pnpm clients see "service down" rather than "upstream
-    ///   misbehaved" — both trigger the client's retry loop, but the
+    ///   misbehaved", both trigger the client's retry loop, but the
     ///   distinction matters for monitoring and for any future circuit
     ///   breaker.
-    /// * `504 Gateway Timeout` — upstream took too long to respond.
-    /// * `400 Bad Request` — client-supplied package or tarball name
+    /// * `504 Gateway Timeout`, upstream took too long to respond.
+    /// * `400 Bad Request`, client-supplied package or tarball name
     ///   wasn't usable. Not retryable.
     #[must_use]
     pub fn status_code(&self) -> StatusCode {
@@ -244,7 +244,7 @@ impl RegistryError {
 }
 
 /// Only server faults need [`Self::log_message`]'s redaction: every variant
-/// that can embed a request URL — and so a credential — is one. The 401 / 403 /
+/// that can embed a request URL, and so a credential, is one. The 401 / 403 /
 /// 404 tier drops to `debug` so a probing or unauthorized client cannot flood
 /// the log with warnings.
 impl IntoResponse for RegistryError {

@@ -102,12 +102,12 @@ pub struct LinkVirtualStoreBins<'a> {
     pub package_bins: Option<&'a PackageBins>,
     /// Snapshots the installability pass marked optional+incompatible.
     /// Their slots were never created by [`crate::CreateVirtualStore`],
-    /// so the bin linker has nothing to walk for them — and any
+    /// so the bin linker has nothing to walk for them, and any
     /// child-manifest disk read against their non-existent
     /// `<slot>/node_modules/<alias>` would fail. Excluding them up
     /// front matches the rest of the install pipeline's filtering.
     pub skipped: &'a SkippedSnapshots,
-    /// [`shim_link_options`] output — pnpm threads the same
+    /// [`shim_link_options`] output, pnpm threads the same
     /// `extraNodePaths` into slot-internal bin shims as into importer
     /// bins.
     pub link_options: &'a LinkBinsOptions,
@@ -216,11 +216,11 @@ impl LinkVirtualStoreBins<'_> {
 /// Return-value semantics distinguish "lockfile metadata absent"
 /// from "lockfile metadata says no package has a bin":
 ///
-/// - `None` — the lockfile's `packages:` section wasn't supplied
+/// - `None`, the lockfile's `packages:` section wasn't supplied
 ///   (pathological lockfile shape). We have no info, so the bin
 ///   linker falls back to the conservative "process every child"
 ///   path and lets the per-package bin resolver sort it out.
-/// - `Some(set)` — the section was present and we used it. The
+/// - `Some(set)`, the section was present and we used it. The
 ///   `set` contains entries with `hasBin == Some(true)`, runtimes whose
 ///   bin metadata lives in their resolution, and local directories whose
 ///   generated metadata does not carry `hasBin`; an
@@ -255,7 +255,7 @@ pub(crate) fn may_have_bin(meta: &PackageMetadata) -> bool {
 
 /// Pre-compute the set of package keys that ship dependencies inside their
 /// own tarball. Presence of the lockfile's `bundledDependencies` field is
-/// the signal, whatever its shape — a name list and the `true` form both
+/// the signal, whatever its shape, a name list and the `true` form both
 /// mean the package carries a populated `node_modules` of its own.
 ///
 /// Unlike [`build_has_bin_set`] there is no "metadata absent" case to
@@ -305,7 +305,7 @@ struct SlotBinContext<'a> {
 ///    fixture).
 /// 2. The slot's own package, when it carries a bin. It is appended
 ///    unconditionally and the reader's manifest check drops it when
-///    there is nothing to write — so for a package like
+///    there is nothing to write, so for a package like
 ///    `hello-world-js-bin` (no deps, one bin) this writes
 ///    `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>` as a
 ///    self-shim.
@@ -407,7 +407,7 @@ fn push_child_bin_sources<Sys: FsReadFile>(
 /// Whether the lockfile says this package declares a bin. No
 /// `has_bin_set` means the lockfile had no `packages:` section, so
 /// every package stays a candidate and the downstream manifest read
-/// decides — an over-inclusion costs at most one `package.json` read.
+/// decides, an over-inclusion costs at most one `package.json` read.
 fn declares_bin(has_bin_set: Option<&HashSet<PackageKey>>, metadata_key: &PackageKey) -> bool {
     has_bin_set.is_none_or(|set| set.contains(metadata_key))
 }
@@ -433,8 +433,8 @@ fn children_with_bins<'a>(
 }
 
 /// Add the bin source of the package at `location`: the parsed manifest
-/// the warm-cache prefetch already holds, or — for a cold-batch package
-/// downloaded during this run, whose row isn't in the prefetched map — a
+/// the warm-cache prefetch already holds, or, for a cold-batch package
+/// downloaded during this run, whose row isn't in the prefetched map, a
 /// disk read on the same code path the non-lockfile install takes (see
 /// [`run_with_readdir`]).
 ///
@@ -490,7 +490,7 @@ fn slot_own_pkg_dir(modules_dir: &Path, slot_key: &PackageKey) -> PathBuf {
 /// Join a package name onto a `node_modules` directory, handling the
 /// `@scope/name` split into two path components. Operates on the raw
 /// [`PkgName`] (whose `scope` and `bare` fields are already split),
-/// not on the virtual-store-name form — for instance the input
+/// not on the virtual-store-name form, for instance the input
 /// represents `@types/node`, **not** `@types+node`.
 fn pkg_dir_under(modules_dir: &Path, name: &PkgName) -> PathBuf {
     match &name.scope {

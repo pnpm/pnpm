@@ -8,7 +8,7 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 /**
  * Subset of {@link ResolutionVerifier} the cache layer needs: the
  * verifier's `policy` contribution plus the `canTrustPastCheck`
- * comparator. `verify` is intentionally absent — the cache never runs
+ * comparator. `verify` is intentionally absent, the cache never runs
  * verifiers, it just decides whether a previous run is still
  * trustworthy.
  */
@@ -17,11 +17,11 @@ export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'policy' | 'canTrus
 /**
  * On-disk cache of verifyLockfileResolutions results, keyed by lockfile
  * content hash. Lets repeat installs against an unchanged lockfile skip
- * the per-package registry round trips entirely — including across git
+ * the per-package registry round trips entirely, including across git
  * worktrees, where the same lockfile content lives at different paths.
  *
  * All filesystem operations are synchronous: the cache is consulted
- * once before verification fan-out and recorded once after — there's
+ * once before verification fan-out and recorded once after, there's
  * no concurrent install work to overlap with, so blocking the event
  * loop for the brief read/stat/hash is fine and keeps the call sites
  * straight-line.
@@ -34,7 +34,7 @@ export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'policy' | 'canTrus
  *
  * Policy-neutral. Every active verifier's `policy` contribution merges
  * into a single `policy` bag on the record; verifiers sharing a
- * logical policy (same field name) share the slot — no resolver-level
+ * logical policy (same field name) share the slot, no resolver-level
  * namespacing.
  */
 
@@ -42,38 +42,38 @@ const CACHE_FILE_NAME = 'lockfile-verified.jsonl'
 
 // Cap the file before it grows large enough to slow down reads. When the
 // cap is exceeded we rewrite the file keeping the N most recently
-// verified entries. The number is generous — a developer machine that
+// verified entries. The number is generous, a developer machine that
 // touches a thousand distinct (path, content) tuples is far past steady
 // state.
 const MAX_CACHE_ENTRIES = 1000
 
-// Records cluster around 250–400 bytes; budget 1 KiB per entry as a
+// Records cluster around 250 to 400 bytes; budget 1 KiB per entry as a
 // conservative upper bound.
 const COMPACT_TRIGGER_BYTES = MAX_CACHE_ENTRIES * 1024 * 3 / 2
 
 interface CacheRecord {
   lockfile: {
     /**
-     * sha256 hex of the lockfile content — primary cache key. Computed
+     * sha256 hex of the lockfile content, primary cache key. Computed
      * from the parsed in-memory lockfile object (not the raw file
      * bytes); two YAML layouts that parse to the same object share a
      * hash. Same content on disk → same parsed object → same hash, so
      * worktrees and CI checkouts collide here.
      */
     hash: string
-    /** Absolute path the cache last saw this content at — secondary index for the stat fast path. */
+    /** Absolute path the cache last saw this content at, secondary index for the stat fast path. */
     path: string
     /** Lockfile size in bytes. */
     size: number
     /**
-     * Lockfile mtime in nanoseconds (stringified — JSON numbers lose
+     * Lockfile mtime in nanoseconds (stringified, JSON numbers lose
      * ns precision). Cross-machine values are meaningless; on a CI
      * runner the fresh checkout resets mtime, so we fall back to
      * hashing.
      */
     mtimeNs: string
     /**
-     * Stringified — some filesystems (e.g. large network drives) use
+     * Stringified, some filesystems (e.g. large network drives) use
      * inodes that exceed Number.MAX_SAFE_INTEGER, so a plain number
      * would lose precision and silently invalidate the fast path.
      */
@@ -105,7 +105,7 @@ export interface CacheLookupResult {
    * follows up with {@link recordVerification} after running the gate,
    * passing these back avoids re-stat'ing and (especially) re-hashing
    * the lockfile a second time. Fields are undefined when the lookup
-   * couldn't (or didn't need to) compute them — `recordVerification`
+   * couldn't (or didn't need to) compute them, `recordVerification`
    * falls back to computing what's missing.
    */
   precomputed: { stat?: LockfileStat, hash?: string }
@@ -131,9 +131,9 @@ export interface LockfileVerificationCacheKey {
 }
 
 interface CacheIndexes {
-  /** Latest record per content hash — primary lookup. */
+  /** Latest record per content hash, primary lookup. */
   byHash: Map<string, CacheRecord>
-  /** Latest record per absolute path — same-machine stat fast path. */
+  /** Latest record per absolute path, same-machine stat fast path. */
   byPath: Map<string, CacheRecord>
 }
 
@@ -230,10 +230,10 @@ function statMatches (stat: LockfileStat, lockfile: CacheRecord['lockfile']): bo
  *
  * Lookup order:
  *
- * 1. **Stat shortcut** — if we've previously verified this exact path
+ * 1. **Stat shortcut**, if we've previously verified this exact path
  *    with these exact stat values, trust the cached hash and skip
  *    reading the lockfile.
- * 2. **Content lookup** — hash the lockfile and look up by hash.
+ * 2. **Content lookup**, hash the lockfile and look up by hash.
  *    Catches the worktree case (same content, different path) and
  *    CI checkouts where stat fields got reset. Refreshes the
  *    stat-shortcut entry on hit so the next install at this path
@@ -317,7 +317,7 @@ function everyVerifierTrustsCachedRun (record: CacheRecord, verifiers: readonly 
 }
 
 function mergePolicies (verifiers: readonly VerifierCacheIdentity[]): Record<string, unknown> {
-  // Later verifiers overwrite earlier ones on conflict — a shared field
+  // Later verifiers overwrite earlier ones on conflict, a shared field
   // should carry the same value across verifiers by convention; mismatch
   // is a config bug and we don't try to reconcile it here.
   const merged: Record<string, unknown> = {}
@@ -395,7 +395,7 @@ function maybeCompactCache (cacheDir: string): void {
 }
 
 /**
- * Decide whether to compact from the file size alone — avoids reading
+ * Decide whether to compact from the file size alone, avoids reading
  * and parsing the file on every successful install.
  */
 function cacheExceedsCompactionTrigger (cacheFilePath: string): boolean {
@@ -421,7 +421,7 @@ function readCacheForCompaction (cacheFilePath: string): string | undefined {
 }
 
 /**
- * Dedup by (path, hash) — that's the unit both indexes care about.
+ * Dedup by (path, hash), that's the unit both indexes care about.
  * Walking reverse keeps the newest record per tuple; the result is in
  * original order. Malformed lines are dropped.
  */

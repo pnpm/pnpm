@@ -129,7 +129,7 @@ fn frozen_install_does_not_record_a_dedupe_baseline_and_repeat_install_skips_aft
 }
 
 /// The `autoDedupe` the workspace state records, `None` when the key is
-/// absent — what the next command's settings comparison reads as "no dedupe
+/// absent, what the next command's settings comparison reads as "no dedupe
 /// baseline has been established".
 fn recorded_auto_dedupe(workspace: &Path) -> Option<bool> {
     let path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");

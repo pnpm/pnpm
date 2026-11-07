@@ -30,7 +30,7 @@ fn lists_unscoped_and_scoped_packages() {
 
 /// Names below a symlinked scope container reach their target through
 /// the symlink, so reporting them hands a caller that deletes what it
-/// enumerates a path that leads wherever the link points — here, out of
+/// enumerates a path that leads wherever the link points, here, out of
 /// the install root.
 #[test]
 fn does_not_read_through_a_symlinked_scope_container() {
@@ -46,7 +46,7 @@ fn does_not_read_through_a_symlinked_scope_container() {
     assert!(outside.join("child").exists(), "symlink target untouched");
 }
 
-/// A symlinked package is still a package — that is how `link:`
+/// A symlinked package is still a package, that is how `link:`
 /// dependencies and workspace packages are attached.
 #[test]
 fn lists_a_symlinked_package() {

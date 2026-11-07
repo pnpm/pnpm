@@ -138,7 +138,7 @@ fn disclosed_sources(sources: &[&str], visible: &impl Fn(&str) -> bool) -> Optio
 }
 
 /// A registry's claimed patterns, disclosed only when its rules do not refine
-/// access per package — otherwise the pattern list would say what a caller may
+/// access per package, otherwise the pattern list would say what a caller may
 /// not read.
 fn disclosed_patterns(rules: &PackageRules, patterns: &[PackagePattern]) -> Option<Vec<String>> {
     (!rules.refines_access()).then(|| {

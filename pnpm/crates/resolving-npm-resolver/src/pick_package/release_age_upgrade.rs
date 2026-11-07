@@ -14,7 +14,7 @@ use crate::{
 /// would ask for the same full document again.
 pub(super) struct UpgradeOutcome {
     /// The packument the orchestrator should pick from. Either the
-    /// original meta (no-upgrade arm — same `Arc` as the input) or
+    /// original meta (no-upgrade arm, same `Arc` as the input) or
     /// the full meta the upgrade fetched, already in the abbreviated mirror
     /// unless this is a dry run.
     pub(super) meta: Arc<Package>,
@@ -49,7 +49,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
         limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
     // Waiting for the permit may have handed the winner's work to us: pick up
     // whatever it left in the cache and re-run the guards before spending a
-    // round trip of our own. A checksum refresh skips the cache on purpose —
+    // round trip of our own. A checksum refresh skips the cache on purpose,
     // it is the one caller holding a document fresher than the cached one.
     if !opts.request.update_checksums
         && let Some(cached) = ctx.metadata.meta_cache.get(cache_key)
@@ -169,7 +169,7 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     }
     // Inclusive `<=` at the boundary: matches the per-version `<=` filter in
     // `filter_pkg_metadata_by_publish_date`. When `modified` is missing or
-    // unparsable this falls through to the upgrade — better to spend one
+    // unparsable this falls through to the upgrade, better to spend one
     // extra fetch than to silently bypass the maturity check.
     let modified_before_cutoff = meta.modified
         .as_deref()

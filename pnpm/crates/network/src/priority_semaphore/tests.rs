@@ -97,7 +97,7 @@ async fn released_permit_with_no_waiters_returns_to_the_free_pool() {
 }
 
 /// During a metadata flood, queued downloads still get slots up to
-/// their reserved share — strict metadata-first was measured to
+/// their reserved share, strict metadata-first was measured to
 /// serialize cold installs (no download starts until resolution
 /// drains), so the reserve is what keeps the two phases overlapping.
 #[tokio::test]
@@ -124,7 +124,7 @@ async fn downloads_keep_their_reserved_share_during_a_metadata_flood() {
 
 /// The reserve is a floor, not free rein: with downloads already at
 /// their share, a freed latency slot goes to queued metadata before a
-/// higher-priority download — resolution progress can't be starved by
+/// higher-priority download, resolution progress can't be starved by
 /// a backlog of large archives either.
 #[tokio::test]
 async fn metadata_outranks_downloads_beyond_the_reserve() {
@@ -146,7 +146,7 @@ async fn metadata_outranks_downloads_beyond_the_reserve() {
     assert_eq!(*order.lock().unwrap(), vec!["meta", "download"]);
 }
 
-/// With a single permit the reserve must be zero — a reserve covering
+/// With a single permit the reserve must be zero, a reserve covering
 /// the whole pool would invert the starvation guarantee and let queued
 /// downloads block metadata outright.
 #[tokio::test]
@@ -183,7 +183,7 @@ async fn background_yields_to_latency_metadata() {
 }
 
 /// Background work outranks throughput work beyond its reserve, and is
-/// served once the latency queue is empty — it cannot be starved.
+/// served once the latency queue is empty, it cannot be starved.
 #[tokio::test]
 async fn background_is_served_between_latency_and_overflow_downloads() {
     let sem = Arc::new(PrioritySemaphore::new(2));

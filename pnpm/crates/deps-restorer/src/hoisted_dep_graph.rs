@@ -9,7 +9,7 @@
 //!
 //! Unlike the depPath-keyed [`crate::deps_graph`] module (which is
 //! a hashing-side adapter for the build cache), the graph defined
-//! here is keyed by *absolute directory path* — that's the
+//! here is keyed by *absolute directory path*, that's the
 //! identity hoisted-linker nodes have, because the same package
 //! can occupy several directories when a name conflict forces it
 //! to nest. Hoisting decisions are made at directory granularity,
@@ -49,7 +49,7 @@ use std::{
 pub struct DependenciesGraphNode {
     pub package: HoistedPackageMetadata,
     /// The alias this node was placed under in its parent's
-    /// `node_modules`. Optional — only populated when the node is
+    /// `node_modules`. Optional, only populated when the node is
     /// reached via the hoist walk.
     pub alias: Option<String>,
     /// Absolute path of the package's directory on disk. The
@@ -76,7 +76,7 @@ pub struct DependenciesGraphNode {
     /// Alias → child `dir` of this node's listed dependencies, as
     /// computed from the lockfile snapshot's `dependencies` and
     /// (when included) `optionalDependencies`. The walker resolves
-    /// each child to the directory the alias was hoisted to —
+    /// each child to the directory the alias was hoisted to,
     /// which may be the root, a sibling, or this node's own
     /// `node_modules`, depending on the hoister's decision.
     pub children: BTreeMap<String, PathBuf>,
@@ -137,7 +137,7 @@ pub struct LockfileToDepGraphResult {
     /// by the post-install re-mirror step. The keys are typed as raw
     /// `String`, not `DepPath`, to keep the on-disk shape identical.
     pub injection_targets_by_dep_path: BTreeMap<String, Vec<PathBuf>>,
-    /// Packages the walker decided to skip — the input
+    /// Packages the walker decided to skip, the input
     /// `opts.skipped` extended with any depPaths whose
     /// installability check failed (optional + unsupported
     /// platform/engine). pacquet returns the augmented set on the
@@ -168,7 +168,7 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
     /// dep into the graph regardless of cpu / os / libc / engines.
     /// Set for `--force` under `forceIgnoresPlatform`, and by the
     /// `prev_graph` walk where the previous lockfile is replayed
-    /// wholesale to compute orphans — that walk starts from an empty
+    /// wholesale to compute orphans, that walk starts from an empty
     /// skip set so the diff catches packages that previously
     /// installed but would now be filtered.
     pub include_incompatible_packages: bool,
@@ -226,8 +226,8 @@ pub enum HoistedDepGraphError {
     /// A `HoisterResult` node carried a reference string that
     /// doesn't parse as a `name@version[(peers)]` package key.
     /// Should never happen for hoister output produced from a
-    /// valid lockfile — the hoister only emits references it
-    /// already validated — but the conversion is fallible at the
+    /// valid lockfile, the hoister only emits references it
+    /// already validated, but the conversion is fallible at the
     /// type level, so a typed error is the honest surface.
     #[display("Unparsable snapshot reference {reference:?} on hoisted node")]
     #[diagnostic(code(ERR_PNPM_HOISTED_GRAPH_BAD_REFERENCE))]
@@ -270,7 +270,7 @@ pub fn lockfile_to_hoisted_dep_graph(
     // Prev-graph walk: forced (every snapshot in the current
     // lockfile must surface so the diff catches packages that
     // would now fail installability) and unskipped (the previous
-    // install's `skipped` is irrelevant — we want the full
+    // install's `skipped` is irrelevant, we want the full
     // previous layout to compute orphans against).
     let prev_graph = match current_lockfile {
         // Require a non-empty `packages` map. For an empty `packages:
@@ -344,7 +344,7 @@ pub struct HoistedPackageMetadata {
     pub dep_path: DepPath,
     /// `pkgIdWithPatchHash`: the patch-aware ident key
     /// the side-effects cache uses. Modelled by
-    /// [`pnpm_lockfile::PkgIdWithPatchHash`] — a non-validating
+    /// [`pnpm_lockfile::PkgIdWithPatchHash`], a non-validating
     /// branded newtype around `String`.
     pub pkg_id_with_patch_hash: PkgIdWithPatchHash,
     pub name: String,

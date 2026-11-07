@@ -97,7 +97,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
 
 // Regression test for <https://github.com/pnpm/pnpm/issues/13164>: a
 // workspace-root `.gitignore` that ignores compiled `lib/` output must
-// not filter a `files: ["lib"]` allowlist — every `lib/` file ships,
+// not filter a `files: ["lib"]` allowlist, every `lib/` file ships,
 // not just the force-included `main` one.
 #[test]
 fn files_field_overrides_workspace_root_gitignore() {

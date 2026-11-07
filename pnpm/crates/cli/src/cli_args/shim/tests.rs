@@ -33,7 +33,7 @@ fn a_generated_shim_names_the_package_it_stands_for() {
     );
 }
 
-/// A bin whose shim points at an installed target is somebody else's —
+/// A bin whose shim points at an installed target is somebody else's,
 /// removing it would break a global install.
 #[test]
 fn a_shim_with_a_real_target_is_not_reported() {
@@ -142,7 +142,7 @@ fn a_global_disable_is_not_undone_by_installing_a_package_manager() {
 }
 
 /// A package can publish a bin whose name carries an extension, and the
-/// shim written for it is found by its marker like any other — `pnpm shim
+/// shim written for it is found by its marker like any other, `pnpm shim
 /// ls` and `rm` would otherwise never see it.
 #[test]
 fn a_bin_name_with_an_extension_is_still_discovered() {

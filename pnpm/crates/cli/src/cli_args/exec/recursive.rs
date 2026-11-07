@@ -1,4 +1,4 @@
-//! Recursive `pacquet exec` — run a command across the `--filter`-selected
+//! Recursive `pacquet exec`, run a command across the `--filter`-selected
 //! workspace projects, scheduled over the project dependency graph.
 //!
 //! Reuses the shared graph / summary machinery in
@@ -6,8 +6,8 @@
 //!
 //! `exec` runs one command per project, so its task graph is one task per
 //! selected project over the project dependency edges: it gets the
-//! dependency-order scheduling, while `tasks` declarations — which name
-//! scripts — do not apply to it. `--no-sort` drops the ordering,
+//! dependency-order scheduling, while `tasks` declarations, which name
+//! scripts, do not apply to it. `--no-sort` drops the ordering,
 //! `--reverse` runs the reverse graph, and `--parallel` starts every
 //! project concurrently.
 
@@ -91,7 +91,7 @@ pub async fn exec_recursive(
 
     let (projects, patterns) = discover_workspace_projects(workspace_root, config)?;
     // Empty workspace errors; an empty `--filter` selection (below) is a
-    // no-op — so this guard is on the discovered set, not the filtered.
+    // no-op, so this guard is on the discovered set, not the filtered.
     if projects.is_empty() {
         return Err(RecursiveExecError::NoPackage.into());
     }
@@ -211,7 +211,7 @@ impl ExecRun<'_> {
             },
             output: crate::cli_args::exec::recursive::tasks::ExecTaskOutput {
                 // Unlike `run`'s `--stream`, `exec` prefixes its output only when
-                // the user turned the hiding off explicitly — pnpm gates on
+                // the user turned the hiding off explicitly, pnpm gates on
                 // `reporterHidePrefix === false`, not on its falsiness.
                 show_prefix: self.config.reporter_hide_prefix == Some(false),
                 emit: self.emit,

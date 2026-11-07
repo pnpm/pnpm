@@ -32,7 +32,7 @@ impl Config {
     /// key mapped to its patch file's SHA-256 hex digest.
     ///
     /// Distinct from [`Self::resolved_patched_dependencies`], which
-    /// groups the same entries by package name for the resolver — this
+    /// groups the same entries by package name for the resolver, this
     /// keeps the user's verbatim keys so the lockfile is byte-faithful
     /// (e.g. a bare `foo` and `foo@*` stay separate keys rather than
     /// collapsing into one group bucket).

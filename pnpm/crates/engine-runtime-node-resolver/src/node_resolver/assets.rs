@@ -207,7 +207,7 @@ pub(super) struct NodeFileName {
 }
 
 /// Match the nodejs.org artifact pattern
-/// `^node-v<version>-([^-.]+)-([^.-]+)(-musl)?\.(tar\.gz|zip)$` —
+/// `^node-v<version>-([^-.]+)-([^.-]+)(-musl)?\.(tar\.gz|zip)$`,
 /// implemented by hand so the resolver doesn't pay the regex crate
 /// dependency for a single pattern.
 pub(super) fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> {

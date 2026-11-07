@@ -87,7 +87,7 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
 /// fallback, so the `pre`/`post` substring guard runs against the
 /// resolved `main_body` here.
 /// Run the matched scripts, in parallel when the run allows it. One
-/// script — or a sequential run — needs no scheduler; running it inline
+/// script, or a sequential run, needs no scheduler; running it inline
 /// keeps its output attached to this process.
 pub(super) fn run_selected_scripts(
     ctx: &RunContext<'_>,
@@ -424,7 +424,7 @@ fn get_run_script_stages(
 /// no-op guards apply (empty body, or `npx only-allow pnpm` with no
 /// args), so the caller can record "didn't actually run" without
 /// inventing a synthetic exit. A non-success status is
-/// returned to the caller — single-project `RunArgs::run` exits with
+/// returned to the caller, single-project `RunArgs::run` exits with
 /// the code; recursive `run_recursive` records `Failure` and decides
 /// whether to bail.
 pub(in super::super) fn run_stage(

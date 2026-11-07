@@ -3,11 +3,11 @@
 //! Responsibilities, kept in separate private modules while
 //! keeping the public surface flat:
 //!
-//! - `root_finder` — locate the workspace dir (`pnpm-workspace.yaml`).
+//! - `root_finder`, locate the workspace dir (`pnpm-workspace.yaml`).
 //!   Public entry point: [`find_workspace_dir`].
-//! - `manifest`    — parse `packages:` (plus catalog skeletons).
+//! - `manifest`   , parse `packages:` (plus catalog skeletons).
 //!   Public entry point: [`read_workspace_manifest`].
-//! - `projects`    — glob-expand `packages:` into [`Project`]s.
+//! - `projects`   , glob-expand `packages:` into [`Project`]s.
 //!   Public entry point: [`find_workspace_projects`].
 
 pub use api::{EnvVarOs, Host};

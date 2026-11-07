@@ -16,7 +16,7 @@ pub(super) fn canonical_path_within(path: &Path, base: &Path) -> Option<PathBuf>
     canonical_path.starts_with(&canonical_base).then_some(canonical_path)
 }
 
-/// `base_dir` is the directory the `link:` target is relative to — the
+/// `base_dir` is the directory the `link:` target is relative to, the
 /// importer's directory for importer dependencies, the lockfile directory for
 /// snapshot dependencies. Targets escaping `lockfile_dir` are rejected.
 pub(super) fn resolve_link_version(

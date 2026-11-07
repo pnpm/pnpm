@@ -2,7 +2,7 @@ use super::{Ipv4Addr, PnprClient, TcpListener, capture_one_request, deps, option
 
 /// The request must identify the caller to pnpr (`Authorization`) but
 /// must never carry the client's own upstream registry credentials in the
-/// body — pnpr selects upstream auth from its route policy. A raw TCP
+/// body, pnpr selects upstream auth from its route policy. A raw TCP
 /// listener captures the wire bytes and asserts both invariants; the
 /// canned 500 just short-circuits the client after the capture.
 #[tokio::test]

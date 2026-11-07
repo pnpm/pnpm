@@ -194,7 +194,7 @@ fn exec_command(program: &Path, mut command: Command) -> i32 {
     // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
     // library spawns them through `cmd.exe` itself with the
     // CVE-2024-24576 argument escaping, and rejects arguments it cannot
-    // pass safely — a hand-rolled `cmd /c` would reintroduce that bug.
+    // pass safely, a hand-rolled `cmd /c` would reintroduce that bug.
     match command.status() {
         Ok(status) => status.code().unwrap_or(1),
         Err(error) => {

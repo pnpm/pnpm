@@ -30,7 +30,7 @@ export interface RegistryRouting {
  * Fail-closed: the entry passes only when the registry metadata
  * affirmatively lists this version with a matching tarball URL. If the
  * metadata can't be fetched, doesn't list the version, or omits
- * `dist.tarball`, the entry can't be confirmed and is rejected — otherwise
+ * `dist.tarball`, the entry can't be confirmed and is rejected, otherwise
  * a tampered lockfile could smuggle a malicious URL past the check by
  * pointing it at a `name@version` the registry can't vouch for.
  */
@@ -44,7 +44,7 @@ export async function runTarballUrlCheck (
     // registry's own fetch error (e.g. ERR_PNPM_FETCH_403, which already
     // explains the auth situation) instead of mislabeling a transport failure
     // as a tampering-style URL mismatch. The gate aborts the install with that
-    // error — still fail-closed, the entry never reaches the filesystem.
+    // error, still fail-closed, the entry never reaches the filesystem.
     throw error
   }
   if (meta?.revisionVersions?.has(pin.version)) {
@@ -82,7 +82,7 @@ export function pickRegistryForVersion (
   name: string,
   tarballUrl: string | undefined
 ): string {
-  // If the lockfile records where the tarball lives, prefer that — scope
+  // If the lockfile records where the tarball lives, prefer that, scope
   // routing (`@scope:registry`) only covers scoped packages, but named
   // registries (`gh:`, `jsr:` aliases, custom) ship un-scoped packages whose
   // origin we'd otherwise miss. Match the longest prefix so that two named

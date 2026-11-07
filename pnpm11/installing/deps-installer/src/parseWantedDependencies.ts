@@ -18,8 +18,8 @@ export interface ParsedWantedDependencies {
    */
   outsideKeptRange: KeptRangeConflict[]
   /**
-   * The selectors resolution can't be trusted to honor — a range or a dist tag, which only names a
-   * version once resolution has run — so the specifier the manifest or a hook/override keeps was
+   * The selectors resolution can't be trusted to honor, a range or a dist tag, which only names a
+   * version once resolution has run, so the specifier the manifest or a hook/override keeps was
    * used instead. Only ever non-empty under `readonlyManifest` or for `readonlySpecifiers`.
    */
   supersededByKeptRange: KeptRangeConflict[]
@@ -45,7 +45,7 @@ interface ParseWantedDependenciesOptions {
   defaultCatalog?: Catalog
   /**
    * The manifest keeps its specifiers, so a requested version is applied only when it satisfies
-   * the declared one — the lockfile importer entry has to keep satisfying its own specifier.
+   * the declared one, the lockfile importer entry has to keep satisfying its own specifier.
    */
   readonlyManifest?: boolean
   readonlySpecifiers?: Dependencies
@@ -179,7 +179,7 @@ function applyReadonlyManifestSpecifier (parsed: ParsedWantedDependencies, wante
   } else {
     // A range, a dist tag, or a kept specifier that isn't a semver range. Nothing here names a
     // version yet, and asking whether one range contains another is not answered consistently
-    // across semver implementations — so resolve what the manifest declares, which is the
+    // across semver implementations, so resolve what the manifest declares, which is the
     // specifier the importer entry will record.
     supersedeWithKeptSpecifier(parsed, wantedDep, prevSpecifier)
   }

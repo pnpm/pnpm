@@ -1,7 +1,7 @@
 /// A real-world JavaScript stack to install and build.
 ///
 /// `scaffold` generates the project on disk *without* installing
-/// dependencies — it runs once per stack (the generated files are identical
+/// dependencies, it runs once per stack (the generated files are identical
 /// across binaries and layouts) and the result is copied into each grid
 /// cell, where the binary-under-test performs the actual install.
 #[derive(Debug, Clone, Copy)]
@@ -13,7 +13,7 @@ pub struct Stack {
     pub build_script: &'static str,
     /// How to boot and probe the built app. A passing build only proves the
     /// layout resolves at bundle time; serving proves the layout works at
-    /// runtime — request-time `require`, SSR, native addons. `None` skips
+    /// runtime, request-time `require`, SSR, native addons. `None` skips
     /// the serve stage for stacks without a server.
     pub serve: Option<Serve>,
 }
@@ -33,7 +33,7 @@ pub struct Serve {
 
 /// One `pnpm dlx <spec> <args...>` invocation. `dir` is the project
 /// directory name the generator should create; it is passed verbatim as one
-/// of `args` (the harness substitutes nothing — keep the literal `app`).
+/// of `args` (the harness substitutes nothing, keep the literal `app`).
 #[derive(Debug, Clone, Copy)]
 pub struct ScaffoldCommand {
     pub spec: &'static str,

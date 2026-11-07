@@ -58,7 +58,7 @@ pub fn extend_path(
 }
 
 /// Join `paths` with the platform PATH separator (`;` on Windows,
-/// `:` elsewhere) by plain string concatenation — no validation. If a
+/// `:` elsewhere) by plain string concatenation, no validation. If a
 /// path component itself contains the separator the spawned shell sees
 /// an embedded entry; `std::env::join_paths` would instead have erred
 /// and dropped the entire computed PATH in that case.
@@ -93,7 +93,7 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     // relative paths anchor against the process cwd, and an empty head
     // (which happens when `wd` starts with `node_modules/`) means
     // "use cwd". This anchoring makes the result cwd-dependent when the
-    // caller passes a relative wd — pacquet's production call sites
+    // caller passes a relative wd, pacquet's production call sites
     // always pass an absolute pkg_root, so the dependency is a
     // non-issue in practice.
     let mut acc = if head.is_empty() {

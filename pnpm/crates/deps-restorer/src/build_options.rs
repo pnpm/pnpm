@@ -37,7 +37,7 @@ pub struct BuildScriptOptions<'a> {
     /// Mirrors `config.ignore_scripts`. When `true`, no lifecycle
     /// script runs and the allow-build gate is bypassed entirely, so a
     /// package not in `allowBuilds` is *not* added to the returned
-    /// ignored-builds set. Patches still apply — a patch is applied
+    /// ignored-builds set. Patches still apply, a patch is applied
     /// even when scripts are suppressed.
     pub ignore: bool,
     /// Engine check options for patched packages.
@@ -157,7 +157,7 @@ pub struct BuildCacheContext<'a> {
     /// linker can load a temporary build's output from the store.
     pub captured: Option<&'a CapturedBuildSideEffects>,
     pub side_effects: CachedSideEffects<'a>,
-    /// `<platform>;<arch>;node<major>` — the prefix part of the
+    /// `<platform>;<arch>;node<major>`, the prefix part of the
     /// dep-state cache key. Computed once at install
     /// start by [`pnpm_graph_hasher::detect_node_major`] +
     /// [`pnpm_graph_hasher::engine_name`]. When `None`, the
@@ -181,7 +181,7 @@ pub struct BuildCacheContext<'a> {
     /// global virtual store, a snapshot that would apply a patch or
     /// run an approved lifecycle script is refused with
     /// [`crate::BuildModulesError::FrozenStoreNeedsBuild`] before the write
-    /// is attempted — the store is read-only, so the build cannot run.
+    /// is attempted, the store is read-only, so the build cannot run.
     /// Has no effect under the isolated linker, whose slot directories
     /// live in the writable project store.
     pub frozen_store: bool,
@@ -204,13 +204,13 @@ pub struct BuildLayout<'a> {
     /// virtual-store-layout slot computation; a missing entry means
     /// the snapshot didn't make it into the hoisted graph (skipped
     /// optional, etc.) and the build phase silently passes over it.
-    /// `None` for the isolated linker — its slot directories are
+    /// `None` for the isolated linker, its slot directories are
     /// recovered from [`crate::VirtualStoreLayout::slot_dir`].
     ///
     /// One snapshot can occupy several directories: the walker nests a
     /// second copy of a package under a sibling when a version conflict
     /// keeps it out of the root. The first entry is the canonical
-    /// `pkgRoot` — scripts run there once and the side-effects cache is
+    /// `pkgRoot`, scripts run there once and the side-effects cache is
     /// written from it, because the contents are identical everywhere.
     /// Writes that must land in *every* copy (patch application,
     /// re-importing a cached overlay) iterate the whole list.
@@ -220,7 +220,7 @@ pub struct BuildLayout<'a> {
     /// `bin_dirs_in_all_parent_dirs` (private helper in this module)
     /// so lifecycle scripts can resolve binaries from every ancestor `node_modules/.bin`
     /// up to [`Self::lockfile_dir`]. Set under the hoisted linker.
-    /// Always `false` under the isolated linker — its bins live in
+    /// Always `false` under the isolated linker, its bins live in
     /// the slot's own `<slot>/node_modules/.bin`, populated up-
     /// front by [`crate::LinkVirtualStoreBins`], and the script
     /// executor adds that path itself.
@@ -230,7 +230,7 @@ pub struct BuildLayout<'a> {
 
     /// Mirrors `config.package_import_method`. Used by the
     /// side-effects-cache `is_built` gate to re-materialize a cached
-    /// build's output into the already-linked slot — the warm link
+    /// build's output into the already-linked slot, the warm link
     /// only placed the pristine tarball files, so the cached
     /// `added` / `deleted` overlay has to be applied on top before the
     /// build is skipped. See `build_one_snapshot`.
@@ -256,11 +256,11 @@ pub struct BuildGraphInputs<'a> {
     ///
     /// Drives three things:
     ///
-    /// 1. Build trigger — a snapshot with a patch entry becomes a
+    /// 1. Build trigger, a snapshot with a patch entry becomes a
     ///    build candidate even when `requires_build` is false.
-    /// 2. Side-effects-cache key — `patch_file_hash` carries the
+    /// 2. Side-effects-cache key, `patch_file_hash` carries the
     ///    SHA-256 hex into [`pnpm_graph_hasher::CalcDepStateOptions`].
-    /// 3. Patch application — the patch is applied to the extracted
+    /// 3. Patch application, the patch is applied to the extracted
     ///    package dir before postinstall hooks run.
     pub patches: Option<&'a HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo>>,
     /// Per-snapshot `requiresBuild` values from the warm-cache
@@ -303,7 +303,7 @@ pub struct BuildProgress<'a> {
     pub(crate) deps_state_cache: &'a Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>>,
     pub(crate) ignored_builds: &'a Mutex<BTreeSet<String>>,
     /// Recorded before any write that can change a linked slot's contents
-    /// (side-effects overlay, patch, lifecycle script) — set pre-attempt, so a
+    /// (side-effects overlay, patch, lifecycle script), set pre-attempt, so a
     /// half-applied write still counts. See
     /// [`crate::BuildModulesOutput::mutated_slots`].
     pub(crate) slot_mutations: &'a Mutex<HashSet<PackageKey>>,

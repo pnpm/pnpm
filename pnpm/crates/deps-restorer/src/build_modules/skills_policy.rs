@@ -15,7 +15,7 @@ use pnpm_config::SkillsPermission;
 /// by config dep path, git repo, or expanded package spec.
 ///
 /// The per-skill answers follow the same trust-gated ladder as
-/// the `allowBuilds` policy — a `permissions.<pkg>.skills: false`
+/// the `allowBuilds` policy, a `permissions.<pkg>.skills: false`
 /// decision is a denial outranking any allowance, and a bare-name or
 /// `name@version` decision only reaches a dep path whose version is a semver
 /// range, the same trust signal `allowBuilds` requires.
@@ -93,7 +93,7 @@ impl SkillsPolicy {
     /// A `permissions` dep-path or git-repo rule matches any dep path of the
     /// same shape. A bare-name or `name@version` rule needs a trusted
     /// package identity, whose signal is a registry-shaped dep path
-    /// (`name@semver`) — see the `allowBuilds` policy. A `name@version`
+    /// (`name@semver`), see the `allowBuilds` policy. A `name@version`
     /// rule outranks a bare-name one, the more specific key wins.
     #[must_use]
     pub fn check(&self, dep_path: &str) -> Option<SkillsPermission> {

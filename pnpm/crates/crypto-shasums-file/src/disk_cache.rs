@@ -2,7 +2,7 @@
 //!
 //! A release's SHASUMS file lives under a version-pinned URL
 //! (`.../v22.0.0/SHASUMS256.txt`), so its content is immutable: a body
-//! fetched once — and, for signed channels, verified once — never needs
+//! fetched once, and, for signed channels, verified once, never needs
 //! to be fetched again. Entries are stored under
 //! `<cache_dir>/v11/runtime-shasums/<trust>/<host>/<url path>` so
 //! `pnpm cache delete` on the cache directory clears them together with
@@ -86,7 +86,7 @@ pub(crate) fn read_cached_shasums(
     String::from_utf8(read_cached_bytes(cache_dir, trust, url, max_age)?).ok()
 }
 
-/// The cached bytes for `url`, or `None` on any miss — a URL the
+/// The cached bytes for `url`, or `None` on any miss, a URL the
 /// mapping cannot represent, a missing or non-regular file, unreadable
 /// content, an empty file (never a valid entry, so it only signals a
 /// torn write), a file over [`MAX_CACHED_SHASUMS_LEN`], or, where the
@@ -163,8 +163,8 @@ pub(crate) fn write_cached_shasums(
     // The process id alone does not make the temp name unique (worker
     // threads and concurrent tasks share it), so a process-wide counter
     // joins it. `create_new` refuses to open a path that already exists
-    // — a colliding writer or a pre-seeded symlink fails the open
-    // instead of being followed — and any failure just skips the write.
+    //, a colliding writer or a pre-seeded symlink fails the open
+    // instead of being followed, and any failure just skips the write.
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
     let mut temp_name = path
         .file_name()
@@ -177,7 +177,7 @@ pub(crate) fn write_cached_shasums(
     ));
     let temp = path.with_file_name(temp_name);
     // Sync before the rename so a crash cannot persist the
-    // renamed name pointing at partially-written content — a torn
+    // renamed name pointing at partially-written content, a torn
     // SHASUMS prefix still parses and would otherwise be served
     // (missing platform rows) until the cache is cleared.
     let written = fs::OpenOptions::new()

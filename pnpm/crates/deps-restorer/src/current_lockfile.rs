@@ -3,14 +3,14 @@
 //!
 //! Rather than re-running the engine + `supportedArchitectures` +
 //! `skipped` checks at filter time, reuse the [`SkippedSnapshots`]
-//! set produced during install — its
+//! set produced during install, its
 //! [transient subset][`SkippedSnapshots::transient_only`], since
 //! installability skips stay in the file.
 //!
 //! The output drives the **next** install's diff. Without this
 //! filter, pacquet's current lockfile recorded every snapshot the
 //! resolver imagined, including ones `--no-optional` or a failed
-//! optional fetch dropped — so a follow-up install would think
+//! optional fetch dropped, so a follow-up install would think
 //! those slots were already on disk and skip work that should
 //! actually run.
 
@@ -75,7 +75,7 @@ pub fn materialization_closure(
             skipped.contains(key)
         });
     // Package metadata survives an installability skip and a failed fetch but
-    // not an optional exclusion, so it needs its own reachability walk —
+    // not an optional exclusion, so it needs its own reachability walk,
     // unless those two subsets are empty, in which case the second walk would
     // retrace the first over the whole graph.
     let metadata_walk = (!skipped.optional_exclusions_are_the_only_skips()).then(|| {
@@ -336,7 +336,7 @@ fn restore_skipped_package_metadata(
 /// optional package is skipped, its own dependency subtree is not
 /// materialized either, and both stacks must record the same set.
 ///
-/// Only the persisted `installability` subset seeds the closure — and
+/// Only the persisted `installability` subset seeds the closure, and
 /// only that subset receives the additions. Transient skips
 /// (`--no-optional`, `--no-runtime`, a failed optional fetch) must not
 /// leak into `.modules.yaml`, or a later install's seed would keep their
@@ -429,8 +429,8 @@ pub fn filter_lockfile_for_current(
     // Every importer is a root here, so no importer has to be *discovered*
     // through a `link:` dep and the walk needs no real workspace root to
     // resolve those links against. The empty root keeps the walk in the
-    // lockfile-relative space importer IDs already use — `importer_root_dir("", id)`
-    // is `id` — so link resolution stays correct rather than merely unused.
+    // lockfile-relative space importer IDs already use, `importer_root_dir("", id)`
+    // is `id`, so link resolution stays correct rather than merely unused.
     materialization_closure(
         lockfile,
         Path::new(""),

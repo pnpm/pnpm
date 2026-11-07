@@ -1,6 +1,6 @@
 For more information, read [pnpm docs about .npmrc](https://pnpm.io/npmrc)
 
-# Dependency Hoisting Settings
+# Dependency hoisting settings
 
 | Done | Field                | Notes |
 |------|----------------------|-------|
@@ -9,7 +9,7 @@ For more information, read [pnpm docs about .npmrc](https://pnpm.io/npmrc)
 |      | public_hoist_pattern |       |
 |      | shamefully_hoist     |       |
 
-# Node-Modules Settings
+# Node-Modules settings
 
 | Done | Field                 | Notes                               |
 |------|-----------------------|-------------------------------------|
@@ -21,7 +21,7 @@ For more information, read [pnpm docs about .npmrc](https://pnpm.io/npmrc)
 | ~    | package_import_method | Only "auto" is implemented for now. |
 |      | modules_cache_max_age |                                     |
 
-# Lockfile Settings
+# Lockfile settings
 
 | Done | Attribute                    | Notes |
 |------|------------------------------|-------|
@@ -30,7 +30,7 @@ For more information, read [pnpm docs about .npmrc](https://pnpm.io/npmrc)
 |      | lockfile_include_tarball_url |       |
 | ✅    | exclude_links_from_lockfile  |       |
 
-# Registry & Authentication Settings
+# Registry & Authentication settings
 
 | Done | Field              | Notes |
 |------|--------------------|-------|
@@ -38,11 +38,11 @@ For more information, read [pnpm docs about .npmrc](https://pnpm.io/npmrc)
 |      | <URL>:_authToken   |       |
 | ✅    | <URL>:tokenHelper  | Trusted sources only; executed lazily on lookup. |
 
-# Request Settings
+# Request settings
 
 **Not implemented**
 
-# Peer Dependency Settings
+# Peer dependency settings
 
 | Done | Field                             | Notes |
 |------|-----------------------------------|-------|

@@ -618,7 +618,7 @@ describe('getTree', () => {
 
     test('does not mark a node as circular when reached from a non-cyclic path', () => {
       // root → a → b → a(circular)
-      // root → c → b(deduped — b was already expanded under a)
+      // root → c → b(deduped, b was already expanded under a)
       //
       // The node "b" under "c" should be deduped, NOT circular.
       const version = '1.0.0'
@@ -859,7 +859,7 @@ describe('getTree', () => {
     test('deduped subtree propagates string search messages to the deduped node', () => {
       // Same graph as above, but the Finder returns a string message.
       // root → a → b → target (search match with message)
-      // root → c → b (deduped — should show the message from target)
+      // root → c → b (deduped, should show the message from target)
       const version = '1.0.0'
       const currentPackages = generateMockCurrentPackages(version, {
         root: ['a', 'c'],

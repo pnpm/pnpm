@@ -6,8 +6,8 @@ import { progressLogger } from './progressLogger.js'
  * the virtual store.
  *
  * The import itself runs in a `@pnpm/worker` thread, whose loggers are not
- * connected to the reporter, so both channels are emitted here — in the main
- * process — from the method the worker reported back. `pnpm:progress` drives
+ * connected to the reporter, so both channels are emitted here, in the main
+ * process, from the method the worker reported back. `pnpm:progress` drives
  * the "imported" counter; `pnpm:package-import-method` tells the reporter
  * which wording to use for the store block it prints on a first install.
  */

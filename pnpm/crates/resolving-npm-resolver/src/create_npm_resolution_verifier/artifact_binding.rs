@@ -172,7 +172,7 @@ pub(super) fn lockfile_revision(resolution: &LockfileResolution) -> Option<u64> 
 
 /// Canonicalize a tarball URL: parse-and-reserialize to drop default
 /// ports (`:443`/`:80`), decode the `%2f` scoped-name separator, then
-/// ignore the scheme — so a benign http/https, default-port, or
+/// ignore the scheme, so a benign http/https, default-port, or
 /// encoding difference between the lockfile URL and the registry
 /// metadata isn't read as tampering.
 pub(super) fn canonical_tarball_url(url: &str) -> String {

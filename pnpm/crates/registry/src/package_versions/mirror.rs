@@ -14,7 +14,7 @@ use super::{FragmentSource, PackageVersions, VersionSlot};
 
 /// A mirror file held open for on-demand fragment reads, counted
 /// against a caller-supplied cap so a fleet of held handles can never
-/// exhaust the process's descriptor budget — a load that would exceed
+/// exhaust the process's descriptor budget, a load that would exceed
 /// the cap falls back to buffering its fragments instead (see
 /// [`MirrorFile::try_hold`]).
 #[derive(Debug)]
@@ -159,7 +159,7 @@ impl PackageVersions {
     /// writer. Raw fragments borrow; slots holding only a typed
     /// manifest re-serialize it; file-span slots read their span.
     /// A slot whose fragment can be neither borrowed nor produced is
-    /// skipped with a warning — the mirror then omits that
+    /// skipped with a warning, the mirror then omits that
     /// version, which reads back as "absent" (the same contract as an
     /// undecodable fragment).
     pub fn fragments(&self) -> impl Iterator<Item = (&String, Cow<'_, str>)> {

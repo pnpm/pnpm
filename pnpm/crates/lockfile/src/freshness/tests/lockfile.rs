@@ -2,7 +2,7 @@ use super::{
     Lockfile, StalenessReason, manifest_from_json, satisfies_package_manifest, text_block,
 };
 
-/// Lockfile has no `importers["."]` entry — even though pacquet's
+/// Lockfile has no `importers["."]` entry, even though pacquet's
 /// `Lockfile` type makes `importers` a map (so an empty map is a
 /// valid shape), we still want to fail cleanly when the importer the
 /// caller asked about isn't present.

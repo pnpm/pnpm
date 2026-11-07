@@ -3,8 +3,8 @@
 
 //! Node.js NAPI bindings for the pnpm v12 Rust engine (pacquet).
 //!
-//! This cdylib exposes pnpm's programmatic engine surface — pack, dependency
-//! resolution, install, rebuild, and peer-dependency checks — to a Node.js
+//! This cdylib exposes pnpm's programmatic engine surface, pack, dependency
+//! resolution, install, rebuild, and peer-dependency checks, to a Node.js
 //! host through napi-rs. The reference consumer is Bit, which drives pnpm
 //! entirely through its programmatic API. The JS-facing contract lives in the
 //! wrapper package at `pnpm/npm/napi/index.d.ts`; the design rationale

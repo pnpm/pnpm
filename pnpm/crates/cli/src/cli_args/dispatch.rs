@@ -45,7 +45,7 @@ use std::{
 impl CliArgs {
     /// Seed the process-global default-reporter state from the parsed
     /// arguments. The entry point calls this before the pre-command
-    /// checks, which are the first thing that can emit — the state is set
+    /// checks, which are the first thing that can emit, the state is set
     /// once, so whoever emits first must already see the real values. A
     /// `--color` / `--no-color` on the command line is seeded here for
     /// that reason; the `color` *setting* can only be read once the
@@ -164,7 +164,7 @@ impl CliArgs {
     /// Try to finish `pacquet install` synchronously through the
     /// repeat-install fast path, before the caller builds the async
     /// runtime. `true` means the install completed (the "Already up to
-    /// date" events were emitted); `false` means undecided — proceed
+    /// date" events were emitted); `false` means undecided, proceed
     /// with [`Self::run`], reusing any already-loaded configuration.
     pub(crate) fn finished_via_install_fast_path(
         &self,

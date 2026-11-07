@@ -62,7 +62,7 @@ pub(crate) struct InstallFamilySelection {
     pub(crate) active_manifest_is_standin: bool,
     /// `Some` when the plan already ran the install's cycle search over
     /// the same graph the install would rebuild (the unnarrowed case);
-    /// empty means the projects are orderable. `None` — the install
+    /// empty means the projects are orderable. `None`, the install
     /// searches itself.
     pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
 }

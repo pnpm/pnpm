@@ -36,7 +36,7 @@ impl NpmResolutionVerifier {
         // Cheapest layer: for an entry whose canonical tarball this
         // install fetches (existence fail-closed by the fetch itself),
         // a package-level `Last-Modified` older than the cutoff bounds
-        // every version's publish time — no metadata body needed. The
+        // every version's publish time, no metadata body needed. The
         // evidence cell is consulted before the probe so installs that
         // never fill it (no materialization, or a resolver alongside)
         // send no extra request.
@@ -82,10 +82,10 @@ impl NpmResolutionVerifier {
     /// reports is older than `cutoff` by more than the header's own
     /// one-second resolution. HTTP dates carry whole seconds, and a
     /// registry that truncates a fractional `time.modified` understates
-    /// it by up to 999ms — the guard band keeps the comparison an upper
+    /// it by up to 999ms, the guard band keeps the comparison an upper
     /// bound regardless of how the server rounds. `false` when the
     /// probe fails, the header is missing or unparsable, or the
-    /// registry is unreachable — the caller falls through to the
+    /// registry is unreachable, the caller falls through to the
     /// metadata-backed layers, so the probe can only ever *save* a
     /// body, never widen what passes. Trust-wise the header is the same
     /// statement as the packument body's `time.modified`, served by the
@@ -165,13 +165,13 @@ impl NpmResolutionVerifier {
     /// 1. **Abbreviated-`modified` shortcut.** Abbreviated metadata is
     ///    a small per-name document the resolver typically already
     ///    holds. Its package-level `modified` is an upper bound on
-    ///    every version's publish time — if it's older than the
+    ///    every version's publish time, if it's older than the
     ///    cutoff *and* the pinned version is still listed in
     ///    `versions`, the gate is satisfied without per-version
     ///    timestamps. Costs at most one abbreviated GET per name on
     ///    cold cache; the full-meta fallback below is hundreds of KB
     ///    bigger per package.
-    /// 2. **Abbreviated per-version `time`** — only with
+    /// 2. **Abbreviated per-version `time`**, only with
     ///    `registrySupportsTimeField`. Registries that serve the `time`
     ///    map in abbreviated metadata (Verdaccio 5.15.1+, pnpr) already
     ///    gave us the exact per-version timestamp in the document step 1
@@ -211,7 +211,7 @@ impl NpmResolutionVerifier {
     }
 
     /// Returns the package's `modified` timestamp *iff* it proves the
-    /// gate would pass — i.e. it's strictly older than the policy
+    /// gate would pass, i.e. it's strictly older than the policy
     /// cutoff *and* the pinned version is still listed in the
     /// package's current versions map.
     ///

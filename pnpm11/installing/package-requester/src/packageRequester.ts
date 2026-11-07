@@ -72,7 +72,7 @@ export function createPackageRequester (
 
   // Downloads are I/O-bound, not CPU-bound: a low-latency registry only
   // saturates with enough requests in flight, so the floor matters more
-  // than the per-core scaling — a CPU-derived floor left 4-core CI
+  // than the per-core scaling, a CPU-derived floor left 4-core CI
   // runners draining multi-hundred-tarball installs 16 at a time.
   const networkConcurrency = opts.networkConcurrency ?? Math.min(96, Math.max(calcMaxWorkers() * 3, 64))
   const requestsQueue = new PQueue({

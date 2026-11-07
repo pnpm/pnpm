@@ -384,7 +384,7 @@ fn package_deserializes_deprecated_reason_string() {
 }
 
 /// A packument missing the `time` field entirely still
-/// deserializes — abbreviated metadata responses omit it, and the
+/// deserializes, abbreviated metadata responses omit it, and the
 /// verifier falls through to the attestation / full-metadata
 /// layers in that case rather than failing closed.
 #[test]

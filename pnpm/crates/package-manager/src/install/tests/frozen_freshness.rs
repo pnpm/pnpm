@@ -177,7 +177,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
 /// `config.lockfile=false`. Pin the priority: frozen flag + lockfile present
 /// → `InstallFrozenLockfile`, regardless of `config.lockfile`.
 ///
-/// We don't need the full install to succeed here — any error that
+/// We don't need the full install to succeed here, any error that
 /// *isn't* `NoLockfile` proves the dispatch picked the frozen path.
 /// Passing a malformed lockfile integrity surfaces as
 /// `FrozenLockfile(...)`.
@@ -189,7 +189,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    // Explicitly disabled — this is the pacquet default today. The
+    // Explicitly disabled, this is the pacquet default today. The
     // CLI flag must still take over.
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
@@ -197,7 +197,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
     config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
-    // Minimal v9 lockfile with no snapshots — the frozen path will
+    // Minimal v9 lockfile with no snapshots, the frozen path will
     // run through `CreateVirtualStore` with an empty snapshot set,
     // which is a successful no-op. That's enough to prove we took
     // the frozen branch.
@@ -282,14 +282,14 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
 /// Issue [#447]: a `--frozen-lockfile` install where the on-disk
 /// `package.json` has drifted from the lockfile importer entry must
 /// fail with `OutdatedLockfile` (`ERR_PNPM_OUTDATED_LOCKFILE`)
-/// *before* any fetch or link work starts — a CI-correctness
+/// *before* any fetch or link work starts, a CI-correctness
 /// guarantee that pacquet can't silently install the wrong shape of
 /// `node_modules` when the manifest and lockfile diverge.
 ///
 /// We use the partial-install fixture (bogus tarball URL) and *omit*
 /// adding the placeholder dep to the manifest. If the check fails to
 /// fire, the install reaches the fetch site and errors with a
-/// network / integrity failure — distinguishable from the early
+/// network / integrity failure, distinguishable from the early
 /// `OutdatedLockfile` we expect.
 ///
 /// `trust_lockfile` is on so lockfile-resolution verification is
@@ -304,7 +304,7 @@ pub(super) async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() 
     let dirs = InstallDirs::new();
 
     let manifest_path = dirs.path().join("package.json");
-    // Deliberately do NOT add the `placeholder` dep — this is the
+    // Deliberately do NOT add the `placeholder` dep, this is the
     // drift case the check has to catch.
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
@@ -471,8 +471,8 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
 /// manifest's pre-override specifier would always disagree, failing
 /// every frozen install with `SpecifiersDiffer`. This test pins that
 /// behavior: a manifest declaring `foo: ^1` plus an override
-/// `foo: 2.0.0` lines up with a lockfile that records `foo: 2.0.0` —
-/// after override application — and the install proceeds.
+/// `foo: 2.0.0` lines up with a lockfile that records `foo: 2.0.0`,
+/// after override application, and the install proceeds.
 #[tokio::test]
 async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() {
     let dirs = InstallDirs::new();
@@ -571,7 +571,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
     .run::<SilentReporter>()
     .await;
 
-    // The install should not fail with `OutdatedLockfile` — the
+    // The install should not fail with `OutdatedLockfile`, the
     // overrider rewrites `placeholder: ^9 → 1.0.0` on the cloned
     // manifest, lining up with the lockfile. (The install may still
     // fail later for unrelated reasons in this minimal fixture, but
@@ -586,7 +586,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
 /// `catalog:` protocol; pnpm resolves them against `catalogs:` in
 /// `pnpm-workspace.yaml` and writes the *resolved* specifier to
 /// `pnpm-lock.yaml#overrides`. The freshness check must therefore
-/// resolve `catalog:` on the config side too before comparing — a
+/// resolve `catalog:` on the config side too before comparing, a
 /// raw string compare would treat `catalog:` ≠ `<concrete>` on every
 /// install. The config side parses the overrides against the catalogs
 /// and builds the resolved overrides map before comparing. Regression
@@ -718,7 +718,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
 }
 /// Negative-case: lockfile loads successfully but has no
 /// `importers["."]` entry for the project being installed. Distinct
-/// from `NoLockfile` (file missing entirely) — here the file is
+/// from `NoLockfile` (file missing entirely), here the file is
 /// well-formed but doesn't describe this project. Should surface as
 /// `NoImporter`, also before any fetch attempt. The project declares a
 /// dependency, since a missing entry for a dependency-free project is
@@ -737,7 +737,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
     config.install_state_dir = dirs.virtual_store_dir.clone();
     let config = config.leak();
 
-    // Empty-importers lockfile — valid v9 shape, but no entry for
+    // Empty-importers lockfile, valid v9 shape, but no entry for
     // the root project.
     let lockfile: Lockfile =
         serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse minimal lockfile");
@@ -805,7 +805,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
 /// GVS-on frozen-lockfile install. With
 /// `enable_global_virtual_store: true` (an explicit opt-in;
 /// pacquet's default is `false`, matching pnpm v11's effective
-/// default for non-`--global` installs — see
+/// default for non-`--global` installs, see
 /// [`pnpm_config::default_enable_global_virtual_store`]),
 /// `Install::run` registers the project at
 /// `<store_dir>/projects/<short-hash>`
@@ -819,7 +819,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
 async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     let dirs = InstallDirs::new();
 
-    // Place the manifest *inside* `dirs.project_root` — `Install::run`
+    // Place the manifest *inside* `dirs.project_root`, `Install::run`
     // derives the registry target from `manifest.path().parent()`,
     // so a manifest at `<tmp>/package.json` would register `<tmp>`
     // and the symlink-resolves-to-dirs.project_root assertion below
@@ -829,7 +829,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    // Pin GVS on explicitly — pacquet's default is `false`, so this
+    // Pin GVS on explicitly, pacquet's default is `false`, so this
     // test would test the wrong path otherwise.
     config.enable_global_virtual_store = true;
     config.lockfile = false;
@@ -908,7 +908,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     // `register_project` wrote `<dirs.store_dir>/v11/projects/<short-hash>`
     // pointing back at the project dirs.dir. Canonicalize the *entry
     // path* (not `read_link`'s output) so the kernel follows the
-    // symlink — pacquet writes the target as
+    // symlink, pacquet writes the target as
     // a path relative to the link's parent, so canonicalizing the
     // raw `read_link` string from the CWD would never resolve.
     let projects_dir = dirs.store_dir.join("v11/projects");

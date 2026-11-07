@@ -1,6 +1,6 @@
 //! `$dep-name` self-references in `overrides` end to end: the reference
 //! resolves against the root manifest's direct dependencies, and the
-//! resolved specifier — not the raw `$dep-name` — is what the lockfile
+//! resolved specifier, not the raw `$dep-name`, is what the lockfile
 //! records and what a later frozen install compares against.
 
 use assert_cmd::prelude::*;

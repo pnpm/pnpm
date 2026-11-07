@@ -163,7 +163,7 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
     assert!(received.cas_paths.contains_key("BUILD_RAN.marker"));
 }
 
-/// A `Git` resolution's package name lives only in the working tree —
+/// A `Git` resolution's package name lives only in the working tree,
 /// the specifier names a repo, not a package.
 #[tokio::test(flavor = "multi_thread")]
 async fn read_git_manifest_reads_the_name_from_the_checkout() {

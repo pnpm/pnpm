@@ -6,7 +6,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
-// `pacquet` is fetched from the real npm registry — registry-mock doesn't
+// `pacquet` is fetched from the real npm registry, registry-mock doesn't
 // carry it (or its platform-specific binary sub-packages). Tests are gated
 // on the public registry being reachable.
 const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
@@ -48,7 +48,7 @@ test('pnpm install --frozen-lockfile delegates to pacquet when declared in confi
   expect(fs.existsSync('node_modules/.pnpm-config/pacquet/bin/pacquet')).toBe(true)
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 
-  // Wipe `node_modules` while leaving lockfiles intact — the CI-style
+  // Wipe `node_modules` while leaving lockfiles intact, the CI-style
   // starting state of a checked-out repo with no installed modules.
   await fs.promises.rm('node_modules', { recursive: true, force: true })
 
@@ -144,7 +144,7 @@ test('bare `pnpm install` (no --frozen-lockfile) delegates to pacquet when the l
 test('pnpm install resolves a newly-added dependency with pacquet >= 0.11.7', async () => {
   // `prepare` installs with no dependencies, so the lockfile has no entry
   // for `is-positive`. Adding it to the manifest forces a real resolution
-  // on the next install — which pacquet performs itself, in a single
+  // on the next install, which pacquet performs itself, in a single
   // non-frozen pass (resolve + materialize), without a pnpm resolve pass.
   await prepareWithPacquet()
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'))

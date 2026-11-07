@@ -848,7 +848,7 @@ test('pack: package-level .npmignore disables workspace root gitignore', async (
 })
 
 // A symlinked workspace-root LICENSE must not be injected: following it would
-// leak the target's bytes — potentially a file outside the workspace — into
+// leak the target's bytes, potentially a file outside the workspace, into
 // the published tarball.
 ;(process.platform === 'win32' ? test.skip : test)('pack: does not inject a symlinked workspace LICENSE', async () => {
   preparePackages([

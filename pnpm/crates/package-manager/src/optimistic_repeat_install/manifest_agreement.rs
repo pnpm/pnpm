@@ -366,7 +366,7 @@ fn linked_dep_is_up_to_date(
     if crate::install::is_declared_local_directory(&dep.specifier) {
         // A `file:` specifier that resolved to `link:` (e.g. an
         // injected self-reference) is a local link with no
-        // `packages:` entry — up to date by construction.
+        // `packages:` entry, up to date by construction.
         return matches!(dep.version, ImporterDepVersion::Link(_));
     }
     let link_target = dep.version.as_link_target();

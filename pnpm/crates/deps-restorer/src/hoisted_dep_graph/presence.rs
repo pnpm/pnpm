@@ -120,7 +120,7 @@ pub(super) fn lookup_package_metadata<'a>(
     // `packages:` keys are peer-stripped (`react-dom@19.2.7`), while a
     // hoister reference carries the full peer suffix
     // (`react-dom@19.2.7(react@19.2.7)`). Try the exact key first
-    // (peerless references — the common case — hit immediately), then
+    // (peerless references, the common case, hit immediately), then
     // fall back to the stripped key so peered snapshots resolve their
     // metadata instead of being silently dropped from the graph along
     // with their whole subtree.
@@ -159,7 +159,7 @@ pub(super) fn manifest_for_installability(
 /// Returns an empty string when `dir == lockfile_dir`.
 ///
 /// Backslashes are normalized to forward slashes so the value is
-/// portable across platforms — `.modules.yaml.hoistedLocations`
+/// portable across platforms, `.modules.yaml.hoistedLocations`
 /// is read on whatever OS the next install runs on, and
 /// `pnpm-lock.yaml` already uses forward slashes for the same
 /// reason. pacquet normalizes here for cross-platform consistency

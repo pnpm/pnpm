@@ -62,7 +62,7 @@ interface RecursiveRunContext {
  * The outcome of one task's scripts. A RegExp selector can match several
  * scripts in one task, but the summary carries a single status per task and
  * countFailures derives the exit code from it. Once one of a task's scripts
- * has failed, nothing a later one does may overwrite that — under --no-bail
+ * has failed, nothing a later one does may overwrite that, under --no-bail
  * the run would otherwise report itself green. Tracked apart from the summary
  * because the scripts settle concurrently, so reading back the recorded status
  * would race.
@@ -191,7 +191,7 @@ interface TaskScript {
 
 async function runTaskScript (ctx: RecursiveRunContext, { node, script, outcome }: TaskScript): Promise<void> {
   // Under --bail a failure stops dispatch, but a script already queued
-  // behind the concurrency limit has been dispatched in name only —
+  // behind the concurrency limit has been dispatched in name only,
   // starting it now would grow the failed run. It stays 'queued'.
   if (ctx.opts.bail && ctx.firstError != null) {
     outcome.cancelled = true

@@ -13,7 +13,7 @@ impl NpmResolutionVerifier {
     /// Fail-closed: the entry passes only when the registry metadata
     /// affirmatively lists this version with a matching tarball URL. If the
     /// metadata can't be fetched, doesn't list the version, or omits
-    /// `dist.tarball`, the entry can't be confirmed and is rejected —
+    /// `dist.tarball`, the entry can't be confirmed and is rejected,
     /// otherwise a tampered lockfile could smuggle a malicious URL past the
     /// check by pointing it at a `name@version` the registry can't vouch for.
     pub(super) async fn run_registry_artifact_check(

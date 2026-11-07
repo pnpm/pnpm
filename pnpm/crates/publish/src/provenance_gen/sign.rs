@@ -99,7 +99,7 @@ const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
 };
 
 /// sigstore-js's `DEFAULT_TIMEOUT`, used only when the caller supplies no
-/// `fetch-timeout` — the sigstore-rust clients set no request timeout of
+/// `fetch-timeout`, the sigstore-rust clients set no request timeout of
 /// their own, so without a deadline a hung connection stalls the publish
 /// until the OS gives up on the socket.
 #[cfg(not(target_family = "wasm"))]

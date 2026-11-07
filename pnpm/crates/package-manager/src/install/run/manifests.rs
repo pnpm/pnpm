@@ -21,7 +21,7 @@ impl HookedManifests {
     // `packageExtensions` runs ahead of the pnpmfile's `readPackage`,
     // the order the resolver applies them in. The freshness gates below
     // compare against these, because the lockfile they check was written
-    // from the extended manifests too — a peer an extension injects into
+    // from the extended manifests too, a peer an extension injects into
     // a workspace project is auto-installed and recorded, so a check that
     // read the file on disk would see it as a dependency that vanished.
     pub(super) async fn hook<Reporter: self::Reporter>(
@@ -166,8 +166,8 @@ pub(super) fn manifest_freshness_inputs<'a>(
     };
     selected_manifest_freshness_inputs(workspace_root, project_manifests, selection.install_dirs)
 }
-/// What decides whether the root project's pre-resolution hooks —
-/// `pnpm:devPreinstall` and `preinstall` — run.
+/// What decides whether the root project's pre-resolution hooks,
+/// `pnpm:devPreinstall` and `preinstall`, run.
 pub(super) struct RootHooksScope<'a> {
     pub(super) config: &'a Config,
     pub(super) workspace_root: &'a Path,
@@ -184,7 +184,7 @@ pub(super) struct RootHooksScope<'a> {
 /// pnpm reads `pnpm:devPreinstall` off the root project's in-memory
 /// manifest and only shells out when it is defined. Falling back to the
 /// executor's own read covers a root that isn't among the importers, as a
-/// filtered install's is not — pnpm's `safeReadProjectManifestOnly`
+/// filtered install's is not, pnpm's `safeReadProjectManifestOnly`
 /// fallback.
 ///
 /// The root's `preinstall` runs here too, ahead of resolution, when the

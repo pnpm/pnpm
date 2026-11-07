@@ -1,4 +1,4 @@
-//! Acceptance tests for issue [#11974] — pnpr must keep user
+//! Acceptance tests for issue [#11974], pnpr must keep user
 //! accounts and bearer tokens across process restarts so an
 //! operator can run it as a hosted registry without losing every
 //! account on the next container redeploy.
@@ -112,7 +112,7 @@ async fn user_and_token_survive_restart() {
     let app = router_with_auth(config, auth);
 
     // The token issued before the "restart" must still resolve to
-    // alice — proves token hash round-tripped through SQLite.
+    // alice, proves token hash round-tripped through SQLite.
     let response = app
         .clone()
         .oneshot(
@@ -124,7 +124,7 @@ async fn user_and_token_survive_restart() {
         )
         .await
         .unwrap();
-    // 404 from the dist-tag handler is fine — the point is we got
+    // 404 from the dist-tag handler is fine, the point is we got
     // past the 401 gate, which proves the token still authenticates.
     assert_ne!(response.status(), StatusCode::UNAUTHORIZED, "token should still authenticate");
 
@@ -290,7 +290,7 @@ async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
     );
 }
 
-/// `auth.users.max_users: -1` blocks new registrations — but
+/// `auth.users.max_users: -1` blocks new registrations, but
 /// existing users can still log in. Wired end-to-end through the
 /// adduser HTTP endpoint to confirm the policy surfaces as a 403,
 /// not a silent 201.

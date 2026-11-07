@@ -6,12 +6,12 @@ use std::fmt::Write as _;
 ///
 /// Built once per command rather than per project. The recursive runner
 /// applies the same selector across every selected project, so compiling
-/// the pattern there would repeat the work — and would report a rejected
+/// the pattern there would repeat the work, and would report a rejected
 /// pattern once per project instead of once.
 #[derive(Debug)]
 pub(in super::super) struct ScriptSelector<'a> {
     pub(super) name: &'a str,
-    /// `None` when the positional is a plain script name — including a
+    /// `None` when the positional is a plain script name, including a
     /// regexp literal whose pattern the engine rejects, which pnpm also
     /// falls back to reading as a name.
     pub(super) pattern: Option<Regex>,

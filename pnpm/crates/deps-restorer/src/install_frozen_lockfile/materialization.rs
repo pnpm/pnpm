@@ -14,7 +14,7 @@ use std::future::Future;
 
 impl<'a> InstallFrozenLockfile<'a> {
     /// Run the dependency builds, report ignored ones, and relink the
-    /// top-level bins — the same build phase the fresh path runs.
+    /// top-level bins, the same build phase the fresh path runs.
     pub(super) fn build<'p, Reporter: self::Reporter>(
         &self,
         ctx: &'p crate::InstallContext<'p>,
@@ -238,8 +238,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             // rejected lockfile must never reach.
             let dir_clone_cache = install.dir_clone_cache(allow_build_policy, engine_source);
             // Kick off the store-side half of `CreateVirtualStore::run`'s
-            // planning — like the directory-clone cache above, only after
-            // the offline lockfile checks — so its index reads run while a
+            // planning, like the directory-clone cache above, only after
+            // the offline lockfile checks, so its index reads run while a
             // pending host detection finishes its `node --version`.
             let cas_prefetch = install.drivers.start_cas_prefetch(
                 install.entries(),

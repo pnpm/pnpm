@@ -17,7 +17,7 @@ use std::{
 };
 use tempfile::tempdir;
 
-/// Run `git` (resolved through `PATH`) with `args` and capture stdout —
+/// Run `git` (resolved through `PATH`) with `args` and capture stdout,
 /// a convenience wrapper around [`exec_git_with`] for fixture setup that
 /// does not need to override the binary location.
 fn exec_git(args: &[&str], cwd: Option<&Path>) -> Result<String, GitFetcherError> {
@@ -25,7 +25,7 @@ fn exec_git(args: &[&str], cwd: Option<&Path>) -> Result<String, GitFetcherError
 }
 
 /// Build a bare repo whose manifest declares a `prepare` script. The
-/// script is whatever the caller passes — typically a `node -e '…'`
+/// script is whatever the caller passes, typically a `node -e '…'`
 /// one-liner that writes a marker file or exits non-zero. Returns
 /// the `(bare_repo_path, commit_sha)` pair the fetcher needs.
 fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (PathBuf, String) {
@@ -36,7 +36,7 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
     exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
     exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
     // Manifest with no dependencies so the synthesized `<pm>-install`
-    // step has nothing to fetch from a network registry — the test
+    // step has nothing to fetch from a network registry, the test
     // stays self-contained even without verdaccio / a mock registry.
     let manifest = format!(
         r#"{{"name":"x","version":"1.0.0","main":"index.js","scripts":{{"prepare":{prepare_script:?}}}}}"#,
@@ -158,7 +158,7 @@ fn make_monorepo_bare_repo(tmp: &Path) -> (PathBuf, String) {
 }
 
 /// Bare repo with no `package.json` at root. Used to confirm the
-/// fetcher tolerates packages whose archive lacks a manifest — the
+/// fetcher tolerates packages whose archive lacks a manifest, the
 /// install dispatcher rejects such packages downstream, but the
 /// fetcher itself must not crash.
 fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
@@ -193,7 +193,7 @@ fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
 ///   completes its sequence without contacting a remote.
 ///
 /// Both knobs ride through env vars rather than getting baked into
-/// the shim's source — keeping `printf '%s' "$VAR"` outside any
+/// the shim's source, keeping `printf '%s' "$VAR"` outside any
 /// shell-evaluation context means a `TMPDIR` containing `$` /
 /// backticks / `\` can't be re-interpreted by `/bin/sh` when the
 /// shim runs. Callers populate the env via the [`EnvGuard`] each
@@ -201,13 +201,13 @@ fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
 ///
 /// Returns the absolute path to the shim binary. The caller passes
 /// it as [`GitFetcher::git_bin`] so only *that* fetcher resolves git
-/// through the shim — process-global `PATH` is never touched, so
+/// through the shim, process-global `PATH` is never touched, so
 /// sibling tests calling `Command::new("git")` (in fixture setup,
 /// or in unrelated git-fetcher tests) keep resolving to the real
 /// git binary unaffected.
 ///
 /// The shim handles every `git` invocation the fetcher might make
-/// — both the shallow path (`init`, `remote add origin`, `fetch
+///, both the shallow path (`init`, `remote add origin`, `fetch
 /// --depth 1 origin`, `checkout`, `rev-parse HEAD`) and the
 /// non-shallow `clone`. Each is logged before exit-zero, so both
 /// branches of `should_use_shallow` exercise the same shim.
@@ -216,7 +216,7 @@ pub(crate) fn write_git_shim(dir: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     fs::create_dir_all(dir).unwrap();
     let shim_path = dir.join("git");
-    // POSIX `sh` (not bash) — every host has `/bin/sh`. The body
+    // POSIX `sh` (not bash), every host has `/bin/sh`. The body
     // is a static string: paths/values come from env vars at run
     // time, so no embedded value can be shell-interpreted.
     let body = r#"#!/bin/sh

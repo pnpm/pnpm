@@ -52,7 +52,7 @@ fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {
 }
 
 /// A subset of `graph`'s nodes that keep their original `dependencies` arrays
-/// — still referencing the unselected projects — exactly as the real selected
+///, still referencing the unselected projects, exactly as the real selected
 /// graph is built.
 fn select(graph: &ProjectGraph<()>, names: &[&str]) -> ProjectGraph<()> {
     names

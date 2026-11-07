@@ -8,9 +8,9 @@ use super::{
     warm_children_resolutions, write_recoverable,
 };
 
-/// Seed every child edge of one occurrence — its manifest's
+/// Seed every child edge of one occurrence, its manifest's
 /// dependencies less the names its own `peerDependencies` shadow, with
-/// a workspace project's catalog specifiers resolved — and derive the
+/// a workspace project's catalog specifiers resolved, and derive the
 /// scope its grandchildren will resolve in.
 ///
 /// The whole level seeds before any of it settles, so this resolves
@@ -106,7 +106,7 @@ pub(super) struct ChildSeedScope<'s> {
     /// re-resolve. A parent that freshly resolved but landed back on its
     /// previously recorded version keeps the prior child refs alive
     /// (pnpm's non-`parentPkg.updated` arm), and each child edge
-    /// re-enters the reuse gate with its recorded key — so a
+    /// re-enters the reuse gate with its recorded key, so a
     /// still-satisfied subtree is reused rather than re-resolved.
     /// Re-resolving those children would re-pick open ranges (`*`) at
     /// their newest versions and churn the lockfile.
@@ -262,7 +262,7 @@ pub(crate) fn parent_ids_contain_sequence(
 }
 
 /// Whether a freshly resolved node landed back on its previously
-/// recorded lockfile entry — the non-`updated` arm, which keeps the
+/// recorded lockfile entry, the non-`updated` arm, which keeps the
 /// prior child refs alive. An entry the registry configuration re-keys
 /// still names the same package from the same registry.
 pub(super) fn landed_on_prior_entry(
@@ -281,7 +281,7 @@ pub(super) fn landed_on_prior_entry(
 /// overlay under for one wanted edge: the alias itself, plus the real
 /// package name from [`real_package_name_of`] when it differs (the
 /// inner target of an `npm:` alias or the folded `@jsr/...` name of a
-/// `jsr:` specifier) — mirroring the name derivation in the npm
+/// `jsr:` specifier), mirroring the name derivation in the npm
 /// resolver's `parse_bare_specifier`, which keys its overlay merge by
 /// the resolved `spec.name` rather than the outer alias.
 ///
@@ -300,7 +300,7 @@ pub(super) fn overlay_lookup_names<'edge>(
 
 /// Whether this package's child specifiers pass through the importer's
 /// catalogs, which makes them a property of the resolving importer
-/// rather than of the package id — the one input
+/// rather than of the package id, the one input
 /// [`fn@crate::resolve_dependency_tree::workspace_ctx::recorded_children_match`] cannot compare, since the recorded
 /// context does not carry the catalogs the recording importer used.
 pub(super) fn resolves_children_through_catalogs(

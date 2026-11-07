@@ -1,7 +1,7 @@
 //! Targeted cleanup for an `included` (dependency-group selection)
 //! drift: remove the direct-dependency links a previous install created
 //! for groups the current install excludes, leaving everything else in
-//! the importer's `node_modules` — the user's own files above all — in
+//! the importer's `node_modules`, the user's own files above all, in
 //! place. The non-destructive counterpart of the purge in
 //! the package manager's `Install`, mirroring pnpm's `removeDirectDependency` prune.
 
@@ -29,7 +29,7 @@ use std::{
 pub enum PruneDirectDepsError {
     /// A direct-dep alias recorded in the current lockfile is not a
     /// valid npm package name. Joining it under `node_modules` could
-    /// escape the directory, so the removal is refused — same boundary
+    /// escape the directory, so the removal is refused, same boundary
     /// `safe_join_modules_dir` enforces on the hoisted restore path.
     #[diagnostic(transparent)]
     InvalidAlias(#[error(source)] InvalidDependencyAliasError),
@@ -73,7 +73,7 @@ pub enum PruneDirectDepsError {
 
 /// Remove the direct-dependency links that `old_included` selected but
 /// `new_included` does not, for every importer recorded in the current
-/// lockfile (`<install_state_dir>/lock.yaml` — what the previous install
+/// lockfile (`<install_state_dir>/lock.yaml`, what the previous install
 /// actually materialized). When `prunable_importer_ids` is set, only links
 /// belonging to those importers are eligible for removal; a filtered
 /// install leaves every other importer's links untouched because it never
@@ -81,25 +81,25 @@ pub enum PruneDirectDepsError {
 ///
 /// Unrelated to [`crate::DirectLinkPolicy::trusted_importer_ids`],
 /// which names importers allowed to *skip* ID validation. This set never
-/// widens what may be deleted — every removal still passes the same
+/// widens what may be deleted, every removal still passes the same
 /// validation and containment checks.
 ///
 /// Runs when `.modules.yaml` records a different `included` set than the
 /// current install wants while the layout itself is unchanged: that
 /// drift skips the destructive purge, so the links the previous install
-/// created for now-excluded groups have to be removed individually —
+/// created for now-excluded groups have to be removed individually,
 /// pnpm does the same through its prune's `removeDirectDependency`.
 /// Removal is conservative on three axes:
 ///
 /// - Each importer's modules dir must canonicalize to a path inside the
 ///   workspace root ([`confined_modules_dir`], the purge's containment
 ///   check), and removals never reach through an intermediate
-///   `@scope/` or `.bin/` component that isn't a real directory — a
+///   `@scope/` or `.bin/` component that isn't a real directory, a
 ///   symlinked or junctioned one could redirect the deletions outside
 ///   the confined dir.
 /// - Only symlinks (junctions on Windows) are removed. The isolated
 ///   linker only ever writes links for direct deps, so a real file or
-///   directory under the same name belongs to the user — or to the
+///   directory under the same name belongs to the user, or to the
 ///   hoisted linker, whose own orphan diff handles removal.
 /// - A dep's bin shims are removed first, resolved from the same
 ///   sanitized [`get_bins_from_package_manifest`] name set the shim
@@ -122,7 +122,7 @@ pub fn prune_direct_deps_excluded_by_groups(
     let new_groups = selected_groups(new_included);
     // The skip filter only narrows what the linker materializes. For
     // removal, a name that was skipped last install has no on-disk
-    // entry, so removing it is a no-op — no skip set needed.
+    // entry, so removing it is a no-op, no skip set needed.
     let skipped = SkippedSnapshots::new();
     let modules_dirs = crate::ImporterModulesDirs::from_config(config, workspace_root);
 
@@ -169,11 +169,11 @@ fn prune_importer_links(
 }
 
 /// Canonicalize `modules_dir` and require it to stay within
-/// `workspace_root` — the same containment check the purge applies
+/// `workspace_root`, the same containment check the purge applies
 /// before its destructive sweep. Returns the canonical path the
 /// removals should operate on, or `None` when there is nothing to
 /// prune (the directory doesn't exist) or when the resolution escapes
-/// the workspace — never delete through an escape.
+/// the workspace, never delete through an escape.
 pub fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option<PathBuf> {
     let modules_canon = std::fs::canonicalize(modules_dir).ok()?;
     let root_canon = std::fs::canonicalize(workspace_root).ok()?;
@@ -188,7 +188,7 @@ pub fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option
     }
 }
 
-/// `true` when `path` is a real directory — not a symlink (nor a
+/// `true` when `path` is a real directory, not a symlink (nor a
 /// junction on Windows, which `FileType::is_dir` reports as a
 /// directory). Removals must not reach *through* a redirected
 /// intermediate component (`@scope/`, `.bin/`); the containment check
@@ -238,7 +238,7 @@ pub fn remove_direct_dep_link(
     }
     // Only a symlink (junction on Windows) can be a direct-dep entry the
     // isolated linker wrote; anything else stays untouched. The probe
-    // also covers "not there at all" — nothing to remove.
+    // also covers "not there at all", nothing to remove.
     if read_symlink_dir(&link).is_err() {
         return Ok(None);
     }
@@ -281,7 +281,7 @@ pub(crate) fn remove_extraneous_direct_dep(
 
 /// Remove the shims the package at `pkg_dir` declares from
 /// `<modules_dir>/.bin`. A missing or unparsable `package.json` (a
-/// dangling link, a broken package) yields no bins to remove — the same
+/// dangling link, a broken package) yields no bins to remove, the same
 /// best-effort read as pnpm's `removeBins`.
 pub(crate) fn remove_dep_bins(
     modules_dir: &Path,
@@ -315,7 +315,7 @@ fn remove_dep_bins_with_version(
         .map(str::to_owned);
     // Shims are deleted with plain `remove_file`, so a `.bin` that is
     // itself a symlink or junction would redirect the deletions
-    // outside the confined modules dir — skip shim removal unless
+    // outside the confined modules dir, skip shim removal unless
     // `.bin` is a real directory. (Absent `.bin` means no shims.)
     let bins_dir = modules_dir.join(".bin");
     if !is_real_dir(&bins_dir) {

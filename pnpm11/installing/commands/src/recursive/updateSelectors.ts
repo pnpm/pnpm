@@ -25,7 +25,7 @@ export function matchDependencies (
  * The update-target predicate of `pnpm update <selector>...`. The version part
  * of an exact selector narrows which resolved copies of a matched package are
  * update targets: `foo@1.2.3` targets only the version line that can resolve to
- * `1.2.3` — the same major, or the same minor when the request is on `0.x`,
+ * `1.2.3`, the same major, or the same minor when the request is on `0.x`,
  * where the minor is the compatibility boundary. A package the workspace
  * depends on twice therefore keeps the copies on its other lines untouched.
  *
@@ -73,7 +73,7 @@ function isInVersionScope (
 
 /**
  * The version a selector names, normalized, or `undefined` for a range, a tag
- * or an `npm:` alias spec — none of which name a single version.
+ * or an `npm:` alias spec, none of which name a single version.
  */
 function parseExactVersion (versionSpec: string): string | undefined {
   const selector = getVersionSelectorType(versionSpec)
@@ -91,7 +91,7 @@ function parseVersionLine (versionSpec: string): VersionLine | undefined {
 /**
  * `pnpm update <dep>@<version>` where `<dep>` matches no direct dependency has
  * nowhere to record the version. An update resolves such a target the same way
- * a fresh install would — which a command-line version cannot influence — so
+ * a fresh install would, which a command-line version cannot influence, so
  * honoring the request would mean writing a lockfile entry no manifest backs,
  * and the next fresh resolve would undo it. Neither npm nor Yarn accepts a
  * version here either. Fail rather than resolve to something else and leave
@@ -187,7 +187,7 @@ export function parseUpdateParam (param: string): { pattern: string, versionSpec
 
 /**
  * The selectors an update selector stands for. An `npm:` selector contributes
- * a second one for the aliased package, because that — not the alias — is the
+ * a second one for the aliased package, because that, not the alias, is the
  * name the resolver resolves the edge under; it carries the aliased spec's own
  * version so the expansion scopes the same version line the user asked for.
  */

@@ -108,7 +108,7 @@ fn create_target(
         manifest.catalogs.default =
             Some(IndexMap::from([(dep.to_string(), specifier.to_string())]));
     } else if manifest.catalogs.named.is_some() {
-        // `catalogs:` exists but lacks this name — add a named sub-block.
+        // `catalogs:` exists but lacks this name, add a named sub-block.
         let new_text =
             write_named_subblock(manifest.document.text(), "catalogs", catalog_name, dep, &value);
         manifest.document.set_text(new_text);
@@ -316,7 +316,7 @@ pub(super) fn write_named_subblock(
 }
 
 /// Rewrite an entry's value in place under `path`, replacing the whole
-/// value — a scalar line or a sub-block — with `value_text`, preserving the
+/// value, a scalar line or a sub-block, with `value_text`, preserving the
 /// key's text/quoting and any trailing comment. Used for `permissions` and
 /// `allowBuilds` instead of the `yamlpatch` route, which rejects a key
 /// containing `:` (an artifact pkgId such as `foo@https://example.com/foo.tgz`).
@@ -357,7 +357,7 @@ fn format_replaced_line(content: &str, colon: usize, value_text: &str) -> String
     let key_text = content[..colon].trim_end();
     // Preserve any trailing comment, and replace the whole value.
     // Ending the value at its first whitespace would truncate a
-    // multi-word plain scalar and leave the tail behind as garbage —
+    // multi-word plain scalar and leave the tail behind as garbage,
     // `allowBuilds` entries carry exactly such a value while they still
     // hold pnpm's `set this to true or false` placeholder.
     let after = content[colon + 1..].trim_start();

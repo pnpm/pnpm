@@ -304,7 +304,7 @@ fn is_orphaned_install_dir(
 
 fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool {
     let Ok(metadata) = std::fs::metadata(dir_path) else { return true };
-    // Use max(created, modified) as the dir's age — the closest portable
+    // Use max(created, modified) as the dir's age, the closest portable
     // proxies std exposes for birthtime / ctime.
     let created = metadata.created().ok();
     let modified = metadata.modified().ok();
@@ -326,8 +326,8 @@ fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool 
 /// The aliases become directory names under `node_modules` at every
 /// downstream join site (list, conflict-check, remove, update), so a
 /// tampered group `package.json` could otherwise use an alias like `../x`
-/// or an absolute path to escape the install directory. Validating here —
-/// the single point where aliases enter the scan — closes that for every
+/// or an absolute path to escape the install directory. Validating here,
+/// the single point where aliases enter the scan, closes that for every
 /// consumer, using the same [`is_valid_dependency_alias`] check the
 /// resolver applies to direct dependencies.
 fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {

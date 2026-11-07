@@ -137,7 +137,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
     let pkg_id = "fake@1.0.0";
     let cache_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
 
-    // Synthetic cas-path map — its values just need to be returned
+    // Synthetic cas-path map, its values just need to be returned
     // verbatim by the prefetched short-circuit. They don't need to
     // resolve to anything on disk because no integrity check runs
     // on this path.
@@ -179,7 +179,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
 
         // No SQLite handle: any fall-through to the per-snapshot
         // SQLite lookup would just miss, so a network attempt
-        // would follow — and that would fail against the
+        // would follow, and that would fail against the
         // unreachable URL below, failing the test.
         requester: "",
 
@@ -429,7 +429,7 @@ async fn prefetch_cas_paths_rereads_gypfile_for_rows_that_predate_it() {
 
 /// With `verify_store_integrity = false`, `prefetch_cas_paths`
 /// goes through `build_file_maps_from_index` instead of
-/// `check_pkg_files_integrity` — the index row is trusted and
+/// `check_pkg_files_integrity`, the index row is trusted and
 /// no `fs::metadata` syscalls run per file. The result must
 /// still surface an entry for the requested key, even when no
 /// CAFS blob exists on disk; correctness is left to the caller's

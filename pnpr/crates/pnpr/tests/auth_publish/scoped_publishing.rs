@@ -6,12 +6,12 @@ use super::{
 use base64::Engine;
 
 /// `libnpmpublish` (the library `pnpm publish` / `npm publish` use under
-/// the hood) names the `_attachments` key by the full package name —
+/// the hood) names the `_attachments` key by the full package name,
 /// for `@scope/name` that's `@scope/name-1.0.0.tgz`, with a literal `/`
 /// in the filename. The server has to accept that shape and normalize
 /// it to the canonical `<basename>-<version>.tgz` form on disk, otherwise
 /// `pnpm publish` against pnpr fails with 400 for every scoped
-/// package — see `recursivePublish.ts` in `@pnpm/releasing.commands`.
+/// package, see `recursivePublish.ts` in `@pnpm/releasing.commands`.
 #[tokio::test]
 async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
     let tmp = TempDir::new().unwrap();
@@ -87,7 +87,7 @@ async fn unpublish_partial_writes_modified_packument() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Publish two versions, then PUT a modified packument with the
-    // older one removed — simulating the partial-unpublish flow.
+    // older one removed, simulating the partial-unpublish flow.
     for version in ["1.0.0", "2.0.0"] {
         let body = publish_doc("unpub-partial", version, version.as_bytes());
         let request = Request::put("/npm/unpub-partial")
@@ -141,7 +141,7 @@ async fn unpublish_partial_writes_modified_packument() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    // GET packument back — should only contain 2.0.0.
+    // GET packument back, should only contain 2.0.0.
     let response = app
         .clone()
         .oneshot(
@@ -188,7 +188,7 @@ async fn unpublish_partial_writes_modified_packument() {
         crate::storage::hosted_file(&storage, "unpub-partial", "unpub-partial-2.0.0.tgz").is_some(),
     );
 
-    // Second DELETE of the same tarball is a no-op — verdaccio
+    // Second DELETE of the same tarball is a no-op, verdaccio
     // returns 201 here too (idempotent). The pnpm unpublish flow
     // tolerates 404 separately as a fallback, but we shouldn't even
     // get there.

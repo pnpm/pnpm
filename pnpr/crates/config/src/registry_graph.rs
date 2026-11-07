@@ -100,7 +100,7 @@ pub(super) fn flatten_ecosystem_group(
 ///
 /// With `resolve_upstreams` false (the registry surface is disabled), an
 /// upstream registry still joins the graph for validation but its credentials
-/// and serving config are not resolved — a resolver-only tier must not fail
+/// and serving config are not resolved, a resolver-only tier must not fail
 /// on (or carry) upstream secrets it never uses.
 pub(super) fn build_registries(
     upstreams: &mut IndexMap<String, UpstreamConfig>,
@@ -327,8 +327,8 @@ pub(super) fn build_hosted_entry(
 /// The resolved serving config, ecosystem and claimed patterns of one
 /// `upstream:` registry. The rules are built before the `resolve_upstreams`
 /// fork so the graph carries the namespace on every tier, and so a
-/// `publish`/`unpublish` value — a write rule on a registry no write can land
-/// on — fails startup on every tier too. A resolver-only tier gets no serving
+/// `publish`/`unpublish` value, a write rule on a registry no write can land
+/// on, fails startup on every tier too. A resolver-only tier gets no serving
 /// config back.
 pub(super) fn build_upstream_entry(
     name: &str,
@@ -362,7 +362,7 @@ pub(super) fn build_upstream_entry(
 /// Resolve an `upstream:` registry into the shared [`UpstreamConfig`] runtime shape.
 /// A `public` upstream is anonymous and world-readable (no credential, no
 /// access gate); a non-`public` one must declare `access:` naming who may
-/// reach it at `/~<name>/`. Declaring both `public` and `auth` is rejected —
+/// reach it at `/~<name>/`. Declaring both `public` and `auth` is rejected,
 /// a public origin sends no credential.
 pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
     name: &str,

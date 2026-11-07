@@ -48,7 +48,7 @@ pub enum SymlinkPackageError {
 ///   `<parent>/.ignored_<basename>` and the symlink is created.
 ///
 /// Returns the [`ForceSymlinkOutcome`], so callers can mirror pnpm's
-/// `if ((await symlinkDependency(...)).reused) return` — the direct-dependency
+/// `if ((await symlinkDependency(...)).reused) return`, the direct-dependency
 /// linker only emits a `pnpm:root added` event for symlinks it actually
 /// created, not for ones already pointing at the target.
 pub fn symlink_package(

@@ -90,7 +90,7 @@ export async function handler (
   globalInfo('Checking for updates...')
   const bootstrapConfig = getPackageManagerBootstrapConfig(opts)
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
-  // refuse to downgrade in that case — `latest` on the registry can lag the
+  // refuse to downgrade in that case, `latest` on the registry can lag the
   // installed version when a new major has shipped without being tagged.
   // `pnpm self-update latest` (explicit) bypasses the guard so users can
   // still force a downgrade when they want one.
@@ -171,7 +171,7 @@ function warnOnMajorUpgrade (
 /**
  * The pnpm version being upgraded FROM. If the project pins pnpm via
  * `packageManager`/`devEngines.packageManager`, the pin is the source of
- * truth — the running pnpm binary may already be at a newer major (e.g. a
+ * truth, the running pnpm binary may already be at a newer major (e.g. a
  * globally-installed v11 operating on a project still pinned to v10).
  * Otherwise the running binary. `undefined` on a no-op (target === previous).
  */
@@ -186,7 +186,7 @@ function findPreviousPnpmVersion (
 }
 
 async function describeNewerProjectPin (opts: SelfUpdateCommandOptions, targetVersion: string): Promise<string | undefined> {
-  // Prefer the lockfile-pinned version when available — for range
+  // Prefer the lockfile-pinned version when available, for range
   // specs like `>=8.0.0`, the spec's lower bound understates the
   // version that was actually installed (see pnpm/pnpm#11418 review).
   const projectCurrentVersion = await readProjectPinnedPnpmVersion(opts.lockfileDir ?? opts.rootProjectManifestDir, opts.wantedPackageManager?.version)
@@ -261,7 +261,7 @@ async function refreshLegacyHomeDirShims (pnpmHomeDir: string, baseDir: string):
   // pnpm v10 setup linked bins directly into pnpmHomeDir and added that
   // directory to PATH (instead of pnpmHomeDir/bin as v11 does). When a v10
   // user upgrades to v11 the legacy shims at pnpmHomeDir keep pointing into
-  // the old `.tools/<version>` install — so PATH still resolves `pnpm` to the
+  // the old `.tools/<version>` install, so PATH still resolves `pnpm` to the
   // pre-update version. Detect that case and refresh the legacy shims so the
   // upgrade actually takes effect, then warn the user to run `pnpm setup`
   // for a clean migration to the v11 layout. See pnpm/pnpm#11464.
@@ -414,7 +414,7 @@ function implicitLatestNoUpgradeMessage (
  *
  * A `minimumReleaseAge` cutoff exists so a freshly published pnpm cannot reach
  * the machine before anyone has had a chance to notice it is malicious, and
- * pnpm itself is the most valuable thing on the machine to compromise — so
+ * pnpm itself is the most valuable thing on the machine to compromise, so
  * under strict mode an immature pick is refused. An interactive run may still
  * confirm it: naming a version on the command line is a deliberate act by the
  * person at the keyboard, unlike a dependency drifting onto a new release. CI
@@ -424,8 +424,8 @@ function implicitLatestNoUpgradeMessage (
  * project (see the config reader's `SELF_UPDATE_SKIPPED_SETTINGS`), so the
  * only thing to confirm here is the user's own policy.
  *
- * A `trustPolicy` violation is not negotiable — it means the release's trust
- * evidence weakened relative to the installed version — so it keeps failing
+ * A `trustPolicy` violation is not negotiable, it means the release's trust
+ * evidence weakened relative to the installed version, so it keeps failing
  * with the same error {@link makeResolutionStrict} would have raised.
  */
 async function enforceResolutionPolicy (
@@ -459,7 +459,7 @@ async function confirmImmatureUpdate (message: string): Promise<boolean> {
 }
 
 // A leftover shim whose install target was garbage-collected is dead weight,
-// not a real v10 layout — treat it as absent so the warning below stays
+// not a real v10 layout, treat it as absent so the warning below stays
 // accurate. The marker only exists on the POSIX sh shim, so introspect that;
 // fall back to .cmd existence only when the sh shim is absent.
 // See pnpm/pnpm#12496.
@@ -494,14 +494,14 @@ async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spe
     const envLockfile = await readEnvLockfile(rootProjectManifestDir)
     lockfilePinned = envLockfile?.importers['.'].packageManagerDependencies?.pnpm?.version
   } catch {
-    // ignore — fall through to spec min version
+    // ignore, fall through to spec min version
   }
   let specMin: string | undefined
   if (spec != null) {
     try {
       specMin = semver.minVersion(spec)?.version
     } catch {
-      // invalid range — ignore
+      // invalid range, ignore
     }
   }
   if (lockfilePinned != null && specMin != null) {

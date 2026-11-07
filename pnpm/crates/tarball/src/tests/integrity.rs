@@ -45,7 +45,7 @@ store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: Non
 }
 
 /// `prefetch_cas_paths` must omit entries whose integrity check
-/// fails — same policy as the per-snapshot `load_cached_cas_paths`
+/// fails, same policy as the per-snapshot `load_cached_cas_paths`
 /// path. We seed an index row that points at a digest no file on
 /// disk matches; the prefetch should drop the row from its result
 /// rather than return a half-populated map (which would mislead

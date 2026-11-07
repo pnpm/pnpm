@@ -28,7 +28,7 @@ async function readSigningKeyPackets (trustedKeys: readonly ArmoredKey[]): Promi
  * embedded public keys before returning its content.
  *
  * The download mirror is repository-configurable (`node-mirror:<channel>`), so
- * the SHASUMS file — and the integrity hashes it carries — cannot be trusted on
+ * the SHASUMS file, and the integrity hashes it carries, cannot be trusted on
  * their own. Verifying the signature against keys embedded in pnpm anchors the
  * download to the real Node.js release team: a mirror serving a tampered binary
  * with a matching SHASUMS cannot also produce a valid signature.

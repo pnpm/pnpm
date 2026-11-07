@@ -212,7 +212,7 @@ pub struct NpmUser {
 }
 
 /// `_npmUser.approver` record on a per-version manifest. Its presence
-/// marks a staged publish — one that required a 2FA publish approval,
+/// marks a staged publish, one that required a 2FA publish approval,
 /// the strongest trust signal. The verifier only checks for the
 /// field's presence; `name` / `email` are kept for round-trip parity.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]

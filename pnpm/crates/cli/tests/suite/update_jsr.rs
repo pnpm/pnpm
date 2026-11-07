@@ -219,7 +219,7 @@ fn update_jsr_alias_selector_targets_the_aliased_package() {
 
     // Pin the aliased package at 1.0.0 through an exact entry naming the
     // npm package the alias installs, then drop that entry so the alias is
-    // the only thing holding it — its ^1.0.0 range a fresh resolve answers
+    // the only thing holding it, its ^1.0.0 range a fresh resolve answers
     // with 1.1.0.
     write_manifest(
         &workspace,

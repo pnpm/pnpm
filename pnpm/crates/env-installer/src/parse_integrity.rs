@@ -1,7 +1,7 @@
 use crate::ConfigDepError;
 use ssri::Integrity;
 
-/// One configurational dependency normalized for installation — the
+/// One configurational dependency normalized for installation, the
 /// shape the install pass consumes after reading the env lockfile (or
 /// migrating an old inline-integrity manifest entry).
 #[derive(Debug, Clone)]

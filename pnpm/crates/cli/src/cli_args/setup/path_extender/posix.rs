@@ -118,7 +118,7 @@ enum PathGuard {
 ///
 /// `dir` is single-quote escaped before it is interpolated into the shell
 /// code. This hardens beyond pnpm's `@pnpm/os.env.path-extender`, which
-/// interpolates the directory into double quotes — where a value containing
+/// interpolates the directory into double quotes, where a value containing
 /// `$(...)` / backticks would execute when the rc file is sourced.
 fn render_posix_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
     render_posix_section(dir, opts, PathGuard::Positioned, sh_quote)

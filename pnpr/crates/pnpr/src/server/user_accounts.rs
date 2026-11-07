@@ -16,7 +16,7 @@ fn strip_couchdb_user_prefix(user: &str) -> &str {
     user.strip_prefix("org.couchdb.user:").unwrap_or(user)
 }
 
-/// `PUT /-/user/{user}` — adduser / login. Accepts bare `/-/user/{name}` and
+/// `PUT /-/user/{user}`, adduser / login. Accepts bare `/-/user/{name}` and
 /// legacy `/-/user/org.couchdb.user:{name}`. Authenticates from the request
 /// body, not the caller's existing identity.
 pub(crate) async fn put_login(
@@ -61,7 +61,7 @@ pub(crate) async fn get_profile(
     private_no_cache(serve_profile(&identity))
 }
 
-/// `GET /-/user/{user}` — fetch a user document. Accepts bare `/-/user/{name}`
+/// `GET /-/user/{user}`, fetch a user document. Accepts bare `/-/user/{name}`
 /// and legacy `/-/user/org.couchdb.user:{name}`. Used by `npm owner add` to
 /// verify that the prospective maintainer exists before mutating the package
 /// document.
@@ -229,7 +229,7 @@ fn deprovisioned(name: &str) -> RegistryError {
     }
 }
 
-/// `GET /-/whoami` — return the username of the caller, or 401 if
+/// `GET /-/whoami`, return the username of the caller, or 401 if
 /// the request is anonymous. `npm whoami` reads this. The check is
 /// pure auth: no per-package policy applies, so anonymous always
 /// gets 401 even when `$all` would let it through for packument
@@ -242,7 +242,7 @@ pub(super) fn serve_whoami(identity: &Identity) -> Response {
     json_response(StatusCode::OK, &json!({ "username": username }))
 }
 
-/// `GET /-/npm/v1/user` — return the profile of the authenticated
+/// `GET /-/npm/v1/user`, return the profile of the authenticated
 /// caller. `npm profile get` reads this. pnpr doesn't track email,
 /// 2FA, or anything beyond the username; the absent fields surface
 /// as their zero-value defaults so the npm CLI's table renderer

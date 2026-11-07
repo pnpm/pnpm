@@ -163,7 +163,7 @@ fn adding_a_dependency_to_one_project_reports_no_cycles() {
 
 /// pnpm's `installDeps` returns from its optimistic repeat-install
 /// short-circuit before it reaches the cycle check, so an install that
-/// concludes "Already up to date" says nothing about cycles — not even
+/// concludes "Already up to date" says nothing about cycles, not even
 /// under `disallowWorkspaceCycles`, which cannot fail an install that
 /// never ran.
 #[test]

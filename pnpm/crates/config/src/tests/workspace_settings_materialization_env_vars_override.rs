@@ -205,7 +205,7 @@ pub fn workspace_manifest_still_sets_the_release_age_policy_for_other_commands()
 }
 
 /// `PNPM_CONFIG_HOIST=false` runs the same post-processing as
-/// yaml-set `hoist: false` — it short-circuits `hoist_pattern`
+/// yaml-set `hoist: false`, it short-circuits `hoist_pattern`
 /// to `None`, following the rule that `hoist: false` clears the
 /// hoist pattern. Without this, the install-time
 /// `hoist_pattern.is_some() || public_hoist_pattern.is_some()` guard
@@ -605,7 +605,7 @@ fn self_update_ignores_a_workspace_release_age_for_strict_mode() {
 }
 
 /// A `pnpm-workspace.yaml` `registries:` block is repository-controlled, so
-/// it must not steer package-manager bootstrap either — neither the default
+/// it must not steer package-manager bootstrap either, neither the default
 /// nor a scoped route. Regression test for GHSA-j2hc-m6cf-6jm8.
 #[test]
 pub fn package_manager_bootstrap_ignores_workspace_yaml_registries() {
@@ -642,7 +642,7 @@ pub fn package_manager_bootstrap_ignores_workspace_yaml_registries() {
     );
 }
 
-// Port of `extraBinPaths` in `config/reader/test/index.ts` — empty outside
+// Port of `extraBinPaths` in `config/reader/test/index.ts`, empty outside
 // a workspace; exactly the workspace root's `node_modules/.bin` inside one.
 #[test]
 pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {

@@ -12,7 +12,7 @@ use pretty_assertions::assert_eq;
 /// and integrity the registry resolution derives, then run the
 /// cold-batch installer
 /// with `tarball_mem_cache: Some(..)`. It must return the seeded CAS
-/// map without touching the network — proven here by `offline: true`,
+/// map without touching the network, proven here by `offline: true`,
 /// which makes any fall-through to the download path error out.
 #[tokio::test]
 async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
@@ -112,7 +112,7 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
 /// `tarball_mem_cache: None` is the no-prefetcher case (e.g. a plain
 /// `--frozen-lockfile` install without pnpr). That path must go straight
 /// to the download (here blocked by `offline: true`), never consulting a
-/// mem cache — the contrast that proves the coordination above is gated
+/// mem cache, the contrast that proves the coordination above is gated
 /// on `Some(..)`, not unconditional. A populated cache is supplied and
 /// must be ignored.
 #[tokio::test]

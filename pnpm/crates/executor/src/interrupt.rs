@@ -4,8 +4,8 @@
 //! group, so it reaches pnpm and the script pnpm started at the same
 //! moment. Under the default disposition pnpm dies first and the shell
 //! draws its prompt while the script is still shutting down, so whatever
-//! the script writes next — or whatever the terminal answers a query the
-//! script left open — lands on that prompt. pnpm instead relays the signal
+//! the script writes next, or whatever the terminal answers a query the
+//! script left open, lands on that prompt. pnpm instead relays the signal
 //! to the children it started, waits for them, and ends the way they did.
 //!
 //! Every child spawned through [`crate::spawn_child`] registers here for
@@ -16,7 +16,7 @@
 //!
 //! Windows has no signal to pass on: the console's control event reaches
 //! every attached process at once. What a child needs ending there is the
-//! case that never ends on its own — a `cmd` hosting a batch script, which
+//! case that never ends on its own, a `cmd` hosting a batch script, which
 //! answers the event with a "Terminate batch job (Y/N)?" prompt and waits
 //! on the answer forever. `cmd` asks only once the command it ran has
 //! returned, so a `cmd` left without child processes of its own for a
@@ -223,7 +223,7 @@ pub(crate) fn relay_to_child(pid: u32, own_process_group: bool) -> SignalRelay {
 
 /// Open a handle to end and await the child while it is provably alive:
 /// pnpm still holds its own handle for a child it just spawned, so the
-/// process object — and its pid — cannot have been recycled.
+/// process object, and its pid, cannot have been recycled.
 #[cfg(windows)]
 fn open_child_handle(pid: i32) -> *mut std::ffi::c_void {
     use windows_sys::Win32::System::Threading::{

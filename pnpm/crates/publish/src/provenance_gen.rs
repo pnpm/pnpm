@@ -5,7 +5,7 @@
 //! It builds the in-toto SLSA *statement* and delegates the signing to the
 //! `sigstore_sign` crate unmodified, so the emitted bundle is whatever that
 //! crate produces: a **sigstore bundle v0.3** (single certificate, `dsse`
-//! Rekor entry) — not the legacy v0.2 form (`x509CertificateChain`, `intoto`
+//! Rekor entry), not the legacy v0.2 form (`x509CertificateChain`, `intoto`
 //! Rekor entry), which pacquet deliberately does not reproduce.
 //! The npm registry accepts the v0.3 bundle, so no legacy-compatibility path
 //! is needed.

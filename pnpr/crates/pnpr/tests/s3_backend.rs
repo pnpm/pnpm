@@ -228,7 +228,7 @@ async fn add_user_and_get_token(
 
 /// An embedder supplying its own store gives a prefix in the form a person
 /// writes it. `S3Store` concatenates the prefix onto the key, so a raw
-/// `packages` has to be normalized on the way in — otherwise every object
+/// `packages` has to be normalized on the way in, otherwise every object
 /// lands at `packagesdefault/...` and nothing that reads by prefix finds it.
 #[tokio::test]
 async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {

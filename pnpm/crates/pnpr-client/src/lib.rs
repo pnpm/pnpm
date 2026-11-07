@@ -108,7 +108,7 @@ pub struct RegistryRouting {
     pub registries: RegistryDeclarations,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
     /// none): identifies the caller to pnpr. The client never forwards its
-    /// own registry credentials — pnpr selects upstream credentials from
+    /// own registry credentials, pnpr selects upstream credentials from
     /// its route policy, so none are placed in the request body.
     #[serde(skip)]
     pub authorization: Option<String>,
@@ -142,7 +142,7 @@ pub struct ResolutionSettings {
     /// The client's current values for the settings that shape the lockfile
     /// the server resolves. `None` is not `Some(false)`: it leaves the
     /// setting to the server, which takes the input lockfile's value on a
-    /// frozen request and its own default otherwise — what a client too old
+    /// frozen request and its own default otherwise, what a client too old
     /// to send them gets
     /// ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
     pub auto_install_peers: Option<bool>,

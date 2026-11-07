@@ -35,7 +35,7 @@ pub struct Package {
     /// This is the input to the `minimumReleaseAge` verifier. Use
     /// [`Self::published_at`] for the typed per-version lookup.
     ///
-    /// Optional — abbreviated metadata responses (`application/vnd.npm.install-v1+json`)
+    /// Optional, abbreviated metadata responses (`application/vnd.npm.install-v1+json`)
     /// omit this field; only the full-metadata fetcher used by the
     /// verifier sees it populated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -44,7 +44,7 @@ pub struct Package {
     /// Package-level "last modified" timestamp the abbreviated
     /// metadata endpoint sends. The verifier's
     /// `tryAbbreviatedModifiedShortcut` reads this as a conservative
-    /// upper bound on every version's publish time — if `modified`
+    /// upper bound on every version's publish time, if `modified`
     /// is older than the policy cutoff, every version in this
     /// package was published at least that long ago.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -96,17 +96,17 @@ impl Package {
     /// leaving the rest out. A partial map is indistinguishable from a
     /// complete one at the point of use, so the `minimumReleaseAge`
     /// filter reads every absent timestamp as "not mature" and silently
-    /// drops the version — resolution then falls back to the lowest
+    /// drops the version, resolution then falls back to the lowest
     /// match.
     ///
     /// A map that can't decide maturity is worth nothing to the
     /// resolver, so it is normalized away where the document is parsed.
     /// Every packument past that point carries either a complete `time`
-    /// or none at all — the shape the npm registry's own abbreviated
+    /// or none at all, the shape the npm registry's own abbreviated
     /// documents have, and the one the rest of the resolver is written
     /// against.
-    /// A packument with no versions keeps whatever `time` it has — there
-    /// is nothing for the map to be incomplete about — and a version whose
+    /// A packument with no versions keeps whatever `time` it has, there
+    /// is nothing for the map to be incomplete about, and a version whose
     /// entry is an empty string counts as absent.
     pub fn drop_incomplete_publish_times(&mut self) {
         let Some(time) = self.time.as_ref() else { return };
@@ -273,7 +273,7 @@ impl Package {
             .find_map(|(_, key)| self.versions.get(key))
     }
 
-    /// Manifest under `dist-tags.latest`, or `None` — registry-served
+    /// Manifest under `dist-tags.latest`, or `None`, registry-served
     /// data must not be able to panic the process.
     #[must_use]
     pub fn latest(&self) -> Option<Arc<PackageVersion>> {

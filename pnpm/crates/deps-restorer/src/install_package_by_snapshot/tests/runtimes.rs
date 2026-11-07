@@ -145,7 +145,7 @@ fn synthesize_runtime_manifest_emits_name_version_and_bin_single() {
     assert_eq!(parsed["name"], "node");
     assert_eq!(parsed["version"], "22.0.0");
     // pnpm's bin resolver treats `bin: "bin/node"` as "one binary,
-    // named after the package" — so the shim is
+    // named after the package", so the shim is
     // `<modules_dir>/.bin/node` → `<slot>/bin/node`.
     assert_eq!(parsed["bin"], "bin/node");
 }
@@ -222,7 +222,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         .result();
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
-    // `offline: true` is safe — a `file:` URL bypasses the offline gate,
+    // `offline: true` is safe, a `file:` URL bypasses the offline gate,
     // and it guarantees the install never reaches the network.
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let (writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
@@ -315,7 +315,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     writer_task.await.expect("join the writer task").expect("flush the store index");
 
     // The persisted row must carry the synthesized `package.json` in both
-    // its `files` map and its bundled `manifest` — this is the copy a warm
+    // its `files` map and its bundled `manifest`, this is the copy a warm
     // materialization reads back.
     let LockfileResolution::Binary(binary) = &metadata.resolution else {
         unreachable!("the fixture uses a binary resolution")
@@ -340,7 +340,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         "the bundled manifest carries the runtime bin",
     );
 
-    // Warm reinstall — nodeRuntime.ts's `rimraf node_modules` + offline
+    // Warm reinstall, nodeRuntime.ts's `rimraf node_modules` + offline
     // reinstall. Delete the archive so the store is the only possible
     // source, then materialize straight from the persisted row; the slot's
     // `package.json` can come only from that row.

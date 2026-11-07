@@ -214,7 +214,7 @@ fn dlx_errors_when_no_command_given() {
 /// registry, installs it into the dlx cache under `config.cache_dir`,
 /// and runs its bin in the process cwd. Mirrors pnpm's `dlx` happy
 /// path (dlx.ts). Uses `@foo/touch-file-one-bin`, whose single bin
-/// writes `touch.txt` when invoked — the file's presence in cwd
+/// writes `touch.txt` when invoked, the file's presence in cwd
 /// proves both the install and the bin execution worked end-to-end.
 ///
 /// Locally this needs the in-repo pnpr (the mocked registry); in CI
@@ -491,7 +491,7 @@ fn dlx_ignores_the_caller_projects_patched_dependencies() {
 /// directory above the cache carries a `pnpm-workspace.yaml`. Left
 /// unanchored, the install pipeline walks up from the cache dir, adopts
 /// that file as the workspace root, and the dlx package never lands in the
-/// prepare dir — the same walk-up that broke self-update in
+/// prepare dir, the same walk-up that broke self-update in
 /// pnpm/pnpm#13697.
 #[cfg(unix)]
 #[test]
@@ -547,7 +547,7 @@ fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
 /// would be a missing version under `yarn`'s own name.
 ///
 /// The real releases are what this runs, because no fixture can stand in
-/// for a package manager — pnpm verifies an engine against npm's
+/// for a package manager, pnpm verifies an engine against npm's
 /// published signature before running it, so the bytes have to be real.
 ///
 /// `yarn@tool:4.9.2` is the same request through the `tool:` protocol.

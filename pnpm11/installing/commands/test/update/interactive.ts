@@ -281,7 +281,7 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the prompt theme types highlight as a partial style object, but the test calls it
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, the prompt theme types highlight as a partial style object, but the test calls it
   const callArgs = mockCheckbox.mock.calls[0][0] as any
   const flatChoices = callArgs.choices
 

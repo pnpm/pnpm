@@ -12,7 +12,7 @@ pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effe
 /// hash a snapshot.
 ///
 /// `full_pkg_id` is the fingerprint used as the `id` field in the
-/// recursive hash — `<pkgIdWithPatchHash>:<integrity>` for packages with
+/// recursive hash, `<pkgIdWithPatchHash>:<integrity>` for packages with
 /// an integrity (`registry` resolution), or
 /// `<pkgIdWithPatchHash>:<hashObject(resolution)>` for resolutions
 /// without one (e.g. git refs). A variations resolution uses the integrity of
@@ -39,7 +39,7 @@ pub type DepsStateCache<Key> = HashMap<Key, String>;
 
 /// Inputs to [`calc_dep_state`].
 pub struct CalcDepStateOptions<'a> {
-    /// Output of [`crate::engine_name()`] — the platform / arch /
+    /// Output of [`crate::engine_name()`], the platform / arch /
     /// node version prefix. Always part of the result.
     pub engine_name: &'a str,
     /// SHA-256 hex of the patch file for this package (when present).

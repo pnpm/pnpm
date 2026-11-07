@@ -584,7 +584,7 @@ fn recorded_children_match_only_under_the_recording_context() {
 
 /// Which of a package's dependencies its own peers supply is a
 /// property of the occurrence, and pinned children were filtered under
-/// the recording occurrence's set — so the pins stand in for a fresh
+/// the recording occurrence's set, so the pins stand in for a fresh
 /// walk only where the two shadow the same names.
 #[test]
 fn a_pin_stands_in_only_for_a_walk_that_shadows_the_same_dependencies() {
@@ -656,7 +656,7 @@ fn children_are_published_only_by_the_standing_owner() {
 /// A later owner re-walks whenever its resolution context differs from
 /// the recorded one, which the claim's own `peer_shadowed` comparison
 /// cannot see. Only edges that actually moved stale the realized
-/// children every other occurrence node still holds — and never the
+/// children every other occurrence node still holds, and never the
 /// ones the prior lockfile pinned, whose whole point is to survive a
 /// fresh walk's different answer.
 #[test]

@@ -106,7 +106,7 @@ fn should_install_dependencies() {
 /// Store files excluding `v11/links/`: on macOS every clone-capable
 /// install also materializes canonical slots there (the directory-clone
 /// cache, `pnpm-deps-restorer/src/dir_clone_cache.rs`), and their paths
-/// embed a graph hash that varies with the host's Node major — useless
+/// embed a graph hash that varies with the host's Node major, useless
 /// under a platform-shared snapshot, and their files carry package
 /// modes rather than the CAFS `-exec` convention. Also excludes
 /// `v11/projects/`, whose entry names hash the temporary workspace path.
@@ -118,7 +118,7 @@ fn store_files_outside_links(store_dir: &Path) -> Vec<String> {
 }
 
 /// A project manifest that declares a dependency under a path-traversal
-/// name is rejected by the resolver on a fresh install — before any
+/// name is rejected by the resolver on a fresh install, before any
 /// resolution or fetch, and long before the name could become a
 /// `node_modules/<alias>` directory. This is the fresh-resolve
 /// counterpart to the frozen-lockfile name check. Surfaces
@@ -153,7 +153,7 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
     );
     // The fresh-resolve path forwards the resolver's diagnostic
     // transparently, so the rendered envelope carries the canonical
-    // `ERR_PNPM_INVALID_DEPENDENCY_NAME` code — matching the frozen path
+    // `ERR_PNPM_INVALID_DEPENDENCY_NAME` code, matching the frozen path
     // (see `lockfile_verification.rs`).
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_diagnostic_contains(&stderr, "ERR_PNPM_INVALID_DEPENDENCY_NAME");
@@ -280,7 +280,7 @@ fn should_install_index_files() {
 
 /// Regression test for the NDJSON `prefix` field. `--reporter=ndjson`
 /// must emit each bunyan envelope with the canonicalized install root
-/// — not the relative `"."` that `dir.join("package.json").parent()`
+///, not the relative `"."` that `dir.join("package.json").parent()`
 /// produced when `--dir` defaulted to `.`. The downstream consumer
 /// (`@pnpm/cli.default-reporter` running in a separate process) compares
 /// every event's `prefix` to its own `process.cwd()` and prepends a
@@ -539,7 +539,7 @@ fn install_surfaces_catalog_misconfiguration() {
 
 /// A well-formed range that the registry publishes nothing for is
 /// `ERR_PNPM_NO_MATCHING_VERSION`, not the chain's
-/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` — the specifier is
+/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`, the specifier is
 /// supported, the version doesn't exist (pnpm/pnpm#13319). The
 /// report also names the latest published release and how to list the
 /// rest, the way the TypeScript CLI does.
@@ -624,7 +624,7 @@ fn install_reports_an_unsupported_protocol() {
 
 /// A package the registry has never heard of is `ERR_PNPM_FETCH_404`
 /// with pnpm's "not in the npm registry, or you have no permission"
-/// hint — not a bare HTTP-client message (pnpm/pnpm#13319).
+/// hint, not a bare HTTP-client message (pnpm/pnpm#13319).
 #[test]
 fn install_reports_an_unknown_package_as_fetch_404() {
     let CommandTempCwd {
@@ -823,7 +823,7 @@ fn force_defeats_the_up_to_date_fast_path() {
     drop((root, mock_instance));
 }
 
-/// Covers <https://github.com/pnpm/pnpm/issues/3445> — repairing a store
+/// Covers <https://github.com/pnpm/pnpm/issues/3445>, repairing a store
 /// blob that was tampered with through a hard link must keep the blob's
 /// inode, so every other hard-linked copy (another project's
 /// `node_modules`) is healed by the same write. Replacing the blob by

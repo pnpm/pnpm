@@ -2,7 +2,7 @@
 //! `<store_dir>/projects/<short-hash>` that point back to every project
 //! installed from the store. The prune sweep walks this directory
 //! to learn which projects still reference the shared `<store_dir>/links`
-//! slots — without it, a `pacquet store prune` could
+//! slots, without it, a `pacquet store prune` could
 //! not distinguish abandoned packages from packages a project still uses.
 //!
 //! [`register_project`] (the write half) lives here alongside
@@ -72,7 +72,7 @@ pub enum RegisterProjectError {
 /// relative to the link, because a relative path computed between two
 /// spellings that cross a symlink at different depths resolves elsewhere.
 ///
-/// Skips silently when `store_dir` lives inside `project_dir` — the
+/// Skips silently when `store_dir` lives inside `project_dir`, the
 /// "store inside the project" case (legacy `--store-dir node_modules/.pnpm`
 /// setups, or just a typo) would otherwise create a self-referential
 /// symlink. Uses the `is-subdir` semantics for the guard.
@@ -109,7 +109,7 @@ pub fn register_loaded_project(
     let project_dir_str = project_dir.to_string_lossy();
     let link_path = registry_dir.join(create_short_hash(&project_dir_str));
 
-    // Fast path: link doesn't exist yet — just create it.
+    // Fast path: link doesn't exist yet, just create it.
     match link_project(project_dir, &link_path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
@@ -202,7 +202,7 @@ pub enum GetRegisteredProjectsError {
 
     /// The registry entry exists and points at a path that exists
     /// according to the filesystem, but the stat returned a permission
-    /// / I/O error. Surfaces instead of silently dropping the entry —
+    /// / I/O error. Surfaces instead of silently dropping the entry,
     /// pruning on an inaccessible project could remove slots the
     /// project still references.
     #[display("Cannot access registered project {project_dir:?} (via {link_path:?}): {error}")]
@@ -239,7 +239,7 @@ pub enum GetRegisteredProjectsError {
 /// [`GetRegisteredProjectsError`] variants.
 ///
 /// `ENOENT` on the registry directory itself returns an empty `Vec`
-/// — a store that hasn't seen any GVS install yet has no projects
+///, a store that hasn't seen any GVS install yet has no projects
 /// dir, and that's not an error.
 pub fn get_registered_projects(
     store_dir: &StoreDir,
@@ -310,7 +310,7 @@ fn registered_project_target(
 }
 
 /// The project directory a registration points at, or `None` when the
-/// project is gone — in which case the stale registration is unlinked.
+/// project is gone, in which case the stale registration is unlinked.
 fn live_project_dir(
     link_path: &Path,
     target: &Path,
@@ -343,7 +343,7 @@ fn live_project_dir(
 
 /// True for the "silently skip" errnos when reading a registry entry's
 /// symlink. `EINVAL` from `readlink` means "not a symbolic link" on
-/// Linux — the entry is benign garbage (e.g. a stray regular file) and
+/// Linux, the entry is benign garbage (e.g. a stray regular file) and
 /// gets ignored. `ErrorKind::InvalidInput`
 /// is the stable mapping for EINVAL on Unix; the raw errno fallback
 /// covers platforms where the std mapping hasn't been tightened.
@@ -367,14 +367,14 @@ fn is_enoent_or_einval(error: &io::Error) -> bool {
 /// Port of npm `is-subdir`: returns `true` when `inner` is `outer`
 /// itself or any descendant of it. Named `path_contains(outer, inner)`
 /// because the bare `isSubdir` name reads ambiguously at the call site
-/// — [`path_contains`] reads unambiguously as "does `outer` contain
+///, [`path_contains`] reads unambiguously as "does `outer` contain
 /// `inner`".
 ///
 /// Both paths are compared by their canonical (resolved) form so
 /// symlinks don't fool the check. When either path can't be
 /// canonicalized (typically the store dir hasn't been created yet),
 /// fall back to a *lexical* normalization that collapses `.` and `..`
-/// segments — the same purely-lexical check that
+/// segments, the same purely-lexical check that
 /// [`is-subdir`](https://github.com/zkochan/packages/blob/e65701a6ae/is-subdir/index.js)
 /// performs. A raw `starts_with` on the unnormalized path would treat
 /// `<workspace>/../pacquet-store` as inside `<workspace>` even though

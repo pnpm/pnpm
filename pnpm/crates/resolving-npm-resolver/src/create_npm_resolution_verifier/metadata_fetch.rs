@@ -83,7 +83,7 @@ impl NpmResolutionVerifier {
     /// the abbreviated projection can derive from. The resolver keys
     /// entries by registry plus name (see `metadata_cache_key`), with a
     /// `:full` / `:full:filtered` suffix depending on its own metadata
-    /// mode, so try full, filtered full, then abbreviated — a full form
+    /// mode, so try full, filtered full, then abbreviated, a full form
     /// is a strict superset of the abbreviated shape, and `clear_meta`
     /// keeps every field the projection reads. Private-scoped entries
     /// carry a descriptor prefix the verifier can't reproduce; those
@@ -103,7 +103,7 @@ impl NpmResolutionVerifier {
     /// Per-`(registry, name)` on-disk mirror read of the full
     /// packument's per-version `time` map. Returns `None` when no
     /// mirror exists yet, no `cache_dir` was supplied, or the mirror
-    /// has no `time` payload — the caller then falls through to the
+    /// has no `time` payload, the caller then falls through to the
     /// next layer of [`Self::resolve_published_at`].
     pub(super) async fn read_local_meta_time(
         &self,

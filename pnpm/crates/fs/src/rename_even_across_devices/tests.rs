@@ -168,7 +168,7 @@ fn a_copy_that_fails_partway_keeps_the_source_and_leaves_no_destination() {
 /// dependencies. It only gets to do that if the fallback reports the
 /// collision instead of copying the old tree over the new one. The
 /// collision is settled before anything is copied, because the caller
-/// answers it by moving the same tree to its backup path — copying
+/// answers it by moving the same tree to its backup path, copying
 /// first would copy it twice.
 #[test]
 fn a_cross_device_rename_onto_an_occupied_directory_reports_the_collision() {

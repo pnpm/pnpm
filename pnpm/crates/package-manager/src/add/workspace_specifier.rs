@@ -12,8 +12,8 @@ use pnpm_workspace_spec::WorkspaceSpec;
 /// there is no workspace or it cannot be enumerated.
 ///
 /// A failure to walk the workspace is not this function's problem to
-/// report — the install that follows the manifest write walks it again and
-/// surfaces the error with far more context — so it degrades to "no
+/// report, the install that follows the manifest write walks it again and
+/// surfaces the error with far more context, so it degrades to "no
 /// workspace packages", which only costs the pinned form its version.
 pub(super) fn workspace_projects_for_add(
     config: &Config,

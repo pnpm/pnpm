@@ -13,8 +13,8 @@ impl SharedArtifactStore {
     /// Each scope is its own conditional create, and that is what orders two
     /// publications whose constraints merely overlap: they contend on the scope
     /// they share, rather than on a path that only identical constraints agree
-    /// on. The work is proportional to this artifact's own tags — 64 at the
-    /// most, one in practice — not to what the entry already holds, save for the
+    /// on. The work is proportional to this artifact's own tags, 64 at the
+    /// most, one in practice, not to what the entry already holds, save for the
     /// single backfill an entry written before markers existed needs.
     pub(super) async fn claim_scopes(
         &self,
@@ -116,7 +116,7 @@ impl SharedArtifactStore {
 
     /// A universal artifact reaches every scope, and cannot enumerate them to
     /// claim one by one. It takes the reserved key instead, then looks for a
-    /// tagged scope it would have contended with — a listing that stops at the
+    /// tagged scope it would have contended with, a listing that stops at the
     /// first one and reads nothing.
     pub(super) async fn claim_universal_scope(
         &self,
@@ -221,8 +221,8 @@ impl SharedArtifactStore {
     /// This is the one place that reads what an entry already holds, and a
     /// count cannot bound it the way one bounds a lookup: a variant it skipped
     /// would leave the scope that variant reaches unclaimed, which is the hole
-    /// markers close. It runs once — an entry holding any marker is already
-    /// described by them — and each read is bounded by the envelope limit.
+    /// markers close. It runs once, an entry holding any marker is already
+    /// described by them, and each read is bounded by the envelope limit.
     pub(super) async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<()> {
         let PreparedPublication { owner, entry, .. } = publication;
         // The sentinel, not the markers: they are written one at a time and the
@@ -233,7 +233,7 @@ impl SharedArtifactStore {
             return Ok(());
         }
         let variants = self.list_variant_locations(owner, entry).await?;
-        // Legacy variants can reach a scope another already reached — an overlap
+        // Legacy variants can reach a scope another already reached, an overlap
         // the markers are being written to stop. Writing the marker once rather
         // than once per variant keeps a crowded entry from turning one backfill
         // into a reservation and a release for each repeat.

@@ -32,7 +32,7 @@ fn relative_path_inner(base: &Path, path: &Path) -> PathBuf {
 /// Whether `path` and `base` have an identical `Component::Prefix` after
 /// `dunce::simplified`, with drive letters case-folded. UNC shares
 /// only match when their server/share are written with identical
-/// casing and variant — the check has to stay in lockstep with what
+/// casing and variant, the check has to stay in lockstep with what
 /// `pathdiff::diff_paths` will tolerate, since a variant-tolerant or
 /// case-tolerant comparison here would let the downstream diff emit
 /// a re-anchored garbage path on a `Prefix` mismatch it cannot relate.

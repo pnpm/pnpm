@@ -1,7 +1,7 @@
 //! The `registries` setting: one entry per registry, keyed by its URL.
 //!
-//! Every fact in an entry is a fact about that server — how it lays out
-//! tarball URLs, and which routes reach it — so a registry is declared once
+//! Every fact in an entry is a fact about that server, how it lays out
+//! tarball URLs, and which routes reach it, so a registry is declared once
 //! and each fact is stated in one place. [`RegistryLookups`] is the inverse of
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
@@ -29,7 +29,7 @@ use std::{
 };
 
 /// The bare scope standing for the registry that packages resolve from when
-/// no scope matches — the one the `registry` setting names.
+/// no scope matches, the one the `registry` setting names.
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
 
 /// Credentials and TLS material stay in `.npmrc`, which is not committed.
@@ -475,7 +475,7 @@ pub fn to_declarations(lookups: &RegistryLookups) -> IndexMap<String, RegistryDe
 }
 
 /// [`to_declarations`] plus the default registry declared as the bare `@`
-/// scope and each registry's `networkConcurrency` — the resolved view
+/// scope and each registry's `networkConcurrency`, the resolved view
 /// `pnpm config get registries` prints, where nothing travels separately.
 /// A pnpr server receives neither: it does not make the client's requests.
 #[must_use]

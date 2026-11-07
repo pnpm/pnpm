@@ -19,7 +19,7 @@ pub fn have_default_values() {
     // The SmartDefault expression for `store_dir` resolves to
     // `default_store_dir::<Host>()` directly (no wrapper), so
     // calling the generic helper here with the same `Host`
-    // capability must produce the same value — even on a developer
+    // capability must produce the same value, even on a developer
     // machine with `PNPM_HOME` / `XDG_DATA_HOME` set. This is the
     // wiring assertion that proves the SmartDefault field still
     // goes through the production capability; the per-branch
@@ -182,7 +182,7 @@ pub fn cli_proxy_flags_take_false_as_a_hostname() {
     assert_eq!(config.proxy.https_proxy.as_deref(), Some("false"));
 }
 
-/// Explicitly URL-scoped credentials pass through unchanged — they
+/// Explicitly URL-scoped credentials pass through unchanged, they
 /// are never rescoped, so they stay on exactly the registry the user
 /// wrote, regardless of a workspace registry override.
 #[test]
@@ -388,7 +388,7 @@ fn an_explicit_release_age_turns_on_strict_mode() {
 }
 
 /// With no trusted user-level registry configured, package-manager
-/// bootstrap falls back to the public npm registry — never the project's
+/// bootstrap falls back to the public npm registry, never the project's
 /// attacker-controlled registry.
 #[test]
 pub fn package_manager_bootstrap_defaults_to_npm_registry() {

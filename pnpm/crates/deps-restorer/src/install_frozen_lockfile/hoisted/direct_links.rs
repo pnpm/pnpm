@@ -166,7 +166,7 @@ impl HoistedLinkScope<'_> {
 
     /// An install that predates the walk-up rule, or one where the
     /// version had lost the root slot, leaves a link shadowing the root
-    /// copy — the duplicate the rule exists to avoid. A real directory
+    /// copy, the duplicate the rule exists to avoid. A real directory
     /// is the pruner's to remove, and only ever belongs to a version
     /// that lost the slot.
     fn remove_root_shadow(
@@ -179,7 +179,7 @@ impl HoistedLinkScope<'_> {
         // `lstat` surfaces instead of reading as "no link".
         let stale_link = match pnpm_fs::is_symlink_or_junction(link_path) {
             Ok(is_link) => is_link,
-            // Nothing to clean up — the common case.
+            // Nothing to clean up, the common case.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
             Err(error) => return Err(self.symlink_dir_failure(alias, target, link_path, error)),
         };

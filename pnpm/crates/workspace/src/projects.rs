@@ -47,8 +47,8 @@ pub struct Project {
     pub manifest: PackageManifest,
     /// Manifest to expose when this project is resolved as a *dependency* of
     /// another importer (an injected workspace instance), instead of
-    /// `manifest`. `None` — the common case, including every project the
-    /// on-disk walk discovers — means the two views are the same. Embedders
+    /// `manifest`. `None`, the common case, including every project the
+    /// on-disk walk discovers, means the two views are the same. Embedders
     /// (`@pnpm/napi`'s `dependencyManifest`) split them when their importer
     /// manifests are pre-transformed (e.g. workspace-sibling deps stripped)
     /// but dependency instances must keep the raw dependency graph.
@@ -175,7 +175,7 @@ pub fn find_workspace_project_manifests(
 ) -> Result<Vec<ProjectManifestPaths>, FindWorkspaceProjectsError> {
     // When no patterns were configured, search the workspace root
     // non-recursively *and* recursively. The two-pattern fallback fires
-    // only on `None`, not on `Some(vec![])` — an explicit empty array
+    // only on `None`, not on `Some(vec![])`, an explicit empty array
     // means "enumerate only the workspace root" (which is
     // unconditionally added below per
     // <https://github.com/pnpm/pnpm/issues/1986>).
@@ -282,7 +282,7 @@ struct MergePatterns<'a> {
 /// Expand every include pattern and union what they match.
 ///
 /// Each pattern's set folds into the shared merge as it completes, so peak
-/// memory stays one merged set plus the in-flight patterns — overlapping
+/// memory stays one merged set plus the in-flight patterns, overlapping
 /// patterns don't multiply it. Set union commutes and the first error *in
 /// pattern-list order* wins, keeping the result and the reported failure a
 /// function of the pattern list alone.
@@ -317,9 +317,9 @@ fn merge_pattern_manifests(
 /// Group the manifests by the root directory they belong to, in `rootDir`
 /// order.
 ///
-/// A root's candidates stay in manifest-precedence order — `package.json`
+/// A root's candidates stay in manifest-precedence order, `package.json`
 /// before `package.yaml`, because the sort is stable and ties keep the set's
-/// full-path order — and share one read task, so "first readable manifest
+/// full-path order, and share one read task, so "first readable manifest
 /// wins" holds under concurrency: a candidate that vanishes mid-run hands its
 /// root to the next candidate, never to a skipped root.
 fn group_manifests_by_root(
@@ -388,7 +388,7 @@ fn collect_pattern_manifests(
 
 /// Read `root_dir`'s project from the first readable candidate.
 /// `Ok(None)` when every candidate is gone or names no importer
-/// manifest — the root then isn't a project.
+/// manifest, the root then isn't a project.
 fn read_first_project_manifest(
     ProjectManifestPaths { root_dir, candidates }: ProjectManifestPaths,
 ) -> Result<Option<Project>, FindWorkspaceProjectsError> {

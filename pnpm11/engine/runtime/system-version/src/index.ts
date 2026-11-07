@@ -52,7 +52,7 @@ export function getSystemRuntimeVersion (name: RuntimeName): string | undefined 
  * The `<platform>;<arch>;node<major>` string used as the side-effects
  * cache-key prefix and the engine portion of the global-virtual-store
  * hash. Identifies the runtime environment that built (or will build)
- * a package's lifecycle scripts — so two installs that materialize the
+ * a package's lifecycle scripts, so two installs that materialize the
  * same package on the same host produce the same key.
  *
  * The Node version is resolved in this order:
@@ -60,16 +60,16 @@ export function getSystemRuntimeVersion (name: RuntimeName): string | undefined 
  * 1. `nodeVersion` argument when provided. Callers use this to thread
  *    a project-pinned runtime (`engines.runtime` / `devEngines.runtime`)
  *    through to the hash.
- * 2. {@link getSystemNodeVersion} — the `node` on the user's `PATH`,
+ * 2. {@link getSystemNodeVersion}, the `node` on the user's `PATH`,
  *    or `process.version` when not SEA-bundled.
  * 3. `process.version` as a last-resort fallback when the host has
  *    no `node` on `PATH` (rare: SEA pnpm with no separately-installed
  *    Node). Scripts cannot run in that scenario regardless, so the
- *    cache key is effectively unused — the fallback exists only to
+ *    cache key is effectively unused, the fallback exists only to
  *    keep the value deterministic.
  *
- * Anchoring to a project-pinned or script-runner Node — not to pnpm's
- * own `process.version` — matters most when pnpm ships via the
+ * Anchoring to a project-pinned or script-runner Node, not to pnpm's
+ * own `process.version`, matters most when pnpm ships via the
  * `@pnpm/exe` SEA bundle, which has an embedded Node distinct from
  * the one that actually runs lifecycle scripts. Without the override,
  * a project with `devEngines.runtime: node@22` would still hash under

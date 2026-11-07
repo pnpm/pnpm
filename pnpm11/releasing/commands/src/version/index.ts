@@ -181,7 +181,7 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     // A full (unfiltered) run garbage-collects the intent files an empty plan
     // leaves behind: declined ("none"-only) intents and files a merge
     // resurrected after every named package had already consumed them. A
-    // filtered run must not — "nothing pending in this scope" is no reason to
+    // filtered run must not, "nothing pending in this scope" is no reason to
     // delete prose belonging to packages outside the filter.
     if (!opts.dryRun && filter == null) {
       await applyReleasePlan(plan, applyOpts)
@@ -249,7 +249,7 @@ function renderAppliedReleases (applied: AppliedRelease[], json: boolean | undef
  * In `registry` storage, the gate that lets consumed intents be collected:
  * the release must be published and its tarball's CHANGELOG.md must already
  * carry the composed section. Any error resolving that (offline, transient
- * failure) counts as "not confirmed" so the intent — still the only prose —
+ * failure) counts as "not confirmed" so the intent, still the only prose,
  * is kept. `undefined` in `repository` storage, where the committed changelog
  * makes the ledger alone sufficient.
  */

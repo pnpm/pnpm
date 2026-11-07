@@ -116,7 +116,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
     drop((dir, mock_instance));
 }
 /// Hoisted install must NOT create the virtual-store slot
-/// directories the isolated linker would write — that's the whole
+/// directories the isolated linker would write, that's the whole
 /// point of skipping [`crate::CreateVirtualDirBySnapshot`] under
 /// hoisted. With no snapshots in the lockfile the assertion is
 /// vacuous (the directory is empty regardless of linker choice),
@@ -383,7 +383,7 @@ async fn fresh_install_honors_skip_runtimes() {
     drop(dirs.dir);
 }
 /// `nodeLinker` drift between `.modules.yaml` and the current config
-/// disqualifies the up-to-date short-circuit — a different linker
+/// disqualifies the up-to-date short-circuit, a different linker
 /// forces a full rebuild of `node_modules` rather than a fast no-op.
 #[test]
 fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
@@ -463,7 +463,7 @@ async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_i
     let vendored = dirs.modules_dir.join("vendored-by-user.txt");
     fs::write(&vendored, b"keep me").unwrap();
 
-    // 2. Switching to --prod is an included drift only, so the file survives —
+    // 2. Switching to --prod is an included drift only, so the file survives,
     // but the now-excluded dev dep's link and bin shim must be pruned.
     run_purge_regression_install(
         &dirs,
@@ -546,7 +546,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
-    // Where the default store lands — see [`pnpm_config::store_path`].
+    // Where the default store lands, see [`pnpm_config::store_path`].
     let store_dir = modules_dir.join(".pnpm-store");
     let virtual_store_dir = modules_dir.join(".pacquet");
 

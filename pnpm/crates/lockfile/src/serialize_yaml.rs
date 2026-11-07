@@ -40,7 +40,7 @@ pub(crate) fn to_string<Document: Serialize>(
         let mut remaining = maps.len();
         splice_lowered_maps(&mut document, &stash_nonce, &mut maps, &mut remaining);
         if remaining != 0 {
-            // A stashed map's marker never surfaced — a logic bug this
+            // A stashed map's marker never surfaced, a logic bug this
             // module must not turn into a corrupt lockfile. The stash
             // is inactive now, so this re-serialization takes the plain
             // serial path and is correct regardless.
@@ -150,7 +150,7 @@ pub(crate) static PARALLEL_LOWERINGS: std::sync::atomic::AtomicU64 =
 
 /// Lower a large sorted map's values across rayon and stash the
 /// assembled object, returning the marker to serialize in its place.
-/// `None` when no [`to_string`] stash is active on this thread — the
+/// `None` when no [`to_string`] stash is active on this thread, the
 /// caller then keeps the plain serial path.
 ///
 /// The stash is taken off the thread for the duration of the parallel
@@ -184,14 +184,14 @@ fn stash_parallel_lowered<Value: Serialize + Sync>(
 /// Serialize a [`HashMap`] with its entries emitted in canonical key order.
 ///
 /// Every lockfile map is ordered by its *rendered* key string under a plain
-/// code-unit comparison. Sorting by the rendered string — rather than by the
-/// key type's structural `Ord` — is load-bearing: the `@` separating `name`
+/// code-unit comparison. Sorting by the rendered string, rather than by the
+/// key type's structural `Ord`, is load-bearing: the `@` separating `name`
 /// from `version` in a `packages:`/`snapshots:` key, and the leading `@` of a
 /// scoped `name`, both order differently under a field-wise comparison than
 /// under a comparison of the concatenated string (`react-dom@1.0.0` sorts
 /// before `react@17.0.2`; `@types/node` sorts before `node`). [`Display`]
-/// renders each key exactly as it is serialized — every key type here
-/// serializes `into = "String"` by rendering its [`Display`] form — so
+/// renders each key exactly as it is serialized, every key type here
+/// serializes `into = "String"` by rendering its [`Display`] form, so
 /// the one rendering serves both the sort and the emitted key.
 pub(crate) fn sorted_map<Key, Value, Ser>(
     map: &HashMap<Key, Value>,
@@ -220,8 +220,8 @@ where
 }
 
 /// [`sorted_map`] for an `Option<HashMap<…>>` field. The `None` arm is
-/// unreachable in practice — every call site pairs this with
-/// `skip_serializing_if = "Option::is_none"` — but is handled so the helper
+/// unreachable in practice, every call site pairs this with
+/// `skip_serializing_if = "Option::is_none"`, but is handled so the helper
 /// is a drop-in `serialize_with` for optional maps.
 #[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
 pub(crate) fn sorted_map_opt<Key, Value, Ser>(

@@ -89,7 +89,7 @@ pub(super) fn render_tarball_summary(summary: &PublishSummary) -> String {
     )
 }
 
-/// `JSON.stringify(value, null, 2)` — the two-space-indented JSON the
+/// `JSON.stringify(value, null, 2)`, the two-space-indented JSON the
 /// `--json` outputs print.
 pub(super) fn json_pretty(value: &Value) -> miette::Result<String> {
     serde_json::to_string_pretty(value).into_diagnostic()

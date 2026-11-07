@@ -292,8 +292,8 @@ fn prepare_allows_untrusted_manifest_identity_by_dep_path() {
         }),
     );
 
-    // The policy sees `<manifest name>@<resolution id>` — the key a
-    // lockfile would record — not the bare resolution id.
+    // The policy sees `<manifest name>@<resolution id>`, the key a
+    // lockfile would record, not the bare resolution id.
     let pkg_resolution_id = "git+https://example.com/org/repo.git#abc123";
     let dep_path = format!("trusted-name@{pkg_resolution_id}");
     let result = prepare_package::<SilentReporter>(

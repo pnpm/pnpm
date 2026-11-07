@@ -327,7 +327,7 @@ impl TokenBackend for TokenStore {
         Ok(raw)
     }
 
-    /// Resolves entirely in memory — the on-disk mirror is loaded once
+    /// Resolves entirely in memory, the on-disk mirror is loaded once
     /// at startup, so this never touches the database and never fails.
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
@@ -380,7 +380,7 @@ impl TokenBackend for TokenStore {
 
     /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
     /// If the disk write fails, both views still hold the token and
-    /// the caller sees a 5xx — the opposite ordering would leave a
+    /// the caller sees a 5xx, the opposite ordering would leave a
     /// "revoked in memory but resurrected on restart" hole.
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let snapshot = {
@@ -427,15 +427,13 @@ impl Default for TokenStore {
     }
 }
 
-// ---------------------------------------------------------------
 // crypto helpers
-// ---------------------------------------------------------------
 
 /// Build a freshly-randomized secret for [`TokenStore::issue`].
 /// Pulls 32 bytes from the OS CSPRNG (`getrandom` → `/dev/urandom`
 /// on Linux, `BCryptGenRandom` on Windows, `getentropy` on macOS).
 /// We refuse to start the server if the OS RNG is unavailable
-/// rather than fall back to weaker entropy — token unguessability
+/// rather than fall back to weaker entropy, token unguessability
 /// is the whole reason this exists.
 pub(super) fn fresh_secret() -> [u8; 32] {
     let mut secret = [0u8; 32];

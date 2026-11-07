@@ -59,7 +59,7 @@ where
 ///
 /// The copy below would otherwise materialize the whole of `src` only
 /// for the rename to refuse the destination and the caller to move
-/// `src` somewhere else instead — two full copies of a tree that can be
+/// `src` somewhere else instead, two full copies of a tree that can be
 /// a package's entire dependency set.
 fn refuse_occupied_directory(src: &Path, dst: &Path) -> io::Result<()> {
     if !is_directory(src)? || !is_directory(dst)? {

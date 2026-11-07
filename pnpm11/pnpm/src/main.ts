@@ -161,7 +161,7 @@ async function readCommandConfig (
   }
   // `pnpm set` / `pnpm get` are separate top-level commands whose handlers
   // delegate to the `config` command internally. They are not rewritten to
-  // `cmd === 'config'` at this layer, so list them explicitly — users can
+  // `cmd === 'config'` at this layer, so list them explicitly, users can
   // hit the pnpm/pnpm#10684 crash via any of these three entry points.
   ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
     tolerateConfigDependenciesErrors: isConfigCommand,

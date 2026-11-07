@@ -78,7 +78,7 @@ fn tarball_revision_rejects_non_registry_tarballs() {
     }
 }
 /// The exemption follows the URL, not the lockfile's `gitHosted`
-/// marker — the same call pnpm's `classifyResolution` makes.
+/// marker, the same call pnpm's `classifyResolution` makes.
 #[test]
 fn only_git_hosted_and_local_tarballs_may_be_fetched_unverified() {
     assert!(unverified_fetch_is_allowed(
@@ -91,7 +91,7 @@ fn only_git_hosted_and_local_tarballs_may_be_fetched_unverified() {
 }
 /// Asserting platform-specific shape directly would mean four
 /// `cfg`-gated tests; instead, run the live `host_*` functions and
-/// pin the *relationship* — `host_libc() == "unknown"` iff the
+/// pin the *relationship*, `host_libc() == "unknown"` iff the
 /// selector's `libc` field is `None`. The relationship covers both
 /// the macOS / Windows / BSD non-Linux case (`libc` always `None`)
 /// and the Linux case (`libc` always `Some("glibc")` /
@@ -402,7 +402,7 @@ async fn custom_fetcher_invalid_delegate_fails_the_install() {
 
     drop(store_tmp);
 }
-/// A delegate that is itself custom-typed is rejected — delegation is
+/// A delegate that is itself custom-typed is rejected, delegation is
 /// single-step, mirroring the TypeScript `pickFetcher`, which throws
 /// `ERR_PNPM_UNSUPPORTED_RESOLUTION_TYPE` for a custom-typed delegate.
 #[tokio::test]

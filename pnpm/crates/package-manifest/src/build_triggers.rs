@@ -80,7 +80,7 @@ pub fn manifest_opts_out_of_gyp_build(manifest: &Value) -> bool {
 /// The build triggers an extracted package carries on disk: its files, and the
 /// manifest that can cancel the [`BINDING_GYP`] one.
 ///
-/// A manifest that cannot be read leaves both of its fields unset — pacquet
+/// A manifest that cannot be read leaves both of its fields unset, pacquet
 /// cannot meaningfully build a package whose extracted content cannot be
 /// inspected, and a `binding.gyp` no manifest speaks for is build work, as it is
 /// under npm.
@@ -130,8 +130,8 @@ pub fn manifest_requires_build(manifest: &Value) -> bool {
 /// Which build triggers a store-index file key implies.
 ///
 /// The two are reported separately so a caller that reads the manifest after
-/// the files — every tarball extraction does, since the archive decides the
-/// order — can still apply the `gypfile` opt-out.
+/// the files, every tarball extraction does, since the archive decides the
+/// order, can still apply the `gypfile` opt-out.
 #[must_use]
 fn file_path_build_triggers(filename: &str) -> BuildTriggers {
     BuildTriggers {

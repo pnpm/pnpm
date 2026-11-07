@@ -1,4 +1,4 @@
-//! `pacquet store status` — find packages something edited after they
+//! `pacquet store status`, find packages something edited after they
 //! were expanded out of the store.
 //!
 //! A package the store has no row for is skipped: there is nothing to
@@ -303,7 +303,7 @@ fn find_modified(
 
 /// `.modules.yaml` records the virtual store it built, and is the source
 /// of truth when it exists. Without one, the location an install would
-/// record there is the best answer — relative to the lockfile directory,
+/// record there is the best answer, relative to the lockfile directory,
 /// which is where the setting is anchored when it is not spelled out.
 fn resolve_virtual_store_dir(config: &Config, lockfile_dir: &Path) -> PathBuf {
     let virtual_store_dir = config.virtual_store_dir();

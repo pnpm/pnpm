@@ -20,7 +20,7 @@ impl SelectorGroup {
 }
 
 /// A tool name becomes the selector that installs the tool itself, which
-/// the ordinary pipeline then handles — so the result stays a normal global
+/// the ordinary pipeline then handles, so the result stays a normal global
 /// install that `pnpm ls -g` and `pnpm remove -g` see.
 ///
 /// A group a Package URL was rewritten into is left alone: a purl names a
@@ -175,7 +175,7 @@ pub(super) fn should_replace_existing_package(
             .any(|alias| pkg.has_alias(alias))
 }
 
-/// Whether `pkg` is a global group the pnpm CLI is installed in — the install
+/// Whether `pkg` is a global group the pnpm CLI is installed in, the install
 /// that `pnpm self-update` owns. `update -g` leaves the whole group alone:
 /// reinstalling it would relink pnpm's bin whatever else the group holds.
 pub fn has_pnpm_cli_dependency(pkg: &GlobalPackageInfo) -> bool {
@@ -210,7 +210,7 @@ pub fn selects_pnpm_cli<'a>(params: impl IntoIterator<Item = &'a String>) -> boo
 
 /// Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An
 /// `npm:` alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm
-/// CLI under another name — the install still carries pnpm's own `pnpm` bin.
+/// CLI under another name, the install still carries pnpm's own `pnpm` bin.
 pub(super) fn is_pnpm_cli_dependency(alias: &str, spec: Option<&str>) -> bool {
     let name = npm_alias_target(spec);
     is_pnpm_cli_package_name(name.as_deref().unwrap_or(alias))
@@ -225,7 +225,7 @@ fn npm_alias_target(spec: Option<&str>) -> Option<String> {
     parse_wanted_dependency(spec?.strip_prefix("npm:")?).alias
 }
 
-// --- param grouping (split/resolve helpers) -------------------------------
+//,- param grouping (split/resolve helpers),-----------------------------
 
 pub(super) fn split_into_groups(params: &[AddRequest], base_dir: &Path) -> Vec<SelectorGroup> {
     params

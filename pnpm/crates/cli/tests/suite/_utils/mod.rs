@@ -191,8 +191,8 @@ pub fn enable_gvs_in_workspace_yaml(workspace: &Path, extra_yaml: &str) {
 ///
 /// The mocked registry publishes `@pnpm.e2e/bravo-dep` at 1.0.0
 /// (2022-02-01), 1.0.1 (2022-02-22), and 1.1.0 (2022-05-01, the `latest`
-/// tag) — see `version_publish_time` in `pnpr/crates/pnpr-fixtures/src/lib.rs`
-/// — so this cutoff makes 1.1.0 the only immature version.
+/// tag), see `version_publish_time` in `pnpr/crates/pnpr-fixtures/src/lib.rs`
+///, so this cutoff makes 1.1.0 the only immature version.
 #[must_use]
 pub fn bravo_dep_mature_up_to_1_0_1_minimum_release_age() -> u64 {
     minutes_since(1_646_092_800) // 2022-03-01T00:00:00Z
@@ -237,7 +237,7 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
-/// The sorted `packages:` keys of the lockfile in `dir` — what the
+/// The sorted `packages:` keys of the lockfile in `dir`, what the
 /// upstream tests read as `lockfile.packages['<name>@<version>']`.
 #[must_use]
 pub fn lockfile_package_keys(dir: &Path) -> Vec<String> {
@@ -255,7 +255,7 @@ pub fn lockfile_package_keys(dir: &Path) -> Vec<String> {
 pub fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    // Fail loudly if the harness ever starts writing `updateConfig` —
+    // Fail loudly if the harness ever starts writing `updateConfig`,
     // appending a second top-level mapping key produces invalid YAML.
     assert!(
         !yaml.contains("updateConfig:"),
@@ -279,7 +279,7 @@ pub fn set_minimum_release_age(workspace: &Path, minutes: u64) {
 /// Snapshot-friendly view of every row in `<store>/v11/index.db`.
 ///
 /// The outer key is the `SQLite` key (`"{integrity}\t{pkgId}"`). The inner
-/// map is the package's files — one entry per path inside the tarball.
+/// map is the package's files, one entry per path inside the tarball.
 /// `checked_at` is scrubbed because its value depends on install time.
 #[must_use]
 pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String, CafsFileInfo>> {
@@ -306,7 +306,7 @@ pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String
     out
 }
 
-/// Parse `<workspace>/node_modules/.pnpm/lock.yaml` — the current
+/// Parse `<workspace>/node_modules/.pnpm/lock.yaml`, the current
 /// lockfile describing what the last install materialized.
 #[must_use]
 pub fn read_current_lockfile(workspace: &Path) -> pnpm_lockfile::Lockfile {
@@ -579,7 +579,7 @@ pub fn read_lockfile(path: &Path) -> Lockfile {
 }
 
 /// Rewrite one snapshot's dependency pin in the lockfile at
-/// `lockfile_path` — the structured stand-in for the hand-written
+/// `lockfile_path`, the structured stand-in for the hand-written
 /// lockfiles the upstream tests use to stage wanted/current divergence.
 /// `new_ref` takes any `snapshots:` dependency shape (`100.0.0`,
 /// `link:packages/foo`, ...).
@@ -614,7 +614,7 @@ pub fn repin_snapshot_dependency(
 /// portable stand-in for `touch`, which Windows has no program for.
 ///
 /// The path is relative, so the marker lands in whatever directory the
-/// runner gave the script — which is what the recursive suites assert on.
+/// runner gave the script, which is what the recursive suites assert on.
 #[must_use]
 pub fn write_marker_script(relative_path: &str) -> String {
     format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)

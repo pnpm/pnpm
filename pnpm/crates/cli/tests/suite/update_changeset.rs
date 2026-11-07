@@ -327,7 +327,7 @@ fn update_changeset_reports_malformed_config_with_a_stable_error() {
     assert!(!output.status.success(), "malformed config must fail the update");
     let stderr = String::from_utf8_lossy(&output.stderr);
     // miette wraps long diagnostic lines at the terminal width, which on
-    // Windows CI splits the long temp path — and the `config.json` within it —
+    // Windows CI splits the long temp path, and the `config.json` within it,
     // across lines. Drop whitespace and the box-drawing continuation marker so
     // the substring check doesn't depend on where the wrap lands.
     let unwrapped: String = stderr

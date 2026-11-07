@@ -134,7 +134,7 @@ fn save_prunes_only_removed_reified_runtime_entry_from_array() {
 }
 
 /// Reading a manifest with `devEngines.runtime` set must apply the
-/// reification automatically — that's the hook upstream wires into
+/// reification automatically, that's the hook upstream wires into
 /// `convertManifestAfterRead`. Verifies the `from_path` end of the
 /// pipeline, not just the standalone function.
 #[test]

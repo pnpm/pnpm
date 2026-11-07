@@ -216,8 +216,8 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
             .into_owned(),
     }));
     // `pnpm:devPreinstall` runs ahead of everything the install does
-    // with the lockfile — including the frozen path's freshness
-    // check — because what it prepares is an input to resolution and
+    // with the lockfile, including the frozen path's freshness
+    // check, because what it prepares is an input to resolution and
     // linking. What skips it:
     //
     // - `resolve_only`, which materializes nothing for the hook to
@@ -267,7 +267,7 @@ pub(super) struct FrozenDispatch<'a> {
 }
 /// `take_frozen_path` is true for both state 1 (`--frozen-lockfile`) and state
 /// 2 (auto-frozen via `preferFrozenLockfile`). The freshness check fires for
-/// both — fatal for state 1, fall-through for state 2.
+/// both, fatal for state 1, fall-through for state 2.
 ///
 /// `--dry-run` always takes the fresh-resolve path: it must compute the
 /// would-be lockfile to diff against the existing one, and the frozen
@@ -313,7 +313,7 @@ async fn frozen_path<Reporter: self::Reporter>(
     };
     // Run the freshness gates; on failure surface a fatal InstallError via
     // `FreshnessCheckError`'s `From` impl. The check is run for its side
-    // effect (the typed outcome) — the borrowed lockfile / manifests are
+    // effect (the typed outcome), the borrowed lockfile / manifests are
     // consumed again inside the frozen branch below.
     //
     // pnpm's importer-set gate sits in the auto-frozen branch of

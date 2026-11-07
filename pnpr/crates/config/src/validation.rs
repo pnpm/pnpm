@@ -30,7 +30,7 @@ impl Features {
 impl RoutingConfig {
     /// Ready the registry graph for serving: fold every upstream into the graph
     /// as a pattern-less upstream registry, then apply every invariant YAML
-    /// loading enforces — URL-safe registry names, path-safe and collision-free
+    /// loading enforces, URL-safe registry names, path-safe and collision-free
     /// hosted `org` namespaces, and the graph validation itself. This covers
     /// embedders that build [`Self::upstreams`], [`Self::hosted`], or
     /// [`Self::registries`] programmatically, so [`pnpr_registry::Registries::resolve`] is the
@@ -52,7 +52,7 @@ impl RoutingConfig {
     /// Every serving upstream is reachable in the graph under its own name.
     ///
     /// The fold never overwrites, so a graph entry already declared under this
-    /// name must actually be the upstream — otherwise two different origins
+    /// name must actually be the upstream, otherwise two different origins
     /// would share one `/~<name>/` identity, with the dormant upstream's
     /// credential still offered by the resolver. YAML loading rejects the same
     /// collision while building the graph.
@@ -149,7 +149,7 @@ impl RoutingConfig {
 
     /// Mirror the YAML rule ([`resolve_upstream_registry`](crate::registry_graph::resolve_upstream_registry)): an upstream with no
     /// `access:` gate is publicly reachable at `/~<name>/`, and a public origin
-    /// sends no request headers — any header can carry a credential, and an
+    /// sends no request headers, any header can carry a credential, and an
     /// ungated endpoint would let every caller spend it (a confused deputy).
     pub(super) fn ensure_public_upstreams_send_no_headers(&self) -> Result<(), RegistryError> {
         for (name, upstream) in &self.upstreams {

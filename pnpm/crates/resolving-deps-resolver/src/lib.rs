@@ -3,7 +3,7 @@
 //! Dependency resolution for an install pass.
 //!
 //! The public entry point for an install pass is
-//! [`fn@resolve_workspace`] — it loops over every workspace project,
+//! [`fn@resolve_workspace`], it loops over every workspace project,
 //! drives [`fn@resolve_importer`] per importer, merges the per-importer
 //! trees, and finishes with one [`fn@resolve_peers_workspace`] pass that
 //! shares peer caches across importers and applies
@@ -16,11 +16,11 @@
 //!    and recurses on every resolved package's own manifest
 //!    dependencies. Produces:
 //!
-//!    - [`ResolvedTree::packages`] — flat dedup map keyed by
+//!    - [`ResolvedTree::packages`], flat dedup map keyed by
 //!      `pkgIdWithPatchHash`.
-//!    - [`ResolvedTree::dependencies_tree`] — per-occurrence tree
+//!    - [`ResolvedTree::dependencies_tree`], per-occurrence tree
 //!      keyed by [`NodeId`].
-//!    - [`ResolvedTree::all_peer_dep_names`] — names every visited
+//!    - [`ResolvedTree::all_peer_dep_names`], names every visited
 //!      package declares as a peer, used by the peer pass as the
 //!      `parentPkgs` filter.
 //!
@@ -30,7 +30,7 @@
 //!
 //! 2. **Peer pass** ([`fn@resolve_peers`]). Walks the tree, matches each
 //!    package's peer requirements against the parent chain, and
-//!    produces [`DependenciesGraph`] — keyed by `DepPath` (one entry per
+//!    produces [`DependenciesGraph`], keyed by `DepPath` (one entry per
 //!    `(pkgIdWithPatchHash, peer-suffix)` combination) and the entry
 //!    point for the install layer.
 //!
@@ -60,7 +60,7 @@
 //! - **No catalog / hook / lockfile-pinned-version bias.** The
 //!   resolver is fed each child's manifest range verbatim. Lockfile-
 //!   seeded preferred versions arrive via the orchestrator's
-//!   `all_preferred_versions` option — callers pre-seed with the
+//!   `all_preferred_versions` option, callers pre-seed with the
 //!   `pnpm-lockfile-preferred-versions` crate.
 
 pub use dependencies_graph::{

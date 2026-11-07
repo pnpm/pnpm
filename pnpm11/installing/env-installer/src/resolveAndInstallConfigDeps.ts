@@ -108,13 +108,13 @@ function collectConfigDepsToResolve (
 function planConfigDep (ctx: ConfigDepPlanContext, name: string, value: ConfigDependencies[string]): ConfigDepPlan {
   const lockfileConfigDeps = ctx.envLockfile.importers['.'].configDependencies
   if (typeof value === 'object') {
-    // Old object format — migrate inline into lockfile
+    // Old object format, migrate inline into lockfile
     if (lockfileConfigDeps[name]) return undefined
     return planObjectFormatConfigDep(ctx, name, value)
   }
 
   if (value.includes('+')) {
-    // Old string format with inline integrity — resolve its tarball URL, then migrate
+    // Old string format with inline integrity, resolve its tarball URL, then migrate
     if (lockfileConfigDeps[name]) return undefined
     const { version, integrity } = parseIntegrity(name, value)
     assertValidMigratedConfigDep(name, version)

@@ -190,7 +190,7 @@ fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer)
     let (known, snapshot, metadata) = if in_current {
         (true, current_snapshot, current_metadata)
     } else {
-        // The package is missing from the current lockfile — it was
+        // The package is missing from the current lockfile, it was
         // never materialized (e.g. skipped platform-specific
         // optional deps).
         is_skipped = env.skipped.contains(&dep_path.to_string());

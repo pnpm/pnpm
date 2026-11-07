@@ -23,7 +23,7 @@ let serverPort: number
 let requestCount: number
 
 beforeAll(async () => {
-  // Counting proxy — forwards to the pnpr server and counts /-/pnpr/v0/resolve
+  // Counting proxy, forwards to the pnpr server and counts /-/pnpr/v0/resolve
   // requests so we can assert that the pnpr server path was actually taken.
   requestCount = 0
   server = http.createServer((req, res) => {
@@ -181,7 +181,7 @@ test('a second resolution forwards the existing lockfile to the pnpr server', as
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
 
   // Second add reads that lockfile and forwards it to the pnpr server for
-  // incremental resolution — exercises the on-disk lockfile being sent
+  // incremental resolution, exercises the on-disk lockfile being sent
   // over the wire without an in-memory round-trip.
   requestCount = 0
   await execPnpm(['add', 'is-negative@1.0.0', `--config.pnprServer=http://localhost:${serverPort}`])

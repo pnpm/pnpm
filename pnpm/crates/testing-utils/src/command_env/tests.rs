@@ -44,7 +44,7 @@ fn the_environment_the_suites_rely_on_is_left_alone() {
 }
 
 /// The removal happens at construction precisely so that a test wanting one
-/// of these settings can still set it — the documented contract callers
+/// of these settings can still set it, the documented contract callers
 /// depend on.
 #[test]
 fn an_explicit_value_set_afterwards_survives_the_removal() {

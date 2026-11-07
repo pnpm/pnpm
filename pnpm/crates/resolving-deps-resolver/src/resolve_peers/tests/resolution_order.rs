@@ -7,7 +7,7 @@ use super::{
 /// End-to-end shape of a cycle package under canonical cycle-breaking:
 /// the ring's one back-edge (`ring03 → ring00`) is cut identically at
 /// every occurrence, so `ring00` has exactly two deterministic
-/// variants — the position under the entry that walks the ring from
+/// variants, the position under the entry that walks the ring from
 /// its canonical root (whose subtree reaches the `w` consumers), and
 /// the shared back-edge occurrence resolved at importer context, where
 /// no `w` is provided.
@@ -81,7 +81,7 @@ fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
 }
 
 /// Importers are walked in id order, so reordering them cannot change
-/// which context first realizes a shared back-edge occurrence — even
+/// which context first realizes a shared back-edge occurrence, even
 /// when their overlays provide conflicting versions (pnpm/pnpm#13846).
 #[test]
 fn backedge_bindings_do_not_depend_on_importer_order() {

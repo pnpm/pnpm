@@ -41,7 +41,7 @@ impl UnlinkArgs {
     ///
     /// Mirrors pnpm: when no overrides are configured it prints "Nothing to
     /// unlink" and returns `false` so the caller stops; otherwise it removes
-    /// the `link:` overrides — the ones named, or all of them — and returns
+    /// the `link:` overrides, the ones named, or all of them, and returns
     /// `true` so the caller reinstalls, even when nothing matched.
     pub(crate) fn remove_links(
         &self,

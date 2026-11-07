@@ -158,7 +158,7 @@ fn skips_optional_siblings_that_are_in_skipped() {
     )
     .expect("create_symlink_layout should succeed");
 
-    // `symlink_metadata` reports the link itself, not the target —
+    // `symlink_metadata` reports the link itself, not the target,
     // crucial for this assertion because the slot the link points to
     // is never created in this test (the symlink is intentionally
     // dangling). `Path::exists()` would follow the link and return
@@ -176,7 +176,7 @@ fn skips_optional_siblings_that_are_in_skipped() {
 
 /// A dep whose alias matches the slot's own package name is a
 /// self-link that Node's resolver doesn't need, so it is excluded.
-/// Tests both buckets — `dependencies` and `optionalDependencies` —
+/// Tests both buckets, `dependencies` and `optionalDependencies`,
 /// because either can list the self-name in the wild.
 #[test]
 fn skips_dep_entries_whose_alias_matches_self_name() {
@@ -328,8 +328,8 @@ fn rejects_traversal_dependency_alias() {
 ///
 /// Without this the dependency is absent from the slot entirely. That
 /// stays invisible while the slot sits under the importer's
-/// `node_modules` — Node's upward walk reaches the importer's own copy
-/// of the link — and breaks the moment the global virtual store moves
+/// `node_modules`, Node's upward walk reaches the importer's own copy
+/// of the link, and breaks the moment the global virtual store moves
 /// the slot into the shared store, where no such walk exists.
 #[test]
 fn links_a_link_dep_to_its_target_outside_the_store() {
@@ -370,7 +370,7 @@ fn links_a_link_dep_to_its_target_outside_the_store() {
 
 /// Without a lockfile directory there is nothing to resolve the
 /// lockfile-relative target against, so the link is left alone rather
-/// than guessed at — the pre-existing behaviour for every caller that
+/// than guessed at, the pre-existing behaviour for every caller that
 /// builds a layout with no lockfile context.
 #[test]
 fn skips_a_link_dep_when_no_lockfile_dir_is_known() {

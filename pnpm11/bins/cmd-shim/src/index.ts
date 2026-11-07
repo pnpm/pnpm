@@ -36,7 +36,7 @@ import {
 export type { GetShShimDirOptions, Options, ShimDirFs }
 
 // Interpreter paths may contain whitespace other than spaces and tabs.
-// eslint-disable-next-line regexp/no-super-linear-backtracking -- only matched against the first line of a script, after the `#!` anchor
+// eslint-disable-next-line regexp/no-super-linear-backtracking, only matched against the first line of a script, after the `#!` anchor
 const shebangExpr = /^#!\s*(?:\/usr\/bin\/env(?:\s+-S)?\s*)?([^ \t]+)(.*)$/
 
 const extensionToProgramMap = new Map([

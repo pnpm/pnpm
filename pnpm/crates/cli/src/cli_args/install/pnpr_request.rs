@@ -64,7 +64,7 @@ pub(super) async fn pnpr_request_inputs(
 /// the client never runs `verify_lockfile_resolutions` on the pnpr
 /// path ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
 /// `trustPolicy: no-downgrade` is enforced
-/// server-side — both for reused entries (the input-lockfile
+/// server-side, both for reused entries (the input-lockfile
 /// verifier) and freshly-resolved ones (the resolver's pick-time
 /// gate, since the policy is wired into the server's config).
 pub(super) fn resolve_projects_options(
@@ -365,7 +365,7 @@ pub(super) fn rewrite_resolution_registry(
                 rewrite_resolution_registry(resolution, rewrite);
             }
         }
-        // Custom resolutions are opaque — the benchmark rewrite can't
+        // Custom resolutions are opaque, the benchmark rewrite can't
         // know which of their fields (if any) is a registry URL.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)

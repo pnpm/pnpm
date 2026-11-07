@@ -72,7 +72,7 @@ fn snapshot_reachable_via_kept_path_survives() {
     assert!(!snaps.contains_key(&key("opt-parent", "1.0.0")));
 }
 /// Retaining them is what keeps the current lockfile comparable to the
-/// wanted one — see [`SkippedSnapshots::transient_only`].
+/// wanted one, see [`SkippedSnapshots::transient_only`].
 #[test]
 fn installability_skipped_entries_are_preserved() {
     let mut importers = HashMap::new();

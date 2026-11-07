@@ -7,7 +7,7 @@ use super::{Deserialize, Serialize};
 /// publisher-signature-verified candidates run without prompting, all
 /// others go through the candidate-bound trust prompt. `Prompt` always
 /// asks, even for authenticated candidates. `Always` always switches
-/// without asking — the user pre-answered the prompt in machine-local
+/// without asking, the user pre-answered the prompt in machine-local
 /// configuration, which a project cannot write to. `Off` (the record
 /// value `false`) disables the package's context-aware shim entirely.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -54,7 +54,7 @@ pub enum NamedShimPolicy {
 impl ShimPolicyValue {
     /// Whether a package recorded with this value dispatches at all.
     ///
-    /// A recorded value that does not is the user switching a shim off —
+    /// A recorded value that does not is the user switching a shim off,
     /// including one of the built-in defaults, which is the only way to
     /// switch those off. Clearing such an entry turns the shim back on.
     #[must_use]
@@ -144,7 +144,7 @@ impl GlobalShims {
         self.policy(package_name) != ShimPolicy::Off
     }
 
-    /// Whether no package is eligible at all — the dispatcher's cheap
+    /// Whether no package is eligible at all, the dispatcher's cheap
     /// early exit.
     #[must_use]
     pub fn dispatches_nothing(&self) -> bool {

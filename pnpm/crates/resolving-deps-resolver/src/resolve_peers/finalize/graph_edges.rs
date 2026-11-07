@@ -4,8 +4,8 @@ use super::{
 };
 
 /// Merge one record's graph node into the depPath-keyed graph. Records that
-/// share a depPath collapse onto one entry, the shallowest — and among equals
-/// the earliest walked — one supplying the node's own fields while the rest
+/// share a depPath collapse onto one entry, the shallowest, and among equals
+/// the earliest walked, one supplying the node's own fields while the rest
 /// still contribute their peers, optional children and child edges.
 pub(super) fn insert_graph_node(
     graph: &mut DependenciesGraph,

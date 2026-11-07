@@ -31,8 +31,8 @@ fn includes_pnpm_specific_compat_entries() {
     );
 }
 
-/// Compat entries must not inject `estree` — no such npm package exists,
-/// the import that names it is type-only and satisfied by `@types/estree` —
+/// Compat entries must not inject `estree`, no such npm package exists,
+/// the import that names it is type-only and satisfied by `@types/estree`,
 /// nor a single-instance runtime like `typescript`, `react`, or `eslint`,
 /// where a second copy in the graph breaks the tools that load it.
 #[test]

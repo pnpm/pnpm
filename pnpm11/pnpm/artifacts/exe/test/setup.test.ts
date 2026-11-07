@@ -7,7 +7,7 @@ import { describe, expect, test } from '@jest/globals'
 import { cmdShim } from '@pnpm/bins.cmd-shim'
 import { familySync } from 'detect-libc'
 
-// @ts-expect-error — JS helper without type declarations
+// @ts-expect-error, JS helper without type declarations
 import { exePlatformPkgName, missingPlatformPkgMessage } from '../platform-pkg-name.js'
 
 const exeDir = path.resolve(import.meta.dirname, '..')
@@ -100,7 +100,7 @@ test('prepare writes correct content for all bin files', () => {
 
   // Windows wrappers should exist. setup.js hardlinks the binary onto
   // pn.exe/pnpx.exe/pnx.exe and points `bin` at those, so these only run when
-  // setup.js did not — where there is no sibling binary and PATH is all they have.
+  // setup.js did not, where there is no sibling binary and PATH is all they have.
   for (const { name, shell } of ALIASES) {
     expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\npnpm${shell} %*\nexit /b %errorlevel%\n`)
     expect(fs.existsSync(path.join(exeDir, name + '.ps1'))).toBe(false)
@@ -127,7 +127,7 @@ test('the committed alias scripts are what prepare.js writes', () => {
 });
 
 // Actually execute the hardlinked pnpm binary. Existence and inode-match are
-// not enough — a SEA blob built by a Node.js version that differs from the
+// not enough, a SEA blob built by a Node.js version that differs from the
 // embedded runtime deserializes on startup with a native assertion and an
 // abort signal, not a clean error exit (see rc.4 regression). Running `-v`
 // verifies the SEA payload is actually readable by the embedded Node.
@@ -287,7 +287,7 @@ function buildFailurePathSandbox (suffixSegments: string[]): string {
 
 // Skipping on Windows because fs.symlinkSync requires elevated privileges
 // there for non-junction symlinks, and the path-suffix logic in setup.js is
-// platform-independent — it's already exercised on Linux/macOS CI.
+// platform-independent, it's already exercised on Linux/macOS CI.
 const failurePathTest = isWindows ? test.skip : test
 
 failurePathTest('setup.js exits 0 silently when run from a workspace-shaped path with no platform package', () => {
@@ -316,7 +316,7 @@ failurePathTest('setup.js exits 1 with the missing platform package name when ru
 })
 
 // Build a sandboxed @pnpm/exe install with a real .exe playing the part of
-// pnpm.exe (we use the running node binary — setup.js only hardlinks it) and
+// pnpm.exe (we use the running node binary, setup.js only hardlinks it) and
 // run setup.js. Returns the sandbox directory.
 function buildWinSetupSandbox (): string {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-fix11486-'))
@@ -339,7 +339,7 @@ function buildWinSetupSandbox (): string {
   // hardlinks it again into the sandbox @pnpm/exe dir; downstream tests can
   // invoke the resulting `pnpx.exe` (etc.) and assert the alias actually ran.
   // A hardlink is enough and avoids copying ~80MB, but it can't span volumes
-  // — on GitHub's Windows runners the workspace (and node) sit on `D:` while
+  //, on GitHub's Windows runners the workspace (and node) sit on `D:` while
   // `os.tmpdir()` is on `C:`, so fall back to a copy when the link is
   // cross-device. The seed's identity doesn't matter here; the assertions
   // exercise setup.js's own intra-sandbox hardlinking.
@@ -351,7 +351,7 @@ function buildWinSetupSandbox (): string {
     fs.copyFileSync(process.execPath, seedTarget)
   }
   // platform-pkg-name.js calls into detect-libc; make the package resolvable
-  // from the sandbox. On Windows, use a junction — non-junction directory
+  // from the sandbox. On Windows, use a junction, non-junction directory
   // symlinks require Developer Mode or admin privileges, which Windows CI and
   // most local Windows dev setups don't have. (See the failure-path tests
   // higher in this file: they skip on Windows for the same reason.)
@@ -422,7 +422,7 @@ winBashTest('aliases run from Bash (Git Bash / MSYS2) without dropping into inte
     const shim = path.join(binDir, alias).replace(/\\/g, '/')
     // The shim's target is hardlinked to node.exe in this test (it's the
     // SEA pnpm.exe in production), so `-e "..."` lets us assert the alias
-    // really ran our snippet — a successful assertion implies the cmd.exe
+    // really ran our snippet, a successful assertion implies the cmd.exe
     // hop got bypassed.
     const result = spawnSync('bash', ['-c', `'${shim}' -e "process.stdout.write('${alias}_OK')"`], {
       encoding: 'utf8',
@@ -460,7 +460,7 @@ describe('alias bins', () => {
     const expected = `sibling: ${[...argv, 'add', 'foo'].join(' ')}\n`
 
     // The native binary sits next to the alias, so it is reachable even where
-    // the directory holding both is not on PATH — as node_modules/.bin is not,
+    // the directory holding both is not on PATH, as node_modules/.bin is not,
     // outside a `pnpm run`.
     aliasTest(`${name} runs the pnpm beside it with no pnpm on PATH`, () => {
       const sandbox = buildAliasSandbox()
@@ -470,8 +470,8 @@ describe('alias bins', () => {
         .toEqual({ status: 0, stdout: expected, stderr: '' })
     })
 
-    // Any other pnpm on PATH — a different major installed globally, or a
-    // wrapper of one — would otherwise take over the call, and say nothing.
+    // Any other pnpm on PATH, a different major installed globally, or a
+    // wrapper of one, would otherwise take over the call, and say nothing.
     aliasTest(`${name} ignores an unrelated pnpm earlier on PATH`, () => {
       const sandbox = buildAliasSandbox()
       const decoyDir = path.join(sandbox, 'decoy')
@@ -605,7 +605,7 @@ describe('Windows fallback wrappers', () => {
 
 /**
  * An @pnpm/exe directory as prepare.js leaves it, with `pnpm` replaced by a
- * stand-in that reports the arguments it was handed — which is all the aliases
+ * stand-in that reports the arguments it was handed, which is all the aliases
  * have to get right, and what setup.js's hardlink of the native binary occupies.
  * `installBinary: false` leaves prepare.js's placeholder there instead, standing
  * for an install whose scripts were skipped.

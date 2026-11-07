@@ -8,7 +8,7 @@ use std::borrow::Cow;
 pub const PREFIX_MAX_LENGTH: usize = 40;
 
 /// Port of `pretty-bytes` with `{ minimumFractionDigits: 2,
-/// maximumFractionDigits: 2 }` — base-1000 units, always two decimals, a
+/// maximumFractionDigits: 2 }`, base-1000 units, always two decimals, a
 /// space before the unit. pnpm's pinned version truncates at two fractional
 /// digits for these progress values.
 #[must_use]
@@ -319,7 +319,7 @@ pub fn highlight_last_folder(path: &str, colors: &crate::colors::Colors) -> Stri
 /// Substring containment after slash-normalization, used by the lifecycle
 /// "collapsed" rule. Ports pnpm's `wd.includes(NODE_MODULES)` /
 /// `wd.includes(TMP_DIR_IN_STORE)` checks in `reportLifecycleScripts.ts`,
-/// which are plain `String.includes` calls — segment-aware matching would
+/// which are plain `String.includes` calls, segment-aware matching would
 /// diverge from pnpm. The needles pnpm passes (`/node_modules/`, `tmp/_tmp_`)
 /// already carry their own separators, so substring matching is sufficient.
 #[must_use]

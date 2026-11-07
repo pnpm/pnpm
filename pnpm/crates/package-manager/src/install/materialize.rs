@@ -74,7 +74,7 @@ pub(super) struct MaterializationExecution<'a> {
     pub(super) take_frozen_path: bool,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    /// A host detection spawned right after the wanted lockfile parse —
+    /// A host detection spawned right after the wanted lockfile parse,
     /// see [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`].
     /// Handed to whichever install path runs.
     pub(super) early_host_detection:
@@ -119,7 +119,7 @@ pub(super) struct MaterializationResolution<'a> {
     pub(super) inputs: crate::install::run::ResolutionInputs,
 }
 
-/// The store-index writer's wind-down task — see
+/// The store-index writer's wind-down task, see
 /// [`MaterializationOutput::store_index_teardown`].
 pub(super) type StoreIndexTeardown =
     tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>;
@@ -145,7 +145,7 @@ pub(super) struct MaterializationOutput {
     pub(super) materialized: Materialized,
     /// The store-index writer task, already winding down (both install
     /// paths dropped every writer handle before returning). The caller
-    /// awaits it after the tail writes it can overlap with — the full
+    /// awaits it after the tail writes it can overlap with, the full
     /// rationale lives at the await site in `run.rs`.
     pub(super) store_index_teardown: StoreIndexTeardown,
 }
@@ -330,7 +330,7 @@ impl<'a> MaterializationInputs<'a, '_> {
     /// bypassed the policy locally is caught even though the resolver
     /// re-resolves from it. No-op when there's no lockfile
     /// (state 4) or verification is disabled. The pnpr override stays
-    /// a blocking gate — it is a single round trip with nothing
+    /// a blocking gate, it is a single round trip with nothing
     /// substantial to overlap.
     async fn start_fresh_verification<Reporter: self::Reporter>(
         &mut self,

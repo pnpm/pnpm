@@ -65,7 +65,7 @@ impl SnapshotPlan<'_> {
 /// cache-key derivation `Result`, because the install will actually
 /// fetch and link them, so a malformed resolution must fail before the
 /// warm batch starts rather than several seconds into it. Skipped
-/// snapshots get a lenient pass — they are not being installed, and
+/// snapshots get a lenient pass, they are not being installed, and
 /// swallowing a per-snapshot error there costs only a prefetch row.
 pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     inputs: SnapshotPlanInputs<'a, '_>,
@@ -215,7 +215,7 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     let current_entry_unchanged = current_entry_unchanged(probe, snapshot_key, snapshot);
     // A global-virtual-store slot path is content-addressed: the graph
     // hash covers the snapshot's wiring, integrity, and engine, so an
-    // existing slot is current even when no current lockfile survives —
+    // existing slot is current even when no current lockfile survives,
     // a wiped `node_modules` takes `<install_state_dir>/lock.yaml` with
     // it, and without this probe such a restore re-links every slot the
     // store already holds (pnpm/pnpm#14510). Mirrors the GVS fast path
@@ -328,7 +328,7 @@ fn slot_contents_complete<Reporter: self::Reporter>(
     // directory may be an import another install is still filling or
     // died halfway through (see `import_into_shared_dir`). Without a
     // record vouching for the slot, require the importer's own
-    // completion invariant — pnpm's `pkgExistsAtTargetDir` probes
+    // completion invariant, pnpm's `pkgExistsAtTargetDir` probes
     // `package.json`, which the import places last. A rare package whose
     // file map lacks `package.json` merely re-materializes, and the
     // import then short-circuits on its actual marker.

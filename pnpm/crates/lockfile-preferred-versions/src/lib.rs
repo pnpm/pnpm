@@ -81,7 +81,7 @@ pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
     // Each manifest's selector classification (semver parses, mostly)
     // is independent, so a workspace-scale manifest list fans out
     // across the rayon pool. Every entry is a pure function of its
-    // `(name, spec)` pair — same selector type, same weight — so the
+    // `(name, spec)` pair, same selector type, same weight, so the
     // reduce's merge order is immaterial: colliding inserts write the
     // same value the serial loop would.
     let mut preferred: PreferredVersions = direct.manifests
@@ -140,7 +140,7 @@ fn add_preferred_versions_from_lockfile(
         let name = key.name.to_string();
         // The lockfile records `file:`-protocol deps with a non-semver
         // version part. The preferred-versions map only feeds the semver
-        // picker — adding a `file:` entry would either confuse the picker
+        // picker, adding a `file:` entry would either confuse the picker
         // or be silently ignored depending on the call site. Skip them
         // defensively: the versioned snapshots are the only useful seeds
         // for the version picker.

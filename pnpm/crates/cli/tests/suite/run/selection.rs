@@ -56,7 +56,7 @@ fn run_with_if_present_is_a_noop_for_missing_script() {
 /// pnpm also accepts `--if-present` ahead of the script name
 /// (`pnpm --if-present <script>`), where the script dispatches through
 /// the shorthand fallback instead of an explicit `run`. The missing
-/// script must be the same clean no-op — not an exec fallback error.
+/// script must be the same clean no-op, not an exec fallback error.
 #[test]
 fn top_level_if_present_is_a_noop_for_missing_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

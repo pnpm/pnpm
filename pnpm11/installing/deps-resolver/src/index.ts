@@ -100,7 +100,7 @@ export interface ResolveDependenciesResult {
   waitTillAllFetchingsFinish: () => Promise<void>
   wantedToBeSkippedPackageIds: Set<string>
   /**
-   * Policy violations collected inline during resolution — each
+   * Policy violations collected inline during resolution, each
    * resolver pushes to the list whenever it picks a version that
    * trips one of its own checks. Empty when no policy is active or no
    * pick violates.
@@ -211,11 +211,11 @@ async function toResolveImporters (
  * resolution: every resolver records its own policy violations
  * inline as it picks each version, and we hand the accumulated
  * list to the install command's hook. The hook throws to abort
- * cleanly — nothing on disk has changed yet, and we haven't paid
+ * cleanly, nothing on disk has changed yet, and we haven't paid
  * the cost of peer resolution.
  *
  * If violations fired but no hook was wired, throw rather than
- * silently dropping them — the resolver-policy contract is "every
+ * silently dropping them, the resolver-policy contract is "every
  * pick that trips a check produces a violation that gets handled";
  * a missing handler means the caller forgot to opt in and would
  * otherwise see policy-rejected versions land in the lockfile.

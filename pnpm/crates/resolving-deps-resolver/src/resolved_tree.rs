@@ -45,14 +45,14 @@ pub struct ResolvedTree {
     pub applied_patches: HashSet<String>,
     /// Per-`pkgIdWithPatchHash` child list: `(install_alias,
     /// resolved_child_pkg_id, optional)`. Populated by the first walk
-    /// of each package — every subsequent revisit reuses the same
+    /// of each package, every subsequent revisit reuses the same
     /// entry. The peer-resolver's `realize_children` walks this to
     /// allocate per-occurrence `NodeId`s for a
     /// [`TreeChildren::Lazy`] node.
     pub children_by_id: HashMap<Arc<str>, Arc<Vec<ChildEdge>>>,
 }
 
-/// One entry on [`ResolvedTree::children_by_id`] — the resolved
+/// One entry on [`ResolvedTree::children_by_id`], the resolved
 /// shape of a package's children list as recorded by the first walk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChildEdge {
@@ -86,7 +86,7 @@ pub struct DirectDep {
     /// corresponding [`DependenciesTreeNode`] in
     /// [`ResolvedTree::dependencies_tree`].
     pub node_id: NodeId,
-    /// `pkgIdWithPatchHash` of the resolved package — same value as
+    /// `pkgIdWithPatchHash` of the resolved package, same value as
     /// `dependencies_tree[node_id].resolved_package_id`. Carried at
     /// the edge for callers that only need the dedup key and want to
     /// avoid the tree lookup.
@@ -120,7 +120,7 @@ pub struct ResolvedPackage {
     /// AND-fold:
     ///
     /// - On the first visit, `optional` is set to
-    ///   `wanted.optional || parent.optional` — propagating an
+    ///   `wanted.optional || parent.optional`, propagating an
     ///   ancestor's optionality down the chain.
     /// - On every subsequent visit, `optional` is AND-folded with the
     ///   new edge's `current_is_optional`, so a single non-optional
@@ -135,7 +135,7 @@ pub struct ResolvedPackage {
     /// `peerDependenciesMeta`. Computed once on the first walk by
     /// `pkg_is_leaf` and reused by the peer resolver's
     /// `realize_children` so a lazy-realized child reuses the same
-    /// leaf/non-leaf classification the eager walker picked — keeping
+    /// leaf/non-leaf classification the eager walker picked, keeping
     /// `NodeId::leaf` vs `NodeId::next` consistent across both
     /// realisation paths.
     pub is_leaf: bool,
@@ -149,15 +149,15 @@ pub struct PeerDep {
     /// checking.
     pub version: String,
     /// `true` when the manifest's `peerDependenciesMeta[name].optional`
-    /// is set — a missing peer with `optional` true is recorded as an
+    /// is set, a missing peer with `optional` true is recorded as an
     /// issue but does not block resolution.
     pub optional: bool,
 }
 
 /// The wanted-lockfile carry-over a [`DependenciesTreeNode`] may hold.
 ///
-/// Split out of the node so the common case — a fresh resolution, with
-/// none of these set — costs one null pointer instead of four `Option`s.
+/// Split out of the node so the common case, a fresh resolution, with
+/// none of these set, costs one null pointer instead of four `Option`s.
 #[derive(Debug, Default, Clone)]
 pub struct LockedResolution {
     /// `DepPath` this occurrence's package resolved to in the wanted
@@ -189,7 +189,7 @@ pub struct LockedResolution {
 /// One per-occurrence node in the dependencies tree.
 #[derive(Debug, Clone)]
 pub struct DependenciesTreeNode {
-    /// Key into [`ResolvedTree::packages`]. Shared rather than owned —
+    /// Key into [`ResolvedTree::packages`]. Shared rather than owned,
     /// see [`ChildEdge::pkg_id`], which is where most of these come from.
     pub resolved_package_id: Arc<str>,
     /// `alias → child NodeId` edges, possibly deferred.
@@ -199,7 +199,7 @@ pub struct DependenciesTreeNode {
     /// short-circuits.
     pub depth: i32,
     /// Wanted-lockfile carry-over for this occurrence, boxed because it
-    /// is `None` for every fresh resolution — which is every node the
+    /// is `None` for every fresh resolution, which is every node the
     /// resolver produces today. Inline, its three rarely-set fields cost
     /// ~80 bytes on each of the millions of nodes the peer walk realizes.
     pub locked: Option<Box<LockedResolution>>,
@@ -230,7 +230,7 @@ impl DependenciesTreeNode {
         self.locked.as_ref()?.dependency_names_whose_current_provider_must_win.as_ref()
     }
 
-    /// `true` when no locked peer context is recorded — the fast-cache
+    /// `true` when no locked peer context is recorded, the fast-cache
     /// precondition.
     #[must_use]
     pub fn has_no_locked_peer_context(&self) -> bool {
@@ -276,7 +276,7 @@ impl TreeChildren {
 
     /// Borrow the realized children map.
     ///
-    /// Panics on the [`Self::Lazy`] arm — callers that may encounter
+    /// Panics on the [`Self::Lazy`] arm, callers that may encounter
     /// a lazy node must realize it first (peer-resolution does this
     /// via `Walker::realize_children`). Consumers that genuinely
     /// can't realize (e.g. the dependency-tree walker writing a

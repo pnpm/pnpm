@@ -1,8 +1,8 @@
 //! The on-disk shape of a context-aware global shim.
 //!
-//! A shim is the pnpm executable published under the bin's own name —
+//! A shim is the pnpm executable published under the bin's own name,
 //! `<bin dir>/<name>` (`<name>.exe` on Windows), a hard link or copy of the
-//! executable that wrote it — with the target it stands for recorded in
+//! executable that wrote it, with the target it stands for recorded in
 //! the sidecar `<bin dir>/.pnpm-shim-v1-<name>-target`. A launch under a
 //! bin name reads the sidecar and dispatches; there is no shell between
 //! the caller and the target, so the target inherits the caller's
@@ -12,7 +12,7 @@
 //! A legacy shim is a shell script carrying the marker line
 //! `# pnpm-shim-style=context-aware` and a `# cmd-shim-target=` trailer,
 //! dispatching through a `.pnpm-shim-v1` executable with
-//! `--shim <name> <shim> <target> -- <args...>`. An executable installed in
+//! `--shim <name> <shim> <target>, <args...>`. An executable installed in
 //! that dispatcher slot continues to serve the protocol and migrates the bin
 //! directory before dispatching the target.
 

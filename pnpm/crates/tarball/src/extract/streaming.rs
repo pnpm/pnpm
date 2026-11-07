@@ -15,7 +15,7 @@ use ssri::Integrity;
 
 /// Body chunks in flight between the download loop and the extractor.
 ///
-/// The queue is what keeps the two decoupled — the extractor is
+/// The queue is what keeps the two decoupled, the extractor is
 /// normally far faster than the network, and a few chunks of slack stop
 /// a momentary stall on either side from costing throughput. It is
 /// bounded because the alternative is a queue that grows to whatever a
@@ -290,7 +290,7 @@ impl<Inner: Read> Read for HashingReader<Inner> {
 /// extraction path. Entries at or below this go through the batched
 /// [`write_pending_files`] fan-out; larger ones stream straight into
 /// the store via [`StoreDir::write_cas_file_from_reader`] without ever
-/// being held in memory. `package.json` is the exception — the bundled
+/// being held in memory. `package.json` is the exception, the bundled
 /// manifest must be parsed from bytes (build-script detection depends
 /// on it), so it is buffered up to [`MAX_UNTRUSTED_PREALLOC_BYTES`](crate::MAX_UNTRUSTED_PREALLOC_BYTES),
 /// beyond which the archive is rejected as hostile.
@@ -368,7 +368,7 @@ pub(super) struct EntryMeta {
 
 /// `None` when the ignore filter drops the entry.
 /// Bypassing the CAS write here also keeps the package's
-/// [`PackageFilesIndex`] tight — an ignored entry never surfaces in `files`
+/// [`PackageFilesIndex`] tight, an ignored entry never surfaces in `files`
 /// or `manifest`.
 pub(super) fn entry_meta<Source: Read>(
     entry: &tar::Entry<'_, Source>,
@@ -432,7 +432,7 @@ pub(super) fn flush_pending_batch(
 /// Borrow one tar entry's payload out of the decompressed archive.
 ///
 /// The tar reader is seekable over an in-memory buffer, so an entry's
-/// bytes are already there — slicing them costs nothing, where reading
+/// bytes are already there, slicing them costs nothing, where reading
 /// through the entry would copy every payload into a fresh allocation
 /// sized by the archive's own (untrusted) header.
 ///

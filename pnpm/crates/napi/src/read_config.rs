@@ -1,8 +1,8 @@
-//! `readConfig` — expose the engine's resolved configuration to the embedder.
+//! `readConfig`, expose the engine's resolved configuration to the embedder.
 //!
 //! Hosts like Bit historically parsed `.npmrc` themselves (via
 //! `@pnpm/config.reader`) to learn registries, credentials, proxy, and TLS
-//! settings — only to hand most of it straight back to the engine. This
+//! settings, only to hand most of it straight back to the engine. This
 //! binding inverts that: the engine resolves the exact configuration its own
 //! installs use (see [`crate::config::resolve_config`]) and returns the
 //! subset an embedder consumes, so the host needs no JavaScript config
@@ -20,7 +20,7 @@ use crate::{
 
 #[napi(object)]
 pub struct ReadConfigOptions {
-    /// Directory whose config cascade to resolve — its `.npmrc`, the
+    /// Directory whose config cascade to resolve, its `.npmrc`, the
     /// enclosing workspace's `pnpm-workspace.yaml` and `.npmrc`, the user
     /// and global config files, and `npm_config_*` environment variables.
     pub dir: String,
@@ -49,7 +49,7 @@ pub struct ResolvedRegistry {
 pub struct ResolvedConfig {
     pub registries: Vec<ResolvedRegistry>,
     /// Static `Authorization` headers keyed by nerf-darted registry URI
-    /// (`//host[:port]/path/`) — the shape [`fn@crate::install`]'s
+    /// (`//host[:port]/path/`), the shape [`fn@crate::install`]'s
     /// `authHeaderByUri` accepts.
     pub auth_header_by_uri: HashMap<String, String>,
     pub http_proxy: Option<String>,
@@ -82,7 +82,7 @@ pub struct ResolvedConfig {
     pub fetch_warn_timeout_ms: u32,
     pub fetch_min_speed_ki_bps: u32,
     /// The explicitly configured user agent, when the cascade set one.
-    /// The engine's own computed default is omitted — an embedder that
+    /// The engine's own computed default is omitted, an embedder that
     /// passes nothing back to `install` gets that same default.
     pub user_agent: Option<String>,
     pub engine_strict: bool,
@@ -95,7 +95,7 @@ pub struct ResolvedConfig {
     /// reflects it, exposed for embedders that branch on the flag itself.
     pub shamefully_hoist: bool,
     /// The engine's pnpm home directory (`PNPM_HOME` or the platform
-    /// default) — not a per-project setting. `None` when no home
+    /// default), not a per-project setting. `None` when no home
     /// directory is resolvable.
     pub pnpm_home_dir: Option<String>,
     /// The camelCase names of settings the cascade set explicitly

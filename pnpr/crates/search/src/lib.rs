@@ -1,7 +1,7 @@
 //! Local implementation of the npm `/-/v1/search` endpoint.
 //!
 //! Verdaccio (which this server replaces in `@pnpm/registry-mock`)
-//! does **not** proxy search to its upstream npmjs — it scans the
+//! does **not** proxy search to its upstream npmjs, it scans the
 //! local storage and matches on package name. Tests rely on that
 //! behavior.
 

@@ -149,7 +149,7 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
 /// Move a freshly built `temp` tree into place at `storage`.
 ///
 /// Publishers race: the loser's rename fails because the winner's tree is
-/// already there, which is harmless — the completion marker proves the
+/// already there, which is harmless, the completion marker proves the
 /// content arrived. A tree *without* the marker is a different matter. It
 /// is a half-finished publish, or a build cache restored without the
 /// marker, and no reader may touch it; left alone it wedges every later
@@ -189,8 +189,8 @@ fn discard_unusable_storage(generated: &Path, storage: &Path) {
 /// Put a claimed tree back after it turned out to be complete.
 ///
 /// The claim leaves `storage` free, so a publisher can land its own tree
-/// there before the restore runs. Its content is the same — the path is
-/// addressed by a fingerprint of the fixtures — so a claim that can no
+/// there before the restore runs. Its content is the same, the path is
+/// addressed by a fingerprint of the fixtures, so a claim that can no
 /// longer go back is redundant rather than lost, and gets dropped.
 fn restore_claimed_storage(claimed: &Path, storage: &Path) {
     if fs::rename(claimed, storage).is_err() {
@@ -218,8 +218,8 @@ fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
     }
 }
 
-/// A scratch directory name no other publisher — in this process or any
-/// concurrent one — can collide with.
+/// A scratch directory name no other publisher, in this process or any
+/// concurrent one, can collide with.
 fn scratch_name(prefix: &str) -> String {
     format!("{prefix}.{}.{}", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed))
 }

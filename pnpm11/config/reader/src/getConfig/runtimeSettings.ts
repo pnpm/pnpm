@@ -30,7 +30,7 @@ export function applyRuntimeSettings (state: ConfigBuildState): void {
   pnpmConfig.catalogPrune ??= pnpmConfig.cleanupUnusedCatalogs
   // Every layer folds `virtualStoreType` into the boolean the rest of pnpm
   // reads, so the canonical spelling is restored here from the folded value
-  // rather than from any one layer — otherwise `pnpm config get
+  // rather than from any one layer, otherwise `pnpm config get
   // virtualStoreType` could name the store a later layer overrode.
   if (state.explicitlySetKeys.has('enableGlobalVirtualStore')) {
     pnpmConfig.virtualStoreType = pnpmConfig.enableGlobalVirtualStore ? 'global' : 'project'
@@ -118,7 +118,7 @@ function resolveProxySettings (pnpmConfig: PnpmConfigInProgress): void {
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
   }
   if (!pnpmConfig.noProxy) {
-    // @ts-expect-error -- noproxy (lowercase) is a config-file key, not a Config field
+    // @ts-expect-error, noproxy (lowercase) is a config-file key, not a Config field
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
 }

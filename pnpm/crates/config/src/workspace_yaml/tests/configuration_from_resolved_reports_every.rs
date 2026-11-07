@@ -7,7 +7,7 @@ use super::{
 /// Every setting must report its resolved value, so that a hook reading the
 /// configuration sees what the install runs with. A key absent from the
 /// projection reads as `null`, which is indistinguishable from "explicitly
-/// unset" — so adding a setting to [`WorkspaceSettings`] or
+/// unset", so adding a setting to [`WorkspaceSettings`] or
 /// [`MachineSettings`](crate::MachineSettings) without teaching its
 /// `from_resolved` about it fails here.
 ///

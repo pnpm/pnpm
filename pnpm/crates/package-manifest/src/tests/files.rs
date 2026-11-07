@@ -44,7 +44,7 @@ fn save_preserves_the_final_newline_state_of_the_source_file() {
 }
 
 /// A save that wouldn't change the manifest leaves the file byte-for-byte
-/// untouched — even a file in non-canonical form (unsorted dependencies)
+/// untouched, even a file in non-canonical form (unsorted dependencies)
 /// is only normalized when a real change triggers a write.
 #[test]
 fn noop_save_does_not_rewrite_the_file() {

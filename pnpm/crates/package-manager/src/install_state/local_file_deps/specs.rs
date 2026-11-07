@@ -116,7 +116,7 @@ pub(crate) fn has_local_file_package_extension(
 /// git shorthand at this layer, and matching it would disable the
 /// repeat-install fast path for every project with git dependencies.
 /// Such specs (and anything else carrying a protocol or URL) stay on
-/// the fast path. `catalog:` specs also return `false` here — callers
+/// the fast path. `catalog:` specs also return `false` here, callers
 /// dereference them through the workspace catalogs first, because a
 /// catalog entry may itself hold a local path.
 pub(crate) fn is_local_file_spec(spec: &str) -> bool {

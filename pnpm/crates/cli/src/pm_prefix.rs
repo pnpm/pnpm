@@ -5,7 +5,7 @@
 //! `pm` prefix opts out of that: it forces the built-in even when such a
 //! script exists (<https://pnpm.io/cli/pm>).
 //!
-//! `pm` is not a command of its own — it is stripped from argv before clap
+//! `pm` is not a command of its own, it is stripped from argv before clap
 //! parses it, so the rest of the command line is dispatched exactly as if
 //! the prefix had not been typed. Like pnpm, only a `pm` written as the
 //! very first token counts; anywhere else it is an ordinary argument.

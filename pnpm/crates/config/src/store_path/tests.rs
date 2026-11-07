@@ -30,7 +30,7 @@ fn next_path_walks_one_segment_toward_target() {
 }
 
 /// `next_path` returns `from` unchanged when `from` is not actually an
-/// ancestor of `to` — keeps the loop in `root_link_target` from
+/// ancestor of `to`, keeps the loop in `root_link_target` from
 /// looping forever on malformed inputs.
 #[test]
 fn next_path_returns_from_when_not_an_ancestor() {
@@ -145,7 +145,7 @@ fn resolve_store_dir_cross_volume_walks_to_mountpoint() {
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
-    // Only the mount and its descendants are linkable — anything
+    // Only the mount and its descendants are linkable, anything
     // higher (the tempdir root, `/`, the home dir) fails the probe.
     set_allow(&[&mount_canon]);
     let resolved = resolve_store_dir::<PrefixProbe>(home_default, &pnpm_home, &pkg_root_canon);

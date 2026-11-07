@@ -46,7 +46,7 @@ async function recordVouchedLockfiles (
 ): Promise<void> {
   for (const [digest, lockfile] of lockfiles) {
     if (!opts.referenced.has(digest)) continue
-    // eslint-disable-next-line no-await-in-loop -- a write records one lockfile, or one per project with its own
+    // eslint-disable-next-line no-await-in-loop, a write records one lockfile, or one per project with its own
     const local = opts.previous?.localDependencies?.[digest] ?? await readLocalDependencies(opts.read, lockfile)
     if (local == null) continue
     records.entries[digest] = local

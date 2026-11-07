@@ -1,7 +1,7 @@
 //! The install link phase, shared by both paths: reconcile what the previous install
-//! left behind, materialize the importer-visible tree — either the
+//! left behind, materialize the importer-visible tree, either the
 //! hoisted `node_modules` hierarchy or the isolated symlink layout with
-//! its hoist and bin passes — and write the module-resolution sidecars.
+//! its hoist and bin passes, and write the module-resolution sidecars.
 //!
 //! Runs once the virtual store is populated and before the build phase,
 //! which needs both the linked tree and the hoisted package roots this
@@ -187,7 +187,7 @@ impl LinkPhaseOutput {
 /// `.modules.yaml` observe the same skip set this phase acted on.
 ///
 /// Returns what the build phase and the caller's `.modules.yaml` writer
-/// need — see [`LinkPhaseOutput`]. Under `virtual_store_only` only the
+/// need, see [`LinkPhaseOutput`]. Under `virtual_store_only` only the
 /// per-slot bin pass runs and every output is empty: that mode
 /// populates the virtual store without touching the project.
 pub fn run_link_phase<Reporter: self::Reporter>(
@@ -199,8 +199,8 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     }
     let hoist = plan_hoist(&inputs, skipped);
 
-    // `nodeLinker: hoisted` writes no virtual store — `CreateVirtualStore`
-    // skipped the slots — so there is nothing to link into or out of.
+    // `nodeLinker: hoisted` writes no virtual store, `CreateVirtualStore`
+    // skipped the slots, so there is nothing to link into or out of.
     let has_virtual_store = !inputs.ctx.is_hoisted();
     let claimed_importer_bins = if has_virtual_store && !inputs.ctx.config.virtual_store_only {
         relink_importer_tree::<Reporter>(&inputs, skipped, &hoist)?
@@ -263,7 +263,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
     .map_err(LinkPhaseError::SymlinkDirectDependencies)?;
     tracing::info!(target: "pacquet::install::phase", phase = "link.symlink_direct_deps", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
-    // Bit "root components" — a no-op unless an importer declared
+    // Bit "root components", a no-op unless an importer declared
     // `installConfig.hoistingLimits: "workspaces"`.
     link_root_component_members(
         inputs.ctx.linker.layout,
@@ -279,7 +279,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
 
 /// Unlike every other link pass this one also runs under
 /// `virtual_store_only`: the links it writes live inside the virtual
-/// store, and the build phase — which `pnpm fetch` still runs — resolves
+/// store, and the build phase, which `pnpm fetch` still runs, resolves
 /// a dependency's sibling bin through them.
 fn link_virtual_store_bins(
     inputs: &LinkPhaseInputs<'_>,
@@ -391,7 +391,7 @@ fn write_project_sidecars(inputs: &LinkPhaseInputs<'_>) -> Result<(), LinkPhaseE
         .map_err(LinkPhaseError::WritePackageMap)?;
     } else if inputs.ctx.linker.kind != NodeLinker::Hoisted {
         // A hoisted install writes its map from its own linker, which
-        // runs after this one — see `should_write_hoisted_package_map`.
+        // runs after this one, see `should_write_hoisted_package_map`.
         // Only the linkers whose map this gate speaks for may take one
         // away.
         crate::package_map::remove_package_map(&config.modules_dir);

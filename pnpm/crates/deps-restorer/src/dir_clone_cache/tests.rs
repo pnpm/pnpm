@@ -65,7 +65,7 @@ mod macos {
     /// Build a cache whose canonical root is `links_root`, with
     /// `snapshots` so the layout precomputes their hashed slots. The
     /// virtual-store dir is pinned next to the links root so the
-    /// capability probe in `build` clones within one volume — the
+    /// capability probe in `build` clones within one volume, the
     /// default would point at the crate's working directory, which may
     /// live on another volume than the temp root.
     fn cache_for_snapshots<'a>(

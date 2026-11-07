@@ -45,7 +45,7 @@ pub(super) struct LatestRewriteCtx<'a, 'borrow> {
 ///
 /// The answer is the resolvers': the chain is asked to resolve the
 /// dependency with [`UpdateBehavior::Latest`], and whichever resolver
-/// claims it reports back the specifier its own protocol round-trips to —
+/// claims it reports back the specifier its own protocol round-trips to,
 /// the npm picker takes the higher of the declared range and the `latest`
 /// tag, the `runtime:` resolvers re-resolve within the spec the manifest
 /// already declares, and the local resolvers echo their spec unchanged.
@@ -87,7 +87,7 @@ pub(super) async fn latest_specifier(
     // A resolver that reports back what the manifest already says has
     // nothing to rewrite. Recording it anyway would mark the manifest dirty
     // and persist it, which for a `runtime:` dependency means rewriting the
-    // entry into `devEngines.runtime` — a change the user never asked for.
+    // entry into `devEngines.runtime`, a change the user never asked for.
     Ok(resolved
         .and_then(|result| result.normalized_bare_specifier)
         .filter(|specifier| *specifier != effective))
@@ -96,8 +96,8 @@ pub(super) async fn latest_specifier(
 /// in the chain claims the dependency.
 ///
 /// An explicit `<name>@<tag>` selector asks for the version behind exactly
-/// that tag, so — unlike [`latest_specifier`], which reaches for whichever
-/// of the declared range and the `latest` tag is higher — the tag is the
+/// that tag, so, unlike [`latest_specifier`], which reaches for whichever
+/// of the declared range and the `latest` tag is higher, the tag is the
 /// whole specifier resolved here.
 pub(super) async fn tag_version(
     ctx: &LatestRewriteCtx<'_, '_>,

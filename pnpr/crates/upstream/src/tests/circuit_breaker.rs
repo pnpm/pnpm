@@ -51,7 +51,7 @@ fn circuit_breaker_opens_after_max_fails_and_resets_on_success() {
 
 #[test]
 fn circuit_breaker_reopens_once_cooldown_elapses() {
-    // A zero cooldown means a tripped breaker is immediately retryable —
+    // A zero cooldown means a tripped breaker is immediately retryable,
     // the half-open probe path.
     let breaker = CircuitBreaker::new(1, Duration::ZERO);
     breaker.record_failure();

@@ -242,7 +242,7 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
 let _cloneFunction: CloneFunction | undefined
 
 function createNativeReflinkClone (): CloneFunction {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- loads the native addon only on the platforms that use it
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, loads the native addon only on the platforms that use it
   const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
   return (fr, to) => {
     try {
@@ -308,7 +308,7 @@ function shouldRelinkPkg (
   // yet, the fetcher tolerates the missing directory and comes back with an
   // empty `filesMap`; relinking from that would wipe an already-materialized
   // target. Only skip the relink when there is something in the target
-  // worth preserving — an empty or missing target has nothing to lose, and
+  // worth preserving, an empty or missing target has nothing to lose, and
   // still needs the relink to create it so the post-build resync has
   // somewhere to write into.
   if (opts.resolvedFrom === 'local-dir' && opts.sourceExists === false) {

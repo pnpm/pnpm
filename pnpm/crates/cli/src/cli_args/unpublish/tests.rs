@@ -101,8 +101,8 @@ fn packument_round_trips_unknown_fields() {
     assert!(serialized.get("_attachments").is_none(), "couchdb metadata is dropped");
 }
 
-/// The version keys keep the packument's own order — `1.10.0` after `1.9.0`
-/// when the registry sent them that way — like the TypeScript CLI's
+/// The version keys keep the packument's own order, `1.10.0` after `1.9.0`
+/// when the registry sent them that way, like the TypeScript CLI's
 /// `Object.keys`, not lexicographic or semver order.
 #[test]
 fn version_keys_keep_the_packument_order() {
@@ -142,7 +142,7 @@ fn unpublish_args(registry: &str, otp: Option<&str>, params: &[&str]) -> Unpubli
 }
 
 /// A 401 carrying `authUrl` / `doneUrl` starts the web-auth flow, and the
-/// token it yields is sent as `npm-otp` on the retried `DELETE` — still
+/// token it yields is sent as `npm-otp` on the retried `DELETE`, still
 /// under `npm-auth-type: web` and `npm-command: unpublish`.
 #[tokio::test]
 async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token() {

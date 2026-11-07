@@ -5,7 +5,7 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path};
 
 /// Regression test for the user-reported gap: `pacquet add <pkg>`
-/// takes the fresh-lockfile path, which never ran the build phase —
+/// takes the fresh-lockfile path, which never ran the build phase,
 /// so a blocked dependency build script was silently ignored, and
 /// the install exited 0, unlike `pnpm add`. Under the default
 /// `strictDepBuilds`, the install fails with
@@ -116,7 +116,7 @@ fn install_ignore_scripts_does_not_fail_under_strict_dep_builds() {
 }
 
 /// With `strictDepBuilds: false`, an ignored build is a non-fatal
-/// warning printed to stdout and the install exits 0 — the
+/// warning printed to stdout and the install exits 0, the
 /// ignored-build-scripts warning box.
 #[test]
 fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
@@ -157,7 +157,7 @@ fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
 /// `strictDepBuilds` must stay enforced across reruns: after a strict
 /// install fails with `ERR_PNPM_IGNORED_BUILDS`, a warm rerun must
 /// fail again rather than short-circuit to exit 0 via an up-to-date
-/// fast path — otherwise rerunning install would bypass the gate.
+/// fast path, otherwise rerunning install would bypass the gate.
 #[test]
 fn strict_install_keeps_failing_on_warm_rerun() {
     let CommandTempCwd {
@@ -185,7 +185,7 @@ fn strict_install_keeps_failing_on_warm_rerun() {
     assert!(!first.status.success(), "first strict install with an ignored build must fail");
 
     // Warm rerun: the lockfile and `.modules.yaml` are unchanged, so
-    // the up-to-date fast path would normally exit 0 — but strict mode
+    // the up-to-date fast path would normally exit 0, but strict mode
     // must keep failing until the build is approved.
     let CommandTempCwd {
         pacquet: rerun, root: rerun_root, ..
@@ -270,7 +270,7 @@ fn strict_install_keeps_failing_with_unreadable_modules_yaml() {
 /// TS: `the list of ignored builds is preserved after a repeat
 /// install` (`pnpm/test/install/lifecycleScripts.ts:245`). A repeat
 /// install re-reports every ignored build and leaves the recorded
-/// set intact — dropping an entry would make an approved-nothing
+/// set intact, dropping an entry would make an approved-nothing
 /// rerun look clean.
 #[test]
 fn ignored_builds_are_preserved_after_a_repeat_install() {
@@ -342,7 +342,7 @@ fn ignored_builds_are_preserved_after_a_repeat_install() {
 /// (`pnpm/test/install/lifecycleScripts.ts:380`,
 /// <https://github.com/pnpm/pnpm/issues/11035>). Revoking a build
 /// approval must fail the strict gate even though the store already
-/// holds that package's build output — the side-effects cache is an
+/// holds that package's build output, the side-effects cache is an
 /// optimization, never an approval.
 #[test]
 fn strict_dep_builds_fails_for_packages_with_cached_side_effects() {

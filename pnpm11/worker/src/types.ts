@@ -30,7 +30,7 @@ export interface TarballExtractMessage {
   /**
    * Regex source matching the normalized relative path of files inside the tarball that
    * should be skipped. Matching happens after the tar parser strips the top-level directory
-   * segment — i.e. against the same path form that is written to `filesIndex`.
+   * segment, i.e. against the same path form that is written to `filesIndex`.
    */
   ignoreFilePattern?: string
   /** Largest sum of the declared sizes of the archive's regular files, in bytes. */

@@ -10,7 +10,7 @@
 //! the larger one, and the orphaned variant drops out of the lockfile.
 //!
 //! The collapse target is chosen by a total order over `(dep count, dep
-//! path)` so it never depends on the order importers were resolved in —
+//! path)` so it never depends on the order importers were resolved in,
 //! the determinism fix from
 //! [pnpm/pnpm#12179](https://github.com/pnpm/pnpm/pull/12179). A variant
 //! that is a subset of two mutually incompatible larger variants of
@@ -89,7 +89,7 @@ pub(crate) fn dedupe_peer_dependents(
 /// instead of threading a parallel map through the walk.
 ///
 /// Groups are keyed through a `BTreeMap` only to make the outer order
-/// stable for readers — group order does not affect the collapse, since
+/// stable for readers, group order does not affect the collapse, since
 /// each `pkgIdWithPatchHash` group is processed independently. The order
 /// *within* a group is left as the graph yields it; determinism comes
 /// from the total-order sorter in [`deduplicate_dep_paths`], the fix this

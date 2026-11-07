@@ -147,12 +147,12 @@ async fn verify_lockfile_endpoint_rejects_policy_violation() {
 
 /// The verification fan-out fetches each entry's packument, so a gated
 /// package verifies only when the pnpr server has an upstream for the
-/// registry — and fails closed against a server without one. Each verify
+/// registry, and fails closed against a server without one. Each verify
 /// targets a fresh pnpr so neither the whole-lockfile verdict cache nor the
 /// metadata mirror warmed by an earlier call can satisfy it without
 /// exercising the upstream. The resolve and aliased-verify instances share a
 /// `public_url` so the verifier can reverse the lockfile's `/~<name>/`
-/// tarball URLs back to upstream — what a real single-pnpr deployment does.
+/// tarball URLs back to upstream, what a real single-pnpr deployment does.
 #[tokio::test]
 async fn verify_lockfile_endpoint_uses_upstreams() {
     let registry = TestRegistry::start();

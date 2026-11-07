@@ -205,7 +205,7 @@ log:
 #[test]
 fn log_level_filter_directives_are_valid() {
     // Each LogLevel must map to a directive string that
-    // `EnvFilter::new` accepts at runtime — guards against typos.
+    // `EnvFilter::new` accepts at runtime, guards against typos.
     for level in [
         LogLevel::Trace,
         LogLevel::Debug,
@@ -262,7 +262,7 @@ fn log_level_accepts_each_known_variant() {
 #[test]
 fn log_level_rejects_unknown_variant() {
     // `fatal` (pino has it) and `silly` (npm's logger had it)
-    // are not in our set — we want a hard error, not a silent
+    // are not in our set, we want a hard error, not a silent
     // fallback.
     assert!(parse_log_yaml::<LogLevel>("fatal").is_err());
     assert!(parse_log_yaml::<LogLevel>("silly").is_err());

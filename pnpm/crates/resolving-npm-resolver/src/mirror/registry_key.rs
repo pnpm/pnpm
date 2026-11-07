@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 
 /// Failure parsing a registry URL into a filesystem-safe slug.
 /// Real-world registries always carry a host; this only triggers on
-/// malformed config. `url` is redacted for display — a registry can
+/// malformed config. `url` is redacted for display, a registry can
 /// carry `user:pass@` credentials that must not reach a CI log.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -29,7 +29,7 @@ pub enum EncodeRegistryError {
 /// Everything a registry key does not carry verbatim. Escaping all of
 /// it means a `%` or `+` in the key is always one [`get_registry_name`]
 /// wrote, and the key can never contain a path separator, a character
-/// Windows rejects in a filename, or a glob metacharacter — the cache
+/// Windows rejects in a filename, or a glob metacharacter, the cache
 /// commands interpolate the key straight into a glob pattern, and
 /// `pnpm cache delete` erases whatever that pattern matches.
 pub(super) const ESCAPED_IN_REGISTRY_KEY: &AsciiSet = &NON_ALPHANUMERIC
@@ -60,7 +60,7 @@ pub(super) const MAX_KEY_LENGTH: usize = 255;
 ///
 /// `+` joins the port to the host and the path segments to one another,
 /// and every other occurrence of it is escaped, as is every character
-/// that could spell one of the two separators — so no two registry URLs
+/// that could spell one of the two separators, so no two registry URLs
 /// share a directory. They must not: a shared directory lets the resolver
 /// answer
 /// from another registry's versions, integrity hashes and tarball URLs,
@@ -230,7 +230,7 @@ pub(super) fn percent_escapes_are_well_formed(text: &str) -> bool {
 /// exactly these.
 ///
 /// A key too long for a 255-byte filename collapses to a bare sha256 and
-/// carries no separator either, so such a name is *not* reported — it may well
+/// carries no separator either, so such a name is *not* reported, it may well
 /// be a live registry's. A legacy host of exactly 64 lowercase hex characters
 /// has the same shape, and the name is all there is to go on, so it is spared
 /// too. Keeping one unreachable directory is the lesser harm next to deleting a
@@ -260,7 +260,7 @@ fn is_sha256_hex(text: &str) -> bool {
 ///
 /// The only spelling difference that does not reach the registry is a
 /// missing trailing slash, because the resolver appends one to a registry
-/// configured without it — so `…/a` and `…/a/` share a cache. Every other
+/// configured without it, so `…/a` and `…/a/` share a cache. Every other
 /// slash is significant: `https://r/`, `https://r//` and `https://r///`
 /// request `/lodash`, `//lodash` and `///lodash` respectively, so they are
 /// three registries and get three directories, carrying one, two and three

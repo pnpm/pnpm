@@ -49,7 +49,7 @@ pub struct ProjectEntry {
     pub has_modules_dir: bool,
 }
 
-/// A single `configDependencies` value — either a `VersionWithIntegrity`
+/// A single `configDependencies` value, either a `VersionWithIntegrity`
 /// string or a `{ tarball?, integrity }` object. Untagged so it
 /// round-trips both shapes verbatim; pnpm compares the recorded value
 /// against the live config with a deep, order-independent equality
@@ -71,8 +71,8 @@ pub struct ConfigDependencyDetail {
 
 /// Typed view of `.pnpm-workspace-state-v1.json`.
 ///
-/// `lastValidatedTimestamp` is JS `Date.now()` — milliseconds since the
-/// Unix epoch — so pnpm's freshness checks (`mtime > lastValidated`)
+/// `lastValidatedTimestamp` is JS `Date.now()`, milliseconds since the
+/// Unix epoch, so pnpm's freshness checks (`mtime > lastValidated`)
 /// stay consistent across the two implementations.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -226,7 +226,7 @@ pub struct FileSignature {
 /// track yet. pnpm iterates its full set of workspace-state setting
 /// keys and reads an omitted key as `undefined`, so a key pacquet omits
 /// stays compatible only while pnpm's resolved value for it is also
-/// `undefined`. Match what the install actually used — if pacquet's
+/// `undefined`. Match what the install actually used, if pacquet's
 /// resolved value differs from pnpm's, pnpm correctly reinstalls.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -273,7 +273,7 @@ pub struct WorkspaceStateSettings {
     pub auto_dedupe: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dev: Option<bool>,
-    /// `None` and `Some(false)` both mean "global virtual store off" —
+    /// `None` and `Some(false)` both mean "global virtual store off",
     /// pnpm omits the key for its `undefined` default and only writes a
     /// concrete value when `--global` (always `true`) or CI (`false`)
     /// forces one. The freshness check coerces the two off-forms before
@@ -476,7 +476,7 @@ pub enum UpdateWorkspaceStateError {
 /// Write `state` to `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`.
 ///
 /// Writes to a temporary file in the same directory, then atomically
-/// renames it into place, so a concurrent reader — pnpm or pacquet —
+/// renames it into place, so a concurrent reader, pnpm or pacquet,
 /// never observes a half-written file
 /// ([#12020](https://github.com/pnpm/pnpm/issues/12020)). Two pnpm
 /// processes installing one workspace at once both write it, so the

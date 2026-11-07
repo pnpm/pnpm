@@ -50,7 +50,7 @@ pub(super) struct WorkspaceLinkTarget {
 /// With no selectors every direct dependency that a workspace project
 /// publishes is linked (minus `updateConfig.ignoreDependencies`); the
 /// rest keep their registry specifiers. With selectors, each *matched*
-/// direct dependency must be a workspace package — naming one that isn't
+/// direct dependency must be a workspace package, naming one that isn't
 /// is the failure the `--workspace` help text advertises.
 pub(super) fn workspace_link_targets(
     selectors: &[ParsedSelector],
@@ -69,7 +69,7 @@ pub(super) fn workspace_link_targets(
         .collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     // Per-selector matchers, compiled once, map a matched dependency back
-    // to the selector that claimed it — and so to the version it asked for.
+    // to the selector that claimed it, and so to the version it asked for.
     let claims = selectors
         .iter()
         .map(|selector| (matcher_one(&selector.pattern), selector.version.as_deref()))
@@ -130,7 +130,7 @@ pub(super) fn all_workspace_link_targets(
 /// dependency.
 ///
 /// `--workspace` is an explicit request for the protocol, so unlike
-/// `pnpm add` this never declines on [`SaveWorkspaceProtocol::Off`] —
+/// `pnpm add` this never declines on [`SaveWorkspaceProtocol::Off`],
 /// the setting only chooses the shape.
 pub(super) fn workspace_specifier(
     target: &WorkspaceLinkTarget,

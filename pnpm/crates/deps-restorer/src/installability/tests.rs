@@ -55,7 +55,7 @@ fn synthetic_metadata(
     os: Option<&[&str]>,
     libc: Option<&[&str]>,
 ) -> PackageMetadata {
-    // Tarball resolution — the installability check ignores the
+    // Tarball resolution, the installability check ignores the
     // resolution shape entirely, but every `PackageMetadata` must
     // carry one.
     PackageMetadata {

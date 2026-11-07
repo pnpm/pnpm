@@ -5,7 +5,7 @@ use super::{
 /// Reject a project whose `manifest` is not a JSON object up front.
 /// `PackageManifest::from_value` coerces a non-object to `{}` as a last-resort
 /// panic guard, but a silently-emptied manifest would drive resolution and
-/// lockfile writing off missing data — so fail closed with a clear error here.
+/// lockfile writing off missing data, so fail closed with a clear error here.
 pub(super) fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::Result<()> {
     for project in projects {
         if !project.manifest.is_object()

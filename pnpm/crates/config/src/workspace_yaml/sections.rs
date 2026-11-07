@@ -250,8 +250,8 @@ pub enum SideEffectsCacheSetting {
     Settings(Box<SideEffectsCacheSettings>),
 }
 
-/// Where a dependency's build output may be reused from: this machine, and —
-/// through [`Self::remote`] — other machines in the same organization.
+/// Where a dependency's build output may be reused from: this machine, and,
+/// through [`Self::remote`], other machines in the same organization.
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SideEffectsCacheSettings {
@@ -363,7 +363,7 @@ pub struct TaskSettings {
     ///
     /// A task with no declaration behaves as `dependsOn: ['^<its own
     /// name>']`. An entry with `dependsOn` omitted declares an empty
-    /// dependency list — the task depends on nothing and may start
+    /// dependency list, the task depends on nothing and may start
     /// immediately.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_on: Option<Vec<String>>,

@@ -31,7 +31,7 @@ async fn hosted_registry_serves_only_what_it_hosts() {
         .unwrap();
     assert_eq!(hit.status(), StatusCode::OK);
 
-    // A name the org does not host is a definitive not-found — a hosted org has
+    // A name the org does not host is a definitive not-found, a hosted org has
     // no upstream fall-through.
     let miss = app
         .oneshot(
@@ -60,7 +60,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
-    // An unauthorized (anonymous) caller gets 404, not 403 — the org's package
+    // An unauthorized (anonymous) caller gets 404, not 403, the org's package
     // existence is not revealed.
     let anon = app
         .clone()
@@ -303,7 +303,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     assert_eq!(tar.status(), StatusCode::OK);
     assert_eq!(body_bytes(tar.into_body()).await, *tarball);
 
-    // A publish routed to an upstream is rejected — a write can never land on
+    // A publish routed to an upstream is rejected, a write can never land on
     // an upstream registry.
     let rejected = app
         .oneshot(
@@ -320,8 +320,8 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
 
 /// A hosted registry's declared `patterns:` are enforced on the registry itself, on
 /// every path to it: an off-pattern publish is rejected and an off-pattern
-/// read is a definitive 404 — through a router and at the registry's own
-/// `/~<name>/` URL alike — so a typo'd scope can never squat in the hosted
+/// read is a definitive 404, through a router and at the registry's own
+/// `/~<name>/` URL alike, so a typo'd scope can never squat in the hosted
 /// store and later surface as authoritative.
 #[tokio::test]
 async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
@@ -375,7 +375,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     };
 
     // An off-pattern publish is rejected on the registry's own URL, through the
-    // router, and via the path-less base — and nothing lands in the store.
+    // router, and via the path-less base, and nothing lands in the store.
     for (url, pkg) in [
         ("/npm/~acme/@typo/widget", "@typo/widget"),
         ("/npm/~main/@typo/widget", "@typo/widget"),
@@ -528,8 +528,8 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
 /// The registry's access list gates writes exactly as it gates reads (RFC
 /// "registries", implementation point 9). An authenticated non-member
 /// passes the default per-package publish policy (`$authenticated`), so
-/// without the registry-level gate they could publish into — or retag and
-/// unpublish from — a private hosted org. The denial is the same 404 mask
+/// without the registry-level gate they could publish into, or retag and
+/// unpublish from, a private hosted org. The denial is the same 404 mask
 /// reads use, so the write path reveals nothing about the registry either.
 #[tokio::test]
 async fn private_hosted_registry_denies_writes_from_non_members() {
@@ -579,8 +579,8 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
             .unwrap()
     };
 
-    // The non-member publish is masked with 404 — not 401/403, which would
-    // reveal the private registry exists — and nothing lands on disk.
+    // The non-member publish is masked with 404, not 401/403, which would
+    // reveal the private registry exists, and nothing lands on disk.
     let denied = app
         .clone()
         .oneshot(publish_as(&outsider))

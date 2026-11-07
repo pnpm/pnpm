@@ -270,7 +270,7 @@ pub(super) fn init_shared_state(
 }
 
 /// `sharedWorkspaceLockfile: false` workspace install: one independent
-/// single-project install per workspace project — each gets its own
+/// single-project install per workspace project, each gets its own
 /// `pnpm-lock.yaml`, `node_modules`, and virtual store, mirroring
 /// pnpm's dedicated-lockfile per-project loop in its recursive
 /// dispatch. The workspace root participates when it has a manifest,

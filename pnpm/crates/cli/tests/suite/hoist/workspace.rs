@@ -7,9 +7,9 @@ use assert_cmd::assert::OutputAssertExt;
 
 /// A publicly hoisted *workspace* package's bin must land in
 /// `<root>/node_modules/.bin/`. Neither of the other two bin passes
-/// can produce it — `SymlinkDirectDependencies` runs before hoisting,
+/// can produce it, `SymlinkDirectDependencies` runs before hoisting,
 /// and the post-build top-level pass resolves bins out of
-/// virtual-store slots, which a workspace project doesn't have — so
+/// virtual-store slots, which a workspace project doesn't have, so
 /// the link phase shims the hoist plan's public workspace aliases
 /// directly.
 #[test]
@@ -73,7 +73,7 @@ fn publicly_hoisted_workspace_package_bin_lands_in_root_bin_dir() {
 /// transitives unique to a workspace project still reach the shared
 /// `<vs>/node_modules` private hoist.
 ///
-/// Pacquet-original — covers the multi-importer hoist case directly,
+/// Pacquet-original, covers the multi-importer hoist case directly,
 /// without relying on a single-project mutate-modules API pacquet
 /// doesn't have.
 #[test]
@@ -88,7 +88,7 @@ pub(super) fn workspace_hoist_walks_every_importer() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    // Root package.json — no deps; the dependency lives only in the
+    // Root package.json, no deps; the dependency lives only in the
     // workspace package, so the transitive can only reach the hoist
     // pass via the per-importer walk.
     fs::write(
@@ -139,7 +139,7 @@ pub(super) fn workspace_hoist_walks_every_importer() {
 
 /// `hoistWorkspacePackages` (default on): every named workspace
 /// project is linked by name into the private hoisted modules dir,
-/// pointing at the project directory itself — so anything resolving
+/// pointing at the project directory itself, so anything resolving
 /// from the hoisted tree can `require` workspace packages by name.
 /// With `hoistWorkspacePackages: false` the name-links are absent
 /// while ordinary transitive hoisting is untouched. Covers the TS
@@ -298,7 +298,7 @@ fn isolated_linker_hoists_unselected_projects_on_a_filtered_first_install() {
 /// TS: `hoist packages which is in the dependencies tree of the
 /// selected projects` (`hoist.ts:587`): with `hoistPattern: '*'` and a
 /// lockfile that pins a different `@pnpm.e2e/foo` per project, a subset
-/// install of the root plus project-2 must hoist project-2's version —
+/// install of the root plus project-2 must hoist project-2's version,
 /// not the unselected project-1's, which sorts first among importers.
 #[test]
 fn workspace_hoist_packages_in_selected_projects_tree() {
@@ -588,7 +588,7 @@ fn publicly_hoisted_workspace_package_bins_reach_the_root_bin_dir() {
 /// *workspace* package declaring the same bin name. The post-build
 /// top-level link resolves precedence by [`BinOrigin`] tier, but it
 /// never sees workspace-hoisted aliases, so the link phase's re-walk is
-/// the only thing that shims them — and that scan treats every
+/// the only thing that shims them, and that scan treats every
 /// candidate as direct. This pins which one ends up in the root `.bin`.
 #[test]
 fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {

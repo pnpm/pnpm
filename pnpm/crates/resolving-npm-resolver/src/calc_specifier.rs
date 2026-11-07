@@ -58,8 +58,8 @@ pub fn calc_version_range(
 /// The specifier to write for `picked` when the dependency currently
 /// declares `bare_specifier` under the install name `alias`.
 ///
-/// Keeps the range operator the dependency already declared — `^` stays
-/// `^`, `~` stays `~`, an exact pin stays exact — preferring
+/// Keeps the range operator the dependency already declared, `^` stays
+/// `^`, `~` stays `~`, an exact pin stays exact, preferring
 /// `prev_specifier` over `bare_specifier`, and falling back to
 /// `default_pin` when neither declares a recoverable pin. An npm alias is
 /// re-wrapped so the entry keeps pointing at the same real package.
@@ -83,7 +83,7 @@ pub fn calc_specifier(
 }
 
 /// The specifier to write for `picked` when the dependency is declared
-/// through a protocol prefix that is not `npm:` — `jsr:` for a JSR
+/// through a protocol prefix that is not `npm:`, `jsr:` for a JSR
 /// package, or a named registry's alias.
 ///
 /// Keeps the declared range operator the same way [`calc_specifier`]
@@ -114,7 +114,7 @@ pub fn calc_prefixed_specifier(
 }
 
 /// The real package name behind an `npm:` alias, or `None` when the
-/// specifier is not an alias — a plain `npm:<range>`, or an
+/// specifier is not an alias, a plain `npm:<range>`, or an
 /// `npm:<name>@<range>` whose name is the install name anyway, both
 /// round-trip as a bare range.
 fn npm_alias_target<'a>(bare_specifier: &'a str, alias: Option<&str>) -> Option<&'a str> {

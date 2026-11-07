@@ -659,7 +659,7 @@ fn sbom_dev_flag_includes_only_dev() {
 }
 
 /// The names of the root components of a `--split` run's NDJSON lines, in
-/// output order — one per selected workspace importer.
+/// output order, one per selected workspace importer.
 fn split_root_names(stdout: &str) -> Vec<String> {
     stdout
         .lines()

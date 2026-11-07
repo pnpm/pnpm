@@ -22,11 +22,11 @@ pub struct PackageBinSource {
     /// dep and a direct dep both declare the same bin name, the
     /// direct dep must win so a project never gets its own tooling
     /// silently shadowed by a transitive's bin. Defaults to
-    /// [`BinOrigin::Direct`] —
+    /// [`BinOrigin::Direct`],
     /// constructions via [`PackageBinSource::new`] don't have to
     /// supply the field.
     pub origin: BinOrigin,
-    /// The package directory with every symlink resolved — the
+    /// The package directory with every symlink resolved, the
     /// virtual-store slot dir a symlinked [`location`] points at.
     /// Callers that already know it (the lockfile-driven passes
     /// derive it from the snapshot key and the store layout) set it so

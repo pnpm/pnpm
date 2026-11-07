@@ -67,7 +67,7 @@ export interface LoadNpmrcConfigOpts {
   /**
    * The `_auth` value read from the **global** pnpm config yaml (the only
    * file source honored for `_auth`). Project `.npmrc` / `pnpm-workspace.yaml`
-   * must not reach this — repo-controlled config may never supply auth.
+   * must not reach this, repo-controlled config may never supply auth.
    */
   globalConfigAuth?: unknown
   /** Receives the warnings as they are found, so they survive a throw. */
@@ -149,7 +149,7 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
   const workspaceNpmrcDir = opts.workspaceDir ?? localPrefix
   const workspaceNpmrcPath = path.resolve(workspaceNpmrcDir, '.npmrc')
   // When npmrcAuthFile explicitly points at the project .npmrc, the user has
-  // opted in to trusting it — allow auth env expansion and suppress the warning.
+  // opted in to trusting it, allow auth env expansion and suppress the warning.
   const workspaceIsTrustedAuthFile = userConfigPath === workspaceNpmrcPath
   const workspace = opts.ignoreProjectNpmrc
     ? {}
@@ -179,7 +179,7 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
   // URL-scoped auth/registry settings supplied via `npm_config_//...` and
   // `pnpm_config_//...` environment variables. The registry a credential is
   // bound to is encoded in the (trusted) variable name, so unlike a project
-  // `.npmrc` these cannot be redirected to another host by the repository —
+  // `.npmrc` these cannot be redirected to another host by the repository,
   // making them a safe, file-free way to configure registry authentication.
   const envScoped = readUrlScopedEnvConfig(env)
 
@@ -194,7 +194,7 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
 // Structured `_auth` registry auth from two trusted, non-repo sources:
 // the `pnpm_config__auth` env var (one JSON object, so it survives CI
 // runners that silently drop env vars whose names contain `/`, `:`, or
-// `.` — GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
+// `.`, GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
 // key of the global pnpm config yaml. The env var wins on conflict.
 function readJsonAuth (opts: LoadNpmrcConfigOpts, env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
   const envJsonAuth = readJsonAuthSource(opts, () => readJsonAuthEnv(env, warnings))
@@ -271,8 +271,8 @@ const URL_SCOPED_ENV_RE = /^p?npm_config_(\/\/.+)$/i
 
 // Collect URL-scoped settings (keys beginning with `//host...`, such as
 // `//registry.npmjs.org/:_authToken`) from `npm_config_//...` and `pnpm_config_//...`
-// environment variables. These are host-scoped by construction — the registry
-// the value applies to is part of the variable name — so they are safe to honor
+// environment variables. These are host-scoped by construction, the registry
+// the value applies to is part of the variable name, so they are safe to honor
 // from the trusted environment without a config file. When the same key is set
 // through both prefixes, `pnpm_config_` wins.
 //
@@ -290,7 +290,7 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
     // `tokenHelper` names an executable pnpm runs, so it must never be honored
     // from the environment. The TOKEN_HELPER_IN_PROJECT_CONFIG check in index.ts
     // validates against the trusted config, and that config already includes
-    // this env-scoped layer — so admitting `//host/:tokenHelper` here would let
+    // this env-scoped layer, so admitting `//host/:tokenHelper` here would let
     // an env var pass the guard and silently run an arbitrary command. Drop it.
     if (key.endsWith(':tokenHelper')) continue
     const target = envKey.slice(0, 5).toLowerCase() === 'pnpm_' ? pnpmScoped : npmScoped
@@ -441,7 +441,7 @@ function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: strin
 
 // Use the lossy variant so unresolved `${VAR}` placeholders become '' (each
 // recorded as a warning) instead of throwing. Critical for the OIDC case in
-// https://github.com/pnpm/pnpm/issues/11513 — leaving the literal `${VAR}` in
+// https://github.com/pnpm/pnpm/issues/11513, leaving the literal `${VAR}` in
 // an auth value would be sent verbatim as a bearer token. Resolvable
 // placeholders and `${VAR-default}` / `${VAR:-default}` fallbacks elsewhere
 // in the same string still expand normally.

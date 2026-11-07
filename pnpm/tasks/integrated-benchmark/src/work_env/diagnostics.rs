@@ -13,7 +13,7 @@ impl WorkEnv {
     /// Fail the run if a `pnpr@<rev>` target never actually went through its
     /// pnpr server. A resolve populates the server's on-disk store/cache
     /// under `pnpr-storage`, so an empty `pnpr-storage` after the
-    /// benchmark means the client resolved *directly* instead — the silent
+    /// benchmark means the client resolved *directly* instead, the silent
     /// failure mode where a misnamed `PNPM_CONFIG_PNPR_SERVER` made every
     /// `pnpr@<rev>` row a duplicate of its `pacquet@<rev>` row. Better to
     /// abort than to publish meaningless pnpr-vs-direct numbers.

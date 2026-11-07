@@ -298,8 +298,8 @@ fn seeded_still_incompatible_snapshot_stays_skipped() {
         "the skip is re-evaluated and re-reported on every install, got {events:?}",
     );
 }
-/// A seeded installability skip whose package passes the current check —
-/// e.g. `supportedArchitectures` changed between installs — is dropped, so
+/// A seeded installability skip whose package passes the current check,
+/// e.g. `supportedArchitectures` changed between installs, is dropped, so
 /// the newly compatible optional is installed instead of staying skipped.
 #[test]
 fn seeded_snapshot_compatible_with_new_host_is_unskipped() {

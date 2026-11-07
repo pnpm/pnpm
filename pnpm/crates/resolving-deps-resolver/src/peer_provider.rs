@@ -21,7 +21,7 @@
 //! in their tiers and range check:
 //!
 //! | Peer     | Tiers                          | Range check                    |
-//! | -------- | ------------------------------ | ------------------------------ |
+//! |,------ |,---------------------------- |,---------------------------- |
 //! | required | the versions this run resolved | `includePrerelease`, one range |
 //! | optional | [`ProviderTiers::optional`]    | strict, every recorded range   |
 
@@ -67,8 +67,8 @@ pub struct MissingPeerInfo {
 /// silently produce the second copy the override exists to prevent.
 /// Returns the overriding specifier, `"-"` when the override drops the
 /// peer, or `None` when no override claims it. The path is the directory
-/// of the importer the peer is hoisted into — the manifest that would
-/// have declared the dependency — which a `link:` / `file:` override
+/// of the importer the peer is hoisted into, the manifest that would
+/// have declared the dependency, which a `link:` / `file:` override
 /// target is made relative to.
 pub type DependencyOverrider = dyn Fn(&str, &str, &Path) -> Option<String> + Send + Sync;
 
@@ -387,7 +387,7 @@ fn max_hoistable_optional_version(
 /// over a package-name match (an `npm:` alias can install the same
 /// package under a different slot), and among package-name matches the
 /// lexicographically first alias wins so the pick is stable. Only a
-/// dependency that has a normalized specifier is a candidate — the
+/// dependency that has a normalized specifier is a candidate, the
 /// callers have nothing to install or bound the peer with otherwise.
 fn find_workspace_root_dep<'a>(
     workspace_root_deps: &'a [WorkspaceRootDep],

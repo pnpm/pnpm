@@ -77,7 +77,7 @@ impl std::fmt::Debug for ReplacedEntries<'_> {
 }
 
 /// Whether a recorded verification already covers `lockfile` as it sits
-/// at `lockfile_path` under the policy `verifiers` currently demand —
+/// at `lockfile_path` under the policy `verifiers` currently demand,
 /// i.e. whether a [`verify_lockfile_resolutions`] call would
 /// short-circuit on the cache without running the fan-out. The offline
 /// structural dependency-name gate runs here too (it is cheap and the
@@ -328,7 +328,7 @@ fn record_verdict(
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that
 /// returns violations as data instead of throwing on the first batch.
-/// No reporter emits, no cache wiring — for callers that need to
+/// No reporter emits, no cache wiring, for callers that need to
 /// inspect violations.
 pub async fn collect_resolution_policy_violations(
     lockfile: &Lockfile,
@@ -343,7 +343,7 @@ pub async fn collect_resolution_policy_violations(
     // picks a caller may auto-exclude.
     let (candidates, _shape_violations) = collect_candidates(lockfile);
     // `Err(message)` is a transport failure the caller must surface rather than
-    // treat as "no violations" — see [`run_fan_out`].
+    // treat as "no violations", see [`run_fan_out`].
     run_fan_out(candidates, verifiers, concurrency).await
 }
 
@@ -352,7 +352,7 @@ pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MIS
 /// Cache-key participant for an always-on offline structural check
 /// (resolution-shape, dependency-alias): a record written before the
 /// check's rule existed lacks its `flag`, so `can_trust_past_check`
-/// rejects it and forces a re-verification. `verify` is never invoked —
+/// rejects it and forces a re-verification. `verify` is never invoked,
 /// the identity is appended only to the verifier lists handed to the
 /// cache lookup and recorder.
 struct OfflineCheckCacheIdentity {
@@ -381,7 +381,7 @@ fn variation_resolution_cache_identity() -> Arc<dyn ResolutionVerifier> {
 /// Every verifier list that flows into the verification cache must
 /// carry the always-on offline structural checks' identities, so a
 /// record written before one of those rules existed cannot
-/// stat-fast-path around it — its missing flag fails
+/// stat-fast-path around it, its missing flag fails
 /// `can_trust_past_check`, forcing a re-verification that runs the new
 /// check. Used by the gate itself and by
 /// [`crate::record_lockfile_verified()`], whose freshly-resolved
@@ -423,7 +423,7 @@ impl ResolutionVerifier for OfflineCheckCacheIdentity {
 /// Whether a resolution is registry-shaped. A plain tarball
 /// resolution is registry-shaped because the npm verifier unconditionally
 /// binds explicit tarball URLs of semver-keyed entries to the registry's
-/// own `dist.tarball`. A git-hosted tarball is not — and trust is gated on
+/// own `dist.tarball`. A git-hosted tarball is not, and trust is gated on
 /// the tarball URL rather than the `gitHosted` flag alone.
 fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
@@ -451,7 +451,7 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     }
 }
 
-/// Whether a tarball URL uses an HTTP or HTTPS scheme — the only schemes a
+/// Whether a tarball URL uses an HTTP or HTTPS scheme, the only schemes a
 /// registry artifact is served over. Case-insensitive to reject a
 /// tampered uppercase scheme.
 fn is_http_tarball_url(url: &str) -> bool {
@@ -462,7 +462,7 @@ fn is_http_tarball_url(url: &str) -> bool {
 /// Add every alias in `aliases` that fails
 /// `is_valid_old_npm_package_name` (the `validForOldPackages` rule the
 /// dependency-alias check applies) to `invalid`. Only pass maps
-/// whose keys become `node_modules/<alias>` directories — not
+/// whose keys become `node_modules/<alias>` directories, not
 /// `overrides`, `patched_dependencies`, or peer dependencies.
 fn push_invalid_aliases<'alias>(
     aliases: impl Iterator<Item = &'alias PkgName>,
@@ -519,7 +519,7 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BT
 /// Reject a lockfile whose dependency names or aliases are not valid npm
 /// package names.
 ///
-/// This is an offline, network-free structural check — it does **not**
+/// This is an offline, network-free structural check, it does **not**
 /// depend on the resolution-policy verifiers, so it must run on every
 /// install, **including under `trustLockfile`**, which disables the
 /// policy fan-out. A crafted lockfile alias becomes a filesystem path
@@ -560,7 +560,7 @@ struct TerminalEmitGuard<Reporter: self::Reporter> {
     pending: Option<LockfileVerificationMessage>,
     /// `Started` instant captured at runner entry. The Drop impl uses
     /// it to refresh `elapsed_ms` on the Failed branch (the field is
-    /// stale on the `pending` payload — it was built at guard
+    /// stale on the `pending` payload, it was built at guard
     /// construction, before the fan-out ran). `Done` payloads land
     /// via [`Self::cancel`] with their own up-to-date `elapsed_ms`.
     started_at: Instant,
@@ -590,7 +590,7 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
 impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
     fn drop(&mut self) {
         if let Some(message) = self.pending.take() {
-            // Refresh `elapsed_ms` on the Failed branch only — the
+            // Refresh `elapsed_ms` on the Failed branch only, the
             // success branch already filled the up-to-date value via
             // `cancel(Done { elapsed_ms: <now> })`.
             let message = match message {

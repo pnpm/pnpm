@@ -364,7 +364,7 @@ fn linking_bins_of_local_projects() {
 
 /// The hoisted linker turns `preferSymlinkedExecutables` on by
 /// default, so on Unix `.bin` entries are symlinks to executable bin files
-/// instead of shell shims — pnpm's `nodeLinker: hoisted` behavior. An
+/// instead of shell shims, pnpm's `nodeLinker: hoisted` behavior. An
 /// explicit `preferSymlinkedExecutables: false` restores the shims.
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]

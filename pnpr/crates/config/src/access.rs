@@ -18,7 +18,7 @@ pub struct PackageAccess {
 }
 
 /// A YAML permission value: a sequence of tokens, or a scalar naming exactly
-/// one token. Every entry is taken verbatim — there is no whitespace
+/// one token. Every entry is taken verbatim, there is no whitespace
 /// splitting inside a scalar or a sequence element, so a multi-token list
 /// must be a YAML sequence (`access: [$authenticated, admin]`). Verdaccio's
 /// space-separated form (`access: $authenticated admin`) is rejected with a
@@ -42,7 +42,7 @@ impl AccessSpec {
 
     /// Compile into an [`AccessList`], rejecting any entry that is not a
     /// single well-formed token ([`validate_access_token`]) and binding
-    /// `team:` references to the owning registry's `teams` — a team the
+    /// `team:` references to the owning registry's `teams`, a team the
     /// roster does not hold at load is an error, so a typo cannot silently
     /// become a grant to nobody. The returned error is the reason only; the
     /// caller prefixes the registry/field context it alone knows.

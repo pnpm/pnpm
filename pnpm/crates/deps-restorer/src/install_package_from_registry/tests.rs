@@ -534,7 +534,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     drop((store_dir, modules_dir, second_parent_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
-/// Pin the order with a recording reporter — a regression in either
+/// Pin the order with a recording reporter, a regression in either
 /// the sequence or the `package_id`/`requester` payload would
 /// currently slip through since the tarball-side and
 /// frozen-lockfile-side tests don't exercise this code path.
@@ -648,7 +648,7 @@ async fn install_emits_progress_sequence() {
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
-/// A missing `name_ver` (every non-npm resolver — git / tarball /
+/// A missing `name_ver` (every non-npm resolver, git / tarball /
 /// local) must surface as an error rather than panicking. Pins the
 /// install path's contract once the git resolver is wired into the
 /// chain.

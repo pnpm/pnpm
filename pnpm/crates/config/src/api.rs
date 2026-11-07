@@ -30,7 +30,7 @@ use std::{
 
 /// Capability: read a process environment variable as a raw
 /// [`OsString`]. Used for env vars whose value is a filesystem path
-/// — invalid UTF-8 is preserved verbatim so the path can be passed
+///, invalid UTF-8 is preserved verbatim so the path can be passed
 /// to `std::fs` without round-tripping through `String`.
 pub trait EnvVarOs {
     /// Return the value of the named environment variable as an
@@ -53,7 +53,7 @@ pub trait GetHomeDir {
 /// Capability: read the process's current working directory.
 ///
 /// Mirrors [`std::env::current_dir`]. Code that needs
-/// a "starting path" — like [`crate::Config::current`] —
+/// a "starting path", like [`crate::Config::current`],
 /// takes a direct path parameter, because production passes a
 /// caller-supplied path (the canonicalized `--dir`) rather than the
 /// host's cwd.
@@ -81,7 +81,7 @@ pub trait LinkProbe {
     /// Return `true` when a hardlink can be created from a file in
     /// `from_dir` into a subdirectory of `to_dir`, `false` otherwise.
     /// Implementations must clean up any temp file or directory they
-    /// create — no filesystem effects survive the call.
+    /// create, no filesystem effects survive the call.
     fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool;
 }
 

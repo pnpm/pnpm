@@ -146,7 +146,7 @@ fn parse_runtime_prefix_round_trips() {
 /// The `runtime:` prefix composes with the peer-dependency suffix.
 /// In real lockfiles a runtime entry never carries a peer (pnpm
 /// doesn't write one), but pacquet's parser doesn't need to make
-/// that assumption — pin the combinatorial behavior here so a
+/// that assumption, pin the combinatorial behavior here so a
 /// future runtime-with-peer fixture parses cleanly rather than
 /// erroring.
 #[test]
@@ -168,7 +168,7 @@ fn parse_bare_semver_has_no_prefix() {
 }
 
 /// A version string that *looks* like a prefix mid-name (i.e.
-/// `1.21.3-runtime:`) must NOT be parsed as a `runtime:` prefix —
+/// `1.21.3-runtime:`) must NOT be parsed as a `runtime:` prefix,
 /// the prefix detection is anchored at the start. This pins the
 /// `strip_prefix` choice (vs. e.g. `contains`) so a regression
 /// can't accidentally widen the match.
@@ -180,7 +180,7 @@ fn parse_runtime_substring_in_version_is_not_a_prefix() {
     assert_eq!(parsed.version_semver(), Some(&"1.21.3-runtime".parse::<Version>().unwrap()));
 }
 
-/// Serde round-trip on a runtime version — pacquet stores
+/// Serde round-trip on a runtime version, pacquet stores
 /// `PkgVerPeer` inside `ResolvedDependencySpec`, `PkgNameVerPeer`,
 /// and others; their serde proxies through `PkgVerPeer`'s
 /// `try_from = "Cow<str>"` / `into = "String"` impls, so this

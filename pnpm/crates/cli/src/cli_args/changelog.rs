@@ -40,7 +40,7 @@ pub struct ReleaseRegistryOptions<'a> {
 /// Caps the previous tarball we buffer and decompress to compose the changelog.
 /// The bytes come from a registry/proxy, so an unbounded read or a highly
 /// compressible ("gzip bomb") tarball could OOM release automation. A composed
-/// changelog is best-effort — exceeding the cap just skips the history prepend —
+/// changelog is best-effort, exceeding the cap just skips the history prepend,
 /// so this bound can be generous while still defeating the amplification attack.
 const MAX_TARBALL_BYTES: u64 = 256 * 1024 * 1024;
 
@@ -73,7 +73,7 @@ pub async fn compose_registry_changelog(
 }
 
 /// The set of `package@version` keys the registry confirms are published with
-/// their parked changelog section — the gate `apply_release_plan` uses to
+/// their parked changelog section, the gate `apply_release_plan` uses to
 /// garbage-collect consumed intents and parked sections in `registry` storage.
 /// Driven by the parked files rather than the ledger, so a dependency-propagated
 /// release (which has a section but no consumed intents, hence no ledger entry)
@@ -241,7 +241,7 @@ pub fn published_names(projects: &[pnpm_workspace::Project]) -> HashMap<String, 
     renames
 }
 
-/// The releases in `plan` whose current version the registry does not have —
+/// The releases in `plan` whose current version the registry does not have,
 /// `AssembleReleasePlanOptions::unpublished_dirs`. Probe failures propagate.
 /// A release is keyed by its manifest name, so [`published_names`] translates it
 /// for the probe; without that a renamed project reads as never published and
@@ -327,7 +327,7 @@ enum VersionPick<'a> {
     PreviousTo(&'a str),
 }
 
-/// Best-effort fetch of a published version's `CHANGELOG.md` — `None` when the
+/// Best-effort fetch of a published version's `CHANGELOG.md`, `None` when the
 /// package or version is not published or its tarball carried no changelog.
 /// Errors resolve to `None`: for the previous-version prepend that just starts
 /// a fresh changelog, and for the publication check that keeps the intent.
@@ -438,8 +438,8 @@ pub(crate) fn extract_entry(tarball: &[u8], entry_name: &str) -> Option<String> 
 
 /// `(manifest name, published name, version)` of the project at
 /// `project_dir`. The two names differ when the manifest sets
-/// `publishConfig.name`: the workspace — and so the parked section, the
-/// ledger, and every intent — keys on the manifest name, while the registry
+/// `publishConfig.name`: the workspace, and so the parked section, the
+/// ledger, and every intent, keys on the manifest name, while the registry
 /// only ever sees the published one.
 fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
     let manifest =

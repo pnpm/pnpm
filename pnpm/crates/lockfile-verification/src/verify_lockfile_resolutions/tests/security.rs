@@ -6,7 +6,7 @@ use super::{
 #[tokio::test]
 async fn rejects_a_traversal_snapshot_package_name() {
     // The snapshot's own package name (the `snapshots:` key) becomes
-    // `<slot>/node_modules/<name>` at extract time — a sink the alias
+    // `<slot>/node_modules/<name>` at extract time, a sink the alias
     // scan of the dependency maps alone doesn't cover.
     let lockfile = parse(
         "lockfileVersion: '9.0'

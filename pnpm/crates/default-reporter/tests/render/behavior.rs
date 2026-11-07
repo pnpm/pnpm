@@ -102,7 +102,7 @@ fn zoomed_direct_deprecation_carries_the_prefix() {
 }
 
 /// A single selected project is the directory the user is standing in, so
-/// pnpm says nothing — even for a command that reports scope.
+/// pnpm says nothing, even for a command that reports scope.
 #[test]
 fn stays_silent_for_a_single_selected_project() {
     let mut reporter = scope_reporting_state();

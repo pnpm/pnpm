@@ -176,14 +176,14 @@ fn derive_workspace_dir(
 /// lockfile written by the just-finished install no longer records.
 ///
 /// The pass may only drop an entry it can prove nothing resolves, so it
-/// needs a lockfile covering every project the exclude lists govern —
+/// needs a lockfile covering every project the exclude lists govern,
 /// only a shared one does. Under dedicated per-project lockfiles
 /// (`sharedWorkspaceLockfile: false` with no `lockfileDir` pinning them
 /// back together) every entry a sibling project needs would look
 /// unresolved, so the pass no-ops; the commands that install every
 /// selected project one by one run [`prune_against_project_lockfiles`]
 /// once they are done. It also no-ops when the settings are
-/// off, when lockfile persistence is disabled (`lockfile: false` — the
+/// off, when lockfile persistence is disabled (`lockfile: false`, the
 /// on-disk lockfile would be stale), and when no lockfile exists,
 /// mirroring the `all_projects` guard of the catalog cleanup.
 pub(crate) fn post_install_prune(
@@ -295,7 +295,7 @@ fn prune_unresolved_entries(
 
 /// Adds each snapshot key to `resolved` with its resolved version.
 /// A registry-qualified slot (`<name>@<registryName>:<version>`)
-/// registers the version after the prefix — `PkgVerPeer::version_semver`
+/// registers the version after the prefix, `PkgVerPeer::version_semver`
 /// treats it as opaque for reuse/preference paths, but here the version
 /// within the named registry is exactly what a versioned exclude entry
 /// names. Packages resolved from a non-semver source (git, tarball,
@@ -319,7 +319,7 @@ fn record_resolved_package_versions<'a>(
 
 /// Every project manifest under `workspace_dir`, read from disk. An
 /// absent `pnpm-workspace.yaml` yields no projects, which disables the
-/// cleanup pass — there is no workspace manifest to clean either.
+/// cleanup pass, there is no workspace manifest to clean either.
 fn load_cleanup_projects(
     workspace_dir: &Path,
     ignored_directories: &[PathBuf],

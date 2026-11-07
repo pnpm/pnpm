@@ -1,11 +1,11 @@
 //! The resolver-base seam. Two seams live here:
 //!
-//! 1. **Verifier seam** — [`ResolutionVerifier`] and friends, used by
+//! 1. **Verifier seam**, [`ResolutionVerifier`] and friends, used by
 //!    every resolver-side policy check. Pacquet's
 //!    lockfile-verification runner depends on the trait without pulling
 //!    in any specific resolver.
 //!
-//! 2. **Dispatcher seam** — [`WantedDependency`], [`ResolveOptions`],
+//! 2. **Dispatcher seam**, [`WantedDependency`], [`ResolveOptions`],
 //!    [`ResolveResult`], the [`Resolver`] trait, and the latest-version
 //!    companion. Per-protocol resolvers implement
 //!    [`Resolver`]; the default-resolver dispatcher composes them into

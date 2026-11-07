@@ -69,7 +69,7 @@ impl InitArgs {
 /// does not inherit that staleness through its own pin.
 ///
 /// Falls back to the running version whenever `latest` cannot be
-/// established, and never lets `latest` move the pin backwards — the tag can
+/// established, and never lets `latest` move the pin backwards, the tag can
 /// lag the running version when a new major has shipped without being
 /// tagged. Scaffolding a `package.json` must not fail, hang, or wait on a
 /// registry that is unreachable, so every failure degrades to the running

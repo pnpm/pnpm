@@ -343,7 +343,7 @@ pub(crate) fn auto_installed_peer_deps(
 /// optionalDependencies` flat-record. Manifest fields are read in
 /// dev → prod → optional order, but the order
 /// is irrelevant for the diff since duplicates resolve to the same
-/// specifier anyway — if two fields list the same name with different
+/// specifier anyway, if two fields list the same name with different
 /// specifiers the manifest is invalid and pacquet would have rejected
 /// it earlier.
 fn flat_manifest_specs(

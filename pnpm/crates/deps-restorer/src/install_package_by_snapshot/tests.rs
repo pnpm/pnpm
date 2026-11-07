@@ -25,7 +25,7 @@ use pnpm_lockfile::{LockfileResolution, PackageKey};
 /// A dummy but parseable sha512 integrity for the registry-resolution
 /// fixtures below. The download never runs in these tests (the mem
 /// cache short-circuits, or `offline` blocks), so the exact digest is
-/// irrelevant — it only has to satisfy [`ssri::Integrity`]'s parser.
+/// irrelevant, it only has to satisfy [`ssri::Integrity`]'s parser.
 const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 
 fn registry_metadata() -> pnpm_lockfile::PackageMetadata {

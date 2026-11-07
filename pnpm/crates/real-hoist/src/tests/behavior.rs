@@ -134,7 +134,7 @@ fn transitive_npm_alias_resolves_target_snapshot() {
 }
 
 /// A cycle inside a conflict-nested shared cluster must be cut by the
-/// locator path guard in `hoist_subtree` — a cycle that survives into
+/// locator path guard in `hoist_subtree`, a cycle that survives into
 /// the result sends the layout walkers into unbounded recursion.
 #[test]
 fn conflict_nested_shared_cycle_is_cut() {
@@ -278,7 +278,7 @@ fn self_alias_keeps_its_entry_and_only_the_alias_repeat_is_cut() {
     );
 
     // The alias copy's own self-alias edge repeats both the alias
-    // name and the locator, so that one *is* cut — the result must
+    // name and the locator, so that one *is* cut, the result must
     // not retain the cycle.
     for child in root_children.iter() {
         assert!(

@@ -22,7 +22,7 @@ pub struct HoistPlan {
 /// `hoist-workspace-packages` input: every named non-root project's
 /// `name → (project id, absolute project dir)`, the shape v11 builds from
 /// `allProjects` for its `hoistedWorkspacePackages` map. The root
-/// project itself is excluded — its dir *is* where the hoisted
+/// project itself is excluded, its dir *is* where the hoisted
 /// modules live.
 pub type HoistedWorkspacePackages = indexmap::IndexMap<String, (String, PathBuf)>;
 
@@ -151,7 +151,7 @@ fn needs_private_root_hoisting(config: &Config) -> bool {
 /// Build the `<alias → resolved-target-dir>` map for every publicly-
 /// hoisted entry that will land in root's `node_modules/`. Pacquet
 /// runs the dedupe pass before the on-disk hoist phase, so this map
-/// lets the dedupe see the aliases it would otherwise miss — by the
+/// lets the dedupe see the aliases it would otherwise miss, by the
 /// time the linker reads `<root>/node_modules/`, the public-hoist
 /// symlinks are already there because hoist ran first.
 ///
@@ -242,7 +242,7 @@ pub fn find_runtime_node_major(
 /// `dependencies.node: 'runtime:<version>'`.
 ///
 /// Returns the bare major when this snapshot pins its own Node, or
-/// `None` when it doesn't — callers should then fall back to the
+/// `None` when it doesn't, callers should then fall back to the
 /// install-wide pin / host probe via [`find_runtime_node_major`].
 ///
 /// Per-snapshot resolution matters because the bin linker routes
@@ -258,7 +258,7 @@ pub fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
             continue;
         }
         // `link:` deps have no version slot and can't carry a
-        // `runtime:` pin — skip them.
+        // `runtime:` pin, skip them.
         let Some(ver_peer) = dep_ref.ver_peer() else {
             continue;
         };

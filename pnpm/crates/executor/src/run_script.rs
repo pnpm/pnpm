@@ -25,7 +25,7 @@ use std::{
     path::Path,
 };
 
-/// Error from running a user script through [`run_script`] — the
+/// Error from running a user script through [`run_script`], the
 /// failure modes of the `stdio: 'inherit'` foreground path.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -60,7 +60,7 @@ pub enum ScriptOutput<'a> {
     /// terminal.
     Inherit,
     /// Pipe the child and republish its output as `pnpm:lifecycle`
-    /// events, one per line — pnpm's `--stream`. The reporter renders
+    /// events, one per line, pnpm's `--stream`. The reporter renders
     /// each line under the project it came from, which is what makes
     /// concurrent projects' output readable.
     Streamed {
@@ -75,7 +75,7 @@ pub enum ScriptOutput<'a> {
     },
 }
 
-/// Inputs for [`run_script`] — the subset of lifecycle-hook options a
+/// Inputs for [`run_script`], the subset of lifecycle-hook options a
 /// foreground `pnpm run` invocation needs.
 pub struct RunScript<'a> {
     /// The package manifest, used to stamp `npm_package_*` env vars.
@@ -231,7 +231,7 @@ fn run_streamed(
 
 /// The script is appended through `push_script_arg` (not a chained
 /// `.arg`) so the Windows `cmd /d /s /c` verbatim path can use
-/// `raw_arg` and keep embedded quoting like `node -e "..."` intact —
+/// `raw_arg` and keep embedded quoting like `node -e "..."` intact,
 /// matching the lifecycle runner.
 fn run_in_shell(
     opts: &RunScript<'_>,

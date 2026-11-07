@@ -50,7 +50,7 @@ async function waitFor (
 }
 
 // Regression test for the duplication bug introduced by pnpm/pnpm#12351. The
-// reporter must write only the *differential* between frames — unchanged sticky
+// reporter must write only the *differential* between frames, unchanged sticky
 // blocks like the lockfile verdict must not be re-written on any subsequent
 // progress tick.
 test('differential renderer does not reprint unchanged sticky blocks', async () => {
@@ -225,7 +225,7 @@ test('holds frame redraws while an interactive prompt owns the terminal', async 
 // package group in turn, so the frame keeps growing by one progress line per
 // group. `ansi-diff` redraws a line by moving the cursor up from the end of the
 // frame; once the frame is taller than the terminal, the lines it has to reach
-// have scrolled away and the move stops at the top of the screen — landing on,
+// have scrolled away and the move stops at the top of the screen, landing on,
 // and overwriting, whatever is displayed there instead.
 test('never redraws above the top of the terminal', async () => {
   const rows = 6
@@ -392,7 +392,7 @@ test('a resize starts a fresh frame', async () => {
 })
 
 // A frame taller than the terminal has scrolled its own top away, so nothing in
-// it can be revised afterwards — not even once the terminal is big enough to
+// it can be revised afterwards, not even once the terminal is big enough to
 // hold the next frame. It has to be drawn afresh below instead.
 test('never revises a frame that outgrew the terminal', async () => {
   const writes: string[] = []
@@ -445,7 +445,7 @@ test('never revises a frame that outgrew the terminal', async () => {
 
 // The window can shrink under a frame that fitted when it was drawn. Its top
 // has scrolled away just as surely as an over-tall line's, so it cannot be
-// revised either — including by the handover that commits the overflow.
+// revised either, including by the handover that commits the overflow.
 test('a shrinking window starts a fresh frame', async () => {
   const writes: string[] = []
   const stdout = {

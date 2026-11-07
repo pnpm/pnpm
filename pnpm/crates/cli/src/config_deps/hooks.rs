@@ -65,8 +65,8 @@ pub fn load_before_packing_hooks(
 ///
 /// The entry point for commands outside the install family, each of which
 /// resolves its own [`Config`]: pnpm applies `updateConfig` once per
-/// invocation, before the command runs, so a hook's settings — including
-/// `extraEnv` and `extraBinPaths` — reach every command's child processes.
+/// invocation, before the command runs, so a hook's settings, including
+/// `extraEnv` and `extraBinPaths`, reach every command's child processes.
 pub async fn prepare_config<Reporter: self::Reporter>(
     config: &mut Config,
     dir: &Path,
@@ -98,8 +98,8 @@ pub async fn prepare_config<Reporter: self::Reporter>(
 /// hook changes is applied back the same way `pnpm-workspace.yaml` is. Only
 /// the keys a hook actually changed are applied, so values resolved from
 /// `.npmrc` or CLI flags that the hooks leave untouched are not clobbered.
-/// The `catalog:`/`catalogs:` blocks — which pacquet models outside
-/// `WorkspaceSettings` — are seeded into the hook input and, when changed,
+/// The `catalog:`/`catalogs:` blocks, which pacquet models outside
+/// `WorkspaceSettings`, are seeded into the hook input and, when changed,
 /// captured into [`Config::catalogs`] for install and packing commands.
 pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     config: &mut Config,

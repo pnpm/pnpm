@@ -1,15 +1,15 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Supported versions
 
 | Version | Supported          |
-| ------- | ------------------ |
+|,----- |,---------------- |
 | 12.x  | :white_check_mark: |
 | 11.x  | :white_check_mark: till 2027 April 30 |
 | 10.x  | :white_check_mark: till 2027 April 30 |
 | <= 9.x   | :x:                |
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
 Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
 
@@ -19,16 +19,16 @@ Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
 
 The Rust port (`pnpm/`) and the resolver server (`pnpr/`) are **not
 production ready** and are under active development. Do not report security
-issues in them through the security advisory process — open a
+issues in them through the security advisory process, open a
 [regular issue](https://github.com/pnpm/pnpm/issues) in this repository instead.
 
-## Threat Model and Scope
+## Threat model and scope
 
 pnpm's security boundary is **filesystem permissions**. We assume that the store
 directory, the project directory, `node_modules`, the lockfile, and pnpm's
 configuration files are only writable by parties the user already trusts. A
 report that assumes an attacker who already has write access to any of these
-locations is **out of scope** — at that point the trust boundary has already
+locations is **out of scope**, at that point the trust boundary has already
 been crossed and the attacker can achieve code execution regardless of pnpm's
 behavior.
 
@@ -59,7 +59,7 @@ In particular:
   scripts, not the scripts of the project you are installing.
 
   A report therefore does not describe a privilege escalation merely because an
-  untrusted repository can influence what pnpm executes — in that starting
+  untrusted repository can influence what pnpm executes, in that starting
   position, code execution is already available to the attacker by design.
 
 - **The workspace's extent is defined by `pnpm-workspace.yaml` and may reach
@@ -72,13 +72,13 @@ In particular:
   same starting position as the previous bullet: whoever can change that file
   can already achieve code execution at install time through the configuration
   it carries, so this is not an escalation. The lockfile does not define the
-  workspace — an importer entry for a path that no declared pattern matches
+  workspace, an importer entry for a path that no declared pattern matches
   does not cause pnpm to install into that path.
 
 - **Some restrictions are hardening, not boundaries.** Environment variable
   expansion in repository-controlled configuration is suppressed for request
   destinations (`registry`, `proxy`, `pnprServer`) and for auth values. That
-  narrows silent credential exfiltration — the case that survives
+  narrows silent credential exfiltration, the case that survives
   `--ignore-scripts`, and the case where a one-line config diff draws less
   review than a new `postinstall` script would. It is deliberately not a
   general-purpose sandbox, and a setting outside its coverage is not a
@@ -109,8 +109,8 @@ The following are examples of reports we consider **out of scope**:
   static transport or TLS options (such as `strict-ssl=false` or custom registry
   URLs) without environment variable expansion.
 
-If you believe a report falls outside these assumptions — for example, a way to
-bypass a trust boundary that pnpm *does* enforce — include the exact
+If you believe a report falls outside these assumptions, for example, a way to
+bypass a trust boundary that pnpm *does* enforce, include the exact
 privilege the attacker starts with and how pnpm escalates it. When the report is
 about a hardening measure that does not cover some setting, state what the
 attacker gains from that gap beyond what they could already do without it.

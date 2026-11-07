@@ -12,7 +12,7 @@ use std::sync::Arc;
 /// The stored packument of whichever source a registry routes this package to.
 ///
 /// An upstream registry's per-package rules gate the read, and the hosted gate
-/// answers a denial itself — a not-found mask or an explicit-rule 401/403.
+/// answers a denial itself, a not-found mask or an explicit-rule 401/403.
 /// Both are the same checks [`serve_registry_packument`](super::package_reads::serve_registry_packument) applies.
 pub(super) async fn read_source_packument(
     state: &AppState,
@@ -176,7 +176,7 @@ pub(super) async fn cache_upstream_packument(
             Ok(None)
         }
         // `load_upstream_packument` sends no conditional validators (the upstream
-        // cache refetches stale entries rather than revalidating — see
+        // cache refetches stale entries rather than revalidating, see
         // `Store::read_upstream_document`), so a well-behaved upstream never
         // answers 304 here. If one does anyway, "not modified" means the cached
         // body is current, so serve it (fresh or stale) rather than a spurious
@@ -268,7 +268,7 @@ pub(super) async fn load_upstream_packument_for(
 }
 
 /// Load a package's packument bytes through the addressed `/~<name>/` (or,
-/// path-less, the default-target registry) — resolving to one concrete origin and
+/// path-less, the default-target registry), resolving to one concrete origin and
 /// reading there, with no fall-through. `Ok(None)` is a definitive not-found
 /// (unknown package, no route, no default target, or an unauthorized private
 /// hosted org). Used by the readers that aren't
@@ -287,7 +287,7 @@ pub(super) async fn load_packument_for_read(
         },
     };
     // The resolved registry's per-package rules apply to every served read,
-    // upstream or hosted — otherwise a restricted package would leak (e.g.
+    // upstream or hosted, otherwise a restricted package would leak (e.g.
     // its dist-tags) through these path-less readers. A hosted denial is a
     // not-found mask rather than a 401/403 that reveals existence (see
     // `serve_registry_packument`).

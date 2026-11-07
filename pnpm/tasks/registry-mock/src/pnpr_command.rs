@@ -20,12 +20,12 @@ use std::{
 /// var is unset and `cargo_bin` aborts. We resolve the path
 /// ourselves:
 ///
-/// 1. Honor `CARGO_BIN_EXE_pnpr` if set — this is the case
+/// 1. Honor `CARGO_BIN_EXE_pnpr` if set, this is the case
 ///    inside pnpr's own integration tests.
 /// 2. Prefer the release binary if one exists at
 ///    `$CARGO_TARGET_DIR/release/pnpr`. Critical for the
 ///    integrated benchmark: comparing a debug-Rust mock to a
-///    JIT-optimized verdaccio is apples to oranges — the install
+///    JIT-optimized verdaccio is apples to oranges, the install
 ///    measures 20%+ slower purely from unoptimized JSON parse +
 ///    serialize on every request. Tests don't need the release
 ///    binary, but having a release build override the debug one is
@@ -58,7 +58,7 @@ fn pnpr_binary() -> PathBuf {
 /// packuments authoritative across a test run: their on-disk
 /// mtime is whenever the npm tarball was built, which is far older
 /// than any sane TTL, so a short TTL would mark them stale and try
-/// to refetch from npm — where the fixtures don't exist — and 404.
+/// to refetch from npm, where the fixtures don't exist, and 404.
 ///
 /// `pnpr` is a workspace crate; run
 /// `cargo build -p pnpr` once before invoking the mock if
@@ -76,7 +76,7 @@ pub fn pnpr_command(port: u16, public_url: Option<&str>) -> Command {
 /// Like [`pnpr_command`] but runs an explicit `pnpr` binary instead of the
 /// one resolved from the workspace `target/` dir, so the integrated benchmark
 /// can front each compared revision with a mock built from its own `pnpr`.
-/// All revisions share the one runtime storage — serving a warm cache is
+/// All revisions share the one runtime storage, serving a warm cache is
 /// read-only, so concurrent mocks don't contend.
 #[must_use]
 pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>) -> Command {
@@ -148,8 +148,8 @@ pub fn pnpr_command_with_home(
 }
 
 /// A [`Command`] of `bin` without the ambient `PNPR_*` variables. pnpr binds
-/// each of its options to the variable named after it, so an ambient one — a
-/// developer's `PNPR_CONFIG`, a stray `PNPR_DISABLE_REGISTRY` — would quietly
+/// each of its options to the variable named after it, so an ambient one, a
+/// developer's `PNPR_CONFIG`, a stray `PNPR_DISABLE_REGISTRY`, would quietly
 /// reconfigure the mock. The arguments the caller adds are the only thing
 /// allowed to.
 fn command_without_pnpr_env(bin: &Path) -> Command {

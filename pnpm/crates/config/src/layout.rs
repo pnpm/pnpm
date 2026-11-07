@@ -113,7 +113,7 @@ impl Config {
 
     /// pnpm's `rootProjectManifestDir`: where the root `package.json`,
     /// the config dependencies (`node_modules/.pnpm-config`), and the
-    /// pnpmfile a command reads live — `lockfileDir ?? workspaceDir ??
+    /// pnpmfile a command reads live, `lockfileDir ?? workspaceDir ??
     /// dir`.
     ///
     /// Not the directory settings are *written* back to: `pnpm-workspace.yaml`
@@ -142,13 +142,13 @@ impl Config {
         self.lockfile_dir = Some(dir);
     }
 
-    /// Re-anchor the paths pnpm resolves against `lockfileDir` — the root
-    /// `node_modules` and the virtual store — onto `dir`.
+    /// Re-anchor the paths pnpm resolves against `lockfileDir`, the root
+    /// `node_modules` and the virtual store, onto `dir`.
     ///
     /// An explicitly configured `modulesDir` / `virtualStoreDir` keeps its
     /// raw value (recovered from [`explicit_settings`]) and is re-resolved
     /// against `dir`, so a multi-component or absolute setting keeps its
-    /// full shape — [`Path::join`] leaves an absolute value absolute.
+    /// full shape, [`Path::join`] leaves an absolute value absolute.
     /// Under a global virtual store a `virtualStoreDir` names the store's
     /// root, so it is not re-anchored.
     ///
@@ -331,7 +331,7 @@ impl Config {
     /// Clear both hoist patterns when [`virtual_store_only`] is set.
     ///
     /// A `virtualStoreOnly` install does no hoisting, so the patterns it
-    /// records in `.modules.yaml` must be empty — that is how the next
+    /// records in `.modules.yaml` must be empty, that is how the next
     /// ordinary install learns hoisting still has to be done from
     /// scratch rather than reading a pattern it never applied.
     ///
@@ -371,7 +371,7 @@ impl Config {
     /// the branch lockfile under `gitBranchLockfile`, `pnpm-lock.yaml`
     /// otherwise.
     ///
-    /// `mergeGitBranchLockfiles` wins over the branch name — the point of
+    /// `mergeGitBranchLockfiles` wins over the branch name, the point of
     /// that mode is to collapse the per-branch lockfiles back into the
     /// shared one.
     #[must_use]
@@ -407,17 +407,17 @@ impl Config {
     ///
     /// A detached HEAD names no branch. The checked-out commit still belongs
     /// to the branches whose history includes it, so their lockfiles join
-    /// the read path through [`Self::git_branch_lockfile_candidates`] — the
+    /// the read path through [`Self::git_branch_lockfile_candidates`], the
     /// read tries each before `pnpm-lock.yaml`. The write target stays
     /// `pnpm-lock.yaml`, the same behavior as `mergeGitBranchLockfiles`,
     /// because a branch containing HEAD need not have HEAD at its tip.
     ///
     /// The branch is read from the process's working directory, which is
-    /// where pnpm reads it from too — not from the workspace root, which
+    /// where pnpm reads it from too, not from the workspace root, which
     /// may sit in a different repository than the one the user is in.
     pub fn apply_git_branch_lockfile_derivation<Sys: GetCurrentDir>(&mut self) {
-        // An explicit `mergeGitBranchLockfiles` — including an explicit
-        // `false` — settles the question without consulting the pattern.
+        // An explicit `mergeGitBranchLockfiles`, including an explicit
+        // `false`, settles the question without consulting the pattern.
         let merge_is_explicit = self.explicit_settings.contains_key("mergeGitBranchLockfiles");
         let pattern_decides = !merge_is_explicit
             && !self.merge_git_branch_lockfiles_branch_pattern.is_empty();
@@ -472,14 +472,14 @@ impl Config {
 
     /// Turn [`prefer_symlinked_executables`] on when the hoisted
     /// `nodeLinker` is selected and the user has not configured the
-    /// setting — pnpm's `nodeLinker: hoisted` default. Runs *after* the
+    /// setting, pnpm's `nodeLinker: hoisted` default. Runs *after* the
     /// `NODE_PATH` export in [`Config::current`], so the derived `true`
     /// symlinks bins without exporting `NODE_PATH` (the hoisted layout
     /// has no hidden store to expose), exactly like pnpm's config
     /// reader.
     ///
-    /// A user-configured value — recorded in `explicit_settings` by
-    /// every config layer — is never touched. Otherwise the derived
+    /// A user-configured value, recorded in `explicit_settings` by
+    /// every config layer, is never touched. Otherwise the derived
     /// value tracks the *current* linker, so re-running after a linker
     /// override also clears a `true` derived for a linker that is no
     /// longer selected (pnpm merges CLI options before its `nodeLinker`
@@ -513,7 +513,7 @@ impl Config {
     }
 
     /// Resolve the default store location relative to an explicit pnpm home
-    /// directory instead of the ambient one — the programmatic counterpart
+    /// directory instead of the ambient one, the programmatic counterpart
     /// of the `pnpmHomeDir` input of pnpm's `getStorePath`. The store lands
     /// at `<pnpm_home_dir>/store/<version>` when `start_dir` can hardlink
     /// into that volume, with the same mount-point fallback as the ambient

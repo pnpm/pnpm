@@ -7,14 +7,14 @@
 //! host-supplied JS callback: `read_package` forwards each manifest to the
 //! callback over a [`ThreadsafeFunction`] and awaits the transformed result.
 //!
-//! The callback receives `(manifest, resolvedDir?)` — `resolvedDir` is the
+//! The callback receives `(manifest, resolvedDir?)`, `resolvedDir` is the
 //! lockfile-root-relative directory when the manifest came from a directory
 //! resolution (an injected workspace project or a `file:` dependency), so the
 //! host can substitute a workspace project's raw manifest for its dependency
 //! instances. The `.pnpmfile.cjs` bridge does not receive it, matching pnpm's
 //! pnpmfile contract.
 //!
-//! The callback must be **synchronous** (return the manifest, not a promise) —
+//! The callback must be **synchronous** (return the manifest, not a promise),
 //! [`ThreadsafeFunction::call_async`] resolves the JS return value directly and
 //! does not await a returned promise. Bit's composed `readPackage` hook is
 //! synchronous.
@@ -54,7 +54,7 @@ pub type HookSink = ThreadsafeFunction<
 /// A synchronous JS `(manifests, resolvedDirs) => manifests` batch callback
 /// (parallel arrays; `resolvedDirs[i]` is `null` for a non-directory
 /// resolution). The `@pnpm/napi` wrapper synthesizes it from the consumer's
-/// per-manifest hook, so one event-loop traversal serves a whole batch —
+/// per-manifest hook, so one event-loop traversal serves a whole batch,
 /// per-call threadsafe dispatch caps out at roughly one call per loop tick,
 /// which serialized a large install's resolution behind tens of thousands of
 /// ticks.
@@ -99,7 +99,7 @@ impl PnpmfileHooks for JsReadPackageHook {
         _lockfile: Value,
         _ctx: HookContext,
     ) -> Result<Value, HookError> {
-        // Null signals "no afterAllResolved hook" — the caller keeps the
+        // Null signals "no afterAllResolved hook", the caller keeps the
         // resolved lockfile unchanged.
         Ok(Value::Null)
     }
@@ -261,7 +261,7 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
         _lockfile: Value,
         _ctx: HookContext,
     ) -> Result<Value, HookError> {
-        // Null signals "no afterAllResolved hook" — the caller keeps the
+        // Null signals "no afterAllResolved hook", the caller keeps the
         // resolved lockfile unchanged.
         Ok(Value::Null)
     }

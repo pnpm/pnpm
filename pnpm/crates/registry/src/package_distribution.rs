@@ -17,8 +17,8 @@ pub struct PackageDistribution {
     /// Subresource integrity for the version's tarball.
     ///
     /// Decoded strictly, unlike the advisory fields below: a registry
-    /// package with no usable integrity cannot be locked at all — the
-    /// snapshot builder rejects it — so softening the parse would only
+    /// package with no usable integrity cannot be locked at all, the
+    /// snapshot builder rejects it, so softening the parse would only
     /// move "pnpm cannot verify this tarball" to a later, quieter
     /// failure. An unparsable value fails the manifest, and so the
     /// version, on purpose.
@@ -35,13 +35,13 @@ pub struct PackageDistribution {
     pub revisions: Option<serde_json::Value>,
     /// Number of files in the tarball, as the registry reports it.
     ///
-    /// Advisory: any integral, non-negative encoding decodes — `12`,
-    /// `12.0`, `"12"` — and anything else reads as "not reported".
+    /// Advisory: any integral, non-negative encoding decodes, `12`,
+    /// `12.0`, `"12"`, and anything else reads as "not reported".
     #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]
     pub file_count: Option<usize>,
     /// Unpacked byte size of the tarball, as the registry reports it.
     /// Read only as an allocation hint by the tarball extractor, which
-    /// caps it — never trusted as fact.
+    /// caps it, never trusted as fact.
     ///
     /// Decoded as leniently as [`Self::file_count`].
     #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]

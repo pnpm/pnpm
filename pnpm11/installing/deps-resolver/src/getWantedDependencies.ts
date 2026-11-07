@@ -19,7 +19,7 @@ export interface WantedDependency {
   saveCatalogName?: string
   /**
    * `false` keeps the spec out of the manifest entirely: something other than the project
-   * declares it — a `packageExtensions` entry, a `readPackage` hook, or an override — and that
+   * declares it, a `packageExtensions` entry, a `readPackage` hook, or an override, and that
    * declaration is not this run's to move. `true` marks a spec the run was asked for by name,
    * which outranks such a declaration.
    */

@@ -18,7 +18,7 @@ impl PkgNameVerPeer {
     ///
     /// `max_length` is `Modules.virtual_store_dir_max_length` (default
     /// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`
-    /// — referenced by name rather than as an intra-doc link because
+    ///, referenced by name rather than as an intra-doc link because
     /// `pnpm-lockfile` deliberately does not depend on
     /// `pnpm-modules-yaml`).
     #[must_use]
@@ -39,8 +39,8 @@ impl PkgNameVerPeer {
     /// lockfile.
     ///
     /// For a registry package this is the peer-stripped key itself
-    /// (`name@version`). For a non-registry resolution — a URL tarball,
-    /// a git-host archive, a `type: git` dependency — it is the bare
+    /// (`name@version`). For a non-registry resolution, a URL tarball,
+    /// a git-host archive, a `type: git` dependency, it is the bare
     /// resolution id, without the `name@` prefix the lockfile key
     /// carries. The store index is a contract shared with the
     /// TypeScript CLI, which keys those rows by the bare id.

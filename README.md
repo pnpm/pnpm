@@ -34,9 +34,9 @@ To quote the [Rush](https://rushjs.io/) team:
 [![X Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://x.com/intent/follow?screen_name=pnpmjs&region=follow_link)
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
-<!-- sponsors -->
+<!-- sponsors,>
 
-## Platinum Sponsors
+## Platinum sponsors
 
 <table>
   <tbody>
@@ -80,7 +80,7 @@ To quote the [Rush](https://rushjs.io/) team:
   </tbody>
 </table>
 
-## Gold Sponsors
+## Gold sponsors
 
 <table>
   <tbody>
@@ -162,7 +162,7 @@ To quote the [Rush](https://rushjs.io/) team:
   </tbody>
 </table>
 
-## Silver Sponsors
+## Silver sponsors
 
 <table>
   <tbody>
@@ -243,7 +243,7 @@ To quote the [Rush](https://rushjs.io/) team:
   </tbody>
 </table>
 
-<!-- sponsors end -->
+<!-- sponsors end,>
 
 Support this project by [becoming a sponsor](https://opencollective.com/pnpm#sponsor).
 
@@ -265,7 +265,7 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 
 💖 Like this project? Let people know with a [tweet](https://r.pnpm.io/tweet)
 
-## Getting Started
+## Getting started
 
 - [Installation](https://pnpm.io/installation)
 - [Usage](https://pnpm.io/pnpm-cli)

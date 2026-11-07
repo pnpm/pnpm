@@ -24,7 +24,7 @@ packages:
     // `pnpm-workspace.yaml` commonly contains top-level keys we do not
     // model in `WorkspaceSettings` (packages list, catalogs, build
     // allow-lists, ...). This guards against regressions that would make
-    // serde reject those unknown keys during deserialization — i.e.
+    // serde reject those unknown keys during deserialization, i.e.
     // someone adding `deny_unknown_fields` to the struct.
     let _settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
 }
@@ -259,7 +259,7 @@ remoteSideEffectsCache:
 }
 
 /// A boolean says whether to read and write. It says nothing about the remote
-/// tier, so one an earlier layer declared has to survive it — otherwise
+/// tier, so one an earlier layer declared has to survive it, otherwise
 /// `sideEffectsCache: false` in a project silently discards the org and
 /// eligibility list the machine's global config set.
 #[test]
@@ -561,7 +561,7 @@ allowBuilds:
     assert_eq!(config.allow_builds.get("esbuild").copied(), None);
 }
 
-/// `dangerouslyAllowAllBuilds` is a single boolean — default `false`
+/// `dangerouslyAllowAllBuilds` is a single boolean, default `false`
 /// to match pnpm 11.
 #[test]
 fn parses_dangerously_allow_all_builds_from_yaml_and_applies() {
@@ -632,7 +632,7 @@ gitShallowHosts:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
 
-    // Sanity-check the default before applying — `github.com` is the
+    // Sanity-check the default before applying, `github.com` is the
     // first entry in pnpm's list, and replacement (not merging) is the
     // bit we want to verify.
     assert!(
@@ -758,7 +758,7 @@ supportedArchitectures:
 
 /// `overrides` parses as an ordered string→string map and applies
 /// onto `Config::overrides`. Order is preserved because the field is
-/// an `IndexMap` — pnpm's lockfile-drift comparison is
+/// an `IndexMap`, pnpm's lockfile-drift comparison is
 /// order-insensitive, but the read-package hook iterates the map and
 /// downstream diagnostics reference the keys in user-supplied order.
 #[test]

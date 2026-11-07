@@ -1,4 +1,4 @@
-//! `pnpm get` / `pnpm set` — the top-level spellings of `pnpm config get`
+//! `pnpm get` / `pnpm set`, the top-level spellings of `pnpm config get`
 //! and `pnpm config set`.
 
 use assert_cmd::prelude::*;

@@ -128,8 +128,8 @@ fn start_pnpr_registry_with(
 }
 
 /// A bound port and storage directory waiting for [`Self::serve`] to start
-/// pnpr on them. Binding first lets a caller seed storage — a token store,
-/// say — with the address the server will answer on already known.
+/// pnpr on them. Binding first lets a caller seed storage, a token store,
+/// say, with the address the server will answer on already known.
 /// The test registries pnpr resolves from listen on loopback.
 fn loopback_networks() -> Vec<pnpr::IpNetwork> {
     ["127.0.0.0/8", "::1"]

@@ -28,7 +28,7 @@ fn rejects_a_global_virtual_store_version_escape() {
     // segment as a raw path component (unlike the legacy flat name, which
     // escapes `/`). A traversal-bearing version escapes the store root
     // even though the package name itself is valid, so the containment
-    // check — not the name check — is what rejects it.
+    // check, not the name check, is what rejects it.
     let key: PackageKey = "evil@../../../escaped".parse().expect("parse escaping version key");
 
     let mut config = pnpm_config::Config::new();

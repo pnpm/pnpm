@@ -17,7 +17,7 @@ use std::{
     process::Command,
 };
 
-/// `<store_dir>/v11/links` — where the canonical slots live, shared
+/// `<store_dir>/v11/links`, where the canonical slots live, shared
 /// with `enableGlobalVirtualStore` installs.
 fn links_root(store_dir: &Path) -> PathBuf {
     store_dir.join(STORE_VERSION).join("links")
@@ -52,7 +52,7 @@ fn project_pkg_manifest(workspace: &Path) -> PathBuf {
 }
 
 /// The planted bytes are what prove the source: only a clone of the
-/// canonical slot — not a re-import from the CAS — can carry them into
+/// canonical slot, not a re-import from the CAS, can carry them into
 /// the project copy.
 #[test]
 fn warm_reinstall_is_served_from_the_canonical_slot() {

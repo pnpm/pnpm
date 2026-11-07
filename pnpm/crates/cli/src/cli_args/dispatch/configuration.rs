@@ -20,7 +20,7 @@ pub(super) struct RunAnchors {
     /// TLS / registry decisions of a *global* install. Mirror that by
     /// anchoring the global-install config at the pnpm home (resolved from
     /// `PNPM_HOME` / platform defaults, never the project). Falls back to
-    /// the `--dir` anchor when the home can't be determined — the global
+    /// the `--dir` anchor when the home can't be determined, the global
     /// command then fails at the missing-global-bin-dir check regardless.
     pub(super) global_config: PathBuf,
 }
@@ -258,7 +258,7 @@ pub(super) fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrid
         cfg.cli_settings.insert("workspacePackagePatterns".to_string());
         cfg.workspace_package_patterns = Some(overrides.workspace_packages.to_vec());
     }
-    // Unlike the CLI-only selectors, these two are genuine config keys —
+    // Unlike the CLI-only selectors, these two are genuine config keys,
     // the flag overrides yaml / env only when actually given.
     if !overrides.test_pattern.is_empty() {
         cfg.cli_settings.insert("testPattern".to_string());
@@ -279,12 +279,12 @@ pub(super) fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrid
 
 /// Install the project's config dependencies and apply their `updateConfig`
 /// pnpmfile hooks to `config` before a command spawns anything, so a hook's
-/// settings — `extraEnv` and `extraBinPaths` among them — reach the child
+/// settings, `extraEnv` and `extraBinPaths` among them, reach the child
 /// processes the command starts. pnpm applies them once per invocation,
 /// whatever the command.
 ///
 /// Every [`CommandLoaders::config`](super::CommandLoaders::config) call yields a fresh `Config`, so the pass has to
-/// run on the instance the handler goes on to use — it cannot be hoisted ahead
+/// run on the instance the handler goes on to use, it cannot be hoisted ahead
 /// of [`route`](super::routing::route). The install family and pack/publish apply the same pass at
 /// their own entry points, where they already hold that instance.
 pub(in super::super) async fn apply_update_config(

@@ -52,7 +52,7 @@ use std::{
 /// inside the CAS. The hoisted linker accepts the same shape the
 /// isolated path's
 /// [`CreateVirtualDirBySnapshot.cas_paths`](crate::CreateVirtualDirBySnapshot::cas_paths)
-/// field takes per snapshot — one entry per *package*, not per
+/// field takes per snapshot, one entry per *package*, not per
 /// directory, because a single package can land at multiple
 /// directories (version conflict → some dirs nest under siblings)
 /// and the CAS contents are the same regardless of where they're
@@ -101,7 +101,7 @@ impl From<Arc<pnpm_fs::CasPaths>> for HoistedPackageFiles {
 }
 
 /// Inputs the linker reads from. Borrows everything so callers
-/// can keep ownership of the graph / CAS state — the linker
+/// can keep ownership of the graph / CAS state, the linker
 /// doesn't mutate anything but the on-disk tree.
 #[derive(Debug)]
 pub struct LinkHoistedModulesOpts<'a> {
@@ -127,7 +127,7 @@ pub struct LinkHoistedModulesOpts<'a> {
     pub modules_dirs: &'a crate::ImporterModulesDirs,
     /// Pre-fetched CAS file index per package.
     pub cas_paths_by_pkg_id: &'a CasPathsByPkgId,
-    /// Options for every bin this pass links — the
+    /// Options for every bin this pass links, the
     /// [`crate::shim_link_options`] output for the hoisted linker
     /// (no `extraNodePaths`; hoisted-tree shims never carry
     /// `NODE_PATH`, which pnpm gates on the isolated linker).
@@ -140,7 +140,7 @@ pub struct LinkHoistedModulesOpts<'a> {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LinkHoistedModulesError {
-    /// Indicates a bug in the caller (pre-fetch incomplete) — the
+    /// Indicates a bug in the caller (pre-fetch incomplete), the
     /// linker can't conjure files it wasn't given.
     #[display("Missing CAS paths for required package {pkg_id_with_patch_hash:?} at {dir:?}")]
     #[diagnostic(code(ERR_PNPM_LINK_HOISTED_MISSING_CAS))]
@@ -149,7 +149,7 @@ pub enum LinkHoistedModulesError {
     /// A hierarchy entry referenced a directory that has no
     /// corresponding entry in `graph`. The walker inserts
     /// a graph node every time it inserts a hierarchy entry, so
-    /// this shouldn't fire from a real walker result — but
+    /// this shouldn't fire from a real walker result, but
     /// surfacing the inconsistency fails the install fast rather
     /// than producing a partial layout.
     #[display("Hierarchy references {dir:?} but no matching graph node exists")]
@@ -159,7 +159,7 @@ pub enum LinkHoistedModulesError {
     /// An importer's `node_modules`, or one entry in it, could not be
     /// inspected for the orphan scan. Removal failures are tolerated,
     /// but a path we cannot even read would silently leave orphans
-    /// behind — the same distinction pnpm draws between
+    /// behind, the same distinction pnpm draws between
     /// `readModulesDir`, which only swallows a missing directory, and
     /// `tryRemoveDir`, which swallows everything.
     #[display("Failed to read {path:?} while scanning for orphaned directories")]
@@ -204,7 +204,7 @@ pub(crate) fn link_hoisted_modules_with_sources<Reporter: self::Reporter>(
 ) -> Result<HoistedBinLinkOutput, LinkHoistedModulesError> {
     let removed = remove_orphans(opts)?;
 
-    // Drive each importer's hierarchy in parallel — workspace
+    // Drive each importer's hierarchy in parallel, workspace
     // installs have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
@@ -268,7 +268,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<LinkedLevel, LinkHoistedModulesError> {
     // Phase 2: import this level's packages + recurse into each
-    // one's children. `par_iter` is sufficient — the side effects
+    // one's children. `par_iter` is sufficient, the side effects
     // are on disk and target disjoint directories.
     let mut linked = hierarchy.0
         .par_iter()
@@ -365,7 +365,7 @@ fn import_node<Reporter: self::Reporter>(
         .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
     }
 
-    // `pnpm:progress imported` — see the matching emit in
+    // `pnpm:progress imported`, see the matching emit in
     // `create_virtual_dir_by_snapshot::run` for the rationale on the
     // optimistic `method` value. Under `nodeLinker: hoisted` that emit
     // never runs (no virtual-store slot is written), so this is the

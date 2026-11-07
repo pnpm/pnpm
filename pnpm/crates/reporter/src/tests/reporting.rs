@@ -97,7 +97,7 @@ fn progress_event_matches_pnpm_wire_shape() {
     assert_eq!(json["method"], "hardlink");
     assert_eq!(json["requester"], "/proj");
     assert_eq!(json["to"], "/proj/node_modules/.pacquet/react@18.0.0/node_modules/react");
-    // `imported` deliberately omits `packageId` — match pnpm's shape
+    // `imported` deliberately omits `packageId`, match pnpm's shape
     // so consumers that read `progress.packageId` only on the three
     // store-ish statuses don't trip on a stray field.
     assert!(json.get("packageId").is_none(), "imported must not carry packageId");

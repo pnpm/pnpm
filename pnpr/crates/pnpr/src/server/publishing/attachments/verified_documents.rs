@@ -19,8 +19,8 @@ pub(super) async fn write_verified(
     (merged, declared, without_any): (Value, &Declarations, &BTreeSet<String>),
 ) -> Result<VerifiedDocument, RegistryError> {
     let statements = provenance::read_statements(&prepared);
-    // Stream-decode + verify + write each tarball. A mismatch — or a
-    // missing integrity field — short-circuits the publish with a
+    // Stream-decode + verify + write each tarball. A mismatch, or a
+    // missing integrity field, short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
     let written =

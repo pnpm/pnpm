@@ -10,7 +10,7 @@ use std::{
 /// [`path.join`](https://nodejs.org/api/path.html#pathjoinpaths) /
 /// [`path.resolve`](https://nodejs.org/api/path.html#pathresolvepaths)
 /// normalisation rules. Rust's [`Path::join`] alone does **not**
-/// normalize — it appends segments verbatim — so callers that need
+/// normalize, it appends segments verbatim, so callers that need
 /// pnpm-compatible round-tripping of stored paths (e.g.
 /// `node_modules/.modules.yaml`'s `virtualStoreDir` field, computed via
 /// `path.relative` on write and `path.join` on read in pnpm) must run

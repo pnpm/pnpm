@@ -269,7 +269,7 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
 /// even if it carries a configured patch. Skipped nodes are excluded
 /// from the build graph entirely, so the patch lookup never finds
 /// them. Without this gate, `build_one_snapshot`'s `pkg_dir.exists()`
-/// defensive return would still suppress the actual build attempt —
+/// defensive return would still suppress the actual build attempt,
 /// but the snapshot would have been queued and the graph walked
 /// through it. The gate makes the exclusion correct-by-construction.
 #[test]
@@ -334,7 +334,7 @@ fn skipped_parent_does_not_drag_descendants_into_build_queue() {
 }
 
 /// A snapshot reachable via BOTH a skipped parent and a non-skipped
-/// parent must still enter the build queue if it requires building —
+/// parent must still enter the build queue if it requires building,
 /// pnpm doesn't propagate "skipped" status to descendants reached by
 /// any other (non-skipped) path. This pins that the
 /// skip-before-recurse gate doesn't accidentally poison `walked` for

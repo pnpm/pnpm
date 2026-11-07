@@ -22,7 +22,7 @@ fn write_local_package(workspace: &Path) {
 }
 
 /// A bare relative path is a directory dependency, so it saves as
-/// `link:` — the protocol the local resolver normalizes an
+/// `link:`, the protocol the local resolver normalizes an
 /// un-injected directory to.
 #[test]
 fn a_relative_directory_path_saves_as_a_link() {
@@ -177,7 +177,7 @@ fn a_local_tarball_path_saves_as_a_file_spec() {
 ///
 /// The URL points at the mocked registry through `localhost` while it
 /// is configured as `127.0.0.1`, so the prefix doesn't match and the
-/// tarball resolver — not the npm resolver — claims it (see
+/// tarball resolver, not the npm resolver, claims it (see
 /// `tarball_url_dependency.rs`).
 #[test]
 fn a_remote_tarball_url_is_saved_verbatim() {
@@ -283,7 +283,7 @@ fn assert_unnamed_tarball_replacement(new_version: &str) {
 
 /// A catalog measures a relative path from `pnpm-workspace.yaml`'s own
 /// directory, not from the project that declares the dependency, so
-/// `catalogMode` has to leave a local specifier direct — cataloging it
+/// `catalogMode` has to leave a local specifier direct, cataloging it
 /// would point it somewhere else than where `pnpm add` was run.
 #[test]
 fn a_local_directory_is_not_auto_cataloged() {
@@ -315,7 +315,7 @@ fn a_local_directory_is_not_auto_cataloged() {
 
 /// The name keys the manifest entry and names the `node_modules`
 /// directory the package is linked into, so a directory that declares
-/// none is refused instead of guessed at — and the project is left
+/// none is refused instead of guessed at, and the project is left
 /// untouched.
 #[test]
 fn a_directory_declaring_no_name_is_refused() {

@@ -15,8 +15,8 @@ const IMPORTER_DEPENDENCY_GROUPS: [&str; 3] =
 /// dependency rather than one per resolved package.
 ///
 /// `document` is a serialized lockfile. Values that are not
-/// lockfile-shaped — the env lockfile, an `afterAllResolved` result that
-/// dropped a section — pass through untouched.
+/// lockfile-shaped, the env lockfile, an `afterAllResolved` result that
+/// dropped a section, pass through untouched.
 pub fn prune_time(document: &mut Value) {
     if !document.get("time").is_some_and(Value::is_object) {
         return;
@@ -26,7 +26,7 @@ pub fn prune_time(document: &mut Value) {
     time.retain(|dep_path, _| direct_dep_paths.contains(dep_path));
 }
 
-/// Every depPath the importers depend on directly, peer suffix stripped —
+/// Every depPath the importers depend on directly, peer suffix stripped,
 /// the keys a `time:` entry is allowed to carry.
 fn importer_dep_paths(document: &Value) -> HashSet<String> {
     let mut dep_paths = HashSet::new();

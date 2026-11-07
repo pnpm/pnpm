@@ -274,7 +274,7 @@ fn plant_dead_holders_lock(path: &Path) {
     fs::write(path.join(super::OWNER_FILE), "1-2-3").expect("plant the owner record");
 }
 
-/// A holder judged abandoned by age — by an older pnpm, say — has lost
+/// A holder judged abandoned by age, by an older pnpm, say, has lost
 /// its lock to the next process in line. Releasing then must not remove
 /// the successor's directory, or two processes hold the resource at once.
 #[test]

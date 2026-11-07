@@ -100,7 +100,7 @@ impl Upstream {
 
     /// Pass a successful response through; map any non-success status to
     /// [`RegistryError::UpstreamStatus`]. Only a `5xx` counts against the
-    /// breaker — a non-404 `4xx` is an authoritative client error (auth,
+    /// breaker, a non-404 `4xx` is an authoritative client error (auth,
     /// rate-limit, bad request), not an availability signal, so it leaves
     /// the breaker untouched rather than opening the circuit and masking
     /// the real status behind a `503`. The `404`/`304` paths are handled

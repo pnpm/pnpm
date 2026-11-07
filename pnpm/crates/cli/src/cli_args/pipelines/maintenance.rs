@@ -143,7 +143,7 @@ impl PrunePipeline {
         // path outside the workspace) before any destructive work begins.
         //
         // `config_root` is `cfg.workspace_dir` when present, or the
-        // canonicalized `--dir` otherwise — a meaningful containment
+        // canonicalized `--dir` otherwise, a meaningful containment
         // boundary in both cases.
         ensure_modules_dir_within_config_root(&self.cfg.modules_dir, &self.config_root)?;
         // Apply prune-specific overrides after hooks so that:

@@ -27,7 +27,7 @@ fn damage_mirror_fragment(cache_dir: &Path, registry: &str) -> Vec<u8> {
 }
 
 /// Offline, a damaged fragment leaves the mirror as unusable as a missing
-/// one — and there is no network to replace it from.
+/// one, and there is no network to replace it from.
 #[tokio::test]
 async fn offline_over_a_damaged_mirror_fragment_errors() {
     let mut server = mockito::Server::new_async().await;

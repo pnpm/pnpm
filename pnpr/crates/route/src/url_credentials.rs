@@ -5,8 +5,8 @@ use pnpm_network::nerf_dart;
 /// rejected before any fetch: pnpr must not turn a client-embedded
 /// credential into upstream Basic auth, treat it as a cache identity, or
 /// store it in a shared cache. An ssh remote's bare username
-/// (`git+ssh://git@host/...`) is transport addressing with no secret — the
-/// same login the scp form `git@host:path` spells — so on ssh schemes only
+/// (`git+ssh://git@host/...`) is transport addressing with no secret, the
+/// same login the scp form `git@host:path` spells, so on ssh schemes only
 /// a `user:pass@` userinfo counts. Specs without a `scheme://` (a semver
 /// range, a scoped name, `npm:`/`workspace:` aliases) never match.
 #[must_use]
@@ -55,8 +55,8 @@ pub fn strip_url_credentials(url: &str) -> String {
 /// its bare path and verified by SRI regardless, so the sanitized URL still
 /// works; one that truly needed a token was never a public route and must be
 /// configured as an upstream (whose tarballs route through `/~<name>/`, keeping
-/// the token server-side). Unlike a client-supplied direct-tarball spec — whose
-/// query is the caller's own intent — this is untrusted upstream metadata.
+/// the token server-side). Unlike a client-supplied direct-tarball spec, whose
+/// query is the caller's own intent, this is untrusted upstream metadata.
 #[must_use]
 pub fn sanitize_registry_tarball_url(url: &str) -> String {
     let no_creds = strip_url_credentials(url);

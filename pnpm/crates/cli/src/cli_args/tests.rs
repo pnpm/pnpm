@@ -329,7 +329,7 @@ fn package_manager_to_sync_records_nothing_for_a_pin_nothing_satisfies() {
 #[test]
 fn resolve_bool_override_tri_state() {
     // force_on wins, force_off wins over a config `true`, and an unset
-    // pair falls through to config — in both config polarities.
+    // pair falls through to config, in both config polarities.
     assert!(resolve_bool_override(true, false, false), "force_on over config false");
     assert!(resolve_bool_override(true, false, true), "force_on over config true");
     assert!(!resolve_bool_override(false, true, true), "force_off over config true");
@@ -783,7 +783,7 @@ fn force_help_says_platform_mismatched_optionals_stay_skipped() {
 }
 
 /// `--production` is the setting name behind `--prod`, and pnpm accepts
-/// it wherever `--prod` selects dependency groups — in a command line
+/// it wherever `--prod` selects dependency groups, in a command line
 /// typed by hand as much as in the install the verify-deps-before-run
 /// gate reproduces
 /// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)).

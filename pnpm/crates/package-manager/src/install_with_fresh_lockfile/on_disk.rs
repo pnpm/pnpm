@@ -148,7 +148,7 @@ impl<'a> OnDiskInputs<'a> {
             // batch's only on-disk dedup is the store-index row, which the
             // prefetcher's writer commits asynchronously. Without the
             // shared cache a snapshot whose prefetch hasn't committed its
-            // row yet is classified cold and re-downloaded — a race that
+            // row yet is classified cold and re-downloaded, a race that
             // routing the cold batch through the mem cache fixes by
             // reusing the in-flight download instead.
 

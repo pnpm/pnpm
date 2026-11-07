@@ -12,8 +12,8 @@ use super::{
     fast_fail_client, integrity, store_index_key, test_retry_opts,
 };
 
-/// A symlink at the CAFS path — even one pointing at a valid regular
-/// file — must not be trusted. A tampered / corrupted store could
+/// A symlink at the CAFS path, even one pointing at a valid regular
+/// file, must not be trusted. A tampered / corrupted store could
 /// place one pointing outside the store entirely, so we use
 /// `symlink_metadata()` and reject symlinks regardless of target.
 #[tokio::test]

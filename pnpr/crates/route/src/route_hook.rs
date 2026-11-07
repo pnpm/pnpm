@@ -22,7 +22,7 @@ pub struct RouteHook {
 }
 
 impl fmt::Debug for RouteHook {
-    /// Redacts `Self::secret` — the descriptor-HMAC key must never reach a
+    /// Redacts `Self::secret`, the descriptor-HMAC key must never reach a
     /// log line or panic dump, or the private namespace becomes correlatable.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RouteHook")
@@ -80,7 +80,7 @@ impl UpstreamRouteHook for RouteHook {
     }
 
     fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {
-        // Read-only classification — this must not record into the
+        // Read-only classification, this must not record into the
         // footprint (`authorize` already does, at the real fetch point).
         match self.context.classify(&self.identity, url, package) {
             RouteClass::Public => MetadataCacheScope::Public,

@@ -44,7 +44,7 @@ pub(super) struct DistBlock {
     pub(super) tarball: Option<String>,
     #[serde(default)]
     pub(super) integrity: Option<String>,
-    /// Legacy hex sha1 — the only hash pre-2017 npm publishes carry.
+    /// Legacy hex sha1, the only hash pre-2017 npm publishes carry.
     #[serde(default)]
     pub(super) shasum: Option<String>,
     #[serde(default, rename = "unpackedSize")]
@@ -177,7 +177,7 @@ pub(super) fn tarball_integrity_error(
 
 /// True when the client's `Accept` header offers the
 /// `application/vnd.npm.install-v1+json` abbreviated MIME. We do a
-/// substring match rather than full RFC-7231 q-value parsing — the
+/// substring match rather than full RFC-7231 q-value parsing, the
 /// npm client always sends it as the top-priority option and a
 /// substring presence is a reliable signal.
 pub(super) fn wants_abbreviated(headers: &HeaderMap) -> bool {
@@ -323,11 +323,11 @@ pub(super) fn packument_bytes_response(
 /// `Last-Modified` value for a served packument: the document's
 /// `time.modified` in HTTP-date form. Lets a client's release-age check
 /// (pnpm's `minimumReleaseAge`) learn the package-level last-publish
-/// upper bound from response headers alone — a `HEAD` costs ~no bytes
+/// upper bound from response headers alone, a `HEAD` costs ~no bytes
 /// where the abbreviated body runs to hundreds of KB. Fractional
 /// seconds round *up* to the next whole second: the header must stay
 /// an upper bound on the publish time, and truncating would understate
-/// it by up to 999ms — exactly the window a release-age check guards.
+/// it by up to 999ms, exactly the window a release-age check guards.
 /// `None` when the document carries no parsable `time.modified`; the
 /// header is omitted then.
 pub(super) fn packument_last_modified(doc: &Value) -> Option<String> {

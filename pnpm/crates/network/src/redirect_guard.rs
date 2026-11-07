@@ -19,7 +19,7 @@ pub(crate) struct BlockedRedirect(pub(crate) reqwest::Url);
 
 impl std::fmt::Display for BlockedRedirect {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Surface only `scheme://host[:port]` — never the path, query,
+        // Surface only `scheme://host[:port]`, never the path, query,
         // fragment, or userinfo, where a presigned-URL signature/token could
         // live. This error string can reach a client, so it must not leak the
         // very credential the redirect was carrying.

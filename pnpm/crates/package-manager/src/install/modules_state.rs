@@ -56,7 +56,7 @@ pub(super) fn modules_consistent_with(
     // A `virtualStoreOnly` install populates the virtual store and stops,
     // so the modules directory it leaves behind has no importer symlinks,
     // bins, or hoisted packages. It can never satisfy an ordinary
-    // install, however well its recorded settings line up — the no-op
+    // install, however well its recorded settings line up, the no-op
     // short-circuit would leave the linking permanently undone.
     if modules.virtual_store_only == Some(true) && !config.virtual_store_only {
         return false;
@@ -202,7 +202,7 @@ pub(crate) fn modules_layout_consistent_with(
     // instead.
     // Patterns compare normalized (upstream's `?? []`): `None` and an
     // empty list are the same disabled state, so the pair must not read
-    // as layout drift — a purge every install for `hoistPattern: []`
+    // as layout drift, a purge every install for `hoistPattern: []`
     // projects, and a spurious `*_DIFF` error for `add` / `remove`.
     let hoist_patterns_match = modules.virtual_store_only == Some(true)
         || (normalized_pattern(modules.hoist_pattern.as_deref())
@@ -288,7 +288,7 @@ pub(super) fn recorded_allow_builds_differ(
 /// on the up-to-date path and the ignored-builds check still throws, so a
 /// rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not exit 0.
 /// Packages a later policy explicitly denies (`Some(false)`) are excluded
-/// — those are silently skipped, never reported — matching a full
+///, those are silently skipped, never reported, matching a full
 /// install's `BuildModules`. Newly-allowed packages are handled
 /// by [`has_newly_allowed_ignored_builds`], which skips the fast path.
 ///
@@ -320,7 +320,7 @@ pub(super) fn unapproved_recorded_ignored_builds(
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
-/// here — empty for the no-lockfile path, for installs where both
+/// here, empty for the no-lockfile path, for installs where both
 /// hoist patterns are `None`, and under `nodeLinker: hoisted` (the
 /// hoisted linker uses `hoisted_locations` instead). Persisting it
 /// lets a subsequent install detect a hoist pattern change and
@@ -340,7 +340,7 @@ pub(super) fn unapproved_recorded_ignored_builds(
 /// [`PackageKey`] in the install-time
 /// [`crate::SkippedSnapshots`] becomes one string entry; ordering is
 /// handled by [`write_modules_manifest`]'s sort-on-write. An empty set
-/// produces an empty list — matching the fresh-install case.
+/// produces an empty list, matching the fresh-install case.
 ///
 /// [`PackageKey`]: pnpm_lockfile::PackageKey
 /// [`write_modules_manifest`]: pnpm_modules_yaml::write_modules_manifest
@@ -398,7 +398,7 @@ pub(super) fn build_modules_manifest(
         // preserved prior value.
         pruned_at,
         // `iter_installability` excludes fetch-failure entries so they
-        // don't get persisted across installs — optional fetch failures
+        // don't get persisted across installs, optional fetch failures
         // are silently swallowed.
         skipped: skipped
             .iter_installability()
@@ -461,8 +461,8 @@ pub(super) fn keep_recorded_layout(
 /// Drop `settled` from the `pendingBuilds` the install just wrote, now
 /// that the projects' scripts have run.
 ///
-/// A project's debt outlives the `.modules.yaml` write — its scripts run
-/// after it — so clearing the record there would forget the debt when a
+/// A project's debt outlives the `.modules.yaml` write, its scripts run
+/// after it, so clearing the record there would forget the debt when a
 /// script fails. Re-reading rather than reusing the in-memory value
 /// keeps every other field exactly as it was written.
 pub(super) fn drain_settled_projects<Sys>(
@@ -522,7 +522,7 @@ pub(super) fn project_requires_implicit_gyp_build(
 
 /// Read a string field off a project manifest, returning `None` when
 /// the field is missing or not a JSON string. Pnpm tolerates either
-/// shape — `name`/`version` are advisory metadata in this context, so
+/// shape, `name`/`version` are advisory metadata in this context, so
 /// pacquet matches by silently dropping non-string values.
 pub(super) fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
     manifest

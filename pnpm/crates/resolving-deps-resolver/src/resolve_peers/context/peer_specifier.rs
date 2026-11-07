@@ -62,12 +62,12 @@ pub(in super::super) fn importer_relative_link_dep_path(
 ///
 /// Returns `None` when:
 ///
-/// - the dep isn't a `link:` directory resolution — an injected
+/// - the dep isn't a `link:` directory resolution, an injected
 ///   (`file:`) one is a real package in the graph and keeps its own
 ///   node id;
 /// - the setting is off or the lockfile / modules dirs are missing;
 /// - the link target lives under `lockfile_dir` (workspace-internal
-///   link — already stable across machines, no remap needed).
+///   link, already stable across machines, no remap needed).
 ///
 /// On `Some`, the remap encodes `<modules_dir>/<alias>` as a path
 /// relative to `lockfile_dir`, prefixed with `link:`.
@@ -158,7 +158,7 @@ pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
 }
 
 /// Range-satisfaction check that tolerates prereleases the way
-/// `@yarnpkg/core/semverUtils.satisfiesWithPrereleases` does — falls
+/// `@yarnpkg/core/semverUtils.satisfiesWithPrereleases` does, falls
 /// back to a literal-equality check when the range can't be parsed,
 /// which lets non-semver peer ranges (`*`, git refs, etc.) still
 /// match.
@@ -168,7 +168,7 @@ pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
 /// Yarn's `satisfiesWithPrereleases` explicitly allows that pairing.
 /// We approximate it by retrying with the prerelease tag stripped: if
 /// `version` is a prerelease and the straight check fails, see whether
-/// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
+/// the base `MAJOR.MINOR.PATCH` satisfies the range, without pulling
 /// in Yarn's full per-comparator algorithm.
 pub(crate) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
     let parsed_range = Range::parse(range).ok();

@@ -92,7 +92,7 @@ const DEFAULT_INDENT: &str = "  ";
 /// Carries the source file's formatting (indentation unit, final-newline
 /// state, blank lines between JSON object members) and its parsed value across the read/save round-trip, so
 /// [`Self::save`] preserves the file's style and skips the write entirely
-/// when nothing changed — the same contract as pnpm's project-manifest
+/// when nothing changed, the same contract as pnpm's project-manifest
 /// reader/writer pair.
 #[derive(Clone)]
 pub struct PackageManifest {
@@ -154,7 +154,7 @@ impl PackageManifest {
         // that accept untrusted input (the Node API binding) reject a non-object
         // manifest at their boundary for a clear error, but if any value other
         // than an object still reaches here, inserting a dependency via
-        // `self.value[key] = ...` would panic — so coerce it to an empty object
+        // `self.value[key] = ...` would panic, so coerce it to an empty object
         // rather than aborting the host process.
         if !value.is_object() {
             value = json!({});
@@ -188,7 +188,7 @@ impl PackageManifest {
     /// Used by the read-package-hook layer to rewrite a manifest's
     /// dependency maps before downstream consumers see it (the
     /// `readPackage` hook returns a modified manifest). Mutations stay
-    /// in memory — there is no implicit `save`, so the user's on-disk
+    /// in memory, there is no implicit `save`, so the user's on-disk
     /// `package.json` is untouched.
     pub fn value_mut(&mut self) -> &'_ mut Value {
         &mut self.value
@@ -302,7 +302,7 @@ impl PackageManifest {
         };
         // The bare-specifier parse uses `lastIndexOf('@')` and treats
         // `index < 1` (no `@`, or `@` at position 0 of a scoped name)
-        // as "no version" — the spec is just a package name.
+        // as "no version", the spec is just a package name.
         match rest.rfind('@') {
             Some(idx) if idx >= 1 => (&rest[..idx], &rest[idx + 1..]),
             _ => (rest, "latest"),
@@ -343,7 +343,7 @@ impl PackageManifest {
     /// `optionalDependencies`) drops `name` from the other two: a
     /// dependency has one home there, so saving it as a different type
     /// moves it, matching pnpm's `updateProjectManifestObject`. A
-    /// [`DependencyGroup::Peer`] save is additive — pnpm's `--save-peer`
+    /// [`DependencyGroup::Peer`] save is additive, pnpm's `--save-peer`
     /// writes `peerDependencies` alongside the `devDependencies` entry.
     pub fn add_dependency(
         &mut self,

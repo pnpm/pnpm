@@ -38,11 +38,11 @@ pub(super) enum ConfigToken<'a> {
 /// returned untouched.
 ///
 /// `claimed_by_command` names the options the invoked command declares
-/// itself, which win over the setting of the same name — see
+/// itself, which win over the setting of the same name, see
 /// [`subcommand_option_names`].
 ///
-/// A setting given a value it does not take — a misspelled boolean, an
-/// unknown `--trust-policy`, a non-numeric `--child-concurrency` — is
+/// A setting given a value it does not take, a misspelled boolean, an
+/// unknown `--trust-policy`, a non-numeric `--child-concurrency`, is
 /// left for clap, which reports it as an unexpected argument. Dropping
 /// it instead would leave the install running under a setting the user
 /// believes they changed, which for a supply-chain setting like
@@ -137,7 +137,7 @@ pub(super) enum SettingArity {
     BooleanOr { takes: fn(&str) -> bool, bare_keyword: bool },
     /// A path, a glob pattern, or another free-form value: every spelling
     /// is one the setting takes, so the token after the flag is claimed
-    /// only when it cannot be anything else — see [`claims_as_value`].
+    /// only when it cannot be anything else, see [`claims_as_value`].
     Text,
     /// A value the carried predicate accepts, and only such a value.
     Parsed(fn(&str) -> bool),
@@ -250,8 +250,8 @@ fn setting_takes(key: &str, value: &str) -> bool {
     }
 }
 
-/// Whether the `key` setting claims `token` — the argv token after its
-/// flag — as its value.
+/// Whether the `key` setting claims `token`, the argv token after its
+/// flag, as its value.
 ///
 /// A free-form setting refuses one that opens with `-`: that token is the
 /// `--` separator, another flag, or a short option, and claiming it would
@@ -270,7 +270,7 @@ pub(super) fn claims_as_value(key: &str, token: &str) -> bool {
 }
 
 /// Whether a token spells a boolean a bare `--<setting>` flag claims as
-/// its value — the same spellings the `--<setting>=<bool>` form takes,
+/// its value, the same spellings the `--<setting>=<bool>` form takes,
 /// so the two agree. Only a boolean is claimed, which is what leaves
 /// `pnpm --shamefully-hoist install` its command.
 fn is_boolean_value(token: &str) -> bool {
@@ -282,7 +282,7 @@ fn is_boolean_value(token: &str) -> bool {
 /// The scan that has to find the subcommand applies this ahead of clap's
 /// own arity: nothing else on a command line is spelled `true` /
 /// `false`, so stepping over that token is right whichever reading of
-/// the flag ends up applying — a command's option of the same name, or
+/// the flag ends up applying, a command's option of the same name, or
 /// the setting. Without it the two readings disagree on width for a name
 /// that is both, and `pnpm --lockfile true --config.registry=… install`
 /// loses everything past the boolean to the script fallback.
@@ -294,7 +294,7 @@ pub(crate) fn bare_boolean_setting_claims(flag: &str, next: Option<&str>) -> boo
 }
 
 /// How many argv slots a bare `--<setting>` flag occupies, given the
-/// token after it — for the scan that has to find the subcommand before
+/// token after it, for the scan that has to find the subcommand before
 /// the settings are stripped. `1` for a token that is not one of the
 /// [`BARE_SETTING_FLAGS`], or one whose value is missing, which
 /// [`ConfigOverrides::extract`](super::ConfigOverrides::extract) hands to clap intact.
@@ -320,7 +320,7 @@ pub(super) fn parse_bool_or_enum<Value: serde::de::DeserializeOwned>(value: &str
 }
 
 /// An enum setting's kebab-case spelling, for [`Config::explicit_settings`](pnpm_config::Config::explicit_settings)
-/// — the form the config files and `pnpm config get` use.
+///, the form the config files and `pnpm config get` use.
 pub(super) fn setting_value<Value: serde::Serialize>(value: Value) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or(serde_json::Value::Null)
 }

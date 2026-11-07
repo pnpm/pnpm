@@ -339,13 +339,13 @@ fn build_scheme_proxy(
 /// Concretely: 64 up to a 22-core machine, scaling with cores beyond
 /// that, capped at 96. The floor matters more than the scaling:
 /// downloads are I/O-bound, not CPU-bound, and a low-latency registry
-/// only saturates when enough requests are in flight — a CPU-derived
+/// only saturates when enough requests are in flight, a CPU-derived
 /// floor left 4-core CI runners draining 600-tarball installs 16 at a
 /// time, several times slower than the same network could serve.
 ///
 /// Uses [`std::thread::available_parallelism`] rather than
 /// `num_cpus::get()` so cgroup / CPU-quota limits in containers and
-/// CI runners are respected — `num_cpus` reports the host's logical
+/// CI runners are respected, `num_cpus` reports the host's logical
 /// CPU count, which on a quota-limited runner can over-report and
 /// push effective concurrency past what the kernel will actually
 /// schedule (matching the convention `crates/cli` already uses for

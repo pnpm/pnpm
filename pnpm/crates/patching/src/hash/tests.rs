@@ -16,7 +16,7 @@ fn hashes_a_known_file() {
     assert_eq!(create_hex_hash_from_file(&path).unwrap(), HELLO_SHA256_HEX);
 }
 
-/// CRLF must normalize to LF — otherwise the same logical patch
+/// CRLF must normalize to LF, otherwise the same logical patch
 /// hashes differently on Windows vs POSIX.
 #[test]
 fn crlf_normalizes_to_lf() {

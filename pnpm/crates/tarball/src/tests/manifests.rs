@@ -68,7 +68,7 @@ fn extract_tarball_reads_a_manifest_that_starts_with_a_utf8_bom() {
 }
 
 /// A `package.json` above [`STREAM_ENTRY_BUFFER_MAX`] must still be
-/// buffered and parsed on the streaming path — routing it through the
+/// buffered and parsed on the streaming path, routing it through the
 /// direct-to-store branch would silently record
 /// `requires_build: Some(false)` and drop the bundled manifest.
 #[test]
@@ -108,7 +108,7 @@ fn streaming_extract_parses_manifest_larger_than_entry_buffer() {
 
 /// A `package.json` header claiming more than
 /// [`MAX_UNTRUSTED_PREALLOC_BYTES`] must be rejected before its payload
-/// is read — buffering it would defeat the streaming path's
+/// is read, buffering it would defeat the streaming path's
 /// bounded-memory guarantee, and skipping the parse would record wrong
 /// build metadata. No payload follows the forged header below: the
 /// guard has to fire on the header alone.
@@ -168,7 +168,7 @@ async fn read_local_tarball_metadata_reads_a_manifest_past_the_eager_ceiling() {
 }
 
 /// The manifest is the package's only source of identity here, so an
-/// unparsable one fails the resolve rather than degrading to `None` —
+/// unparsable one fails the resolve rather than degrading to `None`,
 /// matching how pnpm rejects the same tarball.
 #[tokio::test]
 async fn read_local_tarball_metadata_rejects_an_unparsable_manifest() {
@@ -188,7 +188,7 @@ async fn read_local_tarball_metadata_rejects_an_unparsable_manifest() {
 }
 
 /// Duplicate `package.json` entries are last-entry-wins, matching
-/// `extract_tarball_entries`, so only the surviving one is parsed — the
+/// `extract_tarball_entries`, so only the surviving one is parsed, the
 /// two reads must agree on which manifest describes the package.
 #[tokio::test]
 async fn read_local_tarball_metadata_lets_a_later_manifest_supersede_a_malformed_one() {
@@ -497,7 +497,7 @@ async fn fetch_for_resolution_reads_manifest_from_subdirectory() {
 }
 
 /// A subdirectory without its own `package.json` degrades to `None`,
-/// the same best-effort contract the archive root has — never the
+/// the same best-effort contract the archive root has, never the
 /// root's manifest, which would name the key after the wrong package.
 #[tokio::test]
 async fn fetch_for_resolution_returns_no_manifest_for_subdirectory_without_one() {
@@ -545,8 +545,8 @@ async fn fetch_for_resolution_returns_no_manifest_for_subdirectory_without_one()
 
 /// A runtime archive (Node.js / Bun / Deno) ships no `package.json`, so
 /// `apply_append_manifest` must bake the synthesized manifest into the
-/// persisted store-index row — both its `files` map and its bundled
-/// `manifest` — and into this install's `cas_paths`. Without the row
+/// persisted store-index row, both its `files` map and its bundled
+/// `manifest`, and into this install's `cas_paths`. Without the row
 /// entry, a later *warm* materialization reads a `package.json`-less row
 /// and `pnpm dlx node@runtime:<v>` fails with `dlx_read_manifest`.
 #[test]
@@ -595,7 +595,7 @@ fn apply_append_manifest_is_a_noop_when_the_archive_ships_a_package_json() {
 
 /// The placeholder is a completion marker, not the package's identity,
 /// so it must not become the row's bundled `manifest` the way
-/// `apply_append_manifest`'s real one does — see
+/// `apply_append_manifest`'s real one does, see
 /// <https://github.com/pnpm/pnpm/issues/13410>.
 #[test]
 fn apply_placeholder_manifest_marks_an_archive_that_ships_no_package_json() {

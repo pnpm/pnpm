@@ -1,4 +1,4 @@
-//! Integration tests for the `-/stage` endpoints — the server half of
+//! Integration tests for the `-/stage` endpoints, the server half of
 //! `pnpm stage`. Static-mode (no upstream) to keep the tests hermetic.
 
 use crate::npm;

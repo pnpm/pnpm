@@ -103,7 +103,7 @@ pub fn parse_jsr_specifier(
         }));
     }
 
-    // Syntax: jsr:<name>@<version_selector> (invalid — JSR requires a scope)
+    // Syntax: jsr:<name>@<version_selector> (invalid, JSR requires a scope)
     if rest.contains('@') {
         return Err(ParseJsrSpecifierError::MissingScope);
     }

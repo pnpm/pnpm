@@ -175,7 +175,7 @@ const LATEST_LOOKUP_TIMEOUT = 10000
  * does not inherit that staleness through its own pin.
  *
  * Falls back to the running version whenever `latest` cannot be established,
- * and never lets `latest` move the pin backwards — the tag can lag the
+ * and never lets `latest` move the pin backwards, the tag can lag the
  * running version when a new major has shipped without being tagged.
  *
  * The lookup is skipped outright when the caller asked to stay off the

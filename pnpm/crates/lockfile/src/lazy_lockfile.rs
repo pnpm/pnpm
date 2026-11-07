@@ -12,8 +12,8 @@ use std::{
 /// until a consumer actually needs the contents.
 ///
 /// The optimistic repeat-install fast path decides "Already up to
-/// date" from manifest mtimes alone — upstream's `checkDepsStatus`
-/// never reads the wanted lockfile on that path — so parsing a
+/// date" from manifest mtimes alone, upstream's `checkDepsStatus`
+/// never reads the wanted lockfile on that path, so parsing a
 /// multi-megabyte YAML document up front is pure overhead for the
 /// repeat-install case. Commands that always need the lockfile call
 /// [`LazyLockfile::get`] immediately and behave as if it were loaded
@@ -40,7 +40,7 @@ impl LazyLockfile {
         }
     }
 
-    /// A lockfile that is never loaded — [`Self::get`] yields `None`
+    /// A lockfile that is never loaded, [`Self::get`] yields `None`
     /// without touching the filesystem. Mirrors `lockfile: false`
     /// config.
     #[must_use]
@@ -94,7 +94,7 @@ impl LazyLockfile {
     /// The parsed wanted lockfile, loading it on first call. `None`
     /// when the file is absent, empty, or loading is disabled. A load
     /// error is returned without being cached, so a subsequent call
-    /// retries — callers abort on the first error in practice.
+    /// retries, callers abort on the first error in practice.
     pub fn get(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
         Ok(self.load()?.lockfile.as_deref())
     }
@@ -180,7 +180,7 @@ impl LazyLockfile {
 
     /// Whether a wanted lockfile is known to be available: the parsed
     /// document when already loaded, otherwise
-    /// [`Lockfile::wanted_exists`]'s semantic-presence probe —
+    /// [`Lockfile::wanted_exists`]'s semantic-presence probe,
     /// the same absence rules as the loader (an empty or env-only
     /// file counts as absent), without paying for the YAML parse on
     /// the repeat-install fast path.
@@ -229,8 +229,8 @@ impl<'a> MaybeLazyLockfile<'a> {
     }
 
     /// An `Arc` handle to the parsed wanted lockfile, for a consumer
-    /// that shares the document with long-lived machinery — the
-    /// resolver's lockfile-reuse seed above all — without deep-copying
+    /// that shares the document with long-lived machinery, the
+    /// resolver's lockfile-reuse seed above all, without deep-copying
     /// a workspace-scale lockfile. `None` when no lockfile exists *or*
     /// for the borrowed and repair variants, which hold no `Arc`;
     /// callers fall back to cloning [`Self::get`]'s reference.

@@ -5,7 +5,7 @@
 //! and, when the registry doesn't support it (HTTP 404 / 405), falls back to
 //! classic username / password / email authentication (`PUT
 //! -/user/org.couchdb.user:<name>`). Either path may raise a two-factor (OTP)
-//! challenge, which is satisfied through [`pnpm_network_web_auth`] — a
+//! challenge, which is satisfied through [`pnpm_network_web_auth`], a
 //! browser round-trip when the registry offers web auth, or a prompted
 //! one-time password otherwise.
 //!
@@ -14,8 +14,8 @@
 //! pnpm injects every side effect the flow touches as a bag of closures on a
 //! `context` object. This port threads them through the project's capability
 //! seam instead, composed on the single `Sys` type parameter. The registry
-//! requests go over the shared [`ThrottledClient`] — a real fixture
-//! (`mockito`) in tests — so only the effects a fixture can't stage portably
+//! requests go over the shared [`ThrottledClient`], a real fixture
+//! (`mockito`) in tests, so only the effects a fixture can't stage portably
 //! sit behind the `Sys` seam. See the "Dependency injection for tests" section
 //! of `pnpm/CODE_STYLE_GUIDE.md`.
 
@@ -71,7 +71,7 @@ pub struct LoginOptions<'a> {
 /// The full capability set [`login`] requires from its host. The blanket impl
 /// covers every type that implements all of them, so the production [`Host`]
 /// and the test fakes satisfy it automatically. Bundling the bound lets a
-/// caller that re-dispatches into [`login`] — the CLI adapter — name one trait
+/// caller that re-dispatches into [`login`], the CLI adapter, name one trait
 /// instead of restating the list.
 pub trait LoginHost:
     Clock
@@ -114,7 +114,7 @@ impl<Sys> LoginHost for Sys where
 /// probe with HTTP 404 or 405. Either path may satisfy a two-factor challenge
 /// before returning.
 ///
-/// The web-based flow runs without an interactive terminal — it prints the
+/// The web-based flow runs without an interactive terminal, it prints the
 /// authentication URL and polls the registry until the browser approval
 /// completes. Only the classic flow's credential prompts require a TTY.
 pub async fn login<Sys, Reporter>(

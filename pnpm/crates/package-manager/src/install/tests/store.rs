@@ -191,8 +191,8 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     drop((dir, registry));
 }
 /// Under GVS, the `virtualStoreDir` value pacquet persists in
-/// `.modules.yaml` must equal the path pnpm writes — i.e.
-/// `<storeDir>/v11/links` — not the project-local `node_modules/.pnpm`
+/// `.modules.yaml` must equal the path pnpm writes, i.e.
+/// `<storeDir>/v11/links`, not the project-local `node_modules/.pnpm`
 /// path pacquet keeps in [`Config::install_state_dir`]. If
 /// they diverge, the next `pnpm install` reads the manifest, recomputes
 /// `ctx.virtualStoreDir` from the GVS-on path, and trips its
@@ -224,7 +224,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
 
     let mut config = Config::new();
-    // GVS on — the whole point of the test.
+    // GVS on, the whole point of the test.
     config.enable_global_virtual_store = true;
     config.lockfile = false;
     config.store_dir = dirs.store_dir.clone().into();
@@ -339,7 +339,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
     );
 
     // The `pnpm:context` event the default reporter prints in the
-    // install header. Same parity rule, different channel — pnpm
+    // install header. Same parity rule, different channel, pnpm
     // emits `ctx.virtualStoreDir` (the GVS-mutated value); pacquet
     // must too.
     let captured = EVENTS.lock().unwrap();

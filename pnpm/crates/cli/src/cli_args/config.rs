@@ -1,4 +1,4 @@
-//! `pacquet config` — manage the pnpm configuration files.
+//! `pacquet config`, manage the pnpm configuration files.
 //!
 //! Provides the `set` / `get` / `delete` / `list` subcommands, their file
 //! routing, key validation and value casting, and the read path.
@@ -200,7 +200,7 @@ pub enum ConfigError {
     #[diagnostic(code(ERR_PNPM_CONFIG_NO_GLOBAL_DIR))]
     NoGlobalConfigDir,
 
-    // The rejected value is deliberately not echoed — it may be a credential
+    // The rejected value is deliberately not echoed, it may be a credential
     // (e.g. a token with a stray newline pasted from an env var).
     #[display("Cannot write a value containing a control character to an INI config file")]
     #[diagnostic(code(ERR_PNPM_CLI_CONFIG_SET_INVALID_CONTROL_CHARACTER))]
@@ -271,9 +271,7 @@ fn split_set_params(
     }
 }
 
-// ---------------------------------------------------------------------------
 // config set / delete
-// ---------------------------------------------------------------------------
 
 /// `pnpm config set` (when `value` is `Some`) / `pnpm config delete` (when
 /// `value` is `None`). Port of `configSet`.

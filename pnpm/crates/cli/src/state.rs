@@ -158,8 +158,8 @@ impl State {
     }
 
     /// The lazy wanted lockfile [`Self::init`] would build. Split out
-    /// so a caller with work between here and the install — project
-    /// discovery above all — can build it first and start its
+    /// so a caller with work between here and the install, project
+    /// discovery above all, can build it first and start its
     /// [`LazyLockfile::prefetch`] over that work, handing the result to
     /// [`Self::init_with_lockfile`].
     #[must_use]
@@ -223,7 +223,7 @@ impl State {
         })
     }
 
-    /// The directory of the project the command runs in — where its
+    /// The directory of the project the command runs in, where its
     /// `package.json` lives.
     pub fn project_dir(&self) -> &Path {
         self.manifest

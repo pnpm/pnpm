@@ -1,4 +1,4 @@
-//! `pnpm fund` — the funding information of the installed packages.
+//! `pnpm fund`, the funding information of the installed packages.
 //!
 //! Opening a funding URL is covered by the unit tests in
 //! `src/cli_args/fund/tests.rs` through the `OpenUrl` seam: running it

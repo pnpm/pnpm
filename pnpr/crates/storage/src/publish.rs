@@ -41,7 +41,7 @@ use std::{
 /// [`tokio::task::spawn_blocking`] so the base64-decode and hashing
 /// stages can use plain `std::io` and operate on chunks small enough
 /// (`CHUNK_BYTES`) that the full decoded payload never lives in
-/// memory at once — only the original base64 string (held by the
+/// memory at once, only the original base64 string (held by the
 /// JSON value) and a 64 KiB working buffer.
 ///
 /// `dist.integrity` is required. npm always emits it; a body that
@@ -188,7 +188,7 @@ fn decode_and_write(
 }
 
 /// Finalize a SHA-1 [`IntegrityOpts`] and re-encode the digest as a
-/// 40-character lowercase hex string — the shape npm's legacy
+/// 40-character lowercase hex string, the shape npm's legacy
 /// `dist.shasum` field uses. ssri stores digests base64-encoded, so
 /// we decode and re-encode as hex for the comparison.
 fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
@@ -213,14 +213,14 @@ fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
 /// Merge rules (chosen to match verdaccio's behavior for the cases
 /// `@pnpm/registry-mock`'s publish script exercises):
 ///
-/// * `name`, `_id` — copied from the new body.
-/// * `versions` — union; an already-hosted version is immutable except for
+/// * `name`, `_id`, copied from the new body.
+/// * `versions`, union; an already-hosted version is immutable except for
 ///   its `deprecated` flag (see `merge_versions`), an upstream-only or
 ///   new version is taken from the body. `hosted` is the locally hosted
 ///   packument (or `None`); `existing` is the merge seed, which may instead
 ///   be the upstream packument, so immutability keys off `hosted`, not it.
-/// * `dist-tags` — union, new body overrides on key collision.
-/// * `time` — union, new entries override on key collision.
+/// * `dist-tags`, union, new body overrides on key collision.
+/// * `time`, union, new entries override on key collision.
 ///   `time.modified` is always bumped to "now".
 pub const PACKUMENT_FORMAT_VERSION: u32 = 1;
 
@@ -252,7 +252,7 @@ pub fn merge_manifest(
 
     // Sort `versions` by semver-ish key order so the on-disk file is
     // stable across runs. Use a BTreeMap to take advantage of
-    // serde_json's `preserve_order` feature — without sorting, two
+    // serde_json's `preserve_order` feature, without sorting, two
     // publishes of the same package can produce different bytes.
     if let Some(versions) = out.get_mut("versions").and_then(Value::as_object_mut) {
         let sorted: BTreeMap<String, Value> = versions
@@ -269,7 +269,7 @@ pub fn merge_manifest(
 /// the packument top level, where full-packument consumers and registry UIs
 /// read it. Publish clients (`libnpmpublish`, pacquet) only send the readme
 /// inside `versions[<version>]`, so without this a published package would
-/// expose no top-level readme — this hoist matches npm and verdaccio.
+/// expose no top-level readme, this hoist matches npm and verdaccio.
 ///
 /// A top-level value already present (e.g. from an earlier publish or the
 /// upstream packument) is left in place when the latest version carries no
@@ -371,12 +371,12 @@ fn stamp_time_entries(out: &mut Map<String, Value>, now_iso: &str) {
 /// (set it, or remove it for undeprecate), so `dist`, `dependencies`, `bin`,
 /// `engines` and every other resolution-relevant field stay as published. A
 /// malformed incoming entry for a hosted version is ignored. Any other
-/// version — brand-new, or one that exists only upstream in the seed — is
+/// version, brand-new, or one that exists only upstream in the seed, is
 /// taken from the body, so its manifest matches the tarball being published.
 ///
 /// Immutability keys off `hosted` (the locally hosted packument), not the
 /// seed: `existing` may be the upstream packument, and upstream versions are
-/// not immutable here — a first local publish of one must win.
+/// not immutable here, a first local publish of one must win.
 fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Value>) -> Value {
     let hosted_versions = hosted
         .and_then(|h| h.get("versions"))

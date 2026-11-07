@@ -185,7 +185,7 @@ fn cascade_empty_npmrc_proxy_keys_fall_through_to_env() {
 }
 
 /// An empty env var still shadows the lower-priority env vars below it,
-/// leaving no proxy — the TypeScript CLI resolves `HTTPS_PROXY=` the same
+/// leaving no proxy, the TypeScript CLI resolves `HTTPS_PROXY=` the same
 /// way, and the empty value is dropped when the client is built.
 #[test]
 fn cascade_empty_https_proxy_env_shadows_http_proxy_env() {
@@ -382,7 +382,7 @@ fn json_env_package_scope_infers_scoped_registry_route() {
 #[test]
 fn json_env_honors_upper_case_form() {
     // Both `pnpm_config__auth` (documented) and `PNPM_CONFIG__AUTH` (the
-    // all-caps shell convention) are accepted — mirrors `read_pnpm_env`'s
+    // all-caps shell convention) are accepted, mirrors `read_pnpm_env`'s
     // two-form lookup shape.
     static_env!(
         Env,

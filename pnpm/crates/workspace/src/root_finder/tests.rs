@@ -49,7 +49,7 @@ fn rejects_invalid_filenames() {
 }
 
 /// When both the correct file and a misnamed variant are present,
-/// the correct one wins — upstream's `findUp` returns the first match
+/// the correct one wins, upstream's `findUp` returns the first match
 /// in pattern order at each level, but the misnamed-variant check
 /// applies only after the correct file is ruled out at the current
 /// level. Same reasoning preserved here.

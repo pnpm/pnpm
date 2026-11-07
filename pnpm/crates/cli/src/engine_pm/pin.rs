@@ -28,8 +28,8 @@ use serde_json::{Map, Value};
 /// `None` is an ordinary install request. pnpm itself is one: its pin
 /// makes the next command switch the running CLI, which is
 /// `pnpm self-update`'s job to do deliberately. So is a specifier that
-/// locates a package to install under the package manager's name —
-/// `yarn@npm:@yarnpkg/cli-dist`, `yarn@yarnpkg/berry#main` — rather than
+/// locates a package to install under the package manager's name,
+/// `yarn@npm:@yarnpkg/cli-dist`, `yarn@yarnpkg/berry#main`, rather than
 /// asking for a released version of the package manager itself.
 pub(crate) fn declared_package_manager(request: &str) -> Option<(PackageManager, Option<String>)> {
     let parsed = parse_wanted_dependency(request);
@@ -99,7 +99,7 @@ fn clear_dev_engines_package_manager(manifest: &mut Map<String, Value>) {
 
 /// The reference to record for `pm` at `version_spec`.
 ///
-/// Yarn's field takes an exact version — corepack rejects a range there —
+/// Yarn's field takes an exact version, corepack rejects a range there,
 /// so the request is resolved against the same channel that would install
 /// it. The other package managers keep the range the user asked for.
 ///

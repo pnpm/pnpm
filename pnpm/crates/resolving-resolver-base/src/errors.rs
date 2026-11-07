@@ -1,7 +1,7 @@
 //! Resolver failures that carry a pnpm error code.
 //!
 //! [`ResolveError`](crate::ResolveError) type-erases a resolver failure to
-//! `Box<dyn Error>`, which drops its [`miette::Diagnostic`] facet — and with
+//! `Box<dyn Error>`, which drops its [`miette::Diagnostic`] facet, and with
 //! it the `ERR_PNPM_*` code that is part of pnpm's public contract. The types
 //! here are the exception: a caller that has to keep the code (the dependency
 //! tree walker) recovers it by downcasting the box. A resolver therefore has
@@ -27,7 +27,7 @@ use url::Url;
 #[display("No matching version found for {dep} while fetching it from {registry}")]
 #[diagnostic(code(ERR_PNPM_NO_MATCHING_VERSION), help("{published_versions}"))]
 pub struct NoMatchingVersionError {
-    /// The dependency as declared — `<alias>@<bare specifier>`, or the bare
+    /// The dependency as declared, `<alias>@<bare specifier>`, or the bare
     /// specifier alone when it has no alias.
     #[error(not(source))]
     pub dep: String,
@@ -232,8 +232,8 @@ fn is_semver(candidate: &str) -> bool {
     candidate.parse::<node_semver::Version>().is_ok()
 }
 
-/// `ERR_PNPM_GIT_RESOLVE_FAILED`: a git specifier's `git ls-remote` failed —
-/// the remote was unreachable, refused the request, or git could not be run —
+/// `ERR_PNPM_GIT_RESOLVE_FAILED`: a git specifier's `git ls-remote` failed,
+/// the remote was unreachable, refused the request, or git could not be run,
 /// so the committish cannot be pinned to a commit.
 ///
 /// Distinct from the failures that describe the refs a remote *did* serve (an
@@ -279,7 +279,7 @@ impl GitResolveError {
 
 /// Guidance for a specifier that resolved over HTTPS on a machine whose git
 /// cannot use that transport, or `None` when the resolution already went over
-/// SSH — there, the transport that failed is the one the specifier asked for.
+/// SSH, there, the transport that failed is the one the specifier asked for.
 ///
 /// Substituting the transport is git's job rather than pnpm's: the URL pnpm
 /// records has to work for every machine that installs the lockfile, while

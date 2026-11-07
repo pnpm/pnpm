@@ -196,7 +196,7 @@ async fn offline_pick_memo_survives_a_caller_that_blocked_the_store_held_version
         &auth_headers,
     );
 
-    // First caller blocks 1.0.0 — the only version the store holds — so the
+    // First caller blocks 1.0.0, the only version the store holds, so the
     // adjustment finds nothing installable and keeps the newest pick.
     let mut blocked_opts = default_opts("https://registry.invalid/");
     let blocked = HashSet::from(["1.0.0".to_string()]);

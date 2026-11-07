@@ -5,8 +5,8 @@
 //! The dialects diverge on the *empty comparator set*: a range is a union
 //! of comparator sets separated by `||`, and JS reads an empty set as
 //! "any version" where the Rust parser rejects it. Registries are full of
-//! published manifests that rely on the JS reading — `js-xlsx`,
-//! `codepage`, and `ssf` all declare dependencies as `""` — so range
+//! published manifests that rely on the JS reading, `js-xlsx`,
+//! `codepage`, and `ssf` all declare dependencies as `""`, so range
 //! checks on manifest input must go through here rather than calling
 //! [`Range::parse`] directly.
 //!
@@ -33,7 +33,7 @@ pub fn is_any_version_range(range: &str) -> bool {
         .any(|comparator_set| comparator_set.trim().is_empty())
 }
 
-/// The Rust equivalent of JS `semver.validRange(range) != null` — the
+/// The Rust equivalent of JS `semver.validRange(range) != null`, the
 /// strict reading, under which one unparsable comparator set invalidates
 /// the whole union rather than being dropped from it.
 ///

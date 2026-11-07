@@ -68,7 +68,7 @@ fn silent_is_not_expanded_past_the_script_name() {
 #[test]
 fn short_s_expands_for_commands_that_do_not_own_it() {
     assert_eq!(expand(&["pnpm", "install", "-s"]), ["pnpm", "install", "--reporter=silent"]);
-    // Pre-subcommand placement expands too — nopt is position-independent.
+    // Pre-subcommand placement expands too, nopt is position-independent.
     assert_eq!(expand(&["pnpm", "-s", "install"]), ["pnpm", "--reporter=silent", "install"]);
 }
 

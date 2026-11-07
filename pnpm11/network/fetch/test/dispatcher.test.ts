@@ -86,7 +86,7 @@ describe('HTTP proxy', () => {
   })
 
   test('adds protocol prefix when proxy URL has none', () => {
-    // Should not throw — the proxy URL should get protocol prepended
+    // Should not throw, the proxy URL should get protocol prepended
     const dispatcher = getDispatcher('http://registry.npmjs.org/foo', {
       httpProxy: 'proxy.example.com:8080',
     })

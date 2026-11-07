@@ -36,7 +36,7 @@ pub struct VirtualStoreFetchInputs<'a> {
     /// Install-scoped shared in-flight tarball cache, threaded into each
     /// per-snapshot [`InstallPackageBySnapshot`](crate::InstallPackageBySnapshot) so the cold-batch
     /// download reuses a background prefetcher's in-flight download
-    /// instead of re-fetching. `Some` whenever a prefetcher is active —
+    /// instead of re-fetching. `Some` whenever a prefetcher is active,
     /// the pnpr client's `TarballPrefetcher` (frozen path) or
     /// the fresh-resolve path's `PrefetchingResolver` (closing
     /// <https://github.com/pnpm/pnpm/issues/12241>); `None` otherwise.
@@ -45,7 +45,7 @@ pub struct VirtualStoreFetchInputs<'a> {
     /// before the built-in resolution-type dispatch.
     pub custom_fetcher_session: Option<&'a Arc<CustomFetcherSession>>,
     /// Fetch-evidence cell filled right after the warm/cold partition
-    /// with the cold registry-resolved snapshots this run downloads —
+    /// with the cold registry-resolved snapshots this run downloads,
     /// see [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`].
     /// `None` for callers with no concurrent verification fan-out to
     /// feed (the fresh-resolve path, `--filter` passes, tests).
@@ -56,7 +56,7 @@ pub struct VirtualStoreFetchInputs<'a> {
 #[derive(Clone, Copy)]
 pub struct SnapshotSelection<'a> {
     /// Snapshots the installability pass marked optional+incompatible
-    /// on this host. Their virtual-store slots are not created — the
+    /// on this host. Their virtual-store slots are not created, the
     /// warm/cold partition skips them, and the bundled-manifest +
     /// side-effects-cache lookups they would feed downstream phases
     /// are likewise omitted: only non-skipped snapshots are
@@ -89,7 +89,7 @@ pub struct PlatformLockfile<'a> {
 pub struct ImporterLinkContext<'a> {
     pub config: &'static Config,
     /// Install-scoped slot-directory mapping (GVS-aware). Drives the
-    /// per-direct-dep symlink target — `node_modules/<dep>` resolves
+    /// per-direct-dep symlink target, `node_modules/<dep>` resolves
     /// to `layout.slot_dir(<key>)/node_modules/<dep>`. See
     /// [`crate::VirtualStoreLayout`].
     pub layout: &'a VirtualStoreLayout,
@@ -100,7 +100,7 @@ pub struct ImporterLinkContext<'a> {
     /// `pnpm:stage` / `pnpm:summary` events.
     pub workspace_root: &'a Path,
 
-    /// [`crate::shim_link_options`] output — threaded into the
+    /// [`crate::shim_link_options`] output, threaded into the
     /// per-importer `.bin` shim pass.
     pub link_options: &'a LinkBinsOptions,
 }
@@ -125,7 +125,7 @@ pub struct DirectLinkPolicy<'a> {
     /// hoist pass will publicly hoist into the root's `node_modules/`.
     /// Folded into the dedupe map alongside the root importer's direct
     /// deps so a non-root importer's direct dep resolving to the same
-    /// target as a publicly-hoisted alias is also deduped — matching
+    /// target as a publicly-hoisted alias is also deduped, matching
     /// pnpm where `linkDirectDepsAndDedupe` reads root's `node_modules/`
     /// *after* the hoist pass already populated it. Pacquet's pipeline
     /// runs hoist after this step, so the caller pre-computes the
@@ -133,12 +133,12 @@ pub struct DirectLinkPolicy<'a> {
     /// the public-side targets in here.
     pub public_hoist_targets: Option<&'a BTreeMap<String, PathBuf>>,
 
-    /// Importer ids whose project directories the caller *knows* —
+    /// Importer ids whose project directories the caller *knows*,
     /// they came from the install's own project list (the programmatic
     /// API's in-memory projects, or `pnpm-workspace.yaml` discovery),
     /// not from parsed lockfile input. These bypass
     /// [`crate::validate_importer_id`]: a declared project may legitimately
-    /// live outside the lockfile dir (importer id `..` or `../foo`) —
+    /// live outside the lockfile dir (importer id `..` or `../foo`),
     /// Bit's capsule installs do exactly that, and pnpm v11 linked
     /// such importers without complaint. Ids *not* in this set keep
     /// the strict malformed-lockfile rejection.
@@ -146,7 +146,7 @@ pub struct DirectLinkPolicy<'a> {
 
     /// When `true`, skip every direct dep whose resolved version
     /// is [`pnpm_lockfile::ImporterDepVersion::Regular`] and only materialize
-    /// [`pnpm_lockfile::ImporterDepVersion::Link`] entries — workspace siblings
+    /// [`pnpm_lockfile::ImporterDepVersion::Link`] entries, workspace siblings
     /// resolved through `workspace:*` / `link:`. Used by the
     /// hoisted linker to layer workspace-sibling symlinks on top
     /// of the real-directory tree the linker produced;
@@ -159,7 +159,7 @@ pub struct DirectLinkPolicy<'a> {
 
 #[derive(Clone, Copy)]
 pub struct SkipSetClosure<'a> {
-    /// The lockfile whose importers anchor the reachability closure —
+    /// The lockfile whose importers anchor the reachability closure,
     /// the full one, even under a filtered install.
     pub lockfile: &'a Lockfile,
     pub root: &'a Path,

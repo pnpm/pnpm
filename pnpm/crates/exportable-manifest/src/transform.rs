@@ -35,8 +35,8 @@ pub fn transform(manifest: &mut Map<String, Value>) -> Result<(), TransformError
 
 /// Reject a manifest missing the registry-required `name` / `version`.
 /// A field counts as missing only when it is absent or JS-falsy
-/// (`null`, `false`, `0`, or `""`), so any other present value —
-/// including a non-string — passes.
+/// (`null`, `false`, `0`, or `""`), so any other present value,
+/// including a non-string, passes.
 fn transform_required_fields(manifest: &Map<String, Value>) -> Result<(), TransformError> {
     for field in ["name", "version"] {
         if !manifest.get(field).is_some_and(is_truthy) {

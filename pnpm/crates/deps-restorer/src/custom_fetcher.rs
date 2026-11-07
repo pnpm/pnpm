@@ -231,7 +231,7 @@ fn fetch_identity(
 }
 
 /// `None` when the hook pointed the package at a source that carries no archive
-/// digest — a directory or a git checkout — or at a registry resolution while
+/// digest, a directory or a git checkout, or at a registry resolution while
 /// the caller has no URL for it. Only a fresh install's missing-metadata
 /// discovery calls this, so there is nothing to hash and nothing to verify; the
 /// install pass materializes such a resolution through its own dispatch.

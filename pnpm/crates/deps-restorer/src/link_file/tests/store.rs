@@ -67,7 +67,7 @@ fn auto_respects_cached_hardlink_state() {
     assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK, "state must not drift");
 }
 /// Pre-seed `CloneOrCopy` state to `COPY` and verify it uses
-/// `fs::copy` — mirrors [`auto_respects_cached_copy_state`]. Also
+/// `fs::copy`, mirrors [`auto_respects_cached_copy_state`]. Also
 /// confirms we skip the hardlink tier entirely (pnpm
 /// `createCloneOrCopyImporter` has no hardlink fallback).
 #[test]

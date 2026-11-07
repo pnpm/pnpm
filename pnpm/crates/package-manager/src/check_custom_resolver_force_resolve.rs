@@ -22,7 +22,7 @@ pub(crate) async fn force_resolve_from_pnpmfile(
 
 /// Whether any custom resolver's `shouldRefreshResolution` returns true
 /// for any package in `lockfile`. The hook is called independently of
-/// `canResolve` — each resolver does its own filtering.
+/// `canResolve`, each resolver does its own filtering.
 pub(crate) async fn check_custom_resolver_force_resolve(
     custom_resolvers: &[Arc<dyn CustomResolver>],
     lockfile: &Lockfile,

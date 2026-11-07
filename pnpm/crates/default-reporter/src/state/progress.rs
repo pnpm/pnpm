@@ -6,11 +6,11 @@ use super::{
 };
 
 impl ReporterState {
-    // --- scope ------------------------------------------------------------
+    //,- scope,----------------------------------------------------------
 
     /// pnpm's `reportScope`: how many workspace projects the command
     /// selected. Silent for a command that doesn't report scope, and for a
-    /// single selected project — where the answer is the directory the
+    /// single selected project, where the answer is the directory the
     /// user is already standing in.
     pub(super) fn on_scope(&mut self, log: &ScopeLog) {
         if !self.options.scope.reports_scope || log.selected == 1 {
@@ -31,14 +31,14 @@ impl ReporterState {
         self.display.scope_slot = slot;
     }
 
-    // --- context ----------------------------------------------------------
+    //,- context,--------------------------------------------------------
 
     pub(super) fn on_context(&mut self, log: &ContextLog) {
         self.install.context = Some(log.clone());
         self.install.maybe_render_context(&self.rendering.cwd, &mut self.display.frame);
     }
 
-    // --- progress ---------------------------------------------------------
+    //,- progress,-------------------------------------------------------
 
     pub(super) fn on_progress(&mut self, message: &ProgressMessage) {
         let requester = match message {
@@ -98,7 +98,7 @@ impl ReporterState {
         }
     }
 
-    // --- big tarballs -----------------------------------------------------
+    //,- big tarballs,---------------------------------------------------
 
     pub(super) fn on_fetching(&mut self, message: &FetchingProgressMessage) {
         match message {
@@ -156,7 +156,7 @@ impl ReporterState {
         )
     }
 
-    // --- stats ------------------------------------------------------------
+    //,- stats,----------------------------------------------------------
 
     pub(super) fn on_stats(&mut self, message: &StatsMessage) {
         let prefix = match message {

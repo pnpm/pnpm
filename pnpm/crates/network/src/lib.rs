@@ -89,8 +89,8 @@ pub const DEFAULT_USER_AGENT: &str = "pnpm";
 
 /// Permit priority used by [`ThrottledClient::acquire`] /
 /// [`ThrottledClient::acquire_for_url`] for callers that don't pass an
-/// explicit one. Marks the request as latency class — packument and
-/// other metadata fetches that gate resolution progress — served FIFO
+/// explicit one. Marks the request as latency class, packument and
+/// other metadata fetches that gate resolution progress, served FIFO
 /// and preferred over size-prioritized downloads beyond the downloads'
 /// reserved share of the pool (see the `priority_semaphore` module
 /// docs for the grant policy).
@@ -98,7 +98,7 @@ pub const UNPRIORITIZED: u64 = u64::MAX;
 
 /// Priority sentinel for the background class: metadata fetches whose
 /// deadline is the end of the install rather than the next resolution
-/// step — the lockfile-verification fan-out. A background request is
+/// step, the lockfile-verification fan-out. A background request is
 /// granted a slot only when no [`UNPRIORITIZED`] (latency-class)
 /// request is queued, so bulk verification never queue-jumps the
 /// resolver's critical-path packument fetches (see the
@@ -137,7 +137,7 @@ pub const DEFAULT_MAX_SOCKETS: usize = 50;
 /// resolved values here.
 #[derive(Debug, Clone)]
 pub struct NetworkSettings {
-    /// Maximum number of concurrent in-flight network requests — the
+    /// Maximum number of concurrent in-flight network requests, the
     /// semaphore size. Default: [`default_network_concurrency`].
     pub network_concurrency: usize,
 
@@ -185,7 +185,7 @@ impl Default for NetworkSettings {
 /// plus an optional map of per-registry clients keyed by nerf-darted
 /// URI. [`Self::acquire_for_url`] picks the right client based on the
 /// request URL (a 5-step fallback), and [`Self::acquire`] always uses
-/// the default client. The semaphore is shared across both — bounding
+/// the default client. The semaphore is shared across both, bounding
 /// the total
 /// concurrent socket count regardless of which registry a request
 /// targets.
@@ -198,7 +198,7 @@ pub struct ThrottledClient {
     default_clients: ClientSet,
     /// Per-registry clients keyed by nerf-darted URI. Empty when no
     /// `//host/:cert=…` / `:key=…` / `:ca=…` / `:cafile=…` /
-    /// `:certfile=…` / `:keyfile=…` `.npmrc` entries are present —
+    /// `:certfile=…` / `:keyfile=…` `.npmrc` entries are present,
     /// in which case `acquire_for_url` short-circuits to the default
     /// client without paying the routing cost.
     per_registry: tls::PerRegistryMap<ClientSet>,
@@ -243,7 +243,7 @@ impl ProxyRouting {
 /// with `port() == None`), so an explicit default and the implicit form map to
 /// the same origin key and a `:443` / `:80` variation cannot fragment the
 /// per-origin socket cap; a non-default port (`https://host:8443`) stays
-/// distinct — matching undici's per-origin keying.
+/// distinct, matching undici's per-origin keying.
 pub(crate) fn origin_of_url(url: &reqwest::Url) -> Option<String> {
     let host = url.host_str()?;
     Some(match url.port() {
@@ -266,7 +266,7 @@ pub(crate) fn origin_of_url(url: &reqwest::Url) -> Option<String> {
 /// real concurrent socket count. Under `try_join_all` fan-out the
 /// next batch of permits then `connect()` while previous bodies are
 /// still draining, and the per-process FD count overruns the
-/// platform limit — surfacing as `EMFILE` "too many open files".
+/// platform limit, surfacing as `EMFILE` "too many open files".
 pub struct ThrottledClientGuard<'a> {
     permit: Permit,
     /// The per-origin `maxSockets` permit, held for the same request lifetime
@@ -468,7 +468,7 @@ impl ThrottledClient {
     ///
     /// Takes `url` as `&str` so callers don't have to round-trip
     /// `format!("{registry}{name}")` strings through `Url::parse`
-    /// just to satisfy the type signature — the lookup itself works
+    /// just to satisfy the type signature, the lookup itself works
     /// on the raw string form.
     pub async fn acquire_for_url(&self, url: &str) -> ThrottledClientGuard<'_> {
         self.acquire_for_url_with_priority(url, UNPRIORITIZED).await
@@ -547,7 +547,7 @@ where
 }
 
 /// Error surface of [`ThrottledClient::for_installs`]. Wraps either a
-/// proxy URL failure or a TLS material failure — the caller gets one
+/// proxy URL failure or a TLS material failure, the caller gets one
 /// error type to handle regardless of which side of `for_installs`
 /// rejected the input.
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
@@ -561,8 +561,8 @@ pub enum ForInstallsError {
 
     /// `network_concurrency` resolved to `0`. A zero-permit semaphore
     /// would make every `acquire` block forever, hanging the install.
-    /// pnpm rejects the same value — its `p-queue` throws
-    /// `Expected concurrency to be a number from 1 and up` — so pacquet
+    /// pnpm rejects the same value, its `p-queue` throws
+    /// `Expected concurrency to be a number from 1 and up`, so pacquet
     /// fails fast rather than deadlock.
     #[display("networkConcurrency must be at least 1")]
     ZeroNetworkConcurrency,

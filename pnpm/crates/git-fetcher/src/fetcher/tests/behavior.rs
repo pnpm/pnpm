@@ -168,7 +168,7 @@ async fn fetcher_rejects_commit_mismatch() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
 
     let repo_url = format!("file://{}", bare.display());
-    // A SHA that doesn't exist in the repo — `git checkout` will fail
+    // A SHA that doesn't exist in the repo, `git checkout` will fail
     // before we even reach `rev-parse`, producing a `GitExec` rather
     // than `CheckoutMismatch`. Either path is a hard failure, which is
     // the contract we care about: never silently install a wrong
@@ -408,7 +408,7 @@ async fn fetcher_surfaces_prepare_failure() {
             panic!("expected Prepare::LifecycleFailed (ERR_PNPM_PREPARE_PACKAGE), got {other:?}")
         }
     }
-    // Then assert the `#[diagnostic(code(...))]` text — a rename of
+    // Then assert the `#[diagnostic(code(...))]` text, a rename of
     // the code on the enum variant (e.g. dropping the
     // `ERR_PNPM_PREPARE_PACKAGE` matcher in favor of a pacquet-only
     // string) would silently regress error-code parity with pnpm
@@ -425,7 +425,7 @@ async fn fetcher_surfaces_prepare_failure() {
 }
 
 /// Mirror of [`fetcher_blocks_build_when_not_allowed`] with
-/// `allow_build` returning true. The distinction matters — without
+/// `allow_build` returning true. The distinction matters, without
 /// this test, a regression that inverted the gate's polarity
 /// (block-when-allowed) would still keep the block-test green.
 #[tokio::test(flavor = "multi_thread")]
@@ -439,7 +439,7 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
 
-    // Targeted allow_build that returns true for *this* package only —
+    // Targeted allow_build that returns true for *this* package only,
     // catches a regression where the gate ignores the dep path and
     // falls through to default-allow or default-deny.
     let allow_x_only: AllowBuildRef<'_> =
@@ -496,7 +496,7 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
 ///
 /// 1. Writing a tiny shell-script `git` to a temp dir.
 /// 2. Passing the shim's path to the fetcher via
-///    [`GitFetcher::git_bin`] — process-global `PATH` is *not*
+///    [`GitFetcher::git_bin`], process-global `PATH` is *not*
 ///    touched, so sibling tests in the same binary that call
 ///    `Command::new("git")` (fixture-setup helpers, ad-hoc test
 ///    spawns) keep resolving to the real git binary.
@@ -507,7 +507,7 @@ async fn fetcher_runs_prepare_when_allow_build_returns_true() {
 /// The shim's two communication channels (log file path, fake
 /// commit) ride through env vars. Those vars *do* go through
 /// process-global env, but they're only consulted by the shim
-/// itself — real git ignores `PACQUET_GIT_SHIM_*`, so a sibling
+/// itself, real git ignores `PACQUET_GIT_SHIM_*`, so a sibling
 /// test concurrently spawning `git --version` won't be affected.
 /// [`EnvGuard`] serializes the two shim tests against each other
 /// so their log-path env vars can't cross-contaminate.
@@ -523,7 +523,7 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
     let tmp = tempdir().unwrap();
     let shim_dir = tmp.path().join("shim");
     let log_path = tmp.path().join("git-invocations.log");
-    // Any 40-hex value works — the shim echoes it for `rev-parse
+    // Any 40-hex value works, the shim echoes it for `rev-parse
     // HEAD` and the fetcher accepts the match.
     let fake_commit = "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493";
     let shim_path = write_git_shim(&shim_dir);
@@ -579,7 +579,7 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
     .unwrap();
 
     let invocations = parse_shim_log(&log_path);
-    // Sequence — not just presence. A reordered regression
+    // Sequence, not just presence. A reordered regression
     // (e.g. `fetch` before `remote add`) is what `position_of` +
     // strict-ordering asserts catch.
     let init_at = position_of(&invocations, &["init"])
@@ -598,7 +598,7 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
         init_at < remote_at && remote_at < fetch_at,
         "shallow sequence must be `init` → `remote add` → `fetch`; got {invocations:?}",
     );
-    // `git clone` must NOT appear — that's the non-shallow branch.
+    // `git clone` must NOT appear, that's the non-shallow branch.
     // Without this guard, a future regression that took both paths
     // would still pass the positive assertions above.
     assert!(
@@ -671,7 +671,7 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
     .unwrap();
 
     let invocations = parse_shim_log(&log_path);
-    // `git clone -- <repo_url> <some_path>` — we accept any temp-dir
+    // `git clone, <repo_url> <some_path>`, we accept any temp-dir
     // path argument, but pin the leading argv slots. The `--` keeps a
     // `-`-leading repo out of git's option parser.
     assert!(
@@ -682,7 +682,7 @@ async fn fetcher_clones_when_host_not_in_shallow_list() {
             }),
         "non-shallow path must call `git clone -- <url> <dir>`; got {invocations:?}",
     );
-    // The shallow argv must be absent — guards the gate's polarity.
+    // The shallow argv must be absent, guards the gate's polarity.
     // All three commands the shallow branch issues must be missing,
     // not just the easy-to-spot `init` / `fetch` pair: a regression
     // that took both paths (clone + the shallow sequence) would

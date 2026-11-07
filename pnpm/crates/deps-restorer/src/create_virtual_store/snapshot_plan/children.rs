@@ -8,7 +8,7 @@ use std::path::Path;
 /// [`crate::create_symlink_layout()`]'s predicate: the slot's own name
 /// never gets a link, a `link:` child is linked only when the layout
 /// knows the lockfile dir, and a skipped target gets no link. Children
-/// the layout would not create are not required to be absent — a
+/// the layout would not create are not required to be absent, a
 /// shared slot may carry links written by an install with a different
 /// skip set, and re-importing would not remove them, so requiring
 /// absence would re-materialize the slot on every install.
@@ -104,9 +104,9 @@ pub(super) enum EntryKind {
     Dir,
     File,
 }
-/// Whether `path` exists as the expected kind. `NotFound` — and
+/// Whether `path` exists as the expected kind. `NotFound`, and
 /// `NotADirectory`, a file sitting where a parent directory is
-/// expected — mean the slot is not there; any other inspection error
+/// expected, mean the slot is not there; any other inspection error
 /// aborts the install, per the warm-slot fold's contract.
 pub(super) fn probe_slot_entry(
     path: &Path,

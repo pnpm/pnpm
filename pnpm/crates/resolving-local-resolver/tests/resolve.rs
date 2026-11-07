@@ -484,7 +484,7 @@ async fn resolve_absolute_tarball_when_project_dir_contains_parent_components() 
     let tarball_path = tmp.path().join("pnpm-local-resolver-0.1.1.tgz");
     write_tarball(&tarball_path);
 
-    // Same directory as `pnpm_home`, still spelled with a `..` segment —
+    // Same directory as `pnpm_home`, still spelled with a `..` segment,
     // the shape `PNPM_HOME=.../child/../pnpm` takes on a global install.
     let unnormalized_home = child.join("..").join("pnpm");
 
@@ -782,7 +782,7 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
 /// A `file:./missing.tgz` spec funnels through the tarball branch
 /// where `compute_tarball_integrity` raises ENOENT. The resolver must
 /// surface the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code the directory
-/// branch raises for a missing `file:` target — both kinds of
+/// branch raises for a missing `file:` target, both kinds of
 /// missing `file:` target share one error path.
 #[tokio::test]
 async fn fail_when_resolving_missing_tarball_with_file_protocol() {

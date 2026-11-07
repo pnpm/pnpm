@@ -10,7 +10,7 @@ use crate::{resolve_peers::SharedChain, resolved_tree::PeerSet};
 ///
 /// Two snapshots of the same package can coexist here with different
 /// keys (e.g. `react-dom@18.0.0(react@18.0.0)` and
-/// `react-dom@18.0.0(react@17.0.0)`) — exactly the case the peer-
+/// `react-dom@18.0.0(react@17.0.0)`), exactly the case the peer-
 /// resolution stage exists to handle.
 pub type DependenciesGraph = HashMap<DepPath, DependenciesGraphNode>;
 
@@ -55,7 +55,7 @@ pub struct ResolvedDependencyEdges {
     /// `optionalDependencies` block.
     pub optional_children: HashSet<String>,
     pub peer_set: PeerSet,
-    /// Names of peers resolved from outside this node's own peer-deps —
+    /// Names of peers resolved from outside this node's own peer-deps,
     /// i.e. peers it inherited from its parents' context.
     pub transitive_peer_dependencies: HashSet<String>,
     /// Names of peers actually resolved (parents present in the chain).
@@ -79,7 +79,7 @@ pub struct PeerDependencyIssues {
 /// [`PeerDependencyIssues::missing`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MissingPeer {
-    /// The semver range the peer is matched/displayed against — scheme
+    /// The semver range the peer is matched/displayed against, scheme
     /// specifiers are reduced to their version body (`work:5.x.x` → `5.x.x`).
     pub wanted_range: String,
     /// The original specifier used to auto-install this peer when hoisting,
@@ -101,7 +101,7 @@ pub struct PeerDependencyIssue {
     pub found_version: String,
     pub optional: bool,
     pub parents: ParentChain,
-    /// Chain that brought the bad candidate into scope — `parents`
+    /// Chain that brought the bad candidate into scope, `parents`
     /// describes who requires the peer; this describes where the bad
     /// version was found.
     pub resolved_from: ParentChain,
@@ -125,7 +125,7 @@ impl ParentChain {
     }
 
     /// Materialize the chain, root importer first. `version` is empty
-    /// today: the chain pacquet tracks is name-only — populating it
+    /// today: the chain pacquet tracks is name-only, populating it
     /// would need a parallel version chain or a re-lookup against the
     /// tree, and the issue renderer consumes the names primarily.
     #[must_use]

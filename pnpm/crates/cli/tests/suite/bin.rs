@@ -10,7 +10,7 @@ use std::{
 
 /// Canonicalize a path the way the production CLI does (`dunce::canonicalize`
 /// on `--dir`), so the expected value matches the resolved form pacquet prints
-/// — e.g. on macOS a `/var/folders/...` temp dir surfaces as `/private/var/...`.
+///, e.g. on macOS a `/var/folders/...` temp dir surfaces as `/private/var/...`.
 fn canonicalize(path: &Path) -> PathBuf {
     dunce::canonicalize(path).expect("canonicalize path")
 }

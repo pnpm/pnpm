@@ -148,7 +148,7 @@ pub enum AddError {
     #[diagnostic(transparent)]
     TarballResolve(#[error(source)] Box<pnpm_tarball::TarballError>),
 
-    /// Anything else the tarball resolver raised — a malformed URL, a
+    /// Anything else the tarball resolver raised, a malformed URL, a
     /// transport failure the fetcher doesn't classify.
     ///
     /// The cause is carried as already-redacted text rather than as an
@@ -297,7 +297,7 @@ pub struct AddResources<DependencyGroupList> {
     pub http_client_arc: std::sync::Arc<ThrottledClient>,
     /// The manifest groups the added packages are saved into. `None`
     /// means pnpm's default: an already-declared package is updated in
-    /// the group it occupies (`guessDependencyType` — checked in
+    /// the group it occupies (`guessDependencyType`, checked in
     /// `optionalDependencies`, `dependencies`, `devDependencies`,
     /// `peerDependencies` order, with a peer-only entry left untouched),
     /// and a new package lands in `dependencies`.

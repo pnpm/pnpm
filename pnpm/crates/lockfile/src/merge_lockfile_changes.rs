@@ -1,4 +1,4 @@
-//! Fold one lockfile's changes into another — how an install under
+//! Fold one lockfile's changes into another, how an install under
 //! `mergeGitBranchLockfiles` combines the per-branch lockfiles with the
 //! shared `pnpm-lock.yaml`.
 
@@ -89,7 +89,7 @@ impl<'a> TheirGraph<'a> {
     }
 }
 
-/// Union the top-level keys pnpm does not define, ours winning a conflict —
+/// Union the top-level keys pnpm does not define, ours winning a conflict,
 /// the same precedence the fields above use. Dropping them would delete the
 /// state a tool driving pnpm records beside the lockfile from whichever
 /// branch is being merged.
@@ -136,7 +136,7 @@ pub(super) enum Winner {
 /// Both inputs are the rendered `version` of a resolved dependency, so
 /// each may carry a peer suffix (`17.0.2(react@17.0.2)`) or not be semver
 /// at all (`link:../pkg`). The suffix is not part of the comparison, and
-/// anything neither side can parse resolves to theirs — the same "prefer
+/// anything neither side can parse resolves to theirs, the same "prefer
 /// the incoming change" fallback pnpm applies.
 pub(super) fn winner(ours: &str, theirs: &str) -> Winner {
     if ours == theirs {
@@ -200,7 +200,7 @@ fn merge_maps<Key: Hash + Eq + Clone, Value: Clone>(
     Some(merged)
 }
 
-/// Same as [`merge_maps`], but an empty result collapses to `None` — pnpm
+/// Same as [`merge_maps`], but an empty result collapses to `None`, pnpm
 /// deletes a dependency group that merged to nothing rather than
 /// recording an empty one.
 fn merge_dependency_group<Key: Hash + Eq + Clone, Value: Clone>(
@@ -292,7 +292,7 @@ fn merge_snapshot_dep_ref(ours: &SnapshotDepRef, theirs: &SnapshotDepRef) -> Sna
 /// would have to be revisited every time a lockfile entry grows a key.
 ///
 /// Two entries under the same key describe one published version, so they
-/// almost always already agree — and a spread of equal entries is one of
+/// almost always already agree, and a spread of equal entries is one of
 /// them. Taking that shortcut keeps the serialization round-trip off the
 /// merge of two lockfiles that only differ in a handful of packages.
 pub(super) fn spread<Entry: Serialize + DeserializeOwned + Clone + PartialEq>(

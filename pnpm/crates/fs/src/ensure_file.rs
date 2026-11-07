@@ -21,13 +21,13 @@ use std::{
 #[cfg(unix)]
 use std::time::Duration;
 
-/// POSIX `EMFILE` — process has hit `RLIMIT_NOFILE`. Hardcoded
+/// POSIX `EMFILE`, process has hit `RLIMIT_NOFILE`. Hardcoded
 /// instead of pulling in `libc` for a single integer that's been
 /// stable across every Unix since 4.2BSD.
 #[cfg(unix)]
 const EMFILE: i32 = 24;
 
-/// POSIX `ENFILE` — system-wide file table is full. Same rationale
+/// POSIX `ENFILE`, system-wide file table is full. Same rationale
 /// as [`EMFILE`].
 #[cfg(unix)]
 const ENFILE: i32 = 23;
@@ -102,7 +102,7 @@ pub enum EnsureFileError {
 ///
 /// Split out from [`ensure_file`] so hot-path callers (the CAFS writer)
 /// can cache which directories they've already created and skip the
-/// syscall cost when they have — `fs::create_dir_all` does a `stat` on
+/// syscall cost when they have, `fs::create_dir_all` does a `stat` on
 /// every call even when the directory already exists, which adds up to
 /// one wasted `stat` per file on a cold install.
 ///
@@ -118,7 +118,7 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 /// write semantics.
 ///
 /// The parent directory must already exist. Callers that can't
-/// guarantee that should call [`ensure_parent_dir`] first — splitting
+/// guarantee that should call [`ensure_parent_dir`] first, splitting
 /// the two lets the CAFS writer share one `create_dir_all` per shard
 /// instead of paying it per file.
 ///
@@ -159,8 +159,8 @@ pub fn ensure_file(
 /// leave those copies corrupt. Falls back to the rename when the
 /// in-place overwrite is refused or fails verification.
 ///
-/// In-place overwrite is not atomic — a concurrent reader can observe
-/// torn content for the duration of the write — so this variant is for
+/// In-place overwrite is not atomic, a concurrent reader can observe
+/// torn content for the duration of the write, so this variant is for
 /// content-addressed blobs only: their consumers validate integrity and
 /// re-trigger this repair on a torn read. Files whose readers take the
 /// bytes as-is (`.pnp.cjs`, the package map) must keep [`ensure_file`]'s
@@ -252,12 +252,12 @@ fn ensure(
 /// ([`ensure_file`]) and verifiers (`check_pkg_files_integrity`) of the
 /// same path are guaranteed to meet on the same lock and serialise.
 /// Stripe-hash collisions between unrelated paths block each other
-/// too — that false-sharing is bounded by `NUM_CAS_LOCK_STRIPES` and
+/// too, that false-sharing is bounded by `NUM_CAS_LOCK_STRIPES` and
 /// the guarded section (a single `O_CREAT|O_EXCL` open + `write_all`)
 /// is microseconds long.
 ///
 /// Made `pub` so verifiers (`check_pkg_files_integrity`) can acquire
-/// the same lock before stat-then-maybe-`rimraf`'ing a CAS path —
+/// the same lock before stat-then-maybe-`rimraf`'ing a CAS path,
 /// otherwise the verifier can `unlink` a file while a writer's
 /// `write_all` is still running.
 pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
@@ -273,7 +273,7 @@ pub fn cas_write_lock(file_path: &Path) -> &'static Mutex<()> {
 /// two so the modulo collapses to a mask. 256 picked so each stripe
 /// sees on average `total_files / 256` writes per install; for a 170k-
 /// file install that's ~660 writes per stripe, all on different paths
-/// — uncontended pairings dominate.
+///, uncontended pairings dominate.
 const NUM_CAS_LOCK_STRIPES: usize = 256;
 const _: () = assert!(
     NUM_CAS_LOCK_STRIPES.is_power_of_two(),
@@ -289,7 +289,7 @@ static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
 /// fresh temp file and renaming it over the target.
 ///
 /// Uses `symlink_metadata` (not `metadata`) first to reject the
-/// non-regular-file cases — symlinks in particular. On Unix,
+/// non-regular-file cases, symlinks in particular. On Unix,
 /// `open(O_CREAT|O_EXCL)` returns `EEXIST` even when the dirent is
 /// a symlink (POSIX `open` does not follow symlinks under `O_EXCL`),
 /// so a tampered / backed-up-and-restored store could route a symlinked
@@ -305,7 +305,7 @@ static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
 /// adding here.
 ///
 /// A `NotFound` on either syscall means the dirent disappeared
-/// between our `create_new` attempt and the metadata / read call —
+/// between our `create_new` attempt and the metadata / read call,
 /// another process cleaned it up (unusual, but possible in shared-
 /// store setups). Fall through to the atomic-write path, which will
 /// re-create it.
@@ -320,7 +320,7 @@ fn verify_or_rewrite(
         |error| EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error };
     let meta = match fs::symlink_metadata(file_path) {
         Ok(meta) if meta.file_type().is_file() => meta,
-        // Symlink, directory, fifo, socket, block/char device —
+        // Symlink, directory, fifo, socket, block/char device,
         // not a regular CAS blob. Scrub via atomic rewrite.
         Ok(_) => return rewrite(),
         Err(error) if error.kind() == io::ErrorKind::NotFound => return rewrite(),
@@ -337,7 +337,7 @@ fn verify_or_rewrite(
 
 /// Whether the regular file `meta` describes holds `content`.
 fn bytes_match(file_path: &Path, content: &[u8], meta: &fs::Metadata) -> io::Result<bool> {
-    // Cheap size-mismatch reject before we read a single byte —
+    // Cheap size-mismatch reject before we read a single byte,
     // a CAS file whose length doesn't match the buffer we were
     // about to write cannot possibly have matching contents.
     if meta.len() != content.len() as u64 {
@@ -367,12 +367,12 @@ fn repair_file(
 /// buffering the whole file in memory.
 ///
 /// Reading the whole file into a `Vec<u8>` would allocate the size of
-/// the file; on a CAS entry for a large binary (10–30 MB isn't unusual
+/// the file; on a CAS entry for a large binary (10 to 30 MB isn't unusual
 /// in `@napi-rs/*`, `esbuild`, etc.) and many concurrent rayon workers
 /// hitting this branch, that allocation stacks up. Streaming in 8 KB
 /// chunks holds a fixed stack buffer regardless of file size.
 ///
-/// Any chunk mismatch returns `Ok(false)` immediately — we don't
+/// Any chunk mismatch returns `Ok(false)` immediately, we don't
 /// finish reading the file once we know it differs. An
 /// `UnexpectedEof` from `read_exact` is returned as `Ok(false)` too:
 /// the file shrunk under us (another process truncated it or the
@@ -398,7 +398,7 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
         offset += chunk_len;
     }
 
-    // Confirm the file ends where `content` ends — if there's a
+    // Confirm the file ends where `content` ends, if there's a
     // trailing byte the size-check earlier missed (shouldn't happen
     // given the size-match guard in `verify_or_rewrite`, but cheap
     // to assert), treat it as not-equal.
@@ -477,9 +477,9 @@ pub struct TempFile {
 ///
 /// The exclusive open means we never follow a symlink or truncate a
 /// file an attacker (or a crashed prior install) pre-seeded at our
-/// predicted temp path. If we hit `AlreadyExists` anyway — collisions
+/// predicted temp path. If we hit `AlreadyExists` anyway, collisions
 /// are vanishingly rare given the pid + per-process atomic counter temp
-/// scheme, but cross-container shared-store setups can re-use pids — we
+/// scheme, but cross-container shared-store setups can re-use pids, we
 /// advance the counter and try again, up to `MAX_TEMP_ATTEMPTS` times.
 ///
 /// The caller owns the file's lifecycle: rename it into place on
@@ -490,7 +490,7 @@ pub fn create_exclusive_temp_file(
     mode: Option<u32>,
 ) -> Result<TempFile, EnsureFileError> {
     /// Retries after `AlreadyExists` on the temp path. Sixteen fresh
-    /// counter values is plenty — under benign conditions we never
+    /// counter values is plenty, under benign conditions we never
     /// collide; under shared-store-across-containers the chance of
     /// 16 consecutive same-pid same-counter collisions is negligible.
     const MAX_TEMP_ATTEMPTS: usize = 16;

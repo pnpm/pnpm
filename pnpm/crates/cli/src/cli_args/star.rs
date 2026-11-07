@@ -117,7 +117,7 @@ pub(crate) async fn fetch_star(
 }
 
 /// Star/unstar a package on a registry without the star endpoints by fetching
-/// the full packument, editing its `users` map, and writing it back — the
+/// the full packument, editing its `users` map, and writing it back, the
 /// legacy path the TypeScript CLI keeps for old registries.
 async fn perform_legacy_star_action(
     registry_url: &str,

@@ -348,7 +348,7 @@ test('peer dependencies are updated with pnpm upgrade --latest when autoInstallP
 // A targeted `pnpm up <pkg>` must produce the same result a fresh install of
 // the same manifests would: with the importer exact-pinning foo@100.0.0, a
 // fresh install dedupes foobarqar's caret consumer onto the manifest pin, so
-// the update must too — one copy of foo, not a 100.0.0 + 100.1.0 duplicate
+// the update must too, one copy of foo, not a 100.0.0 + 100.1.0 duplicate
 // (the picker warns that the newer version needs an override).
 test('updateMatching keeps manifest-pin dedup for the targeted package, matching a fresh install', async () => {
   const project = prepareEmpty()
@@ -386,7 +386,7 @@ test('updateMatching keeps manifest-pin dedup for the targeted package, matching
 
   // Direct exact pin survives the update (range forbids the bump).
   expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
-  // The transitive consumer dedupes onto the manifest pin — installing
+  // The transitive consumer dedupes onto the manifest pin, installing
   // 100.1.0 alongside would be a duplicate no fresh install reproduces.
   expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
   expect(lockfile.snapshots['@pnpm.e2e/foobarqar@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
@@ -418,7 +418,7 @@ test('update without saving skips a requested version that the kept range exclud
   const lockfile = project.readLockfile()
 
   // 101.0.0 doesn't satisfy the ^100.0.0 the manifest keeps, so the
-  // dependency stays untouched — a lockfile recording 101.0.0 under
+  // dependency stays untouched, a lockfile recording 101.0.0 under
   // specifier ^100.0.0 would fail the next frozen install.
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
     specifier: '^100.0.0',

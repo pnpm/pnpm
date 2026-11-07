@@ -12,7 +12,7 @@
 //! `install` declares already sits after the subcommand and cannot be
 //! mistaken for the package name. One only `add` declares, such as `-D`
 //! in `pnpm -D install foo`, is relocated once the token names `add`. The
-//! settings extraction ahead of both resolves the command the same way —
+//! settings extraction ahead of both resolves the command the same way,
 //! see [`subcommand_option_names`].
 //!
 //! [`relocate_pre_subcommand_flags`]: crate::flag_relocation::relocate_pre_subcommand_flags
@@ -43,7 +43,7 @@ pub(crate) fn rewrite(cmd: &Command, mut argv: Vec<OsString>) -> Vec<OsString> {
         match scan_for_positional(&argv, subcommand_index + 1, &top_level, &subcommand_union) {
             Some(PositionalScan::Positional(_)) => true,
             // nopt strips the `--` terminator and treats what follows as
-            // positionals, so `pnpm install -- <pkg>` names a package too.
+            // positionals, so `pnpm install, <pkg>` names a package too.
             Some(PositionalScan::Separator(separator_index)) => separator_index + 1 < argv.len(),
             None => false,
         };

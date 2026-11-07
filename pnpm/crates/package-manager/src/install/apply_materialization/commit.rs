@@ -207,7 +207,7 @@ pub(super) fn deferred_projects(
 /// snapshot against it and skip the unchanged
 /// slots. Persist *after* `write_modules_manifest` succeeds so
 /// a manifest failure can't leave a fresh current-lockfile
-/// pointing at incomplete install state — the next frozen
+/// pointing at incomplete install state, the next frozen
 /// reinstall would otherwise diff against a graph that never
 /// finished committing.
 ///

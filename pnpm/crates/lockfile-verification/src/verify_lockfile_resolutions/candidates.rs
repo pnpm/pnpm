@@ -61,7 +61,7 @@ pub(super) fn collect_candidates(
         }
         // Every `LockfileResolution` variant derives `Serialize`, and
         // the wire shape never contains non-string keys or non-finite
-        // numbers — the only way this `expect` could fire is a future
+        // numbers, the only way this `expect` could fire is a future
         // variant that breaks the contract. Fail loudly rather than
         // skipping the candidate, which would silently bypass
         // verification for that lockfile entry.
@@ -168,7 +168,7 @@ fn candidate_verifiers(
 
 /// Outcome of evaluating one candidate against the active verifiers.
 /// `Err(message)` is a transport failure (the registry couldn't be
-/// reached to verify the entry) — the runner aborts the whole pass with
+/// reached to verify the entry), the runner aborts the whole pass with
 /// it rather than collecting it as a policy violation.
 async fn evaluate_candidate(
     candidate: Candidate,

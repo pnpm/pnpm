@@ -72,7 +72,7 @@ impl Action {
 /// The caller resolved once by the [`authenticate`] middleware and stored
 /// in request extensions. Every registry handler that needs to know who is
 /// calling reads it back through this extractor rather than re-inspecting
-/// the `Authorization` header — so a request hits the auth backend exactly
+/// the `Authorization` header, so a request hits the auth backend exactly
 /// once, and the identity a handler sees is the same one the restriction
 /// gate already approved (no second lookup, no policy/identity race).
 #[derive(Clone)]
@@ -103,12 +103,12 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
 /// [`Identity`] in request extensions for the handlers (via
 /// [`AuthedCaller`]).
 ///
-/// This is also where bearer-token restrictions are enforced — ahead of
+/// This is also where bearer-token restrictions are enforced, ahead of
 /// every route handler, so a restricted token is rejected before a write
 /// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
 /// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
 /// both and surfaces them on `npm token list`, so it must enforce them too
-/// — otherwise a token the operator restricted could still publish, or be
+///, otherwise a token the operator restricted could still publish, or be
 /// used from any network. Basic-auth and anonymous requests carry no
 /// restriction and are still subject to the per-package access policy in
 /// the handlers; an unknown or revoked bearer token resolves to anonymous.
@@ -118,7 +118,7 @@ pub(super) async fn authenticate(
     next: Next,
 ) -> Response {
     // Copy what resolution needs out of the request before mutating its
-    // extensions below — the header and method borrows can't outlive the
+    // extensions below, the header and method borrows can't outlive the
     // `extensions_mut` call.
     let header = match single_authorization_header(request.headers()) {
         Ok(header) => header.map(str::to_owned),
@@ -295,8 +295,8 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
 /// backend at most once. Browser sessions and workload credentials check
 /// whether their account still exists. Invalid OIDC credentials are rejected even on
 /// public routes.
-/// A pnpr token — however the client carried it, see
-/// [`token_credentials`] — is looked up as a full record so its read-only /
+/// A pnpr token, however the client carried it, see
+/// [`token_credentials`], is looked up as a full record so its read-only /
 /// CIDR restrictions can be enforced here (a violation is a `Forbidden`
 /// error); an unknown token, any other credential shape, and a missing
 /// header all resolve to [`Identity::Anonymous`]. `Err` is a backing-store
@@ -339,16 +339,16 @@ async fn resolve_caller(
             return Ok((identity, None));
         }
     }
-    // Anything that is not a pnpr token — a user:password Basic pair, another
-    // scheme, or no credentials — carries no request identity. Going through
+    // Anything that is not a pnpr token, a user:password Basic pair, another
+    // scheme, or no credentials, carries no request identity. Going through
     // `identify` here would re-run the token lookup and bypass the
     // restriction checks above, so resolve straight to anonymous.
     Ok((Identity::Anonymous, None))
 }
 
 /// The `packages:` rules of the concrete registry a request resolved to.
-/// Authorization is entirely registry-scoped — there is no global,
-/// name-keyed ACL — so every check consults the one registry that serves
+/// Authorization is entirely registry-scoped, there is no global,
+/// name-keyed ACL, so every check consults the one registry that serves
 /// the package. The fallback (safe defaults: reads open, publishes need
 /// auth, destructive writes denied) only fires for a programmatically
 /// built config whose serving tables miss the graph entry.
@@ -371,7 +371,7 @@ fn source_rules<'a>(state: &'a AppState, source: &RegistrySource) -> &'a Package
 /// omitted fields falling back to the registry defaults). Returns `Ok(())`
 /// when the call is allowed; otherwise the appropriate `Unauthenticated` /
 /// `Forbidden` error. The identity is resolved once by [`authenticate`], so
-/// every handler — including the search endpoint that filters many packages —
+/// every handler, including the search endpoint that filters many packages,
 /// authorizes synchronously against it.
 pub(super) fn authorize(
     state: &AppState,

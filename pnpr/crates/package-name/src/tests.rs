@@ -67,8 +67,8 @@ fn rejects_tarball_for_other_package() {
     assert!(name.parse_tarball_name("foo-1.0.0").is_err());
 }
 
-/// `C:foo` is a drive-relative prefix on Windows — `PathBuf::join` replaces
-/// the base path with it instead of descending — so a `:` anywhere in a name,
+/// `C:foo` is a drive-relative prefix on Windows, `PathBuf::join` replaces
+/// the base path with it instead of descending, so a `:` anywhere in a name,
 /// version, or preserved non-canonical tarball basename must be rejected
 /// before it can become a storage or cache path segment.
 #[test]

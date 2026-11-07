@@ -63,7 +63,7 @@ fn publication(builder_id: &str) -> PublishArtifactRequest {
 }
 
 /// One input key admits one artifact per set of compatibility constraints, so a
-/// test wanting several of them for one dependency has to vary the platform —
+/// test wanting several of them for one dependency has to vary the platform,
 /// which is the only reason a second artifact for one input is legitimate.
 fn for_platform(mut request: PublishArtifactRequest, index: usize) -> PublishArtifactRequest {
     let mut payload: ArtifactPayload =
@@ -185,7 +185,7 @@ struct FailArtifactWrites {
     fail_deletes: bool,
     /// Stands in for a publication whose constraints merely overlap this one's.
     /// It lands once this one's variant is written, which is after the overlap
-    /// scan found the entry clear — the window a conditional create on a
+    /// scan found the entry clear, the window a conditional create on a
     /// different path cannot close. Writes pass through rather than failing.
     publish_overlapping_after_create: Option<(String, Vec<u8>)>,
     /// Fails reads of this path, so a scan that reaches it cannot finish.
@@ -208,7 +208,7 @@ struct QuotaFaults {
     claim_slot_first: Option<(String, Vec<u8>)>,
     /// Fails reads of the slot *after* the first, so the pre-check still finds
     /// it free and the failure lands on the re-read that follows a lost create
-    /// — the only point where the loser is charged for what it did not store.
+    ///, the only point where the loser is charged for what it did not store.
     fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
     /// Counts writes of the usage document, which is what a reservation and a
     /// release each cost against a hosted store.
@@ -217,7 +217,7 @@ struct QuotaFaults {
 
 #[derive(Debug)]
 enum FailOnly {
-    /// The quota write that follows this path being stored — the registration a
+    /// The quota write that follows this path being stored, the registration a
     /// publication takes again once its artifact is durable, rather than the
     /// reservation that precedes it.
     RegistrationAfter(String),

@@ -46,7 +46,7 @@ use std::{
 };
 use unmatched::unmatched_filters;
 
-/// `Cannot find package {resume_from}` — raised by both recursive `run`
+/// `Cannot find package {resume_from}`, raised by both recursive `run`
 /// and recursive `exec` when `--resume-from` names a package that is not
 /// in the workspace. Shares pnpm's `RESUME_FROM_NOT_FOUND` code across
 /// both commands.
@@ -59,7 +59,7 @@ pub struct ResumeFromNotFound {
 }
 
 /// Diagnostic code of [`NoMatchingProjects`]. pnpm has no error code for
-/// an empty selection — it prints the sentence and sets the exit code — so
+/// an empty selection, it prints the sentence and sets the exit code, so
 /// this one exists only for `is_reported_error` to recognize the failure as
 /// already printed, and is never rendered.
 pub const NO_MATCHING_PROJECTS_CODE: &str = "ERR_PNPM_NO_MATCHING_PROJECTS";
@@ -99,7 +99,7 @@ pub fn find_resume_root(
 /// resolved from `--workspace-packages` or the manifest's `packages`.
 /// When the config found no workspace, `workspace_root` is one the caller
 /// picked itself (a global install's packages dir), so its own manifest
-/// decides — unless `--ignore-workspace` disowned every manifest, which
+/// decides, unless `--ignore-workspace` disowned every manifest, which
 /// leaves the enumeration on its `['.', '**']` default.
 pub fn discover_workspace_projects(
     workspace_root: &Path,
@@ -176,8 +176,8 @@ impl<'a> RecursiveSelection<'a> {
 /// applies the main-dispatch `!{<workspace-root>}` augmentation for
 /// `run` / `exec`.
 ///
-/// An unnarrowed run — no `--filter` / `--filter-prod` selector and no root
-/// auto-exclusion — returns every project and leaves `all` unset; any
+/// An unnarrowed run, no `--filter` / `--filter-prod` selector and no root
+/// auto-exclusion, returns every project and leaves `all` unset; any
 /// narrowing populates `all` (and `prod_all` for `--filter-prod`) for the
 /// sort to resolve order through.
 pub fn select_recursive_projects<'a>(
@@ -427,7 +427,7 @@ impl AutoExcludeRoot<'_> {
     /// a `--filter-prod` selector is present, else the regular pass).
     pub fn root_selector(&self, config: &Config, prefix: &Path) -> Option<String> {
         // pnpm pushes this inclusion onto the `--filter` list rather than
-        // replacing it, and for every recursive command — so unlike the
+        // replacing it, and for every recursive command, so unlike the
         // exclusion below it is ungated, and it is additive.
         if config.workspace_root {
             return Some(format!("{{{}}}", relative_workspace_dir(config, prefix)));
@@ -500,7 +500,7 @@ pub fn recursive_filter_options(config: &Config, prefix: &Path) -> FilterWorkspa
     FilterWorkspaceProjectsOptions {
         // The mode user-written `{<dir>}` selectors match in. The
         // generated `!{<workspace-root>}` selector pins itself to glob
-        // matching instead — see `filter_against`.
+        // matching instead, see `filter_against`.
         use_glob_dir_filtering: !config.legacy_dir_filtering,
         workspace_dir: config.workspace_dir
             .as_deref()

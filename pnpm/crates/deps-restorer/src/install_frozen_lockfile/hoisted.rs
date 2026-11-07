@@ -41,7 +41,7 @@ pub struct HoistedLinkerOutput {
     /// 4 walker. Persisted into `.modules.yaml.hoisted_locations`
     /// when non-empty.
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
-    /// Per-snapshot `pkgRoot` override for the build phase — snapshot
+    /// Per-snapshot `pkgRoot` override for the build phase, snapshot
     /// key → every directory the hoisted graph placed it in, in walker
     /// order. `None` for the isolated linker (the layout-based lookup in
     /// `BuildModules` is used instead). See
@@ -190,13 +190,13 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
 /// so the host triple values pass through as defaults the walker won't
 /// actually consult.
 ///
-/// Augments the live skip set with the walker's *new* skips only —
+/// Augments the live skip set with the walker's *new* skips only,
 /// entries already in the input `SkippedSnapshots` each live in their
 /// proper subset (installability / fetch-failed / optional-excluded).
 /// Re-inserting them as installability would promote transient
 /// `fetch_failed` / `optional_excluded` entries into the
 /// persisted-on-disk `.modules.yaml.skipped` set, which would survive
-/// into the next install — exactly the contract those subsets exist to
+/// into the next install, exactly the contract those subsets exist to
 /// prevent. Diffing against the input set keeps the persistence
 /// boundary intact: only walker-discovered installability skips
 /// (optional + unsupported platform) flow into

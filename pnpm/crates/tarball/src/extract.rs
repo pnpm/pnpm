@@ -110,10 +110,10 @@ pub(crate) struct ExtractedArchiveBytes {
 }
 
 /// One regular-file tar entry whose path has been validated and
-/// cleaned, paired with its payload — a borrow into the decompressed
+/// cleaned, paired with its payload, a borrow into the decompressed
 /// archive buffer on the eager path, an owned copy on the streaming
 /// path. Collected serially while walking the tar stream, then hashed
-/// and written to the CAFS — serially or across the rayon pool — in
+/// and written to the CAFS, serially or across the rayon pool, in
 /// [`write_cas_entry`].
 pub(crate) struct PendingFile<'a> {
     cleaned_path: String,
@@ -266,7 +266,7 @@ fn resolve_pending_bins(
 /// store, preserving input order in the returned rows.
 ///
 /// Extracting a package with thousands of files (e.g. `core-js`) on a
-/// single blocking thread pins one core while the rest sit idle — most
+/// single blocking thread pins one core while the rest sit idle, most
 /// costly at the makespan tail, when it's the last extraction still
 /// running. [`write_cas_entry`] is safe to run concurrently, so large
 /// slices fan out across the dedicated [`cas_write_pool`]; small ones
@@ -318,7 +318,7 @@ type WrittenEntries = Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>;
 
 /// Assemble the extraction outputs from written CAS rows. `written`
 /// preserves entry order, so a tarball with duplicate paths keeps the
-/// last entry — matching pnpm's last-wins `filesIndex.set`.
+/// last entry, matching pnpm's last-wins `filesIndex.set`.
 fn assemble_extract_output(
     written: Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>,
     manifest: Option<serde_json::Value>,

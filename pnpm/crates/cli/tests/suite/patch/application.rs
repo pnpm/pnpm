@@ -54,7 +54,7 @@ fn install_level_patch_applies_when_scripts_are_ignored() {
 
 /// TS: `patch package when the package is not in allowBuilds list`
 /// (`patch.ts:386`). An empty `allowBuilds` forbids every build, but a
-/// patch is not a build — it still applies.
+/// patch is not a build, it still applies.
 #[test]
 fn install_level_patch_applies_when_the_package_is_not_in_allow_builds() {
     assert_patch_install_scenario(
@@ -398,7 +398,7 @@ fn install_level_patch_applies_to_a_package_reached_multiple_times() {
 
 /// The hoisted linker nests a second copy of a package under each
 /// consumer when a version conflict keeps it out of the root, and every
-/// copy has to carry the patch — the TypeScript CLI patches all of them.
+/// copy has to carry the patch, the TypeScript CLI patches all of them.
 /// `send` and `finalhandler` both need `debug@2.6.9` while the root pins
 /// `debug@4.3.4`, so `2.6.9` nests twice.
 ///

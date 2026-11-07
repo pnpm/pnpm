@@ -1,7 +1,7 @@
 //! The Python package index surface.
 //!
-//! The **Simple Repository API** — `simple/` (the project list) and
-//! `simple/<project>/` (a project's files) — is served as PEP 691 JSON or
+//! The **Simple Repository API**, `simple/` (the project list) and
+//! `simple/<project>/` (a project's files), is served as PEP 691 JSON or
 //! PEP 503 HTML by `Accept`. A hosted project page is rendered from its
 //! stored [`ProjectDocument`]; an upstream's is read as JSON, cached beside
 //! the URL it came from, and re-rendered with every file URL pointing back at
@@ -136,7 +136,7 @@ struct VisibleName<'a> {
     name: &'a str,
 }
 
-/// `GET simple/` — every hosted project the caller may read through the
+/// `GET simple/`, every hosted project the caller may read through the
 /// addressed registry. Upstream sources are not enumerated: an upstream
 /// index's full project list is not something installers ask for, and
 /// pypi.org's runs to hundreds of thousands of names.

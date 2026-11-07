@@ -139,7 +139,7 @@ async fn adduser_rejects_existing_user_with_wrong_password() {
 async fn adduser_rejects_same_username_concurrent_registration_with_different_password() {
     // Higher than TEST_COST so hashing lasts long enough for both
     // tasks to clear the initial missing-user check before either
-    // takes the lock — i.e. to actually exercise the race window.
+    // takes the lock, i.e. to actually exercise the race window.
     let store = Arc::new(UserStore::in_memory_with_cost(MaxUsers::Unlimited, 8));
     let barrier = Arc::new(Barrier::new(3));
 
@@ -541,7 +541,7 @@ async fn identify_recognizes_bearer_and_ignores_basic() {
     let header = format!("Bearer {token}");
     assert_eq!(identify(Some(&header), &tokens).await.unwrap().as_deref(), Some("alice"));
 
-    // Basic credentials are not accepted on requests — the header is
+    // Basic credentials are not accepted on requests, the header is
     // ignored (treated as anonymous), so request handling never pays a bcrypt.
     let basic = "Basic YWxpY2U6c2VjcmV0";
     assert!(identify(Some(basic), &tokens).await.unwrap().is_none());
@@ -578,7 +578,7 @@ async fn identify_parses_auth_scheme_case_insensitively() {
 
 /// An empty `cidr_whitelist` means the token carries no address restriction,
 /// so silently defaulting a malformed one to empty would turn a CIDR-confined
-/// token into an unrestricted one — the wrong direction to fail. Refuse the
+/// token into an unrestricted one, the wrong direction to fail. Refuse the
 /// store instead.
 #[tokio::test]
 async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {

@@ -130,7 +130,7 @@ pub struct CliArgs {
     // The load runs on the main thread before startup, since the process
     // environment must not be mutated once another thread is alive. This
     // field exists so the flag is still accepted, validated, documented,
-    // and completed — a valueless `--env-file` is reported instead of
+    // and completed, a valueless `--env-file` is reported instead of
     // silently ignored.
     #[clap(long = "env-file", value_name = "PATH", global = true)]
     pub env_file: Vec<PathBuf>,
@@ -248,7 +248,7 @@ pub struct PresentationArgs {
     pub no_color: bool,
     /// Reporter output format.
     // Self-override so a repeated `--reporter` takes the last occurrence,
-    // like nopt does — `--silent` expands to `--reporter=silent` (see
+    // like nopt does, `--silent` expands to `--reporter=silent` (see
     // `crate::shorthands`), so `--silent --reporter=ndjson` must not be a
     // duplicate-argument error.
     #[clap(long, value_enum, global = true, overrides_with = "reporter")]

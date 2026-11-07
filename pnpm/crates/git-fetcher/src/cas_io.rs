@@ -61,7 +61,7 @@ fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
 /// be writable *without* mutating the shared CAS entry, so this path
 /// always allocates fresh inodes via [`fs::copy`].
 ///
-/// Produces a *standalone* directory rather than a CAFS slot —
+/// Produces a *standalone* directory rather than a CAFS slot,
 /// pacquet's `StoreDir` only knows how to import on the way *in*, and
 /// the prepare phase needs raw filesystem semantics for scripts to
 /// run.
@@ -148,7 +148,7 @@ fn file_mode_from(_meta: &fs::Metadata) -> u32 {
 /// where the prepared file set is byte-identical to the raw tarball,
 /// so re-hashing every entry into the CAS would be wasted work.
 ///
-/// The digest is extracted from the CAS path itself — the store lays
+/// The digest is extracted from the CAS path itself, the store lays
 /// CAS files out as `files/XX/<rest>[-exec]`, so concatenating the
 /// shard byte (parent directory name) with the file stem (sans the
 /// optional `-exec` suffix) reconstructs the full hex digest. Mode
@@ -176,7 +176,7 @@ pub(crate) fn synthesize_files_index(
         // Match the read-side `cas_file_path_by_mode` round-trip rule:
         // any-exec-bit-set ↔ `-exec` suffix. The exact mode value is
         // only consulted by `is_executable`, so `0o755` / `0o644` are
-        // canonical representatives — they replay through the same
+        // canonical representatives, they replay through the same
         // `-exec` decision the write side made for these blobs.
         let mode = if executable { 0o755 } else { 0o644 };
         let metadata = fs::metadata(cas_path).map_err(GitFetcherError::Io)?;
@@ -196,7 +196,7 @@ fn cas_path_digest(path: &Path) -> Option<String> {
     // SHA-512 produces 64 bytes / 128 hex chars. The first 2 hex
     // chars become the shard directory; the rest become the file
     // stem. Anything outside that exact shape is not a v11 CAS path
-    // — fail closed instead of producing a short / over-long digest
+    //, fail closed instead of producing a short / over-long digest
     // that would later poison `index.db`.
     const STEM_LEN: usize = 128 - 2;
     let file_name = path.file_name()?.to_str()?;

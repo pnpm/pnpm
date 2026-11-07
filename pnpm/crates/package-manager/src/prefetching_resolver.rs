@@ -24,7 +24,7 @@
 //!
 //! That prefetch is speculative, and a run may switch it off
 //! ([`PrefetchPolicy::downloads`]). Reading an archive whose resolution
-//! describes it only partly is not speculative — the lockfile records
+//! describes it only partly is not speculative, the lockfile records
 //! the hash the bytes yield, and the dependency walk reads the
 //! package's children out of the manifest inside. Such a read publishes
 //! its extraction too, so the install pass never downloads the archive a
@@ -185,7 +185,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     ///
     /// Non-tarball resolutions (git, directory, registry-shape,
     /// binary, variations) and resolutions missing a structured
-    /// `name@version` fall through to a no-op — the install path's
+    /// `name@version` fall through to a no-op, the install path's
     /// per-protocol code path handles them.
     ///
     /// The spawned task's result is dropped: the `MemCache` slot

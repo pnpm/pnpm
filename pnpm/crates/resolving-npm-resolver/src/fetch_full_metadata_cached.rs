@@ -467,9 +467,9 @@ enum NotModifiedRecovery<'a> {
 ///
 /// Serves the mirror body when it is still present. When the mirror vanished
 /// after the conditional request (concurrent store cleanup, antivirus, ...)
-/// the 304 validates nothing, so re-request once as a cold cache would —
+/// the 304 validates nothing, so re-request once as a cold cache would,
 /// flipping `cache_bypass` so the retrying [`retry_async`] loop stays bypassed
-/// too — which the registry can only answer with a body or an error, never
+/// too, which the registry can only answer with a body or an error, never
 /// another 304. A 304 with no mirror at all is `META_NOT_MODIFIED_WITHOUT_CACHE`.
 async fn recover_from_not_modified<'a>(
     client: ThrottledClientGuard<'a>,
@@ -481,7 +481,7 @@ async fn recover_from_not_modified<'a>(
         cache_bypass,
         renew_mirror,
     } = recovery;
-    // No body to stream — release the connection and its network-concurrency
+    // No body to stream, release the connection and its network-concurrency
     // permit before the mirror disk read.
     drop(client);
     let Some(path) = mirror_path else {
@@ -515,7 +515,7 @@ async fn recover_from_not_modified<'a>(
 /// The publishedBy mtime shortcut in [`crate::pick_package()`] treats
 /// a mirror younger than the maturity cutoff as authoritative. A 304
 /// proves the cached packument equals the registry's current one, so
-/// the validation clock legitimately restarts here — without the
+/// the validation clock legitimately restarts here, without the
 /// touch, a mirror older than `minimumReleaseAge` re-validates every
 /// package on every subsequent install, because a 304 never rewrites
 /// the file.

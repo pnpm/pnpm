@@ -1,7 +1,7 @@
 //! Unit tests for the hoist algorithm.
 //!
 //! These exercise [`super::get_hoisted_dependencies`] in isolation
-//! against synthetic graphs — the full install integration tests live
+//! against synthetic graphs, the full install integration tests live
 //! in `crates/package-manager/tests/` and `crates/cli/tests/`.
 
 mod external_virtual_store;
@@ -404,7 +404,7 @@ fn skipped_snapshot_is_excluded() {
     // The by-node-id map records the entry before the skip check;
     // [`super::symlink_hoisted_dependencies`] is what filters skipped
     // node IDs out of the symlink work (the `graph.get(node_id)` guard
-    // alone isn't enough — `build_hoist_graph` only filters by missing
+    // alone isn't enough, `build_hoist_graph` only filters by missing
     // metadata, so `graph` contains every snapshot, skipped or not).
     assert!(result.hoisted_dependencies_by_node_id.contains_key(&key("opt", "1.0.0")));
 }
@@ -430,7 +430,7 @@ fn symlink_skips_dropped_nodes() {
 
     // Two-node hoist map: `kept@1.0.0` survives, `dropped@1.0.0` is
     // in the skip set. The "graph" entries exist for both (mirroring
-    // what `build_hoist_graph` produces in production — it doesn't
+    // what `build_hoist_graph` produces in production, it doesn't
     // filter by skip).
     let kept_key = key("kept", "1.0.0");
     let dropped_key = key("dropped", "1.0.0");
@@ -463,7 +463,7 @@ fn symlink_skips_dropped_nodes() {
 
     // Pre-create just the kept snapshot's slot so its symlink has a
     // valid target. The dropped snapshot's slot is intentionally
-    // absent — without the skip filter, the symlink pass would try
+    // absent, without the skip filter, the symlink pass would try
     // to create a link pointing at it.
     let layout = VirtualStoreLayout::legacy(
         &virtual_store_dir,
@@ -487,7 +487,7 @@ fn symlink_skips_dropped_nodes() {
 
     // Use `symlink_metadata` rather than `exists` because a
     // dangling symlink (the regression) makes `exists()` return
-    // false anyway — `exists()` follows the link. Need to detect
+    // false anyway, `exists()` follows the link. Need to detect
     // the symlink itself, not its target.
     assert!(
         std::fs::symlink_metadata(private_hoisted.join("kept")).is_ok(),
@@ -1202,8 +1202,8 @@ fn kinds_for(map: &HoistedDependencies, key: &str) -> Vec<(String, HoistKind)> {
 }
 
 /// `hoist-workspace-packages`: a named workspace project is placed
-/// like a root-level alias — pattern-matched, symlinked to the
-/// project dir — but with the lowest precedence (any direct dep wins
+/// like a root-level alias, pattern-matched, symlinked to the
+/// project dir, but with the lowest precedence (any direct dep wins
 /// the name) and without touching `.modules.yaml`'s
 /// `hoistedDependencies` (v11 leaves workspace packages out of it
 /// too). A placed name claims its alias so an equally-named
@@ -1276,7 +1276,7 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
         vec![("pkg-b".to_string(), HoistKind::Private)],
     );
     assert!(!result.hoisted_dependencies.contains_key("packages/taken"));
-    // The transitive `shadowed@1.0.0` (a's child) still hoists — the
+    // The transitive `shadowed@1.0.0` (a's child) still hoists, the
     // workspace pass doesn't disturb ordinary hoisting.
     assert_eq!(
         kinds_for(&result.hoisted_dependencies, "shadowed@1.0.0"),

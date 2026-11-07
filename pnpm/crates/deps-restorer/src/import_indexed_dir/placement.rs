@@ -178,7 +178,7 @@ pub(super) fn create_indexed_dirs(
 ///
 /// [`Placement::Fresh`] links straight at the final path with no
 /// pre-flight stat: `import_into_fresh_target` tolerates an existing
-/// target, so the stat would be pure overhead — ~170k saved syscalls on
+/// target, so the stat would be pure overhead, ~170k saved syscalls on
 /// the alotta-files fixture.
 ///
 /// [`Placement::Repair`] instead asks whether what is already there is
@@ -351,7 +351,7 @@ pub(super) fn clear_dirent_blocking_dir<Sys: FsRemoveNonDirDirent>(
 /// fallback file for old store entries indexed before the synthetic
 /// manifest. pnpm picks the first inserted key; `cas_paths` is unordered,
 /// so we pick the lexicographically smallest non-build-marker entry
-/// instead — deterministic, which is all the gate and the write need.
+/// instead, deterministic, which is all the gate and the write need.
 /// `None` only when no package file is present.
 pub(super) fn marker_file(cas_paths: &pnpm_fs::CasPaths) -> Option<&str> {
     const PACKAGE_JSON: &str = "package.json";
@@ -460,7 +460,7 @@ pub(super) fn files_have_equal_contents(left: &Path, right: &Path) -> io::Result
     loop {
         let left_chunk = left.fill_buf()?;
         let right_chunk = right.fill_buf()?;
-        // One side ending first means the sizes disagree after all —
+        // One side ending first means the sizes disagree after all,
         // the caller's size check can only read stale metadata.
         if left_chunk.is_empty() || right_chunk.is_empty() {
             return Ok(left_chunk.is_empty() && right_chunk.is_empty());
@@ -474,7 +474,7 @@ pub(super) fn files_have_equal_contents(left: &Path, right: &Path) -> io::Result
     }
 }
 /// Whether `dir_path` holds the completion marker. An empty map has no
-/// marker, so it counts as present — there is nothing to import.
+/// marker, so it counts as present, there is nothing to import.
 #[must_use]
 pub fn marker_present(dir_path: &Path, cas_paths: &pnpm_fs::CasPaths) -> bool {
     match marker_file(cas_paths) {

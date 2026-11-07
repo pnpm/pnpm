@@ -102,7 +102,7 @@ pub enum RegistryError {
         filename: String,
     },
 
-    /// The YAML config could not be parsed. Startup-only — this never
+    /// The YAML config could not be parsed. Startup-only, this never
     /// surfaces over HTTP, but `Config` parsing shares this error type.
     #[display("Invalid config: {reason}")]
     #[from(skip)]
@@ -167,7 +167,7 @@ pub enum RegistryError {
         reason: String,
     },
 
-    /// Tarball payload from a publish couldn't be decoded — bad
+    /// Tarball payload from a publish couldn't be decoded, bad
     /// base64, length mismatch, or integrity mismatch.
     #[display("Invalid attachment {filename:?}: {reason}")]
     #[from(skip)]
@@ -177,7 +177,7 @@ pub enum RegistryError {
         reason: String,
     },
 
-    /// Generic client-side error during a write operation —
+    /// Generic client-side error during a write operation,
     /// missing/invalid JSON body field, etc. Maps to 400.
     #[display("Bad request: {reason}")]
     #[from(skip)]
@@ -211,7 +211,7 @@ pub enum RegistryError {
     /// artifact, for the same reason a `name@version` admits one tarball: a
     /// consumer that resolved it once must not be handed different bytes
     /// later. Replacing a claimed slot is an operator action against the
-    /// store, not something a publishing credential can do — a stolen one
+    /// store, not something a publishing credential can do, a stolen one
     /// would otherwise be able to swap an artifact for a dependency nobody
     /// has looked at in a year.
     #[display("Cannot publish over the artifact already published for this input key and platform")]

@@ -49,7 +49,7 @@ fn matcher_boolean_semantics() {
     assert!(matcher.matches("eslint-plugin-bar"));
 }
 
-/// `createMatcherWithIndex()` semantics — the matched include's index, or
+/// `createMatcherWithIndex()` semantics, the matched include's index, or
 /// `None` when nothing matches.
 #[test]
 fn matcher_with_index_semantics() {

@@ -132,7 +132,7 @@ test('skips inodes that are neither files nor directories', async () => {
       isDirectory: () => false,
       isFile: () => true,
     },
-    // A FIFO — 1Password's environments create one for `.env`.
+    // A FIFO, 1Password's environments create one for `.env`.
     '.env': {
       dev: 66,
       ino: 7100,

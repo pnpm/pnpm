@@ -208,7 +208,7 @@ pub(crate) struct RunProjectProcess<'a> {
     on_started: &'a (dyn Fn() + Sync),
 }
 
-/// Run the task's scripts — concurrently when the run's script-level
+/// Run the task's scripts, concurrently when the run's script-level
 /// concurrency allows it, one at a time otherwise, like the
 /// single-project `run` does through `run_selected_scripts`. Either way
 /// each script waits for a permit from the run's [`ScriptBudget`] first.
@@ -254,7 +254,7 @@ struct ProjectScripts<'a, 'run, 'project> {
 /// the same transitions. A `RegExp` selector can match several scripts in
 /// one task, but the summary carries a single status per task and the
 /// exit code derives from it: once one of the task's scripts has
-/// failed, nothing a later one does may overwrite that — under
+/// failed, nothing a later one does may overwrite that, under
 /// `--no-bail` the run would otherwise report itself green.
 struct ScriptRunState {
     execution: ProjectExecution,

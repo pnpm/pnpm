@@ -56,7 +56,7 @@ pub fn virtual_store_dir_max_length_matches_pnpm_default() {
     assert_eq!(config.virtual_store_dir_max_length, expected);
 }
 
-/// One file may carry both spellings — the canonical one wins, and the
+/// One file may carry both spellings, the canonical one wins, and the
 /// pair is not a duplicate key that fails the whole parse.
 #[test]
 pub fn max_sockets_takes_the_canonical_spelling_when_a_file_has_both() {

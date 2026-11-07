@@ -221,7 +221,7 @@ function deduplicateDepPaths<Pkg extends PartialResolvedPackage> (
 
 // The dep paths arrive in resolution order, which varies between platforms.
 // Tie-break equal dependency counts on the dep path itself so the chosen
-// collapse target is the same everywhere — when a variant is a subset of
+// collapse target is the same everywhere, when a variant is a subset of
 // several incompatible larger variants, the winner must not hinge on
 // iteration order, or the lockfile becomes machine-dependent.
 function createDepCountSorter<Pkg extends PartialResolvedPackage> (

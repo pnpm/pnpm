@@ -28,7 +28,7 @@ use std::{
 
 /// The [`ResolveOptions`] fields that are the same for every importer and
 /// for the fast-override pre-pass. Only the consuming project's directory
-/// and its preferred-versions seed vary — see [`Self::build`].
+/// and its preferred-versions seed vary, see [`Self::build`].
 pub(super) struct SharedResolveOptions<'a> {
     pub locked_package_policy: pnpm_resolving_resolver_base::LockedPackagePolicy,
     pub policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions,

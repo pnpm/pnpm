@@ -20,8 +20,8 @@ use tempfile::tempdir;
 pub struct LinkConcurrencyProbe {
     current: AtomicUsize,
     max: AtomicUsize,
-    /// Total `enter()` calls over the probe's lifetime — one per
-    /// [`CreateVirtualDirBySnapshot::run`] — for asserting how many
+    /// Total `enter()` calls over the probe's lifetime, one per
+    /// [`CreateVirtualDirBySnapshot::run`], for asserting how many
     /// link tasks executed, which `max_concurrent` cannot.
     total: AtomicUsize,
     wait_for_overlap: bool,
@@ -45,7 +45,7 @@ pub struct ColdPassGate {
 
 /// How long the first linker waits for a second one to join it. Only has
 /// to outlast the scheduling latency of a machine running the whole suite
-/// in parallel — the verdict comes from `max_concurrent`, not from the
+/// in parallel, the verdict comes from `max_concurrent`, not from the
 /// deadline.
 const OVERLAP_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -200,7 +200,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     // drives this from inside a multi-thread runtime; a
     // `current_thread` runtime would panic on `block_in_place`,
     // but `#[tokio::test]` defaults to single-thread, so we run
-    // `.run()` directly here. The function itself is sync — only
+    // `.run()` directly here. The function itself is sync, only
     // the caller's runtime flavor matters.
     let layout = crate::VirtualStoreLayout::legacy(
         virtual_store_dir,

@@ -114,7 +114,7 @@ impl UpstreamSearchBudget {
     }
 }
 
-/// `GET /-/v1/search?text=...&from=...&size=...` — npm search v1 endpoint.
+/// `GET /-/v1/search?text=...&from=...&size=...`, npm search v1 endpoint.
 /// Hosted results are counted after routing and access filters, then optional
 /// upstream results are appended in registry-source order. An upstream only
 /// participates when its `search` setting is enabled, and only within the

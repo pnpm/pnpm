@@ -39,7 +39,7 @@ export const PIN_DECISION_SETTINGS: ReadonlySet<string> = new Set([
  * a repository must not get a say in whether it may be replaced. Each of these
  * is dangerous in both directions: a release-age cooldown lowered waives the
  * protection the user configured, raised it pins the machine to the installed
- * pnpm — including past a release that fixes a vulnerability in it; a
+ * pnpm, including past a release that fixes a vulnerability in it; a
  * `trustPolicy` turned off accepts a pnpm release whose trust evidence the
  * user meant to reject, turned on blocks the update the same way; and `ci`
  * decides whether an immature pick may be confirmed at the keyboard at all.
@@ -107,7 +107,7 @@ const CREDENTIAL_KEYS = [
  * Which scope a `pnpm login` claims for the machine.
  *
  * The granted token is recorded as a route in the global `auth.ini`, which
- * outranks the user's own `~/.npmrc` in every project on the machine — so the
+ * outranks the user's own `~/.npmrc` in every project on the machine, so the
  * choice is the user's, not a repository's.
  */
 const LOGIN_TARGET_KEYS = [

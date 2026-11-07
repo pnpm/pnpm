@@ -2,7 +2,7 @@
 //!
 //! Scoped names are routed as a single path segment by
 //! percent-encoding the `/` (and other non-path-safe characters)
-//! between the `@scope` prefix and the package's bare name —
+//! between the `@scope` prefix and the package's bare name,
 //! otherwise `https://registry/@scope/pkg` would parse as two
 //! segments and a registry that doesn't tolerate the un-encoded
 //! form (or a CDN in front of the registry that re-canonicalizes

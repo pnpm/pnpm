@@ -16,7 +16,7 @@ config file.
 Database drivers are Cargo-feature gated:
 
 | Backend | Config key | Cargo feature |
-| --- | --- | --- |
+|,- |,- |,- |
 | libsql / Turso | `backend.libsql` | `backend-libsql` (enabled by default) |
 | PostgreSQL | `backend.postgres` | `backend-postgres` |
 | MySQL-compatible | `backend.mysql` | `backend-mysql` |
@@ -46,7 +46,7 @@ backend:
 ```
 
 | Key | Required | Description |
-| --- | --- | --- |
+|,- |,- |,- |
 | `url` | yes | Database URL: `libsql://<db>.turso.io` (Turso) or `http://<host>:<port>` (self-hosted `sqld`). |
 | `authToken` | no | Bearer token for the database. Omit for an unauthenticated local `sqld`. pnpr sends it only over `https://` or `libsql://`, or over `http://` to a loopback host, and refuses to start otherwise. |
 | `replicaPath` | no | Path to a local **embedded replica**. When set, reads (token lookups) hit this local file instead of a network round-trip; writes still go to the primary. Absent ⇒ every read is a remote query. |
@@ -95,7 +95,7 @@ backend:
 ```
 
 | Key | Required | Description |
-| --- | --- | --- |
+|,- |,- |,- |
 | `url` | yes | Driver connection URL, such as `postgres://user:pass@host/db` or `mysql://user:pass@host/db`. |
 | `maxConnections` | no | Maximum connections in the backend pool. Omit to use the driver's default. |
 | `timeout` | no | Request-path auth database deadline. Defaults to `30s`. |

@@ -203,7 +203,7 @@ pub(super) fn global_group_config(
     // Persist a `pnpm-lock.yaml` in the group's install dir (pnpm sets
     // `lockfileDir = installDir`). `outdated -g` / `update -g` read these
     // pins to determine the currently-installed versions. A `lockfileDir`
-    // the environment set cannot redirect it — pnpm deletes the setting
+    // the environment set cannot redirect it, pnpm deletes the setting
     // under `--global`.
     cfg.lockfile = true;
     cfg.lockfile_dir = None;
@@ -224,9 +224,9 @@ pub(super) fn global_group_config(
     // achieves this by running the install with `cwd` = the pnpm home dir;
     // pacquet clones the caller's already-loaded config, so drop those
     // project-scoped resolution settings explicitly. Inheriting `overrides`
-    // is what surfaced as `ERR_PNPM_CATALOG_IN_OVERRIDES` — a repo override
+    // is what surfaced as `ERR_PNPM_CATALOG_IN_OVERRIDES`, a repo override
     // referencing a `catalog:` the isolated install (with no catalogs) no
-    // longer resolves — and inheriting `catalogMode: strict` would likewise
+    // longer resolves, and inheriting `catalogMode: strict` would likewise
     // reject the install against an empty catalog.
     cfg.overrides = None;
     cfg.catalogs = None;
@@ -241,7 +241,7 @@ pub(super) fn global_group_config(
     cfg.apply_global_virtual_store_node_path::<Host>();
 
     // Build-script policy for global installs comes from the global packages
-    // directory, never the caller's repo — otherwise a repo-controlled
+    // directory, never the caller's repo, otherwise a repo-controlled
     // `pnpm-workspace.yaml` could decide which lifecycle scripts run during
     // `add -g` / `update -g`. Drop the inherited repo policy and load the
     // global `allowBuilds` (where the approval prompt persists its

@@ -148,7 +148,7 @@ fn run_finds_local_bin_on_path() {
 }
 
 /// Running a script from a workspace member resolves binaries from the
-/// workspace root's `node_modules/.bin` — pnpm puts it on PATH via
+/// workspace root's `node_modules/.bin`, pnpm puts it on PATH via
 /// `extraBinPaths`, so root-level dev tools are callable from every
 /// workspace project.
 #[cfg(unix)]
@@ -290,7 +290,7 @@ fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
 
 /// With `preferSymlinkedExecutables`, symlinked bins have no shim to
 /// carry a `NODE_PATH` block, so the config exports one pointing at
-/// the virtual store's hidden `node_modules` — pnpm's
+/// the virtual store's hidden `node_modules`, pnpm's
 /// `pnpm run with preferSymlinkedExecutables true` test.
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
@@ -322,7 +322,7 @@ fn run_exports_node_path_when_prefer_symlinked_executables() {
     drop(root);
 }
 
-/// An explicit `virtualStoreDir` redirects the exported `NODE_PATH` —
+/// An explicit `virtualStoreDir` redirects the exported `NODE_PATH`,
 /// pnpm's `pnpm run with preferSymlinkedExecutables and custom
 /// virtualStoreDir` test.
 #[test]

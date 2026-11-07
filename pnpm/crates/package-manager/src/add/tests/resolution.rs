@@ -36,7 +36,7 @@ fn normalizes_hosted_git_specifiers_to_shortcut_form() {
         normalized_save_specifier("https://bitbucket.org/owner/repo"),
         "bitbucket:owner/repo",
     );
-    // An auth-bearing HTTPS URL is kept verbatim — the shortcut form cannot
+    // An auth-bearing HTTPS URL is kept verbatim, the shortcut form cannot
     // carry the embedded credentials, so shortcutting would drop them.
     assert_eq!(
         normalized_save_specifier("git+https://x-access-token:tkn@github.com/foo/bar.git#abc"),

@@ -162,8 +162,8 @@ fn preserved_env_document<'a>(
     path: &Path,
 ) -> Result<Cow<'a, str>, SaveLockfileError> {
     // Skips the parse for the documents that plainly carry no marker,
-    // which is all of them but the conflicted few. A false positive —
-    // a marker inside a comment or a scalar — costs a parse that then
+    // which is all of them but the conflicted few. A false positive,
+    // a marker inside a comment or a scalar, costs a parse that then
     // finds nothing to merge, and the document is written back as it is.
     if !env.contains(MERGE_CONFLICT_OURS) {
         return Ok(Cow::Borrowed(env));
@@ -353,10 +353,10 @@ fn carry_mode_across(_file: &fs::File, _target: &Path) -> io::Result<()> {
 /// rather than `create + truncate`, so we never follow a symlink or
 /// truncate a file an attacker (or a crashed prior install) pre-seeded
 /// at our predicted temp path. On `AlreadyExists` we advance the
-/// counter and try again, up to `MAX_TEMP_ATTEMPTS` times — matching
+/// counter and try again, up to `MAX_TEMP_ATTEMPTS` times, matching
 /// the hardening already in `pnpm_fs::ensure_file::write_atomic`.
 fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> {
-    /// Sixteen fresh counter values is plenty — under benign
+    /// Sixteen fresh counter values is plenty, under benign
     /// conditions we never collide; under shared-store-across-
     /// containers the chance of 16 consecutive same-pid same-counter
     /// collisions is negligible.

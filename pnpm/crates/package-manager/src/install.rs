@@ -268,20 +268,20 @@ pub struct WorkspaceInstallSelection<'a> {
 ///
 /// A caller may pass [`Self::Known`] only when it ran
 /// [`fn@crate::workspace_cycles`] over the very graph the install would
-/// rebuild — the same projects, in the same order, with the same graph
-/// options — so the report (its cycle order included) stays what the
+/// rebuild, the same projects, in the same order, with the same graph
+/// options, so the report (its cycle order included) stays what the
 /// install's own [`crate::install_scope_cycles`] would emit.
 #[derive(Debug, Default, Clone, Copy)]
 pub enum PrecomputedWorkspaceCycles<'a> {
     /// It did not; the install runs its own cycle search.
     #[default]
     Unknown,
-    /// The cycle report for this selection; `None` — the projects are
+    /// The cycle report for this selection; `None`, the projects are
     /// orderable.
     Known(Option<&'a [Vec<PathBuf>]>),
 }
 
-/// What this run does to the manifests of the projects it installs —
+/// What this run does to the manifests of the projects it installs,
 /// pnpm's `MutatedProject.mutation`, which decides both whether the run
 /// counts as a full install and which projects fire their own
 /// `preinstall`/`install`/`postinstall`/`prepare` scripts.
@@ -290,7 +290,7 @@ pub enum PrecomputedWorkspaceCycles<'a> {
 /// command acts on, plus the workspace root, which its recursive dispatch
 /// pushes in as a plain `mutation: 'install'` whenever the selection
 /// leaves it out. A project runs its own scripts when that list covers
-/// only part of the workspace, or — when it covers all of it — when the
+/// only part of the workspace, or, when it covers all of it, when the
 /// project's own mutation is a full install.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProjectMutation {
@@ -337,7 +337,7 @@ impl ProjectMutation {
     /// loaded lockfile instead of resolving. `pacquet remove` qualifies
     /// because its only drift is the importer edges it deleted, and
     /// `pacquet add` because it pins the manifest before the install runs,
-    /// leaving the same importer-edge drift — one the rewrite absorbs only
+    /// leaving the same importer-edge drift, one the rewrite absorbs only
     /// when the lockfile already holds a version satisfying it.
     #[must_use]
     pub fn may_fast_update_lockfile(self) -> bool {
@@ -486,13 +486,13 @@ pub struct InstallProjects<DependencyGroupList> {
     /// Threaded into `InstallabilityHost` in the frozen-lockfile
     /// path so optional platform-tagged dependencies for the listed
     /// triples are kept even when they don't match the host. `None`
-    /// means "host triple is the sole accept set" — the behavior
+    /// means "host triple is the sole accept set", the behavior
     /// when neither yaml nor CLI sets a value.
     ///
     /// Computed at the CLI layer (see
     /// `pnpm_cli::cli_args::supported_architectures::SupportedArchitecturesArgs`)
     /// instead of being read from `config` directly, because
-    /// `State.config` is a shared `&'static Config` — the CLI
+    /// `State.config` is a shared `&'static Config`, the CLI
     /// override merge happens in the caller and lands here as a
     /// fully-resolved value.
     pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
@@ -509,7 +509,7 @@ pub struct InstallProjects<DependencyGroupList> {
     pub pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     /// Workspace importers supplied in memory by an embedder (the Node API
     /// binding) instead of discovering them from a `pnpm-workspace.yaml` on
-    /// disk. `Some` bypasses the on-disk workspace-project walk entirely — the
+    /// disk. `Some` bypasses the on-disk workspace-project walk entirely, the
     /// root importer still comes from [`InstallInvocation::manifest`], siblings from this
     /// list. `None` (every CLI install) walks the workspace on disk.
     pub workspace_projects_override: Option<Vec<pnpm_workspace::Project>>,
@@ -583,7 +583,7 @@ pub(crate) struct InstallManifestOptions<'install> {
     /// Manifest paths `pacquet update --no-save` already ran `readPackage`
     /// over before preparing its in-memory resolution rewrite. The hook must
     /// observe each project manifest exactly once, so the install layer skips
-    /// these and still hooks every project manifest outside the set — the
+    /// these and still hooks every project manifest outside the set, the
     /// workspace projects the non-selected update path never loads. Dependency
     /// manifests always flow through the resolver's hook path.
     pub(crate) hooked_paths: HashSet<PathBuf>,

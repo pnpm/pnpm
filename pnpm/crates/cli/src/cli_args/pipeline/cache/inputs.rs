@@ -290,7 +290,7 @@ fn project_files(project: &Path) -> miette::Result<ProjectFiles> {
 /// Whether git can enumerate the project's files at all.
 ///
 /// The default input set is `git ls-files`, so a project outside a work
-/// tree — or a machine without `git` — has no discoverable inputs. That is
+/// tree, or a machine without `git`, has no discoverable inputs. That is
 /// a reason to run the task without a cache key, not to abort the whole
 /// pipeline: the caller reports it and the task runs uncached.
 fn git_work_tree(project: &Path) -> miette::Result<bool> {

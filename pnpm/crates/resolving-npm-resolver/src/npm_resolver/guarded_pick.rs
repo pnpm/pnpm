@@ -160,7 +160,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         // Block by the *packument key*, which the next pick filters on. It
         // usually equals the parsed manifest version, but a registry that
         // serves a key differing from the manifest's `version` field would
-        // otherwise never get the candidate excluded — re-selecting it
+        // otherwise never get the candidate excluded, re-selecting it
         // forever and wrongly reporting every version blocked when a lower
         // one is still fine.
         let blocked_key = blocked_packument_key(&pick_result.meta, &version, &version_str);
@@ -367,8 +367,8 @@ pub(super) fn blocked_packument_key(
         .unwrap_or_else(|| version_str.to_string())
 }
 
-/// Answer a request the picker gave up on — every matching version rejected,
-/// or the re-pick cap reached first — per the guard's
+/// Answer a request the picker gave up on, every matching version rejected,
+/// or the re-pick cap reached first, per the guard's
 /// [`GuardExhaustionPolicy`]. `fail` builds the error naming which of the two
 /// it was, for a guard whose rejections are a hard requirement.
 pub(super) fn exhausted(

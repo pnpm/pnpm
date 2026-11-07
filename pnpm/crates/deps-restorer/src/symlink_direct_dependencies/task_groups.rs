@@ -18,8 +18,8 @@ pub(super) fn merge_claimed_bins(
 /// groups the parallel link pass runs.
 ///
 /// Distinct keys may alias one directory through the filesystem's own
-/// name folding — case-insensitivity, Unicode normalization (APFS),
-/// Windows short names and trailing dots — and a real pnpm lockfile
+/// name folding, case-insensitivity, Unicode normalization (APFS),
+/// Windows short names and trailing dots, and a real pnpm lockfile
 /// can't produce them (project discovery would have collapsed the
 /// directories), but a hostile lockfile can, and two tasks mutating
 /// one `node_modules` would race. Rather than enumerate the folding
@@ -28,8 +28,8 @@ pub(super) fn merge_claimed_bins(
 /// order, keeping the serial pass's deterministic last-writer outcome,
 /// while distinct projects pay one read-only `canonicalize` each. A
 /// project dir that doesn't exist yet has nothing on disk to
-/// canonicalize against — and no string transform can decide which
-/// not-yet-created names the filesystem will later fold together — so
+/// canonicalize against, and no string transform can decide which
+/// not-yet-created names the filesystem will later fold together, so
 /// every canonicalization failure lands in one shared serial group.
 /// That costs nothing real: a genuine project's directory always
 /// exists by this point (its manifest was read during project

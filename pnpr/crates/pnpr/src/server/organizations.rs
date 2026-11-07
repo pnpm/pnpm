@@ -6,7 +6,7 @@ use super::{
 };
 use axum::response::IntoResponse;
 
-/// `GET /-/org/{scope}/package` — the npm-compatible package-permission map.
+/// `GET /-/org/{scope}/package`, the npm-compatible package-permission map.
 /// Values are useful to npm's account UI; registry UIs such as npmX consume
 /// the keys as the authoritative package list.
 pub(super) async fn serve_org_packages(
@@ -161,18 +161,16 @@ pub(super) fn upstream_org_package_is_visible(
         && authorize(state, identity, resolved, name, Action::Access).is_ok()
 }
 
-// --------------------------------------------------------------------
-// npm team API — read-only views over the config-declared `teams:` maps.
+// npm team API, read-only views over the config-declared `teams:` maps.
 // Team membership is part of the registry configuration (it feeds the
 // compiled access lists), so the API serves listings and rejects
 // mutations with an explicit "config-managed" error.
-// --------------------------------------------------------------------
 
 /// The hosted registry whose teams `@{scope}` addresses: the scope routes
 /// through the addressed registry (an explicit `/~<name>/`, or the
 /// path-less default) exactly as a package read in that scope would, then
 /// the registry-level default `access` gates the caller. A denial is
-/// masked as not-found — team and member names must not become an
+/// masked as not-found, team and member names must not become an
 /// existence probe for a private registry. Returns the registry's name with
 /// its config.
 pub(super) fn team_registry<'a>(
@@ -223,7 +221,7 @@ pub(super) fn readable_team_registry<'a>(
 }
 
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
-/// — list the teams of the hosted registry that claims `@{scope}`, in the
+///, list the teams of the hosted registry that claims `@{scope}`, in the
 /// shape the pnpm team command consumes: an array of `{"name": ...}`.
 pub(super) fn get_org_teams(
     state: &AppState,
@@ -244,7 +242,7 @@ pub(super) fn get_org_teams(
 }
 
 /// `GET /-/team/{scope}/{team}/user` (path-less) or
-/// `GET /~<name>/-/team/{scope}/{team}/user` — list a team's members, in
+/// `GET /~<name>/-/team/{scope}/{team}/user`, list a team's members, in
 /// the shape the pnpm team command consumes: an array of `{"name": ...}`.
 pub(super) async fn get_team_members(
     state: &AppState,

@@ -471,7 +471,7 @@ fn prod_spec(dir: &std::path::Path, name: &str) -> String {
 /// explicit save target moves the entry into that group and drops it from
 /// the others, carrying the first-found specifier in pnpm's `findSpec`
 /// order (`optionalDependencies`, `dependencies`, `devDependencies`,
-/// `peerDependencies`) — so `--save-dev` here adopts the `dependencies`
+/// `peerDependencies`), so `--save-dev` here adopts the `dependencies`
 /// spec, matching pnpm's `updateProjectManifestObject`.
 #[test]
 fn add_existing_dependency_moves_it_to_the_target_group() {
@@ -544,7 +544,7 @@ fn add_existing_dependency_ignores_pin_from_peer_range() {
 }
 
 /// Naming a package manager records which one the project uses instead of
-/// installing it — but an alias only borrows the name, so it is an
+/// installing it, but an alias only borrows the name, so it is an
 /// ordinary dependency and must still be installed.
 #[test]
 fn add_aliasing_a_package_manager_name_installs_the_aliased_package() {
@@ -561,7 +561,7 @@ fn add_aliasing_a_package_manager_name_installs_the_aliased_package() {
 }
 
 /// A registry-host tarball URL parses as a registry `Version` spec, but it
-/// must be written verbatim — resolving it would rewrite an explicit URL
+/// must be written verbatim, resolving it would rewrite an explicit URL
 /// dependency into a semver range.
 #[test]
 fn add_registry_tarball_url_is_kept_verbatim() {
@@ -974,7 +974,7 @@ fn saved_spec(dir: &Path, name: &str) -> Option<String> {
 ///
 /// `CommandTempCwd::add_mocked_registry` writes these for tests that
 /// need a registry. The workspace-protocol tests resolve only local
-/// packages, so they skip the registry — but they still have to pin the
+/// packages, so they skip the registry, but they still have to pin the
 /// directories, or they race every other test over the developer's real
 /// store.
 const HERMETIC_STORE_YAML: &str =
@@ -984,8 +984,8 @@ fn write_json(path: &Path, value: &serde_json::Value) {
     std::fs::write(path, value.to_string()).expect("write manifest");
 }
 
-/// An alias-less selector — the whole argument is the specifier, with no
-/// `<name>@` in front — names a package whose name lives only in its own
+/// An alias-less selector, the whole argument is the specifier, with no
+/// `<name>@` in front, names a package whose name lives only in its own
 /// manifest, so `add` reads it from the directory, the archive, or the
 /// checkout rather than from the selector.
 ///

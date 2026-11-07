@@ -3,8 +3,8 @@
 //! pnpm accepts `--prefix` for `--dir` and `--store` for `--store-dir`,
 //! renaming them over argv before parsing (the rename table in
 //! `pnpm11/pnpm/src/parseCliArgs.ts`). Clap accepts the alias spellings
-//! itself — they are hidden aliases on the two options, so the help output
-//! documents neither, exactly like pnpm's — which leaves only the
+//! itself, they are hidden aliases on the two options, so the help output
+//! documents neither, exactly like pnpm's, which leaves only the
 //! precedence rule to reproduce: when a command line spells the same
 //! option both ways, pnpm keeps the canonical one and drops the alias,
 //! regardless of which came first. Clap alone would keep the last
@@ -122,7 +122,7 @@ fn drop_tokens(mut argv: Vec<OsString>, shadowed: Vec<(usize, usize)>) -> Vec<Os
 /// whether the cluster takes the next argv token as its value.
 ///
 /// The chars are read left to right up to the first option that takes a
-/// value, since everything past it is that value rather than more options —
+/// value, since everything past it is that value rather than more options,
 /// attached when the cluster continues, the next token when it ends there.
 fn scan_short_cluster(
     cluster: &str,

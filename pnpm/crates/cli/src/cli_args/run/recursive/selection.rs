@@ -110,8 +110,8 @@ pub(super) fn run_state_settings(
     settings
 }
 
-/// The task graph this run actually schedules: the full graph, or —
-/// under `--resume-from` — the part of it that follows the named project,
+/// The task graph this run actually schedules: the full graph, or,
+/// under `--resume-from`, the part of it that follows the named project,
 /// minus what the previous run already completed.
 pub(super) fn resume_task_graph(
     task_run_state_context: &TaskRunStateContext,

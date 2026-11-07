@@ -26,7 +26,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<Ch
       // There is no project here at all (for example, a mistyped command fell
       // back to `pnpm run` in a directory without a manifest). Reporting
       // "outdated" would make verify-deps-before-run spawn a `pnpm install`
-      // that can only fail with NO_PKG_MANIFEST — report "unknown" instead so
+      // that can only fail with NO_PKG_MANIFEST, report "unknown" instead so
       // the caller skips the check and the command fails with its own error.
       return { upToDate: undefined, workspaceState }
     }

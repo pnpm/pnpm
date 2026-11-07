@@ -23,7 +23,7 @@ pub enum ReporterType {
     /// not a terminal.
     #[default]
     Default = 0,
-    /// Like `default` but forces the append-only rendering even on a TTY —
+    /// Like `default` but forces the append-only rendering even on a TTY,
     /// one line per update, no cursor movement.
     AppendOnly = 1,
     /// Newline-delimited JSON on stderr.
@@ -303,7 +303,7 @@ pub(crate) struct LifecycleReporterSetup {
 }
 
 /// Seed the process-global default-reporter state that can't be recovered
-/// from events. Idempotent — the first call wins, so it has to run before
+/// from events. Idempotent, the first call wins, so it has to run before
 /// anything can emit.
 pub(crate) fn configure_default_reporter(setup: &DefaultReporterSetup<'_>) {
     pnpm_default_reporter::set_cwd(setup.dir.to_string_lossy().into_owned());
@@ -330,7 +330,7 @@ pub(crate) fn configure_default_reporter(setup: &DefaultReporterSetup<'_>) {
 
 /// Seed the default reporter's verbosity ceiling from the `--loglevel`
 /// value. `silent` and an absent flag leave the [`MaxLogLevel::Info`]
-/// default in place — `silent` never reaches the default reporter (see
+/// default in place, `silent` never reaches the default reporter (see
 /// [`ReporterFlags::resolve`]).
 pub(crate) fn configure_max_log_level(loglevel: Option<LogLevelSetting>) {
     if let Some(level) = loglevel.and_then(LogLevelSetting::as_max_log_level) {

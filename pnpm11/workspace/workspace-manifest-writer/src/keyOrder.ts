@@ -108,7 +108,7 @@ export function propagateBlankLinesToNewPairs (document: yaml.Document, original
 function detectBlankLineStyle (items: yaml.Pair[], originalTopLevelKeys: readonly string[]): boolean {
   const originalKeySet = new Set(originalTopLevelKeys)
   // The originally-first pair never had `spaceBefore` set even in a
-  // blank-line-separated document — exclude it when judging the document's
+  // blank-line-separated document, exclude it when judging the document's
   // style so we still detect the style when that pair has been moved.
   const originalFirstKey = originalTopLevelKeys[0] ?? null
   let originalNonFirstCount = 0

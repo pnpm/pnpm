@@ -68,7 +68,7 @@ type FetchScript =
     Box<dyn FnMut(&str, &WebAuthFetchOptions) -> Result<WebAuthFetchResponse, WebAuthFetchError>>;
 
 /// How the [`Sleep`] fake moves the [`Clock`] fake forward. The two share
-/// the `TIME` cell so a test can drive the timeout deterministically —
+/// the `TIME` cell so a test can drive the timeout deterministically,
 /// mirroring the TS tests where `setTimeout` mutates the same `time`
 /// variable `Date.now` reads.
 #[derive(Clone, Copy)]
@@ -202,7 +202,7 @@ fn ok_json(body: &serde_json::Value) -> WebAuthFetchResponse {
 
 /// A `200` response whose body the provider capped at the size limit. Its
 /// body carries a real token, so a poll that still ignores it proves the
-/// truncation — not a missing token — is what makes it keep waiting.
+/// truncation, not a missing token, is what makes it keep waiting.
 fn ok_truncated() -> WebAuthFetchResponse {
     WebAuthFetchResponse {
         ok: true,

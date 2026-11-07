@@ -10,7 +10,7 @@ use std::{
 
 /// Canonicalize a path the way the production CLI does. The CLI runs
 /// `dunce::canonicalize` on `--dir`, so the printed path is the resolved
-/// form — e.g. on macOS a `/var/folders/...` temp dir surfaces as
+/// form, e.g. on macOS a `/var/folders/...` temp dir surfaces as
 /// `/private/var/folders/...`. Mirror that so the expected value matches.
 fn canonicalize(path: &Path) -> PathBuf {
     dunce::canonicalize(path).expect("canonicalize path")
@@ -27,7 +27,7 @@ fn root_prints_the_local_node_modules_dir() {
     dbg!(&output);
     assert!(output.status.success(), "pacquet root should succeed");
 
-    // Deliberately not trimmed, unlike `store path` — pnpm's `root` handler
+    // Deliberately not trimmed, unlike `store path`, pnpm's `root` handler
     // emits the path with its trailing newline (`${path}\n`).
     let expected = format!("{}\n", canonicalize(&workspace).join("node_modules").display());
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);

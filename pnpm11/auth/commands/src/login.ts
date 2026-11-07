@@ -203,7 +203,7 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
 /**
  * The non-empty string at `field` of a web-login response body, or
  * `undefined` when the body is not an object or the field is missing, empty,
- * or not a string — the same narrowing pacquet applies via `Value::as_str`.
+ * or not a string, the same narrowing pacquet applies via `Value::as_str`.
  */
 function readUrlField (body: unknown, field: 'loginUrl' | 'doneUrl'): string | undefined {
   if (typeof body !== 'object' || body == null) return undefined
@@ -213,7 +213,7 @@ function readUrlField (body: unknown, field: 'loginUrl' | 'doneUrl'): string | u
 
 /**
  * Whether `url` contains a Unicode control character (the C0 controls, DEL,
- * or the C1 controls) — the same set pacquet rejects via `char::is_control`.
+ * or the C1 controls), the same set pacquet rejects via `char::is_control`.
  */
 function containsControlCharacters (url: string): boolean {
   for (const char of url) {
@@ -314,8 +314,8 @@ async function classicLogin ({
 }: ClassicLoginParams): Promise<string> {
   const { enquirer, fetch, globalInfo, globalWarn, process } = context
 
-  // Unlike the web-based flow — which only prints a URL and polls, so it runs
-  // without a terminal — the credential prompts need one.
+  // Unlike the web-based flow, which only prints a URL and polls, so it runs
+  // without a terminal, the credential prompts need one.
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new LoginNonInteractiveError()
   }

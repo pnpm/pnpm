@@ -363,7 +363,7 @@ describe('downloadPnpmExecutable', () => {
     assert.deepEqual(fs.readdirSync(path.dirname(destPath)), [path.basename(destPath)])
   })
 
-  // The errno differs per platform — EISDIR on Linux, EPERM on Windows — so
+  // The errno differs per platform, EISDIR on Linux, EPERM on Windows, so
   // what is asserted is that the directory survives rather than how it says so.
   test('refuses a destination that is not a file', async () => {
     const destPath = destIn('directory')

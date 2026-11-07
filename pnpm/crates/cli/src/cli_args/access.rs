@@ -210,8 +210,8 @@ impl AccessArgs {
 /// The subcommand `params` name, and the arguments to pass it.
 ///
 /// `pnpm access` takes its subcommand as one or two leading params,
-/// with the rest — plus, for the shorthands, a value derived from the
-/// subcommand itself — forming its arguments.
+/// with the rest, plus, for the shorthands, a value derived from the
+/// subcommand itself, forming its arguments.
 fn parse_access_action(
     first: &str,
     second: Option<String>,

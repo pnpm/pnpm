@@ -156,7 +156,7 @@ impl Lockfile {
         Ok((!LockfileVersion::<9>::is_compatible(lockfile_version)).then_some(lockfile_version))
     }
 
-    /// Load the wanted lockfile (`<dir>/pnpm-lock.yaml`) — a
+    /// Load the wanted lockfile (`<dir>/pnpm-lock.yaml`), a
     /// directory-addressed loader for callers that resolve into a
     /// directory other than the process's current one. Returns
     /// `Ok(None)` when the file is absent, same as
@@ -243,13 +243,13 @@ impl Lockfile {
     /// exists and its main document is non-empty. The same absence
     /// rules as [`Self::load_wanted_from_dir`] (a missing file, an
     /// empty file, and an env-only combined document all count as
-    /// absent) without paying for the YAML parse — only the read and
+    /// absent) without paying for the YAML parse, only the read and
     /// the document split.
     ///
     /// Any read failure other than `NotFound` (permissions, invalid
     /// UTF-8, I/O) reports the file as present: an existing-but-
-    /// unreadable lockfile must not be mistaken for a missing one —
-    /// the regenerate-on-missing path would overwrite it — and the
+    /// unreadable lockfile must not be mistaken for a missing one,
+    /// the regenerate-on-missing path would overwrite it, and the
     /// real load surfaces the underlying error when the contents are
     /// actually needed.
     #[must_use]
@@ -271,7 +271,7 @@ impl Lockfile {
         }
     }
 
-    /// Parse lockfile text that was read from `file_path` — the path is
+    /// Parse lockfile text that was read from `file_path`, the path is
     /// only used to name the file in a parse error. Returns `Ok(None)`
     /// for the same empty-document cases as
     /// [`Self::load_wanted_from_dir`], so a caller holding an in-memory
@@ -386,7 +386,7 @@ pub struct LoadedWantedLockfile {
 }
 
 /// The views a repairing install reads the wanted lockfile for, and the
-/// importers the branch-lockfile fold started from — see
+/// importers the branch-lockfile fold started from, see
 /// [`LoadedWantedLockfile`] for why the caller needs those.
 ///
 /// The views are held as one value because they are one file generation
@@ -469,7 +469,7 @@ pub struct WantedLockfileSelection {
     /// `file_name`: the lockfiles of the branches containing the
     /// checked-out commit, which is the closest thing to a current branch
     /// such a checkout has. Empty when HEAD is attached to a branch. The
-    /// write target is unaffected — a branch containing HEAD need not have
+    /// write target is unaffected, a branch containing HEAD need not have
     /// HEAD at its tip.
     pub branch_lockfile_candidates: Vec<String>,
 }

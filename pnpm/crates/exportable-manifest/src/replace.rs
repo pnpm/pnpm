@@ -2,10 +2,10 @@
 //!
 //! Two free functions:
 //!
-//! - [`replace_workspace_protocol`] — the regular-dependency form.
+//! - [`replace_workspace_protocol`], the regular-dependency form.
 //!   Resolves `workspace:` specs against the dependency's already-
 //!   installed `package.json` in `node_modules`.
-//! - [`replace_workspace_protocol_peer_dependency`] — the
+//! - [`replace_workspace_protocol_peer_dependency`], the
 //!   peer-dependency form. Accepts the broader `>=`/`<=`/`>`/`<`
 //!   comparators allowed in peer specs and rewrites every
 //!   `workspace:` segment in place so a compound `a || workspace:>=`
@@ -399,7 +399,7 @@ fn parse_peer_range_comparator(bytes: &[u8], pos: usize) -> usize {
 }
 
 /// Consume `(\d+|[xX*])(\.(\d+|[xX*])){0,2}` starting at `pos`. Returns
-/// the byte offset one past the consumed region — or `pos` when the
+/// the byte offset one past the consumed region, or `pos` when the
 /// first character isn't a valid part.
 fn parse_peer_version(bytes: &[u8], pos: usize) -> usize {
     let Some(end) = parse_peer_version_part(bytes, pos) else {

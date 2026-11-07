@@ -148,8 +148,8 @@ pub struct BuildDependentsOptions<'a> {
     /// all; the reverse walk otherwise works purely off the lockfile.
     ///
     /// This is what the TypeScript tree-builder's `nameFormatter` callback
-    /// is for: an embedder that renames nodes after a manifest field —
-    /// Bit rendering component ids instead of package names — asks for the
+    /// is for: an embedder that renames nodes after a manifest field,
+    /// Bit rendering component ids instead of package names, asks for the
     /// field here and sets `displayName` on the returned tree, rather than
     /// handing a callback across the FFI boundary into a synchronous walk.
     pub manifest_fields: &'a [String],
@@ -171,7 +171,7 @@ struct ManifestProjector<'a> {
 impl ManifestProjector<'_> {
     /// The projection for `node_id`, or `None` when no fields were
     /// requested, the node is a workspace project, or its manifest is
-    /// unreadable — an absent manifest is never an error here, it just
+    /// unreadable, an absent manifest is never an error here, it just
     /// leaves the node un-annotated.
     fn project(&self, node_id: &TreeNodeId) -> Option<serde_json::Map<String, serde_json::Value>> {
         if self.fields.is_empty() {
@@ -360,7 +360,7 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
     node.manifest = ctx.manifest_reader.project(&edge.parent);
 
     if ctx.expanded.contains(&edge.parent) {
-        // Already expanded elsewhere in the tree — show as a leaf to keep
+        // Already expanded elsewhere in the tree, show as a leaf to keep
         // the output bounded.
         node.deduped = true;
         return Some(node);

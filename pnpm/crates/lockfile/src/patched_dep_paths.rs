@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 ///
 /// The version slot of a key only holds a bare semver for a registry package;
 /// a git / tarball / `file:` one holds its resolution there instead, and the
-/// version it resolved to is what `packages:` records — so that entry wins
+/// version it resolved to is what `packages:` records, so that entry wins
 /// when there is one. A registry-qualified key
 /// (`<name>@<registryName>:<version>`) gets no such entry, because its slot
 /// already carries the semver behind the registry alias.

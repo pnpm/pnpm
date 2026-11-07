@@ -3,7 +3,7 @@
 //!
 //! The wanted pnpm version comes from the resolved env lockfile, and the
 //! project controls the lockfile integrity and the registry the bytes are
-//! fetched from — so without this check a cloned repository could make
+//! fetched from, so without this check a cloned repository could make
 //! pnpm download and run an arbitrary native binary. The signed message
 //! is built from the lockfile integrity and verified against npm's
 //! embedded public keys (so a project-controlled registry cannot answer
@@ -83,11 +83,11 @@ pub(crate) enum PlatformBinaries {
 /// proves exactly the same thing. When no signature can be obtained from
 /// either source (both unreachable, or the integrity is a non-sha512 pin no
 /// npm signature can cover), the check returns a warning for the caller to
-/// emit and lets the install proceed — but only when every engine component
+/// emit and lets the install proceed, but only when every engine component
 /// resolves through a non-canonical registry. Such a registry can only come
 /// from the user's own trusted (non-project) configuration, the download URL
 /// is derived from it rather than read from the lockfile, and the bytes stay
-/// pinned by the lockfile integrity — so a cloned repository still cannot
+/// pinned by the lockfile integrity, so a cloned repository still cannot
 /// steer pnpm to attacker-controlled bytes; the residual trust is the same
 /// the user already places in that registry for every package installed
 /// from it.
@@ -97,7 +97,7 @@ pub(crate) enum PlatformBinaries {
 /// detects tampering (an invalid signature), when a component is absent from
 /// a reachable canonical registry, when a component carries no integrity
 /// metadata, or when the canonical registry is the configured registry and
-/// is unreachable — the lockfile integrity is project-controlled and not a
+/// is unreachable, the lockfile integrity is project-controlled and not a
 /// safe fallback there.
 pub(crate) async fn verify_engine_identity(
     env: &EnvLockfile,
@@ -144,7 +144,7 @@ fn collect_engine_components(
     // `link_exe_platform_binary` hardlinks the host's platform binary over
     // the engine's own `pnpm` bin, so whenever the lockfile carries a
     // candidate for this host those are the bytes that execute and they must
-    // be verified — whichever engine lists them.
+    // be verified, whichever engine lists them.
     let snapshot_key = package_label.parse::<PackageKey>().map_err(|_| {
         SelfUpdateError::EngineIdentityUnverifiable {
             message: format!(
@@ -331,7 +331,7 @@ fn classify_signature_failures(
         return failure(secondary.0, secondary.1);
     }
     // The primary registry had no usable signature (a mirror commonly serves
-    // none) and the fallback could not be consulted — nothing suspicious was
+    // none) and the fallback could not be consulted, nothing suspicious was
     // observed, the signature was unobtainable.
     failure(
         format!(

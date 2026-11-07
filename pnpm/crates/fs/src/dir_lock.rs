@@ -7,7 +7,7 @@
 //!
 //! A directory outlives the process that created it, so on its own it
 //! cannot tell a waiter whether its holder is still at work or died
-//! holding it — interrupted by `Ctrl+C`, say. The holder therefore also
+//! holding it, interrupted by `Ctrl+C`, say. The holder therefore also
 //! keeps an OS file lock on the held file standing for the directory in
 //! the per-user lock directory, for as long as it holds the lock. The OS
 //! releases that lock when the holder's process ends, however it ends.
@@ -32,12 +32,12 @@
 //! another host, whose lock directory is on a shared filesystem, has a
 //! held file of its own and is judged by age.
 //!
-//! The directory stays the lock a pnpm without the file lock — an older
-//! release, or one on a filesystem that cannot hold OS locks — agrees on.
+//! The directory stays the lock a pnpm without the file lock, an older
+//! release, or one on a filesystem that cannot hold OS locks, agrees on.
 //! Such a holder's liveness cannot be told, so its directory's age decides
 //! when it counts as gone.
 //!
-//! The lock is advisory in a second sense — [`DirLock::acquire`] gives
+//! The lock is advisory in a second sense, [`DirLock::acquire`] gives
 //! up after a bounded wait and reports that it could not take the lock,
 //! so a caller can proceed unserialized rather than fail. A lock is
 //! there to avoid a race, and a race lost is better than a command that
@@ -92,12 +92,12 @@ impl DirLock {
     /// it. Returns `None` when the wait ran out.
     ///
     /// A lock directory whose holder's process has ended is taken over
-    /// at once. When that cannot be told — the holder is an older pnpm,
-    /// or the filesystem cannot hold an OS file lock — a directory older
+    /// at once. When that cannot be told, the holder is an older pnpm,
+    /// or the filesystem cannot hold an OS file lock, a directory older
     /// than `abandoned_after` is treated as left behind by a process
     /// that died holding it, and is taken over. That bound has to exceed
     /// how long the guarded work can legitimately take, or a slow holder
-    /// gets its lock stolen — which is why it is the caller's to choose
+    /// gets its lock stolen, which is why it is the caller's to choose
     /// and not tied to `wait`.
     ///
     /// `Ok(None)` is a lock someone else holds; `Err` is one that could
@@ -452,19 +452,19 @@ fn is_transient_release_error(
 impl Drop for DirLock {
     fn drop(&mut self) {
         // Only release a lock that is still ours. A holder judged by age
-        // alone — because it or its successor lacks the held file — may
+        // alone, because it or its successor lacks the held file, may
         // have had its directory removed and replaced by the next process
         // in line; removing that one would hand the resource to two
         // processes at once.
         //
         // Reading the record and removing the directory are two steps, so
-        // a takeover landing between them is still removable — the check
+        // a takeover landing between them is still removable, the check
         // narrows the window from the whole guarded operation to a couple
         // of syscalls, it does not close it. Closing it needs an atomic
         // compare-and-remove no portable filesystem API offers. The
         // residual is acceptable because reaching it requires a takeover
         // by age, which requires this holder to have already run past
-        // `abandoned_after` — a bound the caller sizes well above the
+        // `abandoned_after`, a bound the caller sizes well above the
         // work being guarded.
         match fs::read_to_string(self.path.join(OWNER_FILE)) {
             Ok(owner) if owner != self.token => return,

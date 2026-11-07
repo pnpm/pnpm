@@ -36,13 +36,13 @@ fn alternative_hint(log: &DeprecationLog) -> String {
 }
 
 impl ReporterState {
-    // --- misc one-liners --------------------------------------------------
+    //,- misc one-liners,------------------------------------------------
 
     pub(super) fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
         if log.package_names.is_empty() {
             return;
         }
-        // Suppress the warning box under `strictDepBuilds` — the install
+        // Suppress the warning box under `strictDepBuilds`, the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
         // only duplicate the error. The structured event still carries the
         // names for NDJSON consumers.

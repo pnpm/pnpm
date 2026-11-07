@@ -43,7 +43,7 @@ pub(super) fn addressed_registry(
 /// The two addresses a surface answers on: the default target, and one named
 /// registry.
 ///
-/// Route templates rather than URLs — `{registry}` is a path parameter the
+/// Route templates rather than URLs, `{registry}` is a path parameter the
 /// [`TargetRegistry`](super::TargetRegistry) extractor reads back.
 pub(super) fn mount_bases(ecosystem: Ecosystem) -> [String; 2] {
     let prefix = ecosystem.base_path();
@@ -192,7 +192,7 @@ pub(super) struct UpstreamDocument<'request> {
 }
 
 /// A fresh cached copy of an upstream document, else the document fetched
-/// and cached — `encode` turns the fetched response into the cached bytes,
+/// and cached, `encode` turns the fetched response into the cached bytes,
 /// so a surface can keep the response URL beside the body. A definitive
 /// upstream 404 purges the cache entry. On an upstream failure a stale
 /// cached copy is served instead, so a transient outage does not break

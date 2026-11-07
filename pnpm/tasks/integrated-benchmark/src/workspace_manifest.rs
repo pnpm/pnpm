@@ -1,6 +1,6 @@
 //! Pacquet's prod manifest type
 //! (`pnpm_config::workspace_yaml::WorkspaceSettings`) is shaped for
-//! deserializing user input as an additive overlay over `Config` — it
+//! deserializing user input as an additive overlay over `Config`, it
 //! is `Deserialize`-only, has no `supportedArchitectures` /
 //! `allowBuilds` fields, and its semantics are "apply non-`None` fields
 //! onto an existing `Config`". The benchmark needs to *emit* a complete
@@ -29,7 +29,7 @@ pub struct MinimalWorkspaceManifest {
     /// reason it forces `storeDir` local: so the cold-cache scenarios can
     /// wipe it per-iteration. Left at the global default it would survive
     /// every wipe, leaving the direct client's resolution served from a
-    /// warm mirror — which makes "cold cache" cold in name only and hides
+    /// warm mirror, which makes "cold cache" cold in name only and hides
     /// pnpr's resolution-offload win. Both pnpm and pacquet read it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_dir: Option<String>,
@@ -113,7 +113,7 @@ impl MinimalWorkspaceManifest {
     /// The fixture pins `supportedArchitectures` to every OS/CPU/libc
     /// pnpm releases for, so pnpm on Linux CI doesn't skip darwin-only
     /// optionals (e.g. `fsevents`) while pacquet installs every snapshot
-    /// unconditionally — the asymmetry would tilt the benchmark in
+    /// unconditionally, the asymmetry would tilt the benchmark in
     /// pnpm's favour. It also pins `allowBuilds` to `false` for the
     /// packages whose postinstalls would otherwise trip pnpm's
     /// `ERR_PNPM_IGNORED_BUILDS` warning under `ignore-scripts=true`.

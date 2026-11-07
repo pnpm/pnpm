@@ -20,8 +20,8 @@ use std::{
 };
 
 /// The Node.js line a JavaScript package manager runs on when the host has
-/// no `node` of its own. LTS is the conservative pick, and — being a stable
-/// release — it is the one channel whose archives carry Node's own
+/// no `node` of its own. LTS is the conservative pick, and, being a stable
+/// release, it is the one channel whose archives carry Node's own
 /// publisher signatures.
 const MANAGED_NODE_SPEC: &str = "lts";
 
@@ -43,7 +43,7 @@ impl ProvisionedEngine {
     /// The executable for the command `name`, falling back to the
     /// engine's main program when it publishes no such command.
     ///
-    /// A package manager publishes more than one — `npx` alongside `npm` —
+    /// A package manager publishes more than one, `npx` alongside `npm`,
     /// so the one the user typed is what runs. Only the engine's own
     /// directory answers: a managed Node.js behind it ships an `npm` and
     /// an `npx` of its own, which are not the versions that were asked
@@ -153,7 +153,7 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
 }
 
 /// A `node` for a JavaScript engine to run on, or `None` when the engine
-/// needs none — either because it is a native binary, or because the host
+/// needs none, either because it is a native binary, or because the host
 /// already has a `node` on `PATH`.
 ///
 /// A machine that only ever installed pnpm has no Node.js at all, and npm

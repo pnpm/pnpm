@@ -36,7 +36,7 @@ export function composeChangelogSection (release: PlannedRelease): string {
 
 /**
  * The bump an intent declares for this release, whichever way the intent
- * references the project — by name (sound only when unambiguous, which plan
+ * references the project, by name (sound only when unambiguous, which plan
  * assembly guarantees) or by directory.
  */
 function releaseBumpFor (releases: Record<string, IntentBumpType>, release: PlannedRelease): IntentBumpType | undefined {

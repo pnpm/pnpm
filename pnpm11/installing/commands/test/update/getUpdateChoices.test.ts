@@ -245,7 +245,7 @@ test('getUpdateChoices() names every workspace a collapsed choice came from', ()
   const choices = getUpdateChoices([outdated('web'), outdated('tooling')], true)
 
   // Selecting the choice updates the package in every project, so the two
-  // entries stay one row — but the row has to say which projects it covers.
+  // entries stay one row, but the row has to say which projects it covers.
   expect(choices).toHaveLength(1)
   expect(choices[0].choices).toHaveLength(2)
   const dataRow = choices[0].choices[1] as { message: string }

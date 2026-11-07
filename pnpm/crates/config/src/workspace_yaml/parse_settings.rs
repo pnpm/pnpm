@@ -15,8 +15,8 @@ const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 /// how long loading its own configuration takes.
 ///
 /// Placeholders are decided in groups, which is what makes this affordable:
-/// the ones a document reads without — in comments, and in every setting that
-/// takes free text — cost about one read per doubling of their number rather
+/// the ones a document reads without, in comments, and in every setting that
+/// takes free text, cost about one read per doubling of their number rather
 /// than one each, and only the ones a setting genuinely needs cost about two
 /// apiece. A file naming this many settings out of the environment is far past
 /// anything written by hand, and is read as written.
@@ -27,7 +27,7 @@ const MAX_DOCUMENT_READS: u32 = 512;
 ///
 /// Only the placeholders the document cannot be read without are resolved
 /// here. A setting that takes free text reads as written, so its placeholder
-/// is left for the trusted / untrusted substitution that follows — which is
+/// is left for the trusted / untrusted substitution that follows, which is
 /// what keeps a repository-controlled file from naming a request destination
 /// out of the environment. A document that reads as written resolves nothing
 /// at all and is returned exactly as it was read, so what a file means today

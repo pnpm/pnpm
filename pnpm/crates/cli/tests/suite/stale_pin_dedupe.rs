@@ -33,7 +33,7 @@ fn write_manifest(path: &Path, dep_of_version: &str) {
 #[test]
 fn refreshes_stale_transitive_pin_to_higher_direct_dep_version() {
     // Keep `root` (the TempDir) and the mock registry alive for the whole
-    // test — dropping them deletes the workspace / stops the registry.
+    // test, dropping them deletes the workspace / stops the registry.
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -85,7 +85,7 @@ fn refreshes_stale_transitive_pin_to_higher_direct_dep_version() {
 #[test]
 fn refreshes_stale_transitive_pin_for_caret_range_direct_dep() {
     // Same convergence, but the bumped direct dep uses a caret range
-    // (`^100.1.0`) — the spec `pnpm add` actually writes. The refresh
+    // (`^100.1.0`), the spec `pnpm add` actually writes. The refresh
     // relies on the resolved direct-dep version (100.1.0), not the spec
     // string, so it must still redirect the transitive `^100.0.0` edge.
     let CommandTempCwd { workspace, root, npmrc_info, .. } =

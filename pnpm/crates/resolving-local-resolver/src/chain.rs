@@ -73,8 +73,8 @@ impl Resolver for LocalSchemeResolver {
 }
 
 /// `Resolver` for the path-shape branch (`./foo`, `foo.tgz`,
-/// `/abs/path`, `~/dir`, `C:\drive`). Runs **last** in the chain —
-/// after named-registry — so a `<alias>:@scope/pkg` specifier reaches
+/// `/abs/path`, `~/dir`, `C:\drive`). Runs **last** in the chain,
+/// after named-registry, so a `<alias>:@scope/pkg` specifier reaches
 /// the named-registry resolver instead of being misrouted here on
 /// the strength of an embedded `/` (`contains_path_sep` in
 /// `parse_bare_specifier.rs`).

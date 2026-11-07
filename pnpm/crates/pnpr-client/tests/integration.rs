@@ -47,7 +47,7 @@ use tokio::{
 /// `registry_url` as a public route so the client may resolve against it
 /// (off-allowlist registries are rejected at the request boundary). Returns
 /// the base URL, the bearer `Authorization` for the registered `pnpr-client`
-/// caller (pnpr only honors `_authToken` on requests — the resolver
+/// caller (pnpr only honors `_authToken` on requests, the resolver
 /// endpoints reject Basic credentials), and the storage guard.
 async fn start_pnpr(registry_url: &str) -> (String, String, TempDir) {
     start_pnpr_inner(None, Vec::new(), vec![registry_url.to_string()], false).await
@@ -341,7 +341,7 @@ fn signed_artifact_fixture_with_builder_id(builder_id: &str) -> SignedFixture {
 }
 
 /// One input key admits one artifact per set of compatibility constraints, so a
-/// test wanting several of them for one dependency varies the platform — which
+/// test wanting several of them for one dependency varies the platform, which
 /// is the only reason a second artifact for one input is legitimate.
 fn signed_artifact_fixture_for_platform(index: usize) -> SignedFixture {
     // Node major, not the glibc floor: two floors for one architecture and Node

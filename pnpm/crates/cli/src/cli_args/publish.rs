@@ -1,4 +1,4 @@
-//! `pacquet publish` — publish a package to an npm registry.
+//! `pacquet publish`, publish a package to an npm registry.
 //!
 //! The registry-facing work (OIDC, OTP, the publish document and PUT) lives in
 //! [`pnpm_publish`]; this module maps the resolved [`Config`] and CLI flags
@@ -88,8 +88,8 @@ pub struct PublishFlags {
 
 /// What one `publish` / `stage publish` invocation published: the single
 /// package summary, or the recursive path's per-package summaries (possibly
-/// empty). The two arms serialize differently under `--json` — an object vs.
-/// an array — so the split is kept rather than flattened to a `Vec`.
+/// empty). The two arms serialize differently under `--json`, an object vs.
+/// an array, so the split is kept rather than flattened to a `Vec`.
 pub(super) enum PublishedPackages {
     Single(Box<PublishSummary>),
     Recursive(Vec<PublishSummary>),
@@ -107,7 +107,7 @@ impl PublishedPackages {
 
 impl PublishArgs {
     /// Publish the package at `dir` (or the given tarball/directory),
-    /// returning nothing — output is printed here. Handles the single-package
+    /// returning nothing, output is printed here. Handles the single-package
     /// and tarball paths.
     pub async fn run<Reporter: self::Reporter>(
         self,
@@ -150,8 +150,8 @@ impl PublishArgs {
         Ok(())
     }
 
-    /// Run the whole publish pipeline — git checks, packing, lifecycle
-    /// scripts, the registry request — and return the summaries instead of
+    /// Run the whole publish pipeline, git checks, packing, lifecycle
+    /// scripts, the registry request, and return the summaries instead of
     /// printing, so `publish` and `stage publish` can render them differently.
     /// `stage` sends the upload to the registry's staging endpoint.
     pub(super) async fn publish_packages<Reporter: self::Reporter>(
@@ -200,8 +200,8 @@ impl PublishArgs {
             self.publish_tarball::<Reporter>(package, config, &opts, &network, scope).await
         } else {
             // Resolved against the command directory so every path the
-            // pack derives from it — the re-anchored `file:` / `link:`
-            // catalog entries among them — can be related to the
+            // pack derives from it, the re-anchored `file:` / `link:`
+            // catalog entries among them, can be related to the
             // absolute workspace directory. `join` keeps an absolute
             // argument as it is.
             let project_dir = self.package

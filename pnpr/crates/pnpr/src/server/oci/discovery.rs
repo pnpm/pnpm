@@ -46,7 +46,7 @@ impl Request {
         })
     }
 
-    /// `GET /v2/_catalog` — the repository names this caller may read.
+    /// `GET /v2/_catalog`, the repository names this caller may read.
     pub(super) async fn catalog(&self) -> Response {
         if self.method != Method::GET {
             return method_not_allowed();

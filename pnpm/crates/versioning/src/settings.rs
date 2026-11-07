@@ -94,7 +94,7 @@ pub struct VersioningSettings {
 }
 
 impl VersioningSettings {
-    /// Whether nothing is configured — the state in which the `versioning`
+    /// Whether nothing is configured, the state in which the `versioning`
     /// key is removed from pnpm-workspace.yaml instead of written empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {

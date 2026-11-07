@@ -67,7 +67,7 @@ pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<
         .keys()
         // Skip snapshots that never landed on disk. `pkg_requires_build`
         // would just return `false` for a missing dir, but the walk would
-        // still spend a syscall per skipped key — the filter
+        // still spend a syscall per skipped key, the filter
         // short-circuits that on installs with large optional fan-out.
         .filter(|key| !skipped.contains(key))
         .map(|key| {
@@ -120,8 +120,8 @@ pub(super) fn side_effects_cache_gate_active(gate: &SideEffectsCacheGate) -> boo
 /// Whether each configured patch adds build work its package's published
 /// manifest does not declare, keyed by the peer-stripped package key.
 ///
-/// Everything keyed off `requiresBuild` — the allow-build gate, the build
-/// graph, the side-effects cache key — is decided before the build phase
+/// Everything keyed off `requiresBuild`, the allow-build gate, the build
+/// graph, the side-effects cache key, is decided before the build phase
 /// applies the patch, so build work a patch introduces would otherwise
 /// stay invisible until after the decisions that need it. Previewing the
 /// patch keeps all three describing the package that ends up on disk.

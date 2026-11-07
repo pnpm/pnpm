@@ -35,7 +35,7 @@ pub struct ResolvedDependencySpec {
 ///   shape when a `catalog:` (or other) specifier resolves to an alias.
 /// - A `link:<path>` value, meaning the dependency is a workspace
 ///   sibling at `<path>` relative to the importer's `rootDir`. The
-///   workspace project is not duplicated in the virtual store — pnpm
+///   workspace project is not duplicated in the virtual store, pnpm
 ///   creates a direct symlink to the sibling's directory.
 /// - A `file:<path>` value (with an optional `(peer@suffix)` tail),
 ///   meaning the dependency is an injected workspace package (or
@@ -67,7 +67,7 @@ pub enum ImporterDepVersion {
 
     /// `link:<path>` value; resolves to a workspace sibling. The path
     /// is stored verbatim from the lockfile (relative to the
-    /// importer's `rootDir`, or absolute) — interpreting it is the
+    /// importer's `rootDir`, or absolute), interpreting it is the
     /// installer's job, not this layer's.
     Link(String),
 
@@ -87,7 +87,7 @@ impl ImporterDepVersion {
     /// checks at the install layer.
     ///
     /// Use [`Self::resolved_key`] when you need a snapshot key that's
-    /// also correct for [`Self::Alias`] entries — `as_regular` returns
+    /// also correct for [`Self::Alias`] entries, `as_regular` returns
     /// `None` for aliases, so callers that only handle the regular
     /// branch would silently drop aliased deps.
     #[must_use]
@@ -200,7 +200,7 @@ pub enum ParseImporterDepVersionError {
 /// rather than a bare semver-with-peer. Mirrors upstream's
 /// `refToRelative` (`deps/path/src/index.ts` at
 /// `pnpm/pnpm@8a80235c7b`, lines 96-110): an `@` before any `(` or `:`
-/// — or a leading `@` — means the reference is a full dep-path with
+///, or a leading `@`, means the reference is a full dep-path with
 /// the name encoded in front. The shared helper inside
 /// [`crate::SnapshotDepRef`] does the same check; the duplicated copy
 /// here keeps the two parsers self-contained.
@@ -224,7 +224,7 @@ impl FromStr for ImporterDepVersion {
     type Err = ParseImporterDepVersionError;
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         // The `link:` discriminator is upstream's
-        // own — pnpm itself looks for the literal `link:` prefix at
+        // own, pnpm itself looks for the literal `link:` prefix at
         // install time (see `installDepsResolve` / `lockfileToDepGraph`).
         if let Some(target) = value.strip_prefix("link:") {
             return Ok(ImporterDepVersion::Link(target.to_string()));

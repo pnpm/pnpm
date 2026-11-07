@@ -232,7 +232,7 @@ fn merging_keeps_the_branch_lockfiles_when_lockfiles_are_disabled() {
 }
 
 /// `dedupe --check` reports what a dedupe would change and takes its
-/// lockfile back afterwards, so the merge it ran never reaches disk — and
+/// lockfile back afterwards, so the merge it ran never reaches disk, and
 /// the branch lockfiles it merged from have to survive it.
 #[test]
 fn merging_keeps_the_branch_lockfiles_on_a_check_only_dedupe() {

@@ -1,6 +1,6 @@
 //! Free functions backing the local-filesystem resolver. They all
-//! funnel into [`resolve_spec`], which reads the package's manifest —
-//! out of the archive for a tarball, off disk for a directory — once a
+//! funnel into [`resolve_spec`], which reads the package's manifest,
+//! out of the archive for a tarball, off disk for a directory, once a
 //! [`LocalPackageSpec`] has been chosen.
 
 use std::{path::PathBuf, sync::Arc};
@@ -101,7 +101,7 @@ impl From<LocalResolveResult> for ResolveResult {
             alias: None,
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                // Local resolutions don't have a `name@version` shape —
+                // Local resolutions don't have a `name@version` shape,
                 // the canonical name lives in the fetched manifest, not
                 // the resolver-time signal. Leave `name_ver` empty so
                 // downstream consumers fall back to reading
@@ -153,8 +153,8 @@ pub enum ResolveLocalError {
     #[diagnostic(transparent)]
     UnsupportedProtocol(#[error(source)] UnsupportedProtocolError),
 
-    /// Reading a `file:` tarball — its bytes, its sha512 integrity, or
-    /// the `package.json` bundled inside it — failed.
+    /// Reading a `file:` tarball, its bytes, its sha512 integrity, or
+    /// the `package.json` bundled inside it, failed.
     ReadTarball(#[error(source)] TarballError),
 
     /// A `file:` tarball bundles a `package.json` that names no package.
@@ -207,7 +207,7 @@ pub async fn resolve_from_local_scheme(
     resolve_spec(ctx, spec, opts, None).await
 }
 
-/// Resolve a wanted dep by path shape alone — no scheme prefix.
+/// Resolve a wanted dep by path shape alone, no scheme prefix.
 pub async fn resolve_from_local_path(
     ctx: &LocalResolverContext,
     wanted_dependency: &WantedLocalDependency,

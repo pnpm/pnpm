@@ -87,7 +87,7 @@ async fn invalid_direct_dependency_name_names_the_project_directory() {
 /// pnpm's `createReadPackageHook` order is packageExtensions → readPackage
 /// hooks → overrides: a pnpmfile hook that replaces the manifest must not
 /// erase the overrides. Here the hook replaces foo's manifest (bar pinned to
-/// ^2.0.0) and the overrides hook rewrites bar to ^3.0.0 — the resolved edge
+/// ^2.0.0) and the overrides hook rewrites bar to ^3.0.0, the resolved edge
 /// must follow the override.
 #[tokio::test]
 async fn overrides_hook_applies_after_the_pnpmfile_hook() {

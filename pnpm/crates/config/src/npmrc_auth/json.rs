@@ -4,7 +4,7 @@ use super::{
 };
 use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
-/// What the config files — the `.npmrc` files as much as the yamls —
+/// What the config files, the `.npmrc` files as much as the yamls,
 /// declared about registry routing, as opposed to what the cascade merely
 /// resolved to. Collected before each layer is applied, because applying it
 /// is what makes the two indistinguishable by value.
@@ -42,7 +42,7 @@ enum JsonAuthOrigin {
 /// See [`NpmrcAuth::from_json_sources`].
 ///
 /// [`IndexMap`] preserves source order so a later entry wins for a
-/// duplicate inferred route (`"@"` / `@scope` across different hosts) —
+/// duplicate inferred route (`"@"` / `@scope` across different hosts),
 /// a `BTreeMap` would re-sort and could pick a different host.
 #[derive(Debug, serde::Deserialize)]
 struct JsonAuth(IndexMap<JsonAuthRegistry, JsonAuthEntries>);
@@ -96,8 +96,8 @@ struct JsonAuthRegistry {
 
 /// Validate a registry URL as an `_auth` key, returning it normalized.
 ///
-/// The single home of the rule, so a writer of the setting — `pnpm login`
-/// recording what it was granted — refuses up front exactly what the reader
+/// The single home of the rule, so a writer of the setting, `pnpm login`
+/// recording what it was granted, refuses up front exactly what the reader
 /// would refuse afterwards, rather than leaving a document that no later
 /// command can load.
 ///
@@ -191,13 +191,13 @@ struct JsonAuthCreds {
 
 impl NpmrcAuth {
     /// Parse the structured `_auth` setting from its two trusted, non-repo
-    /// sources — the global pnpm `config.yaml` (`global_value`) and the
-    /// `pnpm_config__auth` env var — global-first then env, so the env var
+    /// sources, the global pnpm `config.yaml` (`global_value`) and the
+    /// `pnpm_config__auth` env var, global-first then env, so the env var
     /// wins on conflict.
     ///
     /// Parsing is strict: a malformed value (bad JSON, wrong shape, invalid
     /// registry URL or scope, an unsupported credential field) is a hard
-    /// error, not a warning — both sources are user-controlled, so a typo
+    /// error, not a warning, both sources are user-controlled, so a typo
     /// should surface immediately rather than silently drop auth.
     ///
     /// The env var exists because GitHub Actions / bash / zsh drop env var

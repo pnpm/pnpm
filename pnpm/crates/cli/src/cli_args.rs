@@ -131,7 +131,7 @@ mod workspace_option;
 
 /// The CLI grammar, built once per process. Constructing it walks every
 /// subcommand, and the passes that run before the parse each need the same
-/// view of it — argument arity, aliases, and which positionals name a
+/// view of it, argument arity, aliases, and which positionals name a
 /// subcommand.
 pub(crate) fn grammar() -> &'static clap::Command {
     static GRAMMAR: std::sync::OnceLock<clap::Command> = std::sync::OnceLock::new();

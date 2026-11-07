@@ -17,7 +17,7 @@ use regex::Regex;
 /// first matching include, or `None` when nothing matches.
 ///
 /// The match position is an `Option<usize>` rather than an `i32` /
-/// `-1`-sentinel — the same information, idiomatic for Rust.
+/// `-1`-sentinel, the same information, idiomatic for Rust.
 #[must_use]
 pub fn create_matcher_with_index(patterns: &[String]) -> MatcherWithIndex {
     match patterns.len() {
@@ -34,7 +34,7 @@ pub fn create_matcher(patterns: &[String]) -> Matcher {
     Matcher(create_matcher_with_index(patterns))
 }
 
-/// Boolean matcher — opaque wrapper around [`MatcherWithIndex`].
+/// Boolean matcher, opaque wrapper around [`MatcherWithIndex`].
 #[derive(Clone)]
 pub struct Matcher(MatcherWithIndex);
 
@@ -47,7 +47,7 @@ impl Matcher {
     }
 
     /// `true` iff this matcher is statically guaranteed to never
-    /// match any input — i.e. compiled from an empty pattern list.
+    /// match any input, i.e. compiled from an empty pattern list.
     /// Lets callers short-circuit before they walk a graph and call
     /// [`Self::matches`] for every alias.
     #[must_use]
@@ -197,7 +197,7 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
 
 /// A compiled glob pattern. `*` matches any sequence including empty,
 /// `?` matches one character, and every other character is literal. The
-/// match is anchored — pattern must consume the whole input.
+/// match is anchored, pattern must consume the whole input.
 
 #[derive(Clone)]
 pub struct WildcardMatcher {

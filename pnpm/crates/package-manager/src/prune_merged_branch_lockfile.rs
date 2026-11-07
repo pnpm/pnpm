@@ -4,7 +4,7 @@ use pnpm_package_manifest::PackageManifest;
 use std::collections::HashMap;
 
 /// Take back out of a merged lockfile what the fold added and the
-/// manifests do not declare, returning the reconciled copy — or `None`
+/// manifests do not declare, returning the reconciled copy, or `None`
 /// when the fold added nothing that has to go.
 ///
 /// Every install that resolves reconciles the importers itself, but
@@ -19,7 +19,7 @@ use std::collections::HashMap;
 /// `optional` flags are recomputed from what still reaches them.
 ///
 /// `manifests` maps importer id to manifest, and only the importers it
-/// names are pruned — a filtered install must leave the projects it did
+/// names are pruned, a filtered install must leave the projects it did
 /// not select alone.
 pub(crate) fn prune_merged_branch_lockfile(
     lockfile: &Lockfile,

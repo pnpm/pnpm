@@ -21,7 +21,7 @@ use std::{
 };
 
 /// One directory-fetch request. The `directory` is the absolute
-/// resolved path the caller wants packaged — the
+/// resolved path the caller wants packaged, the
 /// `resolve(lockfile_dir, resolution.directory)` join happens at the
 /// call site so this struct doesn't need to know about lockfile
 /// layout.
@@ -44,7 +44,7 @@ pub struct DirectoryFetcher {
 }
 
 /// Result of [`DirectoryFetcher::run`]: the `files_map`, the manifest,
-/// and the `requires_build` flag. There is no `local` flag (implicit —
+/// and the `requires_build` flag. There is no `local` flag (implicit,
 /// pacquet routes locally-sourced snapshots through this fetcher only)
 /// and no `package_import_method` (the install dispatcher encodes the
 /// import method by which slot it writes to, not by a field on the
@@ -107,7 +107,7 @@ impl DirectoryFetcher {
         // `pkg_root` rather than the post-filter files_map. That
         // distinction only matters when `include_only_package_files =
         // true` AND the packlist excludes `binding.gyp` / `.hooks/`
-        // from the published tarball — uncommon, but a real gap.
+        // from the published tarball, uncommon, but a real gap.
         // Revisit when a real package surfaces it.
         let requires_build = pkg_requires_build(&self.directory);
         Ok(DirectoryFetchOutput { files_map, manifest, requires_build, exists: true })

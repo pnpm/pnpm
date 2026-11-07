@@ -45,7 +45,7 @@ pub struct TarballFetchContext {
 #[derive(Debug, Clone)]
 pub struct PriorTarballEntry {
     pub integrity: Integrity,
-    /// `<integrity>\t<pkg_id>` — the store-index row holding the
+    /// `<integrity>\t<pkg_id>`, the store-index row holding the
     /// extracted content.
     pub store_index_key: String,
     /// The URL the lockfile recorded. An immutable redirect moves this
@@ -55,14 +55,14 @@ pub struct PriorTarballEntry {
 }
 
 /// Resolves `http://...` / `https://...` tarball URLs from a project's
-/// manifest. One instance per install — the throttled HTTP client is
+/// manifest. One instance per install, the throttled HTTP client is
 /// shared with the rest of the install pipeline so the HEAD
 /// pre-flight respects the same concurrency cap as metadata fetches
 /// and tarball downloads.
 ///
 /// When `fetch_context` is `Some`, the resolver downloads the tarball
 /// during resolution to fill `manifest` + `integrity` into its
-/// [`ResolveResult`] — name/version/integrity for a remote tarball live
+/// [`ResolveResult`], name/version/integrity for a remote tarball live
 /// in the tarball's `package.json`, and pacquet builds the lockfile
 /// before the install/fetch pass. `None` (unit tests only) keeps the
 /// HEAD-only shape with no manifest/integrity.
@@ -228,7 +228,7 @@ impl TarballResolver {
     /// recorded it with an integrity and the store still holds the
     /// content + its bundled manifest. Returns `None` (caller downloads)
     /// when there's no fetch context, no prior entry for the id, or the
-    /// store-index lookup misses — never on a wrong-content risk, since
+    /// store-index lookup misses, never on a wrong-content risk, since
     /// the key embeds the integrity and the CAFS is content-addressed.
     async fn reuse_from_warm_store(
         &self,
@@ -291,7 +291,7 @@ impl TarballResolver {
     }
 }
 
-/// URL tarballs lock to the exact URL — no concept of "latest". When
+/// URL tarballs lock to the exact URL, no concept of "latest". When
 /// the wanted dep names an HTTP or HTTPS URL, claim it so the dispatcher
 /// stops; the caller still surfaces a ref-mismatch report if the
 /// lockfile points at a different URL than before.

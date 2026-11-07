@@ -1,12 +1,12 @@
-//! `PUT /-/pnpr/v0/publish` — one publish transaction across ecosystems.
+//! `PUT /-/pnpr/v0/publish`, one publish transaction across ecosystems.
 //!
 //! Mounted at the server root, under `/npm/`, and under a named npm
 //! registry's `/npm/~<registry>/`, so both cross-ecosystem releases and
 //! `pnpm publish --batch` (which resolves relative to the configured npm
 //! registry URL) address the same handler.
 //!
-//! Each entry names its `ecosystem` — absent means npm, so an npm batch body
-//! is already a valid one — and carries what that surface's own publish
+//! Each entry names its `ecosystem`, absent means npm, so an npm batch body
+//! is already a valid one, and carries what that surface's own publish
 //! endpoint takes, with the binary parts base64-encoded. Every entry is
 //! validated and staged before any of them is committed, and the whole batch
 //! commits as one generation of its organization's catalog, or not at all: a

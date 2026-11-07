@@ -3,16 +3,16 @@ import * as retry from '@zkochan/retry'
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
 
 /**
- * Per-version publish timestamp from npm's attestation endpoint —
+ * Per-version publish timestamp from npm's attestation endpoint,
  * `/-/npm/v1/attestations/<name>@<version>`.
  *
  * The Rekor inclusion time (`integratedTime`) is a couple of seconds after
- * the actual publish — close enough for a release-age policy that operates
+ * the actual publish, close enough for a release-age policy that operates
  * in minutes/hours/days.
  *
  * We deliberately do **not** verify the Sigstore signature here: the
  * trust model is identical to reading the registry's `time` field on
- * the full metadata document. The win is bandwidth — the attestation
+ * the full metadata document. The win is bandwidth, the attestation
  * payload is tens of KB versus the multi-MB full metadata document, so
  * cold-cache + `--frozen-lockfile` installs against a fleet of
  * provenance-published packages pay far less to verify timestamps.
@@ -75,7 +75,7 @@ export async function fetchAttestationPublishedAt (
  * conservative choice: if two attestations disagree (e.g. publish
  * v0.1 vs SLSA provenance v1), we attribute the publish to the older
  * Rekor entry. The Rekor timestamp is what tells us when the artifact
- * existed in a transparency log — that's the floor on publish time.
+ * existed in a transparency log, that's the floor on publish time.
  */
 function extractPublishedAt (body: unknown): string | undefined {
   if (!body || typeof body !== 'object') return undefined

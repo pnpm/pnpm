@@ -1,13 +1,13 @@
 //! Encoder and decoder for the narrow subset of
 //! [msgpackr](https://github.com/kriszyp/msgpackr)'s wire format that
-//! pnpm v11 uses to write `index.db` rows — standard `MessagePack`
+//! pnpm v11 uses to write `index.db` rows, standard `MessagePack`
 //! extended with msgpackr's **records** extension.
 //!
 //! ## Why this exists
 //!
 //! pnpm packs every `PackageFilesIndex` with `useRecords: true` and
 //! `moreTypes: true`. `useRecords` replaces repeated string keys in
-//! same-shape structs with a compact slot reference — roughly, Protobuf
+//! same-shape structs with a compact slot reference, roughly, Protobuf
 //! field numbers
 //! inline. Plain `rmp_serde` output round-trips through msgpackr badly
 //! in *both* directions:
@@ -21,13 +21,13 @@
 //!   then does `pkgIndex.files` (a property access on that `Map`),
 //!   gets `undefined`, and crashes with `files is not iterable`.
 //!
-//! This module provides both halves — [`transcode_to_plain_msgpack`]
+//! This module provides both halves, [`transcode_to_plain_msgpack`]
 //! for the read side and [`encode_package_files_index`] for the write
-//! side — so a shared `index.db` actually works.
+//! side, so a shared `index.db` actually works.
 //!
 //! ## Wire format (the parts pnpm actually emits)
 //!
-//! **Record definition** — a struct-shape declaration:
+//! **Record definition**, a struct-shape declaration:
 //! ```text
 //! d4 72 <slot>    fixext1, ext type 0x72 ('r'), 1-byte payload = slot id
 //! <array>         msgpack array of N field-name strings
@@ -37,16 +37,16 @@
 //! <value N-1>     raw msgpack value for field N-1     ──┘
 //! ```
 //! The slot byte is from `0x40..=0x7f`. (These bytes are where `MessagePack`
-//! would normally encode positive fixints 64–127; inside a records stream
+//! would normally encode positive fixints 64 to 127; inside a records stream
 //! those values are instead hoisted into `uint 8`, so the range is free.)
 //!
-//! **Record reference** — every subsequent instance of a slot:
+//! **Record reference**, every subsequent instance of a slot:
 //! ```text
 //! <slot>          single byte in 0x40..=0x7f
 //! <value 0> … <value N-1>
 //! ```
 //!
-//! **`undefined`** — a field set to `undefined`, such as the `manifest` of
+//! **`undefined`**, a field set to `undefined`, such as the `manifest` of
 //! a tarball without a `package.json`:
 //! ```text
 //! d4 00 00        fixext1, ext type 0x00, payload 0x00
@@ -55,7 +55,7 @@
 //!
 //! Everything else (maps, arrays, strings, ints, bools, nil, floats) is
 //! vanilla `MessagePack`. Despite `moreTypes: true`, pnpm's payloads encode
-//! JS `Map` objects as standard msgpack `fixmap`/`map16`/`map32` — no
+//! JS `Map` objects as standard msgpack `fixmap`/`map16`/`map32`, no
 //! ext-type wrapping. `checkedAt` timestamps are written as `float 64`
 //! because JS numbers are doubles.
 //!
@@ -89,7 +89,7 @@ use std::{collections::HashMap, rc::Rc};
 /// ASCII 'r'. See msgpackr's README under "Records Extension".
 ///
 /// Exposed so callers can cheaply sniff whether a byte buffer was written
-/// with `useRecords: true` — the fixext1 header `d4 72` is a reliable
+/// with `useRecords: true`, the fixext1 header `d4 72` is a reliable
 /// opener for pnpm-written rows because the top-level struct is always
 /// a record.
 pub const RECORD_DEF_EXT_TYPE: u8 = 0x72;
@@ -160,8 +160,8 @@ pub enum DecodeError {
 /// `rmp_serde` can deserialize.
 ///
 /// `bytes` may already be pure msgpack (e.g. pacquet-written rows). The
-/// bytes `0x40..=0x7f` are ambiguous — in vanilla `MessagePack` they're
-/// positive fixints 64–127; inside a msgpackr-records stream they're
+/// bytes `0x40..=0x7f` are ambiguous, in vanilla `MessagePack` they're
+/// positive fixints 64 to 127; inside a msgpackr-records stream they're
 /// record-slot references. We disambiguate by tracking whether a record
 /// definition has been seen in the stream so far: until the first
 /// `d4 72 <slot>` header, those bytes are treated as fixints and the
@@ -181,7 +181,7 @@ pub fn transcode_to_plain_msgpack(bytes: &[u8]) -> Result<Vec<u8>, DecodeError> 
 }
 
 /// Parser context threaded through [`transcode_value`]. Records mode
-/// starts off and flips on the first record definition — msgpackr
+/// starts off and flips on the first record definition, msgpackr
 /// doesn't re-emit positive fixints in the slot-byte range once records
 /// mode is on, so the flip is one-way for any real stream.
 ///
@@ -238,7 +238,7 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// Transcode one logical value (which may be a record instance — i.e. a
+/// Transcode one logical value (which may be a record instance, i.e. a
 /// compound thing spanning a def + N raw values).
 fn transcode_value(
     reader: &mut Reader<'_>,
@@ -248,11 +248,11 @@ fn transcode_value(
     let start = reader.pos;
     let head = reader.peek(0)?;
 
-    // Record reference — only valid after records mode has been entered;
-    // in plain MessagePack the same bytes are positive fixints 64–127.
+    // Record reference, only valid after records mode has been entered;
+    // in plain MessagePack the same bytes are positive fixints 64 to 127.
     if state.records_mode && (SLOT_LO..=SLOT_HI).contains(&head) {
         reader.read_u8()?;
-        // `Rc::clone` is a refcount bump — the `Vec<String>` of field
+        // `Rc::clone` is a refcount bump, the `Vec<String>` of field
         // names isn't duplicated. We clone instead of borrowing so the
         // recursive `transcode_value` call below can take `&mut state`.
         let fields = Rc::clone(
@@ -263,7 +263,7 @@ fn transcode_value(
         return transcode_record(reader, writer, state, &fields);
     }
 
-    // Record definition — fixext1 with ext type 0x72. Followed by the field-name
+    // Record definition, fixext1 with ext type 0x72. Followed by the field-name
     // array, then the first instance inlined. Seeing this header flips the
     // stream into records mode from here on.
     if head == 0xd4 && reader.peek(1)? == RECORD_DEF_EXT_TYPE {
@@ -405,7 +405,7 @@ fn read_record_def(
     reader.read_u8()?; // 0x72
     let slot_offset = reader.pos;
     let slot = reader.read_u8()?;
-    // msgpackr only ever emits slot bytes in 0x40..=0x7f — any value
+    // msgpackr only ever emits slot bytes in 0x40..=0x7f, any value
     // outside that range is either malformed input or a payload we
     // don't understand. Reject rather than silently registering a
     // slot that nothing could ever reference.
@@ -450,7 +450,7 @@ fn copy_n(reader: &mut Reader<'_>, writer: &mut Vec<u8>, n: usize) -> Result<(),
 }
 
 /// Read a msgpack array of strings at the current reader position and
-/// return its elements. Only fixarray + array16/32 are accepted — record
+/// return its elements. Only fixarray + array16/32 are accepted, record
 /// defs in the wild are always fixarray, but array16/32 costs nothing to
 /// support and future-proofs against a pnpm release that widens schemas
 /// past 15 fields.
@@ -484,7 +484,7 @@ fn read_string(reader: &mut Reader<'_>) -> Result<String, DecodeError> {
     String::from_utf8(bytes).map_err(|_| DecodeError::InvalidFieldNameUtf8 { offset: start })
 }
 
-/// Exactly 2^64 as f64 — the smallest `f64` value that does **not** fit
+/// Exactly 2^64 as f64, the smallest `f64` value that does **not** fit
 /// in a `u64`. `u64::MAX as f64` rounds *up* to 2^64 (`u64::MAX` is
 /// 2^64 − 1, which is not exactly representable in f64), so using it as
 /// the inclusive upper bound would admit a literal 2^64 and silently

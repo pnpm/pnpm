@@ -186,7 +186,7 @@ async function readRootProjectLockfiles (ctx: RootProjectDepsStatusContext): Pro
  * install materialized, so the checks run against it and the
  * caller can restore `pnpm-lock.yaml` from it without resolving.
  * The wanted-vs-current equality assertion doesn't apply on this
- * path — the two are the same object.
+ * path, the two are the same object.
  */
 function getEffectiveWantedLockfileStats (
   { currentLockfileStats, wantedLockfileStats }: RootProjectLockfiles,

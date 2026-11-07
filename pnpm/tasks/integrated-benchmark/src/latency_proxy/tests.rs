@@ -174,9 +174,9 @@ fn slow_start_ramps_per_connection_throughput() {
     // Flat: ~2×20ms latency + 256KiB/10MB/s ≈ 66 ms. Ramped: the first
     // windows (14.6 KB and doubling) each serialize at cwnd/RTT, adding ~3-4
     // window-times before the rate approaches the cap, so the structural gap
-    // is well over 100 ms — far above the 25 ms the assertion requires.
+    // is well over 100 ms, far above the 25 ms the assertion requires.
     // Compare the best of several samples on each side: the minimum is the
-    // noise-resistant estimator on a loaded CI runner — scheduler stalls only
+    // noise-resistant estimator on a loaded CI runner, scheduler stalls only
     // ever inflate a sample, while slow start's ramp overhead is structural
     // and survives in every sample, including the minimum. The only way to
     // falsely fail is for *every* flat sample to be stalled at once, so take

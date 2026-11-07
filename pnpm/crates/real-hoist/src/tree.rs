@@ -116,8 +116,8 @@ pub(super) fn collect_importer_deps(
         //
         // `link:` deps (cross-importer `workspace:*` resolutions, see
         // [`ImporterDepVersion::Link`]) don't live in the virtual
-        // store — they're directory symlinks materialised by
-        // [`pnpm_package_manager::SymlinkDirectDependencies`] —
+        // store, they're directory symlinks materialised by
+        // [`pnpm_package_manager::SymlinkDirectDependencies`],
         // so they have no snapshot to hoist and we skip them here.
         let Some(dep_key) = spec.version.resolved_key(alias) else {
             continue;
@@ -131,7 +131,7 @@ pub(super) fn collect_importer_deps(
 }
 
 /// Returns `Ok(None)` for an optional edge whose target snapshot is
-/// missing — a skipped optional dependency (platform mismatch, fetch
+/// missing, a skipped optional dependency (platform mismatch, fetch
 /// failure) is filtered out of the current lockfile, and pnpm skips
 /// such an edge rather than treating the lockfile as broken. A
 /// missing snapshot behind a non-optional edge is still
@@ -144,7 +144,7 @@ fn build_dep_node(
     opts: &HoistOpts,
     cache: &mut TreeCache,
 ) -> Result<Option<Rc<HoisterTree>>, HoistError> {
-    // Cache key is `<alias>:<dep_key>` — two different aliases
+    // Cache key is `<alias>:<dep_key>`, two different aliases
     // pointing at the same package are intentionally different nodes
     // (the node's `name` field differs), so they shouldn't share a
     // cache slot.
@@ -160,7 +160,7 @@ fn build_dep_node(
     // Construct the node with an empty `dependencies` cell, stash
     // it in the cache, then recurse and populate the cell in place.
     // A back-edge that hits the same `cache_key` during the
-    // recursion gets the same `Rc<HoisterTree>` — by the time the
+    // recursion gets the same `Rc<HoisterTree>`, by the time the
     // outer call returns the cell holds the populated set, and the
     // shared-by-identity invariant the hoister algorithm relies on
     // survives.
@@ -270,7 +270,7 @@ fn collect_snapshot_deps(
         // `name` stays `alias`; only the lookup uses the resolved
         // target name.
         //
-        // `link:` deps return `None` — they have no snapshot to
+        // `link:` deps return `None`, they have no snapshot to
         // hoist (the install layer materialises them as direct
         // directory symlinks), so we skip them here.
         let Some(dep_key) = dep_ref.resolve(alias) else {
@@ -288,14 +288,14 @@ fn collect_snapshot_deps(
 }
 
 /// The identity every peer variant of one package version collapses
-/// onto: the snapshot key with its peer suffix — and the patch hash
-/// that sits alongside it — removed.
+/// onto: the snapshot key with its peer suffix, and the patch hash
+/// that sits alongside it, removed.
 ///
 /// The hoister maps the id to the first snapshot key it sees for it
 /// and stamps that key on every variant, so only that first key
 /// survives as their shared `reference`. Anything indexing the hoist
 /// result by package therefore has to key *and* look up by this id
-/// rather than by the snapshot key an edge declares — otherwise every
+/// rather than by the snapshot key an edge declares, otherwise every
 /// edge on a collapsed variant finds nothing and drops out of the
 /// layout.
 ///
@@ -315,7 +315,7 @@ fn collect_snapshot_deps(
 /// peer-variant explosion on large lockfiles; directory snapshots are
 /// one per injected workspace package and cannot explode that way. A
 /// local tarball (`file:foo.tgz`) unpacks the same archive for every
-/// variant like a registry package, so it collapses like one — the
+/// variant like a registry package, so it collapses like one, the
 /// boundary is [`pnpm_local_spec::is_tarball_filename`], the same one
 /// the lockfile itself draws for `file:` resolutions.
 #[must_use]
@@ -359,7 +359,7 @@ pub fn percent_encode_path(text: &str) -> String {
             other => {
                 // Best-effort %xx encode for the ASCII subset we
                 // expect in importer ids. Anything else is left
-                // verbatim — pacquet's lockfile doesn't currently
+                // verbatim, pacquet's lockfile doesn't currently
                 // hand the wrapper non-ASCII paths.
                 if (other as u32) < 0x80 {
                     write!(out, "%{:02X}", other as u32).unwrap();
@@ -385,7 +385,7 @@ pub(super) fn convert(tree: &HoisterTree, context: &mut ConvertContext) -> Rc<Ho
     // Stash a node with empty `dependencies`, then recurse and
     // populate the cell in place. Anyone reached via a back-edge
     // gets `Rc::clone` of the same allocation and reads the
-    // (eventually-populated) cell — matches the in-place mutation
+    // (eventually-populated) cell, matches the in-place mutation
     // semantics the real hoist algorithm needs.
     let mut refs = BTreeSet::new();
     refs.insert(tree.reference.clone());

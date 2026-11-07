@@ -10,7 +10,7 @@ use std::{fs, io, path::Path};
 /// `node_modules/` is mostly symlinks, and following one would turn a
 /// link into a second copy of the package it names.
 ///
-/// Anything else — a fifo, a socket, a device node — is refused rather
+/// Anything else, a fifo, a socket, a device node, is refused rather
 /// than copied. None of them carry package content, and opening a fifo
 /// to read it blocks until someone writes, which would hang the caller
 /// for good.

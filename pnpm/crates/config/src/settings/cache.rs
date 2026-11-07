@@ -127,7 +127,7 @@ impl Config {
     /// cache after a successful postinstall
     /// (`sideEffectsCacheWrite = sideEffectsCache`), with the additional
     /// constraint that the explicit `sideEffectsCacheReadonly: true`
-    /// always wins — a `??` would let `readonly` slip through when both
+    /// always wins, a `??` would let `readonly` slip through when both
     /// flags are explicitly set, but `readonly` as a flag name only makes
     /// sense if it really does block writes.
     pub fn side_effects_cache_write(&self) -> bool {

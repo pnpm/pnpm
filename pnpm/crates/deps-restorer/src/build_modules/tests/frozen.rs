@@ -50,7 +50,7 @@ fn frozen_store_gvs_optional_not_seeded_skips() {
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 /// Negative control: the same patched, un-seeded snapshot does NOT trip
-/// the backstop when `frozen_store` is off — proving the flag is
+/// the backstop when `frozen_store` is off, proving the flag is
 /// load-bearing. With no fixture on disk the run no-ops at the
 /// `!pkg_dir.exists()` guard, so it returns `Ok` rather than attempting
 /// to apply the (absent) patch file.
@@ -66,7 +66,7 @@ fn gvs_without_frozen_store_does_not_trip_backstop() {
 }
 /// Negative control: under the legacy (non-GVS) layout, package
 /// directories live under the writable project-local virtual store, so
-/// the backstop is correctly inert even with `frozen_store` enabled —
+/// the backstop is correctly inert even with `frozen_store` enabled,
 /// builds and patches there never touch the read-only store.
 #[test]
 fn frozen_store_without_gvs_does_not_trip_backstop() {

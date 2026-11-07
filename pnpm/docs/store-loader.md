@@ -61,7 +61,7 @@ Run it with `node --import ./preload.mjs app.mjs`. The registration returns Node
 The manifest has three top-level fields:
 
 | Field | Meaning |
-| --- | --- |
+|,- |,- |
 | `version` | `1` |
 | `storeDir` | The versioned store directory containing `files/`. Relative paths resolve from the manifest's directory. |
 | `packages` | An object keyed by package instance ID, including each peer dependency context. |

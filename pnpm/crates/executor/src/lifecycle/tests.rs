@@ -418,7 +418,7 @@ fn missing_manifest_returns_false() {
 fn child_sees_stamped_npm_package_and_preserves_user_config() {
     /// RAII guard that restores a process env var to its pre-test
     /// value on drop, so an assertion failure can't leak the seed
-    /// into sibling tests — nor clobber a value the env already had.
+    /// into sibling tests, nor clobber a value the env already had.
     struct EnvGuard {
         key: &'static str,
         prev: Option<std::ffi::OsString>,
@@ -432,7 +432,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         fn drop(&mut self) {
             // SAFETY: nextest runs each test in its own thread, so the
             // only risk is sibling tests calling `env::vars()`
-            // concurrently — this `Drop` still runs on panic.
+            // concurrently, this `Drop` still runs on panic.
             unsafe {
                 match self.prev.take() {
                     Some(value) => std::env::set_var(self.key, value),
@@ -444,7 +444,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     let _user_guard = EnvGuard::new("npm_config_platform_arch");
     let _auth_guard = EnvGuard::new("npm_config__authtoken");
     // SAFETY: nextest runs each test in its own thread, so the only
-    // risk is sibling tests calling `env::vars()` concurrently — the
+    // risk is sibling tests calling `env::vars()` concurrently, the
     // guards' `Drop` removes the vars even on panic.
     unsafe {
         std::env::set_var("npm_config_platform_arch", "x64");
@@ -510,7 +510,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         ("config", "myValue"),
         ("init_cwd", expected_init_cwd.as_ref()),
         ("user", "x64"), // user-defined npm_config_* is preserved
-        ("auth", ""),    // auth npm_config_* is stripped — child sees empty string
+        ("auth", ""),    // auth npm_config_* is stripped, child sees empty string
     ];
     for (k, v) in expected_pairs {
         let line = format!("{k}={v}\n");

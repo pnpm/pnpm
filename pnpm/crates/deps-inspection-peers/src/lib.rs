@@ -68,7 +68,7 @@ pub type ProjectManifests<'a> = HashMap<String, &'a PackageManifest>;
 
 /// The issues an install or `pnpm dedupe` acts on: everything left
 /// after `peerDependencyRules`, when any of it is worth acting on. A
-/// missing peer every parent marks optional is not — pnpm's
+/// missing peer every parent marks optional is not, pnpm's
 /// install-time gate ignores it, and so does `pnpm peers check`.
 pub struct PeerIssuesReport {
     issues: IssuesByProjects,
@@ -80,8 +80,8 @@ pub struct PeerIssuesReport {
 
 impl PeerIssuesReport {
     /// The listing `pnpm peers check` prints for the same issues. Empty
-    /// when every issue is one that listing leaves out — a missing peer no
-    /// parent conflicts over, say — so callers must handle an empty body.
+    /// when every issue is one that listing leaves out, a missing peer no
+    /// parent conflicts over, say, so callers must handle an empty body.
     #[must_use]
     pub fn render(&self) -> String {
         render_peer_issues(&self.issues)
@@ -95,7 +95,7 @@ impl PeerIssuesReport {
     }
 
     /// pnpm's `ERR_PNPM_PEER_DEP_ISSUES` body: the listing, then the
-    /// ways out of the failure — auto-installing the peers first when
+    /// ways out of the failure, auto-installing the peers first when
     /// any is absent, then switching the guard off.
     #[must_use]
     pub fn render_error(&self) -> String {
@@ -180,7 +180,7 @@ pub fn check_peer_dependencies_from_lockfile(
 }
 
 /// Walk the named importers, collecting every peer a package requires
-/// but the recorded graph does not satisfy. Unfiltered — the caller
+/// but the recorded graph does not satisfy. Unfiltered, the caller
 /// applies [`filter_peer_issues`].
 pub fn check_peer_dependencies_of_importers(
     lockfile: &Lockfile,

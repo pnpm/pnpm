@@ -1,4 +1,4 @@
-//! `pacquet self-update` — update pnpm to the latest version (or a given one).
+//! `pacquet self-update`, update pnpm to the latest version (or a given one).
 //!
 //! The target version is resolved from the trusted package-manager
 //! bootstrap registry. When the project pins pnpm via
@@ -131,16 +131,16 @@ pub struct SelfUpdateArgs {
 /// A `minimumReleaseAge` cutoff exists so a freshly published pnpm cannot
 /// reach the machine before anyone has had a chance to notice it is
 /// malicious, and pnpm itself is the most valuable thing on the machine to
-/// compromise — so under strict mode an immature pick is refused. An
+/// compromise, so under strict mode an immature pick is refused. An
 /// interactive run may still confirm it: naming a version on the command line
 /// is a deliberate act by the person at the keyboard, unlike a dependency
 /// drifting onto a new release. CI and other non-interactive runs always fail
-/// closed — a CI runner that allocates a pseudo-TTY has no one at the keyboard
-/// either. The cutoff never comes from the project — see
-/// [`WorkspaceSettings::clear_self_update_policy`] — so the only policy to
+/// closed, a CI runner that allocates a pseudo-TTY has no one at the keyboard
+/// either. The cutoff never comes from the project, see
+/// [`WorkspaceSettings::clear_self_update_policy`], so the only policy to
 /// confirm here is the user's own.
 ///
-/// A `trustPolicy` violation is not negotiable — it means the release's trust
+/// A `trustPolicy` violation is not negotiable, it means the release's trust
 /// evidence weakened relative to the installed version.
 ///
 /// [`WorkspaceSettings::clear_self_update_policy`]: pnpm_config::WorkspaceSettings::clear_self_update_policy

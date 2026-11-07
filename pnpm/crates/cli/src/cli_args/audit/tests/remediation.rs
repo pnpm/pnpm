@@ -492,8 +492,8 @@ fn minimum_release_age_excludes_skips_deprecated_versions_spelled_differently() 
         "GHSA-a",
     )])
     .advisories;
-    // The `time` map spells 4.18.0 with a leading `v` while `versions` — the
-    // source of the deprecation set — does not.
+    // The `time` map spells 4.18.0 with a leading `v` while `versions`, the
+    // source of the deprecation set, does not.
     let mut info = publish_times(
         "lodash-es",
         &[("v4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],

@@ -1,11 +1,11 @@
-//! Recursive `pacquet run` — run a package script across the
+//! Recursive `pacquet run`, run a package script across the
 //! `--filter`-selected workspace projects, scheduled over the task graph.
 //!
 //! `config.filter` / `config.filter_prod` (`--filter` / `--filter-prod`,
 //! include and exclude selectors) narrow the selected set via
 //! [`select_recursive_projects`]; a task graph is then built over the
-//! selection — the invocation's script in every project, plus what the
-//! workspace's `tasks` declarations pull in — and dispatched in dependency
+//! selection, the invocation's script in every project, plus what the
+//! workspace's `tasks` declarations pull in, and dispatched in dependency
 //! order under `workspaceConcurrency`, with no barrier between
 //! dependency-independent tasks. `--no-sort` drops the ordering entirely,
 //! `--reverse` runs the reverse graph, and `--parallel` starts every task

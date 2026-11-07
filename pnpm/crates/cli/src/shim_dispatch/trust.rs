@@ -92,7 +92,7 @@ pub(super) fn append_trust_decision(
 
 /// Ask on the terminal whether the project's bins may be run. `None`
 /// means the question could not be answered (CI, no TTY, or the prompt
-/// was interrupted) — the caller falls back to the global target and
+/// was interrupted), the caller falls back to the global target and
 /// records nothing, so the next interactive invocation asks again.
 pub(super) fn prompt_for_trust(project_key: &str, name: &str) -> Option<bool> {
     if pnpm_config::is_ci() || !crate::confirm_prompt::stdin_is_terminal().ok()? {

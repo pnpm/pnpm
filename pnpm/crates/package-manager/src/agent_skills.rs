@@ -250,7 +250,7 @@ fn decide_sources(
 ///
 /// A skill name one approved package ships is the entry name, unless a
 /// target directory holds an entry pnpm must not replace there (a link
-/// pnpm recorded may be replaced; anything else may not) — then the
+/// pnpm recorded may be replaced; anything else may not), then the
 /// prefixed name is the entry, in every directory, so the names do not
 /// differ across them. A skill name several approved packages ship gets
 /// the prefixed form everywhere.

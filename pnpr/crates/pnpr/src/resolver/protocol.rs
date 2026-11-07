@@ -28,8 +28,8 @@ pub struct EcosystemProbe {
 
 /// Body of `POST /-/pnpr/v0/resolve` with `"ecosystem": "cargo"`.
 ///
-/// Cargo resolution reads one input only the client has — its workspace
-/// manifests — so the request carries them as a `cargo metadata`
+/// Cargo resolution reads one input only the client has, its workspace
+/// manifests, so the request carries them as a `cargo metadata`
 /// document, and the server runs the same resolver the client would have
 /// run locally against index files it fetches (and caches) itself. pnpm
 /// sends the document reduced to the dependency graph, but a full
@@ -137,7 +137,7 @@ pub struct ResolveRequest {
     /// The registries the client declares, keyed by URL, in the shape of
     /// its `registries` setting: the scopes routed to each, the
     /// bare-specifier prefix each answers to, and each one's tarball
-    /// layout. The default registry is not among them — it arrives as
+    /// layout. The default registry is not among them, it arrives as
     /// [`Self::registry`].
     ///
     /// Declarations only, never the setting's older `<scope>: <url>` shape:
@@ -197,7 +197,7 @@ pub struct ResolveRequest {
     /// seed. Absent on a true first install (nothing to verify).
     #[serde(default)]
     pub lockfile: Option<pnpm_lockfile::Lockfile>,
-    /// Governs *resolution behavior* only — frozen (use the lockfile
+    /// Governs *resolution behavior* only, frozen (use the lockfile
     /// as-is) vs reuse-and-update. Does not affect whether the input
     /// lockfile is verified.
     #[serde(default)]

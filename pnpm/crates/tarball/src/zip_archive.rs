@@ -159,7 +159,7 @@ fn zip_entry_path(
         reason: "zip entry path is absolute or escapes the archive root",
     };
     // [`zip::read::ZipFile::enclosed_name`] returns `None` for
-    // absolute paths and any path with a `..` component — a
+    // absolute paths and any path with a `..` component, a
     // single check covers both forms of path traversal.
     let Some(enclosed) = entry.enclosed_name() else {
         return Err(traversal(raw_name));
@@ -214,7 +214,7 @@ fn zip_entry_path(
 /// Nothing in a zip archive bounds an entry's decompressed size:
 /// `uncompressed_size` in the central directory is a claim, and the
 /// deflate stream behind it keeps producing bytes for as long as it
-/// likes — a tar entry, by contrast, is raw bytes the header's size
+/// likes, a tar entry, by contrast, is raw bytes the header's size
 /// field genuinely delimits. Both branches below therefore read through
 /// a [`Read::take`] of the claim and reject an entry whose payload
 /// outruns it, rather than growing to whatever it decodes to.
@@ -290,7 +290,7 @@ pub(crate) fn write_zip_entry_to_cas(
 ///
 /// Writes directly into the CAS via [`StoreDir::write_cas_file`]
 /// rather than extracting to a temp dir and importing each file.
-// 8 arguments — over the default clippy threshold, but each is
+// 8 arguments, over the default clippy threshold, but each is
 // distinct (see the matching note on `fetch_and_extract_zip_with_retry`).
 #[expect(
     clippy::too_many_arguments,
@@ -377,7 +377,7 @@ impl ZipExtraction {
             Some(self.package_integrity),
             self.package_url.clone(),
         )?;
-        // The buffer + ZipArchive are released on return — large runtime
+        // The buffer + ZipArchive are released on return, large runtime
         // archives (Node.js for Windows is ~30 MB) would otherwise keep
         // the buffer alive through the whole read.
         let mut archive = zip::ZipArchive::new(Cursor::new(self.buffer))
@@ -401,7 +401,7 @@ impl ZipExtraction {
 /// permanent errors fail fast, while transient errors retry with
 /// exponential backoff until [`RetryOpts::retries`] is exhausted.
 /// On success, emit `pnpm:progress fetched` once per resolved package.
-// 10 arguments — over the default clippy threshold for the same
+// 10 arguments, over the default clippy threshold for the same
 // reason `fetch_and_extract_with_retry` is: each is distinct, and
 // bundling into a struct would just push the same fields into a
 // wrapper.
@@ -450,7 +450,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
 /// integrity hash, then walks zip entries and writes each to the CAFS.
 ///
 /// The store-index lookup, prefetch cache reuse, and store-index
-/// writer queueing match [`crate::download::IngestTarballToStore`] — runtime
+/// writer queueing match [`crate::download::IngestTarballToStore`], runtime
 /// artifacts share the same `index.db` schema as ordinary npm
 /// packages.
 #[must_use]
@@ -466,7 +466,7 @@ pub struct IngestZipArchiveToStore<'a> {
     /// consumers see paths relative to the package root rather than
     /// the runtime-version-stamped wrapper directory.
     pub archive_prefix: Option<&'a str>,
-    /// See [`crate::download::IngestTarballToStore::ignore_file_pattern`] — the
+    /// See [`crate::download::IngestTarballToStore::ignore_file_pattern`], the
     /// per-fetch archive filter is shared by both archive types.
     pub ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     /// Ecosystem-owned projection policy applied after verified extraction.

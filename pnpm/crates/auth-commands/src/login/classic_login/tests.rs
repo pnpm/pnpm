@@ -38,7 +38,7 @@ async fn classic_login_does_not_forward_credentials_on_body_preserving_redirects
 /// `ClassicLoginOpError::Transport`. Unlike the other arms, this one is not
 /// reachable end-to-end: the classic `PUT` and the web-login `POST` share a
 /// host, so a mock registry can't answer the `POST` yet fail only the `PUT`, and
-/// the requests bypass the `Sys` fetch seam — so the pure mapping is asserted
+/// the requests bypass the `Sys` fetch seam, so the pure mapping is asserted
 /// directly.
 #[test]
 fn transport_error_maps_to_op_transport() {

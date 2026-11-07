@@ -40,7 +40,7 @@ interface ModulesRaw {
   hoistedLocations?: Record<string, string[]>
   allowBuilds?: Record<string, boolean | string>
   // True when the modules dir was populated by a virtualStoreOnly install
-  // (e.g. `pnpm fetch`) — the recorded hoist patterns are forced empty
+  // (e.g. `pnpm fetch`), the recorded hoist patterns are forced empty
   // and must not be compared against user config on the next install.
   virtualStoreOnly?: boolean
 }

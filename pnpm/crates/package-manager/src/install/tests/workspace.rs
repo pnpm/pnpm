@@ -120,7 +120,7 @@ fn workspace_without_packages_field_enumerates_root_only() {
 
     assert_eq!(names, vec!["root"]);
 }
-/// Loose-mode counterpart of the strict test above —
+/// Loose-mode counterpart of the strict test above,
 /// [pnpm/pnpm#13687](https://github.com/pnpm/pnpm/issues/13687).
 #[tokio::test]
 async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_manifest() {
@@ -212,7 +212,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
 /// moment `<workspaceDir>/node_modules/.pnpm-workspace-state-v1.json`
 /// is missing. Pacquet must write it on every install so pnpm can
 /// fast-path the check after pacquet has materialized the modules
-/// tree — that's the gap behind the
+/// tree, that's the gap behind the
 /// `pnpm_config_verify_deps_before_run: false` workaround in pnpm's
 /// own CI.
 #[tokio::test]
@@ -536,7 +536,7 @@ fn filtered_modules_metadata_keeps_empty_optional_maps_omitted() {
 ///    writes `pnpm-lock.yaml` next to the manifest, lays out
 ///    `node_modules`, and records `.pnpm-workspace-state-v1.json`.
 /// 2. A second [`Install::run`] against the same manifest must hit
-///    the optimistic fast path — emit `Already up to date` and skip
+///    the optimistic fast path, emit `Already up to date` and skip
 ///    every install-setup event (`pnpm:context`, `pnpm:stage`,
 ///    `pnpm:lockfile-verification`).
 ///
@@ -678,7 +678,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             config,
             manifest: &manifest,
             emit_initial_manifest: true,
-            // Don't pass the in-memory lockfile — the optimistic check
+            // Don't pass the in-memory lockfile, the optimistic check
             // doesn't need it, and we want to prove the fast path runs
             // *before* the lockfile is even loaded. (Matching pnpm's
             // dispatch ordering: `checkDepsStatus` runs before any

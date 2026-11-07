@@ -5,8 +5,8 @@
 //! resolved: the importer's wanted dependencies, then each level's
 //! resolved children as the walk descends. A package whose
 //! `peerDependencies` name is already in that scope drops the
-//! same-named entry from its own `dependencies`, so the peer edge —
-//! satisfied from an ancestor — supplies the package instead of a
+//! same-named entry from its own `dependencies`, so the peer edge,
+//! satisfied from an ancestor, supplies the package instead of a
 //! nested copy.
 //!
 //! Upstream rebuilds the whole map per level (`{ ...parentPkgAliases,
@@ -29,8 +29,8 @@ pub struct ParentPkgAliases {
 impl ParentPkgAliases {
     /// The scope an importer's own direct dependencies resolve in: the
     /// aliases it declares. pnpm seeds `parentPkgAliases` from the
-    /// importer's wanted dependencies and keeps adding to it — resolved
-    /// direct deps, then every hoisted peer — as the hoist rounds run.
+    /// importer's wanted dependencies and keeps adding to it, resolved
+    /// direct deps, then every hoisted peer, as the hoist rounds run.
     #[must_use]
     pub fn root(names: HashSet<String>) -> Arc<Self> {
         Arc::new(ParentPkgAliases { names, parent: None })

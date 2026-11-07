@@ -107,8 +107,8 @@ fn a_falsy_marker_grants_no_evidence() {
     }
 }
 
-/// The marker's own `null` — as opposed to a missing or null container
-/// around it — is the shape that reaches the decoder, and it means the
+/// The marker's own `null`, as opposed to a missing or null container
+/// around it, is the shape that reaches the decoder, and it means the
 /// registry named the field to say it holds nothing.
 #[test]
 fn a_null_marker_stays_absent() {
@@ -186,8 +186,8 @@ fn an_advisory_count_accepts_every_numeric_encoding() {
     }
 }
 
-/// A count pnpm can't make sense of degrades to "not reported" — the
-/// same state an abbreviated packument leaves it in — rather than
+/// A count pnpm can't make sense of degrades to "not reported", the
+/// same state an abbreviated packument leaves it in, rather than
 /// costing the version. Only the extractor's allocation hint reads it.
 #[test]
 fn an_unusable_advisory_count_degrades_to_absent() {
@@ -259,7 +259,7 @@ fn a_peer_optional_flag_counts_only_when_it_is_a_real_boolean() {
 
 /// `_npmUser` is a container, not a marker: everything pnpm reads lives
 /// inside it, so a registry sending a scalar in its place has supplied
-/// no publisher metadata — and must not thereby erase the version.
+/// no publisher metadata, and must not thereby erase the version.
 #[test]
 fn a_non_object_npm_user_decodes_as_absent() {
     for encoded in ["1", r#""alice <alice@example.com>""#, "[]", "true"] {

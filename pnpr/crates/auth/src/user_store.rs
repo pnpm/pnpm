@@ -115,13 +115,13 @@ impl UserStore {
 
     /// File-backed store. The file is parsed up front so a malformed
     /// account file surfaces as a startup error rather than a silent
-    /// empty user list. A missing file is OK — it's created on the
+    /// empty user list. A missing file is OK, it's created on the
     /// first registration.
     pub fn open(path: PathBuf, max_users: MaxUsers) -> Result<Self> {
         Self::open_with_cost(path, max_users, DEFAULT_BCRYPT_COST)
     }
 
-    /// Like [`Self::open`] but with a configurable bcrypt cost — used
+    /// Like [`Self::open`] but with a configurable bcrypt cost, used
     /// by tests that want sub-100ms hashing.
     pub fn open_with_cost(path: PathBuf, max_users: MaxUsers, bcrypt_cost: u32) -> Result<Self> {
         let now = std::time::SystemTime::now();

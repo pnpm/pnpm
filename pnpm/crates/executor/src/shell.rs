@@ -51,7 +51,7 @@ pub struct SelectedShell {
     /// (Windows-only API; not linked as an intra-doc reference
     /// because rustdoc on non-Windows targets cannot resolve it).
     ///
-    /// On non-Windows platforms the field is set but ignored —
+    /// On non-Windows platforms the field is set but ignored,
     /// keeping the struct platform-independent simplifies tests.
     pub windows_verbatim_args: bool,
 }

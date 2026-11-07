@@ -66,7 +66,7 @@ fn check_lockfile_patches(lockfile: &Lockfile, config: &Config) -> Result<(), Fr
 
 /// Parse `pnpm.overrides` from the config. Values can use the
 /// `catalog:` protocol, which pnpm resolves against the workspace's
-/// catalogs *before* writing them to `pnpm-lock.yaml#overrides` —
+/// catalogs *before* writing them to `pnpm-lock.yaml#overrides`,
 /// resolving here keeps an override declared as `"foo": "catalog:"`
 /// comparable to the lockfile's already-resolved `"foo": "<concrete>"`.
 pub(crate) fn parse_config_overrides(
@@ -117,7 +117,7 @@ pub(crate) fn check_lockfile_settings_drift(
         parsed_overrides.map(pnpm_config_parse_overrides::create_overrides_map_from_parsed);
     let package_extensions_checksum =
         crate::install_with_fresh_lockfile::compute_package_extensions_checksum(config);
-    // `calcPatchHashes(opts.patchedDependencies)` — reading the patch
+    // `calcPatchHashes(opts.patchedDependencies)`, reading the patch
     // files here lets `check_lockfile_settings` catch an edited patch
     // whose hash (and thus its `(patch_hash=...)` depPath suffix) drifted
     // from what the lockfile recorded.

@@ -89,7 +89,7 @@ mod resolver_setup;
 /// writer's materialization is complete, `save_path` is on disk).
 /// Second visitors subscribe to the sender before issuing their
 /// per-parent symlink so they don't race ahead of the first writer's
-/// `import_indexed_dir` — critical on Windows where `symlink_package`
+/// `import_indexed_dir`, critical on Windows where `symlink_package`
 /// may fall back to a junction, which requires the target directory
 /// to exist at creation time. Mirrors the implicit "wait until the
 /// shared slot is on disk" sequencing pnpm gets from running one
@@ -106,7 +106,7 @@ pub struct InstallWithFreshLockfile<'a> {
     pub(crate) owned: OwnedInputs,
     /// One entry per importer to resolve, keyed by the lockfile
     /// importer id (`"."` for the workspace root, POSIX-relative path
-    /// for sibling projects — see
+    /// for sibling projects, see
     /// [`pnpm_workspace::importer_id_from_root_dir`]). For a
     /// non-workspace install this carries a single `"."` entry
     /// pointing at the only project.
@@ -163,7 +163,7 @@ pub(crate) struct FreshInstallProjects<'a> {
     pub(crate) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     /// A full workspace install versus a partial one (`pacquet add` and the
-    /// package installs built on it — `dlx`, global add, the engine install).
+    /// package installs built on it, `dlx`, global add, the engine install).
     /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
     /// exclusion: only a full install's `dependency_groups` carries that
     /// intent, so a partial run must not drop transitive optionals.
@@ -206,7 +206,7 @@ pub(crate) struct FreshInstallExecution {
     pub(crate) policy_excludes: PolicyExcludes,
     /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
     /// written to `<lockfile_dir>/pnpm-lock.yaml`. `false` leaves that
-    /// file untouched — the resolved graph is still returned and still
+    /// file untouched, the resolved graph is still returned and still
     /// drives `<install_state_dir>/lock.yaml`. See
     /// [`crate::Install::run_legacy_deploy`].
     pub(crate) save_lockfile: bool,
@@ -262,7 +262,7 @@ pub(crate) struct FreshLockfileSeeds<'a> {
     /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
     /// with already-pinned `(name, version)` pairs. `Some` on the
     /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
-    /// — the resolver biases toward the seeded versions when they
+    ///, the resolver biases toward the seeded versions when they
     /// still satisfy the spec so unrelated dependencies keep their
     /// pins. `None` on the no-lockfile path. Corresponds to the
     /// `update: false` resolver mode.
@@ -395,7 +395,7 @@ pub(crate) struct FreshProjectInputs {
     /// sees a `workspace:` spec. `None` when this install isn't inside
     /// a `pnpm-workspace.yaml` workspace; the resolver then errors out
     /// on any `workspace:` spec via
-    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
+    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded`, the
     /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
     /// behavior.
     pub(crate) workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
@@ -411,8 +411,8 @@ pub struct InstallWithFreshLockfileResult {
     pub hoisted: pnpm_deps_restorer::InstalledHoistedState,
     /// Importers the resolution left a peer-dependency issue under.
     /// Install completion renders its report from
-    /// [`Self::wanted_lockfile`] — which carries the resolved versions
-    /// the resolver's parent chains leave out — but walks only these
+    /// [`Self::wanted_lockfile`], which carries the resolved versions
+    /// the resolver's parent chains leave out, but walks only these
     /// importers.
     pub peer_issue_importer_ids: HashSet<String>,
     /// The resolved [`Lockfile`] for the install. Retained in-memory to
@@ -432,7 +432,7 @@ pub struct InstallWithFreshLockfileResult {
     /// is on (the default). Empty on the `lockfile_only` path, which
     /// never materializes or builds.
     pub ignored_builds: Vec<String>,
-    /// Dep paths whose build `--ignore-scripts` deferred — see
+    /// Dep paths whose build `--ignore-scripts` deferred, see
     /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
     /// them into `.modules.yaml.pendingBuilds`. Empty on the
     /// `lockfile_only` path for the same reason as
@@ -441,7 +441,7 @@ pub struct InstallWithFreshLockfileResult {
     /// Installability-skipped optional snapshots. The outer install
     /// writer persists these into `.modules.yaml.skipped`.
     pub skipped: SkippedSnapshots,
-    /// The store-index writer task, already winding down — see
+    /// The store-index writer task, already winding down, see
     /// [`pnpm_deps_restorer::InstallFrozenLockfileOutput::store_index_teardown`]:
     /// every handle was dropped, the task is flushing its final batch
     /// and closing its `SQLite` connection (a WAL checkpoint). Await it
@@ -555,7 +555,7 @@ struct PatchUsageScope<'a> {
     merge_wanted_lockfile: Option<&'a Lockfile>,
 }
 
-/// Only in the fresh-lockfile path — a frozen lockfile trusts recorded
+/// Only in the fresh-lockfile path, a frozen lockfile trusts recorded
 /// patches. pnpm's importer-count gate admits an unfiltered run, or a filtered
 /// run whose root-augmented selection and previous wanted lockfile both cover
 /// the complete workspace. A first filtered install has no complete previous

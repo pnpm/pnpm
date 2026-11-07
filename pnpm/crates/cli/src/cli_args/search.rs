@@ -1,4 +1,4 @@
-//! `pacquet search` — search for packages in the registry.
+//! `pacquet search`, search for packages in the registry.
 
 use crate::cli_args::{
     registry_client::{

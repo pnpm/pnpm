@@ -30,7 +30,7 @@ async fn empty_specifier_resolves_to_the_max_published_version() {
 
 /// Regression test for pnpm/pnpm#14096: npm strips build metadata when
 /// it publishes a version, so a selector carrying it must still resolve
-/// to the published version — for a prerelease as much as for a stable
+/// to the published version, for a prerelease as much as for a stable
 /// release.
 #[tokio::test]
 async fn exact_version_with_build_metadata_resolves_to_the_published_version() {

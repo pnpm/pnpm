@@ -113,7 +113,7 @@ pub struct LockfileSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_scoped_optional_peers: Option<bool>,
     /// `injectWorkspacePackages` recorded by the install that wrote
-    /// this lockfile. `false` round-trips as a missing key — the key
+    /// this lockfile. `false` round-trips as a missing key, the key
     /// is stripped on save so historic v9 lockfiles (which never
     /// carried it) stay byte-identical after a re-save. The drift
     /// gate reads the value as a boolean, so a missing key and `false`
@@ -173,7 +173,7 @@ pub struct Lockfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub settings: Option<LockfileSettings>,
 
-    /// `catalogs:` snapshot — the resolved specifier + version for every
+    /// `catalogs:` snapshot, the resolved specifier + version for every
     /// catalog-referenced direct dependency. Sits between `settings` and
     /// `overrides` in the root-key order, so the field is declared here
     /// to serialize in the same position.
@@ -182,7 +182,7 @@ pub struct Lockfile {
 
     /// `overrides` recorded by the install that wrote this lockfile.
     /// Kept in an [`IndexMap`] so the entries serialize in the order
-    /// the user declared them — this map is **not** sorted (it is the
+    /// the user declared them, this map is **not** sorted (it is the
     /// one lockfile map left out of the root-key sort), so preserving
     /// insertion order is what keeps the lockfile byte-stable.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -193,24 +193,24 @@ pub struct Lockfile {
     /// install, drift between this value and the freshly-computed
     /// checksum of `Config::package_extensions` is what
     /// [`crate::check_lockfile_settings`] flags as outdated. `None`
-    /// when no `packageExtensions` were configured at write time — the
+    /// when no `packageExtensions` were configured at write time, the
     /// checksum short-circuits to nothing on empty input, so an empty
     /// `packageExtensions` round-trips identically.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_extensions_checksum: Option<String>,
 
     /// `pnpmfileChecksum` recorded by the install that wrote this
-    /// lockfile — the normalized-content hash of the project's
+    /// lockfile, the normalized-content hash of the project's
     /// `.pnpmfile.{cjs,mjs}` when it exports hooks. Top-level in the v9
     /// wire shape, serialized right after `packageExtensionsChecksum`
     /// in the root-key order. `None` when the project has no pnpmfile
-    /// (or one without a `hooks` export) — the key is omitted in that
+    /// (or one without a `hooks` export), the key is omitted in that
     /// case.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pnpmfile_checksum: Option<String>,
 
     /// `ignoredOptionalDependencies` recorded by the install that
-    /// wrote this lockfile. Top-level in the v9 wire shape —
+    /// wrote this lockfile. Top-level in the v9 wire shape,
     /// **not** inside `settings`. On a subsequent install, drift
     /// between this set and `Config::ignored_optional_dependencies` is
     /// what `satisfies_package_manifest` flags as outdated.
@@ -249,7 +249,7 @@ pub struct Lockfile {
     )]
     pub snapshots: Option<HashMap<PackageKey, SnapshotEntry>>,
 
-    /// `time:` — the publish date of every direct dependency, recorded
+    /// `time:`, the publish date of every direct dependency, recorded
     /// by a `resolutionMode: time-based` install. It is the fallback
     /// source of a package's publish date when the registry's
     /// abbreviated metadata carries none, so the cutoff a later
@@ -264,8 +264,8 @@ pub struct Lockfile {
     /// round trip does not delete them.
     ///
     /// Tools that drive pnpm programmatically record their own state
-    /// alongside the lockfile — Bit writes a `bit:` block listing the
-    /// dependencies whose build scripts it has approved — and a lockfile
+    /// alongside the lockfile, Bit writes a `bit:` block listing the
+    /// dependencies whose build scripts it has approved, and a lockfile
     /// rewrite that silently dropped it would lose that state on every
     /// install. Serialized last, after every key pnpm defines, which is
     /// where such a block already sits in the files pnpm's own consumers
@@ -281,8 +281,8 @@ pub struct Lockfile {
 /// metadata for the same key. Passing them as one value is what keeps a
 /// caller from pairing one lockfile's snapshots with another's
 /// metadata, and it lets a phase that must be handed *the same* maps
-/// twice — `CasPrefetch` derives a cache key per snapshot that
-/// `CreateVirtualStore` then consumes — take one argument instead of
+/// twice, `CasPrefetch` derives a cache key per snapshot that
+/// `CreateVirtualStore` then consumes, take one argument instead of
 /// two that must agree.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LockfileEntries<'a> {
@@ -382,7 +382,7 @@ impl Lockfile {
     /// and `dependencies` only, but its in-memory `specifiers` map
     /// spans every dependency group; pacquet's v9-inline model leaves
     /// `specifiers` unpopulated, so the equivalent check here inspects
-    /// all three group maps — otherwise a dev-only install would
+    /// all three group maps, otherwise a dev-only install would
     /// misread as empty and delete its current lockfile.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -448,8 +448,8 @@ impl Lockfile {
 /// Accepts both shapes a lockfile can carry for a `patchedDependencies`
 /// entry: the bare patch-file hash pnpm writes today, and the
 /// `{hash, path}` mapping pnpm 10 wrote. The mapping collapses to its
-/// hash — the path is redundant, since patch paths come from the
-/// project's `patchedDependencies` config — so a lockfile committed by
+/// hash, the path is redundant, since patch paths come from the
+/// project's `patchedDependencies` config, so a lockfile committed by
 /// pnpm 10 installs unchanged and normalizes the next time it is saved.
 fn deserialize_patched_dependencies<'de, Deser>(
     deserializer: Deser,

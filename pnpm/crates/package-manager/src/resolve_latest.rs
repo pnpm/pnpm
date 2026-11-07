@@ -30,7 +30,7 @@ pub enum ResolveLatestError {
     Registry(#[error(source)] pnpm_registry::RegistryError),
 
     /// The packument carries no version behind the `latest` tag (nor a
-    /// fallback pick) — e.g. every version was unpublished.
+    /// fallback pick), e.g. every version was unpublished.
     #[display("no version found for the latest tag")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_LATEST_VERSION))]
     NoLatestVersion,

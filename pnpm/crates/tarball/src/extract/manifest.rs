@@ -39,7 +39,7 @@ pub fn read_buffered_tar_entry(
 /// freshly extracted archive's CAFS output. Runtime archives (Node.js /
 /// Bun / Deno) carry no `package.json` of their own, so the caller
 /// supplies one, and it also becomes the store-index row's bundled
-/// `manifest` — which is what lets the warm-batch bin linker find the
+/// `manifest`, which is what lets the warm-batch bin linker find the
 /// runtime's bin without a disk round-trip.
 ///
 /// See [`write_synthesized_package_json`] for what reaching the store
@@ -74,7 +74,7 @@ pub(crate) fn apply_append_manifest(
 /// it for the package's identity.
 ///
 /// See [`write_synthesized_package_json`] for what reaching the store
-/// entails and when the write is skipped — a real `package.json`,
+/// entails and when the write is skipped, a real `package.json`,
 /// including one [`apply_append_manifest`] just synthesized, always
 /// takes precedence.
 pub(crate) fn apply_placeholder_manifest(
@@ -96,7 +96,7 @@ pub(crate) const PLACEHOLDER_PACKAGE_JSON: &[u8] = br#"{"_pnpmPlaceholder":"This
 /// store-index row is what lets a later warm materialization land a
 /// `package.json` slot without re-extracting.
 ///
-/// Returns whether anything was written — `false` when the archive
+/// Returns whether anything was written, `false` when the archive
 /// already carries a `package.json`, which always wins.
 pub(crate) fn write_synthesized_package_json(
     store_dir: &StoreDir,
@@ -122,17 +122,17 @@ pub(crate) fn write_synthesized_package_json(
 ///
 /// The narrowed manifest is stashed in `pkgFilesIndex.manifest` so
 /// install-side consumers (notably bin linking) can avoid re-reading
-/// the file from disk — the same place pnpm keeps it, so the shared
+/// the file from disk, the same place pnpm keeps it, so the shared
 /// `index.db` row carries it for both tools.
 ///
 /// Callers apply this to every `package.json` entry they see, so a
 /// duplicate entry overwrites any earlier one and the final entry is
-/// canonical — same shape as the `files` map, which already overwrites
+/// canonical, same shape as the `files` map, which already overwrites
 /// duplicates. Real npm tarballs never publish multiple `package.json`
 /// entries, but the consistency with the `files` map is what matters:
 /// `manifest` and `files` must describe the same file.
 ///
-/// A failed JSON parse leaves `triggers` untouched and returns no manifest —
+/// A failed JSON parse leaves `triggers` untouched and returns no manifest,
 /// the manifest is best-effort; a corrupt `package.json` is the publisher's
 /// fault and downstream code can fall back to disk reads.
 pub(super) fn capture_bundled_manifest(

@@ -8,7 +8,7 @@ use super::{
 };
 use axum::{extract::FromRequest as _, response::IntoResponse};
 
-/// `POST legacy/` — the legacy upload API `twine` speaks.
+/// `POST legacy/`, the legacy upload API `twine` speaks.
 pub(super) async fn post_upload(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,

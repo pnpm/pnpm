@@ -317,7 +317,7 @@ function isLocalRef (ref: string): boolean {
 //     `pkg@1.0.0(peer-hash)` and aliased `positive: is-positive@3.1.0`).
 //   - If the dep-path's non-semver version contains a `/`, it's a
 //     URL/git-shape (`https://`, `git+ssh://`, scheme-less `github.com/.../sha`,
-//     `link:../foo`, etc.) — return the raw ref so a commit/path change is
+//     `link:../foo`, etc.), return the raw ref so a commit/path change is
 //     visible to the user.
 //   - Otherwise prefer `snapshot.version` (clean semver for `runtime:`-style
 //     refs); fall back to the raw ref when the snapshot didn't record one.

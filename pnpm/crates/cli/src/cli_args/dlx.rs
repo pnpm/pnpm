@@ -306,14 +306,14 @@ enum DlxProgram<'a> {
     Named(&'a str),
     /// A provisioned engine's own executable, run by path rather than by
     /// name: an engine's directory can hold another executable named the
-    /// way a user would type it — Yarn 6's archive ships a `yarn` launcher
+    /// way a user would type it, Yarn 6's archive ships a `yarn` launcher
     /// beside the `yarn-bin` that is the engine itself.
     Provisioned { command: &'a str, executable: &'a Path },
 }
 
 impl DlxProgram<'_> {
-    /// The word a shell runs the command by — both forms are reachable
-    /// through the prepended directories — or `None` when there is no
+    /// The word a shell runs the command by, both forms are reachable
+    /// through the prepended directories, or `None` when there is no
     /// word a shell could carry, which only a provisioned executable
     /// whose file name is not valid UTF-8 can produce.
     fn shell_word(&self) -> Option<&str> {
@@ -424,8 +424,8 @@ fn get_pkg_name(cached_dir: &Path) -> Result<String, DlxError> {
     let mut manifest = read_json(&cached_dir.join("package.json"))?;
     // The manifest writer records a `runtime:` dependency (e.g.
     // `pnpm dlx node@runtime:26.4.0`) as `engines.runtime` on disk;
-    // reify it back into the dependency map — the same conversion the
-    // manifest reader applies — so the runtime is discoverable here.
+    // reify it back into the dependency map, the same conversion the
+    // manifest reader applies, so the runtime is discoverable here.
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
     convert_engines_runtime_to_dependencies(&mut manifest, "engines", "dependencies");
     manifest

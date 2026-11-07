@@ -127,8 +127,8 @@ pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
 
     /// Create `path` as a brand-new file holding `bytes`, failing with
-    /// [`io::ErrorKind::AlreadyExists`] when any dirent — a dangling
-    /// symlink included — already occupies the path (`O_CREAT | O_EXCL`
+    /// [`io::ErrorKind::AlreadyExists`] when any dirent, a dangling
+    /// symlink included, already occupies the path (`O_CREAT | O_EXCL`
     /// semantics, which never follow a symlink). The shim writer uses
     /// this to skip its stale-entry probes on a freshly created `.bin`
     /// dir; on *any* error it falls back to the remove-then-[`write`]

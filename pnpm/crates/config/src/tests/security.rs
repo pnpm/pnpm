@@ -3,8 +3,8 @@ use super::{
 };
 use std::{collections::HashMap, path::Path};
 
-/// A `\n`-escaped inline PEM — the only way to fit a certificate on one
-/// INI line — expands to real newlines whichever spelling declared it,
+/// A `\n`-escaped inline PEM, the only way to fit a certificate on one
+/// INI line, expands to real newlines whichever spelling declared it,
 /// so rescoping an unscoped `cert`/`key` yields the same bytes as
 /// writing the URL-scoped key by hand.
 #[test]

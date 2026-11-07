@@ -40,10 +40,10 @@ pub const HOISTING_LIMITS_WORKSPACES: &str = "workspaces";
 ///
 /// This restores exactly the edges the isolated linker creates for an
 /// ordinary dependency: for each member it symlinks the siblings that
-/// member declares into its slot `node_modules/` — read from the
+/// member declares into its slot `node_modules/`, read from the
 /// slot's own `package.json` when one is materialized, else from the
 /// member's lockfile snapshot, else (with neither source) linking the
-/// whole root as a last resort. It mirrors pnpm — each package's slot
+/// whole root as a last resort. It mirrors pnpm, each package's slot
 /// holds only its own declared children, and a transitive sibling
 /// resolves through the chain (`comp3 → comp2 → comp1`) rather than
 /// an all-to-all clique.
@@ -51,12 +51,12 @@ pub const HOISTING_LIMITS_WORKSPACES: &str = "workspaces";
 /// ## Why this is safe
 /// It fires only for importers whose manifest declares
 /// `installConfig.hoistingLimits: "workspaces"` (`root_component_importers`),
-/// a shape no non-Bit install produces — so ordinary installs are
+/// a shape no non-Bit install produces, so ordinary installs are
 /// untouched. It is purely additive: an entry already present in a
 /// member's slot (a dependency the member resolves for itself) is never
 /// overwritten. And within one root the member names are unique (each
 /// root's peer context yields distinct slots), so a declared sibling
-/// name resolves to exactly that root's copy — linking one root's
+/// name resolves to exactly that root's copy, linking one root's
 /// members can never leak a sibling into another root's chain.
 pub fn link_root_component_members(
     layout: &VirtualStoreLayout,
@@ -86,16 +86,16 @@ pub fn link_root_component_members(
 /// One injected `file:` member of a root component, resolved to the
 /// on-disk paths the sibling-linking pass needs.
 struct Member {
-    /// `@scope/name` — the name siblings import this member as, and the
+    /// `@scope/name`, the name siblings import this member as, and the
     /// directory name under `node_modules/`.
     name: String,
     /// The member's snapshot key (its exact peer variant), for looking
     /// up the sibling edges the lockfile declares for this copy.
     key: PackageKey,
-    /// `<slot>/node_modules` — where this member's dependency symlinks
+    /// `<slot>/node_modules`, where this member's dependency symlinks
     /// live, and where sibling symlinks get added.
     slot_modules_dir: PathBuf,
-    /// `<slot>/node_modules/<name>` — the member's own package
+    /// `<slot>/node_modules/<name>`, the member's own package
     /// directory, the target a sibling's symlink points at.
     package_dir: PathBuf,
 }
@@ -105,7 +105,7 @@ struct Member {
 /// each get an isolated global-virtual-store slot. Registry deps
 /// (`react` etc.) resolve correctly within each member's slot already,
 /// and `link:` deps point straight at a workspace directory whose own
-/// `node_modules/` is reachable — neither needs sibling linking.
+/// `node_modules/` is reachable, neither needs sibling linking.
 ///
 /// An injected member surfaces at the importer level as either an
 /// `Alias` whose resolved version is a `file:` spec (the scoped shape
@@ -154,7 +154,7 @@ fn injected_member_key(
     spec: &ResolvedDependencySpec,
 ) -> Option<(String, PackageKey)> {
     match &spec.version {
-        // Bare `file:<path>` — the resolved key reuses the importer-map
+        // Bare `file:<path>`, the resolved key reuses the importer-map
         // key as both the snapshot name and the `node_modules/` dir.
         ImporterDepVersion::File(_) => spec.version
             .resolved_key(name)
@@ -183,18 +183,18 @@ fn injected_member_key(
 /// available for the member:
 ///
 /// 1. The slot's `package.json`, when the materialized copy carries
-///    one — it survives `excludeLinksFromLockfile` /
+///    one, it survives `excludeLinksFromLockfile` /
 ///    `dedupeInjectedDeps`, where lockfile edges may not.
 /// 2. The member's own lockfile snapshot (its exact peer-variant key),
-///    when the slot has no manifest — a Bit workspace component
+///    when the slot has no manifest, a Bit workspace component
 ///    carries no `package.json` in its source directory (its manifest
 ///    lives only in memory on the Bit side), but its snapshot still
 ///    declares the sibling `file:` edges of this copy.
 /// 3. Every other member of the root, when neither exists. The clique
-///    is safe — member names are unique within one root's peer
+///    is safe, member names are unique within one root's peer
 ///    context, the links are additive, and a member only ever
 ///    `require`s what it actually depends on, so surplus links are
-///    inert — but at a Bit-workspace scale it costs one symlink per
+///    inert, but at a Bit-workspace scale it costs one symlink per
 ///    (member, member) pair, which is why the snapshot is preferred.
 ///
 /// A manifest that exists but cannot be parsed is still a hard error.
@@ -270,7 +270,7 @@ fn host_manifest(host: &Member) -> Result<Option<PackageManifest>, LinkRootCompo
 }
 
 /// Additive. `symlink_metadata` doesn't follow the final component, so
-/// an existing symlink — dangling or not — counts as present and is
+/// an existing symlink, dangling or not, counts as present and is
 /// left untouched; only a genuinely missing sibling is filled in. This
 /// never clobbers a dependency the member already resolves for itself.
 fn link_sibling(host: &Member, sibling: &Member) -> Result<(), LinkRootComponentMembersError> {

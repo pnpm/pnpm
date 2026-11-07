@@ -2,7 +2,7 @@
 //! tree walk yields it.
 //!
 //! Unlike [`crate::PrefetchingResolver`], which kicks off a background
-//! *download* per resolution, [`ObservingResolver`] does no I/O — it
+//! *download* per resolution, [`ObservingResolver`] does no I/O, it
 //! forwards a lightweight fetch hint to a [`ResolutionObserver`]. The
 //! pnpr server installs an observer that streams each hint to the client
 //! as an NDJSON `package` frame, so the client begins fetching tarballs
@@ -26,7 +26,7 @@ use std::sync::Arc;
 pub struct ResolvedPackageHint<'a> {
     /// Subresource-integrity string (`sha512-...`).
     pub integrity: &'a str,
-    /// The resolver's `dist.tarball` URL — the same string the install
+    /// The resolver's `dist.tarball` URL, the same string the install
     /// pass looks up in the shared mem cache.
     pub tarball_url: &'a str,
     /// `dist.unpackedSize` from the resolver-fetched manifest, when
@@ -47,7 +47,7 @@ pub struct ResolvedPackageHint<'a> {
     /// Whether the package resolved from a registry (npm / named / jsr), so
     /// [`Self::tarball_url`] is the registry packument's `dist.tarball`. A
     /// server router must classify such a package by its *registry* route, not
-    /// by the tarball host — which can differ for a split-domain registry —
+    /// by the tarball host, which can differ for a split-domain registry,
     /// to avoid emitting (and leaking) a private upstream tarball URL. `false`
     /// for a direct tarball/git/local dependency, whose tarball URL *is* its
     /// source.
@@ -56,7 +56,7 @@ pub struct ResolvedPackageHint<'a> {
 }
 
 pub struct ResolvedPackageIdentity<'a> {
-    /// Canonical `name@version` identifier — the store-index
+    /// Canonical `name@version` identifier, the store-index
     /// `package_id` the install pass keys downloads by.
     pub id: &'a str,
     pub name: &'a str,
@@ -98,7 +98,7 @@ pub trait ResolutionObserver: Send + Sync {
 ///
 /// Non-tarball resolutions (git, directory, registry-shape, binary,
 /// variations) and results missing a structured `name@version` are
-/// skipped — the client fetches those through their own protocol paths,
+/// skipped, the client fetches those through their own protocol paths,
 /// not a plain tarball download.
 pub struct ObservingResolver {
     inner: Box<dyn Resolver>,
@@ -119,7 +119,7 @@ impl ObservingResolver {
     }
 
     fn maybe_report(&self, result: &ResolveResult) {
-        // Gate on the same tarball shape `extract_tarball` accepts —
+        // Gate on the same tarball shape `extract_tarball` accepts,
         // other resolution shapes aren't fetched as plain tarballs.
         let Ok((tarball_url, integrity)) = extract_tarball(&result.resolution) else {
             return;

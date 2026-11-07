@@ -6,8 +6,8 @@ use std::sync::Arc;
 /// package, so without this a route rule that names one would not reach
 /// the classification a resolve's fetch is made under.
 ///
-/// The name bound in is the ecosystem's canonical spelling of it — a
-/// crate's lowercase name, a Python project's PEP 503 name — which is what
+/// The name bound in is the ecosystem's canonical spelling of it, a
+/// crate's lowercase name, a Python project's PEP 503 name, which is what
 /// each registry surface matches its own rules against. It names a package,
 /// never a version of one.
 pub(super) struct PackageRoute {

@@ -55,8 +55,8 @@ impl Section {
 /// last one closed.
 ///
 /// Checked before either side is built, so a file that merely failed to
-/// parse — the common case, since recovery is only ever tried on a parse
-/// failure — costs a scan of its lines rather than a second and third
+/// parse, the common case, since recovery is only ever tried on a parse
+/// failure, costs a scan of its lines rather than a second and third
 /// copy of a lockfile that can run to hundreds of megabytes.
 fn is_git_conflicted(file_content: &str) -> bool {
     let mut section = Section::Common;
@@ -101,8 +101,8 @@ fn push_line(side: &mut String, line: &str) {
 /// it was merged from.
 ///
 /// Returns `None` unless the input passes [`is_git_conflicted`]. A file
-/// that only looks conflicted — a stray marker, an unterminated conflict
-/// — yields nothing, so the caller keeps reporting it as the broken
+/// that only looks conflicted, a stray marker, an unterminated conflict
+///, yields nothing, so the caller keeps reporting it as the broken
 /// lockfile it is instead of merging two documents whose halves were cut
 /// at the wrong lines.
 pub(crate) fn split_git_conflict(file_content: &str) -> Option<(String, String)> {

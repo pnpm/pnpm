@@ -38,7 +38,7 @@ const PROJECT_TRANSFORMS_VERSION: &str = "1";
 /// that turns each resolved tarball into a `package` NDJSON frame and
 /// pushes it down the response channel. `on_resolved` is best-effort: a
 /// closed channel (client hung up) or a serialization failure drops the
-/// frame silently — the resolve still runs to completion server-side.
+/// frame silently, the resolve still runs to completion server-side.
 pub(super) struct StreamObserver {
     pub(super) tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
     pub(super) package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
@@ -64,7 +64,7 @@ pub(super) fn package_frame(
 ) -> serde_json::Value {
     // A registry-resolved package's `tarball_url` is the packument's
     // `dist.tarball`, which a split-domain registry hosts on a different origin
-    // — route it by the registry, not the tarball host, so a private package
+    //, route it by the registry, not the tarball host, so a private package
     // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
     let tarball_url = if hint.from_registry {
         router.route_registry_url(hint.identity.name, hint.identity.version, hint.tarball_url)
@@ -107,7 +107,7 @@ pub(super) fn package_frame(
 /// [`tarball_url_and_integrity`] the client's frozen materialization
 /// uses, so the announced URLs match the client's mem-cache keys
 /// byte-for-byte. Non-tarball resolutions (git, directory, binary,
-/// variations) are skipped — the client fetches those through their
+/// variations) are skipped, the client fetches those through their
 /// own protocol paths.
 pub(super) fn frozen_package_frames(
     config: &PacquetConfig,
@@ -269,7 +269,7 @@ pub(super) fn pypi_done_frame(lockfile: &pnpm_python_resolver::Lockfile) -> Vec<
 
 /// Terminal `error` frame for a resolution that aborted mid-stream,
 /// after one or more `package` frames may already have been sent (so the
-/// HTTP status is locked at 200 — the failure has to ride in the body).
+/// HTTP status is locked at 200, the failure has to ride in the body).
 pub(super) fn error_frame(message: &str) -> Vec<u8> {
     error_frame_with_code(message, None)
 }
@@ -336,8 +336,8 @@ pub(super) fn osv_violations_for_lockfile(
         if ids.is_empty() {
             continue;
         }
-        // Dedup only the rare vulnerable hits — several lockfile keys can
-        // share one name@version via peer suffixes — so the common
+        // Dedup only the rare vulnerable hits, several lockfile keys can
+        // share one name@version via peer suffixes, so the common
         // (non-vulnerable) entry never pays for the set.
         if !seen.insert((name.clone(), version.clone())) {
             continue;
@@ -360,7 +360,7 @@ pub(super) fn osv_violations_for_lockfile(
 /// For a tarball resolution the fetched artifact's identity is its URL, not the
 /// lockfile key. Under `trustLockfile` a tampered lockfile could key a safe
 /// `name@version` while pointing the tarball at a vulnerable artifact, so the
-/// version in the tarball filename is screened too. This is additive — a
+/// version in the tarball filename is screened too. This is additive, a
 /// mismatch alone is never a violation (custom registries may name tarballs
 /// differently), only an actually-vulnerable version is.
 fn vulnerability_ids_for_entry(
@@ -384,7 +384,7 @@ fn vulnerability_ids_for_entry(
 /// Best-effort extraction of the version from a registry tarball URL of
 /// the conventional `<unscoped-name>-<version>.tgz` shape. Returns `None`
 /// for non-standard naming so a legitimate custom registry isn't
-/// misjudged. Never parses the URL strictly — the lockfile is untrusted.
+/// misjudged. Never parses the URL strictly, the lockfile is untrusted.
 pub(super) fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a str> {
     if let Ok(canonical) = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)
         && let Some(version) = version_route_tarball_version(url, &canonical)
@@ -420,7 +420,7 @@ pub(super) fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bo
         LockfileResolution::Registry(_) => true,
         // A frozen lockfile is attacker-controlled, so gate on the tarball
         // URL rather than the tamper-prone `git_hosted` flag or strict URL
-        // parsing — otherwise `gitHosted: true` or a barely-malformed URL
+        // parsing, otherwise `gitHosted: true` or a barely-malformed URL
         // would let a vulnerable package opt out of the OSV scan. Mirrors
         // the npm verifier's URL-based gate.
         LockfileResolution::Tarball(tarball) => {
@@ -436,7 +436,7 @@ pub(super) fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bo
     }
 }
 
-/// Whether a tarball URL uses an HTTP or HTTPS scheme — the only schemes a
+/// Whether a tarball URL uses an HTTP or HTTPS scheme, the only schemes a
 /// registry artifact is served over. Case-insensitive (so a tampered
 /// uppercase scheme can't slip past) without allocating a lowercased copy.
 fn is_http_tarball_url(url: &str) -> bool {
@@ -470,7 +470,7 @@ pub(super) fn ndjson_single_frame(frame: &[u8]) -> Response {
 
 /// A 200 NDJSON response carrying several already-serialized frames in
 /// one fixed body. Used by the frozen fast path, where every frame is
-/// known up front — no channel to stream from.
+/// known up front, no channel to stream from.
 pub(super) fn ndjson_frames(frames: &[Vec<u8>]) -> Response {
     Response::builder()
         .status(StatusCode::OK)

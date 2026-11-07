@@ -2257,7 +2257,7 @@ testOnNonWindows.each([false, true])('deploy preserves links to dependencies and
   // A build restored without its node_modules leaves the aliases dangling.
   for (const dist of ['dist-installed', 'dist-removed']) {
     if (dist === 'dist-removed') fs.rmSync('node_modules', { recursive: true })
-    // eslint-disable-next-line no-await-in-loop -- the second deploy runs after node_modules is removed
+    // eslint-disable-next-line no-await-in-loop, the second deploy runs after node_modules is removed
     await deploy.handler({ ...opts, forceLegacyDeploy, production: true, dev: false }, [dist])
     for (const [name, target] of links) expect(fs.readlinkSync(path.join(dist, '.next', name))).toBe(target)
     expect(fs.lstatSync(path.join(dist, '.next/file-link')).isFile()).toBe(true)

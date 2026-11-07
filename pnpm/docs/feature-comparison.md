@@ -4,7 +4,7 @@ title: Feature Comparison
 ---
 
 | Feature                          |pnpm              |npm               | Notes |
-| ---                              |:--:              |:--:              | ---   |
+|,-                              |:--:              |:--:              |,-   |
 | [Workspace support]              |:white_check_mark:|:white_check_mark:|
 | Isolated `node_modules`          |:white_check_mark:|:white_check_mark:| Default in pnpm. |
 | [Hoisted `node_modules`]         |:white_check_mark:|:white_check_mark:| Default in npm. |

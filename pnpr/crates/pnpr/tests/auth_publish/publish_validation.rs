@@ -361,7 +361,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
 
     // Repoint the published version at a different tarball basename. The version
     // keeps its immutable integrity, so this would make clients fetch bytes that
-    // can't match it (or 404) — it must be rejected, not persisted.
+    // can't match it (or 404), it must be rejected, not persisted.
     packument["versions"]["1.0.0"]["dist"]["tarball"] =
         json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
     let tamper = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
@@ -427,7 +427,7 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
 
     // Add a new version whose tarball basename collides with 1.0.0's. A duplicate
     // basename makes expected_tarball_dist fail closed (502), so the addition must
-    // be rejected — even with an otherwise-valid integrity.
+    // be rejected, even with an otherwise-valid integrity.
     packument["versions"]["9.9.9"] = json!({
         "name": "mypkg",
         "version": "9.9.9",
@@ -487,7 +487,7 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
 
     // Serve the stored dist.tarball as a basename-less URL (ends in `/`),
     // which rewrite_tarball_urls serves under the version-derived canonical
-    // name — so the served basename is still well-defined and must stay
+    // name, so the served basename is still well-defined and must stay
     // pinned. A store never rewrites a version it accepted, so the package
     // is moved into a store that holds it that way.
     let mut stored: Value = serde_json::from_slice(
@@ -574,7 +574,7 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
 async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
     // A metadata-only re-PUT (no attachment, unchanged integrity) is allowed
     // for `deprecated`, but must not be able to rewrite resolution-relevant
-    // fields of an already-hosted version — that would change what clients
+    // fields of an already-hosted version, that would change what clients
     // install without changing the tarball.
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
@@ -783,7 +783,7 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
 
     let bytes = b"actual-bytes";
     let mut body = publish_doc("bad-pkg", "1.0.0", bytes);
-    // Swap the integrity for one computed over different bytes — the
+    // Swap the integrity for one computed over different bytes, the
     // body keeps the original bytes, so the server's recomputed hash
     // won't match.
     body["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"different-bytes"));
@@ -889,7 +889,7 @@ async fn publish_rejects_missing_integrity_field() {
 /// handler is written to iterate N: if the M-th attachment fails
 /// integrity, every already-written tmp file from the earlier
 /// attachments must be cleaned up so a rejected publish leaves no
-/// on-disk artifact. This pins down the `cleanup_tmp_slots` path —
+/// on-disk artifact. This pins down the `cleanup_tmp_slots` path,
 /// without it, a regression that no-op'd the cleanup would leak
 /// `*.tmp.*` files for every successful attachment before the bad
 /// one.
@@ -968,7 +968,7 @@ async fn dist_tag_set_works_with_url_encoded_scoped_path() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
-    // Publish @scope/pkg@1.0.0 (literal slash in the URL — pnpm
+    // Publish @scope/pkg@1.0.0 (literal slash in the URL, pnpm
     // publish uses this form), then set a dist-tag using the
     // npm-client-style `%2F` encoding to verify the decoded path
     // reaches the handler.
@@ -995,7 +995,7 @@ async fn dist_tag_set_works_with_url_encoded_scoped_path() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    // Fetch via the encoded form too — both should round-trip cleanly.
+    // Fetch via the encoded form too, both should round-trip cleanly.
     let tags = app
         .oneshot(
             Request::get("/npm/-/package/@scope%2Fpkg/dist-tags")

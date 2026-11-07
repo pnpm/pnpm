@@ -85,7 +85,7 @@ fn package_name_lookup_is_case_insensitive() {
 #[test]
 fn duplicate_affected_blocks_yield_one_id() {
     let dir = tempfile::tempdir().expect("tempdir");
-    // One record listing the same package twice — the id must appear once.
+    // One record listing the same package twice, the id must appear once.
     fs::write(
         dir.path().join("GHSA-dup.json"),
         r#"{
@@ -152,14 +152,14 @@ fn out_of_order_range_events_are_normalized() {
 
     assert_eq!(index.vulnerability_ids("ord", "0.9.0"), Vec::<String>::new());
     assert_eq!(index.vulnerability_ids("ord", "1.1.0"), vec!["GHSA-order"]);
-    // Above the fix: must be safe — this is the case that fails without sorting.
+    // Above the fix: must be safe, this is the case that fails without sorting.
     assert_eq!(index.vulnerability_ids("ord", "1.3.0"), Vec::<String>::new());
 }
 
 #[test]
 fn withdrawn_handling_respects_null_vs_timestamp() {
     let dir = tempfile::tempdir().expect("tempdir");
-    // `withdrawn: null` is not a withdrawal — the advisory stays active.
+    // `withdrawn: null` is not a withdrawal, the advisory stays active.
     fs::write(
         dir.path().join("GHSA-active.json"),
         r#"{ "id": "GHSA-active", "withdrawn": null,
@@ -205,7 +205,7 @@ fn loads_zip_archive_and_fingerprints_it() {
 /// The fingerprint sorts per-record digests, so the same records in a
 /// different archive order produce the same fingerprint and a cached verdict
 /// stays trusted. A record's digest covers its *name* as well as its bytes,
-/// so this holds for reordering only — moving a record to a different entry
+/// so this holds for reordering only, moving a record to a different entry
 /// name is a different database.
 #[test]
 fn fingerprint_ignores_the_order_records_appear_in() {

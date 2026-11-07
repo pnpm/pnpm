@@ -364,7 +364,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
     // The winner is written behind the store's back to stage the race, so it is
     // never charged, and the loser's envelope never landed. What the loser did
     // write is the marker claiming the scope it reaches, which the reservation
-    // does not carry through a failure this early — the usage scan reclamation
+    // does not carry through a failure this early, the usage scan reclamation
     // ends with picks it up, along with dropping the marker itself.
     assert_eq!(usage.global_bytes, 0, "the loser is not charged for what it did not store");
 }

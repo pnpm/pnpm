@@ -20,7 +20,7 @@ pub fn write_verified_env_lockfile(
 
 /// Reject config-dependency and optional-subdep names/versions before they
 /// build store paths (`<name>/<version>/<hash>`): names must be valid npm
-/// package names, versions exact semver — otherwise a traversal-shaped value
+/// package names, versions exact semver, otherwise a traversal-shaped value
 /// would escape the install roots.
 pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepError> {
     let Some(importer) = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY) else {

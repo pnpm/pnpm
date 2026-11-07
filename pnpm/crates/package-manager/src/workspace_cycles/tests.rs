@@ -20,8 +20,8 @@ fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {
         .collect()
 }
 
-/// A subset of the projects keeps its original `dependencies` arrays —
-/// still naming the projects outside it — exactly as a real selected
+/// A subset of the projects keeps its original `dependencies` arrays,
+/// still naming the projects outside it, exactly as a real selected
 /// graph does.
 fn select(graph: &ProjectGraph<()>, names: &[&str]) -> ProjectGraph<()> {
     names
@@ -48,7 +48,7 @@ fn names_the_projects_of_a_cycle() {
 
 /// Edges leaving the graph are dropped rather than followed, so two
 /// selected projects joined only through an unselected one are ordered
-/// through it without being reported as a cycle — the way pnpm's check
+/// through it without being reported as a cycle, the way pnpm's check
 /// sequences its selected graph.
 #[test]
 fn edges_leaving_the_graph_are_not_followed() {

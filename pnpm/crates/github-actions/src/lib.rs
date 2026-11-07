@@ -375,7 +375,7 @@ fn to_outdated(
 
 /// Resolves the effective GitHub server base URL: the
 /// `update.githubActionsServer` setting, the `GITHUB_SERVER_URL`
-/// environment variable, or <https://github.com> — first non-empty wins.
+/// environment variable, or <https://github.com>, first non-empty wins.
 fn resolve_server_url(server_url: Option<&str>) -> miette::Result<String> {
     let url = server_url
         .filter(|url| !url.is_empty())

@@ -262,7 +262,7 @@ pub(super) fn select_importer_ids(
         return Ok(None);
     }
     // Selecting through the workspace can name a project the lockfile has
-    // no importer for, which only an out-of-date lockfile produces — pnpm
+    // no importer for, which only an out-of-date lockfile produces, pnpm
     // writes an entry for every project, `{}` for one with no
     // dependencies. Walking what is left would answer with an SBOM that
     // under-reports the selection's dependencies, so the run fails

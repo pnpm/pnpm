@@ -4,8 +4,8 @@
 //! it back instead of making it visible; the staged record is then listed
 //! (`GET /-/stage`), inspected (`GET /-/stage/:id`, `GET
 //! /-/stage/:id/tarball`), and finally approved (`POST /-/stage/:id/approve`
-//! — which replays the held document through the regular publish flow) or
-//! rejected (`DELETE /-/stage/:id` — which deletes it). This is the server
+//!, which replays the held document through the regular publish flow) or
+//! rejected (`DELETE /-/stage/:id`, which deletes it). This is the server
 //! half of `pnpm stage`.
 //!
 //! Every operation is gated by the same `publish` rule as a direct publish
@@ -129,10 +129,8 @@ impl StagedRecord {
     }
 }
 
-// ---------------------------------------------------------------------
 // Route handlers. Each is registered both bare and under `/~{registry}`;
 // `TargetRegistry` reports which form the request arrived on.
-// ---------------------------------------------------------------------
 
 /// Path capture of the staged routes that address one record. Named rather
 /// than a bare `Path<String>` because the prefixed registration captures the
@@ -203,11 +201,9 @@ pub(super) async fn get_staged_tarball(
     private_no_cache(serve_staged_tarball(&state, &identity, registry.as_deref(), &path.id).await)
 }
 
-// ---------------------------------------------------------------------
 // The handlers proper.
-// ---------------------------------------------------------------------
 
-/// `POST /-/stage/package/:pkg` — validate and authorize the publish
+/// `POST /-/stage/package/:pkg`, validate and authorize the publish
 /// document exactly like a direct publish, then hold it back under a fresh
 /// stage id instead of committing it.
 async fn serve_staged_publish(
@@ -280,7 +276,7 @@ async fn store_staged(
     Ok(())
 }
 
-/// `GET /-/stage?page=&perPage=&package=` — the staged records visible to
+/// `GET /-/stage?page=&perPage=&package=`, the staged records visible to
 /// the caller through this registry address, sorted oldest-first by staging
 /// time (then id) so pagination stays stable as new records arrive.
 async fn serve_staged_list(
@@ -334,7 +330,7 @@ async fn serve_staged_list(
     )
 }
 
-/// `GET /-/stage/:id` — one staged record's metadata.
+/// `GET /-/stage/:id`, one staged record's metadata.
 async fn serve_staged_view(
     state: &AppState,
     identity: &Identity,
@@ -348,7 +344,7 @@ async fn serve_staged_view(
     json_response(StatusCode::OK, &stored.record.metadata())
 }
 
-/// `DELETE /-/stage/:id` — reject a staged publish, deleting its record and
+/// `DELETE /-/stage/:id`, reject a staged publish, deleting its record and
 /// held tarball.
 async fn serve_staged_reject(
     state: &AppState,
@@ -368,7 +364,7 @@ async fn serve_staged_reject(
     }
 }
 
-/// `GET /-/stage/:id/tarball` — the held tarball's bytes, decoded from the
+/// `GET /-/stage/:id/tarball`, the held tarball's bytes, decoded from the
 /// stored publish document's attachment.
 async fn serve_staged_tarball(
     state: &AppState,
@@ -416,9 +412,7 @@ async fn serve_staged_tarball(
         .expect("static-shape response always builds")
 }
 
-// ---------------------------------------------------------------------
 // Shared plumbing.
-// ---------------------------------------------------------------------
 
 /// Load a staged record and check the caller may act on it: the record must
 /// exist, be addressed through the same registry prefix it was staged with,
@@ -480,7 +474,7 @@ async fn read_staged_record(
     Ok(Some(StoredStagedRecord { bytes, record }))
 }
 
-/// A fresh random (version 4) UUID from the OS CSPRNG — the stage id
+/// A fresh random (version 4) UUID from the OS CSPRNG, the stage id
 /// clients quote back on view/approve/reject/download.
 fn generate_stage_id() -> String {
     let mut bytes = [0u8; 16];

@@ -1,7 +1,7 @@
 //! Human-readable random ids for intent files, in the adjective-noun-verb
 //! shape the changesets ecosystem uses (`wild-wombats-do`). The exact word
-//! pool is not part of the cross-stack contract — any collision-free file
-//! name works — so a compact embedded list stands in for the TypeScript
+//! pool is not part of the cross-stack contract, any collision-free file
+//! name works, so a compact embedded list stands in for the TypeScript
 //! side's `human-id` dependency.
 
 const ADJECTIVES: &[&str] = &[

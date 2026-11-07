@@ -34,7 +34,7 @@ impl StalenessReason {
 
 /// The `settings:` block plus the pnpmfile checksum. A lockfile with no
 /// `settings` block records nothing about the settings it was written under,
-/// so there is nothing to compare — pnpm's
+/// so there is nothing to compare, pnpm's
 /// `lockfile.settings?.autoInstallPeers != null` guard.
 pub(super) fn check_recorded_settings(
     lockfile: &Lockfile,

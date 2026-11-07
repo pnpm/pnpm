@@ -183,7 +183,7 @@ function serializeSbom (
 
 /**
  * A selected project the lockfile has no importer for means the lockfile is
- * out of date — pnpm writes an entry for every project, `{}` for one with no
+ * out of date, pnpm writes an entry for every project, `{}` for one with no
  * dependencies. Walking the rest would answer with an SBOM that under-reports
  * the selection's dependencies, so the run fails instead.
  */

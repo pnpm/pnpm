@@ -18,7 +18,7 @@ pub struct NotImplementedArgs {
 }
 
 /// The one outcome of an unimplemented command. `command` is the name pnpm
-/// registered, not an alias the user typed — these commands have none.
+/// registered, not an alias the user typed, these commands have none.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
     r#"The "{command}" command is not yet implemented in pnpm. Use the npm CLI directly: npm {command}"#

@@ -320,8 +320,8 @@ pub(super) fn kept_range_rewrite<Reporter: self::Reporter>(
 /// A dist tag names no version until it is resolved, so an entry pinning a
 /// version or a range records what the tag resolved to, keeping the operator
 /// it already pins. An entry that already tracks a tag keeps tracking one.
-/// Anything else — a `catalog:` reference, a `workspace:` or `npm:` alias, a
-/// path or git dependency — declares something no version round-trips, so it
+/// Anything else, a `catalog:` reference, a `workspace:` or `npm:` alias, a
+/// path or git dependency, declares something no version round-trips, so it
 /// stands and the selector reaches the install as a preference only.
 pub(super) async fn tag_rewrite(
     rewrite_ctx: &LatestRewriteCtx<'_, '_>,
@@ -361,7 +361,7 @@ pub(super) enum KeptRangeVerdict {
     Admitted,
     /// A version the kept range excludes: the dependency is left alone.
     Excluded,
-    /// Nothing that can be judged before resolution — a range or a dist tag,
+    /// Nothing that can be judged before resolution, a range or a dist tag,
     /// which names a version only once resolution has run, or a kept
     /// specifier that isn't a semver range. The kept specifier decides.
     Undecided,
@@ -369,8 +369,8 @@ pub(super) enum KeptRangeVerdict {
 /// Judge a requested specifier against the range the manifest keeps.
 ///
 /// Only a concrete version gets a verdict. Matching a version against a range
-/// is exact; deciding whether one *range* is contained by another is not —
-/// implementations disagree around prerelease boundaries — so a range is left
+/// is exact; deciding whether one *range* is contained by another is not,
+/// implementations disagree around prerelease boundaries, so a range is left
 /// [`Undecided`] rather than guessed at.
 ///
 /// [`Undecided`]: KeptRangeVerdict::Undecided

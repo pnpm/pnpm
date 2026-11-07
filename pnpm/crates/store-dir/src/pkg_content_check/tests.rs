@@ -49,7 +49,7 @@ fn versions_are_compared_as_semver() {
 }
 
 /// A field the manifest does not state cannot disagree with the key,
-/// but the field next to it still can — and the message renders the
+/// but the field next to it still can, and the message renders the
 /// absent half the way pnpm does.
 #[test]
 fn an_absent_manifest_field_is_not_compared() {
@@ -83,7 +83,7 @@ fn a_registry_qualified_key_is_compared_against_the_version_it_qualifies() {
 }
 
 /// Only registry resolutions are keyed by `name@version`. A tarball URL
-/// has an `@` without being one — and its name half would be the URL
+/// has an `@` without being one, and its name half would be the URL
 /// itself, so reporting it would put any credentials the URL carries in
 /// the error. Git-hosted rows are keyed `<pkg_id>\t{built,not-built}`,
 /// and a version slot that is a `file:` / `link:` reference states no

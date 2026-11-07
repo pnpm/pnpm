@@ -843,7 +843,7 @@ test('update with a version on a crafted package name does not pollute Object.pr
     err = _err as PnpmError
   }
 
-  // `__proto__` names no direct dependency, so the version is rejected — and
+  // `__proto__` names no direct dependency, so the version is rejected, and
   // reporting that must not write through the prototype on the way out.
   expect(err.code).toBe('ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP')
   expect(({} as Record<string, unknown>)['1.0.0']).toBeUndefined()

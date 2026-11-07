@@ -54,8 +54,8 @@ pub(super) fn build_importers(
 ///
 /// A `file:` / `link:` dependency has no version of its own, so
 /// `entry_specifier` stands in. It identifies the entry just as well,
-/// and unlike the resolved `link:` path — which is written relative to
-/// the importer that declared it — it does not depend on which importer
+/// and unlike the resolved `link:` path, which is written relative to
+/// the importer that declared it, it does not depend on which importer
 /// the snapshot happened to read.
 pub(super) fn catalog_snapshot_version(
     importer: &ProjectSnapshot,
@@ -85,7 +85,7 @@ pub(super) fn catalog_snapshot_version(
 /// When `exclude_links_from_lockfile` is `true`, a `link:` direct
 /// dependency is omitted from the importer's `specifiers` and
 /// `dependencies` / `devDependencies` / `optionalDependencies` maps
-/// — unless its manifest specifier starts with `workspace:`, which
+///, unless its manifest specifier starts with `workspace:`, which
 /// still records the resolved workspace-sibling target so the
 /// lockfile stays a complete description of the workspace graph.
 pub(super) fn build_importer(
@@ -141,7 +141,7 @@ pub(super) fn importer_direct_entry(
     // `direct_dependencies_by_alias` includes auto-installed peers
     // hoisted to the importer when `autoInstallPeers: true` is on,
     // but only aliases declared in the manifest belong in the
-    // importer entry — transitive auto-installed peers never enter
+    // importer entry, transitive auto-installed peers never enter
     // `importer.dependencies` / `importer.specifiers`, only the
     // snapshots graph below. Writing them here would carry specifiers
     // the manifest can't satisfy through `satisfies_package_manifest`
@@ -187,7 +187,7 @@ impl ImporterDependencyGroups {
 ///
 /// Workspace-link nodes don't enter the graph (the resolver short-circuits
 /// them at `depth = -1`), so the importer version comes straight from the
-/// `link:` depPath. Non-link direct deps must be present in the graph — a
+/// `link:` depPath. Non-link direct deps must be present in the graph, a
 /// missing entry means the resolver dropped the edge.
 pub(super) fn direct_dep_version(
     alias: &str,
@@ -253,7 +253,7 @@ pub(super) fn manifest_alias_to_group(
     out
 }
 /// Look up the user-written specifier for `alias` in the manifest's
-/// `optionalDependencies` / `dependencies` / `devDependencies` maps —
+/// `optionalDependencies` / `dependencies` / `devDependencies` maps,
 /// plus `peerDependencies` when the current operation needs those declarations
 /// in the importer. Normally `auto_install_peers` materializes them; update
 /// temporarily includes peers it explicitly selected. Returns `None` for an alias the
@@ -311,7 +311,7 @@ pub(super) fn importer_dep_version(
     }
     let parsed = dep_path_str.parse::<ImporterDepVersion>()?;
     // An injected workspace dep reaches this point as its full peered
-    // dep path, `<name>@file:<path>(peers)` — the bare `file:` strip
+    // dep path, `<name>@file:<path>(peers)`, the bare `file:` strip
     // above only matches peerless dep paths.
     if let ImporterDepVersion::Alias(parsed_alias) = &parsed
         && let Some(ver) = self_aliased_file_ver(alias, parsed_alias)
@@ -386,7 +386,7 @@ pub(super) fn real_name(result: &ResolveResult) -> Option<String> {
         .as_str()
         .map(str::to_string)
 }
-/// `true` for an `http(s)://` tarball URL — the remote tarball deps
+/// `true` for an `http(s)://` tarball URL, the remote tarball deps
 /// covered by <https://github.com/pnpm/pnpm/issues/12053>. Excludes
 /// `file:` tarballs and registry-reconstructed resolutions that carry
 /// no URL.

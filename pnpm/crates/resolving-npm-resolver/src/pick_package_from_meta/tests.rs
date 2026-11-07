@@ -1158,7 +1158,7 @@ fn filter_tag_rewrite_prefers_non_deprecated_candidate() {
 /// tie-break that hydrates to check `deprecated` sees every candidate
 /// as undecodable (= not deprecated) and picks the higher deprecated
 /// version instead. Guards the no-hydration deprecation probe the
-/// publish-date filter relies on — also matching pnpm, which reads
+/// publish-date filter relies on, also matching pnpm, which reads
 /// `versions[candidate].deprecated` off plain parsed JSON without
 /// validating the rest of the entry.
 #[test]

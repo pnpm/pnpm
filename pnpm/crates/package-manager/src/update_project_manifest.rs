@@ -70,7 +70,7 @@ pub struct UpdateProjectManifestOptions<'a> {
 /// `owner/repo#sha`, a GitHub URL) be saved even when they resolve to an alias
 /// already present in the manifest. A wanted dep flagged `update_spec` that
 /// resolved to nothing is re-saved with no specifier, so it keeps its existing
-/// version under the importer's target field — a no-op when none is set (a
+/// version under the importer's target field, a no-op when none is set (a
 /// plain install/update).
 pub fn update_project_manifest(
     manifest: &mut PackageManifest,

@@ -8,11 +8,11 @@
 //! For a runtime pin, the dispatcher reads the project's
 //! `devEngines.runtime` / `engines.runtime`, `.node-version`, or `.nvmrc`,
 //! materializes the release in pnpm's global virtual store, and executes
-//! it directly — never through the project's `node_modules/.bin`. A
+//! it directly, never through the project's `node_modules/.bin`. A
 //! publisher-signature-verified stable Node release runs without prompting.
 //!
-//! Everything else eligible — ordinary package bins, unsigned runtime
-//! channels — is a trust decision, gated twice. First, the
+//! Everything else eligible, ordinary package bins, unsigned runtime
+//! channels, is a trust decision, gated twice. First, the
 //! candidate must resolve through its aliases to a package whose manifest
 //! name matches the global provider. Second, the exact candidate must be
 //! approved on the terminal (`Do you trust this project?`). Answers are
@@ -160,7 +160,7 @@ impl ShimLaunch {
     /// invocation of the dispatcher it replaced. `None` means this is pnpm
     /// itself and the regular CLI should proceed; `Some(code)` means the
     /// dispatch ran (or failed) and the process must exit with `code`. On Unix
-    /// a successful dispatch never returns at all — the target is `exec`ed in
+    /// a successful dispatch never returns at all, the target is `exec`ed in
     /// place.
     pub(crate) fn dispatch(&self, argv: &[OsString]) -> Option<i32> {
         match self {
@@ -289,7 +289,7 @@ fn run_trusted_candidate(
             // fingerprinting and execution; revalidate so the approved
             // bytes are the ones that run. The remaining race is
             // process-scale and needs an attacker already executing code as
-            // the user — outside this gate's threat model, since a hostile
+            // the user, outside this gate's threat model, since a hostile
             // repository is static.
             if !local_bin_unchanged(&bin, name, &identity) {
                 return run_global_target(shim, args);
@@ -343,7 +343,7 @@ fn bypass_requested() -> bool {
 
 /// A project-provided replacement for the invoked global bin.
 enum Candidate {
-    /// The project has `node_modules/.bin/<name>` — an installed
+    /// The project has `node_modules/.bin/<name>`, an installed
     /// dependency (including a materialized runtime) providing the bin.
     LocalBin { project_dir: PathBuf, bin: PathBuf, identity: String },
     /// The project pins the runtime `<name>` in `devEngines.runtime`,
@@ -445,12 +445,12 @@ fn candidate_in(
 }
 
 /// The runnable `node_modules/.bin` entry for `name` under `dir`, if any.
-/// A broken symlink does not count — `is_file` follows links.
+/// A broken symlink does not count, `is_file` follows links.
 fn local_bin_path(dir: &Path, name: &str) -> Option<PathBuf> {
     let bin_dir = dir.join("node_modules").join(".bin");
     // No `.exe` candidate: project `.bin` dirs never legitimately carry
     // one, and provider identity is derived from the extensionless
-    // sibling script — a planted `.exe` would execute while a benign
+    // sibling script, a planted `.exe` would execute while a benign
     // script passed validation.
     let candidates: Vec<String> = if cfg!(windows) {
         vec![format!("{name}.cmd"), name.to_string()]

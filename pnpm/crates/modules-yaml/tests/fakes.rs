@@ -145,7 +145,7 @@ fn write_propagates_write_error() {
 }
 
 /// `LayoutVersion` is a unit type pinned to `5`, and a manifest naming
-/// any other layout reads as `None` — the same signal a missing
+/// any other layout reads as `None`, the same signal a missing
 /// `layoutVersion` carries, which the install reacts to by rebuilding
 /// `node_modules`. Rejecting the whole manifest instead would fail the
 /// install, since an unreadable state file is an error.

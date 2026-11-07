@@ -7,15 +7,15 @@ const BLOCK: &str = "skills";
 const DIRS: &str = "dirs";
 
 /// Upsert `skills.dirs` toward `dirs`, creating the `skills` block if
-/// absent. An empty `dirs` removes the `dirs` entry — and the `skills`
-/// block when it held nothing else — because recording nothing means the
+/// absent. An empty `dirs` removes the `dirs` entry, and the `skills`
+/// block when it held nothing else, because recording nothing means the
 /// detected directories decide again. Returns whether anything changed.
 pub(crate) fn set_skills_dirs(manifest: &mut Manifest, dirs: &[String]) -> bool {
     if dirs.is_empty() { remove_skills_dirs(manifest) } else { upsert_skills_dirs(manifest, dirs) }
 }
 
 /// The `dirs` entry removed, keeping any other entry the `skills` block
-/// holds. Removing it when it is already absent — or when the block is —
+/// holds. Removing it when it is already absent, or when the block is,
 /// changes nothing, so a write that learned nothing records nothing.
 fn remove_skills_dirs(manifest: &mut Manifest) -> bool {
     let text = manifest.document.text();
@@ -40,7 +40,7 @@ fn remove_skills_dirs(manifest: &mut Manifest) -> bool {
     true
 }
 
-/// The `dirs` entry upserted to `dirs`, into the `skills` block — created
+/// The `dirs` entry upserted to `dirs`, into the `skills` block, created
 /// when absent.
 fn upsert_skills_dirs(manifest: &mut Manifest, dirs: &[String]) -> bool {
     let text = manifest.document.text();

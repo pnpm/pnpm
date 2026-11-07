@@ -143,7 +143,7 @@ fn bundle_dependencies_self_cycle_is_caught() {
     assert!(out.contains(&"package.json".to_string()));
     assert!(out.contains(&"node_modules/self/package.json".to_string()));
     assert!(out.contains(&"node_modules/self/lib.js".to_string()));
-    // No deeper paths via the cycle — the visited-set refused the
+    // No deeper paths via the cycle, the visited-set refused the
     // re-entry.
     assert!(
         !out.iter()

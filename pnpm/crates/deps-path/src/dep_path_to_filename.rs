@@ -84,7 +84,7 @@ fn dep_path_to_filename_unescaped(dep_path: &str) -> String {
     };
     let split = rel + 1;
     let (name, rest) = trimmed.split_at(split);
-    // Rebuild as `${name}@${rest[1..]}` — i.e. consume the `@` and
+    // Rebuild as `${name}@${rest[1..]}`, i.e. consume the `@` and
     // re-emit one. The transformation is a no-op for any input whose
     // `name` slot does not already end in `@`.
     let rest = rest.strip_prefix('@').unwrap_or(rest);

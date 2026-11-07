@@ -42,7 +42,7 @@ fn workspace_install_via_pnpr_resolves_catalog_references() {
 }
 
 /// The importer ids the server request carries, and the ones the
-/// filtered-lockfile merge keys on, are relative to the lockfile — which
+/// filtered-lockfile merge keys on, are relative to the lockfile, which
 /// `lockfileDir` can pin outside the workspace. Deriving them from the
 /// workspace root instead leaves the two sides naming different projects.
 #[test]

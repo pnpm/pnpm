@@ -75,7 +75,7 @@ fn clean_finishes_when_stdout_is_closed() {
 
 /// The real isolated-linker layout: `node_modules/<name>` is a link
 /// (symlink or junction) into `.pnpm`. `.pnpm` sorts before the package
-/// names, so by the time `clean` reaches the link it dangles — removal
+/// names, so by the time `clean` reaches the link it dangles, removal
 /// must unlink it rather than follow it
 /// ([pnpm/pnpm#13694](https://github.com/pnpm/pnpm/issues/13694)).
 #[test]

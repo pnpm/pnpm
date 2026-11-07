@@ -26,7 +26,7 @@ pub(crate) fn node_deps_count(node: &DependenciesGraphNode) -> usize {
 /// carries a peer suffix absorb the variant whose child does not.
 ///
 /// Compares dependency/peer *sets* only, not package identity, so callers
-/// must pass depPaths already known to share a `pkgIdWithPatchHash` —
+/// must pass depPaths already known to share a `pkgIdWithPatchHash`,
 /// otherwise two unrelated leaf packages (both with empty sets) would
 /// count as compatible.
 ///

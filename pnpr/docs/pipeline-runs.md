@@ -52,7 +52,7 @@ Each submission carries a summary document and the run's event stream.
 ## Reading runs back
 
 | Method | Path | Description |
-| --- | --- | --- |
+|,- |,- |,- |
 | `PUT` | `/-/pnpr/v0/pipeline/runs` | Record one run. Requires `publish` on the run's organization. |
 | `GET` | `/-/pnpr/v0/pipeline/runs` | The most recent run summaries, newest first. Accepts `org`, `workspace`, and `limit`. |
 | `GET` | `/-/pnpr/v0/pipeline/runs/{org}/{workspace}/{run_id}` | One run's full record, event stream included. |

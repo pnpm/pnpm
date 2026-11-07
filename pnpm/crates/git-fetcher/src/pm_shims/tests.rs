@@ -115,7 +115,7 @@ fn a_hostile_pnpm_path_is_quoted() {
 
 /// A quote cannot be escaped inside a quoted `cmd.exe` argument, so a
 /// specifier that is not a semver range never reaches the command line at
-/// all — on either platform, since only the check is shared.
+/// all, on either platform, since only the check is shared.
 #[test]
 fn a_hostile_version_spec_is_dropped() {
     let dir = tempdir().unwrap();
@@ -130,7 +130,7 @@ fn a_hostile_version_spec_is_dropped() {
 }
 
 /// The shim is regenerated every time, so an entry planted at its path
-/// cannot survive to be executed — and a symlink there cannot redirect
+/// cannot survive to be executed, and a symlink there cannot redirect
 /// the write.
 #[test]
 fn a_planted_entry_is_replaced() {

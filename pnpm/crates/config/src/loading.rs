@@ -22,8 +22,8 @@ impl Config {
     /// [`CliLayer::setting_values`](crate::CliLayer::setting_values), then
     /// the [`CliLayer`](crate::CliLayer) registry routes.
     ///
-    /// Other `.npmrc` entries — project-structural settings like
-    /// `storeDir`, `lockfile` and `hoist-pattern` — are silently
+    /// Other `.npmrc` entries, project-structural settings like
+    /// `storeDir`, `lockfile` and `hoist-pattern`, are silently
     /// ignored here. Those must come from `pnpm-workspace.yaml` or CLI
     /// flags, matching pnpm 11.
     ///
@@ -50,7 +50,7 @@ impl Config {
     }
 
     /// Like [`Config::current`], but the project `pnpm-workspace.yaml` does
-    /// not contribute the `minimumReleaseAge` / `trustPolicy` policies — see
+    /// not contribute the `minimumReleaseAge` / `trustPolicy` policies, see
     /// [`WorkspaceSettings::clear_self_update_policy`].
     pub fn current_for_self_update<Sys>(
         self,
@@ -214,7 +214,7 @@ impl Config {
 
         // Apply `_auth` routes after workspace yaml (so they win over
         // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
-        // explicit `pnpm_config_registry` / `--registry` still wins) —
+        // explicit `pnpm_config_registry` / `--registry` still wins),
         // pnpm's "CLI > _auth > yaml" precedence.
         npmrc_auth.apply_json_env_registries(self, &declared_registries);
 
@@ -261,8 +261,8 @@ impl Config {
         declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
     ) {
         npmrc_auth.apply_registry_and_warn(self, declared_registries);
-        // Proxy cascade fires unconditionally — even when no `.npmrc`
-        // is found — because the env-var fallback is a normalization step
+        // Proxy cascade fires unconditionally, even when no `.npmrc`
+        // is found, because the env-var fallback is a normalization step
         // on the resolved config, not a function of `.npmrc` presence.
         npmrc_auth.proxy.apply_proxy_cascade::<Sys>(self);
         // pnpm does not honor Node's TLS env vars (`NODE_EXTRA_CA_CERTS`,
@@ -298,7 +298,7 @@ impl Config {
     /// env vars override yaml.
     ///
     /// `workspace_dir` save/restore is the same trick used for the
-    /// global config above — `apply_to` would otherwise clobber
+    /// global config above, `apply_to` would otherwise clobber
     /// `workspace_dir` with `start_dir`, hiding the workspace yaml's
     /// location (or, if there was no yaml, setting it to a value
     /// that doesn't actually correspond to a discovered workspace).

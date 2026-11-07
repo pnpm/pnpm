@@ -36,7 +36,7 @@ pub fn load_pnpmfile(root: &Path) -> Option<Arc<dyn PnpmfileHooks>> {
 ///
 /// `global` is the user-level `globalPnpmfile`. It loads ahead of the project's
 /// own and stays out of `pnpmfileChecksum`, so nothing that trusts the checksum
-/// may treat it as accounted for — the same split pnpm's `requireHooks` makes
+/// may treat it as accounted for, the same split pnpm's `requireHooks` makes
 /// with `includeInChecksum: false`.
 ///
 /// The plugins among `config_dependencies` load between the two, and count
@@ -123,8 +123,8 @@ pub fn validate_configured_pnpmfiles(
 
 /// Whether a configured path names a pnpmfile at all, mirroring pnpm's
 /// `pnpmFileExistsSync`. The question is only "is there something here", not
-/// "will Node load it": a path that exists but fails to evaluate — because the
-/// pnpmfile itself requires a missing module, say — is an execution failure and
+/// "will Node load it": a path that exists but fails to evaluate, because the
+/// pnpmfile itself requires a missing module, say, is an execution failure and
 /// must keep reporting as one. Hence a bare existence test rather than
 /// [`Path::is_file`], and the `.cjs` suffix pnpm appends to a path that names
 /// none of the supported module extensions itself.
@@ -372,7 +372,7 @@ pub fn load_pnpmfile_at(file: PathBuf) -> Arc<dyn PnpmfileHooks> {
     Arc::new(super::node_runtime::NodeJsHooks::new(file))
 }
 
-/// Whether `name` is a pnpm plugin package — one whose pnpmfile is
+/// Whether `name` is a pnpm plugin package, one whose pnpmfile is
 /// loaded automatically when it's a config dependency:
 ///
 /// - unscoped `pnpm-plugin-*`,
@@ -396,7 +396,7 @@ pub fn is_plugin_name(name: &str) -> bool {
 /// - A plugin whose directory is missing (the config-dep install didn't
 ///   run, or hasn't yet) is skipped silently.
 /// - When the directory exists, `pnpmfile.mjs` is preferred, else
-///   `pnpmfile.cjs` — the `.cjs` path is yielded even when absent so the
+///   `pnpmfile.cjs`, the `.cjs` path is yielded even when absent so the
 ///   caller surfaces a "pnpmfile not found" error for the misconfigured
 ///   plugin.
 pub fn calc_pnpmfile_paths_of_plugin_deps<'a>(

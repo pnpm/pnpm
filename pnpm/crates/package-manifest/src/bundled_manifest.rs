@@ -1,5 +1,5 @@
-/// Pick the `package.json` fields downstream code actually reads — bin
-/// linking, dependency resolution, build-script detection — and discard
+/// Pick the `package.json` fields downstream code actually reads, bin
+/// linking, dependency resolution, build-script detection, and discard
 /// the rest, keeping only the lifecycle hooks pnpm executes out
 /// of `scripts`.
 ///
@@ -13,9 +13,9 @@
 pub fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<serde_json::Value> {
     /// Fields kept verbatim from the source manifest.
     ///
-    /// Order matters for the on-wire byte sequence — msgpackr emits
+    /// Order matters for the on-wire byte sequence, msgpackr emits
     /// fields in JS object insertion order, and pacquet's encoder
-    /// follows the [`serde_json::Map`] iteration order — but it
+    /// follows the [`serde_json::Map`] iteration order, but it
     /// does *not* matter for property-access correctness on the
     /// pnpm side. The order below matches the field order pnpm
     /// emits so a side-by-side byte diff against a pnpm-written

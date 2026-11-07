@@ -240,7 +240,7 @@ fn benchmark_file(package_index: usize, file_index: usize) -> Vec<u8> {
 }
 
 /// Isolate pacquet's resolve-time metadata parse: deserialize a registry
-/// packument into [`Package`], then pick and hydrate a version — the CPU
+/// packument into [`Package`], then pick and hydrate a version, the CPU
 /// `Package::fetch_from_registry` pays on the resolve hot path, minus the
 /// network. `PackageVersions` captures each version as a raw fragment and
 /// hydrates lazily, so this also guards that optimization: a regression that

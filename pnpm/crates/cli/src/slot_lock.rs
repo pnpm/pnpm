@@ -1,8 +1,8 @@
 //! The lock over a slot of a shared global virtual store that a pinned
 //! package manager or runtime is installed into.
 //!
-//! Materializing a slot is destructive — one found carrying an
-//! interrupted-build marker is removed and re-staged — so only the
+//! Materializing a slot is destructive, one found carrying an
+//! interrupted-build marker is removed and re-staged, so only the
 //! process holding the slot's lock enters it. A process that finds the
 //! lock held waits only briefly. A lock whose holder has died is taken
 //! over at once, so a held lock is a live install, and one that has not
@@ -18,8 +18,8 @@ use std::{io, path::PathBuf, time::Duration};
 const WAIT: Duration = Duration::from_secs(5);
 
 /// Comfortably above how long a slot install can legitimately take, so a
-/// holder that cannot prove it is alive — an older pnpm, or one on a
-/// filesystem that cannot hold an OS file lock — never has its lock
+/// holder that cannot prove it is alive, an older pnpm, or one on a
+/// filesystem that cannot hold an OS file lock, never has its lock
 /// stolen.
 const ABANDONED_AFTER: Duration = Duration::from_mins(30);
 

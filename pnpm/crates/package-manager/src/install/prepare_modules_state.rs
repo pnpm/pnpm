@@ -266,8 +266,8 @@ mod tests;
 /// treat the materialized tree as stale.
 ///
 /// An unreadable state file fails the install rather than reading as layout
-/// drift: the drift path purges `node_modules` — the entries the user keeps
-/// there included — and relinks the whole tree, and it would do so on every
+/// drift: the drift path purges `node_modules`, the entries the user keeps
+/// there included, and relinks the whole tree, and it would do so on every
 /// run, because the manifest it rewrites is no more readable than the one it
 /// replaced. The TypeScript CLI's `readModulesManifest` rethrows everything
 /// but `ENOENT` for the same reason.

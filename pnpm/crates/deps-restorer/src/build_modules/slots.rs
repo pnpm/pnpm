@@ -14,11 +14,11 @@ use std::{fs, io};
 /// `<scope>/<name>/<version>/<hash>` suffixes per *full* snapshot key
 /// (with the peer-dependency suffix preserved) when GVS is enabled.
 /// Peer-resolved snapshots therefore have to look up by the full key
-/// — `slot_dir(key)` — or the GVS lookup misses, falls through to the
+///, `slot_dir(key)`, or the GVS lookup misses, falls through to the
 /// legacy flat-name path, and points at a directory that
 /// [`crate::CreateVirtualDirBySnapshot`] never created.
 /// `slot_dir(key.without_peer())` silently drops lifecycle scripts for
-/// peer-resolved snapshots — never use it here.
+/// peer-resolved snapshots, never use it here.
 ///
 /// The package-name segment is `key.name`, which carries no
 /// peer context: the slot's `node_modules/<pkg>` is keyed by the bare
@@ -39,7 +39,7 @@ pub(crate) fn virtual_store_dir_for_key(
 }
 
 /// Whether `pkg_dir` already holds every file of a side-effects-cache
-/// overlay — i.e. the cached build is on disk rather than merely recorded
+/// overlay, i.e. the cached build is on disk rather than merely recorded
 /// in the store index.
 ///
 /// The overlay is the resolved post-build file set, so a slot still
@@ -51,7 +51,7 @@ pub(crate) fn virtual_store_dir_for_key(
 /// looks like.
 ///
 /// Only reached for packages that both pass the build-allow policy and
-/// have a cache entry — a handful per install, not the whole tree.
+/// have a cache entry, a handful per install, not the whole tree.
 pub(crate) fn slot_carries_overlay(pkg_dir: &Path, overlay: &SideEffectsOverlay) -> bool {
     !pkg_dir.join(NEEDS_BUILD_MARKER).exists()
         && pkg_dir.is_dir()
@@ -190,7 +190,7 @@ pub(crate) struct PkgRoots<'a> {
 }
 
 impl PkgRoots<'_> {
-    /// The canonical on-disk package directory for a snapshot — the one
+    /// The canonical on-disk package directory for a snapshot, the one
     /// whose lifecycle scripts run and whose contents seed the
     /// side-effects cache.
     ///
@@ -216,13 +216,13 @@ impl PkgRoots<'_> {
     ///
     /// The isolated linker gives each snapshot exactly one virtual-store
     /// slot, so this is [`Self::canonical`] in a one-element list. The
-    /// hoisted linker can place the same snapshot at several paths — a
+    /// hoisted linker can place the same snapshot at several paths, a
     /// version conflict keeps a package out of the root and the walker
     /// nests a copy under each consumer that needs it. Two recorded
     /// locations may also alias one directory: the hoisted linker
     /// replaces a duplicate placement with a symlink to the location
     /// imported first (see [`crate::symlink_package()`]), so both paths
-    /// resolve to the same files. Those collapse here — a write has to
+    /// resolve to the same files. Those collapse here, a write has to
     /// reach each distinct directory once, not once per recorded path.
     pub(crate) fn all(self, key: &PackageKey) -> Vec<PathBuf> {
         match self.by_key {
@@ -237,9 +237,9 @@ impl PkgRoots<'_> {
     /// Every recorded on-disk location of a snapshot's package, aliasing
     /// included: a duplicate hoisted placement recorded as a link to
     /// another location (see [`crate::symlink_package()`]) is listed as
-    /// itself, not collapsed into its target. Removal walks this list —
+    /// itself, not collapsed into its target. Removal walks this list,
     /// each alias has to be unlinked too, or it is left dangling over
-    /// the removed directory — while writes use [`Self::all`] to reach
+    /// the removed directory, while writes use [`Self::all`] to reach
     /// each distinct directory once.
     pub(crate) fn all_recorded(self, key: &PackageKey) -> Vec<PathBuf> {
         match self.by_key {
@@ -254,7 +254,7 @@ impl PkgRoots<'_> {
 
 /// Collapse locations that resolve to one directory, keeping the recorded
 /// (non-canonicalized) paths so consumers keep writing where the walker
-/// placed them. Single-location snapshots — the common case — skip the
+/// placed them. Single-location snapshots, the common case, skip the
 /// canonicalization entirely.
 fn dedupe_aliased_dirs(dirs: &[PathBuf]) -> Vec<PathBuf> {
     if dirs.len() == 1 {
@@ -285,9 +285,9 @@ fn dedupe_aliased_dirs(dirs: &[PathBuf]) -> Vec<PathBuf> {
 /// `node_modules/` symlinks.
 ///
 /// The import always runs on a cache hit (non-GVS). Skipping it when the
-/// slot "looks" materialized is unsound by filename alone — a slot left
+/// slot "looks" materialized is unsound by filename alone, a slot left
 /// from a different cache key can carry the same filenames with stale
-/// bytes — and a content check would read every file, costing as much as
+/// bytes, and a content check would read every file, costing as much as
 /// the hardlink-based re-import it would replace. A cheap *and* sound skip
 /// needs a link-phase "this slot was re-linked pristine-only this install"
 /// signal threaded from the link phase, which is left as a follow-up.
@@ -351,13 +351,13 @@ fn create_overlay_symlink(link: &Path, target: &str) -> io::Result<()> {
 /// (and including) `lockfile_dir`. Used as the per-snapshot
 /// `extra_bin_paths` under `nodeLinker: hoisted` so a lifecycle
 /// script invoked at a nested location can resolve bins added by
-/// any ancestor's `node_modules/.bin` — npm-style ancestor-chain
+/// any ancestor's `node_modules/.bin`, npm-style ancestor-chain
 /// resolution that the isolated layout doesn't need (every slot's
 /// children sit in its own `node_modules`, and bin-link writes are
 /// per-slot).
 ///
 /// A step is skipped when `dir`'s parent path string starts with
-/// `@` — a guard for relative-path code paths. The check is against
+/// `@`, a guard for relative-path code paths. The check is against
 /// the parent's path-string first character.
 ///
 /// Non-existent ancestor `.bin` directories are harmless: they

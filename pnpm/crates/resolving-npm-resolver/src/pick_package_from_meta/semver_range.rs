@@ -5,7 +5,7 @@ use super::{Arc, DashMap, LazyLock, Range, Version};
 /// (the `*` from a CLI add, the `^X` from manifest entries, the few
 /// dist-tag fall-backs in `preferred_version_selectors`), and reparsing
 /// each is the picker's hottest cost. The cache stores `Option<Arc<Range>>`
-/// so the parse error case ("range is unparsable") is memoized too —
+/// so the parse error case ("range is unparsable") is memoized too,
 /// pickers fall through to the next candidate without retrying the
 /// parse.
 ///

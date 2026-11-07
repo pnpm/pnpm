@@ -32,8 +32,8 @@ describe('audit', () => {
 
   test('lockfileToAuditRequest() does not treat a dependency named after an Object.prototype property as a peer-satisfaction edge', () => {
     // Peer-satisfaction detection must check own properties only. Checking
-    // via `in` would match inherited Object.prototype names — `constructor`
-    // is both one of them and a syntactically valid npm package name — and
+    // via `in` would match inherited Object.prototype names, `constructor`
+    // is both one of them and a syntactically valid npm package name, and
     // wrongly exclude this real, non-peer dependency from every reachable
     // set even though `foo` declares no peerDependencies at all.
     const result = lockfileToAuditRequest({
@@ -757,7 +757,7 @@ describe('audit', () => {
     // n0 -> ... -> n(cycleLength-1) -> n0 is one big cycle with a single vulnerable leaf.
     // Recomputing the cycle for every ancestor scans ~cycleLength^2 nodes, so doubling cycleLength
     // quadruples the reads; linear work only doubles them. Comparing the growth
-    // rate of two sizes — rather than an absolute count — keeps the assertion
+    // rate of two sizes, rather than an absolute count, keeps the assertion
     // stable across constant-factor changes in future refactors.
     const countReads = (cycleLength: number): number => {
       let reads = 0
@@ -1085,7 +1085,7 @@ describe('audit', () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
     await setupMockAgent()
-    // Bare bulk response — no `findings`, no `patched_versions`, no `cves`,
+    // Bare bulk response, no `findings`, no `patched_versions`, no `cves`,
     // no `module_name`. Exactly what registry.npmjs.org returns today.
     getMockAgent().get('http://registry.registry')
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })

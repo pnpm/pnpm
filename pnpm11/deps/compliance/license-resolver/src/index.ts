@@ -21,7 +21,7 @@ export const LICENSE_FILES = [
 /**
  * The subset of {@link LICENSE_NAMES} that are valid SPDX license identifiers.
  * Consumers needing spec-compliant output (e.g. SPDX SBOM) should drop any
- * other detected name — see {@link isSpdxLicenseExpression}.
+ * other detected name, see {@link isSpdxLicenseExpression}.
  */
 export const SPDX_LICENSE_IDS = new Set([
   'Apache-1.1',
@@ -61,7 +61,7 @@ export function isSpdxLicenseExpression (value: string): boolean {
 
 /**
  * License names detected by scanning LICENSE file contents. Includes both SPDX
- * identifiers and common long-form names — the latter are useful for the
+ * identifiers and common long-form names, the latter are useful for the
  * human-facing `pnpm licenses` command but are not valid SPDX output.
  * Reference: https://github.com/pivotal/LicenseFinder/blob/00b04cb91e8ec9021c939ccfceb69d4047f4c8ca/lib/license_finder/license/definitions.rb
  */
@@ -141,7 +141,7 @@ export interface ResolveLicenseInput {
  *  1. The manifest's `license` field, then its deprecated `licenses` array
  *     (via {@link parseLicenseFromManifest}).
  *  2. If the manifest is missing license info, or uses the `SEE LICENSE IN ...`
- *     sentinel, a LICENSE file on disk — whose contents are regex-matched
+ *     sentinel, a LICENSE file on disk, whose contents are regex-matched
  *     against well-known license names to produce an SPDX-ish identifier.
  *
  * Returns `undefined` when no license can be determined. Callers decide how
@@ -185,7 +185,7 @@ export async function resolveLicenseFromDir ({ manifest, dir }: ResolveLicenseFr
       await access(filePath)
       files.set(name, filePath)
     } catch {
-      // File doesn't exist — skip.
+      // File doesn't exist, skip.
     }
   }))
   return resolveLicense({ manifest, files })

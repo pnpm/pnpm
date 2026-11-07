@@ -276,7 +276,7 @@ pub fn json_env_non_object_top_level_aborts_the_load() {
 }
 
 /// End-to-end: the "@" (default) scope in `pnpm_config__auth` routes the
-/// default registry to its host — `pnpm add <pkg>` resolves against the
+/// default registry to its host, `pnpm add <pkg>` resolves against the
 /// env-declared host, not the npmjs default. Confirmed semantics in
 /// pnpm/pnpm#12559.
 #[test]
@@ -321,7 +321,7 @@ pub fn json_env_scoped_entry_routes_that_scope() {
 }
 
 /// End-to-end: a `PNPM_CONFIG_REGISTRY` env var (CLI-equivalent) still
-/// wins over the env JSON default — matching pnpm's "CLI > env JSON >
+/// wins over the env JSON default, matching pnpm's "CLI > env JSON >
 /// yaml" precedence.
 #[test]
 pub fn json_env_env_registry_flag_wins_over_json_env_default() {
@@ -387,7 +387,7 @@ pub fn json_env_inferred_registries_flow_to_bootstrap() {
 
 /// Env JSON routes override user-level (`~/.npmrc` / `auth.ini`) scoped
 /// registries in the package-manager bootstrap: env JSON outranks the
-/// trusted `.npmrc`. CLI scoped overrides still win — applied later by
+/// trusted `.npmrc`. CLI scoped overrides still win, applied later by
 /// `ConfigOverrides`.
 #[test]
 pub fn json_env_overrides_user_bootstrap_scoped_registry() {
@@ -599,7 +599,7 @@ pub fn cli_https_proxy_precedes_standard_http_proxy_environment_fallback() {
 }
 
 /// A flag names its key even when the value reads as unset, so the
-/// `.npmrc` below it cannot win the key back — the cascade falls through
+/// `.npmrc` below it cannot win the key back, the cascade falls through
 /// to the other keys and the environment, and here to neither.
 #[test]
 pub fn empty_cli_proxy_flags_mask_the_project_npmrc() {
@@ -756,7 +756,7 @@ pub fn npmrc_in_current_folder_applies_registry() {
 
 /// pnpm 11 does not treat the `fetch-retries*` family as an
 /// `.npmrc`-readable auth setting, so a value like `fetch-retries=99`
-/// in `.npmrc` is silently ignored. pacquet must do the same —
+/// in `.npmrc` is silently ignored. pacquet must do the same,
 /// applying it would silently change install behaviour for projects
 /// that have a stale `.npmrc` lying around.
 #[test]
@@ -779,7 +779,7 @@ pub fn test_current_folder_for_invalid_npmrc() {
     fs::write(tmp.path().join(".npmrc"), b"Hello \xff World").expect("write to .npmrc");
     let config =
         Config::new().current::<HostNoHome>(tmp.path()).expect("workspace yaml absent => no error");
-    assert!(config.symlink); // default — invalid .npmrc is silently ignored
+    assert!(config.symlink); // default, invalid .npmrc is silently ignored
 }
 
 #[test]
@@ -789,7 +789,7 @@ pub fn npmrc_in_home_folder_applies_registry() {
     fs::write(home_dir.path().join(".npmrc"), "registry=https://home.example")
         .expect("write to .npmrc");
     // Per-test fake: home_dir is a tempdir, so it can't be a
-    // module-level constant — stash it in a per-test `OnceLock`
+    // module-level constant, stash it in a per-test `OnceLock`
     // so `GetHomeDir::home_dir`'s associated-function shape (no
     // `&self`) can still resolve it at call time.
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();

@@ -126,8 +126,8 @@ pub(crate) async fn wait_after_document_write_conflict(attempt: usize) {
 /// A cached upstream document, read at a granularity that avoids loading the
 /// (potentially multi-MB) body when it isn't needed:
 ///
-/// * `Fresh` — within the TTL; the body is read and ready to serve.
-/// * `Stale` — past the TTL. The body is left on disk; a per-registry cache
+/// * `Fresh`, within the TTL; the body is read and ready to serve.
+/// * `Stale`, past the TTL. The body is left on disk; a per-registry cache
 ///   refetches a stale entry rather than revalidating it, so the caller treats
 ///   `Stale` as a miss.
 #[derive(Debug)]
@@ -138,14 +138,14 @@ pub enum CachedDocument {
 
 /// Storage split into two stores with different durability guarantees:
 ///
-/// * `hosted` — the authoritative source of truth: packages this
+/// * `hosted`, the authoritative source of truth: packages this
 ///   server hosts directly (published through its API) plus the content
 ///   served in static mode. Served as-is and never overwritten by an
 ///   upstream refresh, so a hosted version can't be masked or lost.
 ///   Backed by a local directory by default, or an S3-compatible
 ///   object store (S3, Cloudflare R2, `MinIO`, ...) when the YAML `s3:`
-///   block is set — see the S3 backend.
-/// * `cached` — the disposable mirror of upstream registries. Safe to
+///   block is set, see the S3 backend.
+/// * `cached`, the disposable mirror of upstream registries. Safe to
 ///   wipe at any time; it self-heals on the next request. Always local,
 ///   on scratch/ephemeral disk.
 ///
@@ -297,10 +297,10 @@ impl Storage {
         self.metadata.package_names().await
     }
 
-    // --- Authoritative (hosted) store -----------------------------------
+    //,- Authoritative (hosted) store,---------------------------------
 
     /// Read the authoritative document for `name`, fresh or stale.
-    /// Hosted content has no TTL — it is the source of truth.
+    /// Hosted content has no TTL, it is the source of truth.
     pub async fn read_hosted_document(
         &self,
         name: &CanonicalPackageName,
@@ -354,7 +354,7 @@ impl Storage {
         self.hosted.local_scratch_root()
     }
 
-    // --- Staged publishes (`-/stage`) -------------------------------------
+    //,- Staged publishes (`-/stage`),-----------------------------------
     //
     // A staged publish is a publish document held back until it is approved
     // (`POST /-/stage/:id/approve`) or rejected (`DELETE /-/stage/:id`). Each
@@ -362,11 +362,11 @@ impl Storage {
     // a small metadata JSON (listed and served as-is) and the full original
     // publish body (replayed through the regular publish flow on approval).
     // Records live under the reserved `.staged/` namespace of the *root*
-    // hosted store — never a per-org view — because the stage id is the only
+    // hosted store, never a per-org view, because the stage id is the only
     // thing a later `view`/`approve`/`reject` request carries; the record's
     // metadata remembers which registry the stage was addressed through.
 
-    // --- Pipeline runs (`/-/pnpr/v0/pipeline`) ----------------------------
+    //,- Pipeline runs (`/-/pnpr/v0/pipeline`),--------------------------
     //
     // A run record is the account `pnpm pipeline` gave of one run: testimony
     // about something that happened once, not derived data a replica can

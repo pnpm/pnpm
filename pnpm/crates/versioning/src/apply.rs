@@ -94,8 +94,8 @@ pub fn apply_release_plan(
         &consumed_ledger(ledger, &storage, confirmed_published),
     )?;
 
-    // A confirmed release's parked section has served its purpose — its prose
-    // is now in the published tarball — so collect it regardless of whether
+    // A confirmed release's parked section has served its purpose, its prose
+    // is now in the published tarball, so collect it regardless of whether
     // the intents behind it were also collected.
     if storage.configured == ChangelogStorage::Registry {
         for key in confirmed_published {
@@ -307,7 +307,7 @@ fn remove_consumed_intents(
 ///
 /// A project needs a consumed ledger entry for the intent, with one
 /// exemption: while a project is still on a lane, entries against prerelease
-/// versions alone keep the file alive — its prose is still needed to compose
+/// versions alone keep the file alive, its prose is still needed to compose
 /// the stable changelog section at graduation. Declined (`none`) entries
 /// demand no release and never block deletion. References here were already
 /// validated by the plan assembly, so an unresolvable one just keeps its file

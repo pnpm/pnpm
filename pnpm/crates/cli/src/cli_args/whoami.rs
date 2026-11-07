@@ -39,12 +39,12 @@ pub struct WhoamiArgs {
 }
 
 impl WhoamiArgs {
-    /// `pacquet whoami` — return the username the configured registry
+    /// `pacquet whoami`, return the username the configured registry
     /// associates with the current auth token.
     ///
     /// Resolve the default registry (or `--registry` override), look up its
     /// `Authorization` header, and fail with `ERR_PNPM_WHOAMI_UNAUTHORIZED` when
-    /// no credentials are configured — before any request is made.
+    /// no credentials are configured, before any request is made.
     pub async fn run(&self, config: &Config) -> miette::Result<String> {
         let registry_url = self.registry.as_deref().unwrap_or(&config.registry);
         let normalized = normalize_registry_url(registry_url);

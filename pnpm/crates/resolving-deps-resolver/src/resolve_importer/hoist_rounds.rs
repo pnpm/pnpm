@@ -81,7 +81,7 @@ impl ImporterHoistState {
 
     pub(super) fn begin_required_round(&mut self) {
         // The hoist input must not see missing peers declared inside a
-        // subtree owned by another importer's shared children context —
+        // subtree owned by another importer's shared children context,
         // the owner walk's children report is reused there, so those
         // peers never reach a non-owner importer's hoist. The final peer
         // pass keeps the unscoped options so warnings stay complete.

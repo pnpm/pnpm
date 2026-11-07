@@ -325,7 +325,7 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
 }
 
 /// Iteration order over `app`'s children is alphabetical, so
-/// `widget` is visited *before* `x` in round 1 — that ordering is
+/// `widget` is visited *before* `x` in round 1, that ordering is
 /// what forces the refuse-then-reconsider path the test pins.
 #[test]
 fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
@@ -338,7 +338,7 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
     );
 
     // Root carries no x of its own, so the only x in scope before
-    // hoisting is the one under app — exactly the multi-round trigger.
+    // hoisting is the one under app, exactly the multi-round trigger.
     let mut snapshots = HashMap::new();
     let mut app_deps = HashMap::new();
     app_deps.insert(pkg_name("widget"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
@@ -564,7 +564,7 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
     let mut blocked = BTreeSet::new();
     blocked.insert("b".to_string());
     let mut opts = HoistOpts::default();
-    // Wrong key — `packages/foo@workspace:packages/foo`, not `.@`.
+    // Wrong key, `packages/foo@workspace:packages/foo`, not `.@`.
     opts.hoisting_limits.insert("packages/foo@workspace:packages/foo".to_string(), blocked);
 
     let result = hoist(&lockfile, &opts).expect("hoist should succeed");
@@ -766,7 +766,7 @@ fn nested_hoist_keeps_conflicting_dep_reachable_from_every_parent_of_a_shared_no
         b_under_parents.push(nested_b);
     }
     // The copies are per-path (decoupled), never one shared
-    // allocation — a shared node would let one parent's hoisting
+    // allocation, a shared node would let one parent's hoisting
     // steal the other's subtree.
     assert!(
         !Rc::ptr_eq(&b_under_parents[0], &b_under_parents[1]),

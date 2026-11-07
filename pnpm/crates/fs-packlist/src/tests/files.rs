@@ -421,7 +421,7 @@ fn npmignore_in_parent_dir_does_not_leak_in() {
     // Regression: `ignore::WalkBuilder::parents` defaults to `true`,
     // which would let a `.gitignore` above `pkg_dir` exclude files
     // inside it. The packlist must depend only on the package
-    // directory's own contents — we set `parents(false)` precisely
+    // directory's own contents, we set `parents(false)` precisely
     // to prevent this.
     let dir = tempdir().unwrap();
     fs::write(dir.path().join(".gitignore"), "index.js\n").unwrap();
@@ -444,13 +444,13 @@ fn always_excluded_dir_segments_only_match_vcs() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
-    // A dir literally named `CVS` — VCS state, must be excluded at
+    // A dir literally named `CVS`, VCS state, must be excluded at
     // any depth.
     touch(root, "lib/CVS/Root");
     // A file whose *basename contains* `CVS` but isn't itself a VCS
-    // segment — must NOT be excluded.
+    // segment, must NOT be excluded.
     touch(root, "lib/cvs-tools.txt");
-    // A `.git`-nested file — must be excluded by the VCS segment.
+    // A `.git`-nested file, must be excluded by the VCS segment.
     touch(root, "scripts/.git/HEAD");
 
     let manifest = json!({ "name": "x", "version": "0.0.0" });

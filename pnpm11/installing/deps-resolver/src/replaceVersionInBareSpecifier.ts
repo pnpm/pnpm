@@ -12,7 +12,7 @@ export function replaceVersionInBareSpecifier (
   if (prefix == null) {
     return bareSpecifier
   }
-  // `<prefix>:<version_selector>` paired with a package alias — replace the
+  // `<prefix>:<version_selector>` paired with a package alias, replace the
   // whole body. Covers both `npm:^1.0.0` and named-registry forms like
   // `gh:^1.0.0`, where the package name comes from the dependency alias.
   if (semver.validRange(bareSpecifier.slice(prefix.length))) {

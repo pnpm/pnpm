@@ -250,7 +250,7 @@ pub(super) fn dependency_type_label(pkg: &OutdatedPackage) -> Option<&'static st
 }
 
 /// The `target` version with the segment that changed highlighted, and
-/// nothing else — the form the interactive update list shows, where a
+/// nothing else, the form the interactive update list shows, where a
 /// deprecation is not part of the row.
 pub(crate) fn colorize_target(pkg: &OutdatedPackage) -> String {
     let change = classify(&pkg.current, &pkg.target);

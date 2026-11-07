@@ -21,8 +21,8 @@ enum Outcome {
 }
 
 // Per-test fake for stdin-tty / browser-open / enter-key, plus a recording
-// reporter. Its state is fn-local — thread-locals for the inputs and a `static
-// Mutex<Vec<LogEvent>>` for the captured log events — so each `#[test]` gets
+// reporter. Its state is fn-local, thread-locals for the inputs and a `static
+// Mutex<Vec<LogEvent>>` for the captured log events, so each `#[test]` gets
 // independent storage and concurrent tests never share it. Each test names the
 // optional helpers it drives, so every emitted helper is used and none needs a
 // `dead_code` allow.
@@ -164,7 +164,7 @@ macro_rules! browser_fake {
     };
 }
 
-// The `Global`-log messages at `level`, in emit order — the projection that
+// The `Global`-log messages at `level`, in emit order, the projection that
 // the fake's `infos` and `warns` accessors share.
 fn global_messages_at(events: &[LogEvent], level: LogLevel) -> Vec<String> {
     events

@@ -68,7 +68,7 @@ fn recording_a_pin_keeps_the_rest_of_dev_engines() {
 }
 
 /// The two fields declare the same thing, and corepack refuses to run a
-/// project whose declarations disagree — so recording one clears the
+/// project whose declarations disagree, so recording one clears the
 /// other, in both directions.
 #[test]
 fn recording_a_pin_clears_the_declaration_it_replaces() {

@@ -185,7 +185,7 @@ pub(super) struct WarmLinkBatch<'a> {
     pub(super) template: &'a LinkSlotsParallel<'a>,
 }
 /// Link every warm slot. Hoisted skips the batch entirely: no virtual-store
-/// slot gets written, so there's no per-snapshot link work to do — the CAS
+/// slot gets written, so there's no per-snapshot link work to do, the CAS
 /// paths captured by the caller are the only output the link phase consumes,
 /// and all link work is routed into the hoisted linker instead. It still wants
 /// the progress reporter to fire so `pnpm:progress imported`-style updates

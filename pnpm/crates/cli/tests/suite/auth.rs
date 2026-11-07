@@ -250,7 +250,7 @@ fn metadata_authorization_failure_is_reported() {
 
 /// A registry configured with inline `user:pass@` basic-auth must not
 /// leak either half into the fetch error, and the report must still name
-/// the credential that was sent — `AuthHeaders` derives a `Basic` header
+/// the credential that was sent, `AuthHeaders` derives a `Basic` header
 /// from that userinfo, so a hint computed against the redacted URL would
 /// claim no header was set.
 #[test]

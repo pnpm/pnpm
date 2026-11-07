@@ -25,7 +25,7 @@ fn host_clock_reads_a_non_zero_time() {
 }
 
 /// The TTY probes are dispatchable and return a bool. The value depends on
-/// how the test harness wired stdio, so only its type is asserted — the
+/// how the test harness wired stdio, so only its type is asserted, the
 /// behavioral branches are covered by fakes in the `prompt_browser_open` /
 /// `with_otp_handling` tests.
 #[test]
@@ -115,9 +115,9 @@ async fn host_fetch_skips_the_body_of_a_non_ok_response() {
     assert!(!response.truncated);
 }
 
-/// A body-read failure *after* the headers arrive — forced here with a
+/// A body-read failure *after* the headers arrive, forced here with a
 /// `gzip` content-encoding whose body is not valid gzip, so the client's
-/// decode errors mid-stream — materializes as an empty, untruncated body,
+/// decode errors mid-stream, materializes as an empty, untruncated body,
 /// which the poll treats as no token and retries. This covers `Host::fetch`'s
 /// read-failure arm, which the `WebAuthFetch` dependency-injection seam cannot
 /// reach: a fake replaces `Host::fetch` wholesale, so only a real transport

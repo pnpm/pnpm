@@ -1,6 +1,6 @@
 //! Staleness check for convergence overrides (`"pkg@": "<version>"`).
 //!
-//! A convergence override's value is derived state — the best version
+//! A convergence override's value is derived state, the best version
 //! that converges the currently declared ranges. It goes stale when
 //! dependents start declaring ranges that admit newer versions: the
 //! override then keeps the edges it governs on the old version while
@@ -35,7 +35,7 @@ pub(crate) struct StaleConvergenceOverride {
 /// For each convergence override, resolve every collected declared
 /// range through `resolve_range` and report the override as stale when
 /// a resolved version newer than the override's value satisfies every
-/// collected range — a strictly better convergence.
+/// collected range, a strictly better convergence.
 ///
 /// Every range of every override resolves concurrently: each resolution
 /// is a registry round trip, so serializing the overrides would put
@@ -140,7 +140,7 @@ pub(crate) async fn resolve_best_admitted_version(
 }
 
 /// Emit the `pnpm:global` warning for each stale convergence override
-/// — the counterpart of pnpm's `globalWarn` emission, parsed by the
+///, the counterpart of pnpm's `globalWarn` emission, parsed by the
 /// shared default reporter.
 pub(crate) fn warn_stale_convergence_overrides<Reporter: self::Reporter>(
     stale: &[StaleConvergenceOverride],

@@ -10,15 +10,15 @@
 //! environment policy builds a fresh config.
 //!
 //! Each *distinct* input still leaks once and is never evicted (the map exists
-//! to stop *repeated identical* calls from leaking, not to bound total memory —
+//! to stop *repeated identical* calls from leaking, not to bound total memory,
 //! leaked memory cannot be reclaimed). Retained configs therefore grow with the
 //! number of unique `(dir, overlay, config sources)` combinations the process
 //! observes, which is bounded in practice for the trusted embedder this binding
 //! targets.
 //!
-//! The base is [`Config::current`] over `dir` — it reads the `.npmrc`
+//! The base is [`Config::current`] over `dir`, it reads the `.npmrc`
 //! auth/registry/network subset and `pnpm-workspace.yaml` exactly as the CLI
-//! does — then the explicit overlay fields the host passed (store/cache dirs,
+//! does, then the explicit overlay fields the host passed (store/cache dirs,
 //! registries, linker, hoist patterns, overrides, peer/dedupe policy, ...) win.
 
 use std::{
@@ -53,26 +53,26 @@ pub struct ConfigOverlay {
     pub store_dir: Option<PathBuf>,
     pub cache_dir: Option<PathBuf>,
     pub registry: Option<String>,
-    /// `{ "default": url, "@scope": url, ... }` — merged over the resolved map.
+    /// `{ "default": url, "@scope": url, ... }`, merged over the resolved map.
     pub registries: Option<BTreeMap<String, String>>,
     pub proxy: Option<ProxyConfig>,
     pub tls: Option<TlsConfig>,
-    /// `pnpmHomeDir` — the home directory the default store location is
+    /// `pnpmHomeDir`, the home directory the default store location is
     /// resolved under when no config source sets `storeDir` (mirrors the
     /// `pnpmHomeDir` input of pnpm's `getStorePath`). An explicit
     /// [`Self::store_dir`] or a cascade-configured `storeDir` wins.
     pub pnpm_home_dir: Option<PathBuf>,
     pub node_linker: Option<NodeLinker>,
-    /// `linkWorkspacePackages` — whether a bare-semver dependency may resolve
+    /// `linkWorkspacePackages`, whether a bare-semver dependency may resolve
     /// to a workspace package by name. `Off` (the default) matches only
     /// `workspace:`-prefixed ranges.
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
-    /// `virtualStoreOnly` — populate the virtual store but perform no
+    /// `virtualStoreOnly`, populate the virtual store but perform no
     /// post-import linking (importer symlinks, `.bin` entries, hoisting,
     /// project lifecycle scripts). The binding sets it for
-    /// `ignorePackageManifest` installs — pnpm `fetch` semantics.
+    /// `ignorePackageManifest` installs, pnpm `fetch` semantics.
     pub virtual_store_only: Option<bool>,
-    /// `enableModulesDir` — pnpm's setting for suppressing the
+    /// `enableModulesDir`, pnpm's setting for suppressing the
     /// `node_modules` directory. The binding forces it on for
     /// `ignorePackageManifest` installs, which need `node_modules/.pnpm`
     /// even when an ambient config source disables the modules dir.
@@ -83,7 +83,7 @@ pub struct ConfigOverlay {
     pub global_virtual_store_dir: Option<PathBuf>,
     pub package_extensions: Option<IndexMap<String, PackageExtension>>,
     pub patched_dependencies: Option<IndexMap<String, String>>,
-    /// `allowUnusedPatches` — when `true`, a configured patch that matches no
+    /// `allowUnusedPatches`, when `true`, a configured patch that matches no
     /// installed package warns instead of failing with
     /// `ERR_PNPM_UNUSED_PATCH`.
     pub allow_unused_patches: Option<bool>,
@@ -108,7 +108,7 @@ pub struct ConfigOverlay {
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub peers_suffix_max_length: Option<u64>,
     pub network_concurrency: Option<usize>,
-    /// `maxSockets` — per-origin concurrent-connection cap. Threaded onto the
+    /// `maxSockets`, per-origin concurrent-connection cap. Threaded onto the
     /// install client via `ThrottledClient::with_max_sockets_per_host`.
     pub max_sockets: Option<usize>,
     pub fetch_retries: Option<u32>,
@@ -142,20 +142,20 @@ pub struct ConfigOverlay {
     /// When `true`, trust lockfile resolutions without verifying them against
     /// current registry metadata.
     pub trust_lockfile: Option<bool>,
-    /// `engineStrict` — fail the install when a dependency's `engines` /
+    /// `engineStrict`, fail the install when a dependency's `engines` /
     /// platform constraint the host does not satisfy is required.
     pub engine_strict: Option<bool>,
-    /// `nodeVersion` — overrides the Node.js version the installability check
+    /// `nodeVersion`, overrides the Node.js version the installability check
     /// uses as the `engines.node` target. `None` auto-detects from `node`.
     pub node_version: Option<String>,
     pub minimum_release_age: Option<u64>,
     pub minimum_release_age_exclude: Option<Vec<String>>,
-    /// `peerDependencyRules` — customizations for how peer-dependency
+    /// `peerDependencyRules`, customizations for how peer-dependency
     /// mismatches are treated during resolution.
     pub peer_dependency_rules: Option<PeerDependencyRulesOverlay>,
     /// Pre-computed `Authorization` header values keyed by nerf-darted registry
     /// URI (`//host[:port]/path/`), plus the empty string `""` for the default
-    /// registry. When present, replaces the `.npmrc`-derived `auth_headers` —
+    /// registry. When present, replaces the `.npmrc`-derived `auth_headers`,
     /// the host (which owns the raw `.npmrc`/config credentials) resolves the
     /// `Bearer ...` / `Basic ...` values and passes them in, so the binding never
     /// reparses npmrc auth.
@@ -183,7 +183,7 @@ fn cache_key(dir: &Path, overlay: &ConfigOverlay) -> u64 {
     dir.hash(&mut hasher);
     // The overlay's `Debug` string covers every field. This is only stable
     // because the map-typed fields are `BTreeMap` (ordered) rather than
-    // `HashMap` (per-instance random iteration order) — otherwise logically
+    // `HashMap` (per-instance random iteration order), otherwise logically
     // identical overlays would hash differently, miss the cache, and leak a
     // fresh `Config` on every call.
     format!("{overlay:?}").hash(&mut hasher);

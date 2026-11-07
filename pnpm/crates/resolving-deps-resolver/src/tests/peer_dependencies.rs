@@ -8,7 +8,7 @@ use super::{
 /// dependency and a peer, so the edge survives only where the scope
 /// reaching it cannot supply the peer itself. Down `a-parent`, which
 /// resolves `pin` beside the node that depends on `shared`, it does
-/// not — and `a-parent` sorts first.
+/// not, and `a-parent` sorts first.
 #[tokio::test(start_paused = true)]
 async fn peer_shadowing_follows_the_occurrence_that_wins_the_level() {
     let shadowing_shared = fake_result(

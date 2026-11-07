@@ -432,7 +432,7 @@ mod restore {
             manifest,
         };
         // Signed the way a publisher signs, so the fixture cannot drift from
-        // the wire format the client verifies — and so a payload this test
+        // the wire format the client verifies, and so a payload this test
         // builds wrong fails here rather than being silently discarded as an
         // unverifiable variant.
         SignedArtifactEnvelope::sign(

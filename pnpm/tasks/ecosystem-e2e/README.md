@@ -6,10 +6,10 @@ produced layout actually works.
 
 It exists for two reasons specific to this repo:
 
-- **pacquet parity** — pacquet and the pnpm CLI are parallel implementations
+- **pacquet parity**, pacquet and the pnpm CLI are parallel implementations
   kept at parity. A real framework that installs and builds under pnpm but not
   under pacquet is a far better parity signal than any unit test.
-- **global virtual store** — the global virtual store relocates where
+- **global virtual store**, the global virtual store relocates where
   dependencies physically live, the same class of change that forced Yarn to
   build ecosystem tests for Plug'n'Play. Running real stacks under it is the
   only way to find tools that break on the new layout.
@@ -26,16 +26,16 @@ stack:   next | vite-react | ...   (--stack, defaults to all)
 
 Each cell runs four stages, stopping at the first failure:
 
-1. **prepare** — scaffold the project once (with `pnpm dlx`, no install), copy
+1. **prepare**, scaffold the project once (with `pnpm dlx`, no install), copy
    it into the cell, write a `pnpm-workspace.yaml` pinning an isolated
    store/cache and the layout.
-2. **install** — `<binary> install`.
-3. **build** — run the project's build script with `node_modules/.bin` on
+2. **install**, `<binary> install`.
+3. **build**, run the project's build script with `node_modules/.bin` on
    `PATH`, no package manager involved, so the build can't re-install and mask
    the install under test. Proves the layout resolves at **bundle time**.
-4. **serve** — boot the production server, poll it over HTTP until it answers,
+4. **serve**, boot the production server, poll it over HTTP until it answers,
    and require a non-error (`2xx`/`3xx`) response, then kill it. Proves the
-   layout works at **runtime** — request-time `require`, SSR, native addons —
+   layout works at **runtime**, request-time `require`, SSR, native addons,
    which a build alone does not exercise. Stacks without a server skip this
    stage; `--skip-serve` skips it everywhere for quick iteration.
 
@@ -45,13 +45,13 @@ From the repo root:
 
 ```sh
 # Whole grid, every stack (pnpm must be built: cargo build --release --bin pnpm)
-cargo run -p pnpm-ecosystem-e2e -- --pacquet ./target/release/pnpm
+cargo run -p pnpm-ecosystem-e2e, --pacquet ./target/release/pnpm
 
 # Just pnpm, one stack, both layouts
-cargo run -p pnpm-ecosystem-e2e -- --binary pnpm --stack vite-react
+cargo run -p pnpm-ecosystem-e2e, --binary pnpm --stack vite-react
 
 # Iterate without re-scaffolding
-cargo run -p pnpm-ecosystem-e2e -- --stack vite-react --keep
+cargo run -p pnpm-ecosystem-e2e, --stack vite-react --keep
 ```
 
 Exit code is non-zero if any cell fails. Per-cell logs are written to
@@ -60,7 +60,7 @@ Exit code is non-zero if any cell fails. Per-cell logs are written to
 ## Adding a stack
 
 Append a `Stack` to `STACKS` in `src/stacks.rs`. Pin the generator to a major
-version — an unpinned `@latest` turns an upstream framework release into a red
+version, an unpinned `@latest` turns an upstream framework release into a red
 cell that looks like a pnpm/pacquet regression. Bump pins deliberately.
 
 ## WebContainers
@@ -135,7 +135,7 @@ validation boundaries.
 
 `.github/workflows/ecosystem-e2e.yml` runs the grid on a daily cron (one job
 per stack) against this repo's built pnpm bundle and a freshly built pacquet.
-A red cell is something to investigate, not a merge blocker — hence cron, not
+A red cell is something to investigate, not a merge blocker, hence cron, not
 per-PR.
 The `webcontainer` job in the same workflow runs the WebContainer test
 against the same bundle.

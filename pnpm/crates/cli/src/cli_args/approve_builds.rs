@@ -189,7 +189,7 @@ fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, b
 }
 
 /// Whether the interactive run may proceed. An empty selection needs no
-/// confirmation — it denies every pending package.
+/// confirmation, it denies every pending package.
 fn confirm_selected_builds(build_packages: &[String], pending: &[String]) -> miette::Result<bool> {
     if build_packages.is_empty() {
         pnpm_diagnostics::println!("All packages were added to allowBuilds with value false.");

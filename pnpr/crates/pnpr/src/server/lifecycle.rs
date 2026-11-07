@@ -194,11 +194,11 @@ async fn serve_until_shutdown(
     Ok(())
 }
 
-/// Log which surfaces are mounted at startup. A misconfiguration — a
+/// Log which surfaces are mounted at startup. A misconfiguration, a
 /// `registries:` block that didn't parse the way the operator meant, or a
 /// typo'd `resolver:` block name, which the intentionally
 /// verdaccio-lenient config parser silently ignores and so leaves the
-/// surface at its default-enabled state — is then immediately visible to
+/// surface at its default-enabled state, is then immediately visible to
 /// the operator rather than only discoverable by probing.
 fn log_enabled_surfaces(config: &Config) {
     tracing::info!(
@@ -235,7 +235,7 @@ pub async fn serve_listener_with(
     config.http.ensure_valid_metrics()?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
-    // Load the configured auth backends here too — going through `router`
+    // Load the configured auth backends here too, going through `router`
     // would silently fall back to in-memory auth and ignore a persisted
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;

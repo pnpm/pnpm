@@ -86,7 +86,7 @@ async function createHoistedDependencyLink (depLocation: string, dest: string): 
   const attempt: LinkRaceAttempt = { depLocation, dest, linkReadRetries: 0 }
   let linked = false
   while (!linked) {
-    // eslint-disable-next-line no-await-in-loop -- each attempt runs only after the previous one lost a race
+    // eslint-disable-next-line no-await-in-loop, each attempt runs only after the previous one lost a race
     linked = await tryCreateHoistedDependencyLink(attempt)
   }
   linkLogger.debug({ target: dest, link: depLocation })

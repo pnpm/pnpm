@@ -4,7 +4,7 @@ use pnpm_reporter::LifecycleStdio;
 use std::io;
 
 /// Failure to run a script under the `shellEmulator` setting. A script
-/// that runs and exits non-zero is not an error here — the exit code is
+/// that runs and exits non-zero is not an error here, the exit code is
 /// returned to the caller, which decides what a failure means.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]

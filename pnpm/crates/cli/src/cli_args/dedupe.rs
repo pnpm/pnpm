@@ -300,8 +300,8 @@ fn emit_dedupe_check_error<Reporter: self::Reporter>(diff: &LockfileDiff) {
     }));
 }
 
-/// Parse one side of the `--check` diff. A snapshot that does not parse —
-/// an older lockfile format the dedupe install has just rewritten, say —
+/// Parse one side of the `--check` diff. A snapshot that does not parse,
+/// an older lockfile format the dedupe install has just rewritten, say,
 /// yields no baseline rather than replacing the check's verdict with a
 /// parse error: the run already knows the lockfile would change, and only
 /// the detail of the report is lost.
@@ -313,8 +313,8 @@ fn parse_snapshot(content: Option<&str>, lockfile_path: &Path) -> Option<Lockfil
 /// `renderDedupeCheckIssues`: one tree per changed importer or package
 /// snapshot, plus the snapshots deduplication would add or drop.
 ///
-/// The lockfile can also be rewritten without any resolution changing —
-/// recorded settings drift, a config dependency the run synced — so an
+/// The lockfile can also be rewritten without any resolution changing,
+/// recorded settings drift, a config dependency the run synced, so an
 /// empty diff still says why the check failed.
 fn render_dedupe_check_issues(diff: &LockfileDiff) -> String {
     if diff.is_empty() {

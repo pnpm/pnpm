@@ -2,16 +2,16 @@
 //!
 //! Two-index JSONL log at `<cache_dir>/lockfile-verified.jsonl`:
 //!
-//! - **by content hash** — recognizes the same lockfile across paths
+//! - **by content hash**, recognizes the same lockfile across paths
 //!   (worktrees, CI checkouts that reset stat fields, lockfile
 //!   copies).
-//! - **by absolute path** — same-machine stat shortcut. When the
+//! - **by absolute path**, same-machine stat shortcut. When the
 //!   cached entry's `(size, mtime_ns, inode)` matches the current
 //!   stat, trust the cached hash and skip reading the lockfile
 //!   altogether.
 //!
 //! Every active verifier must still agree that the cached policy
-//! snapshot is trustworthy under what it currently demands — that's
+//! snapshot is trustworthy under what it currently demands, that's
 //! what [`ResolutionVerifier::can_trust_past_check`] decides.
 //!
 //! All IO is synchronous. The cache is consulted once before the
@@ -54,7 +54,7 @@ pub const COMPACT_TRIGGER_BYTES: u64 = (MAX_CACHE_ENTRIES as u64) * 1024 * 3 / 2
 
 /// One verified lockfile snapshot persisted to the JSONL log. The wire
 /// shape is shared with pnpm field-for-field so the two stacks share a
-/// cache file (pacquet reads pnpm's records and vice versa — even though
+/// cache file (pacquet reads pnpm's records and vice versa, even though
 /// the hash values are unlikely to collide, the stat shortcut still hits
 /// across both).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -233,7 +233,7 @@ pub(crate) fn lockfile_verification_is_cached_by_hash(
 /// path doesn't re-stat / re-hash the lockfile. When either is
 /// missing, the function falls back to computing it. A
 /// stat-after-the-fact failure (file disappeared since verification
-/// began) silently drops the record — the gate already passed, the
+/// began) silently drops the record, the gate already passed, the
 /// install proceeds without the speedup next time.
 pub fn record_verification(
     cache_dir: &Path,
@@ -262,9 +262,9 @@ pub fn record_verification(
 }
 
 struct CacheIndexes {
-    /// Latest record per content hash — primary lookup.
+    /// Latest record per content hash, primary lookup.
     by_hash: HashMap<String, CacheRecord>,
-    /// Latest record per absolute path — same-machine stat fast path.
+    /// Latest record per absolute path, same-machine stat fast path.
     by_path: HashMap<String, CacheRecord>,
 }
 

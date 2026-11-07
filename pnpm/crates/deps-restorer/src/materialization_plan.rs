@@ -2,7 +2,7 @@
 //! are checked against, the set of snapshots it must not materialize,
 //! and the engine name its store slots are keyed by.
 //!
-//! Shared by both install paths. They agree on every step here — the
+//! Shared by both install paths. They agree on every step here, the
 //! skip set decides what lands in `node_modules`, so the two paths
 //! producing it differently would be a correctness bug rather than a
 //! stylistic difference. The two places they legitimately differ are
@@ -59,7 +59,7 @@ pub enum HostDetection {
 impl HostDetection {
     /// Spawn the detection so it runs under whatever the caller does
     /// next. The earlier this is called, the more of the probe's `node`
-    /// startup hides — the install entry point spawns one right after
+    /// startup hides, the install entry point spawns one right after
     /// the wanted lockfile parses, when the lockfile carries a
     /// constraint that will need the host.
     #[must_use]
@@ -88,7 +88,7 @@ impl HostDetection {
 
     /// Wait for the detection. A joined-task failure degrades to the
     /// synthetic fallback host, so the installability checks still run
-    /// — the same degradation [`detect_installability_host`] applies
+    ///, the same degradation [`detect_installability_host`] applies
     /// when its own probe task fails.
     pub async fn resolve(self) -> Option<InstallabilityHost> {
         match self {
@@ -134,7 +134,7 @@ fn synthetic_installability_host(engine_strict: bool) -> InstallabilityHost {
 /// paths qualify it differently, and getting it wrong is not obvious
 /// from here. Passing `false` returns `None`, which is what keeps `node
 /// --version` off the critical path of the common unconstrained install
-/// — the probe would otherwise serialize against the extraction that
+///, the probe would otherwise serialize against the extraction that
 /// dominates a cold install.
 pub async fn detect_installability_host(
     needed: bool,
@@ -172,7 +172,7 @@ pub struct SkipSetInputs<'a> {
     pub requester: &'a str,
     /// Importers the installability pass evaluates against.
     pub importers: &'a HashMap<String, ProjectSnapshot>,
-    /// `None` when installability checks are bypassed — see
+    /// `None` when installability checks are bypassed, see
     /// [`detect_installability_host`].
     pub installability_host: Option<&'a InstallabilityHost>,
     /// Skips carried in from the previous install's
@@ -281,7 +281,7 @@ pub fn with_locked_runtime_node(
 /// The result is delivered twice when running: [`Self::resolve_for_build`]
 /// for the async consumer (the side-effects-cache key in the build phase,
 /// awaited after linking), and a shared slot for a synchronous consumer that
-/// needs the name from a worker thread before the handle is awaited —
+/// needs the name from a worker thread before the handle is awaited,
 /// the directory-clone cache's lazily built layout (see
 /// [`crate::DirCloneCache`]).
 pub enum DeferredEngineName {
@@ -300,7 +300,7 @@ impl DeferredEngineName {
     fn spawn() -> Self {
         /// Fills the slot with `None` when dropped: a synchronous
         /// consumer blocked in [`OnceLock::wait`] would otherwise sleep
-        /// forever if the probe panicked — or never ran at all, which
+        /// forever if the probe panicked, or never ran at all, which
         /// is why the guard is captured by the closure rather than
         /// created inside it: a shutting-down runtime that discards the
         /// still-queued closure drops its environment, and the guard
@@ -377,8 +377,8 @@ pub fn engine_name_from_host(host_node: &HostNode) -> Option<String> {
 }
 
 /// The engine name the root project's `node@runtime:` pin implies, when one is
-/// present. Both engine-resolution paths — [`resolve_engine_name`] and
-/// the frozen path's deferred-host branch — apply this one rule, so
+/// present. Both engine-resolution paths, [`resolve_engine_name`] and
+/// the frozen path's deferred-host branch, apply this one rule, so
 /// they can't drift apart on how a pin keys the store.
 #[must_use]
 pub fn engine_name_from_runtime_pin(
@@ -397,7 +397,7 @@ pub fn engine_name_from_runtime_pin(
 /// the already-detected host, then a probe.
 ///
 /// The probe comes back as a still-running [`DeferredEngineName`] so it
-/// overlaps the virtual-store I/O — except under the global virtual
+/// overlaps the virtual-store I/O, except under the global virtual
 /// store, whose layout needs the name synchronously, or when
 /// `needs_deferred_probe` is `false` (see [`needs_deferred_engine_probe`]).
 pub async fn resolve_engine_name(

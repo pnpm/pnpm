@@ -13,8 +13,8 @@ pub struct BlobWrite {
 
 /// A reserved slot for a hosted-archive write. The publish flow writes
 /// the decoded + verified bytes to `tmp_path` (a local file) inside a
-/// blocking task, then promotes it under the identity of those bytes — a
-/// rename on the fs backend, an upload on the S3 backend — via
+/// blocking task, then promotes it under the identity of those bytes, a
+/// rename on the fs backend, an upload on the S3 backend, via
 /// [`crate::Storage::promote_blob_slot`].
 #[derive(Debug)]
 pub struct BlobSlot {
@@ -100,7 +100,7 @@ impl BlobWrite {
 
     /// Rewind the verified write handle so the caller streams the exact
     /// bytes that were hashed. The handle is opened read+write up front
-    /// and reused here — never dropped and reopened by path — so there is
+    /// and reused here, never dropped and reopened by path, so there is
     /// no window for an attacker-writable cache directory to swap the
     /// temp file between verification and streaming.
     pub async fn into_temp_file(mut self) -> std::io::Result<(fs::File, u64, PathBuf)> {

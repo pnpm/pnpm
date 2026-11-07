@@ -88,7 +88,7 @@ async fn shallower_pure_pkgs_revisit_lowers_graph_depth() {
     // `p` has a dep `q` so it gets per-occurrence NodeIds (a shared
     // leaf would already carry its minimum depth in the tree). Its
     // whole subtree is peer-free, so the second, shallower occurrence
-    // under `c` takes the `pure_pkgs` fast path — which records no
+    // under `c` takes the `pure_pkgs` fast path, which records no
     // `NodeRecord`, the case the rebuild must still account for.
     table.insert(
         ("p".to_string(), "1.0.0".to_string()),
@@ -168,7 +168,7 @@ async fn pure_revisit_leaves_lazy_children_unrealized() {
         ),
     );
     // `pure` has a child so it is non-leaf (per-occurrence
-    // NodeId), but no peer deps anywhere in the subtree — that
+    // NodeId), but no peer deps anywhere in the subtree, that
     // makes it eligible for `purePkgs`.
     table.insert(
         ("pure".to_string(), "^1.0.0".to_string()),

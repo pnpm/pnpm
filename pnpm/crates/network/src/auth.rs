@@ -39,7 +39,7 @@ pub type AuthHeadersByScope = BTreeMap<String, BTreeMap<String, String>>;
 /// Server-side override for upstream auth selection.
 ///
 /// A plain [`AuthHeaders`] answers "what `Authorization` header does the
-/// client's `.npmrc` attach to this URL?" — the right question for the
+/// client's `.npmrc` attach to this URL?", the right question for the
 /// pnpm CLI, which fetches as the user. A server (pnpr) that resolves on
 /// behalf of many callers must instead answer "what credential does *this
 /// deployment's route policy* attach to this fetch, for this caller?" and
@@ -63,8 +63,8 @@ pub trait UpstreamRouteHook: Send + Sync {
     /// A server resolves on behalf of callers who describe their own
     /// registries, so a URL it was told about is not automatically one it may
     /// reach. Answered at the fetch itself rather than when the request is
-    /// read, so a registry a caller merely configures — a scope it never
-    /// resolves a package from — costs nothing, while one it does resolve
+    /// read, so a registry a caller merely configures, a scope it never
+    /// resolves a package from, costs nothing, while one it does resolve
     /// from is refused before the request leaves the process.
     ///
     /// Defaults to `true` for hooks with no such policy (the CLI fetches as
@@ -82,8 +82,8 @@ pub trait UpstreamRouteHook: Send + Sync {
 
     /// Classify the metadata cache scope for a fetch to `url` for package
     /// `package` (`None` for non-package fetches). Unlike [`Self::authorize`]
-    /// this is a read-only query — it must **not** record into the resolve's
-    /// footprint — so the resolver can pick the on-disk mirror namespace and
+    /// this is a read-only query, it must **not** record into the resolve's
+    /// footprint, so the resolver can pick the on-disk mirror namespace and
     /// in-memory/fetch-lock keys without double-counting a route.
     ///
     /// Defaults to [`MetadataCacheScope::Public`] for hooks that don't
@@ -160,7 +160,7 @@ struct TokenHelpers {
     /// Memoizes each resolved `tokenHelper`: a helper runs at most once
     /// per process, keyed by its map key. Each key maps to a per-key
     /// [`OnceLock`] so the resolving subprocess runs without the shared
-    /// [`Mutex`] held — one slow helper can't block another registry's
+    /// [`Mutex`] held, one slow helper can't block another registry's
     /// lookup. `Some(header)` on success, `None` on failure (so a failed
     /// helper is never retried and never falls back to sending a different
     /// credential). Shared across [`Clone`]s so the memo survives an `Arc`
@@ -174,7 +174,7 @@ struct TokenHelpers {
 
 /// One resolved credential slot: either a baked header value or a
 /// `tokenHelper` command still to be executed. Keeping both in the same
-/// map preserves pnpm's single longest-path-prefix lookup — a
+/// map preserves pnpm's single longest-path-prefix lookup, a
 /// `tokenHelper` at `//host/` and a static token at `//host/path/`
 /// compete by prefix length exactly as two static tokens would.
 #[derive(Clone)]
@@ -244,7 +244,7 @@ impl AuthHeaders {
     /// honored at the URI it is keyed under. Callers pin an unscoped
     /// credential to the registry its own source declared before it gets
     /// here (see `NpmrcAuth::rescope_unscoped`), so the resolved default
-    /// registry — which repository-controlled config can move — never
+    /// registry, which repository-controlled config can move, never
     /// decides where a credential is sent. An entry with an empty URI is
     /// dropped.
     pub fn from_creds_map<Iter>(headers: Iter) -> Self
@@ -410,8 +410,8 @@ impl AuthHeaders {
     /// this lookup, suitable for forwarding to a pnpr resolver.
     #[must_use]
     pub fn to_by_scope(&self) -> AuthHeadersByScope {
-        // A `tokenHelper` entry has no static string to forward — it would
-        // have to be executed — so it is skipped here. This map feeds the
+        // A `tokenHelper` entry has no static string to forward, it would
+        // have to be executed, so it is skipped here. This map feeds the
         // pnpr wire shape, which carries only resolved header strings.
         let mut result = AuthHeadersByScope::new();
         for (uri, entry) in &self.by_uri {
@@ -442,7 +442,7 @@ impl AuthHeaders {
     /// 2. Otherwise nerf-dart the URL and walk parent path prefixes
     ///    down to the host-only key.
     /// 3. If the URL carried any explicit port, retry the lookup with
-    ///    the port stripped — stripping *any* port (not just protocol
+    ///    the port stripped, stripping *any* port (not just protocol
     ///    defaults) and retrying iff the URL changed.
     #[must_use]
     pub fn for_url(&self, url: &str) -> Option<String> {
@@ -469,7 +469,7 @@ impl AuthHeaders {
     /// Attach a server-side [`UpstreamRouteHook`] that takes over auth
     /// selection. The returned [`AuthHeaders`] keeps its
     /// client-forwarded credentials (so [`Self::to_by_scope`] still
-    /// reflects them) but no longer consults them on lookup — the hook
+    /// reflects them) but no longer consults them on lookup, the hook
     /// decides. Used by pnpr to resolve as the deployment's route policy
     /// rather than as the calling client.
     #[must_use]
@@ -479,7 +479,7 @@ impl AuthHeaders {
     }
 
     /// Whether the fetch to `url` is permitted, per an attached
-    /// [`UpstreamRouteHook`]. Always true without one — see
+    /// [`UpstreamRouteHook`]. Always true without one, see
     /// [`UpstreamRouteHook::allows_fetch`].
     #[must_use]
     pub fn allows_fetch(&self, url: &str) -> bool {
@@ -504,7 +504,7 @@ impl AuthHeaders {
     ///
     /// No-op when no route hook is installed (the CLI case): a fetch that
     /// never happens needs no `Authorization` header, and the CLI keeps no
-    /// footprint. Idempotent for the hook — recording the same route more
+    /// footprint. Idempotent for the hook, recording the same route more
     /// than once collapses to one footprint entry.
     pub fn record_route(&self, url: &str, pkg_name: Option<&str>) {
         if let Some(hook) = &self.route_hook {
@@ -515,7 +515,7 @@ impl AuthHeaders {
     /// The metadata cache scope a fetch to `url` for `pkg_name` belongs to.
     /// A server route hook owns the decision; without one (the CLI case)
     /// every fetch is [`MetadataCacheScope::Public`], leaving the global
-    /// mirror unchanged. Read-only — never records into a footprint.
+    /// mirror unchanged. Read-only, never records into a footprint.
     #[must_use]
     pub fn metadata_scope(&self, url: &str, pkg_name: Option<&str>) -> MetadataCacheScope {
         match &self.route_hook {

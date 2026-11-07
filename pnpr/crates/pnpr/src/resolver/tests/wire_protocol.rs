@@ -176,7 +176,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
 
-    // Routed by the corp registry, not the CDN host — so the raw upstream CDN
+    // Routed by the corp registry, not the CDN host, so the raw upstream CDN
     // URL is never emitted to the client.
     assert!(tarball.contains("/npm/~corp/acme/-/acme-1.0.0.tgz"), "got {tarball}");
     assert!(!tarball.contains("split-domain.example"), "raw CDN URL leaked: {tarball}");

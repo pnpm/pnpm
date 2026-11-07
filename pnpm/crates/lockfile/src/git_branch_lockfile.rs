@@ -40,7 +40,7 @@ impl Lockfile {
     /// Whether `file_name` names a branch lockfile.
     ///
     /// Both dots are literal and the branch segment is non-empty, which
-    /// keeps `pnpm-lock.yaml` itself — and unrelated files — out of the
+    /// keeps `pnpm-lock.yaml` itself, and unrelated files, out of the
     /// scan that feeds merging and [`Self::clean_git_branch_lockfiles`].
     #[must_use]
     pub fn is_git_branch_file_name(file_name: &str) -> bool {
@@ -77,7 +77,7 @@ impl Lockfile {
         Ok(paths)
     }
 
-    /// Delete every branch lockfile in `lockfile_dir` — what an install
+    /// Delete every branch lockfile in `lockfile_dir`, what an install
     /// under `mergeGitBranchLockfiles` does once it has folded them into
     /// `pnpm-lock.yaml`.
     pub fn clean_git_branch_lockfiles(lockfile_dir: &Path) -> io::Result<()> {

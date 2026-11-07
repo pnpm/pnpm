@@ -75,7 +75,7 @@ fn bundled_dependencies_from_the_legacy_spelling() {
 }
 
 // Upstream writes whichever of the two keys holds a nonempty list or `true`,
-// preferring `bundledDependencies` — so a `false` or empty list under the
+// preferring `bundledDependencies`, so a `false` or empty list under the
 // preferred key does not veto the legacy one.
 #[test]
 fn bundled_dependencies_falls_through_a_false_to_the_legacy_spelling() {

@@ -12,7 +12,7 @@ use text_block_macros::text_block;
 
 /// Build a `PackageManifest` from inline JSON. Writes it to a temp
 /// file so [`PackageManifest::from_path`] can parse it back through
-/// the normal load path — exercises the actual deserialize, not a
+/// the normal load path, exercises the actual deserialize, not a
 /// `serde_json::Value` shortcut.
 fn manifest_from_json(json: &str) -> (tempfile::TempDir, PackageManifest) {
     let tmp = tempdir().expect("create tempdir");

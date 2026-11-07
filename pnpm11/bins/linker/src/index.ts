@@ -300,7 +300,7 @@ async function readLinkedPublishManifest (target: string): Promise<ProjectManife
   const candidates = new Set<string>()
   for (const resolve of [readLinkTarget, fs.realpath]) {
     try {
-      // eslint-disable-next-line no-await-in-loop -- two cheap lookups whose errors are filtered one at a time
+      // eslint-disable-next-line no-await-in-loop, two cheap lookups whose errors are filtered one at a time
       candidates.add(await resolve(target))
     } catch (err: unknown) {
       const code = (err as NodeJS.ErrnoException).code
@@ -308,7 +308,7 @@ async function readLinkedPublishManifest (target: string): Promise<ProjectManife
     }
   }
   for (const candidate of candidates) {
-    // eslint-disable-next-line no-await-in-loop -- stops at the first candidate that has a publish manifest
+    // eslint-disable-next-line no-await-in-loop, stops at the first candidate that has a publish manifest
     const manifest = await safeReadParentPublishManifest(candidate)
     if (manifest != null) return manifest
   }

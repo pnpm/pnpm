@@ -11,7 +11,7 @@ use crate::server::{
     web_login::{get_v1_login_poll, get_v1_login_start, post_v1_login},
 };
 
-/// The account endpoints — adduser/login, whoami, profile, token
+/// The account endpoints, adduser/login, whoami, profile, token
 /// creation/listing/revocation, logout. They are pnpr account management, not
 /// npm-registry functionality: they mint and manage the tokens every
 /// authenticated surface demands, so they ride every tier alongside

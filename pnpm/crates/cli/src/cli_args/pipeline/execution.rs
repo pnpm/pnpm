@@ -227,7 +227,7 @@ fn cargo_build_env(
     extra_env
 }
 
-/// Save the build directory as this task key's snapshot — but only when
+/// Save the build directory as this task key's snapshot, but only when
 /// the inputs still hash to the key the run started with, since a
 /// concurrent edit would otherwise be published under the wrong key.
 fn publish_cargo_snapshot(
@@ -353,7 +353,7 @@ fn runnable_script(
 }
 
 /// A cache hit skips the script but must not skip the injected-deps sync
-/// that would have followed it — consumers of an injected dependency
+/// that would have followed it, consumers of an injected dependency
 /// would otherwise keep seeing the previous build.
 fn sync_injected_deps_if_configured(
     config: &Config,

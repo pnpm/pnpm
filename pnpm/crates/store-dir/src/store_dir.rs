@@ -49,14 +49,14 @@ pub struct StoreDir {
     /// subsequent writes skip the syscall entirely. Populated lazily by
     /// [`StoreDir::write_cas_file`]; duplicate inserts across threads are
     /// harmless since `create_dir_all` is idempotent. Not part of the
-    /// serialised wire shape — `#[serde(from/into)]` round-trips only
+    /// serialised wire shape, `#[serde(from/into)]` round-trips only
     /// through `PathBuf`, so the cache is regenerated empty on every
     /// deserialise.
     ensured_shards: DashSet<u8>,
 
     /// Memoised `<root>/files` directory. Resolved lazily on the first
     /// CAS path lookup and reused across every subsequent file write
-    /// — saves one `Path::join` allocation per file on the hot path,
+    ///, saves one `Path::join` allocation per file on the hot path,
     /// ~170k on the alotta-files clean install. `OnceLock` so
     /// initialization across rayon threads stays race-free.
     #[serde(skip, default)]
@@ -81,7 +81,7 @@ impl Eq for StoreDir {}
 
 impl From<PathBuf> for StoreDir {
     /// Wrap a raw path into a [`StoreDir`], appending [`STORE_VERSION`]
-    /// when the path doesn't already end with that segment — the same
+    /// when the path doesn't already end with that segment, the same
     /// rule used by pnpm's native clients. WASI appends its isolated namespace
     /// even when the supplied path ends in the native `v11` namespace.
     fn from(root: PathBuf) -> Self {
@@ -140,7 +140,7 @@ impl StoreDir {
 
     /// Path to a content-addressed file. The hex digest is split into a
     /// two-char prefix directory and the remainder, plus an optional `-exec`
-    /// suffix for executable files — this is pnpm v11's `files/XX/<rest>[-exec]`
+    /// suffix for executable files, this is pnpm v11's `files/XX/<rest>[-exec]`
     /// layout.
     pub(crate) fn file_path_by_hex_str(&self, hex: &str, suffix: &'static str) -> PathBuf {
         let head = &hex[..2];
@@ -166,7 +166,7 @@ impl StoreDir {
         self.root.join("links")
     }
 
-    /// Path to the per-store projects registry — a flat directory of
+    /// Path to the per-store projects registry, a flat directory of
     /// symlinks (`<store>/projects/<short-hash>` → project dir) the
     /// global-virtual-store prune sweep walks when deciding which
     /// `<store>/links/...` slots are still referenced.
@@ -186,7 +186,7 @@ impl StoreDir {
     /// (`files/` already a directory) this is a single stat that
     /// returns `Ok(())` without seeding the cache, leaving the lazy
     /// mkdir fallback inside [`StoreDir::write_cas_file`] responsible
-    /// for materializing each shard on first write — the same
+    /// for materializing each shard on first write, the same
     /// lazy-shard shape pnpm uses. Seeding the cache on
     /// a warm store would be incorrect: a store created by an older
     /// pacquet that only lazily materialized shards may be missing some
@@ -245,7 +245,7 @@ fn create_shard_dir(
         Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => Err(error),
         Err(_) => {
             // `AlreadyExists` is benign only when the existing
-            // entry resolves to a directory — a parallel pnpm
+            // entry resolves to a directory, a parallel pnpm
             // or pacquet process racing the same layout is
             // fine, and a symlink pointing at a real directory
             // is too (ops folks occasionally spread a store

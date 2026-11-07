@@ -28,7 +28,7 @@ fn userinfo_end(url: &str) -> Option<usize> {
 ///
 /// The scheme is anchored at the start rather than found by searching for the
 /// first `://`: a `://` inside the path (`//host/a://b`) would otherwise be
-/// taken for the separator, and the real authority — credentials and all —
+/// taken for the separator, and the real authority, credentials and all,
 /// would go unexamined.
 fn authority_start_of(url: &str) -> Option<usize> {
     if let Some(scheme_end) = url.find("://") {

@@ -47,7 +47,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
         .create_async()
         .await;
     // `latest` is 1.0.0, whose declared tarball basename is `foo-2.0.0.tgz`,
-    // so that is the upstream path pnpr fetches — and it must yield bytes
+    // so that is the upstream path pnpr fetches, and it must yield bytes
     // matching 1.0.0's integrity.
     let tarball_mock = upstream
         .mock("GET", "/foo/-/foo-2.0.0.tgz")
@@ -109,7 +109,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     // A fresh instance over the same storage and the same origin replays the
     // cached entry; the `expect(1)` mocks prove the upstream is never
     // consulted again. (A *different* URL would be a repoint, which
-    // deliberately abandons this cache — see
+    // deliberately abandons this cache, see
     // `repointing_an_upstream_url_abandons_the_old_origins_cache`.)
     let restarted = router(config_for(&upstream.url(), storage));
     let replay = restarted

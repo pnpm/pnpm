@@ -50,7 +50,7 @@ impl GraphEdge {
 #[derive(Debug, Default)]
 pub struct GraphNode {
     pub edges: Vec<GraphEdge>,
-    /// Names declared in this package's `peerDependencies` — a child
+    /// Names declared in this package's `peerDependencies`, a child
     /// edge whose alias is in this set is a peer dependency.
     pub peers: HashSet<String>,
 }

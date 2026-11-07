@@ -963,7 +963,7 @@ fn dedupe_check_reports_the_lockfile_diff() {
 }
 
 /// `--check` must not write loose-mode `minimumReleaseAge` picks to
-/// `minimumReleaseAgeExclude` — the check contract is "mutate nothing"
+/// `minimumReleaseAgeExclude`, the check contract is "mutate nothing"
 /// (see the lockfile guard in `DedupeArgs::run`).
 #[test]
 fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
@@ -1022,12 +1022,12 @@ fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
 }
 
 /// A lockfile whose snapshot keys carry no `(peer)` segment for an
-/// optional peer that only a sibling's subtree provides — the shape
-/// pnpm 11 writes for this graph — must be re-keyed completely.
+/// optional peer that only a sibling's subtree provides, the shape
+/// pnpm 11 writes for this graph, must be re-keyed completely.
 /// The graph mirrors pnpm/pnpm#14455: `optional-peer-c-consumer` and its
 /// auto-installed peer both reach `optional-peer-c-host`, whose optional
 /// `peer-c` is provided by `abc-regular-deps`. One `dedupe` pass must
-/// re-key every affected snapshot — the consumer's own key included —
+/// re-key every affected snapshot, the consumer's own key included,
 /// and a second pass must change nothing.
 #[test]
 fn dedupe_re_keys_a_hoisted_optional_peer_in_one_pass() {

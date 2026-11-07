@@ -49,7 +49,7 @@ pub enum RunDepsStatus {
 
 /// The verify-deps-before-run twin of
 /// [`crate::optimistic_repeat_install::check_optimistic_repeat_install`]: the same freshness checks, with
-/// the differences pnpm's run gate carries over its install fast path —
+/// the differences pnpm's run gate carries over its install fast path,
 /// it runs regardless of `optimisticRepeatInstall`, never treats local
 /// file dependencies as outdated, ignores `dev`/`optional`/`production`
 /// drift (scripts always run with the default groups), and reports drift

@@ -8,7 +8,7 @@
 //! `dist-tags.latest` from a packument and strand resolution.
 //!
 //! Fields whose value pnpm does not depend on are therefore decoded
-//! leniently — the field degrades to `None`, never the version. Fields
+//! leniently, the field degrades to `None`, never the version. Fields
 //! pnpm *does* depend on stay strict, because a version that cannot be
 //! installed safely must fail loudly rather than quietly: see
 //! [`PackageDistribution::integrity`](crate::PackageDistribution), where
@@ -25,7 +25,7 @@ use serde_json::Value;
 /// as present-with-no-detail.
 ///
 /// npm serves these markers as objects, but their body is not part of
-/// the wire contract that registries mirroring npm honor — some
+/// the wire contract that registries mirroring npm honor, some
 /// abbreviate a marker to a bare flag such as `1`. Nothing downstream
 /// reads the body, only whether the marker is there, so an unrecognized
 /// one must not cost the version.
@@ -54,7 +54,7 @@ where
 /// that sends something other than an object in its place.
 ///
 /// Unlike [`deserialize_presence_marker`], the container's *presence*
-/// carries no signal of its own — everything pnpm wants is inside it —
+/// carries no signal of its own, everything pnpm wants is inside it,
 /// so a non-object decodes as absent rather than as an empty record.
 pub(crate) fn deserialize_record_or_absent<'de, Record, Deser>(
     deserializer: Deser,
@@ -75,9 +75,9 @@ where
 /// Deserialize a map of records, tolerating an entry whose value is not
 /// an object as well as a container that is not a map.
 ///
-/// The keys carry the signal — the TypeScript resolver reads
+/// The keys carry the signal, the TypeScript resolver reads
 /// `peerDependenciesMeta` by name to learn which peers a manifest
-/// declares — so a non-object entry keeps its key with a default record
+/// declares, so a non-object entry keeps its key with a default record
 /// rather than costing the version. A non-object container decodes as
 /// absent, like [`deserialize_record_or_absent`].
 pub(crate) fn deserialize_record_map<'de, Record, Deser>(
@@ -105,7 +105,7 @@ where
 /// [`deserialize_record_or_absent`] decodes that record as a unit: a
 /// strict decode here would take a valid `approver` or
 /// `trustedPublisher` down with a mistyped display name, ranking the
-/// version *below* what the TypeScript resolver ranks it — which reads
+/// version *below* what the TypeScript resolver ranks it, which reads
 /// the markers without regard to the shape of their siblings.
 pub(crate) fn deserialize_text_or_absent<'de, Deser>(
     deserializer: Deser,
@@ -124,7 +124,7 @@ where
 /// accepting the numeric shapes a registry's serializer may emit.
 ///
 /// A JSON number that is integral and non-negative decodes whatever its
-/// encoding — `12345` and `12345.0` are the same count, and a registry
+/// encoding, `12345` and `12345.0` are the same count, and a registry
 /// whose backend round-trips through a float (Go's `float64`, Python's
 /// `json`, Ruby's `JSON`) emits the latter. A numeric string is accepted
 /// on the same reasoning. Anything else decodes as absent, which is
@@ -148,7 +148,7 @@ where
 /// A float only counts when it is a whole number below 2^53, the range
 /// in which `f64` holds every integer. Past that the JSON parser has
 /// already rounded the digits it was given, and casting straight across
-/// would saturate, turning a bogus `1e100` into `usize::MAX` — a size
+/// would saturate, turning a bogus `1e100` into `usize::MAX`, a size
 /// the extractor would then try to honor.
 fn integral_count(number: &serde_json::Number) -> Option<usize> {
     if let Some(exact) = number.as_u64() {

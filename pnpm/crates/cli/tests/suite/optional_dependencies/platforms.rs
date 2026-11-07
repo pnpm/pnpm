@@ -275,7 +275,7 @@ fn install_optional_dependency_for_the_supported_architectures() {
         } = CommandTempCwd::init().add_mocked_registry();
         append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
 
-        // Upstream verifies with `deepRequireCwd` — Node resolution
+        // Upstream verifies with `deepRequireCwd`, Node resolution
         // through the dependent, which the `.pnpm/node_modules` fallback
         // also satisfies. The port asserts the equivalent: the slot is
         // materialized and reachable through that resolution fallback.
@@ -489,8 +489,8 @@ fn remove_optional_dependencies_when_architectures_change_and_a_dependency_is_ad
 
 /// The CLI-flag variant of the `supportedArchitectures` invalidation:
 /// `install --os` / `--cpu` after a broader install must not report
-/// "Already up to date" — every up-to-date gate compares the CLI-merged
-/// value — and the platform packages the narrowed set no longer needs
+/// "Already up to date", every up-to-date gate compares the CLI-merged
+/// value, and the platform packages the narrowed set no longer needs
 /// are re-evaluated and pruned.
 #[test]
 fn cli_architecture_flags_invalidate_the_up_to_date_fast_path() {

@@ -55,7 +55,7 @@ fn list(entries: &[&str]) -> NoProxySetting {
     )
 }
 
-// --- TLS / local-address tests ---
+//,- TLS / local-address tests,-
 
 /// Minimal self-signed certificate used to assert `Certificate::from_pem`
 /// accepts well-formed PEM. Lives at
@@ -69,7 +69,7 @@ fn list(entries: &[&str]) -> NoProxySetting {
 ///     -out crates/network/tests/fixtures/test-ca.pem
 /// ```
 ///
-/// The private key is discarded — only the cert is committed so the
+/// The private key is discarded, only the cert is committed so the
 /// workspace doesn't carry real key material. Each regeneration
 /// produces a different cert (fresh keypair, fresh serial); that's
 /// fine because nothing pins a specific issuer / fingerprint, the
@@ -77,7 +77,7 @@ fn list(entries: &[&str]) -> NoProxySetting {
 /// `Certificate::from_pem` accepts.
 const TEST_CA_PEM: &str = include_str!("../tests/fixtures/test-ca.pem");
 
-// --- PKCS#1 / rustls regression tests ---
+//,- PKCS#1 / rustls regression tests,-
 
 /// PKCS#1 client cert + key fixture. Generated with:
 ///
@@ -89,7 +89,7 @@ const TEST_CA_PEM: &str = include_str!("../tests/fixtures/test-ca.pem");
 /// ```
 ///
 /// The `-traditional` flag pins openssl to PKCS#1 (`-----BEGIN RSA
-/// PRIVATE KEY-----`) instead of the default PKCS#8 — which is the
+/// PRIVATE KEY-----`) instead of the default PKCS#8, which is the
 /// whole point of the regression test below. The cert and key are
 /// self-signed and committed so the test stays deterministic.
 const TEST_CLIENT_PKCS1_CERT: &str = include_str!("../tests/fixtures/test-client-pkcs1.crt");

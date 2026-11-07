@@ -7,7 +7,7 @@ use super::{DependentsOptions, RenderDependentsInput, build_trees, render_depend
 
 /// A workspace whose root project depends on `dep@1.0.0`, which in turn
 /// depends on `nested@2.0.0`. Only the lockfile and the manifests the tree
-/// walk reads are written — the walk never resolves or fetches.
+/// walk reads are written, the walk never resolves or fetches.
 fn write_workspace(dir: &Path) {
     std::fs::write(
         dir.join("package.json"),
@@ -92,7 +92,7 @@ fn reports_the_chain_from_the_importer_down_to_the_searched_package() {
 }
 
 /// The excluded importer is the only one that reaches `dep`, so excluding
-/// it leaves nothing to report — proof the pattern is applied to the walk
+/// it leaves nothing to report, proof the pattern is applied to the walk
 /// roots rather than only to the rendered output.
 #[test]
 fn excluded_importers_are_not_walked() {

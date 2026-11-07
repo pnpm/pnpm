@@ -71,8 +71,8 @@ const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
 const PNPR_DIRECT_ABS_SLACK_SECONDS: f64 = 0.015;
 // A pacquet peer-resolution blowup lands *below* 1x on this DAG, so the floor
 // only has to clear measurement noise, not encode how far ahead pacquet is.
-// The TypeScript resolver's own hot-cache cost moves independently — offline
-// resolution of this fixture dropped from ~34s to ~3s in pnpm/pnpm#13504 — and
+// The TypeScript resolver's own hot-cache cost moves independently, offline
+// resolution of this fixture dropped from ~34s to ~3s in pnpm/pnpm#13504, and
 // a floor tracking that headroom would fail on every TypeScript perf win.
 // Compared on each target's fastest run: see `benchmark_target_min`.
 const PACQUET_PNPM_SPEEDUP_MIN: f64 = 1.25;
@@ -130,7 +130,7 @@ impl<'a> From<&'a TargetSpec> for BenchId<'a> {
     }
 }
 
-/// Static bench id of the proxy-cache populator — the one id that warms
+/// Static bench id of the proxy-cache populator, the one id that warms
 /// the registry's on-disk cache rather than being benchmarked.
 const INIT_PROXY_CACHE_ID: &str = ".init-proxy-cache";
 
@@ -186,7 +186,7 @@ impl WorkEnv {
         self.options.selection.targets.iter().map(BenchId::from)
     }
 
-    /// Every bench dir the run will touch — every target plus, when
+    /// Every bench dir the run will touch, every target plus, when
     /// requested, the system-pnpm sibling.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
         self.target_ids()
@@ -198,7 +198,7 @@ impl WorkEnv {
     }
 
     /// Repository to fetch pnpm revisions from. Falls back to the
-    /// pacquet repo when the caller didn't override it — useful when
+    /// pacquet repo when the caller didn't override it, useful when
     /// the same monorepo checkout contains both code bases.
     fn pnpm_repository(&self) -> &'_ Path {
         self.options.build.pnpm_repository.as_deref().unwrap_or_else(|| self.repository())
@@ -236,7 +236,7 @@ impl WorkEnv {
     /// front of a runtime-resolved bundle path.
     ///
     /// The script `cd`s into the bench dir before exec-ing this, so
-    /// every path here is relative to the bench dir — that lets the
+    /// every path here is relative to the bench dir, that lets the
     /// pnpm-target branch defer `pnpm.mjs` vs `pnpm.cjs` resolution
     /// to script runtime (after `build()` has produced the bundle),
     /// and also avoids embedding absolute paths that might contain
@@ -340,13 +340,13 @@ impl WorkEnv {
         // preserves `store-dir` / `cache-dir` so subsequent iterations can
         // reuse them, which means whatever a previous run / scenario /
         // partial invocation left behind would otherwise carry into the
-        // warmup — and the warmup wouldn't actually be what primes them.
+        // warmup, and the warmup wouldn't actually be what primes them.
         // Wiping once upfront makes the warmup the priming run no matter
         // what state the work-env was in. For cold-cache scenarios this is
         // redundant with the per-iteration wipe but harmless (Copilot
         // review on <https://github.com/pnpm/pacquet/pull/296>).
         // `pnpr-storage` is the per-target pnpr server's
-        // store + cache (only present for `pnpr@<rev>` targets) — wiping it
+        // store + cache (only present for `pnpr@<rev>` targets), wiping it
         // upfront (but never per-iteration) makes the hyperfine warmup the
         // run that primes the server, so timed runs measure a warm
         // long-running server even while the client is cold. `cold-mock-storage`
@@ -464,9 +464,9 @@ impl WorkEnv {
         }
     }
 
-    /// Offline scenarios can't let hyperfine's warmup prime the caches — the
+    /// Offline scenarios can't let hyperfine's warmup prime the caches, the
     /// measured `--offline` command fails against the mirror the
-    /// pre-benchmark wipe just emptied — so the online priming script runs
+    /// pre-benchmark wipe just emptied, so the online priming script runs
     /// once per target first.
     ///
     /// The per-iteration cleanup runs before the priming too: a reused

@@ -93,7 +93,7 @@ impl<'a> HoistedDirCloneCache<'a> {
 /// Whether the package's own files include a `node_modules` directory.
 /// A tarball can ship one without declaring `bundledDependencies`, and
 /// the hoisted importer merges such a directory with the nested
-/// packages the walker places inside it (`keep_modules_dir`) — which a
+/// packages the walker places inside it (`keep_modules_dir`), which a
 /// clone of the canonical slot cannot reproduce.
 fn ships_bundled_modules(cas_paths: &pnpm_fs::CasPaths) -> bool {
     cas_paths

@@ -59,8 +59,8 @@ pub enum BuildVerifiersError {
 }
 
 /// Assemble the verifier list for this install. The npm verifier is
-/// always included — it enforces the tarball-URL binding regardless of
-/// policy configuration — so the list is non-empty.
+/// always included, it enforces the tarball-URL binding regardless of
+/// policy configuration, so the list is non-empty.
 ///
 /// `meta_cache` is the optional per-install packument cache shared
 /// with the resolver. When provided, the verifier reads it before

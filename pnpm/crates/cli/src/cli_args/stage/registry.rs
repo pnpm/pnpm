@@ -128,7 +128,7 @@ pub(super) async fn stage_request_in_session<Reporter: self::Reporter>(
         .run::<WebAuthHost, Reporter, (), StageHttpError, _, _>(
             // A plain `FnMut` returning an `async move` block (not an
             // `AsyncFnMut`) so the produced future carries an ordinary `Send`
-            // obligation — see `with_otp_handling`'s `Operation` bound.
+            // obligation, see `with_otp_handling`'s `Operation` bound.
             move |challenge_otp: Option<String>| {
                 // The web-auth-provided OTP (a fresh challenge) takes precedence
                 // over any statically configured one.

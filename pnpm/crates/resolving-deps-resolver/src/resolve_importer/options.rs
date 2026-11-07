@@ -44,7 +44,7 @@ pub struct ImporterPeerOptions {
     /// `resolve_peers` invocation inside the auto-install-peers loop.
     pub dedupe_peers: bool,
     /// Together with [`Self::auto_install_peers`] it decides whether the
-    /// hoist rounds run at all — a peer nothing asked to install is still
+    /// hoist rounds run at all, a peer nothing asked to install is still
     /// hoisted to collapse peer-suffixed variants, so turning both off
     /// leaves every missing peer missing. It also decides which versions
     /// may supply a missing optional peer. The cross-importer collapse
@@ -79,7 +79,7 @@ pub struct ImporterResolutionInputs {
     /// version a sibling already brought is reused instead of adding a
     /// second instance. Versions resolved into the settled tree are
     /// derived once, workspace-wide, on the tree context and merged
-    /// with these seed buckets per lookup (seed entries win) — see
+    /// with these seed buckets per lookup (seed entries win), see
     /// `TreeCtx::preferred_versions_for_names`. Pass the result of
     /// `get_preferred_versions_from_lockfile_and_manifests` from the
     /// `lockfile-preferred-versions` crate, or an empty map when no
@@ -232,7 +232,7 @@ impl ResolveImporterOptions {
     }
 }
 
-/// Result of [`fn@crate::resolve_importer`] — the fully-walked tree plus the
+/// Result of [`fn@crate::resolve_importer`], the fully-walked tree plus the
 /// peer-resolution output the install layer consumes.
 #[derive(Debug)]
 pub struct ResolveImporterResult {

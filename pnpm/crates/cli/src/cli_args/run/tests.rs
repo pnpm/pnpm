@@ -50,8 +50,8 @@ fn specified_scripts_selects_every_regexp_match() {
         ScriptSelector::new("/^build:(backend|frontend)$/").unwrap().select(&manifest),
         vec!["build:backend".to_string(), "build:frontend".to_string()],
     );
-    // The pattern is not implicitly anchored to the whole script name —
-    // it is searched for — so `build` matches this one too, and the
+    // The pattern is not implicitly anchored to the whole script name,
+    // it is searched for, so `build` matches this one too, and the
     // matches keep the manifest's declaration order.
     assert_eq!(
         ScriptSelector::new("/^build/").unwrap().select(&manifest),
@@ -102,8 +102,8 @@ fn specified_scripts_rejects_regexp_flags() {
     assert!(matches!(err, RunError::UnsupportedScriptCommandFormat), "got {err:?}");
 }
 
-/// Anything that isn't a well-formed regexp literal — a bare `/`-bearing
-/// name, an empty pattern, or a pattern the engine can't compile — reads
+/// Anything that isn't a well-formed regexp literal, a bare `/`-bearing
+/// name, an empty pattern, or a pattern the engine can't compile, reads
 /// as a plain script name and finds nothing.
 #[test]
 fn specified_scripts_treats_non_literals_as_names() {

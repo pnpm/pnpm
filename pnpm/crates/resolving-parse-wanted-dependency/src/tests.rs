@@ -81,14 +81,14 @@ fn bare_version_range_keeps_whole_input_as_bare_specifier() {
 fn numeric_only_input_is_treated_as_an_alias() {
     // `1.2.3` happens to satisfy `validForOldPackages` (all URL-safe
     // characters, no leading dot/dash/underscore), so it parses as an
-    // alias with no specifier. Mirrors upstream's behavior — a quirk
+    // alias with no specifier. Mirrors upstream's behavior, a quirk
     // worth pinning so future refactors don't drift.
     assert_eq!(parse_wanted_dependency("1.2.3"), parsed(Some("1.2.3"), None));
 }
 
 #[test]
 fn prefix_protocol_with_at_keeps_whole_input_as_bare_specifier() {
-    // `pnpm:foo@npm:bar` — the substring before the first `@` is
+    // `pnpm:foo@npm:bar`, the substring before the first `@` is
     // `pnpm:foo`, which fails `validForOldPackages` (contains `:`),
     // so the whole string flows through as a bare specifier.
     let input = "pnpm:foo@npm:bar";

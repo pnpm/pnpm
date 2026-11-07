@@ -36,13 +36,13 @@ export interface RegistriesByPrefix {
  * Undeclared by default, because "behaves like the npm registry" is a claim
  * only the operator can make:
  *
- * - undeclared — strict. Only the exact canonical URL is reconstructible.
+ * - undeclared, strict. Only the exact canonical URL is reconstructible.
  *   This is how every registry but registry.npmjs.org is read by default.
- * - `npm` — behaves like registry.npmjs.org, which serves a scoped package
+ * - `npm`, behaves like registry.npmjs.org, which serves a scoped package
  *   from the percent-encoded path as well as the unencoded one. A faithful
  *   mirror or caching proxy of the public registry is this.
- * - `artifactory` — repeats the scope in a scoped package's tarball filename.
- * - `pnpr` — serves a version's tarball at `<registry><name>@<version>`.
+ * - `artifactory`, repeats the scope in a scoped package's tarball filename.
+ * - `pnpr`, serves a version's tarball at `<registry><name>@<version>`.
  *
  * Only layouts pnpm can rebuild a URL for belong here. A registry that serves
  * tarballs from a content-derived path (GitHub Packages
@@ -64,7 +64,7 @@ export interface RegistryOptions {
    *
    * `registry.npmjs.org` does not, which is why the default is `false` and why
    * a time-based resolution falls back to the far larger full metadata. A
-   * registry that does carry it — Verdaccio and several proxies — is worth
+   * registry that does carry it, Verdaccio and several proxies, is worth
    * declaring: the fallback is per registry, so one that needs full metadata
    * no longer costs it at the others.
    */
@@ -77,7 +77,7 @@ export interface RegistryOptions {
  *
  * `scopes` and `prefix` are the routes *to* the registry, and are inverted
  * into {@link RegistriesByScope} and {@link RegistriesByPrefix} when the config is read
- * — a scope resolves to one registry, but a registry serves many, so the
+ *, a scope resolves to one registry, but a registry serves many, so the
  * declaration reads the way it is written and each lookup keeps the shape it
  * is queried in.
  */
@@ -110,8 +110,8 @@ export interface RegistryDeclaration extends RegistryOptions {
  * Mixed into an options type (`RegistryContext & { ... }`) rather than spelled
  * out field by field, so that a new per-registry setting reaches every
  * consumer by being added here. Forward it with `pickRegistryContext` for the
- * same reason: dropping a field is silent — the tarball URL is rebuilt
- * in the wrong layout — so neither end should be written out by hand.
+ * same reason: dropping a field is silent, the tarball URL is rebuilt
+ * in the wrong layout, so neither end should be written out by hand.
  */
 export interface RegistryContext {
   registriesByScope: RegistriesByScope

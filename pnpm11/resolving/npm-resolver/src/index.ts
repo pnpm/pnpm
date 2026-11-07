@@ -84,7 +84,7 @@ export interface ResolverFactoryOptions {
   fullMetadata?: boolean
   /**
    * Asked instead of {@link ResolverFactoryOptions.fullMetadata} when the
-   * caller can answer per registry — a registry that declares
+   * caller can answer per registry, a registry that declares
    * `supportsTimeField` needs no full metadata for a time-based resolution
    * even when the others do.
    */
@@ -140,7 +140,7 @@ export function createNpmResolver (
   // Track ownership so `clearCache()` below only wipes the in-memory
   // cache when this factory created it. A caller-supplied
   // `opts.metaCache` may be shared with another resolver instance (or
-  // outlive this resolver entirely — e.g. a long-lived agent process
+  // outlive this resolver entirely, e.g. a long-lived agent process
   // that keeps one cache across many install requests); clearing it
   // here would silently evict entries that other consumers are still
   // using.
@@ -243,7 +243,7 @@ function createStoreManifestPeeker (
 /**
  * Construct the LRU `PackageMetaCache` instance the resolver uses by
  * default. Exported so the install layer can build one cache and hand
- * the same reference to both the resolver and the verifier — the
+ * the same reference to both the resolver and the verifier, the
  * verifier's fast path reads from it when the resolver has already
  * fetched a packument during the same install.
  */

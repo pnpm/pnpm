@@ -72,7 +72,7 @@ pub fn execute_shell(command: &str) -> Result<(), ExecutorError> {
 /// Run `command` through `sh -c` in `current_dir` and return the child's
 /// exit status.
 ///
-/// A non-zero exit is *not* an [`ExecutorError`] —
+/// A non-zero exit is *not* an [`ExecutorError`],
 /// only a failure to spawn the shell or to wait on it is.
 pub fn execute_shell_with_status(
     command: &str,

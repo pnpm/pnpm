@@ -160,7 +160,7 @@ fn installing_with_hoisted_node_linker() {
 
 /// The `added` counter on the progress line is fed by
 /// `pnpm:progress imported`, which under `nodeLinker: hoisted` only
-/// the hoisted linker emits — an install that materializes packages
+/// the hoisted linker emits, an install that materializes packages
 /// must move it off zero (pnpm/pnpm#14348).
 #[test]
 fn the_progress_line_counts_the_packages_the_hoisted_linker_added() {
@@ -270,8 +270,8 @@ fn installing_with_hoisted_node_linker_frozen() {
 
 /// Workspace-wide hoisting under the frozen path. When the root
 /// importer and a workspace project pin conflicting versions of one
-/// name, the root's version wins the top-level slot — root deps rank
-/// first in the hoister's preference order — and the project's
+/// name, the root's version wins the top-level slot, root deps rank
+/// first in the hoister's preference order, and the project's
 /// version nests under its own `node_modules`.
 #[test]
 fn installing_in_a_workspace_with_hoisted_node_linker_frozen() {

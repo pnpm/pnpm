@@ -513,7 +513,7 @@ fn child_pnpm_selects_the_version_for_its_own_directory() {
     drop((root, mock_instance));
 }
 
-/// `--version` runs the pre-command checks — that is what lets it switch to
+/// `--version` runs the pre-command checks, that is what lets it switch to
 /// the pinned pnpm above. A pin the running pnpm already satisfies has nothing
 /// to switch to, but it is still recorded, so the entry does not depend on
 /// which command the project saw first.
@@ -1223,11 +1223,9 @@ fn test_command(mut command: Command, root: &Path) -> Command {
     command
 }
 
-// ---------------------------------------------------------------------------
-// npm-style `pnpm version <bump|semver>` — ported from the upstream suites
+// npm-style `pnpm version <bump|semver>`, ported from the upstream suites
 // releasing/commands/test/version/index.test.ts and pnpm/test/version.ts.
 // The spawned binary's stdout is a pipe, so reporter styling is plain text.
-// ---------------------------------------------------------------------------
 
 fn pacquet_version(workspace: &Path, args: &[&str]) -> std::process::Output {
     use assert_cmd::cargo::CommandCargoExt as _;
@@ -1583,7 +1581,7 @@ fn dry_run_leaves_every_workspace_manifest_untouched() {
 
 /// The npm-style and change-intents forms share one command: a version
 /// argument selects the npm-style bump even inside a workspace, and without
-/// `--recursive` it touches only the current package — never the workspace
+/// `--recursive` it touches only the current package, never the workspace
 /// members and never the pending change intents.
 #[test]
 fn npm_style_bump_in_a_workspace_without_recursive_bumps_only_the_root() {
@@ -1804,8 +1802,8 @@ fn version_bumps_package_yaml_manifest() {
     drop(root);
 }
 
-/// Everything `pnpm version -r` reads and rewrites — the workspace manifests
-/// and the change intents — so a dry run can be held to leaving all of it
+/// Everything `pnpm version -r` reads and rewrites, the workspace manifests
+/// and the change intents, so a dry run can be held to leaving all of it
 /// byte-identical.
 fn release_inputs(workspace: &Path) -> BTreeMap<PathBuf, String> {
     let manifests = ["pkg-a", "pkg-b"]

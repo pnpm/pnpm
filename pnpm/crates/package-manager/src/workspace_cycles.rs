@@ -4,7 +4,7 @@
 //! selection a `--filter`ed or `-r` run resolved, or every project in
 //! the workspace for a full install. The report comes after the
 //! optimistic repeat-install short-circuit, so an install that concludes
-//! "Already up to date" says nothing about cycles — pnpm returns before
+//! "Already up to date" says nothing about cycles, pnpm returns before
 //! its own check in that case.
 
 use pnpm_config::{Config, LinkWorkspacePackages};
@@ -22,8 +22,8 @@ use std::{
 /// The dependency cycles among `graph`'s projects, or `None` when they
 /// can be ordered.
 ///
-/// Edges are read from `graph` alone: an edge leaving it — a selected
-/// project depending on an unselected one — is dropped rather than
+/// Edges are read from `graph` alone: an edge leaving it, a selected
+/// project depending on an unselected one, is dropped rather than
 /// followed, so two selected projects joined only through a third are
 /// not a cycle. pnpm sequences its selected graph the same way.
 /// Self-references are reported by the sequencer but do not make a workspace
@@ -98,8 +98,8 @@ pub fn install_scope_cycles(
 }
 
 /// Emit the cyclic-workspace-dependencies warning for `cycles`, or
-/// return the error `disallowWorkspaceCycles` turns it into. `None` —
-/// an orderable set — reports nothing.
+/// return the error `disallowWorkspaceCycles` turns it into. `None`,
+/// an orderable set, reports nothing.
 ///
 /// Callers under `ignoreWorkspaceCycles` are expected not to have looked
 /// for cycles at all; passing some anyway still reports nothing.

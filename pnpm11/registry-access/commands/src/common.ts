@@ -48,7 +48,7 @@ export async function readErrorBody (response: Response): Promise<string> {
   let total = 0
   let truncated = false
   while (true) {
-    // eslint-disable-next-line no-await-in-loop -- stream chunks must be read in order
+    // eslint-disable-next-line no-await-in-loop, stream chunks must be read in order
     const { done, value } = await reader.read()
     if (done) break
     const need = ERROR_BODY_LIMIT - total
@@ -76,7 +76,7 @@ export const WEB_AUTH_FETCH_OPTIONS: WebAuthFetchOptions = {
 }
 
 // `withOtpHandling` polls `doneUrl` through `context.fetch`, so it must inherit
-// the command's proxy/TLS/`configByUri` config — otherwise the write succeeds
+// the command's proxy/TLS/`configByUri` config, otherwise the write succeeds
 // but the web-auth retry fails in custom-network environments.
 export function createOtpContext (opts: CreateFetchFromRegistryOptions): OtpContext {
   return {

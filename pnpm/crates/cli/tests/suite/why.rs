@@ -288,7 +288,7 @@ fn why_depth_limits_output() {
 }
 
 /// `why` is recursive by default inside a workspace, so from a member it
-/// reports the whole workspace — including a dependency only a sibling
+/// reports the whole workspace, including a dependency only a sibling
 /// declares. `recursiveInstall: false` is what narrows it to the current
 /// project and its dependencies (pnpm's `{.}...` filter); both halves are
 /// checked against `pnpm why` in pnpm 11.
@@ -446,7 +446,7 @@ fn why_is_recursive_by_default_inside_a_workspace() {
     );
 }
 
-// --- ports of the TypeScript why command tests --------------------------------
+//,- ports of the TypeScript why command tests,------------------------------
 //
 // Source: pnpm11/deps/inspection/commands/test/listing/why.ts.
 

@@ -54,8 +54,8 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
         );
     }
     // `carrier` puts `opt@25.0.0` into the run-resolved preferred
-    // versions during the root importer's walk — deep enough that it
-    // is not in any peer scope — so a later hoist would pick it as the
+    // versions during the root importer's walk, deep enough that it
+    // is not in any peer scope, so a later hoist would pick it as the
     // max satisfying version.
     table.insert(
         ("carrier".to_string(), "1.0.0".to_string()),
@@ -272,7 +272,7 @@ async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
 /// The coded resolver failures arrive as their own error variants rather
 /// than the generic `Resolve` envelope, so each has to stay in the
 /// optional-dependency skip arm: an optional dependency the registry has
-/// no version of — or no package for — must keep dropping its edge
+/// no version of, or no package for, must keep dropping its edge
 /// instead of failing the install.
 #[tokio::test]
 async fn skips_an_optional_dependency_for_every_coded_resolver_failure() {

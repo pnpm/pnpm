@@ -1,4 +1,4 @@
-//! `pnpm why` — show the packages that depend on `<pkg>`.
+//! `pnpm why`, show the packages that depend on `<pkg>`.
 
 use crate::{
     State,

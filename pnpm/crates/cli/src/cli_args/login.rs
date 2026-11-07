@@ -1,4 +1,4 @@
-//! `pacquet login` / `pacquet adduser` — authenticate with an npm registry
+//! `pacquet login` / `pacquet adduser`, authenticate with an npm registry
 //! and record the token in `auth.ini`. The command logic lives in
 //! `pnpm-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].

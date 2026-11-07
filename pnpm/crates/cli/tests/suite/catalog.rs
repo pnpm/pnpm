@@ -422,8 +422,8 @@ fn save_catalog_name_preserves_the_dependency_group() {
 
 /// A `saveCatalogName` carrying a newline would render as a YAML block
 /// scalar and splice a corrupt `catalogs:` header into
-/// `pnpm-workspace.yaml`. The whole chain — workspace yaml → `Config` →
-/// catalog decision → manifest writer — must refuse it and leave the
+/// `pnpm-workspace.yaml`. The whole chain, workspace yaml → `Config` →
+/// catalog decision → manifest writer, must refuse it and leave the
 /// file as it was.
 #[test]
 fn a_catalog_name_with_a_control_character_is_refused() {

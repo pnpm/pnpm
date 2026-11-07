@@ -209,7 +209,7 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
 
 // Regression test for pnpm/pnpm#10433: an injected workspace dep must still
 // dedupe to `link:` when an unrelated shared dep (debug) resolves peer-suffixed
-// for the target project but peer-free for the injected occurrence — both are
+// for the target project but peer-free for the injected occurrence, both are
 // valid resolutions of the same package.
 #[test]
 fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {

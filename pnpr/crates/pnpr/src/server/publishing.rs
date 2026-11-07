@@ -69,10 +69,10 @@ pub(super) enum PublishTarget {
 /// Resolve where a publish lands. A write may only target a hosted registry
 /// whose declared patterns claim the name: a selection of an upstream is
 /// rejected ("name a hosted registry"), never silently landing on an upstream,
-/// and an unclaimed name is rejected with the reason — so a typo'd scope
+/// and an unclaimed name is rejected with the reason, so a typo'd scope
 /// fails loudly at publish time instead of storing a name the registry's
 /// namespace can never serve. The registry's `access` list gates the write
-/// exactly as it gates reads — a caller the registry denies gets the same
+/// exactly as it gates reads, a caller the registry denies gets the same
 /// not-found mask as on a read, whether the name is claimed or not
 /// ([`registry_visible_to_caller`] gates the loud rejection), so a private
 /// registry neither accepts the write nor reveals that it exists. The
@@ -97,7 +97,7 @@ pub(super) fn resolve_publish_target_for(
                 HostedGate::Denied(err) => PublishTarget::Denied(err),
             }
         }
-        // A write can never land on an upstream — but the upstream's `access:`
+        // A write can never land on an upstream, but the upstream's `access:`
         // gates the write endpoints exactly as it gates reads, so a caller the
         // upstream denies gets the read path's 403 (`authorized_upstream`), not
         // a rejection that narrates where the name routes.
@@ -159,7 +159,7 @@ fn addressed_publish_target(
 }
 
 /// Whether `identity` may learn that the registry `name` exists. A hosted
-/// registry is masked behind its access list — a denied caller sees the same
+/// registry is masked behind its access list, a denied caller sees the same
 /// not-found as for an undefined name on every read, so nothing on the write
 /// path may answer differently. An upstream registry is not masked (a denied
 /// caller gets an explicit 403 on reads), and a router is visible whenever
@@ -187,7 +187,7 @@ pub(super) fn registry_visible_to_caller(
     }
 }
 
-/// `PUT /:pkg` (path-less) or `PUT /~<name>/:pkg` — publish a new version (or
+/// `PUT /:pkg` (path-less) or `PUT /~<name>/:pkg`, publish a new version (or
 /// republish). Body is the full packument with `_attachments` carrying the
 /// tarball bytes base64-encoded.
 pub(super) async fn publish_package(

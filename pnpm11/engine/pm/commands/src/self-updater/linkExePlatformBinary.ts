@@ -64,7 +64,7 @@ export function nativeTargetName (
 }
 
 // The wrapper's preinstall links the platform binary into the wrapper dir, but
-// scripts are disabled during pnpm's own installs, so replicate it here — trying
+// scripts are disabled during pnpm's own installs, so replicate it here, trying
 // the legacy and the newer `exe.<target>` platform-package names.
 export function linkExePlatformBinary (installDir: string, wrapperPkgName: string = '@pnpm/exe'): void {
   const wrapperDir = path.join(installDir, 'node_modules', ...wrapperPkgName.split('/'))
@@ -126,7 +126,7 @@ function linkWindowsAliases (src: string, wrapperDir: string): void {
   // Aliases (pn / pnpx / pnx) need to be .exe hardlinks of the native binary,
   // not the .cmd wrappers we ship in the tarball. cmd-shim's Bash shim for
   // a .cmd target wraps it in `exec cmd /C ...`, and MSYS2 / Git Bash
-  // mangles `/C` into a Windows path — cmd.exe then falls into interactive
+  // mangles `/C` into a Windows path, cmd.exe then falls into interactive
   // mode and prints its banner instead of running the alias. .exe sources
   // sidestep cmd-shim's wrapper. The native binary detects which name it was
   // launched as via process.execPath and prepends `dlx` for pnpx / pnx.

@@ -6,7 +6,7 @@ use super::{
 
 /// Stale-if-error: once a cached packument is stale, a refetch that fails
 /// (transient upstream error) falls back to the last cached body rather than
-/// erroring — preserving availability without a cross-origin fall-through.
+/// erroring, preserving availability without a cross-origin fall-through.
 #[tokio::test]
 async fn stale_packument_is_served_when_upstream_refetch_fails() {
     let mut upstream = mockito::Server::new_async().await;
@@ -45,7 +45,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
 
     // The entry goes stale and the upstream now fails every refetch. Staleness
     // is decided from the cache file's mtime, so sleep well past a coarse
-    // filesystem's timestamp granularity (~1s) plus the TTL — otherwise the
+    // filesystem's timestamp granularity (~1s) plus the TTL, otherwise the
     // entry could still read as fresh and the test would flake.
     let boom = upstream
         .mock("GET", "/foo")
@@ -74,7 +74,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
 }
 
 /// Stale-if-error masks only *transient* failures: a 4xx (here `403`) is
-/// authoritative about this request, so the cached bytes must NOT be served —
+/// authoritative about this request, so the cached bytes must NOT be served,
 /// the error surfaces instead.
 #[tokio::test]
 async fn a_4xx_upstream_does_not_serve_stale_cache() {

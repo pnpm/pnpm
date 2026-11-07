@@ -38,7 +38,7 @@ use std::{
 /// Values pass through `${VAR}` substitution before being stored.
 /// Unresolved placeholders are substituted with `""` and recorded as
 /// warnings so the literal `${VAR}` never reaches downstream auth code
-/// (critical for OIDC trusted publishing — see
+/// (critical for OIDC trusted publishing, see
 /// <https://github.com/pnpm/pnpm/issues/11513>).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
@@ -125,8 +125,8 @@ pub(crate) struct NpmrcRoutes {
     /// variable** (`"@"` → `"default"`, `"@org"` → that scope). Safe because
     /// the credential and its destination host come from the same trusted
     /// value, so repo config can't redirect the token elsewhere. The
-    /// environment is the operator's channel — a CI runner pointed at a
-    /// mandated proxy — so these outrank what any config file declares.
+    /// environment is the operator's channel, a CI runner pointed at a
+    /// mandated proxy, so these outrank what any config file declares.
     /// Applied after workspace yaml by
     /// [`NpmrcAuth::apply_json_env_registries`].
     pub json_env: BTreeMap<String, String>,
@@ -134,8 +134,8 @@ pub(crate) struct NpmrcRoutes {
     /// Collected when `"@"` is used in registry entries.
     pub json_env_default_candidates: Vec<String>,
     /// The same routes inferred from the `_auth` of the global config
-    /// **file**. That file is the user's own store rather than a mandate —
-    /// it is where `pnpm login` puts a credential — so a `registry` or
+    /// **file**. That file is the user's own store rather than a mandate,
+    /// it is where `pnpm login` puts a credential, so a `registry` or
     /// `registries` a config file declares, whether an `.npmrc` or a yaml,
     /// outranks these, and they fill in only what nothing else declares. See
     /// [`NpmrcAuth::apply_json_env_registries`].
@@ -152,7 +152,7 @@ impl NpmrcAuth {
     /// `npm_config_//registry.npmjs.org/:_authToken=<token>`.
     ///
     /// The registry a credential applies to is encoded in the (trusted)
-    /// variable name, so — unlike a project `.npmrc` — these cannot be
+    /// variable name, so, unlike a project `.npmrc`, these cannot be
     /// redirected to another host by repository-controlled config. That makes
     /// them a safe, file-free way to configure registry auth. The prefix is
     /// matched case-insensitively (as npm does); the remainder keeps its case
@@ -160,7 +160,7 @@ impl NpmrcAuth {
     /// same key is set through both prefixes, `pnpm_config_` wins.
     ///
     /// Only the four credential fields (`_authToken`, `_auth`, `username`,
-    /// `_password`) are honored — the same set [`split_creds_key`] recognises.
+    /// `_password`) are honored, the same set [`split_creds_key`] recognises.
     /// Values are used verbatim (no `${VAR}` re-expansion): they already come
     /// resolved from the environment.
     pub fn from_url_scoped_env<Sys: EnvVar>() -> Self {
@@ -250,7 +250,7 @@ impl NpmrcAuth {
                     .fill_from(creds);
             }
         }
-        // Lower-priority warnings come first — they were produced while
+        // Lower-priority warnings come first, they were produced while
         // reading the earlier file.
         let mut warnings = lower.warnings;
         warnings.append(&mut self.warnings);
@@ -301,10 +301,10 @@ impl NpmrcTls {
     /// Resolve the TLS + `local-address` slots on `config.tls`.
     ///
     /// Inline `ca` entries appear in the final list before the
-    /// `cafile` ones — same ordering as a `ca=` line followed by a
+    /// `cafile` ones, same ordering as a `ca=` line followed by a
     /// `cafile=` line.
     ///
-    /// `cafile` paths arrive here already absolute — relative values
+    /// `cafile` paths arrive here already absolute, relative values
     /// were resolved against the `.npmrc`'s directory in
     /// [`NpmrcAuth::from_ini`] (pnpm/pnpm#11726).
     pub fn apply_tls_and_local_address(&mut self, config: &mut Config) {
@@ -331,7 +331,7 @@ impl NpmrcProxy {
     /// Fold this `.npmrc` layer's proxy keys into `config.proxy_keys`,
     /// capture the environment fallbacks, and resolve the cascade.
     ///
-    /// Later layers overwrite the keys they set and re-resolve — see the
+    /// Later layers overwrite the keys they set and re-resolve, see the
     /// [`crate::proxy_keys`] module docs for why a key, once named, is
     /// never won back by a lower-priority layer.
     pub fn apply_proxy_cascade<Sys: EnvVar>(&mut self, config: &mut Config) {

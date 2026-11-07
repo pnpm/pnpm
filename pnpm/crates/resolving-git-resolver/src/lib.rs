@@ -5,30 +5,30 @@
 //! plain `https://host/repo.git[#ref]` shape some hosts (Gitea, ...)
 //! serve.
 //!
-//! Specs of known hosts are identities, not transport choices —
+//! Specs of known hosts are identities, not transport choices,
 //! `parse_bare_specifier`'s module doc states the rule.
 //!
 //! Pieces:
 //!
-//! - [`create_git_hosted_pkg_id()`] — pure ID builder for git resolutions.
-//! - [`parse_bare_specifier()`] — recognise + normalise the input
-//!   string, pick a `fetchSpec`. Pure — no network.
-//! - [`GitResolver`] — the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
+//! - [`create_git_hosted_pkg_id()`], pure ID builder for git resolutions.
+//! - [`parse_bare_specifier()`], recognise + normalise the input
+//!   string, pick a `fetchSpec`. Pure, no network.
+//! - [`GitResolver`], the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
 //!   impl that runs `git ls-remote` to pin a commit and emits either a
 //!   `Tarball{gitHosted: true}` or `Git` resolution, decided by the
 //!   [`GitProbe`] archive check. Given a [`GitFetchContext`], it also
-//!   reads the package's name from its `package.json` — out of the
+//!   reads the package's name from its `package.json`, out of the
 //!   host archive, or out of a checkout for a repo that serves no
-//!   archive — plus the archive's integrity. See that type for why
+//!   archive, plus the archive's integrity. See that type for why
 //!   resolution is where that has to happen.
 //!
 //! Out of scope:
 //!
 //! - The `prev_specifier` short-circuit (the `currentPkg && !update`
 //!   fast path). Pacquet doesn't thread `currentPkg` through the seam
-//!   yet — the resolver always re-runs `ls-remote`. Restore the fast
+//!   yet, the resolver always re-runs `ls-remote`. Restore the fast
 //!   path when `currentPkg` lands on `ResolveOptions`.
-//! - Proxy / TLS plumbing on the HTTP HEAD probe — the probe uses the
+//! - Proxy / TLS plumbing on the HTTP HEAD probe, the probe uses the
 //!   default [`pnpm_network::ThrottledClient`], same as the rest of
 //!   the install path.
 

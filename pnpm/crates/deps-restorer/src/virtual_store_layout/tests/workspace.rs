@@ -10,7 +10,7 @@ use std::{
 };
 
 /// Two unrelated projects that both depend on a `./dep` directory
-/// resolve to the same snapshot key, name, and (absent) version — only
+/// resolve to the same snapshot key, name, and (absent) version, only
 /// the lockfile directory tells their slots apart.
 #[test]
 fn directory_deps_get_a_slot_per_project() {
@@ -56,7 +56,7 @@ fn directory_deps_get_a_slot_per_project() {
     );
 }
 /// The scope is the *resolved target*, not the project, so workspaces
-/// that link the same directory keep sharing one slot — the case that
+/// that link the same directory keep sharing one slot, the case that
 /// matters for a toolchain linked into many workspaces. Contrast
 /// [`directory_deps_get_a_slot_per_project`], where the project itself
 /// is the only thing that can tell two slots apart.

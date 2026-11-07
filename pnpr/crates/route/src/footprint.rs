@@ -47,7 +47,7 @@ impl PrivateAccessDescriptor {
     /// its [`Self::key_input`] keyed with the server `secret`, so the
     /// on-disk private-metadata mirror path is not correlatable offline.
     /// Distinct from [`Footprint::digest`], which combines *all* of a
-    /// resolution's descriptors — metadata is fetched one route at a time,
+    /// resolution's descriptors, metadata is fetched one route at a time,
     /// so each fetch keys on its own descriptor.
     pub(super) fn digest_id(&self, secret: &[u8]) -> String {
         hex(&hmac_sha256(secret, self.key_input().as_bytes()))
@@ -58,7 +58,7 @@ impl PrivateAccessDescriptor {
 /// tarballs), identical to the metadata-mirror descriptor id for the same
 /// `(upstream, credential)`. Keyed by the server `secret` so the on-disk path
 /// reveals neither the upstream name nor its credential, and so a path-unsafe
-/// upstream name (`..`, `/`) can never escape the cache root — the digest is
+/// upstream name (`..`, `/`) can never escape the cache root, the digest is
 /// hex. The digest passed here is a [`headers_credential_digest`] over the
 /// upstream's attached headers, so rotating any credential moves to a fresh
 /// namespace.
@@ -71,7 +71,7 @@ pub fn upstream_cache_digest(upstream: &str, credential_digest: String, secret: 
 /// A hash of an upstream's `Authorization` header value, used as the credential
 /// epoch in [`PrivateAccessDescriptor::Alias`]. Rotating the upstream
 /// credential changes this automatically, re-keying every private cache the
-/// upstream owns — so a rotation invalidates old-credential content with no
+/// upstream owns, so a rotation invalidates old-credential content with no
 /// manual step to forget. The raw token never appears: it's a one-way SHA-256
 /// (then HMAC-keyed with the server secret by `PrivateAccessDescriptor::digest_id`
 /// before it reaches disk).
@@ -80,8 +80,8 @@ pub fn credential_digest(authorization: &str) -> String {
     hex(&Sha256::digest(authorization.as_bytes()))
 }
 
-/// A hash of an upstream's *effective credential material* — every request header
-/// it attaches upstream, not just `Authorization` — used as the credential epoch
+/// A hash of an upstream's *effective credential material*, every request header
+/// it attaches upstream, not just `Authorization`, used as the credential epoch
 /// in [`PrivateAccessDescriptor::Alias`]. pnpr supports credentials carried in
 /// custom headers, so rotating any of them must re-key the upstream's private
 /// cache; keying on `Authorization` alone would keep serving old-credential
@@ -90,7 +90,7 @@ pub fn credential_digest(authorization: &str) -> String {
 /// Stable across runs and independent of map iteration order: the (name, value)
 /// pairs are sorted and length-prefixed before hashing, so the encoding of a
 /// header set is unambiguous and distinct sets can only collide by a SHA-256
-/// collision. The raw values never reach disk — this is a one-way SHA-256,
+/// collision. The raw values never reach disk, this is a one-way SHA-256,
 /// then HMAC-keyed with the server secret by
 /// `PrivateAccessDescriptor::digest_id`.
 #[must_use]

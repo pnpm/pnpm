@@ -43,12 +43,12 @@ pub(super) fn load_cafile(path: &Path) -> Vec<String> {
     };
     let delimiter = "-----END CERTIFICATE-----";
     // Key contract points:
-    // - Filter on `chunk.trim().is_empty()` — drops the trailing
+    // - Filter on `chunk.trim().is_empty()`, drops the trailing
     //   empty chunk produced when the file ends with a delimiter,
     //   but *keeps* a trailing non-empty (malformed) chunk, which is
     //   what pnpm's `readCAFileSync` produces too. The network layer
     //   drops whatever carries no certificate.
-    // - `trim_start()` (not full `trim`) — any trailing whitespace
+    // - `trim_start()` (not full `trim`), any trailing whitespace
     //   inside the chunk before the appended delimiter is preserved.
     //   It doesn't matter to a PEM parser but does matter for
     //   byte-equivalence tests.
@@ -117,8 +117,8 @@ pub(super) fn split_inline_identity_key(key: &str) -> Option<(&str, &'static str
 /// Write a per-registry TLS value onto a [`RegistryTls`] entry.
 ///
 /// For inline values (`is_file = false`) the parser pre-expands `\n`
-/// escapes to real newlines — this expansion applies only to
-/// per-registry values, not to the top-level `ca=` form — and `value`
+/// escapes to real newlines, this expansion applies only to
+/// per-registry values, not to the top-level `ca=` form, and `value`
 /// arrives already expanded.
 pub(super) fn apply_tls_field(tls: &mut RegistryTls, field: &str, value: String) {
     match field {

@@ -26,7 +26,7 @@ pub async fn get_peer_dependency_issues(
 /// into the `PeerDependencyIssuesByProjects` wire shape, including the
 /// `conflicts` / `intersections` derivation v11's `mergePeers` does.
 fn run_peer_issues_blocking(options: PeerIssuesOptions) -> napi::Result<serde_json::Value> {
-    // No log sink for this query — engine events would interleave with
+    // No log sink for this query, engine events would interleave with
     // the caller's own reporting for what is a silent resolution.
     let _sink_guard = EngineCallGuard::new(None);
     let install_options = peer_issues_install_options(options)?;
@@ -193,7 +193,7 @@ fn peer_intersections_json(
 }
 
 /// Intersect semver ranges pairwise. `None` when any range fails to
-/// parse or the intersection is empty — the caller records a conflict,
+/// parse or the intersection is empty, the caller records a conflict,
 /// matching v11's `safeIntersect` (which swallows
 /// `semver-range-intersect` errors the same way).
 pub(super) fn safe_intersect<'a>(ranges: impl Iterator<Item = &'a str>) -> Option<String> {

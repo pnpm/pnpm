@@ -1,4 +1,4 @@
-//! `pnpm fund <package>` — open the funding URL of one installed package.
+//! `pnpm fund <package>`, open the funding URL of one installed package.
 
 use super::{
     FundError,

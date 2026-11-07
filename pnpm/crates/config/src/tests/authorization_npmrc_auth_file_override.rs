@@ -29,7 +29,7 @@ pub fn npmrc_auth_file_override_supplies_auth() {
 }
 
 /// The `.npmrc` an `npmrcAuthFile` points at is trusted, so its `_auth`
-/// authenticates the package-manager bootstrap too — the path a
+/// authenticates the package-manager bootstrap too, the path a
 /// `devEngines` pin resolves `@pnpm/exe` through (pnpm/pnpm#14257).
 #[test]
 pub fn npmrc_auth_file_override_supplies_basic_auth_to_bootstrap() {
@@ -191,7 +191,7 @@ pub fn global_config_npmrc_auth_file_expands_env() {
 }
 
 /// An unscoped `_authToken` in the user-level file pins to *that
-/// file's* registry, never the workspace registry — even when the
+/// file's* registry, never the workspace registry, even when the
 /// project `.npmrc` overrides the default registry to something else.
 /// This is the credential-isolation boundary ported from pnpm.
 #[test]
@@ -388,7 +388,7 @@ pub fn json_env_repo_registry_cannot_redirect_token() {
             .as_deref(),
         Some("Bearer org-a-token"),
     );
-    // Use the scoped lookup the token is keyed under — `for_url` alone
+    // Use the scoped lookup the token is keyed under, `for_url` alone
     // only checks the default/unscoped path and would pass even if the
     // `@org-a` token had been rebound to the attacker host.
     assert!(
@@ -537,7 +537,7 @@ pub fn json_env_auth_wins_over_global_config_yaml_auth() {
     );
 }
 
-/// End-to-end: `_auth` in a project `pnpm-workspace.yaml` is ignored —
+/// End-to-end: `_auth` in a project `pnpm-workspace.yaml` is ignored,
 /// repo-controlled config must never supply registry credentials.
 #[test]
 pub fn project_workspace_yaml_auth_is_ignored() {
@@ -631,8 +631,8 @@ pub fn user_cert_key_pin_to_its_own_file_registry() {
     assert!(config.tls_by_uri.get("//attacker.example.com/").is_none());
 }
 
-/// A registry override that lands *after* the `.npmrc` files are read —
-/// here `PNPM_CONFIG_REGISTRY`, the in-cascade twin of `--registry` —
+/// A registry override that lands *after* the `.npmrc` files are read,
+/// here `PNPM_CONFIG_REGISTRY`, the in-cascade twin of `--registry`,
 /// does not pull an ambient user-level token along with it. The token
 /// pinned to the npmjs default when the user file was read.
 #[test]
@@ -676,7 +676,7 @@ pub fn rescoped_token_helper_is_reported_under_its_pinned_key() {
 }
 
 /// `auth.ini` (in the global config dir) with no `registry=` of its
-/// own falls back to the npmjs default for its unscoped creds — it
+/// own falls back to the npmjs default for its unscoped creds, it
 /// does not borrow the user file's or workspace's registry.
 #[test]
 pub fn auth_ini_without_registry_falls_back_to_npmjs_default() {
@@ -872,7 +872,7 @@ pub fn npmrc_auth_file_relative_to_cwd_pointing_at_project_npmrc_suppresses_warn
 }
 
 // A relative npmrcAuthFile that resolves somewhere other than the project
-// .npmrc must not trust it — the warning stays.
+// .npmrc must not trust it, the warning stays.
 #[test]
 pub fn npmrc_auth_file_relative_resolving_elsewhere_keeps_warning() {
     fake_env!(set_fake_cwd, load_with_fake_env);

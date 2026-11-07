@@ -364,7 +364,7 @@ fn global_shims_auto_writes_native_dispatcher_for_node_runtime() {
 }
 
 /// A shim invocation forwards its arguments to the target untouched: pnpm
-/// must not interpret the target's `--env-file` — a missing file must not
+/// must not interpret the target's `--env-file`, a missing file must not
 /// fail the launch, and a present file's variables must not be injected.
 #[cfg(unix)]
 #[test]

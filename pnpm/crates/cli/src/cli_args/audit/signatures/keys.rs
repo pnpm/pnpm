@@ -11,7 +11,7 @@ pub(super) fn key_is_expired(key: &RegistryKey, published_time: Option<i64>) -> 
     // Key expiry is a consistency check, not a security boundary: the
     // publish time comes from the same unauthenticated packument as the
     // signatures. A missing or unparsable publish time therefore keeps the
-    // key usable — the signature check below is what gates acceptance.
+    // key usable, the signature check below is what gates acceptance.
     match (key.expires.as_deref().and_then(parse_timestamp), published_time) {
         (Some(expires), Some(published)) => published >= expires,
         _ => false,

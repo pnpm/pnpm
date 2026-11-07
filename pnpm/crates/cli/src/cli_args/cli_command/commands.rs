@@ -283,8 +283,8 @@ pub enum CliCommand {
 
 impl CliCommand {
     /// The name npm reports for the running command in the `npm_command`
-    /// environment variable. Running a script — `pnpm run`, the `test`,
-    /// `start` and `stop` shortcuts, and a bare `pnpm <script>` — reports
+    /// environment variable. Running a script, `pnpm run`, the `test`,
+    /// `start` and `stop` shortcuts, and a bare `pnpm <script>`, reports
     /// `run-script`; everything else reports the command's own name, with the
     /// variants that spell an alias reporting the name the command is
     /// registered under.
@@ -386,7 +386,7 @@ impl CliCommand {
     /// Whether this run prints the `Scope:` line naming the workspace
     /// projects it selected. pnpm gates this on two things at once: the
     /// command must be one of the few that report scope, and the run must
-    /// be workspace-wide — either asked for with `-r` / `--filter`, or
+    /// be workspace-wide, either asked for with `-r` / `--filter`, or
     /// because the command is workspace-wide by nature (`install`, `prune`).
     pub(crate) fn reports_scope(&self, recursive: bool) -> bool {
         let reports_scope = matches!(
@@ -407,7 +407,7 @@ impl CliCommand {
     }
 
     /// Whether reporter output (warnings, progress) goes to stderr so this
-    /// command's stdout stays a clean, machine-readable value — pnpm's
+    /// command's stdout stays a clean, machine-readable value, pnpm's
     /// `COMMANDS_WITH_STDERR_REPORTER`.
     pub(crate) fn uses_stderr_reporter(&self) -> bool {
         matches!(

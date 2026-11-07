@@ -656,7 +656,7 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
     // The pnpm and npm settings these checks read are already gone:
     // `CommandTempCwd::init` strips the inherited ones, and an explicit
     // `env` on the command overrides that removal. `COREPACK_ROOT` is not
-    // one of them, so clear it here — unless a test set it on purpose.
+    // one of them, so clear it here, unless a test set it on purpose.
     // Windows matches environment names case-insensitively, so does this.
     let explicitly_set = command
         .get_envs()
@@ -735,7 +735,7 @@ fn stderr(output: &Output) -> String {
 }
 
 /// Naming a package manager records which one the project uses, so it
-/// stays possible in a project pinned to another one — changing that
+/// stays possible in a project pinned to another one, changing that
 /// declaration is not the pinned manager's work. Adding anything else
 /// still is.
 #[test]
@@ -821,7 +821,7 @@ fn a_failed_add_leaves_the_declaration_unwritten() {
 }
 
 /// Which package manager a project uses is that project's declaration,
-/// not something a filter writes across a selection — and it must not
+/// not something a filter writes across a selection, and it must not
 /// quietly become an install of the npm package that shares the name.
 #[test]
 fn declaring_a_package_manager_for_a_filtered_selection_is_refused() {
@@ -859,7 +859,7 @@ fn a_manifest_that_is_not_an_object_fails_instead_of_panicking() {
 }
 
 /// Yarn is started from a project pin by corepack, which reads only
-/// `packageManager` and only accepts an exact version there — so a Yarn
+/// `packageManager` and only accepts an exact version there, so a Yarn
 /// pin is resolved to one, and carries nothing else: the release corepack
 /// downloads is corepack's to verify, not pnpm's to pin.
 #[test]

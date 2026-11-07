@@ -271,7 +271,7 @@ fn yaml_fallback_keeps_depth_budget() {
 }
 
 /// A `layoutVersion` naming a layout this build does not emit reads as
-/// `None` through both readers — the install rebuilds `node_modules`
+/// `None` through both readers, the install rebuilds `node_modules`
 /// rather than failing on a manifest it could otherwise read. `5.0` is
 /// the same number as `5` in JSON, so it is the same version here.
 #[test]

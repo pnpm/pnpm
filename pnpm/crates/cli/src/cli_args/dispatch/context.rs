@@ -41,7 +41,7 @@ pub(crate) struct RunCtx<'a> {
 pub(crate) struct CommandLocations<'a> {
     pub(crate) dir: &'a Path,
     /// The `--dir` as the command line gave it, or the process cwd when it
-    /// gave none — pnpm's `cliOptions.dir ?? process.cwd()`. `init`
+    /// gave none, pnpm's `cliOptions.dir ?? process.cwd()`. `init`
     /// scaffolds here and a non-recursive `exec` runs here, rather than at
     /// the local prefix [`Self::dir`] resolves to.
     pub(crate) cli_dir: &'a Path,

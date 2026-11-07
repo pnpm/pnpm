@@ -278,7 +278,7 @@ async fn rejects_optional_subdep_with_non_exact_version() {
     let root = TempDir::new().unwrap();
 
     // @pnpm.e2e/foobar declares `@pnpm.e2e/bar: "^100.0.0"` as an
-    // optionalDependency — a range, which config deps forbid.
+    // optionalDependency, a range, which config deps forbid.
     let mut config_deps = BTreeMap::new();
     config_deps.insert("@pnpm.e2e/foobar".to_string(), clean_spec("100.0.0"));
 

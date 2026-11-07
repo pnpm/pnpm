@@ -313,7 +313,7 @@ fn walker_defers_published_engines_of_a_patched_snapshot() {
         .expect("a patched snapshot's published engines are checked after patching");
 }
 /// `opts.include_incompatible_packages = true` bypasses the
-/// installability check entirely — even a required dep on an
+/// installability check entirely, even a required dep on an
 /// unsupported platform passes through. Used by the `prev_graph` walk
 /// so the diff against the previous lockfile catches packages that
 /// previously installed but would now be filtered.

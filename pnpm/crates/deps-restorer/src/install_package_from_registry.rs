@@ -43,7 +43,7 @@ pub struct InstallPackageFromRegistry<'a> {
     /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
     pub node_modules_dir: &'a Path,
-    /// Per-package virtual-store directory — output of
+    /// Per-package virtual-store directory, output of
     /// [`crate::VirtualStoreLayout::slot_dir`] for this package's
     /// snapshot key. The unpacked files land at
     /// `<slot_dir>/node_modules/<real-name>/`.
@@ -223,7 +223,7 @@ impl InstallPackageFromRegistry<'_> {
         )
         .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
 
-        // `pnpm:progress imported` — see the matching emit in
+        // `pnpm:progress imported`, see the matching emit in
         // `create_virtual_dir_by_snapshot::run` for the rationale
         // on the optimistic `method` value. `to` is the per-
         // package virtual-store directory the symlink under
@@ -243,7 +243,7 @@ impl InstallPackageFromRegistry<'_> {
 /// The package's canonical `(name, version)`. Prefers the resolver's
 /// structured `name_ver` (npm registry); falls back to the name/version
 /// read from the fetched manifest for resolvers that learn them only
-/// after the fetch — remote (non-registry) tarball, git, and file deps,
+/// after the fetch, remote (non-registry) tarball, git, and file deps,
 /// whose name/version live in `package.json`.
 fn real_name_version(resolution: &ResolveResult) -> Option<(String, String)> {
     if let Some(name_ver) = resolution.package.name_ver.as_ref() {
@@ -289,7 +289,7 @@ pub fn extract_tarball(
 }
 
 /// Read `dist.unpackedSize` off the resolver-fetched manifest. Returns
-/// `None` when missing or non-numeric — the tarball extractor treats it
+/// `None` when missing or non-numeric, the tarball extractor treats it
 /// as a hint, not a hard requirement.
 #[must_use]
 pub fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
@@ -305,8 +305,8 @@ pub fn manifest_file_count(manifest: Option<&Value>) -> Option<usize> {
 }
 
 /// Read `dist.pnpr.requiresBuild` off the resolver-fetched manifest.
-/// Only trusted from this field — never from `dist.requiresBuild` or
-/// top-level `hasInstallScript` — because only `dist.pnpr.requiresBuild`
+/// Only trusted from this field, never from `dist.requiresBuild` or
+/// top-level `hasInstallScript`, because only `dist.pnpr.requiresBuild`
 /// is derived from the tarball's own bytes and stripped on ingest.
 #[must_use]
 pub fn manifest_requires_build(manifest: Option<&Value>) -> Option<bool> {

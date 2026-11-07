@@ -128,7 +128,7 @@ function isPkgIncompatible (opts: LockfileToDepGraphOptions, pkgMeta: PkgMeta, p
   }
   return packageIsInstallable(packageId, pkg, {
     // An incompatibility inside an `optionalDependencies` subtree is
-    // reported, not fatal — see `filterLockfileByImportersAndEngine`,
+    // reported, not fatal, see `filterLockfileByImportersAndEngine`,
     // which classifies these dep paths.
     engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
     lockfileDir: opts.lockfileDir,

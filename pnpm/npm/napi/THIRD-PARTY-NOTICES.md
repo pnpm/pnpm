@@ -1,4 +1,4 @@
-# Third-Party Notices
+# Third-Party notices
 
 This product includes software derived from third-party sources. The
 components below, and their license terms, are listed here in satisfaction

@@ -67,16 +67,16 @@ pub(super) async fn serve_authorized_upstream_tarball(
     // Serve a cached hit before touching the packument: a cached entry was
     // bound to a declared version and verified against `dist.integrity` when
     // it was written, and the client re-verifies what it receives, so no
-    // re-bind or re-hash is needed. The packument load — and the full-document
-    // JSON parse in `expected_tarball_dist` — costs milliseconds per request
+    // re-bind or re-hash is needed. The packument load, and the full-document
+    // JSON parse in `expected_tarball_dist`, costs milliseconds per request
     // for a large package and would dominate warm tarball serving.
     //
     // Deliberately, a hit is NOT re-bound against the packument as it stands
     // *now*: a version unpublished since the write stays downloadable from
     // this disposable mirror until the entry is wiped (registry-CDN
     // semantics; resolution already stops offering it once the refreshed
-    // packument drops it), and a hostile packument rewrite — say, duplicate
-    // `dist.tarball` basenames — cannot retroactively poison bytes that were
+    // packument drops it), and a hostile packument rewrite, say, duplicate
+    // `dist.tarball` basenames, cannot retroactively poison bytes that were
     // verified on the way in. The fail-closed bind below protects the *fetch*
     // of new bytes; end-to-end SRI (the client's lockfile) is the authority
     // on what it accepts. Only OSV screening needs the packument-resolved
@@ -127,7 +127,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
 /// A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
 /// normalized as usual. A non-canonical basename preserved verbatim from the
 /// upstream's `dist.tarball` (see `pnpr_upstream::rewrite_tarball_urls`) is
-/// accepted opaquely so long as it is safe as a cache path segment — the
+/// accepted opaquely so long as it is safe as a cache path segment, the
 /// packument match is what authorizes it, binding it to a declared version and
 /// integrity. Rejecting it here would make such a version un-fetchable through
 /// the very URL this server advertised.

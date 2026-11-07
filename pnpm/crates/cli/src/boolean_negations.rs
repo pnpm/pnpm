@@ -1,7 +1,7 @@
 //! Generic `--no-<flag>` support for every boolean flag.
 //!
 //! pnpm parses its CLI with `nopt`, which auto-accepts a `--no-<name>`
-//! negation for every option typed as `Boolean` — so `pnpm install
+//! negation for every option typed as `Boolean`, so `pnpm install
 //! --no-frozen-lockfile`, `--no-lockfile-only`, `--no-dry-run`, etc. all
 //! parse even though only the positive spelling is documented. pacquet's
 //! clap flags are plain `#[clap(long)] bool`s, which accept only the
@@ -15,7 +15,7 @@
 //! positive flag. Last-one-wins override semantics mean `--no-foo` leaves
 //! the field at its `false` default and `--foo --no-foo` resolves to
 //! `false`, matching nopt. Because the negations are real clap args, the
-//! grammar stays intact — trailing pass-through args (`run`, `exec`,
+//! grammar stays intact, trailing pass-through args (`run`, `exec`,
 //! `dlx`) and value-taking flags are unaffected.
 
 use clap::{Arg, ArgAction, Command};
@@ -51,7 +51,7 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
         let negated_id = format!("__negated__{negated_long}");
         cmd = cmd.mut_arg(positive_id.clone(), |arg| arg.overrides_with(negated_id.clone()));
         // A global source flag propagates into every subcommand, so its
-        // negation must too — otherwise the override reference dangles at
+        // negation must too, otherwise the override reference dangles at
         // the subcommand level.
         let mut negation = Arg::new(negated_id)
             .long(negated_long)

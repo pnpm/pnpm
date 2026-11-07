@@ -63,7 +63,7 @@ pub struct SummaryLog {
 }
 
 /// `pnpm:package-import-method` payload. The method names match pnpm's
-/// wire shape exactly — anything else would silently fail to render
+/// wire shape exactly, anything else would silently fail to render
 /// even though the JSON parses.
 #[derive(Debug, Clone, Serialize)]
 pub struct PackageImportMethodLog {
@@ -75,8 +75,8 @@ pub struct PackageImportMethodLog {
 /// config enum (`pnpm_config::PackageImportMethod`) carries `Auto`
 /// and `CloneOrCopy` on top of those, but those are dispatched-on by
 /// the auto-importer's fallback chain, not emitted. The wire value is
-/// the resolved method `link_file` actually used — `Clone` /
-/// `Hardlink` / `Copy` — so an `auto` install that falls back to
+/// the resolved method `link_file` actually used, `Clone` /
+/// `Hardlink` / `Copy`, so an `auto` install that falls back to
 /// hardlink emits `hardlink`, not the optimistic `clone`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -99,7 +99,7 @@ pub struct ProgressLog {
 
 /// `pnpm:progress` discriminated payload.
 ///
-/// `requester` is the install root — same value as the
+/// `requester` is the install root, same value as the
 /// [`StageLog::prefix`] threaded through `Install::run`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]

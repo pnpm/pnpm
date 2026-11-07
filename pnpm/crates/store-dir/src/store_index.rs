@@ -17,7 +17,7 @@ use std::{
 use url::Url;
 
 /// Per-package index that pnpm v11 stores alongside the CAFS blobs. By
-/// default it is an `SQLite` database at `<store-root>/v11/index.db` — call
+/// default it is an `SQLite` database at `<store-root>/v11/index.db`, call
 /// [`StoreIndex::open_in`] with a [`StoreDir`] to hit that path, or
 /// [`StoreIndex::open`] with any directory to drop `index.db` right inside it
 /// (used by tests and tools).
@@ -49,7 +49,7 @@ enum Backend {
 /// Shared handle to a read-only [`StoreIndex`] that can be cheaply cloned and
 /// sent across blocking tasks. `SQLite`'s `Connection` is `Send` but not
 /// `Sync`, so the `Mutex` gates concurrent reads to a single query at a time
-/// — fine for our workload where every caller serializes one short query and
+///, fine for our workload where every caller serializes one short query and
 /// then hands off to per-file work without holding the lock.
 pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 
@@ -108,15 +108,15 @@ impl StoreIndex {
     /// PRAGMAs (`journal_mode=WAL`, `synchronous`, `wal_autocheckpoint`)
     /// and `CREATE TABLE IF NOT EXISTS`. The connection still participates
     /// in WAL locking (it may create the `-shm` sidecar in the store
-    /// directory), so it stays consistent while a concurrent writer — this
-    /// process's [`StoreIndexWriter`] or another pnpm/pacquet process —
+    /// directory), so it stays consistent while a concurrent writer, this
+    /// process's [`StoreIndexWriter`] or another pnpm/pacquet process,
     /// mutates the same database. For a store on a read-only filesystem use
     /// [`StoreIndex::open_immutable`] instead.
     ///
     /// We *do* set `busy_timeout`: it's a connection-local wait, not a
     /// DB mutation, and without it a concurrent writer (pnpm or another
     /// pacquet process) turns every cache lookup during contention into
-    /// an immediate `SQLITE_BUSY` — i.e. a spurious cache miss that
+    /// an immediate `SQLITE_BUSY`, i.e. a spurious cache miss that
     /// triggers a full re-download. 5 s matches the writer side.
     pub fn open_readonly(store_dir: &Path) -> Result<Self, StoreIndexError> {
         if let Some(index) = StoreIndex::detect_files(store_dir) {
@@ -142,7 +142,7 @@ impl StoreIndex {
     /// read-only (`frozenStore`): a Nix store, a read-only bind mount, an
     /// OCI layer. `index.db` is a WAL-mode database, and even a plain
     /// `SQLITE_OPEN_READ_ONLY` open needs to create the `-shm` sidecar in
-    /// the store directory — which fails with "attempt to write a readonly
+    /// the store directory, which fails with "attempt to write a readonly
     /// database" when the directory is not writable. Opening through the
     /// `file:…?immutable=1` URI tells `SQLite` the file cannot change
     /// underneath it, so it bypasses the WAL/shm machinery entirely and
@@ -151,7 +151,7 @@ impl StoreIndex {
     /// The immutability assertion is load-bearing: `SQLite` skips all locking
     /// and change detection on this connection, so a concurrent writer makes
     /// reads undefined (stale or corrupt results). Only open this way under
-    /// `frozenStore`, which disables every store-write path — for a store
+    /// `frozenStore`, which disables every store-write path, for a store
     /// that other connections may write, use [`StoreIndex::open_readonly`].
     /// No `busy_timeout` is set because an immutable connection takes no
     /// locks for it to wait on.
@@ -183,8 +183,8 @@ impl StoreIndex {
 
     /// Open a read-only index wrapped in `Arc<Mutex<…>>` so it can be shared
     /// across the many cache lookups an install performs. Returns `None` if
-    /// the store has no index yet — a first-time install against an empty
-    /// store — since there is nothing to read back and every lookup would be
+    /// the store has no index yet, a first-time install against an empty
+    /// store, since there is nothing to read back and every lookup would be
     /// a miss anyway.
     ///
     /// Reusing one connection avoids reopening the `SQLite` database (and
@@ -194,7 +194,7 @@ impl StoreIndex {
         StoreIndex::shared_in(store_dir, StoreIndex::open_readonly)
     }
 
-    /// [`StoreIndex::shared_readonly_in`] for a frozen store — opens via
+    /// [`StoreIndex::shared_readonly_in`] for a frozen store, opens via
     /// [`StoreIndex::open_immutable`], with its no-concurrent-writer
     /// contract.
     pub fn shared_immutable_in(store_dir: &StoreDir) -> Option<SharedReadonlyStoreIndex> {
@@ -223,8 +223,8 @@ impl StoreIndex {
     /// plus a `PRAGMA busy_timeout`), so it is parked on the blocking
     /// pool even for the sub-millisecond it usually takes.
     ///
-    /// A join failure — a panic in the blocking task, or cancellation
-    /// during runtime shutdown — degrades to `None` rather than failing
+    /// A join failure, a panic in the blocking task, or cancellation
+    /// during runtime shutdown, degrades to `None` rather than failing
     /// the caller: every lookup then misses, which callers already
     /// handle for the empty-store case. It is surfaced at `warn!` so a
     /// silent panic stays diagnosable.
@@ -320,7 +320,7 @@ pub fn pick_store_index_key(
 pub struct PackageFilesIndex {
     /// Subset of the tarball's `package.json` that both tools keep on hand to
     /// avoid re-reading the manifest for each install. Also the row's second
-    /// statement of which package it holds — see [`crate::pkg_content_mismatch`].
+    /// statement of which package it holds, see [`crate::pkg_content_mismatch`].
     /// `None` for a row written before either tool kept it, and for a tarball
     /// whose `package.json` failed to parse.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -361,7 +361,7 @@ pub struct PackageFilesIndex {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CafsFileInfo {
-    /// Content-addressed digest of the file — raw hex (no `sha512-` prefix),
+    /// Content-addressed digest of the file, raw hex (no `sha512-` prefix),
     /// matching pnpm v11's `digest` field in the cafs index.
     pub digest: String,
     pub mode: u32,
@@ -374,7 +374,7 @@ pub struct CafsFileInfo {
     /// so msgpackr writes timestamps past int32 range as `cb` + 8
     /// bytes). Writing as `uint 64` instead would be "correct" `MessagePack`
     /// but msgpackr would decode it as a `BigInt`, and pnpm's integrity
-    /// check does `mtimeMs - (checkedAt ?? 0)` — mixing Number and
+    /// check does `mtimeMs - (checkedAt ?? 0)`, mixing Number and
     /// `BigInt` throws `TypeError` at runtime. On the read side, the
     /// [`transcode_to_plain_msgpack`][crate::msgpackr_records::transcode_to_plain_msgpack]
     /// step narrows integer-valued floats back to `uint 64` so
@@ -450,7 +450,7 @@ pub struct RemoteSideEffectsOrigin {
 /// backslashes into a valid `file:///C:/…` form. See <https://sqlite.org/uri.html>.
 ///
 /// [`Url::from_file_path`] only accepts an absolute path, so a relative store
-/// path is first absolutized against the current directory — the same
+/// path is first absolutized against the current directory, the same
 /// resolution Node's `pathToFileURL` applies on the pnpm side.
 fn immutable_sqlite_uri(db_path: &Path) -> Result<String, StoreIndexError> {
     let absolute = std::path::absolute(db_path)

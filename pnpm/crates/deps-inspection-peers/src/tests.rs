@@ -329,8 +329,8 @@ fn test_intersect_widens_partial_versions_like_npm() {
     }
 }
 
-/// A `-0` the user wrote out is honored where it decides anything —
-/// matching — and dropped where pnpm drops it: `semver-range-intersect`
+/// A `-0` the user wrote out is honored where it decides anything,
+/// matching, and dropped where pnpm drops it: `semver-range-intersect`
 /// renders `intersect("<2.0.0-0", ">=1.0.0")` as `>=1.0.0 <2.0.0`, so
 /// rendering the suffix here would be the divergence, not hiding it.
 #[test]

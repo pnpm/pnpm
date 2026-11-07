@@ -15,7 +15,7 @@ use super::{
 /// from "explicit null" in YAML / JSON.
 ///
 /// Stand-alone helper rather than reaching for `serde_with` (not in
-/// the workspace deps) — the body is one line.
+/// the workspace deps), the body is one line.
 pub(super) fn deserialize_double_option<'de, Value, De>(
     deserializer: De,
 ) -> Result<Option<Option<Value>>, De::Error>
@@ -49,8 +49,8 @@ pub struct NodePackageMapSettings {
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
 /// `lockfile`, ...) out of `.npmrc` into `pnpm-workspace.yaml`, using
 /// camelCase keys. Pacquet needs to honour these overrides so a real
-/// pnpm-11-style project — where `.npmrc` may not even contain the
-/// settings — works out of the box.
+/// pnpm-11-style project, where `.npmrc` may not even contain the
+/// settings, works out of the box.
 ///
 /// Every field is `Option` because the yaml is strictly additive on top of
 /// [`Config`](crate::settings::Config): anything left unset falls through to whatever `.npmrc` provided
@@ -58,9 +58,9 @@ pub struct NodePackageMapSettings {
 ///
 /// See <https://pnpm.io/settings> for the canonical key list.
 /// Workspace-structural keys (`packages`, `catalog`, `catalogs`, the build
-/// allowlists) are carried only for `pnpm config get` / `list` — see
+/// allowlists) are carried only for `pnpm config get` / `list`, see
 /// [`Self::packages`]. Anything else that is not a field is silently
-/// ignored — serde drops it since the struct doesn't use
+/// ignored, serde drops it since the struct doesn't use
 /// `deny_unknown_fields`.
 ///
 /// pnpm v11 also reads `patchedDependencies` (and the other install
@@ -104,7 +104,7 @@ pub struct WorkspaceSettings {
     pub use_beta_cli: Option<bool>,
     pub hoist: Option<bool>,
 
-    /// Tri-state `hoistPattern` — see `deserialize_double_option`.
+    /// Tri-state `hoistPattern`, see `deserialize_double_option`.
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub hoist_pattern: Option<Option<Vec<String>>>,
 
@@ -195,7 +195,7 @@ pub struct WorkspaceSettings {
 
     /// Structured registry auth (`_auth`). Honored **only** from the global
     /// pnpm `config.yaml` (read via `NpmrcAuth::from_json_sources`, not
-    /// applied in [`Self::apply_to`]) — never a project file, so repo config
+    /// applied in [`Self::apply_to`]), never a project file, so repo config
     /// can't supply credentials. A raw [`serde_json::Value`] so the auth
     /// parser is the single validator of its shape.
     #[serde(rename = "_auth")]
@@ -217,10 +217,10 @@ pub struct WorkspaceSettings {
     /// default: see [`Config::prefer_symlinked_executables`](crate::settings::Config::prefer_symlinked_executables).
     pub prefer_symlinked_executables: Option<bool>,
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
-    /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
+    /// (`true | false | "deep"`), see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
     /// `saveWorkspaceProtocol` from `pnpm-workspace.yaml`. Tri-state
-    /// (`true | false | "rolling"`) — see [`SaveWorkspaceProtocol`].
+    /// (`true | false | "rolling"`), see [`SaveWorkspaceProtocol`].
     pub save_workspace_protocol: Option<SaveWorkspaceProtocol>,
     /// `injectWorkspacePackages` from `pnpm-workspace.yaml`. When
     /// `true`, every workspace-resolved dep is materialized as a
@@ -228,7 +228,7 @@ pub struct WorkspaceSettings {
     /// [`Config::inject_workspace_packages`](crate::settings::Config::inject_workspace_packages).
     pub inject_workspace_packages: Option<bool>,
     /// `hoistingLimits` from `pnpm-workspace.yaml`. One of `none`,
-    /// `workspaces`, or `dependencies` — see
+    /// `workspaces`, or `dependencies`, see
     /// [`crate::HoistingLimits`]. Missing → default
     /// [`crate::HoistingLimits::None`].
     pub hoisting_limits: Option<HoistingLimits>,
@@ -256,7 +256,7 @@ pub struct WorkspaceSettings {
     pub ignore_workspace_cycles: Option<bool>,
     pub disallow_workspace_cycles: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
-    /// read-only and suppresses every store write — see
+    /// read-only and suppresses every store write, see
     /// [`Config::frozen_store`].
     ///
     /// [`Config::frozen_store`]: crate::Config::frozen_store
@@ -274,10 +274,10 @@ pub struct WorkspaceSettings {
     pub fetch_retry_mintimeout: Option<u64>,
     pub fetch_retry_maxtimeout: Option<u64>,
     pub network_concurrency: Option<usize>,
-    /// `maxSockets` — per-origin concurrent-connection cap. See
+    /// `maxSockets`, per-origin concurrent-connection cap. See
     /// [`Config::max_sockets`](crate::settings::Config::max_sockets).
     pub max_sockets: Option<usize>,
-    /// `maxsockets` — npm's spelling of [`Self::max_sockets`], which pnpm
+    /// `maxsockets`, npm's spelling of [`Self::max_sockets`], which pnpm
     /// reads too. A field of its own rather than a serde alias, because a
     /// file carrying both spellings is a duplicate field to serde and
     /// would fail the whole parse; pnpm takes it and lets the canonical
@@ -297,7 +297,7 @@ pub struct WorkspaceSettings {
     /// `npmrcAuthFile` is read only from the global `config.yaml`
     /// (consumed by [`crate::Config::current`] to choose the user-level
     /// `.npmrc`); it is deliberately *not* in the `apply!` list, so a
-    /// project `pnpm-workspace.yaml` declaring it is a no-op — matching
+    /// project `pnpm-workspace.yaml` declaring it is a no-op, matching
     /// pnpm, which sources the key from the global manifest only.
     pub npmrc_auth_file: Option<String>,
 
@@ -368,7 +368,7 @@ pub struct WorkspaceSettings {
     /// See [`Self::packages`].
     pub ignored_built_dependencies: Option<Vec<String>>,
 
-    /// Bypass the [`allow_builds`] gate entirely — every package may
+    /// Bypass the [`allow_builds`] gate entirely, every package may
     /// run lifecycle scripts. Same `pnpm-workspace.yaml` migration
     /// as `allowBuilds`. Default `false`.
     ///
@@ -454,7 +454,7 @@ pub struct WorkspaceSettings {
     pub script_shell: Option<Option<String>>,
 
     /// Tri-state `nodeOptions` from `pnpm-workspace.yaml`. Same
-    /// inherit / clear / set semantics as [`Self::script_shell`] — an
+    /// inherit / clear / set semantics as [`Self::script_shell`], an
     /// explicit `nodeOptions: null` unsets an inherited `NODE_OPTIONS`.
     /// See [`Config::node_options`](crate::settings::Config::node_options).
     #[serde(default, deserialize_with = "deserialize_double_option")]
@@ -485,30 +485,30 @@ pub struct WorkspaceSettings {
     pub concurrency_groups: Option<IndexMap<String, u32>>,
 
     /// `gitShallowHosts` from `pnpm-workspace.yaml`. Overrides
-    /// [`Config::git_shallow_hosts`](crate::settings::Config::git_shallow_hosts) wholesale when set —
+    /// [`Config::git_shallow_hosts`](crate::settings::Config::git_shallow_hosts) wholesale when set,
     /// `pnpm-workspace.yaml` replaces the built-in defaults rather
     /// than merging.
     pub git_shallow_hosts: Option<Vec<String>>,
 
-    /// `testPattern` from `pnpm-workspace.yaml` — see
+    /// `testPattern` from `pnpm-workspace.yaml`, see
     /// [`Config::test_pattern`](crate::settings::Config::test_pattern).
     pub test_pattern: Option<Vec<String>>,
 
-    /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` — see
+    /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml`, see
     /// [`Config::changed_files_ignore_pattern`](crate::settings::Config::changed_files_ignore_pattern).
     pub changed_files_ignore_pattern: Option<Vec<String>>,
 
-    /// `legacyDirFiltering` from `pnpm-workspace.yaml` — see
+    /// `legacyDirFiltering` from `pnpm-workspace.yaml`, see
     /// [`Config::legacy_dir_filtering`].
     ///
     /// [`Config::legacy_dir_filtering`]: crate::Config::legacy_dir_filtering
     pub legacy_dir_filtering: Option<bool>,
 
-    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
+    /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml`, see
     /// [`Config::sync_injected_deps_after_scripts`](crate::settings::Config::sync_injected_deps_after_scripts).
     pub sync_injected_deps_after_scripts: Option<Vec<String>>,
 
-    /// `requiredScripts` from `pnpm-workspace.yaml` — see
+    /// `requiredScripts` from `pnpm-workspace.yaml`, see
     /// [`Config::required_scripts`](crate::settings::Config::required_scripts).
     pub required_scripts: Option<Vec<String>>,
 
@@ -518,7 +518,7 @@ pub struct WorkspaceSettings {
     /// keep `darwin-arm64` variants of platform-tagged packages even
     /// on a non-matching host. Per-axis CLI flags (`--cpu`, `--libc`,
     /// `--os`) override individual axes.
-    /// Read from yaml verbatim (no `current` substitution here — that
+    /// Read from yaml verbatim (no `current` substitution here, that
     /// happens at the [`pnpm_package_is_installable::check_platform`]
     /// call site where the host triple is in scope).
     pub supported_architectures: Option<SupportedArchitectures>,
@@ -535,7 +535,7 @@ pub struct WorkspaceSettings {
     /// map that rewrites dependency specifiers everywhere they appear
     /// during install (both direct manifests and transitive
     /// packuments). Outer key encodes the override scope (bare name,
-    /// `name@range`, or `parent>child` forms — see
+    /// `name@range`, or `parent>child` forms, see
     /// `pnpm_config_parse_overrides`); value is the replacement
     /// spec, or `-` to delete the dep entirely.
     ///
@@ -636,7 +636,7 @@ pub struct WorkspaceSettings {
 
     /// `audit` from `pnpm-workspace.yaml`. Supersedes `auditLevel` and
     /// `auditConfig`; see [`AuditSettings`]. When both a value and its
-    /// deprecated counterpart are set, `audit` wins (with a warning) —
+    /// deprecated counterpart are set, `audit` wins (with a warning),
     /// the mapping onto [`Config::audit_level`](crate::settings::Config::audit_level) / [`Config::audit_config`](crate::settings::Config::audit_config)
     /// happens in [`Self::apply_to`].
     pub audit: Option<AuditSettings>,
@@ -749,7 +749,7 @@ pub struct WorkspaceSettings {
 
     /// `update` from `pnpm-workspace.yaml`. Supersedes `updateConfig`;
     /// see [`UpdateSettings`]. When both are set, `update` wins (with a
-    /// warning) — the mapping onto [`Config::update_config`](crate::settings::Config::update_config) happens in
+    /// warning), the mapping onto [`Config::update_config`](crate::settings::Config::update_config) happens in
     /// [`Self::apply_to`].
     pub update: Option<UpdateSettings>,
 
@@ -769,7 +769,7 @@ pub struct WorkspaceSettings {
 
     /// `pipelines` from `pnpm-workspace.yaml`: named sets of task requests
     /// for `pnpm pipeline`, keyed by pipeline name. A pipeline is a set,
-    /// not a sequence — ordering among its tasks is `tasks.dependsOn`'s
+    /// not a sequence, ordering among its tasks is `tasks.dependsOn`'s
     /// job.
     pub pipelines: Option<IndexMap<String, Vec<String>>>,
 

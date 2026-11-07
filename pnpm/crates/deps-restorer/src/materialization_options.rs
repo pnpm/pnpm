@@ -70,7 +70,7 @@ pub struct SlotImportSource<'a> {
     /// Whether this package's file map points at mutable local source
     /// (a `file:` / [`pnpm_lockfile::LockfileResolution::Directory`]
     /// resolution) rather than immutable CAS entries. pnpm's `file:` is
-    /// a copy taken at install time — unlike `link:`, which symlinks —
+    /// a copy taken at install time, unlike `link:`, which symlinks,
     /// so each install must refresh or verify the slot's files: the source
     /// can change without the lockfile changing, and the completion-marker
     /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
@@ -78,7 +78,7 @@ pub struct SlotImportSource<'a> {
     pub is_mutable: bool,
     /// Whether the mutable source above was there to read from. `false`
     /// for an injected workspace dependency whose `publishConfig.directory`
-    /// its own `prepare` script has not (re)built yet — the directory
+    /// its own `prepare` script has not (re)built yet, the directory
     /// fetch tolerates that and comes back with an empty file map. Forcing
     /// a reimport from that empty map, the way `is_mutable` normally does,
     /// would overwrite an already-materialized slot with nothing; this
@@ -105,7 +105,7 @@ pub struct SlotImportSource<'a> {
 pub struct SnapshotDependencyLinks<'a> {
     pub package_key: &'a PackageKey,
     pub snapshot: &'a SnapshotEntry,
-    /// Snapshots whose slots were not materialized on this host —
+    /// Snapshots whose slots were not materialized on this host,
     /// platform-mismatched optionals, `--no-optional` exclusions, and
     /// swallowed optional fetch failures. `create_symlink_layout`
     /// uses this to skip dangling symlinks to absent slots: an
@@ -182,7 +182,7 @@ pub struct RegistryFetchContext<'a> {
     /// for the rationale.
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
     /// Warm-cache prefetch result built once per install via
-    /// [`pnpm_tarball::prefetch_cas_paths`] — `cache_key →
+    /// [`pnpm_tarball::prefetch_cas_paths`], `cache_key →
     /// Arc<cas_paths>`. When `Some`, the
     /// `IngestTarballToStore::run_without_mem_cache` cache-lookup
     /// branch reads from here before falling back to the per-snapshot

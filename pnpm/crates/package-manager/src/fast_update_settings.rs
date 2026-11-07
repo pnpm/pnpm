@@ -82,7 +82,7 @@ pub(crate) fn detect_settings_drift(lockfile: &Lockfile, settings: &LockfileSett
 /// its graph: the peer settings when nothing declares a peer
 /// dependency, and the link and injection settings when no project
 /// depends on a directory or on another workspace project. Checked
-/// against the candidate the earlier handlers already rewrote — a peer
+/// against the candidate the earlier handlers already rewrote, a peer
 /// dependent they removed no longer blocks the setting. `false` leaves
 /// the caller on the full-resolution path.
 pub(crate) fn apply_settings_update(
@@ -231,7 +231,7 @@ fn has_no_peer_dependencies(
 /// `excludeLinksFromLockfile` decides whether a dependency that
 /// resolves to a directory is recorded in the lockfile. Dependencies
 /// declared with the `workspace:` protocol are recorded either way, so
-/// only the other directory dependencies matter — including plain
+/// only the other directory dependencies matter, including plain
 /// ranges that `linkWorkspacePackages` turns into links to a workspace
 /// project.
 fn has_no_linked_dependencies(

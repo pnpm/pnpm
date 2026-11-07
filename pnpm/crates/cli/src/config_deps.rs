@@ -81,7 +81,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 }
 
 /// Install the project's `configDependencies` and run their `updateConfig`
-/// hooks — the pair every install-family pipeline opens with.
+/// hooks, the pair every install-family pipeline opens with.
 ///
 /// Both happen before the pipeline builds its state: the env lockfile must
 /// land at the top of `pnpm-lock.yaml` before the wanted lockfile is read,
@@ -232,7 +232,7 @@ pub struct EnginePolicyViolation {
 /// The metadata mode follows [`Config::requires_full_metadata_for_resolution`]
 /// (via [`EnvInstallerContext`]), so under `trustPolicy=no-downgrade` or
 /// `resolutionMode=time-based` the probe fetches the full packument the
-/// trust and maturity checks need — the same resolver behaviour as a
+/// trust and maturity checks need, the same resolver behaviour as a
 /// regular install.
 pub async fn resolve_engine_version(
     config: &Config,

@@ -70,10 +70,10 @@ pub(super) enum ReuseSource {
     Importer { importer_id: String },
     /// A transitive dependency whose resolved snapshot key the parent's
     /// snapshot already pins. `Some` reuses that key directly (no semver
-    /// check — the parent version pins it); `None` means an updated
+    /// check, the parent version pins it); `None` means an updated
     /// ancestor discarded its child-refs, forcing this subtree to
     /// re-resolve. The parent may itself be reused (snapshot walk) or
-    /// freshly resolved onto its previously recorded version — both
+    /// freshly resolved onto its previously recorded version, both
     /// keep the prior child refs alive, mirroring pnpm's
     /// `parentPkg.updated ? undefined : resolvedDependencies`.
     Transitive { key: Option<PkgNameVerPeer> },
@@ -82,7 +82,7 @@ pub(super) enum ReuseSource {
 }
 
 impl ReuseSource {
-    /// The prior lockfile snapshot key recorded for this edge, if any —
+    /// The prior lockfile snapshot key recorded for this edge, if any,
     /// the basis of both subtree reuse and the `currentPkg` payload.
     /// The `Importer` arm applies the semver-satisfies gate
     /// ([`reusable_importer_dep`]): a lockfile reference is only reused
@@ -240,7 +240,7 @@ pub(crate) fn unwrap_package_name<'a>(
 }
 
 /// Resolve the *real* package name an `(alias, bare_specifier)` edge
-/// targets — the name update targeting matches against, not the local
+/// targets, the name update targeting matches against, not the local
 /// install alias, which an `npm:` alias or a `jsr:` specifier can
 /// differ from. The picker and the lockfile snapshots key on this name.
 /// `walk::overlay_lookup_names` builds its candidate set from it.
@@ -290,9 +290,9 @@ pub(super) async fn seed_reused_node(
     // The synthesized result must stay out of `resolved_by_wanted`: its
     // manifest deliberately omits `dependencies` (a reused node's
     // children come from the snapshot graph), so if the fresh-resolve
-    // path ever read it back — e.g. an identical edge denied reuse by
+    // path ever read it back, e.g. an identical edge denied reuse by
     // the changed-direct-dep gate or by `subtree_fully_reusable`'s
-    // provisional-`false` cycle guard — `extract_children` /
+    // provisional-`false` cycle guard, `extract_children` /
     // `pkg_is_leaf` would misread the package as dependency-less and
     // record it as a leaf, emptying its lockfile snapshot.
     let result = Arc::new(reused.result);

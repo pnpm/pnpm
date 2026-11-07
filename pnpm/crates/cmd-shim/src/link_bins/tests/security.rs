@@ -173,7 +173,7 @@ fn prefer_symlinked_executables_links_a_bin_whose_target_is_missing() {
     )
     .unwrap();
 
-    // A dangling symlink is still created — pnpm warns and keeps it,
+    // A dangling symlink is still created, pnpm warns and keeps it,
     // so a later step can materialize the target.
     assert_eq!(
         std::fs::read_link(bins_dir.join("foo")).expect("dangling bin symlink must exist"),

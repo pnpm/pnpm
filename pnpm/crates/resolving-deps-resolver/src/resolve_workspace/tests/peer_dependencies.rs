@@ -357,7 +357,7 @@ async fn transiently_walked_subtree_versions_do_not_bias_optional_peer_hoists() 
 
 /// The required-peer picker dedupes onto the highest satisfying
 /// candidate, so the pin is higher than (and as satisfying as) the
-/// owner's pick — the arrangement where unreachable-candidate
+/// owner's pick, the arrangement where unreachable-candidate
 /// filtering is observable through this picker.
 #[tokio::test]
 async fn transiently_walked_subtree_versions_do_not_bias_required_peer_hoists() {
@@ -551,7 +551,7 @@ async fn a_nameable_project_relative_root_dep_is_not_offered_as_a_peer_provider(
 
 /// The path form of `workspace:` names a directory relative to the
 /// declaring project, so it goes through the same manifest read as
-/// `link:` and `file:` — unlike the range form, which
+/// `link:` and `file:`, unlike the range form, which
 /// [`fn@a_workspace_range_root_dep_is_offered_as_a_peer_provider`] covers.
 /// Nothing is on disk at the path here, so it yields no candidate.
 #[tokio::test]
@@ -573,7 +573,7 @@ async fn a_link_root_dep_provides_the_peer_at_the_linked_packages_version() {
 }
 
 /// Nothing stands in for the path when the target names no version, so the
-/// root offers no candidate and the peer falls through to the graph — the
+/// root offers no candidate and the peer falls through to the graph, the
 /// path itself must never survive as the specifier.
 #[tokio::test]
 async fn a_versionless_link_root_dep_is_not_offered_as_a_peer_provider() {
@@ -668,7 +668,7 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
 
 /// End-to-end companion of
 /// `resolve_peers::tests::cached_subtree_reuse_reports_no_peer_providers`:
-/// pkg-b reuses two foreign-owned subtrees — `mid`, whose walk resolved
+/// pkg-b reuses two foreign-owned subtrees, `mid`, whose walk resolved
 /// `peerpkg`, and `s2wrap`, whose consumer's miss the owning importer
 /// satisfied from its own ancestors (hiding it from pkg-b's hoist).
 #[tokio::test]
@@ -728,7 +728,7 @@ async fn importer_sharing_foreign_subtrees_binds_peers_from_workspace_root() {
     );
     // pkg-b reaches `s2wrap` through `bwrap` so both importers see it at
     // depth 1 and the children-owner claim falls to pkg-a2 (lower
-    // importer order) — a direct depth-0 reference would make pkg-b the
+    // importer order), a direct depth-0 reference would make pkg-b the
     // owner and no cross-importer sharing would occur.
     table.insert(
         ("bwrap".to_string(), "1.0.0".to_string()),

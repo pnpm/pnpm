@@ -5,8 +5,8 @@
 //! only an install has: the pnpmfile's custom resolvers, the resolution
 //! caches shared across the walk, the tarball fetch context that lets a
 //! tarball resolver read a fetched `package.json`. A caller that wants a
-//! single answer for a single specifier — `pnpm store add`, the NAPI
-//! `resolveDependency` — has none of that, and would otherwise each grow
+//! single answer for a single specifier, `pnpm store add`, the NAPI
+//! `resolveDependency`, has none of that, and would otherwise each grow
 //! its own copy of the resolver chain.
 //!
 //! Deliberate deviations from the install chain follow from having no
@@ -14,7 +14,7 @@
 //!
 //! - The tarball resolver runs without a fetch context, so an `http(s)`
 //!   tarball is claimed with its normalized URL but no bundled manifest or
-//!   integrity — both live inside the archive, and only the install pass
+//!   integrity, both live inside the archive, and only the install pass
 //!   extracts it.
 //! - Custom (pnpmfile) resolvers are omitted: loading a pnpmfile is an
 //!   install-time concern.
@@ -69,7 +69,7 @@ pub fn build_standalone_chain(
     // slot below all point at the same instance and its metadata cache.
     let npm_resolver: Arc<dyn Resolver> = Arc::new(build_npm_resolver(opts, retry_opts));
     // `preserveAbsolutePaths` isn't exposed by pacquet's `Config` yet, so
-    // the local-resolver context defaults to `false` here — same as the
+    // the local-resolver context defaults to `false` here, same as the
     // install path.
     let local_ctx = LocalResolverContext { preserve_absolute_paths: false, ..Default::default() };
 

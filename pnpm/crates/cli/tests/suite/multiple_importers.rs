@@ -1,4 +1,4 @@
-//! Ports of the upstream multi-importer install suites — the
+//! Ports of the upstream multi-importer install suites, the
 //! workspace-subset (`--filter`) and shared-lockfile scenarios from
 //! `installing/deps-installer/test/install/multipleImporters.ts`, the
 //! workspace cases of `installing/deps-restorer/test/index.ts`, and the
@@ -376,7 +376,7 @@ fn headless_install_is_used_with_workspace_protocol_references() {
 /// workspace (unless workspace ranges are used)`
 /// (`multipleImporters.ts:656`). With `linkWorkspacePackages: false`, a
 /// `workspace:*` range still links while a plain semver range resolves
-/// from the registry — and the resulting mixed lockfile still passes
+/// from the registry, and the resulting mixed lockfile still passes
 /// the freshness gate, so the reinstall goes headless.
 #[test]
 fn headless_install_is_used_when_packages_are_not_linked_from_the_workspace() {
@@ -419,7 +419,7 @@ fn headless_install_is_used_when_packages_are_not_linked_from_the_workspace() {
 #[test]
 fn partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projects() {
     let fixture = WorkspaceFixture::new();
-    // Project-1 pins 101.0.0 directly — outside project-2's transitive
+    // Project-1 pins 101.0.0 directly, outside project-2's transitive
     // `^100.0.0` range, so the resolver cannot converge the transitive
     // onto it and both versions get locked and materialized.
     fixture.project(
@@ -437,7 +437,7 @@ fn partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projec
 
     // Repin the unselected project's transitive from 100.1.0 (what the
     // resolver picked for `^100.0.0`) to the 101.0.0 entry that
-    // project-1's direct dependency already locked — the upstream test
+    // project-1's direct dependency already locked, the upstream test
     // rewrites the lockfile to the same effect, leaving the 100.1.0
     // materialization orphaned.
     repin_snapshot_dependency(
@@ -650,7 +650,7 @@ fn subset_headless_install_deeply_materializes_workspace_linked_dependencies() {
     // `link:packages/f` relative to the dependent importer
     // (`link:packages/g/packages/f`); the upstream fixture lockfile
     // records it relative to the lockfile dir. Rewrite the snapshot to
-    // the upstream (lockfile-relative) shape — the subject under test
+    // the upstream (lockfile-relative) shape, the subject under test
     // is the headless materialization of snapshot-level links, and
     // upstream drives it from a hand-authored lockfile too.
     repin_snapshot_dependency(
@@ -1156,7 +1156,7 @@ fn link_bin_of_workspace_project_created_by_lifecycle_script() {
 }
 
 /// TS: `dependencies of workspace projects are built during headless
-/// installation` (`pnpm/test/monorepo/index.ts:1281`) — the upstream
+/// installation` (`pnpm/test/monorepo/index.ts:1281`), the upstream
 /// fixture turns off `sharedWorkspaceLockfile`, so every project gets
 /// its own lockfile and the headless install still runs the
 /// dependency's build scripts.

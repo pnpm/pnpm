@@ -700,7 +700,7 @@ fn peer_variants_choose_the_same_target_when_importers_change_order() {
 
 /// A root project whose `foo` is `foo@1.0.0(peer@2.0.0)` in the virtual
 /// store `node_modules/.pnpm`, with a config that names that store, and the
-/// entry pnpm links for its skill named by `skill` — the bare skill name.
+/// entry pnpm links for its skill named by `skill`, the bare skill name.
 fn workspace_with_peer_variant(skill: &str) -> (TempDir, Lockfile, Config, String) {
     let root = tempfile::tempdir().unwrap();
     let store = root.path().join("node_modules/.pnpm");

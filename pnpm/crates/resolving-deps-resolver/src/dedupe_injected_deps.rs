@@ -11,7 +11,7 @@
 //! they don't surface in the lockfile.
 //!
 //! Pacquet's lockfile importer-version writer does not yet support
-//! `file:<workspace>` direct-dep entries — when an importer's
+//! `file:<workspace>` direct-dep entries, when an importer's
 //! `direct_dependencies_by_alias` still carries an injected workspace
 //! depPath after this pass, the lockfile writer panics in
 //! `importer_dep_version`. In practice this pass is what keeps the
@@ -69,7 +69,7 @@ pub(crate) fn dedupe_injected_deps(
     prune_unreachable(graph, direct_by_importer);
 }
 
-/// `importer_id → alias → target_project_id` — the per-importer set of
+/// `importer_id → alias → target_project_id`, the per-importer set of
 /// aliases that get rewritten, with the workspace project they redirect
 /// to.
 type DedupeMap = BTreeMap<String, BTreeMap<String, String>>;
@@ -147,7 +147,7 @@ fn child_matches_target(
 /// The resolver's `pkg.id` for a `file:<path>` workspace pick is
 /// emitted as `<name>@file:<path>` once the manifest name is in scope
 /// (see `build_pkg_id_with_patch_hash`) and as the bare `file:<path>`
-/// before that — accept both shapes. Splitting on the whole `@file:`
+/// before that, accept both shapes. Splitting on the whole `@file:`
 /// separator rather than on `@` alone keeps scoped names
 /// (`@scope/name@file:<path>`) matching, whose leading `@` would
 /// otherwise be taken for the separator.
@@ -193,9 +193,9 @@ fn make_link_dep_path(source_root: &Path, target_root: &Path, lockfile_dir: &Pat
     let rel_posix = if rendered.is_empty() || rendered == "." {
         // Source and target match: emit a path relative to the lockfile
         // dir so the resulting symlink still resolves to a real
-        // directory. In practice this branch is unreachable —
+        // directory. In practice this branch is unreachable,
         // `injected_workspace_target` only matches when the importer's
-        // direct dep points at a different workspace project — but the
+        // direct dep points at a different workspace project, but the
         // fallback keeps the helper total.
         let fallback = pathdiff::diff_paths(target_root, lockfile_dir)
             .unwrap_or_else(|| target_root.to_path_buf());
@@ -207,9 +207,9 @@ fn make_link_dep_path(source_root: &Path, target_root: &Path, lockfile_dir: &Pat
 }
 
 /// Remove graph nodes no importer reaches after a dedupe pass.
-/// A snapshot that loses all references — an injected `file:` rewritten
+/// A snapshot that loses all references, an injected `file:` rewritten
 /// to `link:`, or a peer-variant collapsed by
-/// [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`] — would
+/// [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`], would
 /// otherwise remain in the graph and surface in `pnpm-lock.yaml` as an
 /// orphan, since pacquet has no unified post-resolve lockfile pruner.
 pub(crate) fn prune_unreachable(

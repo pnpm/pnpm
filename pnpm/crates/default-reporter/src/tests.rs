@@ -143,7 +143,7 @@ fn cursor_ups(output: &str) -> Vec<usize> {
 /// package group in turn, so the frame keeps growing by one progress line per
 /// group. The differ redraws a line by moving the cursor up from the end of the
 /// frame; once the frame is taller than the terminal, the lines it has to reach
-/// have scrolled away and the move stops at the top of the screen — landing on,
+/// have scrolled away and the move stops at the top of the screen, landing on,
 /// and overwriting, whatever is displayed there instead.
 #[test]
 fn never_redraws_above_the_top_of_the_terminal() {
@@ -308,7 +308,7 @@ fn a_resize_starts_a_fresh_frame() {
 
 /// The window can shrink under a frame that fitted when it was drawn. Its top
 /// has scrolled away just as surely as an over-tall line's, so it cannot be
-/// revised either — including by the handover that commits the overflow.
+/// revised either, including by the handover that commits the overflow.
 #[test]
 fn a_shrinking_window_starts_a_fresh_frame() {
     const COLUMNS: usize = 80;

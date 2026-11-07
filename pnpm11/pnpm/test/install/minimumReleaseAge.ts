@@ -16,12 +16,12 @@ const PUBLIC_REGISTRY = '--config.registry=https://registry.npmjs.org/'
 
 // `is-odd@0.1.2` was published in 2017. Setting an extreme minimumReleaseAge
 // (~27 years) ensures every locked version is "immature" relative to the
-// cutoff — the verifier rejects the entry regardless of when the test runs.
+// cutoff, the verifier rejects the entry regardless of when the test runs.
 const IMMATURE_FOR_EVERYTHING = 60 * 24 * 365 * 27
 
 // execPnpm's createEnv defaults pnpm_config_minimum_release_age to '0',
 // which overrides anything in pnpm-workspace.yaml. Tests that need the
-// yaml policy to take effect must omit this default — same workaround
+// yaml policy to take effect must omit this default, same workaround
 // dlx.ts uses for its minimumReleaseAge tests.
 const omitMinReleaseAgeEnv = { omitEnvDefaults: ['pnpm_config_minimum_release_age' as const] }
 
@@ -35,7 +35,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     await execPnpm([PUBLIC_REGISTRY, 'install'])
 
     // Step 2: turn on minimumReleaseAge in strict mode. The lockfile is now
-    // "poisoned" relative to the new policy — exactly the scenario the
+    // "poisoned" relative to the new policy, exactly the scenario the
     // verifier exists to catch (a teammate committed a lockfile that
     // bypassed the policy locally, a CI cache restored a stale lockfile,
     // etc.).
@@ -323,7 +323,7 @@ describe('lockfile minimumReleaseAge verification', () => {
   })
 
   test('--no-save leaves the workspace manifest untouched even when picks are collected', () => {
-    // `--no-save` means "don't persist anything from this install" — the
+    // `--no-save` means "don't persist anything from this install", the
     // auto-add should obey that. Without the gate, the info log would
     // claim entries were added that never reached pnpm-workspace.yaml,
     // and the next install would either re-prompt or fail verification.
@@ -350,7 +350,7 @@ describe('lockfile minimumReleaseAge verification', () => {
     // Removing an entry from the exclude list could expose a violation
     // that previously passed verification. The cache record snapshots the
     // exclude list and `canTrustPastCheck` rejects the cached run when
-    // today's list isn't a superset of the cached one — so the next
+    // today's list isn't a superset of the cached one, so the next
     // install re-verifies and the now-uncovered immature lockfile entry
     // is flagged.
     prepare({
@@ -365,7 +365,7 @@ describe('lockfile minimumReleaseAge verification', () => {
       minimumReleaseAgeExclude: ['is-odd', 'is-buffer', 'is-number', 'kind-of'],
       cacheDir,
     })
-    // Step 1: install with the full exclude list — verifier writes a
+    // Step 1: install with the full exclude list, verifier writes a
     // cache record under that policy.
     execPnpmSync(
       [PUBLIC_REGISTRY, 'install', '--frozen-lockfile'],

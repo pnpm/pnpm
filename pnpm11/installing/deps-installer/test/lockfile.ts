@@ -1109,7 +1109,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 
 const REGISTRY_MIRROR_DIR = path.join(import.meta.dirname, './registry-mirror')
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- the metadata is replayed to the mock registry as is */
+/* eslint-disable @typescript-eslint/no-explicit-any, the metadata is replayed to the mock registry as is */
 const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 const tarballPath = testFixtures.find('is-positive-3.1.0.tgz')
@@ -1418,7 +1418,7 @@ packages:
 
 // Covers https://github.com/pnpm/pnpm/issues/2928
 // @pnpm.e2e/has-build-metadata-dep depends on
-// `@pnpm.e2e/has-build-metadata@^0.5.0-alpha.51+f10fea0` — a range carrying
+// `@pnpm.e2e/has-build-metadata@^0.5.0-alpha.51+f10fea0`, a range carrying
 // build metadata, which must not leak into the lockfile.
 test('build metadata is always ignored in versions and the lockfile is not flickering because of them', async () => {
   await addDistTag({ package: '@pnpm.e2e/has-build-metadata', version: '0.5.0-alpha.51', distTag: 'latest' })
@@ -1676,7 +1676,7 @@ test('setting a custom peersSuffixMaxLength', async () => {
 // Covers https://github.com/pnpm/pnpm/issues/13073: build sandboxes such as
 // Bazel and Nix stage pnpm-lock.yaml as a symlink into the working tree. A
 // frozen install neither resolves nor changes the lockfile, so it must not
-// refuse the symlink — nor rewrite the file at all.
+// refuse the symlink, nor rewrite the file at all.
 const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
 // Stages an up-to-date lockfile outside the project and symlinks it in.

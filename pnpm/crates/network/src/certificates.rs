@@ -25,7 +25,7 @@ pub(super) enum TrustRoots {
 }
 
 /// The Mozilla CA root set compiled into the binary, in reqwest's
-/// [`Certificate`] form. Parsed once — `for_installs` builds one
+/// [`Certificate`] form. Parsed once, `for_installs` builds one
 /// client per per-registry override, and the fallback path is taken
 /// by every one of them on a system without a trust store.
 #[must_use]
@@ -122,14 +122,14 @@ fn ssl_policy_from_ref(policy: SecPolicyRef) -> Option<SecPolicy> {
 /// so to keep real-world parity for users behind a corporate MITM proxy
 /// it reads the variable explicitly.
 ///
-/// Read and parsed once per [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs) call —
+/// Read and parsed once per [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs) call,
 /// that constructor builds one client per per-registry override, so
 /// loading here (rather than inside the per-client builder) avoids
 /// re-reading and re-parsing the bundle N times during startup.
 ///
 /// The resulting certs are additive and lowest-priority: layered under
 /// the `.npmrc` `ca` / `cafile` roots that [`apply_tls`] adds afterward
-/// and under the platform trust store (ordering is immaterial — the
+/// and under the platform trust store (ordering is immaterial, the
 /// rustls root store is a union). A missing, unreadable, or malformed
 /// file yields an empty list, matching pnpm's silent treatment of a
 /// missing `cafile` rather than failing the client build.
@@ -180,7 +180,7 @@ const END_CERTIFICATE: &str = "-----END CERTIFICATE-----";
 ///
 /// When the override has a `ca`, the effective top-level CA list is
 /// *replaced* (not merged) by a one-element list with the scoped PEM
-/// blob — which [`parse_ca_bundle`] handles fine since it accepts
+/// blob, which [`parse_ca_bundle`] handles fine since it accepts
 /// multi-cert PEM buffers.
 pub(super) fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
     TlsConfig {
@@ -196,13 +196,13 @@ pub(super) fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
 }
 
 /// Returns the modified builder unchanged when every field is `None` /
-/// empty — matching pnpm's "TLS-unset is default-TLS" semantics.
+/// empty, matching pnpm's "TLS-unset is default-TLS" semantics.
 ///
 /// A `cert` / `key` pair rustls rejects surfaces as
 /// [`TlsError::InvalidClientIdentity`] and bubbles through
 /// [`ForInstallsError`](crate::ForInstallsError), the way Node throws from
 /// `tls.createSecureContext`. Unreadable `ca` material is dropped
-/// instead — see [`parse_ca_bundle`].
+/// instead, see [`parse_ca_bundle`].
 pub(super) struct AppliedTls {
     pub(super) builder: reqwest::ClientBuilder,
     pub(super) has_custom_ca: bool,

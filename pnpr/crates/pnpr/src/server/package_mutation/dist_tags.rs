@@ -17,7 +17,7 @@ use crate::server::{
 };
 
 /// `GET /-/package/:pkg/dist-tags` (path-less) or
-/// `GET /~<name>/-/package/:pkg/dist-tags` — return the packument's
+/// `GET /~<name>/-/package/:pkg/dist-tags`, return the packument's
 /// `dist-tags` object.
 pub(crate) async fn get_dist_tags(
     state: &AppState,
@@ -52,7 +52,7 @@ pub(crate) async fn get_dist_tags(
 }
 
 /// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
-/// `PUT /~<name>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
+/// `PUT /~<name>/-/package/:pkg/dist-tags/:tag`, set a dist-tag. Body is
 /// a JSON-encoded version string (e.g. `"1.0.0"`), read only once the caller
 /// may change the tag.
 pub(crate) async fn set_dist_tag(

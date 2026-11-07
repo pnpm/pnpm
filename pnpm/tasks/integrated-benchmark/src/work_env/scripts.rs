@@ -65,7 +65,7 @@ pub(super) fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &
         // `pnpm install` and `pnpm run compile-only` from a previous orchestrator
         // run can leave tracked files dirty (e.g. `pnpm-lock.yaml` rewritten,
         // generated `dist/*`). A fresh `git checkout <commit>` against a dirty
-        // worktree fails with "Your local changes would be overwritten" — wipe
+        // worktree fails with "Your local changes would be overwritten", wipe
         // them first.
         eprintln!("Resetting worktree at {revision_repo:?}...");
         Command::new("git")
@@ -203,7 +203,7 @@ pub(super) fn may_create_lockfile(
         // Land the seeded lockfile in a strictly later millisecond than
         // the just-written `package.json`. The kernel's file-timestamp
         // clock ticks coarsely (~1 ms), so back-to-back writes can share
-        // one mtime — and the repeat-install fast path reads a manifest
+        // one mtime, and the repeat-install fast path reads a manifest
         // whose mtime equals its baseline (the lockfile mtime, truncated
         // to ms) as possibly-modified, pushing every timed iteration
         // onto the heavier content-check path for one bench dir but not

@@ -147,8 +147,8 @@ fn decodes_side_effects() {
     assert_eq!(b_so.checked_at, Some(20));
 }
 
-/// A row pacquet wrote itself — vanilla msgpack via `rmp_serde::to_vec_named`
-/// — must decode to the same struct after passing through the
+/// A row pacquet wrote itself, vanilla msgpack via `rmp_serde::to_vec_named`
+///, must decode to the same struct after passing through the
 /// transcoder. The bytes are *not* guaranteed to be byte-for-byte
 /// identical post-transcode: `CafsFileInfo::checked_at` is written
 /// as `float 64` for msgpackr/pnpm interop, and the transcoder's
@@ -179,7 +179,7 @@ fn round_trips_plain_msgpack_through_transcoder() {
 
 #[test]
 fn plain_msgpack_without_floats_passes_through_unchanged() {
-    // { "size": 17, "mode": 420 } — purely integer values, no
+    // { "size": 17, "mode": 420 }, purely integer values, no
     // checked_at, so the encoded bytes have no float headers.
     let bytes = rmp_serde::to_vec_named(&serde_json::json!({
         "size": 17,
@@ -192,7 +192,7 @@ fn plain_msgpack_without_floats_passes_through_unchanged() {
 
 /// A genuine non-integer float (π) must survive the transcoder as a
 /// float. We don't have `PackageFilesIndex` fields that carry such
-/// a value today, but the transcoder itself is a general utility —
+/// a value today, but the transcoder itself is a general utility,
 /// the narrowing should only fire for integer-valued floats.
 #[test]
 fn non_integer_floats_pass_through() {
@@ -204,7 +204,7 @@ fn non_integer_floats_pass_through() {
     assert_eq!(out, input, "π must stay as float 64, not be narrowed");
 }
 
-/// A `float 64` whose value is exactly `2^64` must NOT narrow —
+/// A `float 64` whose value is exactly `2^64` must NOT narrow,
 /// `u64::MAX as f64` rounds up to 2^64, so a naive
 /// `v <= u64::MAX as f64` bound would admit the value and silently
 /// cast it to `u64::MAX`. Must pass through unchanged instead.
@@ -236,20 +236,20 @@ fn integer_valued_float32_is_narrowed_to_uint64() {
 fn rejects_reference_to_unknown_slot() {
     // fixarray(2):
     //   [0] def slot 0x40 (fields ["x"]) + inline first instance (nil)
-    //   [1] bare reference to slot 0x41 — never defined
+    //   [1] bare reference to slot 0x41, never defined
     let bytes: &[u8] = &[
         0x92, // fixarray(2)
         0xd4, 0x72, 0x40, // def slot 0x40
         0x91, 0xa1, b'x', // fields: ["x"]
         0xc0, // first instance: nil
-        0x41, // ref to slot 0x41 — undefined
+        0x41, // ref to slot 0x41, undefined
     ];
     let err = transcode_to_plain_msgpack(bytes).unwrap_err();
     assert!(matches!(err, DecodeError::UnknownSlot { slot: 0x41, .. }), "got {err:?}");
 }
 
 /// In plain `MessagePack`, a bare 0x40..=0x7f byte is a positive
-/// fixint (64..=127) — not a record slot reference. The transcoder
+/// fixint (64..=127), not a record slot reference. The transcoder
 /// must not touch it until a record definition has actually
 /// appeared in the stream.
 #[test]
@@ -360,7 +360,7 @@ fn encode_handles_fixint_in_slot_range_safely() {
     // 0x40..=0x7f. A naive encoder that emits it as a positive
     // fixint would produce a byte stream the decoder then
     // interprets as a reference to slot 0x7b, which is never
-    // defined — the classic "UnknownSlot" blow-up. msgpackr
+    // defined, the classic "UnknownSlot" blow-up. msgpackr
     // promotes all integers in this range to `uint 8` for exactly
     // this reason.
     let mut files = HashMap::new();
@@ -470,7 +470,7 @@ fn encode_outer_field_order_matches_msgpackr() {
     // written rows is a routine debugging exercise. Ground truth
     // comes from the `decodes_requires_build_true` fixture
     // captured from msgpackr 1.11.8, where the schema reads
-    // `[algo, requiresBuild, files]` — i.e. optional fields slot
+    // `[algo, requiresBuild, files]`, i.e. optional fields slot
     // in at pnpm's TypeScript-declared position, not tacked onto
     // the end.
     let mut files = HashMap::new();
@@ -676,8 +676,8 @@ fn allocate_slot_returns_error_past_0x7f() {
     // Exhaust the inner-slot range (0x41..=0x7f, 63 slots) and
     // verify the next call returns `OutOfRecordSlots` rather than
     // panicking. Not reachable through the public encoder for
-    // current pacquet payloads — `CafsFileInfo` has 2 shapes,
-    // `SideEffectsDiff` has 4 — but the error path must exist in
+    // current pacquet payloads, `CafsFileInfo` has 2 shapes,
+    // `SideEffectsDiff` has 4, but the error path must exist in
     // case a future record type is added without bumping the
     // shape accounting.
     let mut state = EncodeState::default();
@@ -711,7 +711,7 @@ fn encode_roundtrips_simple_manifest() {
 }
 
 /// Nested objects inside the manifest must be **record-encoded**, not
-/// emitted as plain msgpack maps — otherwise msgpackr in
+/// emitted as plain msgpack maps, otherwise msgpackr in
 /// `useRecords: true` mode would decode them as JS `Map` and
 /// `manifest.bin.tsc` (the property access pnpm's bin linker uses
 /// for object-form `bin` fields) would be `undefined`. The encoder
@@ -750,7 +750,7 @@ fn encode_record_encodes_nested_objects_in_manifest() {
 }
 
 /// Two nested objects with the **same** key set within the same
-/// manifest must share a slot. Verifies record-reuse — the whole
+/// manifest must share a slot. Verifies record-reuse, the whole
 /// point of records. Shape here is the *key set*, not just the
 /// arity: `{left-pad}` and `{right-pad}` are different shapes
 /// (different keys), so the test uses two objects that genuinely
@@ -817,7 +817,7 @@ fn encode_roundtrips_all_json_value_kinds() {
 }
 
 /// Manifest must round-trip alongside `requiresBuild`, `files`, and
-/// `sideEffects` — the encoder has to emit all five fields in the
+/// `sideEffects`, the encoder has to emit all five fields in the
 /// expected order and the decoder still needs to recover each.
 #[test]
 fn encode_roundtrips_manifest_with_other_fields() {

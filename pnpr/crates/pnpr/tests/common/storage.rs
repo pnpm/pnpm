@@ -3,7 +3,7 @@
 //! verdaccio/npm registry emits (`_attachments`, `_uplinks`, `_distfiles`,
 //! `users`, per-version `_nodeVersion`, `_id`, `contributors`) so the tests can
 //! assert that pnpr rewrites tarball URLs and strips those fields in
-//! the abbreviated packument form. No real tarball is needed — the bytes are
+//! the abbreviated packument form. No real tarball is needed, the bytes are
 //! arbitrary; nothing re-hashes them.
 
 use std::path::Path;

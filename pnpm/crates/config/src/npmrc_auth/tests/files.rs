@@ -87,7 +87,7 @@ fn inline_ca_and_cafile_concatenate() {
     };
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
-    // Inline first, cafile second — same ordering pnpm produces.
+    // Inline first, cafile second, same ordering pnpm produces.
     assert_eq!(config.tls.ca.len(), 2, "tls.ca={:?}", config.tls.ca);
 }
 

@@ -59,7 +59,7 @@ test.each(['custom', 'tarball'])('hoisted reinstall refreshes a directory delega
 
 // Mirrors pacquet's `crates/cli/tests/custom_fetchers.rs`: a custom resolver
 // writes a custom-typed resolution and the sibling fetcher materializes it by
-// returning the portable `{ delegate }` envelope — the shape that works
+// returning the portable `{ delegate }` envelope, the shape that works
 // identically in both stacks.
 
 test.each(['isolated', 'hoisted'] as const)('custom fetcher delegates a custom-typed resolution via the { delegate } envelope with %s linking', async (nodeLinker) => {

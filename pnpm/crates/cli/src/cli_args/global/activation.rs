@@ -181,7 +181,7 @@ where
     let PreparedGlobalInstall { actual_bin_names, backup_dir, .. } = prepared;
     let backup_path = backup_dir.path().to_path_buf();
     // Activation is already committed, so a leftover backup directory must
-    // not fail the command — but it points at a filesystem problem worth
+    // not fail the command, but it points at a filesystem problem worth
     // surfacing.
     let leftover_backup = backup_dir
         .close()

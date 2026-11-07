@@ -14,7 +14,7 @@ impl ThrottledClient {
     ///
     /// * **HTTP/1.1 only.** A default `reqwest::Client` upgrades to
     ///   HTTP/2 via ALPN whenever the registry advertises it
-    ///   (registry.npmjs.org does). HTTP/2 is deliberately disabled —
+    ///   (registry.npmjs.org does). HTTP/2 is deliberately disabled,
     ///   multiplexing many tarball streams over 1-2 TCP connections
     ///   sharing one congestion window was slower than opening ~50
     ///   independent HTTP/1.1 connections that each get their own
@@ -32,7 +32,7 @@ impl ThrottledClient {
     /// [`agentkeepalive`'s](https://github.com/node-modules/agentkeepalive/blob/1e5e312f36/lib/agent.js#L39-L41)
     /// default `freeSocketTimeout` (the agent pnpm builds its
     /// connection pool on top of). Most CDN / load-balancer edges in
-    /// front of `registry.npmjs.org` close idle sockets after 5–15s
+    /// front of `registry.npmjs.org` close idle sockets after 5 to 15s
     /// without sending FIN that hyper notices; a pool TTL above that
     /// lets pacquet reuse a half-dead socket and surface the next
     /// request as a generic "error sending request for url". 4s
@@ -44,7 +44,7 @@ impl ThrottledClient {
     /// make no progress, not how long it may run. A default
     /// `reqwest::Client` has no deadlines at all, so a stalled upstream
     /// hangs the install indefinitely. It is applied as reqwest's read
-    /// timeout — which restarts on every chunk received — and as the
+    /// timeout, which restarts on every chunk received, and as the
     /// connect timeout. A total deadline would abort a healthy download
     /// of a large archive over a slow link
     /// ([#14604](https://github.com/pnpm/pnpm/issues/14604)). Default:
@@ -79,7 +79,7 @@ impl ThrottledClient {
     /// proxy URL fails to parse even after the auto-`http://` prefix
     /// retry (the `ERR_PNPM_INVALID_PROXY` code), or [`TlsError`](crate::tls::TlsError) when
     /// the client identity PEM is malformed. Unreadable CA material is
-    /// not an error — see [`TlsError`](crate::tls::TlsError) for where that line sits.
+    /// not an error, see [`TlsError`](crate::tls::TlsError) for where that line sits.
     pub fn for_installs(
         proxy: &ProxyConfig,
         tls: &TlsConfig,
@@ -120,7 +120,7 @@ impl ThrottledClient {
     /// client's redirect policy: every redirect hop is re-validated by the
     /// guard, and a hop it rejects fails the request without fetching. pnpr
     /// resolves on behalf of untrusted callers, so it passes a guard that
-    /// re-checks each redirect target against its fetch allowlist — otherwise
+    /// re-checks each redirect target against its fetch allowlist, otherwise
     /// an allowlisted registry could `302` pnpr onto an internal host, slipping
     /// a server-side request past the request-boundary allowlist (SSRF). The
     /// CLI fetches on the user's own behalf and keeps the default follow

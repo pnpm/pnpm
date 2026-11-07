@@ -119,7 +119,7 @@ pub(super) struct Workspace {
     manifests: BTreeMap<PathBuf, Arc<Manifest>>,
     inherited: BTreeMap<PathBuf, (PathBuf, Arc<Manifest>)>,
     /// The workspace root whose environment each project shares, for the
-    /// members of a workspace that asks for one — see [`members`].
+    /// members of a workspace that asks for one, see [`members`].
     shared: BTreeMap<PathBuf, PathBuf>,
     selection: Option<Selection>,
 }

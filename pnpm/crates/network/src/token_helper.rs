@@ -3,7 +3,7 @@
 //!
 //! `tokenHelper` names an executable pnpm runs to obtain a registry
 //! token. [`AuthHeaders`](crate::AuthHeaders) stores the parsed command
-//! and runs it — at most once, memoized — only when a lookup actually
+//! and runs it, at most once, memoized, only when a lookup actually
 //! resolves to that registry, so a command never spawns for a pnpm
 //! invocation that makes no matching request. The mapping from the
 //! command's stdout to a header mirrors pnpm's `executeTokenHelper`.
@@ -151,7 +151,7 @@ fn run_token_helper_command_with_timeout(
 
     // Drain both pipes on their own threads: a helper that fills the
     // stdout (or stderr) buffer would otherwise block on the write while
-    // the parent waits on the other pipe — a deadlock the poll loop can't
+    // the parent waits on the other pipe, a deadlock the poll loop can't
     // break.
     let stdout = read_pipe(child.stdout.take());
     let stderr = read_pipe(child.stderr.take());
@@ -182,7 +182,7 @@ fn run_token_helper_command_with_timeout(
 /// Kills the wrapped [`Child`] on drop unless [`Self::disarm`]ed first, so a
 /// panic or early return before the process is reaped can't leave it
 /// orphaned. Once the caller has reaped the child (a completed `try_wait`),
-/// it disarms — killing a reaped pid could target a recycled process.
+/// it disarms, killing a reaped pid could target a recycled process.
 struct ChildGuard(Option<Child>);
 
 impl ChildGuard {

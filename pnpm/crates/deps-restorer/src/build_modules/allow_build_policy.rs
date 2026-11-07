@@ -31,7 +31,7 @@ pub struct AllowBuildPolicy {
 impl AllowBuildPolicy {
     /// Build a policy from already-expanded `allowed` and
     /// `disallowed` sets and `dangerouslyAllowAllBuilds`. Pure
-    /// constructor — no IO — so the policy logic is tested
+    /// constructor, no IO, so the policy logic is tested
     /// directly with in-memory inputs.
     #[must_use]
     pub fn new(
@@ -75,7 +75,7 @@ impl AllowBuildPolicy {
     /// `allow_builds` and `dangerously_allow_all_builds`, which are
     /// populated by [`pnpm_config::WorkspaceSettings::apply_to`]
     /// from `pnpm-workspace.yaml`. pnpm v11 stopped reading these
-    /// from `package.json#pnpm` — see pnpm/pacquet#397 item 5.
+    /// from `package.json#pnpm`, see pnpm/pacquet#397 item 5.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
         Self::from_approvals(&config.allow_builds, config.dangerously_allow_all_builds)?
             .with_side_effects_cache_exclude(
@@ -247,8 +247,8 @@ pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
 /// for another tarball, `(local)` for a `file:` / `link:` resolution.
 ///
 /// The input is any dep path or build/permission key; peer and patch-hash
-/// suffixes are ignored. The approval key — a dep path for source
-/// packages — stays the key of every settings entry, so a label is only
+/// suffixes are ignored. The approval key, a dep path for source
+/// packages, stays the key of every settings entry, so a label is only
 /// ever display text and cannot be fed back as a key.
 #[must_use]
 pub fn short_package_label(key: &str) -> String {
@@ -299,10 +299,10 @@ pub fn parse_allow_build_selector(selector: &str) -> (&str, bool) {
 }
 
 /// Split a peer-suffix-free depPath / pkgId into its `name` and `version`
-/// (with any `(patch_hash=…)` segment stripped) — the half of depPath
+/// (with any `(patch_hash=…)` segment stripped), the half of depPath
 /// parsing that [`allow_build_key_from_ignored_build`] consumes. Returns
 /// `None` when there is no `@` version separator past position 0 or the
-/// version is empty — the cases that yield a name-less result.
+/// version is empty, the cases that yield a name-less result.
 pub(crate) fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
     let sep = pkg_id
         .get(1..)?
@@ -389,7 +389,7 @@ pub(crate) fn git_hosted_tarball_repo_key(dep_path: &str) -> Option<String> {
 /// `codeload.github.com.example.com`) cannot be rewritten into an unrelated key.
 pub(crate) fn git_hosted_tarball_repo_url(tarball_url: &str) -> Option<String> {
     // A URL on a claimed download host that does not match that host's tarball
-    // pattern is rejected outright — it must not fall through to the generic
+    // pattern is rejected outright, it must not fall through to the generic
     // GitLab matcher and produce the host's trusted repo key.
     //
     // GitHub: `https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>`

@@ -7,7 +7,7 @@ use pnpm_package_manifest::PackageManifestError;
 
 /// `link:` / `file:` and the path form of `workspace:` name a directory
 /// relative to the project that declares them, so the root's specifier
-/// can't be hoisted verbatim — it would reach a different path from the
+/// can't be hoisted verbatim, it would reach a different path from the
 /// importer the peer is hoisted into, or nothing. A `workspace:` range is
 /// not path-relative: it selects the same workspace package from every
 /// importer, so it needs none of this.
@@ -23,7 +23,7 @@ pub(super) fn is_project_relative_specifier(spec: &str) -> bool {
 /// authority over the peer that a registry dependency has and the peer
 /// resolves to the same package from every importer. The manifest is read
 /// from disk rather than taken from the resolved tree, which a linked
-/// dependency reused from the lockfile is absent from — reading it makes a
+/// dependency reused from the lockfile is absent from, reading it makes a
 /// repeat install hoist what a fresh install of the same manifest hoists.
 pub(super) fn local_target_identity(
     spec: &str,
@@ -75,13 +75,13 @@ pub(super) fn read_manifest_of_local_target(
     }
 }
 
-/// `name_ver`, else the manifest — the canonical name for the protocols
+/// `name_ver`, else the manifest, the canonical name for the protocols
 /// that leave `name_ver` unset. The git and remote-tarball resolvers fill
 /// `manifest` from the package's own `package.json` during resolution
 /// whenever they hold a fetch context, which every install path wires, so
 /// those arrive named too. `None` when no manifest name is available: a
 /// repository with no `package.json`, or the resolve-only chain that
-/// wires no fetch context — and hoists no peers.
+/// wires no fetch context, and hoists no peers.
 pub(super) fn resolved_pkg_name(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<String> {
@@ -96,7 +96,7 @@ pub(super) fn resolved_pkg_name(
 }
 
 /// The picker matches by alias *and* by real package name, so a dep
-/// [`resolved_pkg_name`] can't name still enters under its alias —
+/// [`resolved_pkg_name`] can't name still enters under its alias,
 /// usually the package name anyway, and better than no candidate.
 pub(super) fn build_workspace_root_deps(
     direct: &[DirectDep],

@@ -15,7 +15,7 @@ test('replaceVersionInBareSpecifier()', () => {
 
 test('replaceVersionInBareSpecifier() applies the fast path to configured named-registry prefixes', () => {
   // The caller (deps-resolver) supplies the merged set of named-registry
-  // prefixes — built-in `gh:` and any user-defined aliases — so the locked
+  // prefixes, built-in `gh:` and any user-defined aliases, so the locked
   // version can be pasted in without re-fetching metadata.
   const prefixes = ['gh:', 'work:']
   expect(replaceVersionInBareSpecifier('gh:^1.0.0', '1.1.0', prefixes)).toBe('gh:1.1.0')

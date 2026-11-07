@@ -21,7 +21,7 @@ pub(super) struct ImporterHoistProgress {
     /// is a no-op unless its inputs changed since: an optional hoist
     /// extended its direct set, or a workspace children-ownership
     /// rewrite restructured shared subtrees. A round that broke off
-    /// with unhoistable misses is *not* converged — another importer's
+    /// with unhoistable misses is *not* converged, another importer's
     /// resolutions can extend the run-resolved preferred versions and
     /// make those misses hoistable, so it must re-discover every round.
     pub(super) discovery_converged: bool,
@@ -30,7 +30,7 @@ pub(super) struct ImporterHoistProgress {
     pub(super) converged_children_rewrites: u64,
     /// How many entries of [`ImporterHoistDependencies::direct`] previous rounds' discovery
     /// walks covered. A later round walks only the direct deps added
-    /// since — the earlier entries' subtrees are unchanged, so their
+    /// since, the earlier entries' subtrees are unchanged, so their
     /// (scope-filtered) missing reports are replayed from
     /// [`Self::merged_missing`] instead of re-walked.
     pub(super) walked_direct_len: usize,
@@ -54,7 +54,7 @@ pub(super) struct ImporterHoistDependencies {
     /// assigned together with `workspace_root_deps`.
     pub(super) workspace_root_dep_versions: Arc<HashMap<String, String>>,
     /// `alias → bare_specifier` as declared. Stands in wherever the
-    /// resolver reports no normalized form — a plain `"19.2.0"` arrives
+    /// resolver reports no normalized form, a plain `"19.2.0"` arrives
     /// as `None`.
     pub(super) wanted_specifier_by_alias: BTreeMap<String, String>,
     /// `NodeIds` appended to `direct` by
@@ -72,8 +72,8 @@ pub(super) struct ImporterHoistDependencies {
 pub(super) struct ImporterHoistSelection {
     /// The lockfile + manifest preferred-versions seed. The hoist
     /// pickers merge it per lookup with the workspace-wide
-    /// run-resolved versions — see
-    /// [`TreeCtx::preferred_versions_for_names`] — instead of
+    /// run-resolved versions, see
+    /// [`TreeCtx::preferred_versions_for_names`], instead of
     /// maintaining a per-importer copy of the whole run history.
     pub(super) preferred_versions: Arc<PreferredVersions>,
     pub(super) locked_versions: Arc<HashMap<String, HashSet<String>>>,

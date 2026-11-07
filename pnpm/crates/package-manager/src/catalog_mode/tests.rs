@@ -334,7 +334,7 @@ fn project_relative_paths_are_never_cataloged() {
 }
 
 /// A `workspace:` range names a package, not a directory, so it stays
-/// catalogable — only the path forms are held back.
+/// catalogable, only the path forms are held back.
 #[test]
 fn a_workspace_range_is_still_cataloged() {
     let catalogs = Catalogs::new();

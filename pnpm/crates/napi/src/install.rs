@@ -6,7 +6,7 @@
 //! the CLI drives it from a dedicated 32 MiB-stack thread with its own tokio
 //! runtime. The Node API mirrors that: the whole install runs on a worker
 //! thread that owns `State` on its stack, and the napi async fn awaits the
-//! result over a oneshot channel — so the borrows never have to cross the FFI
+//! result over a oneshot channel, so the borrows never have to cross the FFI
 //! boundary or become `'static`.
 //!
 //! [`rebuild`](fn@rebuild) takes the frozen path against the already-materialized
@@ -130,7 +130,7 @@ fn run_install_blocking(
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
-    // Restores the previous sink and renderer and clears stats on drop —
+    // Restores the previous sink and renderer and clears stats on drop,
     // including on a panic in `run_install_inner`, which unwinds this
     // dedicated thread.
     let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
@@ -318,11 +318,11 @@ impl InstallShape {
 }
 
 /// `ignorePackageManifest` is pnpm's "install from the lockfile, ignore the
-/// project manifests" mode — the shape the `pnpm fetch` handler passes in
+/// project manifests" mode, the shape the `pnpm fetch` handler passes in
 /// both stacks. The install takes the frozen path against the lockfile
 /// alone (the manifest ↔ lockfile freshness gate is skipped via
-/// `ignore_manifest_check`), and `virtualStoreOnly` — forced in
-/// [`build_overlay`] — suppresses all post-import linking: importer symlinks,
+/// `ignore_manifest_check`), and `virtualStoreOnly`, forced in
+/// [`build_overlay`], suppresses all post-import linking: importer symlinks,
 /// `.bin` entries, hoisting, and project lifecycle scripts. Confined to the
 /// install path: a rebuild runs against an already-materialized
 /// `node_modules` and must keep its own frozen shape even when the caller
@@ -332,15 +332,15 @@ fn ignores_package_manifest(options: &InstallOptions, mode: &EngineMode) -> bool
 }
 
 /// `update: true` re-resolves the whole graph to the highest in-range
-/// version — pnpm's `update: true` / `depth: Infinity`. The binding takes no
+/// version, pnpm's `update: true` / `depth: Infinity`. The binding takes no
 /// package selectors, so an update always targets every dependency
 /// (`UpdateSeedPolicy::drop_all()`); `depth` is only pnpm's direct-vs-any-depth
 /// selector toggle, which has no effect without selectors and is accepted for
 /// API compatibility only. Mirrors `pnpm_package_manager::Update`, which
 /// forces `prefer_frozen_lockfile: false` and a non-frozen path so the
 /// re-resolution is not short-circuited by the auto-frozen / repeat-install
-/// fast paths. `ignorePackageManifest` contradicts an update — it installs
-/// exactly what the lockfile records — and wins, matching pnpm, where it
+/// fast paths. `ignorePackageManifest` contradicts an update, it installs
+/// exactly what the lockfile records, and wins, matching pnpm, where it
 /// forces the headless path.
 fn updates_everything(
     options: &InstallOptions,
@@ -385,7 +385,7 @@ fn is_frozen(
                 || (!update_requested && options.frozen_lockfile.unwrap_or(false))
         }
         EngineMode::Rebuild(_) => true,
-        // Peer issues need a full fresh resolve — never frozen.
+        // Peer issues need a full fresh resolve, never frozen.
         EngineMode::PeerIssues(_) => false,
     }
 }
@@ -403,7 +403,7 @@ fn prefers_frozen(
 }
 
 /// An `ignorePackageManifest` install materializes what the lockfile
-/// records without installing any project's manifest — `NoInstall`, the
+/// records without installing any project's manifest, `NoInstall`, the
 /// mutation both stacks' fetch handlers use.
 fn project_mutation(mode: &EngineMode, ignore_package_manifest: bool) -> ProjectMutation {
     if matches!(mode, EngineMode::Install(_)) && !ignore_package_manifest {

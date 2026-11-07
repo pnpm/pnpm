@@ -9,7 +9,7 @@ use super::{
 /// The side-effects cache key, computed once per snapshot before the
 /// `is_built` gate. The same value is later consumed by the WRITE-path
 /// upload after `run_postinstall_hooks` succeeds, so recomputing it
-/// there would just duplicate work — `deps_state_cache` makes the second
+/// there would just duplicate work, `deps_state_cache` makes the second
 /// call free anyway, but routing through one value keeps the gate-side
 /// and write-side keys provably identical.
 ///
@@ -18,7 +18,7 @@ use super::{
 /// consumers short-circuit on `None`.
 ///
 /// The `deps_state_cache` is shared across all scheduled nodes via
-/// `Mutex` because `calc_dep_state` is recursive and memoizes — a
+/// `Mutex` because `calc_dep_state` is recursive and memoizes, a
 /// per-task cache would defeat the memoization for diamond-shaped
 /// subgraphs.
 pub(super) fn side_effects_cache_key(
@@ -33,7 +33,7 @@ pub(super) fn side_effects_cache_key(
     // Poison-recover: `calc_dep_state` mutates the cache by
     // inserting one entry per recursive walk node, each
     // insert atomic from `HashMap`'s POV. A panic mid-walk
-    // leaves the map in a usable state — the worst case is
+    // leaves the map in a usable state, the worst case is
     // an unfinished sub-walk that the next caller will redo.
     let mut cache_guard =
         context.progress.deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -55,7 +55,7 @@ pub(super) fn side_effects_cache_key(
     ))
 }
 /// Side-effects-cache `is_built` gate. Past the policy gate, this
-/// snapshot would otherwise run its scripts — but if the prefetch
+/// snapshot would otherwise run its scripts, but if the prefetch
 /// surfaced a matching side-effects-cache entry, the build is already
 /// represented on disk (seeded on a previous install) and can be
 /// skipped. An explicit `pacquet rebuild` (`force_rebuild`) re-runs the
@@ -129,7 +129,7 @@ fn bypasses_side_effects_cache(
 /// The warm link placed only the pristine tarball files in the project-local
 /// slot. The cached build's output (the side-effects `added` / `deleted`
 /// overlay) still has to land on disk before the build is skipped, or the
-/// package is left in its pre-build state — e.g. a postinstall that downloads
+/// package is left in its pre-build state, e.g. a postinstall that downloads
 /// a binary leaves nothing behind on the warm reinstall. The side-effects diff
 /// is applied at import time.
 pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
@@ -152,7 +152,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     // every hoisted copy for the same reason patch application does.
     super::dependency_bins::record_mutation(context, snapshot_key)?;
     for pkg_dir in context.pkg_roots().all(snapshot_key) {
-        // No slot to materialize into (skipped / never linked) — nothing for
+        // No slot to materialize into (skipped / never linked), nothing for
         // the build phase to do either.
         if !pkg_dir.exists() {
             continue;

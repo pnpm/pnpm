@@ -21,7 +21,7 @@ use std::{
 
 impl WorkEnv {
     /// Apply the `serve_timing` diagnostic env to a spawned `pnpr` command, if
-    /// enabled — so the server emits per-phase serve timing to its log.
+    /// enabled, so the server emits per-phase serve timing to its log.
     fn apply_serve_timing(&self, command: &mut Command) {
         if self.options.serve_timing {
             // Append rather than clobber, so a `RUST_LOG` the caller already set

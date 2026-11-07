@@ -141,7 +141,7 @@ impl<'a> LinkingPaths<'a> {
 /// linker.
 ///
 /// The result depends only on the package's symlink-resolved
-/// directory — every bin lives under the package root — so a
+/// directory, every bin lives under the package root, so a
 /// caller-supplied [`PackageBinSource::resolved_location`] makes this
 /// syscall-free; without one the package's `location` is
 /// canonicalized once, covering all of its bins.

@@ -4,7 +4,7 @@ use super::{
 };
 
 /// `package.json` builder that takes both `dependencies` and
-/// `optionalDependencies` blocks — the bundled [`fake_manifest`]
+/// `optionalDependencies` blocks, the bundled [`fake_manifest`]
 /// helper only writes to `dependencies` so it can't exercise the
 /// importer-level optional flag.
 #[expect(

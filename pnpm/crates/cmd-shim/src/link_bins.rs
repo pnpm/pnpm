@@ -138,7 +138,7 @@ pub enum LinkBinsError {
 /// shares a cache and pays each probe once.
 ///
 /// The memo assumes the targets' contents and permissions do not change
-/// while it is alive. Scope a cache to a single linking pass — in
+/// while it is alive. Scope a cache to a single linking pass, in
 /// particular, do not carry one across a lifecycle-script (build) phase,
 /// which may rewrite target files.
 #[derive(Debug, Default, Clone)]
@@ -156,8 +156,8 @@ impl ShimTargetCache {
     /// not poison later lookups.
     ///
     /// Concurrency note: the lock is not held across the probe, so two
-    /// workers racing on one key may both probe. That's benign — the
-    /// probe is idempotent and the memo converges — and it keeps a slow
+    /// workers racing on one key may both probe. That's benign, the
+    /// probe is idempotent and the memo converges, and it keeps a slow
     /// read from serializing every other target's probe behind it. Same
     /// trade as the store's `verifiedFilesCache`.
     fn runtime_for<Sys: FsReadHead>(&self, probe_path: &Path) -> io::Result<Option<ScriptRuntime>> {
@@ -380,7 +380,7 @@ where
         .par_iter()
         .try_for_each(|(command, pkg)| {
             // On Unix the symlink branch never writes a shim, so no bin
-            // needs a NODE_PATH — skip `shim_node_path`'s per-package
+            // needs a NODE_PATH, skip `shim_node_path`'s per-package
             // canonicalize entirely.
             let node_path =
                 if options.prefer_symlinked_executables && cfg!(any(unix, target_os = "wasi")) {

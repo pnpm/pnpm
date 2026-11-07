@@ -44,7 +44,7 @@ fn run_executes_declared_script() {
 
 /// Positional arguments after the script name flow through to the
 /// spawned shell verbatim, joined by spaces. Mirrors
-/// `pnpm run <script> -- <args>` minus the npm `--` separator
+/// `pnpm run <script>, <args>` minus the npm `--` separator
 /// (pacquet does not require it).
 #[cfg(unix)]
 #[test]
@@ -84,7 +84,7 @@ fn run_passes_extra_arguments_to_the_script() {
     drop(root);
 }
 
-/// `pnpm run <script> -- <args>` forwards the separator, so an argument
+/// `pnpm run <script>, <args>` forwards the separator, so an argument
 /// shaped like an option of the script's own program reaches the script
 /// instead of being claimed by it (pnpm/pnpm#13295). Asserts what the
 /// script received rather than the echoed command line, and mirrors the
@@ -248,7 +248,7 @@ fn run_start_without_script_or_server_errors() {
 
 /// An empty `start` script (`"start": ""`) is falsy in pnpm
 /// (`!m.scripts.start`), so it falls back to the `node server.js` path
-/// like a missing one — and with no `server.js` it must raise
+/// like a missing one, and with no `server.js` it must raise
 /// `NO_SCRIPT_OR_SERVER` rather than silently exit 0.
 #[test]
 fn run_empty_start_script_hits_server_js_guard() {
@@ -636,7 +636,7 @@ fn top_level_fallback_accepts_short_sequential_before_the_script() {
 }
 
 /// npm's `--prefix` is accepted as a spelling of `--dir`
-/// (<https://github.com/pnpm/pnpm/issues/13583>) — ahead of the
+/// (<https://github.com/pnpm/pnpm/issues/13583>), ahead of the
 /// subcommand, where pnpm's own options live. Past the script name the
 /// same token is the script's, so the script records what it received.
 #[test]
@@ -711,7 +711,7 @@ fn top_level_fallback_without_manifest_does_not_attempt_an_install() {
 }
 
 /// With a non-silent reporter (the default, or e.g. `--reporter=ndjson`),
-/// `pacquet run` echoes `$ <script>` to stderr before spawning the script —
+/// `pacquet run` echoes `$ <script>` to stderr before spawning the script,
 /// matching pnpm's `runLifecycleHook.ts:110`
 /// (`process.stderr.write(chalk.dim($ ${...})...)`). Only `--reporter=silent`
 /// suppresses it.
@@ -831,7 +831,7 @@ fn run_start_fallback_uses_dir_for_server_js_probe() {
     drop(root);
 }
 
-/// `pnpm test` / `start` / `stop` name no command in pnpm — they reach
+/// `pnpm test` / `start` / `stop` name no command in pnpm, they reach
 /// `run` through the `pnpm <script>` fallback, so every token after the
 /// command name is the script's, a `--` separator and anything shaped
 /// like a pnpm flag included.

@@ -21,7 +21,7 @@ export interface DependenciesGraphNode<NodeId extends string> {
   isBuilt?: boolean
   optional: boolean
   optionalDependencies: Set<string>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the graphs passed in by different installers do not agree on this field's type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, the graphs passed in by different installers do not agree on this field's type
   requiresBuild?: boolean | any // this is a dirty workaround added in https://github.com/pnpm/pnpm/pull/4898
   patch?: PatchInfo
   resolution?: LockfileResolution

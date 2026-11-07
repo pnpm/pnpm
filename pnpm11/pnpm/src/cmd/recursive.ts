@@ -93,7 +93,7 @@ A `pnpm-workspace.yaml` file may be used to control what directories are searche
 
 export function handler (): void {
   console.log(help())
-  // eslint-disable-next-line n/no-process-exit -- the bare command only prints its help and fails
+  // eslint-disable-next-line n/no-process-exit, the bare command only prints its help and fails
   process.exit(1)
 }
 

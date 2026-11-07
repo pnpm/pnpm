@@ -6,7 +6,7 @@ use super::{Connected, IncomingStream, SocketAddr};
 /// Node's http server sets `TCP_NODELAY` by default; hyper 1.x
 /// doesn't. With Nagle on, the kernel coalesces small writes and
 /// (on Linux epoll) introduces ~tens-of-µs of per-response delay
-/// while waiting for follow-up bytes that never come — invisible
+/// while waiting for follow-up bytes that never come, invisible
 /// on macOS's kqueue scheduling, but stacks up across the
 /// thousand-request fan-out of an install benchmark.
 ///
@@ -22,7 +22,7 @@ impl axum::serve::Listener for NodelayTcpListener {
         loop {
             match self.0.accept().await {
                 Ok((socket, addr)) => {
-                    // Ignore set_nodelay errors — failure means the
+                    // Ignore set_nodelay errors, failure means the
                     // peer already closed; serving the connection
                     // will surface that as a normal HTTP error.
                     let _ = socket.set_nodelay(true);
@@ -44,7 +44,7 @@ impl axum::serve::Listener for NodelayTcpListener {
 /// Client socket address captured from the accepted TCP connection, for
 /// the CIDR-restriction gate. A local newtype (rather than [`SocketAddr`]
 /// directly) so we can implement axum's [`Connected`] for
-/// [`NodelayTcpListener`] — the blanket impl axum ships covers only the
+/// [`NodelayTcpListener`], the blanket impl axum ships covers only the
 /// bare [`tokio::net::TcpListener`], not our wrapper. This is the real
 /// peer address from the socket, never a client-supplied forwarding
 /// header, so it can't be spoofed.

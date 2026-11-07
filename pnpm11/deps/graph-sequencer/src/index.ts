@@ -116,7 +116,7 @@ function sequenceIds (state: SequencerState): { order: number[], cycles: number[
     for (const id of removedIds) order.push(id)
     // Breaking a cycle removes its members one by one, so an earlier
     // member's removal can drop a later member to degree zero right before
-    // that member is removed too — filter those out of the zero-degree set
+    // that member is removed too, filter those out of the zero-degree set
     // instead of adding them to the order twice.
     current = next.filter((id) => !state.removed[id]).sort((left, right) => left - right)
   }
@@ -186,7 +186,7 @@ function breakCycles (state: SequencerState, removeNode: (id: number) => void, c
 
 // The longest of the shortest cycles running from startId back to itself
 // through nodes not yet removed, or empty when there is none. The walk
-// stays inside startId's strongly connected component — no cycle through
+// stays inside startId's strongly connected component, no cycle through
 // startId can leave it.
 function findCycle (state: SequencerState, startId: number, components: StronglyConnectedComponents): number[] {
   const queue: Array<[number, number[]]> = [[startId, [startId]]]
@@ -223,8 +223,8 @@ function pickLongestCycle (foundCycles: number[][]): number[] {
 
 // Whether a cycle through the node can exist: it shares a non-trivial
 // component with another node, or loops onto itself. Removals since the
-// components were computed can make this a false positive — the search
-// then comes back empty, exactly as it would have without the filter —
+// components were computed can make this a false positive, the search
+// then comes back empty, exactly as it would have without the filter,
 // but never a false negative, because removals only take cycles away.
 function mayLieOnCycle (adjacency: number[][], components: StronglyConnectedComponents, id: number): boolean {
   return components.componentSize[components.componentOf[id]] >= 2 || adjacency[id].includes(id)

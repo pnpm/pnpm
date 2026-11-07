@@ -29,7 +29,7 @@ export interface FuseHandlers {
   release: (entryPath: string, fd: number, cb: (exitCode: number) => void) => void
   read: (entryPath: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) => void
   readlink: (entryPath: string, cb: (returnCode: number, target?: string) => void) => void
-  /* eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stat objects come from hyperdrive-schemas, which has no types */
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any, the stat objects come from hyperdrive-schemas, which has no types */
   getattr: (entryPath: string, cb: (returnCode: number, files?: any) => void) => void
   readdir: (entryPath: string, cb: (returnCode: number, files?: string[]) => void) => void
 }
@@ -116,7 +116,7 @@ function handleReadlink (
   cb(0, dirEnt.target)
 }
 
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stat objects come from hyperdrive-schemas, which has no types */
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any, the stat objects come from hyperdrive-schemas, which has no types */
 function handleGetattr (dirEnt: ResolvedDirEnt | null | undefined, cb: (returnCode: number, files?: any) => void): void {
   if (dirEnt == null) {
     cb(Fuse.ENOENT)
@@ -133,7 +133,7 @@ function handleGetattr (dirEnt: ResolvedDirEnt | null | undefined, cb: (returnCo
   handleIndexGetattr(dirEnt, cb)
 }
 
-/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stat objects come from hyperdrive-schemas, which has no types */
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any, the stat objects come from hyperdrive-schemas, which has no types */
 function handleIndexGetattr (dirEnt: ResolvedIndexDirEnt, cb: (returnCode: number, files?: any) => void): void {
   switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
     case 'file': {

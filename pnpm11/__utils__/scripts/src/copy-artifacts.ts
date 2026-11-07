@@ -65,7 +65,7 @@ async function createArtifactTarball (target: string, binaryName: string): Promi
       return
     }
 
-    // Source maps are removed from this copy — they are archived separately via
+    // Source maps are removed from this copy, they are archived separately via
     // createSourceMapsArchive(), which reads from the original pnpmDistDir.
     const distDest = path.join(artifactDir, 'dist')
     fs.rmSync(distDest, { recursive: true, force: true })

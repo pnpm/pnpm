@@ -1,4 +1,4 @@
-//! Differential frame renderer — ports the `ansi-diff` algorithm to compute
+//! Differential frame renderer, ports the `ansi-diff` algorithm to compute
 //! the minimal ANSI escape sequence that transforms the previously rendered
 //! frame into the new one.
 //!
@@ -31,8 +31,8 @@ impl Diff {
 
     /// Forget the previous frame and the tracked cursor position, so the
     /// next [`Self::update_into`] emits a full redraw. Call it whenever
-    /// something other than this differ wrote to the terminal — an
-    /// interactive prompt, a spawned process — and its own idea of where
+    /// something other than this differ wrote to the terminal, an
+    /// interactive prompt, a spawned process, and its own idea of where
     /// the cursor is no longer holds.
     pub fn reset(&mut self) {
         self.col = 0;

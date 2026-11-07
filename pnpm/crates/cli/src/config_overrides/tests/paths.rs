@@ -140,8 +140,8 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.prefer_symlinked_executables, Some(true));
 
-    // An explicit `false` — recorded in `explicit_settings` by the
-    // config layer that set it — outranks the hoisted default.
+    // An explicit `false`, recorded in `explicit_settings` by the
+    // config layer that set it, outranks the hoisted default.
     let (overrides, _) =
         ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=hoisted", "install"]));
     let mut config = Config { prefer_symlinked_executables: Some(false), ..Config::default() };

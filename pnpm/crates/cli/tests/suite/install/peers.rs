@@ -13,7 +13,7 @@ use assert_cmd::assert::OutputAssertExt;
 /// peer-resolution issue list would carry three entries.
 ///
 /// Transitive auto-installed peers are NOT also linked at
-/// `node_modules/<alias>` — only the manifest's own dependencies become
+/// `node_modules/<alias>`, only the manifest's own dependencies become
 /// importer-level lockfile entries, so transitive peers live in
 /// `snapshots:` / `packages:` only and consumers reach them through
 /// their parent's slot's `node_modules`. Hoisting them at the importer
@@ -496,7 +496,7 @@ fn resolution_mode_highest_picks_highest_direct_version() {
 
 /// `resolutionMode: lowest-direct` resolves a direct dependency to the
 /// lowest version satisfying its range. With `@pnpm.e2e/foo` at
-/// `100.0.0` / `100.1.0`, `^100.0.0` lands on `100.0.0` — the opposite
+/// `100.0.0` / `100.1.0`, `^100.0.0` lands on `100.0.0`, the opposite
 /// of the default. Proves the setting flows from `pnpm-workspace.yaml`
 /// through the config layer into the resolver's version pick.
 ///
@@ -665,7 +665,7 @@ fn resolution_mode_lowest_direct_resolves_hoisted_peers_to_highest() {
 }
 
 /// `time-based` shares the hoisted-peer rule with `lowest-direct`: the
-/// hoist resolves like a transitive dep — highest satisfying, under the
+/// hoist resolves like a transitive dep, highest satisfying, under the
 /// subdep publish-date cutoff.
 #[test]
 fn resolution_mode_time_based_resolves_hoisted_peers_to_highest() {
@@ -761,7 +761,7 @@ fn time_based_install_records_and_preserves_the_lockfile_time_section() {
 /// seeds preferred versions so the grand-parent's `^1.0.0` resolves to the
 /// same `1.0.0`, leaving two distinct peer-suffixed snapshots.
 ///
-/// The first install records both. The second install adds a new dep — which
+/// The first install records both. The second install adds a new dep, which
 /// defeats the up-to-date short-circuit so the writable fresh-lockfile path
 /// re-resolves the tree against the prior lockfile, reusing
 /// `abc-parent-with-ab` in both contexts via the lockfile-reuse path. That
@@ -811,7 +811,7 @@ fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
 
     // Add a genuinely new dep. This defeats the up-to-date short-circuit, so
     // the writable fresh-lockfile resolution path runs and re-resolves the
-    // tree against the prior lockfile — `abc-parent-with-ab` is reused in both
+    // tree against the prior lockfile, `abc-parent-with-ab` is reused in both
     // peer contexts via the lockfile-reuse path while only the new dep
     // resolves fresh.
     eprintln!("Second install re-resolves with the lockfile and must keep both contexts...");

@@ -254,7 +254,7 @@ pub(crate) async fn update_deprecation(
 /// command named none.
 ///
 /// Mirrors the TypeScript CLI's `semver.satisfies`, which treats an
-/// unparsable range as matching nothing — the caller reports that as
+/// unparsable range as matching nothing, the caller reports that as
 /// `NoMatchingVersions` rather than a distinct "invalid spec" error.
 fn versions_matching(package_meta: &PackageMeta, version_range: Option<&str>) -> Vec<String> {
     let Some(range_str) = version_range else {

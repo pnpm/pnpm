@@ -12,14 +12,14 @@ mod quiet_output;
 
 mod dependency_build_scripts;
 
-/// `.modules.yaml`'s `pendingBuilds` — the record of builds
+/// `.modules.yaml`'s `pendingBuilds`, the record of builds
 /// `--ignore-scripts` deferred, which `pacquet rebuild --pending`
 /// later drains.
 mod pending_builds;
 
 /// Project (workspace/root) lifecycle scripts run during
-/// `pacquet install` — preinstall, install, postinstall, preprepare,
-/// prepare, postprepare — as opposed to the dependency build scripts
+/// `pacquet install`, preinstall, install, postinstall, preprepare,
+/// prepare, postprepare, as opposed to the dependency build scripts
 /// the [`dependency_build_scripts`] module above exercises.
 mod project_scripts;
 

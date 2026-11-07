@@ -68,7 +68,7 @@ use pnpm_reporter::{
 /// this pass records it.
 ///
 /// Snapshots without a matching `PackageMetadata` row are skipped
-/// over — `CreateVirtualStore` errors on them separately. An invalid
+/// over, `CreateVirtualStore` errors on them separately. An invalid
 /// `nodeVersion` surfaces as `ERR_PNPM_INVALID_NODE_VERSION`
 /// regardless of edges and strictness.
 pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
@@ -98,8 +98,8 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // Concretely on the integrated benchmark (1352 packages with no
     // platform / engine constraints): drops ~1352 `String` and
     // `PackageKey` allocations and the matching number of
-    // `check_package` calls. The scan is O(N) on `packages` — same
-    // shape as the loop it short-circuits — but does at most four
+    // `check_package` calls. The scan is O(N) on `packages`, same
+    // shape as the loop it short-circuits, but does at most four
     // `Option::is_some` checks per row and short-circuits on the
     // first declared constraint.
     if !any_installability_constraint(snapshots, packages) {
@@ -108,8 +108,8 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
 
     // Build the host-derived part of the options once. Only the
     // (`engine_strict`-irrelevant) `optional` flag varies per
-    // dispatch, but the result of [`check_package`] — "does this
-    // manifest satisfy the host?" — does not. The check verdict is
+    // dispatch, but the result of [`check_package`], "does this
+    // manifest satisfy the host?", does not. The check verdict is
     // cached per peer-stripped `metadata_key` (see [`cached_check`]);
     // the per-snapshot loop then only needs to apply the
     // optional / engine-strict dispatch.
@@ -174,7 +174,7 @@ impl SkipScan<'_, '_> {
         snapshot_key: &PackageKey,
         snapshot: &SnapshotEntry,
     ) -> Result<(), Box<InstallabilityError>> {
-        // A seeded installability skip is re-evaluated here — the host,
+        // A seeded installability skip is re-evaluated here, the host,
         // `supportedArchitectures`, or the package's constraints may
         // have changed since the skip was recorded, and pnpm recomputes
         // installability fresh on every install. The other categories
@@ -293,8 +293,8 @@ impl SkipScan<'_, '_> {
 /// right before the dependency-closure extension.
 ///
 /// The skips reuse the transient bucket of
-/// [`SkippedSnapshots::add_optional_excluded`], so — like
-/// `--no-optional` — the exclusion is never persisted into
+/// [`SkippedSnapshots::add_optional_excluded`], so, like
+/// `--no-optional`, the exclusion is never persisted into
 /// `.modules.yaml.skipped`.
 pub fn add_direct_runtime_skips(
     skipped: &mut SkippedSnapshots,

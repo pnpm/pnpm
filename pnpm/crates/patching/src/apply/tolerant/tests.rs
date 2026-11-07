@@ -113,7 +113,7 @@ fn adds_a_final_newline_when_only_the_deletion_is_annotated() {
     assert_eq!(applied(original, patch), "one\nTWO\n");
 }
 
-/// Context that matches nothing is still a failure — the tolerances
+/// Context that matches nothing is still a failure, the tolerances
 /// widen what counts as a match, they don't make the applier accept a
 /// patch written against different content.
 #[test]

@@ -31,7 +31,7 @@ async fn declines_non_node_alias() {
     assert!(outcome.is_none());
 }
 
-/// `node` alias without a `runtime:` prefix is declined — that shape
+/// `node` alias without a `runtime:` prefix is declined, that shape
 /// is owned by the npm resolver (`node` could be a package name too).
 #[tokio::test]
 async fn declines_node_without_runtime_prefix() {
@@ -213,7 +213,7 @@ fn normalized_runtime_spec_preserves_version_prefix() {
 }
 
 /// `add node@runtime:<spec>` saves the picked version, not the requested
-/// range — `runtime:26` must reach the manifest as `runtime:26.5.0`.
+/// range, `runtime:26` must reach the manifest as `runtime:26.5.0`.
 #[tokio::test]
 async fn resolve_save_specifier_pins_the_picked_version() {
     let mut server = mockito::Server::new_async().await;

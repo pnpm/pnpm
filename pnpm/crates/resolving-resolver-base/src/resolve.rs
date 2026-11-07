@@ -18,7 +18,7 @@ use crate::{
 };
 
 /// Branded resolution identifier the resolver chain emits on every
-/// successful pick — a phantom-typed string with no runtime validator.
+/// successful pick, a phantom-typed string with no runtime validator.
 ///
 /// Two shapes appear in the wild:
 /// * `name@version` from the npm-registry resolver.
@@ -67,7 +67,7 @@ impl From<PkgNameVer> for PkgResolutionId {
 /// At least one of `alias` and `bare_specifier` is *expected* to be
 /// populated. Both fields are `Option<String>` for ergonomic field
 /// access, with `#[derive(Default)]` only so call sites can write
-/// `..WantedDependency::default()` in struct literals — a bare
+/// `..WantedDependency::default()` in struct literals, a bare
 /// `WantedDependency::default()` with both halves `None` is a
 /// programming error the type system doesn't catch. The invariant is
 /// upheld by construction sites; resolvers that walk a
@@ -242,7 +242,7 @@ pub struct VersionSelectionOptions {
     /// toward (so pins that still satisfy their range survive a
     /// re-resolve). Held behind [`Arc`] because the tree walker clones
     /// [`ResolveOptions`] per depth tier and the install layer clones it
-    /// per importer — sharing the (potentially large) map keeps those
+    /// per importer, sharing the (potentially large) map keeps those
     /// clones to a refcount bump.
     pub preferred_versions: Arc<PreferredVersions>,
     /// Per-level preferred-version additions from the tree walk. See
@@ -270,7 +270,7 @@ pub struct ResolutionRefreshOptions {
     /// unrelated packages that get re-resolved as a side effect of an
     /// update. The npm picker uses it to warn when a
     /// [`preferred_versions`](VersionSelectionOptions::preferred_versions) selector holds
-    /// the update target below the newest version its range admits —
+    /// the update target below the newest version its range admits,
     /// the seed already withholds the target's own lockfile pins, so
     /// any remaining preference is one a fresh install would apply too.
     pub update_requested: bool,
@@ -326,7 +326,7 @@ pub struct ResolutionPolicyOptions {
     pub published_by_exclude: Option<PackageVersionPolicy>,
     /// `trustPolicy='no-downgrade'` gate. When `Some(NoDowngrade)`, the
     /// npm resolver rejects a freshly picked version whose trust
-    /// evidence is weaker than an earlier-published version's — the
+    /// evidence is weaker than an earlier-published version's, the
     /// resolver-time counterpart to the lockfile verifier's check.
     /// `None`/`Some(Off)` disables it.
     pub trust_policy: Option<TrustPolicy>,
@@ -358,7 +358,7 @@ pub struct ResolverSpecifierOptions {
     /// [`normalized_bare_specifier`](ResolveResult::normalized_bare_specifier)
     /// for the version it picked, so `add` / `update` can write it back
     /// without re-deriving what the specifier for this protocol should
-    /// look like. Set for importer-level deps only — nothing below the
+    /// look like. Set for importer-level deps only, nothing below the
     /// top level is written to a manifest.
     pub calc_specifier: bool,
     /// The range operator to apply when [`Self::calc_specifier`] computes
@@ -385,7 +385,7 @@ pub type DependencyManifest = serde_json::Value;
 /// `Arc`-shared variant of [`DependencyManifest`], used in
 /// [`ResolvedPackageInfo::manifest`]. Wrapping the manifest avoids the
 /// deep-clone of the JSON tree every time a [`ResolveResult`]
-/// propagates — the deps-resolver stores one copy in
+/// propagates, the deps-resolver stores one copy in
 /// `ResolvedPackage` and another in each `DependenciesGraph` node,
 /// each `Clone` cost dropped from O(manifest size) to a refcount
 /// bump.
@@ -395,7 +395,7 @@ pub type SharedDependencyManifest = Arc<DependencyManifest>;
 /// the wanted dependency.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolveResult {
-    /// Branded resolution identifier — see [`PkgResolutionId`].
+    /// Branded resolution identifier, see [`PkgResolutionId`].
     pub id: PkgResolutionId,
     /// Where the artifact lives.
     pub resolution: LockfileResolution,
@@ -460,7 +460,7 @@ pub struct NonDeprecatedAlternative {
 }
 
 /// Input to [`Resolver::resolve_latest`]. The resolver decides whether
-/// it owns this dep purely from `wanted_dependency` — the lockfile-
+/// it owns this dep purely from `wanted_dependency`, the lockfile-
 /// resolved ref is the caller's concern, not the resolver's.
 #[derive(Debug, Clone)]
 pub struct LatestQuery {
@@ -519,8 +519,8 @@ pub trait Resolver: Send + Sync {
 /// chain slot. [`crate::Resolver`] chains (e.g. `DefaultResolver`) own
 /// each slot as `Box<dyn Resolver>`, but the npm resolver is also
 /// handed to the deno / bun runtime resolvers (which reuse it for
-/// version picking) via `Arc<dyn Resolver>`, so the same instance —
-/// and its metadata cache — backs both call paths.
+/// version picking) via `Arc<dyn Resolver>`, so the same instance,
+/// and its metadata cache, backs both call paths.
 /// `Box::new(Arc::clone(&npm_resolver))` bridges the two.
 impl Resolver for Arc<dyn Resolver> {
     fn resolve<'a>(

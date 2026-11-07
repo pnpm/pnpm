@@ -31,7 +31,7 @@ pub struct PatchKeyConflictError {
 /// 3. wildcard (`all`)
 ///
 /// If the configured ranges fail to parse as semver, those entries
-/// are silently skipped — an unparsable range is treated as
+/// are silently skipped, an unparsable range is treated as
 /// non-matching.
 pub fn get_patch_info<'a>(
     patch_file_groups: Option<&'a PatchGroupRecord>,

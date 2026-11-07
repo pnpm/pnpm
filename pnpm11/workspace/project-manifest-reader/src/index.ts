@@ -45,7 +45,7 @@ export async function safeReadParentPublishManifest (publishDir: string): Promis
   const normalizedTarget = path.resolve(publishDir)
   let searchDir = path.dirname(normalizedTarget)
   while (true) {
-    // eslint-disable-next-line no-await-in-loop -- the search climbs one ancestor at a time and stops at the first match
+    // eslint-disable-next-line no-await-in-loop, the search climbs one ancestor at a time and stops at the first match
     const parentManifest = await safeReadProjectManifestOnly(searchDir)
     if (
       parentManifest?.publishConfig?.directory &&

@@ -2,8 +2,8 @@
 //! interrupted.
 //!
 //! An atomic write stages its content in a temp file next to the target and
-//! publishes it by `rename`. A signal — `Ctrl+C` at the terminal, a service
-//! manager's `SIGTERM` — takes the process down without running destructors,
+//! publishes it by `rename`. A signal, `Ctrl+C` at the terminal, a service
+//! manager's `SIGTERM`, takes the process down without running destructors,
 //! so a temp file caught mid-write would stay behind in the project
 //! ([pnpm/pnpm#1418](https://github.com/pnpm/pnpm/issues/1418)). Writers
 //! register each staged temp file with [`track_temp_file`]; the handler this

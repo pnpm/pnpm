@@ -33,7 +33,7 @@ where
         Some(path) => npmrc_source::<Host>(path, |text| {
             // Relative `cafile`/`certfile` entries resolve against
             // the file's directory; for a bare filename (no parent)
-            // that's the empty path — i.e. the process cwd — never
+            // that's the empty path, i.e. the process cwd, never
             // the file itself.
             let dir = path
                 .parent()
@@ -72,8 +72,8 @@ fn parse_trusted_source<Sys: EnvVar>(text: &str, dir: &Path, path: &Path) -> Npm
 /// URL-scoped credentials from `npm_config_//...` / `pnpm_config_//...`
 /// environment variables. These are trusted (they come from the
 /// environment, not the repository) and host-scoped by construction, so
-/// they sit at the top of the precedence chain — above the project
-/// `.npmrc` — following the env-over-workspace ordering.
+/// they sit at the top of the precedence chain, above the project
+/// `.npmrc`, following the env-over-workspace ordering.
 fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
     let auth = NpmrcAuth::from_url_scoped_env::<Sys>();
     (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
@@ -144,9 +144,9 @@ impl Config {
     {
         let project_npmrc_path = project_npmrc_dir.join(".npmrc");
         // When npmrcAuthFile explicitly points at the project .npmrc, the user has
-        // opted in to trusting it — allow auth env expansion and suppress the warning.
+        // opted in to trusting it, allow auth env expansion and suppress the warning.
         // A relative value (e.g. `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`) is anchored
-        // at the cwd — where the user-level read actually reads it from, and
+        // at the cwd, where the user-level read actually reads it from, and
         // how pnpm's `path.resolve` anchors it.
         let project_is_trusted_auth_file = user_npmrc_path.is_some_and(|user| {
             if user.is_absolute() {

@@ -284,7 +284,7 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&scp_dep, &context).is_some());
 
-    // Every git transport is gated by origin, not just HTTP, HTTPS, git, and ssh — and
+    // Every git transport is gated by origin, not just HTTP, HTTPS, git, and ssh, and
     // `file://` (a server-local read) nerf-darts to no host and is rejected.
     for spec in [
         "git+rsync://169.254.169.254/repo",
@@ -518,8 +518,8 @@ fn intern_config_uses_server_defaults_for_a_legacy_update_request() {
 
 /// Only the three effective fields may reach the interning key. The rest of
 /// the `settings` block doesn't change the config, and keying on it would
-/// let a caller mint a distinct leaked config per value —
-/// `peersSuffixMaxLength` is a `u64` — until `MAX_INTERNED_CONFIGS` is
+/// let a caller mint a distinct leaked config per value,
+/// `peersSuffixMaxLength` is a `u64`, until `MAX_INTERNED_CONFIGS` is
 /// spent and every caller is refused.
 #[test]
 fn intern_config_ignores_unrelated_lockfile_settings() {
@@ -576,7 +576,7 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     assert!(intern("https://a.test/").is_some());
     assert!(intern("https://b.test/").is_some());
 
-    // A new distinct configuration past the cap is refused, not leaked — this
+    // A new distinct configuration past the cap is refused, not leaked, this
     // is the bound on how much an authenticated caller can make the server
     // leak by varying its registry/policy fields.
     assert!(intern("https://c.test/").is_none());
@@ -633,7 +633,7 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
     };
 
     // The same overrides sent with a different JSON key order must dedup to a
-    // single interned config — the second call returns the *same* leaked
+    // single interned config, the second call returns the *same* leaked
     // config, not a new one, and the map stays at one entry.
     let first =
         intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).expect("first config interned");
@@ -650,7 +650,7 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
 
 /// The client's `resolutionMode` decides which version a pick lands on, so a
 /// server resolving on the client's behalf has to run the client's mode
-/// rather than its own default — and two modes cannot share one interned
+/// rather than its own default, and two modes cannot share one interned
 /// config.
 #[test]
 fn intern_config_resolves_in_the_client_s_resolution_mode() {

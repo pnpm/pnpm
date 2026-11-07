@@ -52,7 +52,7 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     }
     // Resolvers that learn the name from the fetched manifest (git,
     // tarball, directory) leave `name_ver` unset. The `name` is read
-    // from the manifest itself and the id is prefixed regardless — so a
+    // from the manifest itself and the id is prefixed regardless, so a
     // `file:project-1` id becomes `project-1@file:project-1`. Skipping
     // the prefix would leave `(` as the first paren-bearing character in
     // the downstream depPath, which `PkgNameVerPeer`'s `@`-split parser
@@ -132,7 +132,7 @@ pub(super) fn extract_children(
 /// The child dependency specs the resolver walks for a package whose
 /// manifest is `manifest`: its `dependencies` + `optionalDependencies`.
 ///
-/// Peer dependencies are **not** walked as regular edges here — they're
+/// Peer dependencies are **not** walked as regular edges here, they're
 /// hoisted to the importer level by the
 /// [`fn@crate::resolve_importer`] orchestrator (which calls [`extend_tree`]
 /// with the hoist-picker's output) so a peer ends up shared across
@@ -317,7 +317,7 @@ pub(super) fn extract_peer_dependencies(
 /// `true` when the package has no `dependencies`, `optionalDependencies`,
 /// `peerDependencies`, or `peerDependenciesMeta`.
 ///
-/// Conservatively returns `false` when the manifest is missing —
+/// Conservatively returns `false` when the manifest is missing,
 /// collapsing onto a leaf `NodeId` would claim knowledge of children
 /// there is none of. Resolutions reaching here always carry one, real
 /// or synthesized by `walk::fallback_manifest`.
@@ -385,7 +385,7 @@ fn is_deprecated_in_manifest(manifest: Option<&Value>) -> bool {
 
 /// The name/version a `pnpm:deprecation` payload reports:
 /// [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`] when the resolver filled it, otherwise
-/// the manifest's `name`/`version` — the canonical source for non-npm
+/// the manifest's `name`/`version`, the canonical source for non-npm
 /// resolutions (see the `name_ver` field doc). `None`, suppressing the
 /// warning, when neither carries both fields.
 ///

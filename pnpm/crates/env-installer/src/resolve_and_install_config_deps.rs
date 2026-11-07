@@ -2,11 +2,11 @@
 //! install them all.
 //!
 //! Handles three input shapes:
-//! 1. old object form `{ tarball?, integrity }` — migrated inline into
+//! 1. old object form `{ tarball?, integrity }`, migrated inline into
 //!    the lockfile when it carries a tarball URL, otherwise resolved,
-//! 2. old string form `<version>+<integrity>` — resolved against the
+//! 2. old string form `<version>+<integrity>`, resolved against the
 //!    registry for its tarball URL, keeping the inline integrity,
-//! 3. new clean specifier (`1.2.0` / `^1.0.0`) — resolved against the
+//! 3. new clean specifier (`1.2.0` / `^1.0.0`), resolved against the
 //!    registry when it isn't already pinned in the lockfile.
 
 use crate::{
@@ -392,7 +392,7 @@ fn migrate_into_lockfile(
     Ok(())
 }
 
-/// A `packages:` entry carrying only a resolution — the shape a config
+/// A `packages:` entry carrying only a resolution, the shape a config
 /// dependency (with no peer/engine metadata of its own) takes.
 fn registry_package_metadata(resolution: LockfileResolution) -> PackageMetadata {
     PackageMetadata {

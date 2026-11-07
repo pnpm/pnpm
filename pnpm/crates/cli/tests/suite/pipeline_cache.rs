@@ -416,7 +416,7 @@ fn symlinked_inputs_are_hashed_as_link_targets() {
     run("x", false);
     run("x", true);
     // Both targets hold the same text, so only a key built from the link
-    // target itself — not from the content it resolves to — misses here.
+    // target itself, not from the content it resolves to, misses here.
     fs::remove_file(project.path().join("CLAUDE.md")).unwrap();
     symlink("NOTES.md", project.path().join("CLAUDE.md")).unwrap();
     run("xx", false);

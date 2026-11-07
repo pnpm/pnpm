@@ -64,7 +64,7 @@ test.each(table.cases)('$name', async ({ settings, args, installs: expected }) =
     // Remove what the last install wrote, so this one resolves again.
     fs.rmSync('node_modules', { recursive: true, force: true })
     fs.rmSync('pnpm-lock.yaml', { force: true })
-    // eslint-disable-next-line no-await-in-loop -- the installs share one cache and must run in order
+    // eslint-disable-next-line no-await-in-loop, the installs share one cache and must run in order
     await execPnpm(['install', ...args], { env })
     installs.push(registry.takeRequests())
   }

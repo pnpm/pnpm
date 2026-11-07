@@ -7,8 +7,8 @@
 //! then runs `postpack`. [`to_pack_result_json`] and
 //! [`format_pack_output`] render the result the way the CLI prints it.
 //!
-//! The recursive (`-r`) orchestration — selecting and topologically
-//! sorting the workspace projects — lives in the CLI command alongside
+//! The recursive (`-r`) orchestration, selecting and topologically
+//! sorting the workspace projects, lives in the CLI command alongside
 //! pacquet's other recursive commands, and calls [`api`] per project.
 
 pub mod variants;

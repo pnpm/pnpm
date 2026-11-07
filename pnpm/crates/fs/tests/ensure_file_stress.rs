@@ -113,7 +113,7 @@ fn multi_process_recovery_from_pre_seeded_corrupt_file() {
     // as the real content (so the size short-circuit doesn't fire)
     // but every byte inverted, so the byte-comparison in
     // `verify_or_rewrite` rejects it and `write_atomic` rewrites
-    // the blob. `0xAA` is the bit-inverse of nothing in particular —
+    // the blob. `0xAA` is the bit-inverse of nothing in particular,
     // just a non-zero pattern that won't accidentally match the real
     // content even for trivial inputs.
     let corrupt = vec![0xAA_u8; CONTENT_SIZE];

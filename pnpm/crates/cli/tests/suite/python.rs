@@ -1433,8 +1433,8 @@ fn wheel_download_body(
     }
 }
 
-/// Count this download in, and — for `alpha`, which holds a slot while it
-/// waits — block until all three have started. Timing out means the slot
+/// Count this download in, and, for `alpha`, which holds a slot while it
+/// waits, block until all three have started. Timing out means the slot
 /// `alpha` holds was never replenished.
 fn await_every_download(name: &str, rendezvous: &(Mutex<usize>, Condvar)) -> std::io::Result<()> {
     let (arrivals, wake) = rendezvous;

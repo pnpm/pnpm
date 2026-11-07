@@ -101,7 +101,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
         "the allow-build policy decides which snapshots carry the engine",
     );
     // No policy turns the gating off, which puts the engine in every
-    // snapshot's hash — the opposite of what an empty policy does.
+    // snapshot's hash, the opposite of what an empty policy does.
     assert_ne!(
         baseline,
         fingerprint(&snapshots, &packages, Some("linux;x64;22"), None, Some(&dir)),

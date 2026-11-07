@@ -33,8 +33,8 @@ pub(super) fn run(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> m
     // junctions) and defeat the relative-path computation.
     let cwd = std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_default();
     // `pnpm clean` resolves `modulesDir` against every project directory it
-    // cleans. `config.modules_dir` is already anchored — at the workspace
-    // root, or at a configured `lockfileDir` — so rejoining it per project
+    // cleans. `config.modules_dir` is already anchored, at the workspace
+    // root, or at a configured `lockfileDir`, so rejoining it per project
     // would send every project back to that one directory. Take the
     // configured leaf instead; an absolute setting survives `join`, as it
     // does pnpm's `pathAbsolute`.

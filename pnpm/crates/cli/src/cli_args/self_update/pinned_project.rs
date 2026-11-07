@@ -44,7 +44,7 @@ impl ProjectPin {
         let previous_version = match self.pinned_pnpm() {
             // A range pin (`^10.0.0`) has no recoverable major on its own, so
             // read the resolved version from the env lockfile to drive the
-            // hint — otherwise crossing a major would silently skip it.
+            // hint, otherwise crossing a major would silently skip it.
             Some(pm) => read_project_pinned_pnpm_version(&self.roots.env, pm.version.as_deref())
                 .filter(|version| version != target_version),
             None if PNPM_VERSION != target_version => Some(PNPM_VERSION.to_string()),

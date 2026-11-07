@@ -18,7 +18,7 @@ pub const VERIFY_DEPS_BEFORE_RUN_ENV: &str = "pnpm_config_verify_deps_before_run
 /// `updateConfig` `extraEnv` plus any pnpm-controlled keys the caller
 /// merges in first (e.g. `NODE_OPTIONS` from `nodeOptions`); the
 /// reserved per-call stamps below override all of it regardless of
-/// origin — see [`build_env`].
+/// origin, see [`build_env`].
 pub struct EnvOptions<'a> {
     pub stage: &'a str,
     pub script: &'a str,
@@ -44,7 +44,7 @@ pub struct EnvBuild {
 /// caller-supplied `extra_env`, then the reserved per-call stamps
 /// (`INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`, `npm_config_user_agent`, the
 /// verify-deps guard, `npm_lifecycle_script`) applied last so they win
-/// over anything `extra_env` set — matching TS `runLifecycleHook`.
+/// over anything `extra_env` set, matching TS `runLifecycleHook`.
 ///
 /// `parent_env` is taken by value so the production caller can pass
 /// `env::vars().collect()` and tests can pass a controlled fixture
@@ -84,7 +84,7 @@ fn build_env_for_platform(
     //    `extra_env` is also the one route by which a delegation marker
     //    ([`DEV_PREINSTALL_ALREADY_RAN_ENV`] or
     //    [`ROOT_PREINSTALL_ALREADY_RAN_ENV`]) could re-enter after
-    //    [`filter_parent_env`] dropped it, so it is refused here — under
+    //    [`filter_parent_env`] dropped it, so it is refused here, under
     //    the same casing rule that filter uses, since on Windows a
     //    differently-cased entry names the same variable.
     //    On Windows an `extra_env` key also replaces every differently
@@ -203,7 +203,7 @@ fn is_delegation_marker(key: &str, is_windows: bool) -> bool {
 }
 
 /// Return the slice of `key` after `prefix` when `key` starts with it
-/// — case-sensitively on POSIX, case-insensitively on Windows (where
+///, case-sensitively on POSIX, case-insensitively on Windows (where
 /// `Command::env` collapses key case). Returns `None` otherwise.
 ///
 /// The Windows branch compares bytes rather than chars so it never
@@ -241,7 +241,7 @@ pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
 
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
 /// `parent_env`'s PATH (not the process-global env) so [`build_env`]
-/// stays deterministic given its inputs — matching the docstring
+/// stays deterministic given its inputs, matching the docstring
 /// contract.
 fn find_node_in_path(path: Option<&OsStr>) -> Option<PathBuf> {
     let path = path?;

@@ -57,7 +57,7 @@ impl PeerHoistDiscovery {
     /// verdicts derived from them predate the rewrite, and an
     /// incremental sync cannot tell which of them the rewrite
     /// invalidated.
-    /// `parents_direct` is the importer's full direct set — it defines
+    /// `parents_direct` is the importer's full direct set, it defines
     /// the importer-level peer providers every walked subtree matches
     /// against. `walk_direct` is the slice actually walked; a hoist
     /// round that only added new direct deps passes just the additions
@@ -103,7 +103,7 @@ impl PeerHoistDiscovery {
 /// passes ([`crate::WorkspaceTreeCtx::sync_discovery_tree`] rebuilds
 /// the engine's view on the incompatible exceptions), so a subtree
 /// verdict recorded under one importer's walk short-circuits every
-/// compatible revisit — [`Walker::find_hit`] re-validates each
+/// compatible revisit, [`Walker::find_hit`] re-validates each
 /// [`PeersCacheItem`] against the current parent context, and a hoisted
 /// provider that newly satisfies a cached missing peer rejects the
 /// stale item. This is the same sharing
@@ -205,7 +205,7 @@ impl CanonicalCycleGate {
     }
 }
 
-/// What one peer-hoist discovery pass reports back to the hoist loop —
+/// What one peer-hoist discovery pass reports back to the hoist loop,
 /// the subset of [`ResolvePeersResult`](super::ResolvePeersResult) the
 /// loop actually consumes, so discovery never has to build a
 /// [`crate::DependenciesGraph`].
@@ -265,7 +265,7 @@ fn discover_peers(
     for dep in &own_direct {
         result.fold(walker.resolve_node(&dep.node_id, &root.context()));
     }
-    // See ResolvePeersOptions::hoisted_peer_provider_node_ids — a
+    // See ResolvePeersOptions::hoisted_peer_provider_node_ids, a
     // provider is normally resolved at its tree position during the
     // walk above; only one whose position was pruned still needs the
     // root-context fallback.

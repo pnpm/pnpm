@@ -16,7 +16,7 @@ const FILE_TYPES = new Set(['0', '\0'])
  * is all an npm tarball holds beyond directories, and the parse stays streaming
  * so the archive never lands in memory.
  *
- * `dest` is created exclusively — an existing file, or a symlink planted at
+ * `dest` is created exclusively, an existing file, or a symlink planted at
  * that path, fails the write rather than being followed.
  *
  * @param tarball Path to the gzipped archive.
@@ -58,13 +58,13 @@ export async function extractTarballMember (
  */
 async function seekMember (reader: BlockReader, memberPath: string): Promise<TarEntry | null> {
   while (true) {
-    // eslint-disable-next-line no-await-in-loop -- a tar archive can only be walked one entry after another
+    // eslint-disable-next-line no-await-in-loop, a tar archive can only be walked one entry after another
     const header = await reader.read(BLOCK_SIZE)
     // The archive ends with zero-filled blocks; one is enough to stop.
     if (header == null || header[0] === 0) return null
     const entry = parseHeader(header)
     if (FILE_TYPES.has(entry.type) && entry.path === memberPath) return entry
-    // eslint-disable-next-line no-await-in-loop -- a tar archive can only be walked one entry after another
+    // eslint-disable-next-line no-await-in-loop, a tar archive can only be walked one entry after another
     await reader.skip(Math.ceil(entry.size / BLOCK_SIZE) * BLOCK_SIZE)
   }
 }
@@ -128,7 +128,7 @@ class BlockReader {
   /** The next `progress.left` bytes, counting them down as they are yielded. */
   async * #chunks (progress: { left: number }): AsyncGenerator<Buffer> {
     while (progress.left > 0) {
-      // eslint-disable-next-line no-await-in-loop -- the stream is read in order, one chunk at a time
+      // eslint-disable-next-line no-await-in-loop, the stream is read in order, one chunk at a time
       if (!await this.#fill(1)) return
       const chunk = this.#take(Math.min(progress.left, this.#buffedBytes))
       progress.left -= chunk.length
@@ -139,7 +139,7 @@ class BlockReader {
   /** Reads until at least `size` bytes are buffered, or the stream ends. */
   async #fill (size: number): Promise<boolean> {
     while (this.#buffedBytes < size && !this.#done) {
-      // eslint-disable-next-line no-await-in-loop -- the stream is read in order, one chunk at a time
+      // eslint-disable-next-line no-await-in-loop, the stream is read in order, one chunk at a time
       const { value, done } = await this.#iterator.next()
       if (done === true) {
         this.#done = true

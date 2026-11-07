@@ -23,8 +23,8 @@ use super::{
 /// registry raises one.
 ///
 /// Fails with [`LoginError::NonInteractive`] when either stdin or stdout is
-/// not a terminal: unlike the web-based flow — which only prints a URL and
-/// polls — the credential prompts need one.
+/// not a terminal: unlike the web-based flow, which only prints a URL and
+/// polls, the credential prompts need one.
 pub(super) async fn classic_login<Sys, Reporter>(
     http_client: &ThrottledClient,
     registry: &str,
@@ -62,7 +62,7 @@ where
         fetch_options,
         // A plain `FnMut` returning an `async move` block: the future is a
         // concrete type carrying only `Copy` borrows and the by-value OTP, so
-        // it borrows nothing from the closure — see `with_otp_handling`'s
+        // it borrows nothing from the closure, see `with_otp_handling`'s
         // `Operation` bound.
         move |otp: Option<String>| async move {
             add_user(http_client, registry, credentials, otp.as_deref()).await

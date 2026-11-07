@@ -230,7 +230,7 @@ fn does_not_collapse_across_incompatible_peer_versions() {
 
 /// Every reference to a collapsed variant is rewritten, including a
 /// consumer's child edge whose own peer suffix names the collapsed
-/// variant — pnpm's `deduplicateAll` rewrites `node.children`
+/// variant, pnpm's `deduplicateAll` rewrites `node.children`
 /// unconditionally, and leaving one edge behind keeps the collapsed
 /// variant alive in the lockfile. The consumer is renamed after the
 /// variant its peer now resolves to (pnpm/pnpm#16356).

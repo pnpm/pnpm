@@ -43,13 +43,13 @@ pub fn ensure_pacquet_git_repo(path: &Path) {
     assert!(path.join("Cargo.lock").is_file(), "{path:?} has no Cargo.lock — pacquet checkout?");
 }
 
-/// Assert that `path` is a git checkout of pnpm's source — the
+/// Assert that `path` is a git checkout of pnpm's source, the
 /// `pnpm/pnpm` monorepo. Looks for `pnpm/package.json` (the CLI
 /// package's manifest, present in every revision since pnpm became a
 /// monorepo) or `pnpm-workspace.yaml` at the root; either marker is
 /// enough. Doesn't support a hypothetical layout where pnpm's source
 /// lives directly at the repo root (no `pnpm/` subdir, no workspace
-/// manifest) — that's not a shape pnpm ships in.
+/// manifest), that's not a shape pnpm ships in.
 pub fn ensure_pnpm_git_repo(path: &Path) {
     ensure_git_repo_common(path);
     let has_pnpm_dir = path
@@ -85,11 +85,11 @@ where
         }
         // `@` is allowed so tag-with-suffix revisions like `v1.0.0@sha`
         // reach git intact. Git's reflog syntax (`HEAD@{1}`) needs `{`
-        // and `}` which remain rejected — that's intentional, the bench
+        // and `}` which remain rejected, that's intentional, the bench
         // doesn't support reflog revisions and the curly braces are
         // shell-metacharacters we don't want to embed in bench-dir names.
         // `/` is also rejected: a revision like `origin/main` would
-        // produce a nested bench-dir path (`pnpm@origin/main/`) — callers
+        // produce a nested bench-dir path (`pnpm@origin/main/`), callers
         // should pre-resolve remote-tracking refs to a local branch or SHA.
         let invalid_char = revision.chars().find(|char| !matches!(char, 'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '+' | '.' | '~' | '^' | '@'));
         if let Some(char) = invalid_char {

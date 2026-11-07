@@ -803,9 +803,9 @@ fn recursive_run_silent_suppresses_no_match_notice() {
     drop(root);
 }
 
-/// The top-level `--if-present` spelling with a shorthand script — the
+/// The top-level `--if-present` spelling with a shorthand script, the
 /// shape the repo's own `test-pkgs-branch` script uses
-/// (`pnpm --workspace-concurrency=1 --no-sort --if-present <script>`) —
+/// (`pnpm --workspace-concurrency=1 --no-sort --if-present <script>`),
 /// is the same clean no-op when no package defines the script.
 #[test]
 fn recursive_top_level_if_present_is_a_noop_when_no_package_has_the_script() {

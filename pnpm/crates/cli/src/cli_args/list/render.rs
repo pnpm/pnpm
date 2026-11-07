@@ -18,7 +18,7 @@ use std::{
     path::Path,
 };
 
-/// One project (importer) with its categorized dependency hierarchy —
+/// One project (importer) with its categorized dependency hierarchy,
 /// the unit the renderers consume.
 #[derive(Debug)]
 pub(crate) struct ProjectHierarchy {
@@ -228,7 +228,7 @@ fn print_label(
     if node.search.matched { bold_styled(&label) } else { label }
 }
 
-/// `name@version`, or — for an npm: protocol alias —
+/// `name@version`, or, for an npm: protocol alias,
 /// `alias@npm:name@version`, unless the version already carries an `@`
 /// (`file:`, `link:`, ...).
 fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {

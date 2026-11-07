@@ -12,7 +12,7 @@ use std::{
 
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
 /// `(alias, slot package dir)` pairs [`crate::BinCandidates::Resolved`]
-/// takes — the same slot derivation `symlink_hoisted_dependencies`
+/// takes, the same slot derivation `symlink_hoisted_dependencies`
 /// used to create the aliases.
 #[must_use]
 pub fn resolve_hoisted_bin_deps(

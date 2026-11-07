@@ -196,7 +196,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
         .expect(1)
         .create_async()
         .await;
-    // No second mock — the registry must NOT see a full-metadata
+    // No second mock, the registry must NOT see a full-metadata
     // request. If the upgrade trigger fires by mistake, the test
     // panics on an unmatched request from `mockito`.
 

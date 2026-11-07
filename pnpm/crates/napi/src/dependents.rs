@@ -1,4 +1,4 @@
-//! `getDependents` / `renderDependents` — the engine side of `pnpm why`.
+//! `getDependents` / `renderDependents`, the engine side of `pnpm why`.
 //!
 //! Wraps [`pnpm_deps_inspection`], the crate `pnpm why` itself is built on,
 //! so an embedder needs neither `@pnpm/deps.inspection.tree-builder` nor
@@ -10,7 +10,7 @@
 //! [`get_dependents`] reads the lockfile and returns the reverse trees as
 //! plain JSON, and [`render_dependents`] turns those trees into terminal,
 //! parseable, or JSON output. Splitting them is what makes the TypeScript
-//! `nameFormatter` callback unnecessary — the tree walk is synchronous Rust
+//! `nameFormatter` callback unnecessary, the tree walk is synchronous Rust
 //! and cannot call back into JS, so an embedder that renames nodes asks for
 //! the manifest fields it renames by (`manifestFields`), rewrites
 //! `displayName` on the returned JSON, and hands the trees back to be
@@ -60,8 +60,8 @@ pub struct DependentsOptions {
     pub project_dirs: Option<Vec<String>>,
     /// Importer-id patterns to skip when `project_dirs` is omitted, in
     /// pnpm's `hoistPattern` glob syntax (`*` is the only wildcard). Lets a
-    /// host keep its own generated importers — Bit's `.bit_roots` projects
-    /// — out of the answer without reading the lockfile itself to
+    /// host keep its own generated importers, Bit's `.bit_roots` projects
+    ///, out of the answer without reading the lockfile itself to
     /// enumerate the rest.
     pub exclude_project_patterns: Option<Vec<String>>,
     /// `node_modules` directory. Defaults to `<dir>/node_modules`.
@@ -100,7 +100,7 @@ pub struct RenderDependentsInput {
 
 /// Every package matching `packages`, each with the reverse tree of what
 /// depends on it. Returns an empty array when the directory has no
-/// lockfile — an un-installed workspace has no dependents to report,
+/// lockfile, an un-installed workspace has no dependents to report,
 /// which is an answer, not an error.
 #[napi]
 pub async fn get_dependents(options: DependentsOptions) -> napi::Result<serde_json::Value> {
@@ -119,8 +119,8 @@ pub async fn get_dependents(options: DependentsOptions) -> napi::Result<serde_js
         })
 }
 
-/// Render trees produced by [`get_dependents`] — after any `displayName`
-/// rewriting the caller applied — as terminal, parseable, or JSON output.
+/// Render trees produced by [`get_dependents`], after any `displayName`
+/// rewriting the caller applied, as terminal, parseable, or JSON output.
 /// Synchronous: rendering is pure string work over data the caller already
 /// holds, apart from the `package.json` reads `long` asks for.
 #[napi]
@@ -153,8 +153,8 @@ pub fn render_dependents(
 
 /// Refuse a caller-supplied tree nested deeper than the walk that produced
 /// it could ever go. Deserialization and all three renderers recurse over
-/// `dependents`, so an arbitrarily deep argument — a hand-built one, or a
-/// tree from another tool — would otherwise exhaust the stack and take the
+/// `dependents`, so an arbitrarily deep argument, a hand-built one, or a
+/// tree from another tool, would otherwise exhaust the stack and take the
 /// host process down with it.
 ///
 /// The check itself is iterative for the same reason.

@@ -210,7 +210,7 @@ fn failing_project_script_fails_the_install() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    // `exit 1` is shell-agnostic — a non-zero exit in both `sh -c`
+    // `exit 1` is shell-agnostic, a non-zero exit in both `sh -c`
     // and `cmd /d /s /c`. Mirrors pnpm's own test
     // (`preinstall: 'exit 1'`).
     let package_json = serde_json::json!({
@@ -466,7 +466,7 @@ fn ignore_scripts_skips_project_lifecycle_scripts() {
 }
 
 /// `pacquet update --latest` with no selectors rewrites every direct
-/// dependency's spec, which makes it pnpm's `installSome` — a partial
+/// dependency's spec, which makes it pnpm's `installSome`, a partial
 /// mutation that does not run the project's own lifecycle scripts,
 /// unlike a bare `pacquet update`.
 #[test]
@@ -779,7 +779,7 @@ mod dev_preinstall {
     }
 
     /// The bin a workspace package publishes may not exist until the
-    /// root's `pnpm:devPreinstall` writes it — next.js generates a
+    /// root's `pnpm:devPreinstall` writes it, next.js generates a
     /// placeholder `next` bin that way. Running the hook after linking
     /// (or not at all) leaves every dependent's shim pointing at a file
     /// that isn't there.

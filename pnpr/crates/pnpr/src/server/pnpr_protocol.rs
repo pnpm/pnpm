@@ -9,7 +9,7 @@ use axum::{
 use pnpm_shared_artifact_protocol::OwnerScope;
 use pnpr_error::RegistryError;
 
-/// `GET /-/pnpr` — capability handshake for the pnpr resolver
+/// `GET /-/pnpr`, capability handshake for the pnpr resolver
 /// protocol. A plain npm registry has no such route and 404s, so a
 /// client can fail fast against a misconfigured server. `versions`
 /// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks;
@@ -249,7 +249,7 @@ pub(super) async fn serve_artifact_blob(
     }
 }
 
-/// `PUT /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>` — store one
+/// `PUT /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>`, store one
 /// blob ahead of the publication that names it, streamed from the body. The
 /// owner is `organization=<name>` or `publisher=<package>`, and
 /// `Content-Length` is required.
@@ -292,7 +292,7 @@ pub(super) async fn serve_upload_artifact_blob(
     })
 }
 
-/// `HEAD /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>` — whether
+/// `HEAD /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>`, whether
 /// the blob is stored, so a publisher uploads only what is missing.
 pub(super) async fn serve_artifact_blob_size(
     State(state): State<AppState>,

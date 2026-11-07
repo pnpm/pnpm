@@ -563,7 +563,7 @@ fn ownership_breaks_bin_conflicts() {
 /// regular file hardlinked to the same inode (e.g. a prior pacquet
 /// revision left it that way), then `fs::write` truncating the dirent
 /// would rewrite the underlying node binary as a 459-byte
-/// `/bin/sh`-wrapper text file — propagating to every project that
+/// `/bin/sh`-wrapper text file, propagating to every project that
 /// reflinks from the same store.
 ///
 /// The fix is `remove_file` followed by `fs::symlink`. `remove_file`

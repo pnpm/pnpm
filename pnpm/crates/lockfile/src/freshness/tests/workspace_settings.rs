@@ -3,9 +3,7 @@ use super::{
     check_lockfile_settings, settings_check, text_block,
 };
 
-// ---------------------------------------------------------------------------
-// `catalogs` drift — the first lockfile-settings check
-// ---------------------------------------------------------------------------
+// `catalogs` drift, the first lockfile-settings check
 
 #[test]
 fn check_settings_passes_when_catalog_snapshot_matches_config() {

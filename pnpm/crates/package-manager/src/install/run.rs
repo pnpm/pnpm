@@ -68,8 +68,8 @@ where
     /// no longer resolves.
     ///
     /// Both live out here because every success path of
-    /// [`Self::run_inner_impl`] — including the short-circuits that do
-    /// nothing but rewrite the lockfile — has to run them.
+    /// [`Self::run_inner_impl`], including the short-circuits that do
+    /// nothing but rewrite the lockfile, has to run them.
     pub(crate) async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         options: InstallRunOptions<'a, '_>,
@@ -79,7 +79,7 @@ where
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
         // lockfile never merged them, and one that only reports what it
-        // would do never writes it — deleting them in either case drops
+        // would do never writes it, deleting them in either case drops
         // resolutions no file is left holding.
         let merge_will_be_saved = self.context.config.merge_git_branch_lockfiles
             && self.context.config.lockfile
@@ -384,7 +384,7 @@ pub struct ResolutionInputs {
 // install short-circuit the verifier's own fetch chain, and
 // vice versa.
 // `trust_lockfile` or no active resolution policy leaves the verifier
-// list empty, making every gate a no-op — fresh local resolution is
+// list empty, making every gate a no-op, fresh local resolution is
 // already filtered by the resolver's own per-version gate
 // (`minimumReleaseAge` via `ResolveResult::policy_violation`,
 // `trustPolicy='no-downgrade'` via the npm resolver's
@@ -441,8 +441,8 @@ impl Verification {
 
 /// Resolution verifiers re-apply `minimumReleaseAge` /
 /// `trustPolicy='no-downgrade'` (plus the tarball-URL anti-tamper check) to
-/// every entry in the loaded `pnpm-lock.yaml`. `trust_lockfile` — the opt-out
-/// for environments that treat the on-disk lockfile as already-trusted —
+/// every entry in the loaded `pnpm-lock.yaml`. `trust_lockfile`, the opt-out
+/// for environments that treat the on-disk lockfile as already-trusted,
 /// leaves the list empty, making every gate a no-op.
 fn install_resolution_verifiers(
     config: &Config,

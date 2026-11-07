@@ -4,9 +4,9 @@
 //!
 //! Two routes, built on pacquet's resolver:
 //!
-//! * `GET /-/pnpr` — capability handshake; advertises the supported
+//! * `GET /-/pnpr`, capability handshake; advertises the supported
 //!   protocol versions so a client can negotiate or fail fast.
-//! * `POST /-/pnpr/v0/resolve` — resolve a project **against the registries
+//! * `POST /-/pnpr/v0/resolve`, resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
 //!   the client), verify the client's input lockfile under the client's
 //!   policy, and **stream** the result back as NDJSON: one `package`
@@ -17,7 +17,7 @@
 //!   ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
 //!   then fetches the rest in parallel like a normal install
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
-//! * `POST /-/pnpr/v0/verify-lockfile` — verify an already-fresh client
+//! * `POST /-/pnpr/v0/verify-lockfile`, verify an already-fresh client
 //!   lockfile under the same policy without resolving. A frozen restore
 //!   can start local fetch/materialization immediately and only use this
 //!   endpoint as the trust verdict.
@@ -151,7 +151,7 @@ struct ResolverCache {
     entries: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
     ttl: Duration,
     /// SQLite-backed whole-lockfile verification verdict cache. `None`
-    /// only if the database couldn't be opened — verification then runs
+    /// only if the database couldn't be opened, verification then runs
     /// every time (uncached) rather than failing the server.
     verdicts: Option<VerdictCache>,
     /// HMAC secret namespacing a private footprint's cache descriptor.
@@ -282,7 +282,7 @@ impl Resolver {
     /// from a client with a different registry setup gets its own Config.
     ///
     /// `None` once [`MAX_INTERNED_CONFIGS`] distinct configurations have
-    /// been interned — see [`intern_config`].
+    /// been interned, see [`intern_config`].
     fn config_for(&self, request: &ResolveRequest) -> Option<&'static PacquetConfig> {
         intern_config(
             &self.configs,
@@ -425,7 +425,7 @@ async fn resolve_npm_request(
 ///
 /// The client skips its own `verifyLockfileResolutions` whenever a pnpr server
 /// is configured, so this is the only place the committed/reused entries get
-/// checked. A true first install sends no lockfile — nothing to verify.
+/// checked. A true first install sends no lockfile, nothing to verify.
 /// `trustLockfile` is the client's opt-out (mirrors the local path's
 /// `--trust-lockfile`). Freshly-resolved entries are held to the same policy by
 /// the resolver's pick-time gate (the policy is wired into `config`).
@@ -464,7 +464,7 @@ fn reject_unusable_resolve(request: &ResolveRequest, context: &RouteContext) -> 
 
 /// A verified frozen lockfile is the whole answer: no incremental tree walk
 /// runs. Its tarballs are still announced as `package` frames when the
-/// verification fan-out just fetched their metadata — the sizes let the client
+/// verification fan-out just fetched their metadata, the sizes let the client
 /// start the largest downloads first. On a verdict-cache hit no metadata was
 /// fetched, so there is nothing to add and the response is the bare `done`
 /// frame.
@@ -495,7 +495,7 @@ fn frozen_lockfile_response(
 /// A stored lockfile this caller may reuse.
 ///
 /// The OSV index is immutable for this resolver instance and a lockfile is only
-/// stored after passing the OSV check, so a cache hit is already OSV-clean — no
+/// stored after passing the OSV check, so a cache hit is already OSV-clean, no
 /// per-package re-scan is needed on this warm path.
 fn cached_resolution_response(
     runtime: &Resolver,

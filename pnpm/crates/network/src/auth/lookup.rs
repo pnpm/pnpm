@@ -32,10 +32,10 @@ impl AuthHeaders {
     }
 
     /// Look a URL's credential up, retrying without the port when the URL
-    /// carries one — pnpm's `//host:port/` and `//host/` keys both apply.
+    /// carries one, pnpm's `//host:port/` and `//host/` keys both apply.
     ///
     /// Returns `None` when no key matched (so the caller falls through to the
-    /// next candidate) and `Some(_)` when a key matched — even `Some(None)`, a
+    /// next candidate) and `Some(_)` when a key matched, even `Some(None)`, a
     /// matched `tokenHelper` that failed to resolve. A match is final: pnpm's
     /// most-specific key owns the decision, so a failed helper must not fall
     /// back to a shorter prefix or a different scope and send another
@@ -107,7 +107,7 @@ impl TokenHelpers {
     /// Resolve a matched [`AuthEntry`] to a header value. A baked header
     /// is cloned; a `tokenHelper` is executed once and memoized (keyed by
     /// `scope` + map key so the same command at two registries still runs
-    /// per registry). A helper failure logs and yields `None` — pacquet
+    /// per registry). A helper failure logs and yields `None`, pacquet
     /// never sends a wrong, partial, or stale credential.
     pub(super) fn resolve_entry(
         &self,

@@ -278,7 +278,7 @@ impl ReuseSeedInputs<'_> {
 ///
 /// A changed `catalogs` or `pnpm.overrides` block normally withholds the
 /// seed entirely. Two shapes are cheap enough to rewrite in place
-/// instead — a catalog edit and an exact generic registry override — and
+/// instead, a catalog edit and an exact generic registry override, and
 /// each yields a dependency-shape-verified seed. They compose: the
 /// catalog rewrite settles first and the override rewrite replays onto
 /// its result, the order a resolution applies the two in. Every other
@@ -310,8 +310,8 @@ pub(in super::super) async fn lockfile_reuse_seed(
         inputs.hooks.overrides_hook.clone(),
     );
     // A catalog move can change the effective value of an override whose
-    // configured value is a `catalog:` reference — an effect no catalog
-    // rewrite can express — so catalog drift under such an override goes to
+    // configured value is a `catalog:` reference, an effect no catalog
+    // rewrite can express, so catalog drift under such an override goes to
     // the resolver. The override rewrite itself is safe under one: it runs
     // only once the catalogs are settled, and override values are compared
     // catalog-resolved, so a settled `catalog:` override shows no drift and

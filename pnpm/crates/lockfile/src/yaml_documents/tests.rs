@@ -48,8 +48,8 @@ fn normalizes_a_single_document_file() {
     assert_eq!(extract_env_document(content), None);
 }
 
-/// Every marker the streaming reader looks for — the byte-order mark,
-/// the document start, a CRLF pair, the separator — is longer than one
+/// Every marker the streaming reader looks for, the byte-order mark,
+/// the document start, a CRLF pair, the separator, is longer than one
 /// byte, so each chunk size puts a different one across a boundary.
 #[track_caller]
 fn assert_streams(content: &str, expected: Option<&str>) {

@@ -26,7 +26,7 @@ async fn calculate_pnpmfile_checksum_is_none_when_no_hooks_exported() {
 }
 
 /// No pnpmfile means no checksum, so a lockfile that records one is
-/// drift — the removal itself is what the gate must see.
+/// drift, the removal itself is what the gate must see.
 #[tokio::test]
 async fn current_pnpmfile_checksum_is_none_without_a_pnpmfile() {
     assert_eq!(pnpm_hooks::current_pnpmfile_checksum(None, Some("sha256-abc")).await, None);
@@ -46,7 +46,7 @@ async fn current_pnpmfile_checksum_hashes_the_pnpmfile_that_exports_hooks() {
 }
 
 /// pnpm records no checksum for a pnpmfile that exports no `hooks`
-/// object, so neither may pacquet — otherwise every install in a
+/// object, so neither may pacquet, otherwise every install in a
 /// project with a resolvers-only pnpmfile would report drift.
 #[tokio::test]
 async fn current_pnpmfile_checksum_is_none_when_the_pnpmfile_exports_no_hooks() {
@@ -59,7 +59,7 @@ async fn current_pnpmfile_checksum_is_none_when_the_pnpmfile_exports_no_hooks() 
 }
 
 /// A lockfile that already records a checksum settles the comparison
-/// by hash alone. Pinned with a pnpmfile that exports no hooks —
+/// by hash alone. Pinned with a pnpmfile that exports no hooks,
 /// evaluating it would answer `None` and call an unchanged project
 /// drifted.
 #[tokio::test]

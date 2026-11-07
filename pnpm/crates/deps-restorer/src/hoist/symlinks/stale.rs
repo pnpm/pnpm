@@ -9,13 +9,13 @@ mod tests;
 /// Read the existing symlink at `dest` and decide whether it should
 /// be replaced. If it already points at `dep_dir`, leave it untouched.
 /// If it points inside `package_store_dir` or `install_state_dir`
-/// (a pnpm-internal symlink — e.g., a stale link from a prior non-GVS
+/// (a pnpm-internal symlink, e.g., a stale link from a prior non-GVS
 /// install), remove it and create a new symlink to `dep_dir`. External
 /// symlinks (and non-symlink occupants) are left in place.
 ///
 /// The already-correct fast path skips the unlink + recreate churn (and
 /// the transient missing-link window it opens) on warm reinstalls, the
-/// same way [`pnpm_fs::force_symlink_dir`] does — see its
+/// same way [`pnpm_fs::force_symlink_dir`] does, see its
 /// `existing_symlink_up_to_date` helper.
 pub(in crate::hoist) fn update_stale_hoist_symlink(
     dep_dir: &Path,

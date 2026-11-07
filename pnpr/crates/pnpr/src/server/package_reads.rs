@@ -13,9 +13,7 @@ use axum::response::IntoResponse;
 
 mod version_documents;
 
-// --------------------------------------------------------------------
 // Handler bodies.
-// --------------------------------------------------------------------
 
 pub(super) async fn serve_packument(
     state: &AppState,
@@ -33,10 +31,9 @@ pub(super) async fn serve_packument(
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
-// --------------------------------------------------------------------
 // Registry dispatch. A `/~<name>/` request resolves the package to
 // exactly one concrete origin through the validated registry graph
-// ([`pnpr_registry`]) and serves it there — authoritatively. Every concrete
+// ([`pnpr_registry`]) and serves it there, authoritatively. Every concrete
 // registry's declared `patterns:` are enforced here, before storage or any
 // upstream is consulted, on the direct address and through a router alike; a
 // router selects the first source whose patterns claim the name. An unclaimed
@@ -45,7 +42,6 @@ pub(super) async fn serve_packument(
 // (the via-upstream path returns `UpstreamUnavailable`), so a down private
 // source can never be reported as "not found" and pushed onto a public origin
 // one layer out.
-// --------------------------------------------------------------------
 
 /// The concrete origin a `/~<name>/` request resolved to, owned so it can be
 /// held across an `await` without borrowing the config.
@@ -55,17 +51,17 @@ pub(super) enum RegistrySource {
     Upstream(String),
     /// A hosted registry, served from the hosted store.
     Hosted(String),
-    /// No declared namespace claims the package — the addressed registry's
+    /// No declared namespace claims the package, the addressed registry's
     /// patterns don't cover it, or none of a router's sources claim it. A
     /// definitive 404 on reads; writes reject it with a reason instead, so a
     /// typo'd scope fails loudly rather than 404-ing later.
     Unclaimed,
-    /// The registry id is unknown — a definitive not-found with no fall-through.
+    /// The registry id is unknown, a definitive not-found with no fall-through.
     NotFound,
 }
 
 /// The registry the path-less base (`https://<pnpr>/`) aliases, owned so it can be
-/// held across an `await`. `None` disables the path-less base entirely — the
+/// held across an `await`. `None` disables the path-less base entirely, the
 /// bare host has no registry and every request is a not-found, so clients must
 /// address a `/~<name>/`.
 pub(super) fn default_registry_target(state: &AppState, ecosystem: Ecosystem) -> Option<String> {
@@ -98,12 +94,12 @@ pub(super) fn resolve_ecosystem_source(
             registry,
             kind: ConcreteKind::Hosted,
         } => RegistrySource::Hosted(registry.to_string()),
-        // An unclaimed name is definitive — never a fall-through to another
+        // An unclaimed name is definitive, never a fall-through to another
         // origin, and never a storage or upstream consultation.
         Resolved::Unclaimed => RegistrySource::Unclaimed,
         // The graph is the only dispatch table: server construction folds
         // every configured upstream into it (`ensure_valid_registry_graph`), so
-        // a name it doesn't know is a definitive not-found — there is no
+        // a name it doesn't know is a definitive not-found, there is no
         // upstream-table side door that would skip namespace enforcement.
         Resolved::UnknownRegistry => RegistrySource::NotFound,
     }
@@ -131,7 +127,7 @@ pub(super) fn resolves_to_private_source(
                     .admits_every_identity()
             }),
         // A private upstream (registry-level `access:`) is caller-gated for
-        // *every* name — unlike a hosted registry, its registry-level gate is
+        // *every* name, unlike a hosted registry, its registry-level gate is
         // enforced independently at serving (`authorized_upstream` runs
         // before per-package rules on every upstream read), so a per-package
         // `access: $all` entry cannot open a name on it and `access.is_some()`
@@ -168,7 +164,7 @@ pub(super) async fn serve_registry_packument(
     // `tarball_base` is the URL the *client* addressed (the path-less host or a
     // `/~<name>/`), not the resolved source's `/~<source>/`. The served
     // packument's `dist.tarball` URLs must stay canonical for that base so a
-    // client's lockfile drops them — persisting the resolved source path would
+    // client's lockfile drops them, persisting the resolved source path would
     // bake the registry name in and break lockfile portability.
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
     let view = dist_view(state, registry, &resolved_source, None);
@@ -222,7 +218,7 @@ pub(super) async fn serve_registry_tarball(
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
-            // Per-package rules before serving — see `serve_registry_packument`.
+            // Per-package rules before serving, see `serve_registry_packument`.
             if let Err(err) =
                 authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
             {
@@ -231,7 +227,7 @@ pub(super) async fn serve_registry_tarball(
             serve_tarball_via_upstream(state, identity, source, name.as_str(), filename).await
         }
         // A hosted denial is a not-found mask, inside `serve_hosted_tarball`
-        // — see `serve_registry_packument`.
+        //, see `serve_registry_packument`.
         RegistrySource::Hosted(source) => {
             serve_hosted_tarball(state, identity, source, &name, filename).await
         }
@@ -243,8 +239,8 @@ pub(super) async fn serve_registry_tarball(
 /// admitted with the storage namespace to read from, or denied one of two
 /// ways. The two denial shapes preserve the two authorization tiers the
 /// merged `packages:` map folds together: an **explicit** entry's `access`
-/// is declared, discoverable config — deny loudly (401/403, so a client can
-/// prompt for credentials, the registry-mock `needs-auth` contract) — while
+/// is declared, discoverable config, deny loudly (401/403, so a client can
+/// prompt for credentials, the registry-mock `needs-auth` contract), while
 /// the registry-level **default** masks as not-found, so a blanket-private
 /// registry never reveals which names exist.
 pub(super) enum HostedGate {
@@ -260,7 +256,7 @@ pub(super) enum HostedGate {
 
 /// Evaluate the hosted read gate: the effective per-package `access` (most
 /// specific `packages:` entry, falling back to the registry-level default)
-/// gates reads and the write routing alike — a caller who may not read a
+/// gates reads and the write routing alike, a caller who may not read a
 /// hosted package may not publish, tag, or unpublish it either.
 pub(super) fn hosted_gate(
     state: &AppState,
@@ -279,7 +275,7 @@ pub(super) fn hosted_gate(
     // Loud denial only inside a registry the caller may see: the explicit
     // entry gates this name, but the registry-level default admits the
     // caller to the registry itself. When the default denies them too, the
-    // mask below wins — an explicit rule on a blanket-private registry must
+    // mask below wins, an explicit rule on a blanket-private registry must
     // not become an existence probe.
     if effective.access_is_explicit && rules.default_access().allows(identity) {
         return HostedGate::Denied(match identity {

@@ -8,7 +8,7 @@
 //! lookup is a hit only when every active verifier's
 //! [`ResolutionVerifier::can_trust_past_check`] accepts that stored
 //! snapshot (a looser current policy can trust a stricter cached run).
-//! One row per hash — a later pass overwrites the snapshot, matching the
+//! One row per hash, a later pass overwrites the snapshot, matching the
 //! local cache's last-write-wins-by-hash rather than keeping a row per
 //! policy. Backed by `SQLite` so many client connections can read/write
 //! concurrently and the server can evict without the JSONL
@@ -16,7 +16,7 @@
 //!
 //! Only *passes* are cached. An age-pass is monotonic (versions only get
 //! older) and the lockfile hash pins the exact versions, so a cached
-//! pass stays time-correct without storing a cutoff — the same reason
+//! pass stays time-correct without storing a cutoff, the same reason
 //! the local cache is correct via `can_trust_past_check` alone. A hit is
 //! O(1): one lookup by hash, then the policy-trust check.
 //!
@@ -36,7 +36,7 @@ use rusqlite::Connection;
 use serde_json::{Map, Value};
 
 /// Soft cap on cached verdicts; the oldest rows (by `verified_at_ms`)
-/// are evicted past this. Generous — each row is a hash plus a small
+/// are evicted past this. Generous, each row is a hash plus a small
 /// policy JSON blob.
 const MAX_ROWS: i64 = 10_000;
 
@@ -64,7 +64,7 @@ impl VerdictCache {
     }
 
     /// Return `true` when a prior pass for `hash` is recorded under a
-    /// policy the caller still trusts — `trusts(cached_policy)` is the
+    /// policy the caller still trusts, `trusts(cached_policy)` is the
     /// merged `can_trust_past_check` consensus across the active
     /// verifiers. A miss (no row, an unreadable policy, or a policy no
     /// longer trusted) returns `false`.
@@ -116,7 +116,7 @@ impl VerdictCache {
 }
 
 /// Trim the oldest rows past [`MAX_ROWS`], ordered by `verified_at_ms`
-/// — i.e. by last-verification time (set on `record`, refreshed when a
+///, i.e. by last-verification time (set on `record`, refreshed when a
 /// hash is re-recorded), not access time: a cache *hit* deliberately
 /// doesn't rewrite the row, keeping `is_verified` a pure read. No TTL
 /// because a cached pass never goes stale (monotonic age + the hash pins

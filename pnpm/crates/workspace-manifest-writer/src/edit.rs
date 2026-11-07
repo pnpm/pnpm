@@ -198,8 +198,8 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     }
 
     // Both a block-style mapping and a single-line flow one excise the
-    // requested entries surgically, leaving every other entry — string or
-    // not — as written. An inline shape neither can edit leaves the file
+    // requested entries surgically, leaving every other entry, string or
+    // not, as written. An inline shape neither can edit leaves the file
     // untouched rather than dropping what it cannot reserialize.
     if has_unsupported_inline_value(manifest.document.text(), &[BLOCK]) {
         return false;
@@ -301,7 +301,7 @@ fn upsert_top_level_entry(
 
 /// Set the top-level `key` to `value` (a non-null JSON value), inserting the
 /// block when absent and replacing it when present. Returns whether anything
-/// changed — a deep-equal current value is a no-op.
+/// changed, a deep-equal current value is a no-op.
 ///
 /// The replace path removes the old block and re-inserts the new one at the
 /// reorder position (rather than an in-place value patch), so the same code

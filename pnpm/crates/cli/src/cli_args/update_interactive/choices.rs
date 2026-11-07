@@ -109,7 +109,7 @@ pub(crate) fn update_choices(
             });
         // Collect every project the collapsed entries came from, so the
         // `Workspace` column names all of them rather than whichever was
-        // seen first — selecting the row updates the package in each.
+        // seen first, selecting the row updates the package in each.
         if let Some(workspace) = &package.metadata.workspace
             && !choices[index].workspaces.contains(workspace)
         {
@@ -211,13 +211,13 @@ fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
 const CURRENT_COLUMN: usize = 1;
 
 /// The least width of the `Package`, `Current`, arrow, and `Target`
-/// columns — the widths pnpm fixes them at. Every group is laid out on
+/// columns, the widths pnpm fixes them at. Every group is laid out on
 /// its own, so these are what line one group's columns up with the
 /// next's. A cell wider than the minimum widens its column rather than
 /// wrapping.
 const MIN_COLUMN_WIDTHS: [usize; 4] = [50, 15, 0, 15];
 
-/// The columns after `Target` — `Workspace` and `URL` — are set off by
+/// The columns after `Target`, `Workspace` and `URL`, are set off by
 /// two more spaces than the rest, as pnpm pads them.
 const FIRST_WIDE_GAP_COLUMN: usize = 4;
 

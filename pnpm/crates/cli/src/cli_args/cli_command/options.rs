@@ -119,7 +119,7 @@ impl CliArgs {
     /// project. pnpm's `config.dir` is that prefix, so a command run from
     /// a plain subdirectory of a project acts on the project rather than
     /// on the subdirectory. Which manifests count as a project depends on
-    /// the command — see [`CliCommand::acts_on_the_npm_project`]. Call
+    /// the command, see [`CliCommand::acts_on_the_npm_project`]. Call
     /// before anything reads `--dir`.
     ///
     /// A cwd that cannot be read leaves `--dir` at its default, which the
@@ -152,7 +152,7 @@ impl CliArgs {
     /// The fallback resolves `..` itself rather than leaving the components
     /// in place. [`pnpm_workspace::find_workspace_dir`] walks ancestors
     /// lexically, so a `--dir` that climbs out of the workspace and lands
-    /// on a directory that does not exist — `../../elsewhere` — would
+    /// on a directory that does not exist, `../../elsewhere`, would
     /// otherwise walk right back up through its own `..` components and
     /// select the workspace the user pointed away from.
     pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
@@ -200,7 +200,7 @@ impl CliArgs {
     }
 
     /// `restart` also runs scripts and accepts its own `--if-present`,
-    /// so the top-level spelling is valid for it too — unlike the
+    /// so the top-level spelling is valid for it too, unlike the
     /// recursive-only flags, which `restart` rejects. `exec` is the
     /// reverse: it takes the recursive-only flags but runs arbitrary
     /// commands rather than scripts, so pnpm rejects `--if-present`

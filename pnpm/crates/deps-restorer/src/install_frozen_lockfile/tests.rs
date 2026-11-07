@@ -20,7 +20,7 @@ fn picks_up_runtime_pin_from_dependencies() {
 }
 
 /// A plain semver `node` dep (no `runtime:` prefix) is not an
-/// `engines.runtime` pin — workspaces can depend on the `node`
+/// `engines.runtime` pin, workspaces can depend on the `node`
 /// npm package without intending it as the script runner.
 #[test]
 fn ignores_non_runtime_node_dep() {
@@ -54,7 +54,7 @@ fn empty_dependencies_yields_none() {
     assert_eq!(find_own_runtime_node_major(&snapshot), None);
 }
 
-// --- load_custom_fetcher_session ---
+//,- load_custom_fetcher_session,-
 
 #[tokio::test]
 async fn load_custom_fetcher_session_is_none_without_a_pnpmfile() {
@@ -92,7 +92,7 @@ async fn load_custom_fetcher_session_loads_exported_fetchers() {
 }
 
 /// A pnpmfile that fails to evaluate aborts the install rather than
-/// silently proceeding without custom fetchers — a package whose fetch
+/// silently proceeding without custom fetchers, a package whose fetch
 /// the pnpmfile was meant to intercept must not fall through to the
 /// built-in dispatch.
 #[tokio::test]

@@ -53,7 +53,7 @@ fn clear_ci<Command: CommandExtra>(command: Command) -> Command {
 }
 
 /// A `--filter` that matches no project narrows the workspace to nothing, so
-/// recursive publish exits 0 without publishing or writing a summary — an
+/// recursive publish exits 0 without publishing or writing a summary, an
 /// empty selection is a no-op.
 #[test]
 fn recursive_publish_filter_no_match_is_a_noop() {
@@ -117,7 +117,7 @@ fn recursive_publish_all_private_writes_empty_summary() {
 }
 
 /// `publish -r --json` prints the per-package summaries as a JSON array on
-/// stdout — an empty array when nothing is published. Exercised on the
+/// stdout, an empty array when nothing is published. Exercised on the
 /// all-private no-op path so no registry request is made.
 #[test]
 fn recursive_publish_json_prints_empty_array_when_nothing_published() {
@@ -472,7 +472,7 @@ fn recursive_batch_publish_reports_an_unsupported_registry() {
     drop(root);
 }
 
-/// A bare `--filter` (no `-r`) puts `publish` into recursive mode — the shape
+/// A bare `--filter` (no `-r`) puts `publish` into recursive mode, the shape
 /// `release.yml` drives
 /// publishing with (`pn publish --filter=<pkg>`). A filter that matches no
 /// project is then a recursive no-op (exit 0); without the promotion this
@@ -501,7 +501,7 @@ fn filter_without_recursive_flag_enters_recursive_publish() {
     drop(root);
 }
 
-/// The exact shape `release.yml` publishes the monorepo with — an exclusion
+/// The exact shape `release.yml` publishes the monorepo with, an exclusion
 /// selector and no `-r` (`pn publish --filter=!<pkg> ...`). The promotion
 /// enters recursive mode, the exclusion narrows the set, and because every
 /// remaining package is private the run is a successful no-op that records an
@@ -540,7 +540,7 @@ fn filter_exclusion_without_recursive_flag_publishes_nothing() {
 }
 
 /// The global `-r` short flag works *after* the `publish` subcommand, not only
-/// before it — `pnpm publish -r` is the canonical recursive-publish ordering.
+/// before it, `pnpm publish -r` is the canonical recursive-publish ordering.
 /// (`publish` must not declare its own `--recursive` arg, which would strip the
 /// global `-r` short from the subcommand.)
 #[test]
@@ -562,7 +562,7 @@ fn recursive_publish_short_flag_after_subcommand() {
 }
 
 /// A workspace that enumerates no project is a recursive no-op that writes no
-/// summary — publishing returns before the handler when there are no
+/// summary, publishing returns before the handler when there are no
 /// projects, so no empty `pnpm-publish-summary.json` is emitted.
 #[test]
 fn recursive_publish_empty_workspace_writes_no_summary() {
@@ -694,7 +694,7 @@ fn recursive_publish_skips_already_published_packages() {
 }
 
 /// The already-published probe addresses the registry, so a project renamed by
-/// `publishConfig.name` is probed — and published — under the name the registry
+/// `publishConfig.name` is probed, and published, under the name the registry
 /// knows. Probing the workspace name would 404 and republish a version already
 /// out.
 #[test]

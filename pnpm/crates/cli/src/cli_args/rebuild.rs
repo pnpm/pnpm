@@ -20,7 +20,7 @@ use std::{
     sync::Mutex,
 };
 
-/// `pnpm rebuild` — re-run the lifecycle scripts of installed
+/// `pnpm rebuild`, re-run the lifecycle scripts of installed
 /// dependencies.
 #[derive(Debug, Clone, Args)]
 pub struct RebuildArgs {
@@ -151,7 +151,7 @@ pub(crate) struct RebuildSelection {
 ///
 /// A `pendingBuilds` record is a dep path for a dependency and an
 /// importer id for a project, and both are plain strings on disk. They
-/// are told apart by [`pending_entry_is_project`] — asking the string's
+/// are told apart by [`pending_entry_is_project`], asking the string's
 /// shape instead would misread a workspace directory named `foo@1.0.0`
 /// as a dependency and then drop its debt without running anything.
 fn resolve_selection(
@@ -194,7 +194,7 @@ fn resolve_selection(
 /// An importer id is always a relative path; a dep path can be
 /// absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join` replaces
 /// the base on an absolute component, so only a relative entry is
-/// probed — an absolute one is a dependency by construction.
+/// probed, an absolute one is a dependency by construction.
 fn pending_entry_is_project(lockfile_dir: &Path, active_importer_id: &str, entry: &str) -> bool {
     !Path::new(entry).is_absolute()
         && (entry == active_importer_id
@@ -245,11 +245,11 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
 /// The dependency groups the current `node_modules` was materialized with,
 /// read from `.modules.yaml`'s `included`. A rebuild must keep the
 /// installed set unchanged, so it reuses exactly these groups rather than
-/// widening to all of them — otherwise a `--prod` / `--no-optional`
+/// widening to all of them, otherwise a `--prod` / `--no-optional`
 /// install would have its excluded dev/optional dependencies fetched and
 /// their lifecycle scripts run. Falls back to every group when there is no
 /// `.modules.yaml`, or when it records no included groups (a legacy
-/// manifest written before `included` existed, or a corrupt one) — neither
+/// manifest written before `included` existed, or a corrupt one), neither
 /// is a recorded "include nothing" intent to preserve.
 fn rebuild_dependency_groups(config: &Config) -> miette::Result<Vec<DependencyGroup>> {
     const ALL: [DependencyGroup; 3] =

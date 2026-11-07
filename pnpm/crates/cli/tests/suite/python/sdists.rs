@@ -58,8 +58,8 @@ async fn a_release_with_only_a_source_distribution_is_built_and_replayed_offline
 }
 
 /// A legacy source distribution declares its requirements only in the
-/// wheel its backend builds, so the manifest beside it — here, none at
-/// all — is not a second answer pnpm holds the wheel to.
+/// wheel its backend builds, so the manifest beside it, here, none at
+/// all, is not a second answer pnpm holds the wheel to.
 #[tokio::test]
 async fn a_source_distribution_without_a_manifest_is_read_from_the_wheel_it_builds() {
     let root = tempfile::tempdir().unwrap();

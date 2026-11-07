@@ -110,8 +110,8 @@ impl PromptStyle {
 /// How `update --interactive` asks which dependencies to update.
 ///
 /// `clap` never sets it. It exists so a test can answer the prompt the
-/// way the upstream suite answers its own — by mocking
-/// `@inquirer/prompts` — which a prompt reading the terminal cannot offer.
+/// way the upstream suite answers its own, by mocking
+/// `@inquirer/prompts`, which a prompt reading the terminal cannot offer.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) enum UpdatePrompt {
     #[default]
@@ -157,9 +157,9 @@ fn report_cancelled<Reporter: self::Reporter>() {
 }
 
 /// Gather outdated direct dependencies, prompt the user, and return the
-/// selected package names. `Ok(None)` means "nothing to do" — either no
+/// selected package names. `Ok(None)` means "nothing to do", either no
 /// dependency has an update available or the prompt was answered with an
-/// empty selection — and the caller should not run an update.
+/// empty selection, and the caller should not run an update.
 pub(crate) async fn select_packages<Reporter: self::Reporter>(
     root: &Path,
     manifest: &PackageManifest,
@@ -287,7 +287,7 @@ fn unique_choices(
     choices: Vec<miette::Result<Vec<OutdatedPackage>>>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
     // Keyed by workspace as well, so an entry each project contributed
-    // survives to [`choices::update_choices`] — that is what lets a
+    // survives to [`choices::update_choices`], that is what lets a
     // collapsed row name every project it covers instead of the first.
     let mut unique = HashSet::new();
     let mut collected = Vec::new();
@@ -379,7 +379,7 @@ fn flatten_groups(groups: &[choices::ChoiceGroup]) -> Vec<PromptRow> {
 }
 
 /// The values behind `indices`, in the order the user checked them and
-/// without repeats — the same package can be offered by two importers.
+/// without repeats, the same package can be offered by two importers.
 fn selected_packages(rows: &[PromptRow], indices: &[usize]) -> Vec<String> {
     let mut selected = Vec::new();
     let mut seen = HashSet::new();

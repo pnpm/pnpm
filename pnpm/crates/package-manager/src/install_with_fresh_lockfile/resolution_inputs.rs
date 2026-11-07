@@ -50,7 +50,7 @@ pub(crate) struct ResolverFetchContext<'a> {
     pub tarballs: &'a Arc<MemCache>,
     pub auth_headers: &'a Arc<AuthHeaders>,
     pub progress_reported: &'a SharedReportedProgressKeys,
-    /// Whether a resolved tarball is prefetched — `false` for a run
+    /// Whether a resolved tarball is prefetched, `false` for a run
     /// whose install pass will never ask for those bytes.
     pub prefetch: bool,
     /// Where a run that fetches into the store keeps the download tasks
@@ -63,11 +63,11 @@ pub(crate) struct ResolverRegistryContext<'a> {
     pub by_prefix: &'a HashMap<String, String>,
     pub declared: &'a pnpm_lockfile::DeclaredRegistryPrefixes,
     pub cache: &'a Arc<InMemoryPackageMetaCache>,
-    /// See `NpmResolver::full_metadata` — forced on when `time-based`
+    /// See `NpmResolver::full_metadata`, forced on when `time-based`
     /// resolution or the `no-downgrade` trust policy needs the
     /// per-version `time` field.
     pub full_metadata: bool,
-    /// See `NpmResolver::needs_full_metadata_for` — the same question asked
+    /// See `NpmResolver::needs_full_metadata_for`, the same question asked
     /// of one registry.
     pub needs_full_metadata: NeedsFullMetadataFor,
 }

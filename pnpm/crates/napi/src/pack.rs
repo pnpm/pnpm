@@ -1,4 +1,4 @@
-//! `pack` — build a publishable `.tgz` from a project directory.
+//! `pack`, build a publishable `.tgz` from a project directory.
 //!
 //! Wraps [`pnpm_pack::api`], replacing Bit's side-load of
 //! `@pnpm/releasing.commands`' internal `publish/pack.js`. The Rust `api` is

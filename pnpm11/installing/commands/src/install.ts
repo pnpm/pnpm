@@ -254,7 +254,7 @@ export async function handler (opts: InstallCommandOptions & { _calledFromLink?:
 /**
  * Runs a full resolution but writes nothing to disk (no lockfile, no
  * `node_modules`), then reports what a real install would change. Exits
- * successfully regardless of whether changes were found — mirroring the
+ * successfully regardless of whether changes were found, mirroring the
  * preview semantics of `npm install --dry-run`.
  */
 async function dryRunInstall (installDepsOptions: InstallDepsOptions, opts: InstallCommandOptions): Promise<string> {
@@ -270,7 +270,7 @@ async function dryRunInstall (installDepsOptions: InstallDepsOptions, opts: Inst
   installDepsOptions.dryRun = true
   const dryRunResult = await installDeps(installDepsOptions, [])
   if (dryRunResult == null) {
-    // No comparison was produced — this install configuration's resolve path
+    // No comparison was produced, this install configuration's resolve path
     // doesn't surface the dry-run lockfiles (e.g. a workspace without a
     // shared lockfile). Report that explicitly instead of claiming "up to
     // date", but keep `--dry-run`'s exit-0 contract.

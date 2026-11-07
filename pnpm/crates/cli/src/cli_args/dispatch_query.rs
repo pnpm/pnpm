@@ -246,7 +246,7 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
 ///
 /// `dir` / `config` / `recursive` are read off `ctx` here, before the boxed
 /// future, so the future captures only owned/concrete values and never holds
-/// `&RunCtx` — whose higher-ranked config closures would otherwise make the
+/// `&RunCtx`, whose higher-ranked config closures would otherwise make the
 /// boxed [`CommandFuture`] not `Send`.
 pub(super) fn publish<'a>(
     ctx: &RunCtx<'a>,

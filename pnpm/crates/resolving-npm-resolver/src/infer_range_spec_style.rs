@@ -194,7 +194,7 @@ fn skip_prerelease_tail(bytes: &[u8], idx: usize) -> usize {
     if end > tail_start { end } else { idx }
 }
 
-/// Match a single `x`, `*`, or run of digits — the minor/patch alternative
+/// Match a single `x`, `*`, or run of digits, the minor/patch alternative
 /// `(x|\*|[0-9]+)`. Returns the byte offset just past it, or `None`.
 fn match_minor_or_patch(bytes: &[u8], at: usize) -> Option<usize> {
     let len = bytes.len();

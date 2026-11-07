@@ -53,7 +53,7 @@ export async function getHoistableRootDeps (
 /**
  * `link:`, `file:`, and the path form of `workspace:` name a directory relative
  * to the project that declares them, so the root's specifier cannot be hoisted
- * verbatim — it would reach a different path from the importer the peer is
+ * verbatim, it would reach a different path from the importer the peer is
  * hoisted into, or nothing. A `workspace:` range is not path-relative: it
  * selects the same workspace package from every importer, so it needs none of
  * this.
@@ -67,7 +67,7 @@ function isProjectRelativeSpecifier (bareSpecifier: string): boolean {
  * the authority over the peer that a registry dependency has, and the peer
  * resolves to the same package from every importer. The manifest is read from
  * disk rather than taken from `pkgAddress.pkg`, which a linked dependency
- * reused from the lockfile does not have — reading it makes a repeat install
+ * reused from the lockfile does not have, reading it makes a repeat install
  * hoist what a fresh install of the same manifest hoists. A target with no
  * manifest to read (a `file:` tarball, a path that does not exist) or no
  * version in it is not a candidate.

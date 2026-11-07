@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
-// @ts-expect-error -- FAKE_WINDOWS is a test-only global that is not declared on globalThis
+// @ts-expect-error, FAKE_WINDOWS is a test-only global that is not declared on globalThis
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const filespecPattern = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
 const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
@@ -50,7 +50,7 @@ class PathIsUnsupportedProtocolError extends PnpmError {
 /**
  * Whether a bare specifier's shape can only mean a local file or directory:
  * the `link:` / `file:` protocols, a path-prefixed spec (`./`, `../`, `~/`,
- * absolute POSIX paths, and Windows drive paths — including drive-relative
+ * absolute POSIX paths, and Windows drive paths, including drive-relative
  * ones like `C:dir`), or a bare tarball file name.
  *
  * Narrower than what {@link parseLocalPath} claims, which also takes any spec
@@ -63,8 +63,8 @@ class PathIsUnsupportedProtocolError extends PnpmError {
 export function isLocalFilesystemSpecifier (bareSpecifier: string): boolean {
   if (bareSpecifier.startsWith('link:') || bareSpecifier.startsWith('file:')) return true
   if (isFilespec(bareSpecifier)) return true
-  // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
-  // named-registry prefix — belongs to its own resolver, tarball-shaped path
+  // Any other protocol, a `git+ssh:` / `https:` URL, an `npm:` alias, a
+  // named-registry prefix, belongs to its own resolver, tarball-shaped path
   // or not.
   if (bareSpecifier.includes(':')) return false
   // A `#` here marks a hosted-git shorthand's committish
@@ -81,14 +81,14 @@ export function isLocalFilesystemSpecifier (bareSpecifier: string): boolean {
  * Stricter than {@link isLocalFilesystemSpecifier}, which answers a different
  * question: what a specifier *could* name, rather than which resolver reaches
  * it first. The chain runs the local path resolver last, so every shape that
- * is merely path-*like* has already been claimed by then — a slash-free
+ * is merely path-*like* has already been claimed by then, a slash-free
  * `repo.tgz` resolves as a dist-tag, and `user/repo.tgz` as a hosted-git
  * shorthand. Only a path-prefixed specifier lands on the local resolver, and
  * only those move.
  *
  * A `<letter>:` prefix is declined with them: a single-letter named registry
  * is well-formed, so `c:pkg@1` is a registry specifier as much as a drive
- * path. Nothing is lost by that — a drive path names the same place from
+ * path. Nothing is lost by that, a drive path names the same place from
  * every directory, and a drive-relative one is measured from process state no
  * caller here can see.
  */

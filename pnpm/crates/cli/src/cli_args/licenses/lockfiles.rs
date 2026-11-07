@@ -122,7 +122,7 @@ struct LicensedLockfile {
     importer_ids: Vec<String>,
 }
 
-/// The lockfiles recording the listed importers — the `--filter`
+/// The lockfiles recording the listed importers, the `--filter`
 /// selection under `--recursive`, the project in `dir` otherwise. A
 /// workspace with dedicated lockfiles has one per project.
 fn licensed_lockfiles(

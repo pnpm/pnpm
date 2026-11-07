@@ -19,8 +19,8 @@ fn a_null_policy_ref_is_unavailable_instead_of_panicking() {
 /// out is adopted and stays usable, so the probe goes on to evaluate trust
 /// instead of falling back on every machine.
 ///
-/// Whether the framework hands one out is a property of the host — it returns
-/// NULL on the machines `pnpm/pnpm#14461` reports — so the test asserts the
+/// Whether the framework hands one out is a property of the host, it returns
+/// NULL on the machines `pnpm/pnpm#14461` reports, so the test asserts the
 /// branch the host takes rather than one fixed outcome. Where a policy was
 /// created it has to survive into `SecTrust`; where the framework declined it,
 /// the probe has to report the platform verifier as unavailable, which is the

@@ -90,9 +90,9 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
 
 /// Byte-for-byte parity: parsing a pnpm-authored v9 lockfile and saving it
 /// reproduces the exact bytes pnpm wrote. [`LOCKFILE_YAML`] is laid out the way
-/// pnpm's `js-yaml` dumper writes it — blank lines between top-level and
+/// pnpm's `js-yaml` dumper writes it, blank lines between top-level and
 /// section entries, single-quoted ambiguous scalars, single-line
-/// `resolution` / `engines`, and priority-then-lexical key ordering — so an
+/// `resolution` / `engines`, and priority-then-lexical key ordering, so an
 /// exact match proves pacquet's writer matches pnpm's formatting.
 #[test]
 fn save_reproduces_pnpm_authored_bytes() {
@@ -443,7 +443,7 @@ fn write_current_surfaces_create_dir_error_when_parent_is_a_file() {
     // Make `tmp/blocker` a regular file, then ask to write the
     // lockfile under `tmp/blocker/.pacquet`. `create_dir_all` will
     // fail with `NotADirectory` (or `AlreadyExists` on some
-    // platforms) — either way it must land as `CreateDir`.
+    // platforms), either way it must land as `CreateDir`.
     let blocker = tmp.path().join("blocker");
     std::fs::write(&blocker, b"not a dir").expect("seed blocker file");
 
@@ -481,7 +481,7 @@ fn write_current_surfaces_remove_file_error_when_target_is_a_directory() {
         matches!(err, SaveLockfileError::RemoveFile { .. }),
         "expected RemoveFile error, got: {err:?}",
     );
-    // The directory is still there — the failure was reported, not silently swallowed.
+    // The directory is still there, the failure was reported, not silently swallowed.
     assert!(dir_at_target.is_dir());
 }
 

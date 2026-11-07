@@ -29,18 +29,18 @@ export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOpt
  *
  * A repository declares pacquet in its `pnpm-workspace.yaml`
  * `configDependencies` and controls the lockfile integrity and the registry
- * the bytes came from — so the declaration alone cannot authorize running a
+ * the bytes came from, so the declaration alone cannot authorize running a
  * native binary. This verifies that the exact bytes installed on disk (the
  * `pacquet` shim and the host's `@pacquet/<platform>-<arch>` binary, which is
  * what actually executes) carry a valid npm registry signature for that
  * `name@version`, checked against npm's embedded public keys. The signature is
  * verified over the *installed* integrity, so substituted or tampered bytes
- * fail — and because the keys are embedded rather than fetched, a repository
+ * fail, and because the keys are embedded rather than fetched, a repository
  * pointing the registry at a server it controls cannot supply its own key pair.
  *
  * Fails closed: if a declared pacquet's signature does not verify, or it cannot
  * be verified (e.g. the registry is unreachable), this throws rather than
- * silently running pnpm's own engine — a verification failure should be loud.
+ * silently running pnpm's own engine, a verification failure should be loud.
  * The one exception is when pacquet has no binary for this platform: that
  * is unavailability, not tampering, so it returns `false` and the caller uses
  * pnpm's own install engine.
@@ -52,7 +52,7 @@ export async function verifyPacquetIdentity (
   const trustedKeys = getNpmSigningKeys()
   const toVerify = await collectPacquetPackagesToVerify(packageName, opts.rootDir, opts.registriesByScope)
   if (toVerify == null) {
-    // pacquet has no installed binary for this platform — use pnpm's own engine.
+    // pacquet has no installed binary for this platform, use pnpm's own engine.
     return skip(opts.lockfileDir)
   }
 

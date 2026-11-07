@@ -21,7 +21,7 @@ pub struct ArchiveStoreContext<'a> {
     /// one transaction each, so the whole install goes through one
     /// `Connection::open` and a handful of WAL commits. Opening a
     /// connection per tarball instead would saturate tokio's blocking
-    /// pool — 500+ threads on a 1352-snapshot install, see [#263].
+    /// pool, 500+ threads on a 1352-snapshot install, see [#263].
     /// `None` degrades to "skip index row", matching the read
     /// side's stance: install still succeeds, the next install misses on
     /// this cache key and re-downloads.
@@ -32,7 +32,7 @@ pub struct ArchiveStoreContext<'a> {
     /// setting. When `true` (pnpm's default) each cached CAFS file is
     /// stat'ed and optionally re-hashed before reuse. When `false` the
     /// index is trusted and the import fails lazily if a blob is
-    /// missing — trades the per-file stat / optional rehash for the
+    /// missing, trades the per-file stat / optional rehash for the
     /// risk that a mutated or corrupt store serves stale content until
     /// the next integrity-full install.
     pub verify_integrity: bool,
@@ -111,7 +111,7 @@ pub struct TarballPackage<'a> {
     pub integrity_kind: crate::IntegrityKind,
     pub unpacked_size: Option<usize>,
     /// `dist.fileCount` when the registry published one. Combined with
-    /// `unpacked_size` into the download's queueing priority —
+    /// `unpacked_size` into the download's queueing priority,
     /// per-file pipeline overhead (CAS write syscalls, hashing) makes a
     /// many-small-files package as slow to finish as a much larger
     /// few-files one.

@@ -5,7 +5,7 @@
 //! Catalog protocol: when the override value uses the `catalog:` form
 //! it is resolved against the workspace's named catalogs before being
 //! stored on the parsed entry. Pass an empty
-//! [`Catalogs`] map when the caller has no catalogs configured — any
+//! [`Catalogs`] map when the caller has no catalogs configured, any
 //! `catalog:` value will then fall through to the missing-entry branch.
 
 use derive_more::{Display, Error};
@@ -119,7 +119,7 @@ pub enum ParseOverridesError {
 ///
 /// Iteration follows the input map's iterator order. `HashMap` is
 /// unordered, so the returned `Vec` is *not* guaranteed to match
-/// the input's insertion order — for that, use
+/// the input's insertion order, for that, use
 /// [`parse_overrides_iter`] with an ordered map (e.g. `IndexMap`)
 /// or pre-sort by key.
 pub fn parse_overrides(

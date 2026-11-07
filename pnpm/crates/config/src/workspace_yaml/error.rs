@@ -162,7 +162,7 @@ pub enum LoadWorkspaceYamlError {
     /// An `_auth` or `_password` credential did not decode as base64. Both
     /// exist to carry a base64-encoded value, so a value that cannot be
     /// decoded would otherwise reach the registry as a credential nobody
-    /// chose — a silent 401 instead of a fixable error.
+    /// chose, a silent 401 instead of a fixable error.
     #[display("Failed to decode {key} as base64")]
     #[diagnostic(
         code(ERR_PNPM_AUTH_INVALID_BASE64),
@@ -206,7 +206,7 @@ pub enum LoadWorkspaceYamlError {
 
     /// The signing trust root for remote side-effects artifacts appeared in a
     /// committed file. Only the global config yaml and the environment may
-    /// carry it — see [`RemoteSideEffectsCacheSettings`](crate::workspace_yaml::sections::RemoteSideEffectsCacheSettings).
+    /// carry it, see [`RemoteSideEffectsCacheSettings`](crate::workspace_yaml::sections::RemoteSideEffectsCacheSettings).
     #[display("{prefix}.{field} cannot be set by a workspace ({})", path.display())]
     #[diagnostic(
         code(ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST),
@@ -217,7 +217,7 @@ pub enum LoadWorkspaceYamlError {
     )]
     WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
 
-    /// A machine-only field of `remoteCache` appeared in a committed file —
+    /// A machine-only field of `remoteCache` appeared in a committed file,
     /// see [`RemoteCacheSettings`](crate::workspace_yaml::sections::RemoteCacheSettings).
     #[display("remoteCache.{field} cannot be set by a workspace ({})", path.display())]
     #[diagnostic(

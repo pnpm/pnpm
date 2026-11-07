@@ -87,8 +87,8 @@ export function parsePackageManager (packageManager: string): ParsedPackageManag
  */
 function splitPackageManagerVersion (reference: string | undefined): { version: string | undefined, hash: string | undefined } {
   if (reference == null) return { version: undefined, hash: undefined }
-  // Split on the first `+` only. The integrity hash is semver build metadata —
-  // everything after that `+` — and must be preserved whole, so a reference is
+  // Split on the first `+` only. The integrity hash is semver build metadata,
+  // everything after that `+`, and must be preserved whole, so a reference is
   // never truncated at a later `+`.
   const hashIndex = reference.indexOf('+')
   if (hashIndex === -1) return { version: reference, hash: undefined }
@@ -99,7 +99,7 @@ function splitPackageManagerVersion (reference: string | undefined): { version: 
  * Describes how the legacy `packageManager` field disagrees with
  * `devEngines.packageManager`, or returns undefined when the two specifiers are
  * identical (so keeping both fields in sync produces no warning). Any
- * divergence warns — including an integrity hash (semver build metadata) on
+ * divergence warns, including an integrity hash (semver build metadata) on
  * only one side, since dropping the ignored `packageManager` field would lose
  * it. In every conflict `devEngines.packageManager` wins and `packageManager`
  * is ignored.
@@ -112,8 +112,8 @@ function getPackageManagerConflictWarning (legacy: ParsedPackageManager, devEngi
   }
   if (legacy.version !== devEngines.version) {
     // "different versions" only makes sense when both sides are concrete
-    // versions. If one side has no semver version — e.g. the legacy field is a
-    // URL or a bare name — fall back to the generic notice rather than claiming
+    // versions. If one side has no semver version, e.g. the legacy field is a
+    // URL or a bare name, fall back to the generic notice rather than claiming
     // a version mismatch.
     if (legacy.version == null || devEngines.version == null) return genericWarning
     return `"packageManager" and "devEngines.packageManager" specify different versions of ${sanitizeManifestValue(legacy.name)} in package.json${ignoredSuffix}`
@@ -138,7 +138,7 @@ function getPackageManagerConflictWarning (legacy: ParsedPackageManager, devEngi
  * forge or rewrite terminal/CI log output.
  */
 function sanitizeManifestValue (value: string): string {
-  // eslint-disable-next-line no-control-regex -- matching control characters is the point
+  // eslint-disable-next-line no-control-regex, matching control characters is the point
   return stripVTControlCharacters(value).replace(/[\u0000-\u001f\u007f]/g, ' ')
 }
 
@@ -187,7 +187,7 @@ function selectPackageManagerEngine (engines: EngineDependency[]): SelectedPacka
     // In array notation, default onFail is 'error' for the last element, 'ignore' for others.
     return { pmEngine, onFail: pmEngine.onFail ?? (pnpmIndex === engines.length - 1 ? 'error' : 'ignore') }
   }
-  // No pnpm entry found — use the last element's onFail for the overall failure behavior.
+  // No pnpm entry found, use the last element's onFail for the overall failure behavior.
   const lastEngine = engines[engines.length - 1]
   return { pmEngine: engines[0], onFail: lastEngine.onFail ?? 'error' }
 }

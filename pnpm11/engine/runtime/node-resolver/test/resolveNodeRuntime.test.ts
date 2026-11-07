@@ -185,7 +185,7 @@ test('resolveNodeRuntime() serves repeat asset reads from the cache', async () =
     })
 
     for (let run = 0; run < 2; run++) {
-      // eslint-disable-next-line no-await-in-loop -- the second run must see the cache written by the first
+      // eslint-disable-next-line no-await-in-loop, the second run must see the cache written by the first
       const resolution = await resolveNodeRuntime({
         fetchFromRegistry: countedFetch,
         nodeDownloadMirrors: { rc: MIRROR },

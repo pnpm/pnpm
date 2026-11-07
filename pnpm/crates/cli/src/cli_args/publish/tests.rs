@@ -224,7 +224,7 @@ fn run_publish_scripts_is_a_noop_when_no_script_is_declared() {
 }
 
 /// Publishing a directory that has no `package.json` fails with
-/// `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` before any packing or network work —
+/// `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` before any packing or network work,
 /// the only branch of `publish_directory` reachable without a live registry.
 #[tokio::test]
 async fn publish_directory_errors_when_no_manifest_is_present() {

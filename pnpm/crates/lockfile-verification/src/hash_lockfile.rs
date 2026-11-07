@@ -1,7 +1,7 @@
 //! Stable content hash of an in-memory [`Lockfile`].
 //!
 //! Used by the verification cache to recognise the
-//! same lockfile across paths — committed-then-restored CI checkouts,
+//! same lockfile across paths, committed-then-restored CI checkouts,
 //! parallel git worktrees, lockfile copies. The same parsed
 //! [`Lockfile`] must yield the same hash every time regardless of
 //! how the underlying YAML was ordered when written.
@@ -12,8 +12,8 @@
 //! equivalent but format-divergent: stream the lockfile through
 //! `serde_json` with every map normalized to sorted key order, hash
 //! the bytes with sha256, output **hex** (not base64). Cross-stack
-//! cache hits are not expected — each stack reads its own records out
-//! of the shared JSONL — and the per-stack determinism is what the
+//! cache hits are not expected, each stack reads its own records out
+//! of the shared JSONL, and the per-stack determinism is what the
 //! cache contract actually requires.
 
 use std::io;
@@ -25,7 +25,7 @@ use sha2::{Digest, Sha256};
 ///
 /// The same on-write normalization the writer applies runs first, so an
 /// in-memory lockfile hashes to what it will hash to once saved and read
-/// back — which is what lets an install record the verification its
+/// back, which is what lets an install record the verification its
 /// successor looks up.
 #[must_use]
 pub fn hash_lockfile(lockfile: &Lockfile) -> String {
@@ -42,7 +42,7 @@ pub fn hash_lockfile(lockfile: &Lockfile) -> String {
 /// `io::Write` adapter that feeds bytes into a [`Sha256`] as they
 /// arrive from `serde_json::to_writer`, so the full normalized JSON
 /// never materializes in memory. Mirrors upstream's streaming
-/// behavior — the lockfile can be megabytes for large monorepos.
+/// behavior, the lockfile can be megabytes for large monorepos.
 struct HashWriter(Sha256);
 
 impl io::Write for HashWriter {

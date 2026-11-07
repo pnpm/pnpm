@@ -15,7 +15,7 @@ use pnpm_network::{redact_and_sanitize, walk_reqwest_chain};
 /// fetchers pass it through [`pnpm_network::redact_url_credentials`]
 /// at construction), so a registry configured with inline
 /// `user:pass@host` basic-auth can't leak into the `Display` /
-/// `Diagnostic` message — which reaches the terminal, CI logs, and
+/// `Diagnostic` message, which reaches the terminal, CI logs, and
 /// reporters whenever the resolver surfaces the error.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -55,7 +55,7 @@ pub enum FetchMetadataError {
     },
 
     /// Reading the response body failed *after* the registry returned
-    /// a `2xx` — a connection reset or truncated transfer mid-stream,
+    /// a `2xx`, a connection reset or truncated transfer mid-stream,
     /// reqwest's "error decoding response body". Distinct from
     /// [`FetchMetadataError::Network`] so the message names the body
     /// read. Both are retried by [`FetchMetadataError::is_transient`].
@@ -78,7 +78,7 @@ pub enum FetchMetadataError {
     /// Filtering a parsed packument down to the fields pnpm keeps
     /// (`clear_meta`, the `filterMetadata` path) failed. Unlike a body
     /// read or the top-level parse, this runs on an already-parsed,
-    /// complete `Package`, so it is deterministic — a fresh re-fetch
+    /// complete `Package`, so it is deterministic, a fresh re-fetch
     /// would feed `clear_meta` the same structure and fail identically.
     /// Kept out of [`FetchMetadataError::is_transient`] for that
     /// reason.
@@ -150,8 +150,8 @@ impl FetchMetadataError {
         }
     }
 
-    /// Whether this failure is a hard access/existence denial — HTTP
-    /// `401`, `403`, or `404` — rather than a transport failure
+    /// Whether this failure is a hard access/existence denial, HTTP
+    /// `401`, `403`, or `404`, rather than a transport failure
     /// (`5xx`/timeout/connection reset).
     ///
     /// A private-scope metadata fetch must **fail closed** on a denial:
@@ -213,7 +213,7 @@ pub struct GuardRepickLimitError {
 /// from it.
 ///
 /// Both fields are quoted registry metadata, so [`Self::new`] redacts
-/// and sanitizes them — see [`FetchMetadataError`] for why.
+/// and sanitizes them, see [`FetchMetadataError`] for why.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(r#"Tarball "{tarball}" has invalid shasum specified in its metadata: {shasum}"#)]
 #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_INTEGRITY))]

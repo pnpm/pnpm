@@ -261,7 +261,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
 /// treated as a changed direct dep: the wanted spec reaches the walker
 /// with the protocol already resolved to the catalog's range, and
 /// comparing that against the recorded `catalog:` specifier would
-/// decline subtree reuse for every dependent — `parent` would
+/// decline subtree reuse for every dependent, `parent` would
 /// re-resolve to the registry's newer 1.1.0 (and re-pick its open
 /// `tool: *` edge at 2.0.0) with no manifest change, churning the
 /// lockfile.

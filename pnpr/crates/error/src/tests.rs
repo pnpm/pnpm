@@ -200,8 +200,8 @@ fn is_transient_upstream_error_only_for_availability_failures() {
     };
     assert!(circuit_open.is_transient_upstream_error());
 
-    // Every 4xx is an authoritative response about this request — including
-    // 429 (throttle) and 408 (timeout) — and must NOT be masked (e.g. by
+    // Every 4xx is an authoritative response about this request, including
+    // 429 (throttle) and 408 (timeout), and must NOT be masked (e.g. by
     // serving a stale cache entry).
     for status in [400, 401, 403, 408, 410, 429, 451] {
         let err = RegistryError::UpstreamStatus {

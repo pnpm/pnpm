@@ -272,7 +272,7 @@ fn dependency_removal_override_prunes_the_locked_subtree_without_resolving() {
 /// configured value is a `catalog:` reference. Override values are
 /// compared catalog-resolved, so with the catalogs settled the
 /// `catalog:` override shows no drift and only the added removal is
-/// applied — which the dead registry proves needs no resolution.
+/// applied, which the dead registry proves needs no resolution.
 #[test]
 fn removal_override_composes_with_a_settled_catalog_override() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
@@ -342,8 +342,8 @@ fn removal_override_composes_with_a_settled_catalog_override() {
 
 /// An override on a cataloged package replaces the `catalog:` specifier
 /// outright, so the entry is dropped rather than moved. The seed only
-/// feeds the resolver — the catalogs section is rebuilt from what the
-/// resolution recorded — so the rewrite needs no guard for this.
+/// feeds the resolver, the catalogs section is rebuilt from what the
+/// resolution recorded, so the rewrite needs no guard for this.
 #[test]
 fn an_override_on_a_cataloged_package_drops_the_catalog_entry() {
     let fixture = CommandTempCwd::init().add_mocked_registry();

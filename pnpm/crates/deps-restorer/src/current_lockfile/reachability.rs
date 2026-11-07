@@ -187,8 +187,8 @@ where
     walk.reached
 }
 /// Breadth-first walk of the lockfile graph from a set of importers.
-/// Importers and snapshots reach each other in both directions —
-/// a snapshot's `link:` dependency pulls in a workspace importer — so
+/// Importers and snapshots reach each other in both directions,
+/// a snapshot's `link:` dependency pulls in a workspace importer, so
 /// the two queues run to exhaustion in turn until neither grows.
 pub(super) struct ReachableWalk<'a, ShouldSkip> {
     pub reached: ReachableLockfileGraph,

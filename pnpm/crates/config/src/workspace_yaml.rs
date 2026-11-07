@@ -351,7 +351,7 @@ fn warn_deprecated_pairing(also_set: bool, deprecated: &str) {
 
 /// Join `fragment` onto `base` the way pnpm's `path.join` does: concatenate
 /// with the separator, then normalize. Node treats every argument after the
-/// first as a fragment, so [`Path::join`] is the wrong primitive here — it
+/// first as a fragment, so [`Path::join`] is the wrong primitive here, it
 /// lets a fragment that parses as rooted (`//bin`) or drive-prefixed
 /// (`C:bin`, drive-relative on Windows) replace `base` outright.
 fn join_fragment(base: &Path, fragment: &str) -> PathBuf {
@@ -378,7 +378,7 @@ pub(crate) fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Resolve the workspace root for a given starting directory — i.e. the
+/// Resolve the workspace root for a given starting directory, i.e. the
 /// directory containing the nearest ancestor `pnpm-workspace.yaml`.
 /// Returns `start` itself if no manifest is found, so callers can always
 /// use the result as a resolution base.

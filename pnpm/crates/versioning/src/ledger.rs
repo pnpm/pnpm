@@ -18,7 +18,7 @@ use crate::{error::VersioningError, intents::CHANGES_DIR};
 pub const LEDGER_FILENAME: &str = "ledger.yaml";
 
 /// One consumed release: the workspace-relative directory of the project
-/// that released (the engine's unit of identity — package names may collide
+/// that released (the engine's unit of identity, package names may collide
 /// across workspace projects) and the ids of the intent files the release
 /// consumed. The bare id-list shape is accepted when read, for hand-written
 /// entries; its project is then resolved by the package name in the entry
@@ -105,8 +105,8 @@ impl LedgerEntry {
 /// The committed, append-only record of consumed change intents: maps
 /// `<package name>@<released version>` to the released project and the ids
 /// of the intent files consumed by that release. Consumption is scoped per
-/// project — an intent file is fully consumed only once every project it
-/// names has an entry — which is what makes cherry-picked releases on
+/// project, an intent file is fully consumed only once every project it
+/// names has an entry, which is what makes cherry-picked releases on
 /// maintenance branches and merge-backs safe, and what lets one intent be
 /// half-consumed by a package on a release lane.
 pub type Ledger = BTreeMap<String, LedgerEntry>;
@@ -161,7 +161,7 @@ pub fn append_to_ledger(
 /// `yaml.stringify` produces: sorted `package@version` keys (quoted when the
 /// name is scoped, since a leading `@` is a YAML indicator), each with the
 /// released project directory and a two-space-indented id list. An empty id
-/// list renders as `[]` — a bare key would read back as null, not a list.
+/// list renders as `[]`, a bare key would read back as null, not a list.
 fn render_ledger(ledger: &Ledger) -> String {
     let mut output = String::new();
     for (key, entry) in ledger {
@@ -226,8 +226,8 @@ fn yaml_scalar(value: &str) -> String {
             '\0' => escaped.push_str(r"\0"),
             // Every other control character must be escaped too, or the
             // written scalar would be invalid YAML that `read_ledger` can no
-            // longer parse. `char::is_control` covers only U+0000–U+001F and
-            // U+007F–U+009F, so a two-digit `\xNN` always fits.
+            // longer parse. `char::is_control` covers only U+0000 to U+001F and
+            // U+007F to U+009F, so a two-digit `\xNN` always fits.
             control if control.is_control() => {
                 write!(escaped, r"\x{:02X}", control as u32).expect("write to string");
             }
@@ -273,7 +273,7 @@ pub struct PackageConsumption {
 /// Indexes the ledger by workspace-relative project directory in a single
 /// pass. Bare id-list entries carry no directory, so their project is
 /// resolved from the entry key's package name via `resolve_name_dirs`; a
-/// name matching several projects cannot be attributed and is an error —
+/// name matching several projects cannot be attributed and is an error,
 /// write such entries in the `dir`/`intents` shape instead. Entries whose
 /// name no longer exists in the workspace are inert. Projects without
 /// entries map to an empty consumption, so lookups never miss.

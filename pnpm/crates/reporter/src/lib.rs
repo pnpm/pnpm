@@ -89,7 +89,7 @@ pub enum LogEvent {
     /// Project manifest snapshots (`pnpm:package-manifest`). Two
     /// presence-tagged shapes per pnpm's union: `initial` (emitted
     /// once at install start with the on-disk manifest) and
-    /// `updated` (emitted after the manifest is rewritten — e.g.
+    /// `updated` (emitted after the manifest is rewritten, e.g.
     /// `pacquet add` saves a new dependency entry).
     #[serde(rename = "pnpm:package-manifest")]
     PackageManifest(PackageManifestLog),
@@ -169,7 +169,7 @@ pub enum LogEvent {
     /// One `started` event before the fan-out, followed by exactly one
     /// terminal `done` (success) or `failed` (policy violation or
     /// unexpected throw). Fires only when the candidate set is
-    /// non-empty — a lockfile whose snapshots all fail name/version
+    /// non-empty, a lockfile whose snapshots all fail name/version
     /// extraction produces no events.
     #[serde(rename = "pnpm:lockfile-verification")]
     LockfileVerification(LockfileVerificationLog),
@@ -181,7 +181,7 @@ pub enum LogEvent {
     Lockfile(LockfileLog),
 
     /// Generic global-logger message (`name: "pnpm"`). Carries a
-    /// `{ message, prefix }` payload — for example, the "Lockfile is
+    /// `{ message, prefix }` payload, for example, the "Lockfile is
     /// up to date, resolution step is skipped" line the frozen-install
     /// short-circuit prints. `@pnpm/cli.default-reporter` routes these
     /// into the "other" log stream.
@@ -197,7 +197,7 @@ pub enum LogEvent {
     DedupeCheck(DedupeCheckLog),
 
     /// Global-logger message (`name: "pnpm:global"`). Written to a
-    /// `bole('pnpm:global')` logger with just a message string — no
+    /// `bole('pnpm:global')` logger with just a message string, no
     /// `prefix`, unlike [`LogEvent::Pnpm`].
     /// `@pnpm/cli.default-reporter` routes these into the "other"
     /// log stream.
@@ -263,7 +263,7 @@ pub struct RequestRetryLog {
 /// `err.message` directly still work.
 ///
 /// Plain backticks (not an intra-doc link) because `pnpm-reporter`
-/// cannot depend on `pnpm-tarball` — the dependency runs the
+/// cannot depend on `pnpm-tarball`, the dependency runs the
 /// other way.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -345,9 +345,9 @@ pub enum LifecycleStdio {
 pub struct IgnoredScriptsLog {
     pub level: LogLevel,
     pub package_names: Vec<String>,
-    /// `strictDepBuilds` at emit time. Carried in-memory only —
+    /// `strictDepBuilds` at emit time. Carried in-memory only,
     /// `#[serde(skip)]` keeps it out of the `pnpm:ignored-scripts` NDJSON
-    /// wire shape — so the default reporter can suppress the warning box
+    /// wire shape, so the default reporter can suppress the warning box
     /// under strict mode (where the install fails with
     /// `ERR_PNPM_IGNORED_BUILDS` instead) without relying on a stale
     /// global flag. The structured event itself is always emitted with
@@ -524,8 +524,8 @@ pub struct PeerDependencyIssuesLog {
 /// `pnpm:scope` payload: how many workspace projects the command
 /// selected, out of how many the workspace has.
 ///
-/// `total` accompanies a workspace-wide run — including a `--filter` that
-/// narrowed it to one project — and is absent from the single-project
+/// `total` accompanies a workspace-wide run, including a `--filter` that
+/// narrowed it to one project, and is absent from the single-project
 /// shape a command targeting only the project it was run in reports.
 /// `workspace_prefix` is absent outside a workspace, which is what makes
 /// the reporter say "projects" rather than "workspace projects". Both are
@@ -541,7 +541,7 @@ pub struct ScopeLog {
 }
 
 /// Global-channel (`name: "pnpm:global"`) payload. Carries only a
-/// severity and a message — pnpm's `bole('pnpm:global')` logger takes a
+/// severity and a message, pnpm's `bole('pnpm:global')` logger takes a
 /// bare string, with no `prefix`, so this struct has none either.
 #[derive(Debug, Clone, Serialize)]
 pub struct GlobalLog {
@@ -629,7 +629,7 @@ pub enum LogLevel {
 /// swallowed so a reporter problem can never crash an install.
 ///
 /// **Thread safety.** `emit` may be invoked concurrently from
-/// arbitrary threads — pacquet's import path runs `link_file` from a
+/// arbitrary threads, pacquet's import path runs `link_file` from a
 /// rayon `par_iter`, and tarball download / store-index work runs
 /// across tokio workers, all of which can fire reporter events at
 /// once. Implementations must therefore guard any shared state they

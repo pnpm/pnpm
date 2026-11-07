@@ -15,7 +15,7 @@ export interface PackageMetaCache {
    * resolver tracks whether a cached packument was validated against the
    * registry by object identity (see `unverifiedDiskPackuments`). In a cache
    * that clones or deserializes on read, that provenance is lost and recovery
-   * degrades — a stale disk-promoted entry that can't satisfy a spec fails
+   * degrades, a stale disk-promoted entry that can't satisfy a spec fails
    * the pick instead of falling through to the registry.
    */
   get: (key: string) => PackageMeta | undefined

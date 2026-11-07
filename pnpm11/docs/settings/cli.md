@@ -103,7 +103,7 @@ This setting replaces the removed `managePackageManagerVersions`, `packageManage
 Migration:
 
 | Removed setting                       | Replace with                   |
-| ------------------------------------- | ------------------------------ |
+|,----------------------------------- |,---------------------------- |
 | `managePackageManagerVersions: true`  | `pmOnFail: download` (default) |
 | `managePackageManagerVersions: false` | `pmOnFail: ignore`             |
 | `packageManagerStrict: false`         | `pmOnFail: warn`               |

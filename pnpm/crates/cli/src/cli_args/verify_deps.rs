@@ -1,6 +1,6 @@
 //! The verify-deps-before-run gate: before `pnpm run` / `pnpm exec`
 //! execute anything, verify that `node_modules` is in sync with the
-//! lockfile and apply the configured action — spawn an install, prompt
+//! lockfile and apply the configured action, spawn an install, prompt
 //! for one, error out, or warn. pnpm's counterpart is
 //! `runDepsStatusCheck` in `exec/commands`.
 
@@ -62,7 +62,7 @@ enum VerifyDepsError {
 }
 
 /// Run the configured verify-deps-before-run action for the project at
-/// `dir`. `Ok(())` means the script may proceed — including after a
+/// `dir`. `Ok(())` means the script may proceed, including after a
 /// spawned install, a declined prompt, or a warning.
 ///
 /// `selected_project_dirs` are the project directories the gated command

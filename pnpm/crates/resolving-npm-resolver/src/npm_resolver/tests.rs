@@ -164,7 +164,7 @@ pub(super) fn reject_versions(versions: &[&str]) -> Arc<dyn PackageVersionGuard>
     guard_rejecting(versions, GuardExhaustionPolicy::Fail)
 }
 
-/// Packument body for `@jsr/foo__bar` — the npm-shaped name JSR
+/// Packument body for `@jsr/foo__bar`, the npm-shaped name JSR
 /// serves `@foo/bar`.
 const JSR_PACKAGE_BODY: &str = r#"{
     "name": "@jsr/foo__bar",
@@ -198,7 +198,7 @@ const JSR_PACKAGE_BODY: &str = r#"{
 
 /// Packument where the earlier-published `1.0.0` carries the strongest
 /// trust evidence available here (`trustedPublisher` + provenance) and
-/// the later `1.1.0` carries none — a trust downgrade. Resolving
+/// the later `1.1.0` carries none, a trust downgrade. Resolving
 /// `^1.0.0` picks `1.1.0` (the max), so the resolver-time gate must
 /// reject it under `trustPolicy='no-downgrade'`.
 const TRUST_DOWNGRADE_PACKAGE_BODY: &str = r#"{
@@ -272,7 +272,7 @@ fn packument_with_many_versions(count: u32) -> String {
 }
 
 /// Packument whose `1.5.0+build` key carries a manifest `version` of
-/// `1.5.0` — i.e. the version-map key differs from the parsed manifest
+/// `1.5.0`, i.e. the version-map key differs from the parsed manifest
 /// version, the case a malformed/malicious registry can produce.
 const MISMATCHED_KEY_BODY: &str = r#"{
     "name": "acme",

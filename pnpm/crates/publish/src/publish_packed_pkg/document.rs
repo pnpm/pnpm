@@ -12,7 +12,7 @@ pub(crate) struct DistHashes<'a> {
     pub(crate) shasum: &'a str,
 }
 
-/// Build the npm publish document — the JSON body sent as the whole
+/// Build the npm publish document, the JSON body sent as the whole
 /// `PUT /:pkg` request.
 pub(crate) fn build_publish_document(
     manifest: &Value,
@@ -30,8 +30,8 @@ pub(crate) fn build_publish_document(
     // the authenticated PUT URL, mirroring libnpmpublish's `npa.resolve(name, ..)`
     // gate. Without it a crafted tarball's `package.json` name could parse as an
     // absolute URL under `Url::join` (special-scheme URLs also treat `\` as `/`)
-    // and redirect the publish request — carrying the `Authorization` / `npm-otp`
-    // headers — to an attacker-controlled host.
+    // and redirect the publish request, carrying the `Authorization` / `npm-otp`
+    // headers, to an attacker-controlled host.
     if !is_valid_old_npm_package_name(&name) {
         return Err(PublishPackedPkgError::InvalidPackageName { name });
     }

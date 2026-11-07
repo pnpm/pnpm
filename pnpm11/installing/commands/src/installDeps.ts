@@ -263,7 +263,7 @@ function applyWorkspaceOption (opts: InstallDepsOptions): void {
   if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
     opts.saveWorkspaceProtocol = true
   }
-  // @ts-expect-error -- preserveWorkspaceProtocol is an install option that InstallDepsOptions does not declare
+  // @ts-expect-error, preserveWorkspaceProtocol is an install option that InstallDepsOptions does not declare
   opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
 }
 

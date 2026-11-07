@@ -216,22 +216,22 @@ interface PackageNameAndSelector {
 
 function splitNamedRegistryBody (body: string, packageAlias: string | undefined): PackageNameAndSelector | null {
   if (semver.validRange(body) != null) {
-    // `<alias>:<version_selector>` — fall back to the dependency alias as
+    // `<alias>:<version_selector>`, fall back to the dependency alias as
     // the package name. Unresolvable without one.
     if (!packageAlias) return null
     return { pkgName: packageAlias, versionSelector: body }
   }
   if (body[0] === '@') {
-    // `<alias>:@<owner>/<name>[@<version_selector>]` — scoped package.
+    // `<alias>:@<owner>/<name>[@<version_selector>]`, scoped package.
     return splitPackageNameAndSelector(body)
   }
   if (packageAlias?.startsWith('@')) {
-    // `<alias>:<tag>` paired with a scoped alias — body is a version
+    // `<alias>:<tag>` paired with a scoped alias, body is a version
     // selector (tag/dist-tag). Mirrors GitHub Packages, where the package
     // is always scoped and a bare body is a tag.
     return { pkgName: packageAlias, versionSelector: body }
   }
-  // `<alias>:<name>[@<version_selector>]` — unscoped package in body.
+  // `<alias>:<name>[@<version_selector>]`, unscoped package in body.
   const target = splitPackageNameAndSelector(body)
   return target.pkgName ? target : null
 }

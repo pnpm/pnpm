@@ -85,7 +85,7 @@ fn pick_store_index_key_uses_integrity_for_plain_tarball() {
 #[test]
 fn pick_store_index_key_uses_git_hosted_for_flagged_tarball() {
     // Even with integrity present, `git_hosted = true` routes to the
-    // built/not-built key — the built dimension is what disambiguates two
+    // built/not-built key, the built dimension is what disambiguates two
     // cached variants of the same hosted tarball.
     let key = pick_store_index_key(Some("sha512-abc"), true, "github.com/foo/bar/abc1234", true);
     assert_eq!(key, "github.com/foo/bar/abc1234\tbuilt");
@@ -342,7 +342,7 @@ fn index_db_lives_at_store_dir_v11() {
 /// A row whose bytes are msgpackr-records (as pnpm writes) must decode
 /// through `StoreIndex::get` just like a pacquet-written row. The
 /// fixture here is the same "one-file index" bytes used in the
-/// `msgpackr_records` unit tests — inserted via a direct SQL write so
+/// `msgpackr_records` unit tests, inserted via a direct SQL write so
 /// we test the decoder *through the get path*, not the round-trip.
 #[test]
 fn get_decodes_msgpackr_records_rows() {
@@ -578,7 +578,7 @@ fn get_many_handles_more_keys_than_chunk_size() {
 }
 
 /// `open_immutable` must read a WAL-mode `index.db` that lives on a
-/// read-only *directory* — the `frozenStore` / read-only-store
+/// read-only *directory*, the `frozenStore` / read-only-store
 /// scenario (a Nix store, a read-only bind mount, an OCI layer).
 ///
 /// This is the regression guard for the `immutable=1` open: a plain
@@ -586,7 +586,7 @@ fn get_many_handles_more_keys_than_chunk_size() {
 /// the `-shm` sidecar in the directory, which fails with "attempt to
 /// write a readonly database" when the directory is not writable.
 /// Revert `open_immutable` to plain `SQLITE_OPEN_READ_ONLY` and this
-/// test fails — confirming the URI is load-bearing.
+/// test fails, confirming the URI is load-bearing.
 #[cfg(unix)]
 #[test]
 fn open_immutable_reads_wal_db_on_readonly_directory() {
@@ -598,7 +598,7 @@ fn open_immutable_reads_wal_db_on_readonly_directory() {
     let payload = sample_index();
 
     // Seed the WAL db while the directory is still writable, then close
-    // the writer connection so the on-disk file is a settled WAL db —
+    // the writer connection so the on-disk file is a settled WAL db,
     // exactly what a Nix seed-build would leave behind.
     {
         let idx = StoreIndex::open(dir.path()).unwrap();

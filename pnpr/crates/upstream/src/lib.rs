@@ -198,7 +198,7 @@ impl Upstream {
     /// Fetch a package's packument, conditionally when `validators`
     /// carries an `ETag`/`Last-Modified`. A `304 Not Modified` short-
     /// circuits to [`PackumentFetch::NotModified`] without a body, so the
-    /// caller can keep serving its cached copy — the bandwidth win on a
+    /// caller can keep serving its cached copy, the bandwidth win on a
     /// stale-but-current packument.
     ///
     /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
@@ -308,8 +308,8 @@ impl Upstream {
         Ok(FetchOutcome::Ok(guard.retain_for_body(response, self.http.timeout)))
     }
 
-    /// Fetch a document by path relative to the upstream's base URL — a Cargo
-    /// sparse-index file, a Python Simple API page — buffering at most
+    /// Fetch a document by path relative to the upstream's base URL, a Cargo
+    /// sparse-index file, a Python Simple API page, buffering at most
     /// `limit` bytes. `accept` sets the request's `Accept` header when the
     /// upstream negotiates a representation (the Simple API's JSON form).
     ///
@@ -369,7 +369,7 @@ impl Upstream {
     }
 
     /// Fetch an artifact from the absolute URL an upstream's metadata
-    /// published — a crate archive from the index's `dl` template, a wheel
+    /// published, a crate archive from the index's `dl` template, a wheel
     /// from a Simple API page. The configured headers travel only when `url`
     /// is on the upstream's own origin: an index may point downloads at a
     /// separate host (crates.io does, so does pypi.org), and the upstream's

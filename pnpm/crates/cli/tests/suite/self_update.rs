@@ -1,4 +1,4 @@
-//! `pacquet self-update` — dispatch-level coverage.
+//! `pacquet self-update`, dispatch-level coverage.
 //!
 //! `self-update` routes through the `config_self_update` closure, which
 //! drops the release-age and trust policies a repo-controlled
@@ -6,7 +6,7 @@
 //!
 //! No test here reaches an activated binary in the global bin directory:
 //! the mocked registry's pnpm clears neither half of the engine-identity
-//! gate — it ships no platform binaries, and its tarball carries no npm
+//! gate, it ships no platform binaries, and its tarball carries no npm
 //! registry signature.
 //!
 //! Every test points `PNPM_HOME` at a temp dir, so the install and link

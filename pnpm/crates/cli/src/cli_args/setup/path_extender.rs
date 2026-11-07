@@ -35,7 +35,7 @@ pub(super) enum ConfigFileChangeType {
 }
 
 /// The config file that was touched and how. `None` on Windows, where the
-/// registry — not a file — is edited.
+/// registry, not a file, is edited.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ConfigReport {
     pub path: PathBuf,

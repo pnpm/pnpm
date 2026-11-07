@@ -9,7 +9,7 @@ use pnpm_workspace_projects_graph::WorkspaceCatalogs;
 
 /// The hook-injected set when an `updateConfig` pnpmfile provided one
 /// ([`Config::catalogs`] is `Some`), otherwise the `catalog:` /
-/// `catalogs:` tables of the workspace manifest — the same fallback the
+/// `catalogs:` tables of the workspace manifest, the same fallback the
 /// install performs. Empty outside a workspace, where no catalog can be
 /// declared.
 pub(crate) fn configured_catalogs(config: &Config) -> miette::Result<Catalogs> {

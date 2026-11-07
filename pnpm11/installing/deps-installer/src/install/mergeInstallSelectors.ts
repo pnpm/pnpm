@@ -23,7 +23,7 @@ export function mergeInstallSelectors (manifest: ProjectManifest, mutation: Inst
     manifest[field] = manifest[field] ?? {}
     manifest[field]![alias] = spec
     // If `targetDependenciesField` is set, also remove the alias from the
-    // other fields — matches the normal flow's behavior.
+    // other fields, matches the normal flow's behavior.
     if (target) {
       removeFromOtherFields(manifest, { alias, target })
     }

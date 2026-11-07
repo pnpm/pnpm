@@ -88,7 +88,7 @@ Instead of this package, consider performing mutations directly on the `yaml.Doc
 
 There are several cases where comment preservation is inherently ambiguous. If the caveats outlined below are problematic, consider modifying the source `yaml.Document` before running the patch function in this package.
 
-### Key Renames
+### Key renames
 
 For example, renames of a key are ambiguous. Given:
 
@@ -110,7 +110,7 @@ And a target object to match:
 
 The comment on `bar` won't be retained.
 
-### List Reconciliation
+### List reconciliation
 
 For simple lists (e.g. lists with only primitives), items will be uniquely matched using their contents. However, updates to complex lists are inherently ambiguous.
 

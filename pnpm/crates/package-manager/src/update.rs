@@ -197,7 +197,7 @@ pub enum UpdateError {
 
 /// pnpm's mutation for an update: a full install of the projects it was
 /// pointed at when the user named nothing, and `installSome` once the
-/// update targets specific dependencies — either by selector or through
+/// update targets specific dependencies, either by selector or through
 /// `--latest`, which expands to every direct dependency's spec.
 ///
 /// `--workspace` does not enter into it: pnpm picks the mutation from the
@@ -323,7 +323,7 @@ pub struct UpdateSelection<'a> {
     pub depth: usize,
     /// `--workspace`: what the workspace projects publish, as built by
     /// [`crate::build_workspace_packages_map`]. `Some` turns the update
-    /// into a workspace-link update — the matched direct dependencies
+    /// into a workspace-link update, the matched direct dependencies
     /// are re-pointed at the workspace copies through the `workspace:`
     /// protocol instead of the registry. `None` is a plain update.
     pub workspace_packages: Option<&'a WorkspacePackages>,

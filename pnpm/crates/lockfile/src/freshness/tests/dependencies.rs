@@ -131,11 +131,9 @@ fn optional_only_dependency_match_satisfies() {
     assert!(satisfies_package_manifest(importer, &manifest, true, &|_: &str| false).is_ok());
 }
 
-// ---------------------------------------------------------------------------
-// `auto-install-peers` — peers materialized into the importer's
+// `auto-install-peers`, peers materialized into the importer's
 // `dependencies` must not read as lockfile drift. Ports
 // `packages/lockfile/verification/test/satisfiesPackageManifest.ts`.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn peer_only_dependency_is_satisfied_when_auto_install_peers() {
@@ -233,7 +231,7 @@ fn peer_only_dependency_is_stale_without_auto_install_peers() {
 }
 
 /// Polarity: without the filter the same fixture must fail.
-/// Confirms the filter is what makes the prior test pass — not
+/// Confirms the filter is what makes the prior test pass, not
 /// some other accidental match.
 #[test]
 fn ignored_optional_without_filter_surfaces_as_drift() {

@@ -4,7 +4,7 @@
 //! tarball was downloaded from. When that URL falls under a named
 //! registry (`gh:` → `https://npm.pkg.github.com/`, custom user
 //! mappings), the verifier must hit *that* registry's metadata
-//! endpoint, not the scope-derived default — otherwise an entry
+//! endpoint, not the scope-derived default, otherwise an entry
 //! resolved via a named registry would 404 or, worse, hit a stale
 //! mirror under the default registry.
 

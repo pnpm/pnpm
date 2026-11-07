@@ -4,7 +4,7 @@
 //! The registry counterpart lives in [`crate::calc_specifier()`]. A
 //! workspace pick differs in that the text written back keeps the
 //! `workspace:` protocol, and under the default
-//! [`SaveWorkspaceProtocol::Rolling`] carries no version at all — the
+//! [`SaveWorkspaceProtocol::Rolling`] carries no version at all, the
 //! range tracks whatever the local package's version happens to be, so
 //! bumping it never has to touch its dependents' manifests.
 //!
@@ -35,8 +35,8 @@ pub struct DeclaredSpecifiers<'a> {
 /// install name `alias`.
 ///
 /// `resolved_version` may be `None` when the caller has not resolved the
-/// workspace package. Only [`SaveWorkspaceProtocol::On`] needs it — the
-/// rolling form writes a range with no version in it — so a `None` there
+/// workspace package. Only [`SaveWorkspaceProtocol::On`] needs it, the
+/// rolling form writes a range with no version in it, so a `None` there
 /// falls back to the rolling shape rather than inventing a version.
 #[must_use]
 pub fn calc_specifier_for_workspace_dep(

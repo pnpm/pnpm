@@ -186,7 +186,7 @@ fn should_report_project_has_no_dependencies() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // A manifest with no dependency fields at all, removed without a
-    // `--save-*` flag, hits the "no dependencies of any kind" branch —
+    // `--save-*` flag, hits the "no dependencies of any kind" branch,
     // a missing-deps error with no hint.
     fs::write(
         workspace.join("package.json"),

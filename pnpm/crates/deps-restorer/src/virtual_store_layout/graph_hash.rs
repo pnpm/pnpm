@@ -33,7 +33,7 @@ use std::{
 /// `integrity` (directory / git) are emitted with the bare
 /// `pkg_id_with_patch_hash` as their `full_pkg_id`. The frozen-
 /// lockfile install path rejects those resolutions before reaching the
-/// linker, so a stub `full_pkg_id` here is safe — the GVS hash for an
+/// linker, so a stub `full_pkg_id` here is safe, the GVS hash for an
 /// install that contains one of those snapshots is irrelevant because
 /// the install will error out before consulting it.
 pub(super) fn lockfile_to_dep_graph(

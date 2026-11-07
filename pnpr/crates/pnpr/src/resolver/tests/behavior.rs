@@ -9,7 +9,7 @@ use super::{
 
 /// The `registries` map is keyed by URL and carries declarations only. The
 /// setting's older `<scope>: <url>` shape puts the URL in the *value*, where
-/// the boundary checks — which read a key as a fetch target — would not see
+/// the boundary checks, which read a key as a fetch target, would not see
 /// it, so a request in that shape must not parse at all.
 #[test]
 fn a_scope_routed_registries_map_does_not_parse() {

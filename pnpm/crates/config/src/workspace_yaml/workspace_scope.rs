@@ -7,7 +7,7 @@ impl WorkspaceSettings {
     /// through, so a repository must not get a say in whether it may be
     /// replaced. Both policies are dangerous in both directions here: a
     /// cooldown lowered waives the protection the user configured, raised it
-    /// pins the machine to the installed pnpm — including past a release that
+    /// pins the machine to the installed pnpm, including past a release that
     /// fixes a vulnerability in it; a trust policy turned off accepts a pnpm
     /// release whose trust evidence the user meant to reject, turned on blocks
     /// the update the same way. Unlike a blocked dependency upgrade, those
@@ -33,7 +33,7 @@ impl WorkspaceSettings {
     /// from `pnpm-workspace.yaml` or the legacy `package.json#pnpm`
     /// field. Without this filter a user could put `nodeLinker:
     /// hoisted` in `~/.config/pnpm/config.yaml` and pacquet would
-    /// honor it while pnpm wouldn't — anti-parity.
+    /// honor it while pnpm wouldn't, anti-parity.
     pub fn clear_workspace_only_fields(&mut self) {
         // Only the layout half of a registry declaration is workspace-only: it
         // decides which tarball URLs are omitted from the lockfile, so a

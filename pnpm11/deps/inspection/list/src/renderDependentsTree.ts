@@ -177,7 +177,7 @@ function collectPaths (
       collectPaths(dep.dependents, newPath, lines, currentDepth + 1, opts)
     } else {
       for (const rootSegment of resolveParseableRootSegments(dep, opts)) {
-        // Leaf node (importer or depth-limited) — reverse to show importer first
+        // Leaf node (importer or depth-limited), reverse to show importer first
         lines.push([rootSegment, ...newPath].reverse().join(' > '))
       }
     }

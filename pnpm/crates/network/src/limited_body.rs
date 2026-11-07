@@ -15,8 +15,8 @@ pub struct LimitedBody {
 
 /// Read a response body, capping it at `limit` bytes. A registry response
 /// that a command buffers whole (an error body, a metadata object) must not
-/// let a hostile or broken server exhaust memory, so reading stops — and the
-/// body is marked truncated — once the cap is reached.
+/// let a hostile or broken server exhaust memory, so reading stops, and the
+/// body is marked truncated, once the cap is reached.
 pub async fn read_limited_body(
     response: Response,
     limit: usize,

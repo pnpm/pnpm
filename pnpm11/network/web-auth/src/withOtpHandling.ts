@@ -67,7 +67,7 @@ export interface OtpSession {
    * configured `--otp`); the password obtained from a challenge is kept and
    * passed to every later operation, so a batch of operations costs one
    * authentication instead of one per operation. When a kept password stops
-   * being accepted — a classic OTP expires within a minute — the challenge it
+   * being accepted, a classic OTP expires within a minute, the challenge it
    * triggers obtains a new one and the operation is retried with it.
    */
   run: <Result>(operation: (otp?: string) => Promise<Result>) => Promise<Result>

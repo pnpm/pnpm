@@ -199,17 +199,17 @@ fn display_store_dir(store_dir: &StoreDir) -> String {
 /// otherwise let the developer's real shell steer pacquet's global
 /// `config.yaml` loader or its `PNPM_CONFIG_*` overlay:
 ///
-/// - `XDG_CONFIG_HOME` / `LOCALAPPDATA` — both feed
+/// - `XDG_CONFIG_HOME` / `LOCALAPPDATA`, both feed
 ///   [`crate::defaults::default_config_dir`], so a value set on the
 ///   dev box would point the global-config loader at a real
 ///   `config.yaml` on disk.
-/// - `PNPM_CONFIG_*` / `pnpm_config_*` — the env-var overlay reads
+/// - `PNPM_CONFIG_*` / `pnpm_config_*`, the env-var overlay reads
 ///   the entire schema, so a stray `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE`
 ///   in the developer's shell would flip GVS in every test that
 ///   otherwise expects defaults.
 ///
 /// Tests that exercise those code paths declare per-test fakes
-/// that satisfy [`EnvVar`] with their own response logic — they
+/// that satisfy [`EnvVar`] with their own response logic, they
 /// don't go through this helper.
 fn safe_host_var(name: &str) -> Option<String> {
     if name == "XDG_CONFIG_HOME" || name == "LOCALAPPDATA" {
@@ -250,7 +250,7 @@ inert_link_probe!(HostNoHome);
 host_current_dir!(HostNoHome);
 
 /// Write a `.npmrc` that declares its own registry plus an unscoped
-/// `_authToken`, so the token pins to that registry — the shape the
+/// `_authToken`, so the token pins to that registry, the shape the
 /// precedence assertions check the winning file by.
 fn write_registry_auth_file(path: &Path, registry: &str, token: &str) {
     fs::write(path, format!("registry={registry}\n_authToken={token}\n")).expect("write auth file");
@@ -262,7 +262,7 @@ fn write_file(path: &Path, contents: &str) {
 
 /// Load `Config` with a project `.npmrc` in `start_dir` plus a
 /// user-level file pointed at by `npmrcAuthFile`. Home resolves to
-/// `None` ([`HostNoHome`]) so only these two files participate —
+/// `None` ([`HostNoHome`]) so only these two files participate,
 /// the multi-file merge + per-file rescoping under test.
 fn load_with_project_and_user(project_npmrc: &str, user_file: PathBuf) -> Config {
     let project = tempdir().expect("project tempdir");

@@ -13,7 +13,7 @@ import type { SigningKey } from '../lib/verifySignature.js'
 const VERSION = '99.0.0'
 
 // The pinned key is npm's, so these tests sign with their own and pass it in.
-// Nothing served here can satisfy the real key — which is the point of pinning.
+// Nothing served here can satisfy the real key, which is the point of pinning.
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
 const KEYS: SigningKey[] = [{
   keyid: 'SHA256:test-key',
@@ -105,7 +105,7 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
     assert.ok(!fs.existsSync(setupLog), 'setup is not run')
     // Nothing but the installation: an unpack directory left here would be
     // installed too by a caller that hands the directory to `pnpm setup`. No
-    // manifest either — the fixture is a v12-shaped release, whose `dist/` is
+    // manifest either, the fixture is a v12-shaped release, whose `dist/` is
     // self-contained.
     assert.deepEqual(fs.readdirSync(dest).sort(), ['dist', 'pnpm'])
   })

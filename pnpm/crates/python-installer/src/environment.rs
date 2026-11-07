@@ -190,9 +190,9 @@ pub(super) async fn resolve_via_pnpr(
     .await;
     match resolved {
         // A server answers from an index and the metadata published
-        // beside a wheel. What needs this machine instead — an explicit
+        // beside a wheel. What needs this machine instead, an explicit
         // source, or a release whose metadata is in the wheel its source
-        // distribution builds — is resolved here.
+        // distribution builds, is resolved here.
         Err(pnpm_pnpr_client::PnprClientError::Server { message, code })
             if code.as_deref() == Some("ERR_PNPM_PYPI_CLIENT_RESOLVE_REQUIRED")
                 || (message.starts_with("Python ")

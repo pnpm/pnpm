@@ -304,9 +304,9 @@ fn dev_engines_pnpm_entry_mut(manifest: &mut Value) -> Option<&mut Value> {
 /// The specifier to record in `packageManagerDependencies` after
 /// `self-update` rewrites the `devEngines.packageManager` pin. It must equal
 /// the constraint a later install reads back from the manifest (see
-/// [`super::super::package_manager::package_manager_to_sync_for_version`]) — the updated
+/// [`super::super::package_manager::package_manager_to_sync_for_version`]), the updated
 /// devEngines constraint, never the CLI dist-tag or range passed to
-/// `self-update` — so a subsequent `--frozen-lockfile` install does not
+/// `self-update`, so a subsequent `--frozen-lockfile` install does not
 /// reject the lockfile as outdated. A legacy `packageManager` pin is always
 /// exact, so it takes the resolved version directly.
 pub(super) fn package_manager_pin_specifier(

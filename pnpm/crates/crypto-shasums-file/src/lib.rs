@@ -7,11 +7,11 @@
 //!
 //! Surfaces:
 //!
-//! - [`fetch_shasums_file`] — download and parse every row at once.
-//! - [`fetch_verified_node_shasums_file`] — download a Node.js release
+//! - [`fetch_shasums_file`], download and parse every row at once.
+//! - [`fetch_verified_node_shasums_file`], download a Node.js release
 //!   SHASUMS file, verify its detached `OpenPGP` signature against the
 //!   embedded Node.js release keys, then parse the trusted body.
-//! - [`pick_file_checksum_from_shasums_file`] — re-parse a previously
+//! - [`pick_file_checksum_from_shasums_file`], re-parse a previously
 //!   downloaded body to extract the integrity of a single file. The
 //!   verifier path uses it when only one variant's hash is needed.
 
@@ -127,7 +127,7 @@ pub async fn fetch_verified_node_shasums_file(
 /// project-configurable, so a pre-seeded entry must prove it is a
 /// genuine release body before it is served. Any verification failure
 /// is a miss and the pair is refetched. `shasums_url` must be
-/// version-pinned — a mutable URL must never be handed to the cache.
+/// version-pinned, a mutable URL must never be handed to the cache.
 pub async fn fetch_verified_node_shasums_file_cached(
     http_client: &ThrottledClient,
     shasums_url: &str,
@@ -181,7 +181,7 @@ async fn fetch_verified_node_shasums_file_cached_inner(
 /// `cache_dir` is given. For mirrors whose SHASUMS files carry no
 /// verifiable signature the cached body is trusted exactly as far as
 /// the TLS fetch that produced it. `shasums_url` must be
-/// version-pinned — a mutable URL must never be handed to the cache.
+/// version-pinned, a mutable URL must never be handed to the cache.
 pub async fn fetch_shasums_file_cached(
     http_client: &ThrottledClient,
     shasums_url: &str,
@@ -415,7 +415,7 @@ pub fn parse_shasums_file(body: &str) -> Vec<ShasumsFileItem> {
 
 /// Pull the integrity of one file out of a body the caller already has.
 ///
-/// Matches on a row ending in `  <file_name>` (two spaces — the format
+/// Matches on a row ending in `  <file_name>` (two spaces, the format
 /// upstream's files actually use, *not* the `\s+` permissive split
 /// [`fetch_shasums_file`] tolerates).
 pub fn pick_file_checksum_from_shasums_file(
@@ -463,7 +463,7 @@ fn encode_sri(hex: &str) -> String {
 }
 
 fn is_sha256_hex(value: &str) -> bool {
-    // Upstream regex is `^[a-f0-9]{64}$` — lowercase only. Matching
+    // Upstream regex is `^[a-f0-9]{64}$`, lowercase only. Matching
     // that explicitly keeps a malformed mixed-case hex row from
     // sneaking through the validator that the upstream parser would
     // have rejected.

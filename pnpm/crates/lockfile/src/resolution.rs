@@ -140,7 +140,7 @@ pub struct GitResolution {
     /// No pnpm version computes this: git content is pinned by `commit`,
     /// and the store key is git-hosted rather than integrity-addressed,
     /// so nothing checks a checkout against it. Re-emitting it would keep
-    /// advertising a hash that was never verified — in the lockfile, and
+    /// advertising a hash that was never verified, in the lockfile, and
     /// through `pnpm sbom` into a CycloneDX/SPDX `hashes` entry.
     ///
     /// Kept as an unvalidated `String` because the value is discarded:
@@ -188,7 +188,7 @@ pub enum BinaryArchive {
 /// or Bun).
 ///
 /// The install path extracts the archive into the CAS (with optional
-/// per-package `ignoreFilePattern` filtering — Node strips bundled
+/// per-package `ignoreFilePattern` filtering, Node strips bundled
 /// `npm` / `corepack`) and links the executables named in `bin` into
 /// the importer's `node_modules/.bin/`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -213,15 +213,15 @@ pub struct BinaryResolution {
 /// One variant of a [`VariationsResolution`]: an inner [`LockfileResolution`]
 /// paired with the host triples it covers.
 ///
-/// The inner resolution is *atomic* in the on-disk shape — a
-/// [`BinaryResolution`], [`TarballResolution`], etc. — never another
+/// The inner resolution is *atomic* in the on-disk shape, a
+/// [`BinaryResolution`], [`TarballResolution`], etc., never another
 /// [`VariationsResolution`]. Pacquet's type is wider (the full
 /// [`LockfileResolution`]) for serde-round-trip uniformity, and we trust
 /// the lockfile to honor that contract: [`select_platform_variant`] does
 /// not add a runtime check rejecting a nested `Variations`. A malformed
 /// lockfile that nested them would just route the picked variant's
 /// inner shape back through the install dispatcher, which surfaces
-/// each shape independently — no infinite recursion is possible
+/// each shape independently, no infinite recursion is possible
 /// because the install dispatcher does not call back into
 /// [`select_platform_variant`] for non-`Variations` inputs.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -255,7 +255,7 @@ pub struct VariationsResolution {
 
 /// The `type` tag of a [`CustomResolution`]. Any tag other than the
 /// built-in kinds (`directory`, `git`, `binary`, `variations`) is
-/// custom — matching `classifyResolution` in
+/// custom, matching `classifyResolution` in
 /// `pnpm11/resolving/resolver-base/src/index.ts`, which routes every
 /// unrecognized `type` to the custom fetch path. Rejecting the built-in
 /// tags here keeps a malformed built-in resolution (e.g. a `git` entry
@@ -291,7 +291,7 @@ impl From<CustomResolutionType> for String {
     }
 }
 
-/// A resolution whose `type` is not one of the built-in kinds —
+/// A resolution whose `type` is not one of the built-in kinds,
 /// produced by a custom resolver from a pnpmfile and fetchable only by
 /// a custom fetcher. The object is preserved verbatim (key order
 /// included, via `serde_json`'s `preserve_order`) so the pnpmfile's
@@ -311,15 +311,15 @@ pub struct CustomResolution {
 ///
 /// `libc`'s tri-state encodes the `string | null | undefined` shape:
 ///
-/// - `None` — the host's libc constraint is irrelevant (macOS, Windows,
+/// - `None`, the host's libc constraint is irrelevant (macOS, Windows,
 ///   BSD, ...). Matches a variant whose `libc` is `None` (the default
 ///   build); a `libc: "musl"` variant is rejected since `musl` is a
 ///   non-default, non-interchangeable artifact.
-/// - `Some("glibc")` — Linux with glibc. Same matching rule as `None`:
+/// - `Some("glibc")`, Linux with glibc. Same matching rule as `None`:
 ///   the default variant wins, musl variants are skipped. `null` and
 ///   `"glibc"` collapse into the same arm because the variant emitter
 ///   only annotates non-glibc builds.
-/// - `Some("musl")` — Linux with musl. Requires an exact `libc:
+/// - `Some("musl")`, Linux with musl. Requires an exact `libc:
 ///   "musl"` annotation on the variant, so the glibc default doesn't
 ///   silently install.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -399,12 +399,12 @@ impl LockfileResolution {
             LockfileResolution::Registry(resolution) => Some(&resolution.integrity),
             LockfileResolution::Binary(resolution) => Some(&resolution.integrity),
             // Directory resolutions have no integrity, and a git
-            // resolution's recorded one is never a checkable hash — it is
+            // resolution's recorded one is never a checkable hash, it is
             // accepted and dropped (see [`GitResolution::integrity`]).
-            // Variations is a meta-shape — the integrity lives on the
+            // Variations is a meta-shape, the integrity lives on the
             // picked variant's inner resolution, so callers must
             // resolve through `pick_variant` first. Custom resolutions
-            // are opaque — whatever integrity scheme they carry belongs
+            // are opaque, whatever integrity scheme they carry belongs
             // to the custom fetcher, not the built-in verification.
             LockfileResolution::Directory(_)
             | LockfileResolution::Git(_)
@@ -425,7 +425,7 @@ impl LockfileResolution {
 
     /// [`Self::integrity`] narrowed to an integrity that can actually
     /// check downloaded bytes. An `integrity: ''` entry parses into zero
-    /// hashes, which pins nothing — pnpm treats that as no integrity at
+    /// hashes, which pins nothing, pnpm treats that as no integrity at
     /// all, and [`Integrity::check`] would panic on it.
     #[must_use]
     pub fn checkable_integrity(&self) -> Option<&'_ Integrity> {
@@ -454,7 +454,7 @@ impl LockfileResolution {
     ///
     /// For a registry tarball whose URL is reconstructible from `name`,
     /// `version`, and the registry, the URL is dropped and only `{integrity}`
-    /// is kept — pnpm derives the tarball URL on demand. The URL is preserved
+    /// is kept, pnpm derives the tarball URL on demand. The URL is preserved
     /// when [`LockfileFormOptions::include_tarball_url`] is set, when it is a
     /// `file:` tarball, when it is git-hosted, or when it does not match the
     /// derived URL (e.g. private registries with non-standard tarball paths).
@@ -519,7 +519,7 @@ impl TarballResolution {
     }
 
     // A standard registry tarball whose URL can be rebuilt from name+version+
-    // registry is written as just `{integrity}` — pnpm derives the URL on
+    // registry is written as just `{integrity}`, pnpm derives the URL on
     // demand. Every other tarball must keep its URL or it can no longer be
     // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
     // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
@@ -568,7 +568,7 @@ enum TaggedResolution {
 ///
 /// `Custom` must stay the last untagged variant: it accepts any object
 /// with a non-built-in `type` tag, so every built-in shape has to get
-/// its chance to match (or to *fail loudly* — [`CustomResolutionType`]
+/// its chance to match (or to *fail loudly*, [`CustomResolutionType`]
 /// rejects built-in tags, keeping a malformed built-in resolution a
 /// parse error rather than a silent reclassification) first.
 #[derive(Serialize, Deserialize, From, TryInto)]

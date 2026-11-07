@@ -57,7 +57,7 @@ impl PackageLocations {
 }
 
 impl WalkState<'_> {
-    /// Pass 2 — fill in each node's `children` map from the
+    /// Pass 2, fill in each node's `children` map from the
     /// now-complete package location index, then assemble the result.
     ///
     /// The walk intentionally leaves `children` empty: every sibling and
@@ -83,7 +83,7 @@ impl WalkState<'_> {
             root_direct_deps(&root_hierarchy, &self.result.graph),
         );
 
-        // `link:` entries are skipped — they don't enter the hoist tree
+        // `link:` entries are skipped, they don't enter the hoist tree
         // and have no `pkg_locations` entry. The install pipeline handles
         // them via [`crate::SymlinkDirectDependencies`]'s `link_only` pass
         // after the hoisted linker runs.
@@ -103,7 +103,7 @@ impl WalkState<'_> {
 
         // Hierarchy: one entry per importer root. Root importer gets
         // `lockfile_dir`; non-root workspace importers get
-        // `<lockfile_dir>/<importer_id>` — the linker walks each
+        // `<lockfile_dir>/<importer_id>`, the linker walks each
         // importer's subtree under its own root.
         let mut hierarchy = BTreeMap::new();
         hierarchy.insert(self.opts.modules_dirs.lockfile_dir().to_path_buf(), root_hierarchy);
@@ -228,7 +228,7 @@ pub(super) fn fill_children(
 /// every level. Borrowing the lockfile + opts up
 /// front avoids passing four separate arguments. `skipped` is
 /// owned (cloned from `opts.skipped`) because the walker mutates
-/// it — every dep that fails the installability check gets added.
+/// it, every dep that fails the installability check gets added.
 pub(super) struct WalkState<'a> {
     pub result: LockfileToDepGraphResult,
     pub(super) lockfile: &'a Lockfile,
@@ -257,7 +257,7 @@ pub(super) struct WalkState<'a> {
 /// store-fetch / installability path; here the walker only computes
 /// node identity, location, children, and hoisted-location records.
 ///
-/// No cycle detection — the walk trusts the hoister to produce a
+/// No cycle detection, the walk trusts the hoister to produce a
 /// DAG. The hoister's own cyclic-input tests pin that property.
 pub(super) fn walk_deps(
     state: &mut WalkState<'_>,
@@ -386,7 +386,7 @@ pub(super) fn package_is_reusable(
 /// Workspace-kind hoister children are non-root workspace importers.
 /// Recurse into their (post-hoist, often-empty) dependencies under
 /// the importer's modules directory to capture any deps the
-/// hoister couldn't move up — those become nested entries in the
+/// hoister couldn't move up, those become nested entries in the
 /// per-importer hierarchy. The workspace node itself is *not* added to
 /// the graph or to the parent's hierarchy: it has no package contents
 /// to import. Per-importer `direct_dependencies_by_importer_id` is
@@ -515,7 +515,7 @@ pub(super) fn compute_children(
         .flatten()
         .chain(snapshot.optional_dependencies.iter().flatten());
     for (alias_name, dep_ref) in dep_iter {
-        // `link:` deps return `None` here — they live outside the
+        // `link:` deps return `None` here, they live outside the
         // virtual store and don't show up in `pkg_locations`.
         let Some(child_key) = dep_ref.resolve(alias_name) else {
             continue;

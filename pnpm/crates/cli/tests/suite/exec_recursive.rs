@@ -412,7 +412,7 @@ fn recursive_exec_no_sort_makes_reverse_and_resume_no_ops() {
 
     // `--no-sort` disregards ordering entirely, so there is no graph for
     // `--reverse` to turn around or for `--resume-from` to skip the
-    // anchor's dependencies in — both are no-ops, exactly as in pnpm.
+    // anchor's dependencies in, both are no-ops, exactly as in pnpm.
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "a-last\nm-middle\nz-first\n");
 
@@ -565,7 +565,7 @@ fn recursive_exec_diff_selector_selects_changed_projects() {
 /// A `--filter` that matches no project is a no-op: recursive exec exits
 /// 0, prints pnpm's empty-selection notice, and writes no summary even
 /// with `--report-summary`, matching pnpm's main-dispatch exit-0 for an
-/// empty selection — rather than erroring on `--resume-from` or emitting
+/// empty selection, rather than erroring on `--resume-from` or emitting
 /// an empty summary.
 #[test]
 fn recursive_exec_filter_no_match_is_a_noop() {

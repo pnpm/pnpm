@@ -375,7 +375,7 @@ async fn tokens_store_hash_not_raw() {
     assert_eq!(stored.len(), 64, "SHA-256 hex is 64 chars");
 }
 
-/// A store failure must surface as `Err`, never a silent `Ok(None)` —
+/// A store failure must surface as `Err`, never a silent `Ok(None)`,
 /// otherwise a database outage would read as "token not found" and the
 /// caller would answer 401 instead of 5xx.
 #[tokio::test]

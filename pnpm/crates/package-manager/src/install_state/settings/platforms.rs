@@ -15,7 +15,7 @@ use pnpm_workspace_state::WorkspaceState;
 /// other guards (`wanted == current`, `.modules.yaml` consistency) cannot
 /// see an architecture change: the skip set it would produce differs, so
 /// the shortcut must not fire. A missing or unreadable state (`None`)
-/// reports a match only when `live` is also unset — the conservative
+/// reports a match only when `live` is also unset, the conservative
 /// direction is a full install.
 fn recorded_supported_architectures_match(
     recorded: Option<&WorkspaceState>,
