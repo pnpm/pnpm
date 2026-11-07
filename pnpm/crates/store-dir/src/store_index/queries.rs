@@ -38,7 +38,7 @@ impl StoreIndex {
     ///    `Packr({useRecords: true, …})` emits.
     /// 2. **pacquet-written**: also msgpackr-records, from
     ///    [`encode_package_files_index`][crate::msgpackr_records::encode_package_files_index]
-    ///   pacquet matches pnpm's on-wire shape so the two tools can
+    ///    pacquet matches pnpm's on-wire shape so the two tools can
     ///    share `index.db`.
     /// 3. **Legacy pacquet-written**: plain `MessagePack` maps from the
     ///    `rmp_serde::to_vec_named` path. These may still live in
