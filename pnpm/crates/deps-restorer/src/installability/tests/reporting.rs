@@ -81,3 +81,31 @@ fn incompatible_required_engine_emits_install_check() {
         })],
     );
 }
+
+#[test]
+fn incompatible_required_peer_variants_emit_one_install_check() {
+    recording_reporter!(take_events);
+    let snapshots = HashMap::from([
+        (snapshot_key("required@1.0.0(react@17.0.2)"), SnapshotEntry::default()),
+        (snapshot_key("required@1.0.0(react@18.0.0)"), SnapshotEntry::default()),
+    ]);
+    let packages = HashMap::from([(
+        snapshot_key("required@1.0.0"),
+        synthetic_metadata(Some(&[("node", ">=99")]), None, None, None),
+    )]);
+    compute_skipped_snapshots::<RecordingReporter>(
+        &no_importers(),
+        &snapshots,
+        &packages,
+        &host("20.10.0", "darwin", "arm64"),
+        "/proj",
+        SkippedSnapshots::new(),
+    )
+    .unwrap();
+
+    let install_checks = take_events()
+        .iter()
+        .filter(|event| matches!(event, LogEvent::InstallCheck(_)))
+        .count();
+    assert_eq!(install_checks, 1);
+}

@@ -1,7 +1,7 @@
 import type { InstallCheckLog } from '@pnpm/core-loggers'
 import type { LogBaseWarn } from '@pnpm/logger'
 import * as Rx from 'rxjs'
-import { filter, map } from 'rxjs/operators'
+import { distinct, filter, map } from 'rxjs/operators'
 
 import { formatWarn } from './utils/formatWarn.js'
 import { autozoom } from './utils/zooming.js'
@@ -17,6 +17,8 @@ export function reportInstallChecks (
   return installCheck$.pipe(
     map((log) => formatInstallCheck(opts.cwd, log)),
     filter(Boolean),
+    // Several install stages check the same package.
+    distinct(),
     map((msg) => Rx.of({ msg }))
   )
 }

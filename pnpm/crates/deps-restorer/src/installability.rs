@@ -137,6 +137,7 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
         check_cache,
         reach,
         seen_emit: HashSet::new(),
+        seen_warn: HashSet::new(),
         skipped: seed,
     };
 
@@ -159,6 +160,9 @@ struct SkipScan<'a, 'lock> {
     /// Metadata keys already reported, so peer variants of one package
     /// emit a single skip log.
     seen_emit: HashSet<PackageKey>,
+    /// Metadata keys already warned about, so peer variants of one
+    /// required package emit a single `pnpm:install-check` warning.
+    seen_warn: HashSet<PackageKey>,
     skipped: SkippedSnapshots,
 }
 
@@ -268,11 +272,13 @@ impl SkipScan<'_, '_> {
             return Err(Box::new(warn));
         }
 
-        Reporter::emit(&LogEvent::InstallCheck(PnpmLog {
-            level: LogLevel::Warn,
-            message: warn.to_string(),
-            prefix: self.prefix.to_string(),
-        }));
+        if self.seen_warn.insert(metadata_key.clone()) {
+            Reporter::emit(&LogEvent::InstallCheck(PnpmLog {
+                level: LogLevel::Warn,
+                message: warn.to_string(),
+                prefix: self.prefix.to_string(),
+            }));
+        }
         Ok(())
     }
 }

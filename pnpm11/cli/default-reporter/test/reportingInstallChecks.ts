@@ -30,6 +30,18 @@ test.each(['info', 'warn', 'error'] as const)('filters install-check messages at
   }
 })
 
+test('reports a repeated install-check message once', async () => {
+  const prefix = '/home/jane/project'
+  const message = 'Unsupported engine for required@1.0.0'
+  const logs: InstallCheckEvent[] = [
+    { name: 'pnpm:install-check', level: 'warn', prefix, message },
+    { name: 'pnpm:install-check', level: 'warn', prefix, message },
+  ]
+  const outputs = await firstValueFrom(reportInstallChecks(from(logs), { cwd: prefix }).pipe(toArray()))
+
+  expect(outputs).toHaveLength(1)
+})
+
 test('keeps legacy install-check codes and prefixes', async () => {
   const prefix = '/home/jane/project/packages/app'
   const cwd = '/home/jane/project'

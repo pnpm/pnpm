@@ -30,7 +30,7 @@ test.each([
       expect(output).not.toContain('Unsupported engine for')
     } else {
       expect(output).toContain('WARN')
-      expect(output).toContain('Unsupported engine for')
+      expect(output.match(/Unsupported engine for/g)).toHaveLength(1)
       expect(output).toContain('incompatible-engine')
       expect(output).toContain('{"node":"20.0.0"}')
       project.has('incompatible-engine/package.json')
