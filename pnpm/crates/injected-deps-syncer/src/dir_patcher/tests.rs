@@ -2,10 +2,12 @@ use super::{
     CopyFiles, DirPatcher, InodeMap, PublishSource, Value, extend_files_map, inode_map::file_id,
     publish_edits,
 };
+use pnpm_fs::LinkFailure;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
 use std::{
+    cell::Cell,
     collections::HashMap,
     fs, io,
     path::PathBuf,
@@ -168,18 +170,48 @@ struct CrossDeviceLinks;
 
 impl pnpm_fs::FsHardLink for CrossDeviceLinks {
     fn hard_link(_: &std::path::Path, _: &std::path::Path) -> io::Result<()> {
-        #[cfg(windows)]
-        return Err(io::Error::from_raw_os_error(17));
-        #[cfg(not(windows))]
-        return Err(io::Error::from_raw_os_error(18));
+        Err(LinkFailure::CrossDevice.sample_error())
     }
 }
 
-struct DeniedLinks;
+thread_local! {
+    static LINK_FAILURE: Cell<LinkFailure> = const { Cell::new(LinkFailure::Path) };
+}
 
-impl pnpm_fs::FsHardLink for DeniedLinks {
+/// Hardlinks fail with the failure set on this thread.
+struct FailingLinks;
+
+impl pnpm_fs::FsHardLink for FailingLinks {
     fn hard_link(_: &std::path::Path, _: &std::path::Path) -> io::Result<()> {
-        Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        Err(LINK_FAILURE.with(Cell::get).sample_error())
+    }
+}
+
+/// The sync shares inodes, so only a file it cannot share is copied: one
+/// on another filesystem, or one whose source has no names left. A
+/// filesystem that refuses links fails the sync.
+#[test]
+fn sync_copies_only_what_the_source_cannot_share() {
+    for failure in LinkFailure::ALL {
+        let dir = TempDir::new().expect("temp dir");
+        let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+        create_file(&source.join("index.js"), "built");
+        fs::create_dir_all(&target).expect("create target");
+        LINK_FAILURE.with(|cell| cell.set(failure));
+
+        let result = sync_with::<FailingLinks>(&source, &target);
+
+        if matches!(failure, LinkFailure::CrossDevice | LinkFailure::TooManyLinks) {
+            result.expect("sync by copying");
+            assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "built");
+            continue;
+        }
+        let error = result.expect_err("the link error surfaces");
+        assert!(
+            matches!(&error, super::PatchError::Link { error, .. } if LinkFailure::of(error) == failure),
+            "{failure:?}: {error:?}",
+        );
+        assert!(!target.join("index.js").exists(), "{failure:?}: nothing was copied");
     }
 }
 
@@ -220,22 +252,6 @@ fn sync_refreshes_a_copy_whose_source_changed_in_place() {
     sync_with::<CrossDeviceLinks>(&source, &target).expect("second sync");
 
     assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "new");
-}
-
-#[test]
-fn sync_reports_a_link_error_that_is_not_cross_device() {
-    let dir = TempDir::new().expect("temp dir");
-    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
-    create_file(&source.join("index.js"), "built");
-    fs::create_dir_all(&target).expect("create target");
-
-    let error = sync_with::<DeniedLinks>(&source, &target).expect_err("the link error surfaces");
-
-    assert!(
-        matches!(&error, super::PatchError::Link { error, .. } if error.kind() == io::ErrorKind::PermissionDenied),
-        "{error:?}",
-    );
-    assert!(!target.join("index.js").exists(), "nothing was copied");
 }
 
 fn device_and_inode(path: &std::path::Path) -> (u64, u64) {

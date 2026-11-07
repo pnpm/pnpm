@@ -1,6 +1,6 @@
 use super::FileImport;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::FsReflink;
+use pnpm_fs::{CopyPermissions, FsCopyFile, FsReflink, Host};
 use std::{fs, io, path::Path};
 
 #[cfg(unix)]
@@ -106,15 +106,33 @@ fn existing_reflink_targets_are_not_overwritten_by_copy_fallback() {
     assert_eq!(fs::read_to_string(&file.destination).unwrap(), "private");
 }
 
+impl FsCopyFile for Unsupported {
+    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
+        Host::copy_file(source, target, permissions)
+    }
+}
+
 impl pnpm_deps_restorer::FsHardLink for Unsupported {
     fn hard_link(source: &Path, destination: &Path) -> io::Result<()> {
         fs::hard_link(source, destination)
     }
 }
 
+impl FsCopyFile for Missing {
+    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
+        Host::copy_file(source, target, permissions)
+    }
+}
+
 impl pnpm_deps_restorer::FsHardLink for Missing {
     fn hard_link(source: &Path, destination: &Path) -> io::Result<()> {
         fs::hard_link(source, destination)
+    }
+}
+
+impl FsCopyFile for Occupied {
+    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
+        Host::copy_file(source, target, permissions)
     }
 }
 
@@ -154,6 +172,12 @@ impl FsReflink for Unlinkable {
     }
 }
 
+impl FsCopyFile for Unlinkable {
+    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
+        Host::copy_file(source, target, permissions)
+    }
+}
+
 impl pnpm_deps_restorer::FsHardLink for Unlinkable {
     fn hard_link(_: &Path, _: &Path) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
@@ -165,6 +189,12 @@ struct Linkable;
 impl FsReflink for Linkable {
     fn reflink(_: &Path, _: &Path) -> io::Result<()> {
         Err(io::ErrorKind::Unsupported.into())
+    }
+}
+
+impl FsCopyFile for Linkable {
+    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
+        Host::copy_file(source, target, permissions)
     }
 }
 

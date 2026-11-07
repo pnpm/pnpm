@@ -2,7 +2,7 @@
 //! [`Host`] provider, following the convention in
 //! `pnpm/CODE_STYLE_GUIDE.md`.
 
-use crate::remove_dirent;
+use crate::{CopyPermissions, copy_file_exclusive, remove_dirent};
 use std::{fs, io, path::Path};
 
 /// Move a filesystem entry from `src` to `dst`, as [`fs::rename`].
@@ -42,6 +42,15 @@ pub trait FsHardLink {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
 }
 
+/// Copy `source` to `target`, a path nothing may occupy yet, with
+/// `permissions`, as [`fn@crate::copy_file_exclusive`].
+///
+/// The seam exists so tests can fail the copy tier, which every import
+/// ladder ends at and which a temp dir on a healthy disk never fails.
+pub trait FsCopyFile {
+    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()>;
+}
+
 pub struct Host;
 
 impl FsReflink for Host {
@@ -53,6 +62,12 @@ impl FsReflink for Host {
 impl FsHardLink for Host {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
         fs::hard_link(source, target)
+    }
+}
+
+impl FsCopyFile for Host {
+    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
+        copy_file_exclusive(source, target, permissions, |_| Ok(()))
     }
 }
 

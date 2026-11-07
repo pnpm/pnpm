@@ -27,6 +27,7 @@ tempfile = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+pretty_assertions = { workspace = true }
 sha2 = { workspace = true }
 text-block-macros = { workspace = true }
 

@@ -24,6 +24,7 @@ pub use internal_symlink::{
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
+pub use link_failure::{LinkFailure, LinkFallback, LinkFallbackPolicy};
 pub use lock_mode::LockMode;
 pub use mapped_drive_path::canonicalize_preserving_mapped_drive;
 pub use open_dir::OpenDir;
@@ -74,6 +75,7 @@ mod internal_symlink;
 mod is_not_found;
 mod is_subdir;
 mod lexical_normalize;
+mod link_failure;
 mod lock_mode;
 mod mapped_drive_path;
 mod open_dir;

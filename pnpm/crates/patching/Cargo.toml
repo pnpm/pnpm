@@ -26,6 +26,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+pnpm-fs = { workspace = true, features = ["test"] }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 text-block-macros = { workspace = true }

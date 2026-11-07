@@ -5542,6 +5542,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-crypto-hash",
  "pnpm-wasm-host",
+ "pretty_assertions",
  "reflink-copy",
  "same-file",
  "sha2 0.10.9",

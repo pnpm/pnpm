@@ -49,6 +49,7 @@ use crate::{
     safe_join_modules_dir::safe_join_modules_dir,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+use pnpm_fs::{LinkFailure, LinkFallback, LinkFallbackPolicy};
 use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_reporter::Reporter;
 use std::{
@@ -292,18 +293,7 @@ impl<'install> DirCloneCache<'install> {
             );
             return true;
         };
-        // `NotFound` (a concurrent prune removed the canonical slot),
-        // `AlreadyExists` (a concurrent importer claimed the target),
-        // and `PermissionDenied` are per-call conditions; everything
-        // else — `EXDEV`, `ENOTSUP`, and the grab-bag of "this volume
-        // can't do that" codes — condemns every later clone too, the
-        // same deny-list reasoning as `link_file::is_call_error`.
-        if !matches!(
-            error.kind(),
-            io::ErrorKind::NotFound
-                | io::ErrorKind::PermissionDenied
-                | io::ErrorKind::AlreadyExists,
-        ) {
+        if retires_dir_clone(&error) {
             self.disabled.store(true, Ordering::Relaxed);
         }
         tracing::debug!(
@@ -314,6 +304,15 @@ impl<'install> DirCloneCache<'install> {
         );
         false
     }
+}
+
+/// Whether a failed directory clone condemns every later one. A failure
+/// that retires an import tier ([`LinkFallback::NextMethod`]) retires the
+/// cache; a canonical slot a concurrent prune removed, a target a
+/// concurrent importer claimed, or a source out of names only sends this
+/// package through the per-file import.
+fn retires_dir_clone(error: &io::Error) -> bool {
+    LinkFailure::of(error).fallback(LinkFallbackPolicy::NextMethod) == LinkFallback::NextMethod
 }
 
 /// Whether a directory `clonefile` from under `links_root` can land in
