@@ -1,4 +1,4 @@
-use super::{NewToken, Result, TokenBackend, TokenRecord, TokenStore, UserStore};
+use super::{NewToken, Result, TokenBackend, TokenRecord, TokenStore, UserBackend, UserStore};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -27,14 +27,14 @@ impl OwnedTokens {
 impl TokenBackend for OwnedTokens {
     async fn issue_token(
         &self,
-        username: &str,
+        user_id: &str,
         new_token: NewToken,
     ) -> Result<(String, TokenRecord)> {
-        self.tokens.issue_token(username, new_token).await
+        self.tokens.issue_token(user_id, new_token).await
     }
 
-    async fn issue(&self, username: &str) -> Result<String> {
-        self.tokens.issue(username).await
+    async fn issue(&self, user_id: &str) -> Result<String> {
+        self.tokens.issue(user_id).await
     }
 
     async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
@@ -52,23 +52,26 @@ impl TokenBackend for OwnedTokens {
         let Some(record) = self.tokens.lookup_record(raw).await? else {
             return Ok(None);
         };
-        if self.users.holds(&record.username)? { Ok(Some(record)) } else { Ok(None) }
+        Ok(self.users
+            .account_name(&record.user_id)
+            .await?
+            .map(|name| record.with_owner_name(name)))
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         self.tokens.find_by_key(key).await
     }
 
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        self.tokens.list_for_user(username).await
+    async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
+        self.tokens.list_for_user(user_id).await
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         self.tokens.revoke_by_key(key).await
     }
 
-    async fn revoke_all_for_user(&self, username: &str) -> Result<usize> {
-        self.tokens.revoke_all_for_user(username).await
+    async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize> {
+        self.tokens.revoke_all_for_user(user_id).await
     }
 
     async fn check_readiness(&self) -> Result<()> {

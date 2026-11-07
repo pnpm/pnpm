@@ -93,7 +93,7 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 | Flag | Description |
 | --- | --- |
 | `--out <dir>` | Destination directory for exported packages and files. Required. |
-| `--include-auth` | Include configured auth files (`htpasswd`, `tokens.db`) in the output directory (excluded by default). Files are created with restricted (`0600`) permissions. |
+| `--include-auth` | Include configured auth files (`users.json`, `tokens.db`) in the output directory (excluded by default). Files are created with restricted (`0600`) permissions. |
 
 ### migrate-storage
 
@@ -138,26 +138,26 @@ Run this command as an offline maintenance step while pnpr is stopped, or specif
 # Preview users that would be imported
 pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
 
-# Import and merge with pnpr's configured htpasswd file
+# Import and merge with pnpr's configured account file
 pnpr import-htpasswd --source /path/to/old/htpasswd
 ```
 
 | Flag | Description |
 | --- | --- |
 | `--source <path>` | Path to the source htpasswd file to import. Required. |
-| `--target <path>` | Path to destination htpasswd file. Defaults to `auth.htpasswd.file` from config. |
+| `--target <path>` | Path to the destination JSON account file. Defaults to `auth.users.file` from config. |
 | `--dry-run` | Preview imported user counts without writing to target file. |
 | `--overwrite` | Overwrite conflicting credentials for existing users in destination file (skipped by default). |
 
 ### add-user
 
 Creates a user account, or changes the password of an existing one. Use it to
-create admin accounts, which cannot self-register. Creating an account revokes
-any tokens left under that username.
+create an account, then use the printed immutable account ID in `auth.admins`.
+A new account never inherits tokens or grants from a reused login name.
 
-The command needs `auth.htpasswd.file` or a database backend. With the
-htpasswd file, run it while pnpr is stopped. A running pnpr does not see the
-new account, and its next account change overwrites the file.
+The command needs `auth.users.file` or a database backend. With the
+account file, edits share a lock with the running server. Password changes
+preserve the account ID.
 
 ```sh
 # Prompts for the password

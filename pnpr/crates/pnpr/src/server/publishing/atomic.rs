@@ -58,7 +58,7 @@ pub(in super::super) fn publication_request(
     name: Option<&str>,
     target: Option<&CanonicalPackageName>,
 ) -> Option<PublicationRequest> {
-    let principal = identity.username()?.to_string();
+    let principal = identity.user_id()?.to_string();
     let request_digest = request_digest(body, target.map(CanonicalPackageName::as_str));
     let idempotency_key = key.map_or_else(|| format!("request:{request_digest}"), str::to_string);
     let name = name.map(str::to_string);

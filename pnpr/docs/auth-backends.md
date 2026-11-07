@@ -4,7 +4,7 @@ title: Auth backends (shared SQL)
 ---
 
 Auth state (the registered users and their bearer tokens) is per-instance disk
-state. By default users live in an htpasswd file and tokens in a local SQLite
+state. By default users live in a JSON account file and tokens in a local SQLite
 database (see [`auth`](configuration.md#auth)), so two pnpr replicas don't see
 each other's accounts.
 
@@ -101,12 +101,12 @@ backend:
 | `timeout` | no | Request-path auth database deadline. Defaults to `30s`. |
 | `startupTimeout` | no | Startup connection and schema setup deadline. Defaults to `5m`. |
 
-When the `backend:` block is absent, the `auth.htpasswd` / `auth.tokens`
-settings apply. Without `auth.htpasswd.file`, accounts
+When the `backend:` block is absent, the `auth.users` / `auth.tokens`
+settings apply. Without `auth.users.file`, accounts
 [live in memory](configuration.md#auth), and so do tokens unless
 `auth.tokens.file` is set. With a `backend:` block,
-`auth.htpasswd.file` and `auth.tokens.file` are ignored, and only the
-`auth.htpasswd.maxUsers` registration cap is read. Omitted
+`auth.users.file` and `auth.tokens.file` are ignored, and only the
+`auth.users.maxUsers` registration cap is read. Omitted
 `maxUsers` and `maxUsers: -1` both disable self-registration; set a
 non-negative cap to let new users register.
 
@@ -114,3 +114,11 @@ non-negative cap to let new users register.
 
 Custom user and token backends are compiled into pnpr. There is no plugin
 runtime.
+
+## Deleted accounts
+
+Deleting an account retains its immutable ID under a generated deleted name,
+revokes its credentials, and frees its login name. A new account using that
+name receives a fresh ID. Team memberships and package ownership remain bound
+to the deleted ID. Deleted accounts are hidden from user lists and do not count
+toward `maxUsers`. See [Account and team identity](identity.md).

@@ -5,7 +5,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{AuthState, Config, router_with_auth};
+use pnpr::{Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     collections::HashMap,
@@ -26,7 +26,7 @@ auth:
   admins: [root]
   scim:
     token: scim-secret-0123456789abcdef0123456789
-  htpasswd:
+  users:
     maxUsers: 100
 registries:
   local:
@@ -35,7 +35,7 @@ registries:
     rulesManagedBy: api
     teamsManagedBy: api
     teams:
-      readers: []
+      readers: { name: readers, members: [] }
     packages:
       '@secret/*':
         access: $authenticated
@@ -168,8 +168,7 @@ fn load_config(dir: &Path) -> Config {
 }
 
 async fn app_router(config: Config) -> axum::Router {
-    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
-    auth.users.create_user("root", "secret").await.unwrap();
+    let auth = crate::tokens::seeded_auth(&config, &[("root", "secret")]);
     router_with_auth(config, auth)
 }
 
@@ -180,9 +179,19 @@ async fn send(
     token: Option<&str>,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
+    let path = crate::tokens::admin_path(app, method, path).await;
+    let path = if let Some(name) = path.strip_prefix("/-/pnpr/v0/scim/v2/Users/") {
+        match crate::tokens::account_id(app, name).await {
+            Some(id) => format!("/-/pnpr/v0/scim/v2/Users/{id}"),
+            None => path,
+        }
+    } else {
+        path
+    };
+
     let mut request = Request::builder()
         .method(method)
-        .uri(path)
+        .uri(&path)
         .header("content-type", "application/json");
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
@@ -397,6 +406,7 @@ async fn audit_log_team_admin() {
     assert_eq!(ev.fields.get("scope").map(String::as_str), Some("audscope"));
     assert_request_span(&ev, "PUT");
 
+    login(&app, "audmember", "secret").await;
     // 2. team.member_add
     let (status, _) = send(
         &app,
@@ -470,7 +480,7 @@ async fn audit_log_scim_operations() {
     let app = app_router(load_config(dir.path())).await;
 
     // 1. scim.user_create
-    let (status, _) = send(
+    let (status, created) = send(
         &app,
         "POST",
         "/-/pnpr/v0/scim/v2/Users",
@@ -483,6 +493,7 @@ async fn audit_log_scim_operations() {
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
+    let resource_path = format!("/-/pnpr/v0/scim/v2/Users/{}", created["id"].as_str().unwrap());
     let ev = find_event(&logs, "scim.user_create", "user", "aud_scim_user@example.com");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("scim"));
     assert_request_span(&ev, "POST");
@@ -491,7 +502,7 @@ async fn audit_log_scim_operations() {
     let (status, _) = send(
         &app,
         "PUT",
-        "/-/pnpr/v0/scim/v2/Users/aud_scim_user@example.com",
+        &resource_path,
         Some(SCIM_TOKEN),
         Some(json!({
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -509,7 +520,7 @@ async fn audit_log_scim_operations() {
     let (status, _) = send(
         &app,
         "PATCH",
-        "/-/pnpr/v0/scim/v2/Users/aud_scim_user@example.com",
+        &resource_path,
         Some(SCIM_TOKEN),
         Some(json!({
             "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -528,14 +539,7 @@ async fn audit_log_scim_operations() {
     assert_request_span(&ev, "PATCH");
 
     // 4. scim.user_delete
-    let (status, _) = send(
-        &app,
-        "DELETE",
-        "/-/pnpr/v0/scim/v2/Users/aud_scim_user@example.com",
-        Some(SCIM_TOKEN),
-        None,
-    )
-    .await;
+    let (status, _) = send(&app, "DELETE", &resource_path, Some(SCIM_TOKEN), None).await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let ev = find_event(&logs, "scim.user_delete", "user", "aud_scim_user@example.com");
     assert_eq!(ev.fields.get("actor").map(String::as_str), Some("scim"));
@@ -783,4 +787,29 @@ async fn audit_log_oci_deletion_operations() {
     assert_eq!(blob_event.fields.get("repository").map(String::as_str), Some("acme/app"));
     assert_eq!(blob_event.fields.get("actor").map(String::as_str), Some("alice"));
     assert_request_span(&blob_event, "DELETE");
+}
+
+#[tokio::test]
+async fn renaming_an_account_audits_its_stable_id_and_new_name() {
+    let logs = init_audit_subscriber();
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path())).await;
+    let root = login(&app, "root", "secret").await;
+    let (_, created) = send(
+        &app,
+        "PUT",
+        "/-/pnpr/v0/admin/users/aud_before",
+        Some(&root),
+        Some(json!({"password": "secret"})),
+    )
+    .await;
+    let id = created["id"].as_str().unwrap();
+    let path = format!("/-/pnpr/v0/admin/users/{id}");
+    let (status, _) =
+        send(&app, "PATCH", &path, Some(&root), Some(json!({"name": "aud_after"}))).await;
+    assert_eq!(status, StatusCode::OK);
+    let event = find_event(&logs, "user.rename", "user_id", id);
+    assert_eq!(event.fields.get("actor").map(String::as_str), Some("root"));
+    assert_eq!(event.fields.get("user").map(String::as_str), Some("aud_after"));
+    assert_request_span(&event, "PATCH");
 }

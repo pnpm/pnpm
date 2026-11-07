@@ -166,6 +166,21 @@ fn collect_own_files(
     Ok(out)
 }
 
+/// Whether `file_name` names a temporary lockfile staged by an atomic write.
+#[must_use]
+pub fn is_lockfile_staging_file(file_name: &str) -> bool {
+    let Some(suffix) = file_name.strip_prefix(".pnpm-lock.yaml.") else { return false };
+    let mut parts = suffix.split('.');
+    matches!(
+        (parts.next(), parts.next(), parts.next(), parts.next()),
+        (Some(pid), Some(counter), Some("tmp"), None)
+            if !pid.is_empty()
+                && pid.bytes().all(|byte| byte.is_ascii_digit())
+                && !counter.is_empty()
+                && counter.bytes().all(|byte| byte.is_ascii_digit()),
+    )
+}
+
 /// The normalized `main`, `browser`, and `bin` paths that stay inside the
 /// package, which the packlist always includes.
 /// A non-string value, such as a `browser` replacement map, is skipped.

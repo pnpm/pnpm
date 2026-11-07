@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, GcFile, IndexMap, Interval, LogConfig, LogFormat,
     LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PackageDocumentsFile, PathBuf,
-    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile,
+    ReleaseRecordsFile, S3Settings, ScimConfig, TarballFormat, UpstreamAuthFile, access::TeamFile,
     default_storage_string, null_default::deserialize_null_default, oidc,
 };
 
@@ -54,12 +54,12 @@ pub(super) struct HostedFile {
     /// no `packages:` entry refines it. Omitted ⇒ `$all`.
     #[serde(default)]
     pub(super) access: Option<AccessSpec>,
-    /// This registry's teams: each key is a team name, each value the list
-    /// of member usernames. Referenced from this registry's access lists as
-    /// `team:<name>` — teams are registry-scoped, never shared across
+    /// This registry's teams: each key is a team ID, each value its name
+    /// and member account IDs. Referenced from this registry's access lists as
+    /// `team:<id>` — teams are registry-scoped, never shared across
     /// registries (YAML anchors cover a shared roster in one file).
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) teams: IndexMap<String, AccessSpec>,
+    pub(super) teams: IndexMap<String, TeamFile>,
     /// Whether `teams:` is the roster or only the seed of one the team API
     /// edits. Omitted ⇒ `config`.
     #[serde(default)]
@@ -127,9 +127,9 @@ pub(super) struct UpstreamFile {
     #[serde(default)]
     pub(super) access: Option<AccessSpec>,
     /// This registry's teams, exactly as on a hosted registry — referenced
-    /// from `access` and the per-package refinements as `team:<name>`.
+    /// from `access` and the per-package refinements as `team:<id>`.
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) teams: IndexMap<String, AccessSpec>,
+    pub(super) teams: IndexMap<String, TeamFile>,
     /// The names that may be requested through this registry — its namespace —
     /// with optional per-package `access` refinements as values (`{}` or null
     /// ⇒ the registry default; a `publish`/`unpublish` value is a config
@@ -396,7 +396,7 @@ pub(super) struct AuthFile {
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) oidc: Vec<oidc::OidcProvider>,
     #[serde(default, deserialize_with = "deserialize_null_default")]
-    pub(super) htpasswd: HtpasswdFile,
+    pub(super) users: UsersFile,
     #[serde(default, deserialize_with = "deserialize_null_default")]
     pub(super) tokens: TokensFile,
     #[serde(default)]
@@ -442,7 +442,7 @@ pub(super) struct SqlBackendFile {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct HtpasswdFile {
+pub(super) struct UsersFile {
     #[serde(default)]
     pub(super) file: Option<String>,
     /// `i64` so the sentinel `-1` (registration disabled)

@@ -26,7 +26,7 @@ fn app_at(tmp: &TempDir, public_url: &str) -> Router {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     config.http.public_url = public_url.to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.metadata = MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     router(config)
 }

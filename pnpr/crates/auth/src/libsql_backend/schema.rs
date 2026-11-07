@@ -35,7 +35,7 @@ where
 }
 
 pub(super) async fn ensure_user_counter(conn: &Connection) -> Result<()> {
-    let rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+    let rows = conn.query("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'", ()).await?;
     let Some(count) = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await? else {
         return Err(missing_count_row());
     };
@@ -72,7 +72,7 @@ pub(super) async fn reconcile_user_counter_overcount(conn: &Connection) -> Resul
         tx.commit().await?;
         return Ok(false);
     };
-    let count_rows = tx.query("SELECT COUNT(*) FROM users", ()).await?;
+    let count_rows = tx.query("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'", ()).await?;
     let Some(count) = first_row(count_rows, |row| Ok(row.get::<i64>(0)?)).await? else {
         return Err(missing_count_row());
     };

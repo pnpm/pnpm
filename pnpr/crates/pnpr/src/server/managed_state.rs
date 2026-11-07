@@ -14,9 +14,7 @@ use std::{
 };
 use tokio::sync::OwnedMutexGuard;
 
-/// How long a replica serves the managed state it last read before it reads
-/// it from the hosted store again. Bounds how long a change made on another
-/// replica takes to reach this one.
+/// Minimum interval between successful request-triggered background reloads.
 const STATE_TTL: Duration = Duration::from_secs(10);
 
 /// How soon a replica tries again after a record it could not read.
@@ -38,7 +36,7 @@ pub(super) struct ManagedState {
     /// Each rules-managed registry's rules as the YAML declares them, keyed
     /// by registry name. Stored changes apply on top of these.
     pub(super) rule_bases: IndexMap<String, Arc<RuleTable>>,
-    /// The usernames the SCIM directory marks inactive. `None` without
+    /// The account IDs the SCIM directory marks inactive. `None` without
     /// `auth.scim`.
     pub(super) scim: Option<ScimState>,
     /// When the state is next due for a reload. `None` before the first.

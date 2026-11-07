@@ -83,6 +83,13 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
     pnpr_command_with_home(bin, port, public_url, None)
 }
 
+/// Configuration and storage for a mock built from an explicit revision.
+#[derive(Debug, Clone, Copy)]
+pub struct PnprMockConfig<'a> {
+    pub home: &'a Path,
+    pub yaml: &'a str,
+}
+
 /// Like [`pnpr_command_with_binary`], keeping the hosted store and its
 /// metadata database in `home` instead of the fixture build's when one is
 /// given. The fixture build's store and database carry this checkout's
@@ -94,7 +101,7 @@ pub fn pnpr_command_with_home(
     bin: &Path,
     port: u16,
     public_url: Option<&str>,
-    home: Option<&Path>,
+    config: Option<PnprMockConfig<'_>>,
 ) -> Command {
     assert!(
         bin.is_file(),
@@ -118,11 +125,12 @@ pub fn pnpr_command_with_home(
     // (the fixture namespace served from local hosted storage, everything else
     // proxied through the pattern-less npmjs upstream). We pin the runtime bits
     // the config file can't know about via CLI arguments.
-    let (storage, database) = match home {
-        Some(home) => (home.join("storage"), home.join("metadata.sqlite")),
+    let (storage, database) = match &config {
+        Some(config) => (config.home.join("storage"), config.home.join("metadata.sqlite")),
         None => (crate::runtime_hosted_storage(), crate::runtime_metadata_path()),
     };
-    let config = runtime_mock_config(&database)
+    let yaml = config.as_ref().map_or(pnpr_fixtures::MOCK_CONFIG_YAML, |config| config.yaml);
+    let config = runtime_mock_config(&database, yaml)
         .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
     cmd.arg("--config")
         .arg(config)
@@ -161,10 +169,10 @@ fn command_without_pnpr_env(bin: &Path) -> Command {
 /// reads a named one. The config is named after the fixture build and its
 /// own contents, so no mock reads a config another checkout wrote for
 /// another build or another fixture config.
-fn runtime_mock_config(database: &Path) -> io::Result<PathBuf> {
+fn runtime_mock_config(database: &Path, config: &str) -> io::Result<PathBuf> {
     let database = std::path::absolute(database)?;
     let url = format!("sqlite:{}", database.display()).replace('\'', "''");
-    let yaml = format!("{}\nmetadata:\n  url: '{url}'\n", pnpr_fixtures::MOCK_CONFIG_YAML);
+    let yaml = format!("{config}\nmetadata:\n  url: '{url}'\n");
     let mut hasher = DefaultHasher::new();
     yaml.hash(&mut hasher);
     let mut path = std::path::absolute(crate::runtime_hosted_storage())?.into_os_string();

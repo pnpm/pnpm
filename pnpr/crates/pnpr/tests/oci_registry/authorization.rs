@@ -7,7 +7,8 @@ use super::{
 async fn reads_of_a_private_repository_are_kept_out_of_shared_caches() {
     let tmp = TempDir::new().unwrap();
     let config = oci_config(tmp.path().to_path_buf(), "$authenticated");
-    let app = router_with_auth(config, AuthState::in_memory());
+    let accounts = crate::tokens::seeded_auth(&config, &[("alice", "secret")]);
+    let app = router_with_auth(config, accounts);
     let auth = basic(&token(&app).await);
     push_image(&app, &auth, "acme/app", "1.0").await;
 
@@ -40,7 +41,8 @@ async fn deletion_requires_read_access_even_with_a_permissive_unpublish_rule() {
     let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules =
         std::mem::take(&mut hosted.rules).with_default_unpublish(AccessList::from_tokens(["$all"]));
-    let app = router_with_auth(config, AuthState::in_memory());
+    let accounts = crate::tokens::seeded_auth(&config, &[("alice", "secret")]);
+    let app = router_with_auth(config, accounts);
     let auth = basic(&token(&app).await);
     push_image(&app, &auth, "acme/app", "latest").await;
     let digest = push_blob(&app, &auth, "acme/app", b"orphan").await;
@@ -75,7 +77,8 @@ async fn token_scopes_ignore_unknown_resources_and_count_distinct_repositories()
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
     config.http.oci.bearer_auth = true;
-    let app = router_with_auth(config, AuthState::in_memory());
+    let accounts = crate::tokens::seeded_auth(&config, &[("alice", "secret")]);
+    let app = router_with_auth(config, accounts);
     let mut query = url::form_urlencoded::Serializer::new(String::new());
     for index in 0..32 {
         query.append_pair("scope", &format!("repository:other/app{index}:pull"));

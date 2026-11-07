@@ -7,17 +7,19 @@ use crate::validation::{
 /// backends store the same shape and records can be moved between them.
 pub(crate) const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
     token_hash      CHAR(64) PRIMARY KEY,
-    username        VARCHAR(255) NOT NULL,
+    user_id        VARCHAR(255) NOT NULL,
     created_at      BIGINT NOT NULL,
     last_used_at    BIGINT NOT NULL,
     readonly        SMALLINT NOT NULL DEFAULT 0,
     cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]',
     name            VARCHAR(255),
-    expires_at      BIGINT
+    expires_at      BIGINT,
+    scopes          TEXT,
+    kind            VARCHAR(64)
 )";
 
 pub(crate) const TOKENS_INDEX_SQL: &str =
-    "CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username)";
+    "CREATE INDEX IF NOT EXISTS tokens_user_id ON tokens(user_id)";
 
 pub(crate) fn init_tokens_schema(conn: &Connection) -> Result<()> {
     crate::schema::migrate_sqlite(conn)
@@ -36,7 +38,8 @@ fn decode_token_row(row: &rusqlite::Row<'_>) -> Result<(String, TokenRecord)> {
     Ok((
         hash,
         TokenRecord {
-            username: row.get(1)?,
+            owner_name: None,
+            user_id: row.get(1)?,
             created_at: token_timestamp_from_sql(row.get(2)?),
             last_used_at: token_timestamp_from_sql(row.get(3)?),
             readonly: row.get::<_, i64>(4)? != 0,
@@ -51,7 +54,7 @@ fn decode_token_row(row: &rusqlite::Row<'_>) -> Result<(String, TokenRecord)> {
 
 pub(crate) fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
+        "SELECT token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
          FROM tokens",
     )?;
     let mut rows = stmt.query([])?;
@@ -77,11 +80,11 @@ pub(crate) fn insert_token(
         .expect("Vec<String> always serializes to JSON");
     let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
     conn.execute(
-        "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
+        "INSERT INTO tokens (token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             token_hash,
-            record.username,
+            record.user_id,
             token_timestamp_to_sql(record.created_at),
             token_timestamp_to_sql(record.last_used_at),
             i64::from(record.readonly),

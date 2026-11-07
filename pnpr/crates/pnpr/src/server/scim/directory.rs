@@ -1,5 +1,5 @@
 //! The accounts a SCIM client provisioned, kept as one record in the hosted
-//! store so every replica refuses the same deprovisioned usernames.
+//! store so every replica refuses the same deprovisioned account IDs.
 
 use super::super::{
     AppState, RegistryError,
@@ -16,8 +16,7 @@ use std::{
     },
 };
 
-/// The stored record: every username a SCIM client has provisioned, keyed
-/// by username, which is also its SCIM `id`.
+/// Provisioned resources indexed by immutable account ID.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub(super) struct Directory {
     #[serde(default)]
@@ -26,9 +25,10 @@ pub(super) struct Directory {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub(super) struct ScimUser {
+    #[serde(skip)]
+    pub(super) username: String,
     pub(super) active: bool,
-    /// Set by `DELETE`. The user stays in the record, inactive, so the
-    /// username keeps being refused, but the SCIM API no longer lists it.
+    /// Removed resources remain as tombstones and are not listed. Their names may be reused.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub(super) removed: bool,
     /// How many writes have made the user inactive. A replica that sees it
@@ -43,24 +43,24 @@ pub(super) struct ScimUser {
 }
 
 impl Directory {
-    /// Store `user` as `username`, carrying over its deprovision count and
+    /// Store `user` as the account ID, carrying over its deprovision count and
     /// counting this write if it makes the user inactive.
-    pub(super) fn store(&mut self, username: &str, mut user: ScimUser) -> ScimUser {
-        let previous = self.users.get(username);
+    pub(super) fn store(&mut self, user_id: &str, mut user: ScimUser) -> ScimUser {
+        let previous = self.users.get(user_id);
         user.deprovisions = previous.map(|previous| previous.deprovisions).unwrap_or(0);
         if !user.active && previous.is_none_or(|previous| previous.active) {
             user.deprovisions += 1;
         }
-        self.users.insert(username.to_string(), user.clone());
+        self.users.insert(user_id.to_string(), user.clone());
         user
     }
 }
 
-/// This replica's copy of the directory's usernames, each with whether it is
+/// This replica's copy of the directory's account IDs, each with whether it is
 /// active.
 #[derive(Debug, Default)]
 pub(in super::super) struct ScimState {
-    active_by_name: RwLock<Arc<BTreeMap<String, bool>>>,
+    active_by_id: RwLock<Arc<BTreeMap<String, bool>>>,
     /// The deprovision count of each user as this replica last read it.
     seen: Mutex<HashMap<String, u64>>,
     /// Set by a failed read of the directory, cleared by the next successful
@@ -70,12 +70,11 @@ pub(in super::super) struct ScimState {
 
 impl ScimState {
     fn publish(&self, state: &AppState, directory: &Directory) {
-        let active_by_name = directory.users
+        let active_by_id = directory.users
             .iter()
             .map(|(name, user)| (name.clone(), user.active))
             .collect();
-        *self.active_by_name.write().unwrap_or_else(PoisonError::into_inner) =
-            Arc::new(active_by_name);
+        *self.active_by_id.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(active_by_id);
         self.unreadable.store(false, Ordering::Release);
         let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
         for name in newly_deprovisioned(&mut seen, directory) {
@@ -99,28 +98,19 @@ pub(super) fn newly_deprovisioned(
         .collect()
 }
 
-/// Whether a SCIM client deprovisioned `username`. Always `false` without
+/// Whether a SCIM client deprovisioned the account ID. Always `false` without
 /// `auth.scim`. Fails closed while the last read of the directory failed,
 /// because this replica's copy may miss a deprovisioning.
 pub(in super::super) fn is_deprovisioned(
     state: &AppState,
-    username: &str,
+    user_id: &str,
 ) -> Result<bool, RegistryError> {
-    Ok(directory_entry(state, username)? == Some(false))
+    Ok(directory_entry(state, user_id)? == Some(false))
 }
 
-/// Whether the directory holds `username`, active or not. Fails closed like
-/// [`is_deprovisioned`].
-pub(in super::super) fn is_provisioned(
-    state: &AppState,
-    username: &str,
-) -> Result<bool, RegistryError> {
-    Ok(directory_entry(state, username)?.is_some())
-}
-
-/// Whether `username` is active in the directory, or `None` if the directory
+/// Whether the account ID is active in the directory, or `None` if the directory
 /// does not hold it.
-fn directory_entry(state: &AppState, username: &str) -> Result<Option<bool>, RegistryError> {
+fn directory_entry(state: &AppState, user_id: &str) -> Result<Option<bool>, RegistryError> {
     let Some(scim) = &state.inner.identity.managed.scim else {
         return Ok(None);
     };
@@ -129,22 +119,14 @@ fn directory_entry(state: &AppState, username: &str) -> Result<Option<bool>, Reg
             reason: "the SCIM directory could not be read; sign-ins resume once it can".to_string(),
         });
     }
-    Ok(scim.active_by_name
+    Ok(scim.active_by_id
         .read()
         .unwrap_or_else(PoisonError::into_inner)
-        .get(username)
+        .get(user_id)
         .copied())
 }
 
-/// Whether a user exists and is active in the SCIM directory.
-pub(in super::super) fn is_active_scim_user(
-    state: &AppState,
-    username: &str,
-) -> Result<bool, RegistryError> {
-    Ok(directory_entry(state, username)? == Some(true))
-}
-
-/// Read the directory and publish its usernames. After a failed read
+/// Read the directory and publish its account IDs. After a failed read
 /// [`is_deprovisioned`] fails closed until a read succeeds. Reports whether the read
 /// succeeded.
 pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimState) -> bool {
@@ -209,24 +191,24 @@ where
 /// made inactive must not leave its credentials working once it is active.
 pub(super) async fn clean_up_before_reactivating(
     state: &AppState,
-    username: &str,
+    user_id: &str,
 ) -> Result<(), RegistryError> {
     let (directory, _) = read_directory(state).await?;
-    if directory.users.get(username).is_some_and(|user| !user.active) {
-        deprovision(state, username).await?;
+    if directory.users.get(user_id).is_some_and(|user| !user.active) {
+        deprovision(state, user_id).await?;
     }
     Ok(())
 }
 
-/// Take away everything `username` could sign in or authenticate with: its
-/// stored tokens, its password account, and its browser sessions on this
+/// Take away everything the account ID could sign in or authenticate with: its
+/// stored tokens, its password, and its browser sessions on this
 /// replica. Other replicas refuse its sessions once they reload the
 /// directory. Safe to repeat.
-pub(super) async fn deprovision(state: &AppState, username: &str) -> Result<(), RegistryError> {
+pub(super) async fn deprovision(state: &AppState, user_id: &str) -> Result<(), RegistryError> {
     let auth = &state.inner.identity.auth;
-    auth.revoke_all_tokens(username).await?;
-    auth.users.delete_user(username).await?;
-    auth.revoke_all_tokens(username).await?;
-    state.inner.identity.oidc.revoke_user_sessions(username);
+    auth.revoke_all_tokens(user_id).await?;
+    auth.users.clear_password(user_id).await?;
+    auth.revoke_all_tokens(user_id).await?;
+    state.inner.identity.oidc.revoke_user_sessions(user_id);
     Ok(())
 }

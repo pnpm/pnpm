@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{AuthState, Config, router_with_auth};
+use pnpr::{Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -19,7 +19,7 @@ use tower::ServiceExt;
 const CONFIG: &str = "\
 auth:
   admins: [root]
-  htpasswd:
+  users:
     maxUsers: 100
 registries:
   local:
@@ -27,7 +27,7 @@ registries:
     org: \"\"
     teamsManagedBy: api
     teams:
-      readers: []
+      readers: { name: readers, members: [] }
     packages:
       '@secret/*':
         access: [team:readers]
@@ -52,8 +52,7 @@ fn load_config_with(dir: &Path, yaml: &str) -> Config {
 }
 
 async fn app_router(config: Config) -> axum::Router {
-    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
-    auth.users.create_user("root", "secret").await.unwrap();
+    let auth = crate::tokens::seeded_auth(&config, &[("root", "secret")]);
     router_with_auth(config, auth)
 }
 
@@ -64,9 +63,10 @@ async fn send(
     token: Option<&str>,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
+    let path = crate::tokens::admin_path(app, method, path).await;
     let mut request = Request::builder()
         .method(method)
-        .uri(path)
+        .uri(&path)
         .header("content-type", "application/json");
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
@@ -96,7 +96,14 @@ async fn add_user(app: &axum::Router, username: &str) -> String {
 async fn team_names(app: &axum::Router, token: &str) -> Value {
     let (status, teams) = send(app, "GET", "/npm/-/org/acme/team", Some(token), None).await;
     assert_eq!(status, StatusCode::OK);
-    teams
+    Value::Array(
+        teams
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|team| json!({ "name": team["name"] }))
+            .collect(),
+    )
 }
 
 #[tokio::test]
@@ -116,7 +123,8 @@ async fn admin_edits_reach_team_rules_at_once() {
     assert_eq!(send(&app, "PUT", path, Some(&root), Some(add)).await.0, StatusCode::CREATED);
     assert_eq!(read().await.0, StatusCode::NOT_FOUND);
     let (_, members) = send(&app, "GET", path, Some(&root), None).await;
-    assert_eq!(members, json!([{ "name": "bob" }]));
+    assert_eq!(members[0]["name"], "bob");
+    assert_eq!(members[0]["id"].as_str(), crate::tokens::account_id(&app, "bob").await.as_deref());
 
     let remove = json!({ "user": "bob" });
     assert_eq!(
@@ -150,7 +158,9 @@ async fn roster_edits_refuse_conflicting_state() {
 
     let (status, team) =
         send(&app, "PUT", "/npm/-/org/acme/team", Some(&root), Some(create.clone())).await;
-    assert_eq!((status, team), (StatusCode::CREATED, json!({ "name": "ops" })));
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(team["name"], "ops");
+    assert!(!team["id"].as_str().unwrap().is_empty());
     let (status, _) = send(&app, "PUT", "/npm/-/org/acme/team", Some(&root), Some(create)).await;
     assert_eq!(status, StatusCode::CONFLICT);
     // A `packages:` rule names `readers`, so it cannot be destroyed.
@@ -221,15 +231,109 @@ async fn team_edits_refuse_oversized_bodies() {
 #[tokio::test]
 async fn an_unreadable_roster_denies_team_grants_and_nothing_else() {
     let dir = TempDir::new().unwrap();
+    let auth = pnpr::AuthState::in_memory();
+    let (_, bob_id) = auth.users.add_or_login("bob", "secret").await.unwrap();
+    let yaml = CONFIG.replace("members: []", &format!("members: [{bob_id}]"));
+    assert_ne!(yaml, CONFIG);
+    let config = load_config_with(dir.path(), &yaml);
+    let app = router_with_auth(config.clone(), auth.clone());
+    let bob = add_user(&app, "bob").await;
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await.0,
+        StatusCode::NOT_FOUND,
+    );
     let roster = dir.path().join("storage/.team-rosters/npm/local.json");
     std::fs::create_dir_all(roster.parent().unwrap()).unwrap();
     std::fs::write(&roster, "not a roster").unwrap();
-    let config = CONFIG.replace("readers: []", "readers: [bob]");
-    let app = app_router(load_config_with(dir.path(), &config)).await;
+    let app = router_with_auth(config, auth);
 
-    let bob = add_user(&app, "bob").await;
     let (status, _) = send(&app, "GET", "/npm/@secret/thing", Some(&bob), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     let (status, _) = send(&app, "GET", "/npm/lodash", Some(&bob), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn deleting_a_member_prevents_reclaiming_its_team_access() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path())).await;
+    let root = add_user(&app, "root").await;
+    let former = add_user(&app, "former-member").await;
+    let former_id = crate::tokens::account_id(&app, "former-member").await.unwrap();
+    let roster = "/npm/-/team/acme/readers/user";
+    let member = json!({ "user": "former-member" });
+    assert_eq!(send(&app, "PUT", roster, Some(&root), Some(member)).await.0, StatusCode::CREATED);
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&former), None).await.0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/former-member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT,
+    );
+    let (_, members) = send(&app, "GET", roster, Some(&root), None).await;
+    assert_eq!(members, json!([{ "id": former_id, "name": format!("deleted:{former_id}") }]));
+    let registration = json!({ "name": "former-member", "password": "secret" });
+    assert_eq!(
+        send(&app, "PUT", "/-/user/org.couchdb.user:former-member", None, Some(registration))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    let replacement = add_user(&app, "former-member").await;
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&replacement), None).await.0,
+        StatusCode::FORBIDDEN,
+    );
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&former), None).await.0,
+        StatusCode::UNAUTHORIZED,
+    );
+}
+
+#[tokio::test]
+async fn deleted_members_can_be_removed_by_id_after_their_name_is_reused() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(dir.path())).await;
+    let root = add_user(&app, "root").await;
+    add_user(&app, "member").await;
+    let former_id = crate::tokens::account_id(&app, "member").await.unwrap();
+    let roster = "/npm/-/team/acme/readers/user";
+    let member = json!({"user": "member"});
+    assert_eq!(
+        send(&app, "PUT", roster, Some(&root), Some(member.clone())).await.0,
+        StatusCode::CREATED,
+    );
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT,
+    );
+    let replacement = add_user(&app, "member").await;
+    let replacement_id = crate::tokens::account_id(&app, "member").await.unwrap();
+    assert_ne!(former_id, replacement_id);
+    assert_eq!(send(&app, "PUT", roster, Some(&root), Some(member)).await.0, StatusCode::CREATED);
+    let ambiguous = json!({"userId": former_id, "user": "member"});
+    assert_eq!(
+        send(&app, "DELETE", roster, Some(&root), Some(ambiguous)).await.0,
+        StatusCode::BAD_REQUEST,
+    );
+    let removal = json!({"userId": former_id});
+    assert_eq!(
+        send(&app, "DELETE", roster, Some(&root), Some(removal.clone())).await.0,
+        StatusCode::NO_CONTENT,
+    );
+    let (_, members) = send(&app, "GET", roster, Some(&root), None).await;
+    assert_eq!(members, json!([{"id": replacement_id, "name": "member"}]));
+    assert_eq!(
+        send(&app, "GET", "/npm/@secret/thing", Some(&replacement), None).await.0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        send(&app, "DELETE", roster, Some(&root), Some(removal)).await.0,
+        StatusCode::NO_CONTENT,
+    );
 }

@@ -39,7 +39,7 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
         .collect::<Vec<_>>()
         .join("\n");
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    maxUsers: 100\nregistries:\n  \
+        "storage: {}\nauth:\n  users:\n    maxUsers: 100\nregistries:\n  \
          local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",
@@ -122,11 +122,14 @@ async fn anonymous_rule_admits_anonymous_and_forbids_authenticated() {
 }
 
 #[tokio::test]
-async fn username_in_access_list_grants_only_that_user() {
-    // verdaccio per-user access: `@team/*` is restricted to `alice`.
-    let (_dir, config) =
-        config_from_yaml("packages:\n  '@team/*':\n    access: alice\n  '**':\n    access: $all\n");
-    let app = router(config);
+async fn account_id_in_access_list_grants_only_that_user() {
+    let auth = pnpr::AuthState::in_memory();
+    let (_, alice_id) = auth.users.add_or_login("alice", "secret").await.unwrap();
+    assert_ne!(alice_id, "alice");
+    let (_dir, config) = config_from_yaml(&format!(
+        "packages:\n  '@team/*':\n    access: {alice_id}\n  '**':\n    access: $all\n",
+    ));
+    let app = pnpr::router_with_auth(config, auth);
 
     // Anonymous: no creds for a name-gated package → 401.
     assert_eq!(status_of(app.clone(), get("/npm/@team/x")).await, StatusCode::UNAUTHORIZED);

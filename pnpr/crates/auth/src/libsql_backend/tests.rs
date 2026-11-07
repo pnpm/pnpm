@@ -109,7 +109,7 @@ async fn add_or_login_rejects_existing_invalid_username() {
         .connect()
         .unwrap()
         .execute(
-            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?1)",
             params!["alice ", hash],
         )
         .await
@@ -127,7 +127,7 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
         .connect()
         .unwrap()
         .execute(
-            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?1)",
             params!["alice", "not-a-bcrypt-hash"],
         )
         .await
@@ -238,7 +238,7 @@ async fn ensure_user_counter_reconciles_a_stale_counter() {
         .connect()
         .unwrap()
         .execute(
-            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?1)",
             params!["alice", "not-used-by-this-test"],
         )
         .await
@@ -303,14 +303,19 @@ async fn registration_cap_self_heals_an_overcounted_counter() {
 async fn tokens_round_trip_and_revoke() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     backend.create_user("alice", "x").await.unwrap();
-    let token = backend.issue("alice").await.unwrap();
+    let alice_id = backend
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    let token = backend.issue(&alice_id).await.unwrap();
     assert_eq!(
         backend
             .lookup(&token)
             .await
             .unwrap()
             .as_deref(),
-        Some("alice"),
+        Some(alice_id.as_str()),
     );
     assert!(
         backend
@@ -321,10 +326,10 @@ async fn tokens_round_trip_and_revoke() {
     );
 
     let key = sha256_hex(token.as_bytes());
-    let listed = backend.list_for_user("alice").await.unwrap();
+    let listed = backend.list_for_user(&alice_id).await.unwrap();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].0, key);
-    assert_eq!(listed[0].1.username, "alice");
+    assert_eq!(listed[0].1.user_id, alice_id);
 
     assert!(
         backend
@@ -526,7 +531,19 @@ async fn admin_created_users_count_against_the_registration_cap() {
     let err = backend.add_or_login("bob", "secret").await.unwrap_err();
     assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }), "{err:?}");
 
-    assert_eq!(backend.delete_user("alice").await.unwrap(), UserRemoval::Removed);
+    assert_eq!(
+        backend
+            .delete_user(
+                &backend
+                    .account_id("alice")
+                    .await
+                    .unwrap()
+                    .unwrap()
+            )
+            .await
+            .unwrap(),
+        UserRemoval::Removed,
+    );
     assert!(matches!(
         backend.add_or_login("bob", "secret").await.unwrap(),
         (UpsertOutcome::Created, _),
@@ -537,8 +554,13 @@ async fn admin_created_users_count_against_the_registration_cap() {
 async fn a_removed_owner_disables_its_tokens_but_not_their_cleanup() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     backend.create_user("alice", "x").await.unwrap();
-    let token = backend.issue("alice").await.unwrap();
-    backend.delete_user("alice").await.unwrap();
+    let alice_id = backend
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    let token = backend.issue(&alice_id).await.unwrap();
+    backend.delete_user(&alice_id).await.unwrap();
 
     assert!(
         backend
@@ -554,7 +576,7 @@ async fn a_removed_owner_disables_its_tokens_but_not_their_cleanup() {
             .unwrap()
             .is_none(),
     );
-    let listed = backend.list_for_user("alice").await.unwrap();
+    let listed = backend.list_for_user(&alice_id).await.unwrap();
     assert_eq!(listed.len(), 1);
     assert!(
         backend
@@ -573,7 +595,7 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
         .connect()
         .unwrap()
         .execute(
-            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?1)",
             params!["alice", sha_hash],
         )
         .await
@@ -586,7 +608,8 @@ async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
         .stored_hash("alice")
         .await
         .unwrap()
-        .unwrap();
+        .unwrap()
+        .0;
     assert!(updated.starts_with("$2y$") || updated.starts_with("$2b$"));
     assert_ne!(updated, sha_hash);
 }
@@ -617,7 +640,12 @@ async fn libsql_tokens_persist_scopes_and_kind() {
     let new_token = crate::NewToken::new()
         .with_scopes(Some(vec!["scope:read".to_string(), "scope:write".to_string()]))
         .with_kind(Some("granular".to_string()));
-    let (raw, record) = backend.issue_token("alice", new_token).await.unwrap();
+    let alice_id = backend
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    let (raw, record) = backend.issue_token(&alice_id, new_token).await.unwrap();
     assert_eq!(record.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
     assert_eq!(record.kind.as_deref(), Some("granular"));
 
@@ -649,10 +677,7 @@ async fn libsql_schema_migrations_refuses_future_version() {
     .await
     .unwrap_err();
     let err_str = err.to_string();
-    assert!(
-        err_str.contains("newer than supported version"),
-        "expected error about newer version, got: {err_str}",
-    );
+    assert!(err_str.contains("incompatible"), "expected error about newer version, got: {err_str}");
 }
 
 #[tokio::test]
@@ -715,4 +740,10 @@ async fn one_row_cursor() -> axum::body::Body {
     ];
     let lines = entries.map(|entry| Ok::<_, std::convert::Infallible>(format!("{entry}\n")));
     axum::body::Body::from_stream(futures_util::stream::iter(lines))
+}
+
+#[tokio::test]
+async fn immutable_account_ids_are_not_reassigned() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    crate::retirement_tests::assert_account_identity(&*backend).await;
 }

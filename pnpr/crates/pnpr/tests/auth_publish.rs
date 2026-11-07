@@ -27,7 +27,7 @@ use axum::{
 };
 use base64::engine::general_purpose::STANDARD as BASE64;
 use npm::{npm_tgz, npm_tgz_with, publish_doc, sha1_hex, sri_sha512};
-use pnpr::{Config, MaxUsers, router};
+use pnpr::{Config, MaxUsers};
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
@@ -41,7 +41,7 @@ fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -73,7 +73,7 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     std::fs::write(&config_path, yaml).unwrap();
     let mut config =
         Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     (config, storage)
 }
 
@@ -124,4 +124,9 @@ async fn add_user_and_get_token(
         .expect("token in response")
         .to_string();
     (app, token)
+}
+
+fn router(config: Config) -> axum::Router {
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret"), ("admin", "secret")]);
+    pnpr::router_with_auth(config, auth)
 }

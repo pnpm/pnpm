@@ -15,6 +15,7 @@
         "cloudflare",
         "webhooks",
         "auth-backends",
+        "identity",
         "oidc",
         "scim"
       ]

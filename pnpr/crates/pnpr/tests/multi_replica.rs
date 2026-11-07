@@ -17,7 +17,7 @@ use axum::{
 use npm::publish_doc;
 use object_store::{ObjectStore, memory::InMemory};
 use pausing_store::PausingStore;
-use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
+use pnpr::{Config, HostedStoreConfig, MaxUsers};
 use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
@@ -51,14 +51,13 @@ impl Replica {
         let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
         let mut config = Config::static_serve(listen, storage.path().to_path_buf());
         config.http.public_url = "http://example.test".to_string();
-        config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+        config.identity.auth.users.max_users = MaxUsers::Unlimited;
         config.storage.hosted_backend =
             HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() };
         config.storage.metadata =
             MetadataBackend::Sqlite(metadata.0.path().join("metadata.sqlite"));
-        let app = router(config);
-        // Accounts are per-replica state, so every replica registers the
-        // publisher and issues it a token of its own.
+        let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret")]);
+        let app = pnpr::router_with_auth(config, auth);
         let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
         Replica { app, token, _storage: storage }
     }
@@ -206,7 +205,16 @@ async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
 
     assert_eq!(slow_publish.await.unwrap(), StatusCode::CONFLICT);
     let packument = slow.packument("claimed-pkg").await;
-    assert_eq!(packument["maintainers"], json!([{ "name": "bob" }]));
+    assert_eq!(
+        packument["maintainers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+    let id = crate::tokens::account_id(&fast.app, "bob").await.unwrap();
+    assert_eq!(packument["maintainers"][0]["userId"], id);
+    assert_eq!(packument["maintainers"][0]["name"], "bob");
     assert!(packument["versions"].get("1.0.0").is_none());
 }
 

@@ -15,8 +15,8 @@ one of them. Save this as `pnpr.yaml`:
 storage: ./storage
 
 auth:
-  htpasswd:
-    file: ./htpasswd
+  users:
+    file: ./users.json
     # Allow one user to self-register, for the publish step below.
     maxUsers: 1
 

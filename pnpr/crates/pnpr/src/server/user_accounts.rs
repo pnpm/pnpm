@@ -71,35 +71,27 @@ pub(crate) async fn get_user(
     Path(path): Path<UserPath>,
 ) -> Response {
     let name = strip_couchdb_user_prefix(&path.user);
-    private_no_cache(match check_user_exists(&state, name).await {
-        Ok(true) => json_response(
+    private_no_cache(match active_account_id(&state, name).await {
+        Ok(Some(id)) => json_response(
             StatusCode::OK,
             &json!({
                 "_id": format!("org.couchdb.user:{name}"),
+                "id": id,
                 "name": name,
                 "email": "",
                 "roles": [],
             }),
         ),
-        Ok(false) => {
-            super::routing::npm_errors::json_error(StatusCode::NOT_FOUND, "User not found")
-        }
+        Ok(None) => super::routing::npm_errors::json_error(StatusCode::NOT_FOUND, "User not found"),
         Err(err) => err.into_response(),
     })
 }
 
-pub(super) async fn check_user_exists(state: &AppState, name: &str) -> Result<bool, RegistryError> {
-    if super::scim::is_deprovisioned(state, name)? {
-        return Ok(false);
-    }
-    let users = &state.inner.identity.auth.users;
-    if users.password_hash(name).await?.is_some() {
-        return Ok(true);
-    }
-    if super::scim::is_active_scim_user(state, name)? {
-        return Ok(true);
-    }
-    Ok(false)
+async fn active_account_id(state: &AppState, name: &str) -> Result<Option<String>, RegistryError> {
+    let Some(id) = state.inner.identity.auth.users.account_id(name).await? else {
+        return Ok(None);
+    };
+    Ok((!super::scim::is_deprovisioned(state, &id)?).then_some(id))
 }
 
 /// The account routes capture their own parameter alongside the optional
@@ -157,7 +149,7 @@ pub(super) async fn add_user(
     if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(client_ip, name) {
         return login_throttled_response(state, retry_after);
     }
-    let (outcome, username, token) = match log_in(state, name, &password).await {
+    let (outcome, username, id, token) = match log_in(state, name, &password).await {
         Ok(login) => {
             state.inner.identity.login_rate_limiter.record_success(client_ip, name);
             login
@@ -165,9 +157,7 @@ pub(super) async fn add_user(
         Err(err) => {
             if matches!(
                 err,
-                RegistryError::Unauthenticated { .. }
-                    | RegistryError::Forbidden { .. }
-                    | RegistryError::ReservedUsername { .. },
+                RegistryError::Unauthenticated { .. } | RegistryError::Forbidden { .. },
             ) {
                 state.inner.identity.login_rate_limiter.record_failure(client_ip, name);
             }
@@ -183,22 +173,15 @@ pub(super) async fn add_user(
             "user account registered",
         );
     }
-    user_upsert_response(outcome, &username, &token)
+    user_upsert_response(outcome, &username, &id, &token)
 }
 
-/// A configured reserved name, or a username a SCIM client provisioned.
-fn is_reserved_username(state: &AppState, name: &str) -> Result<bool, RegistryError> {
-    Ok(state.inner.config.identity.is_reserved_name(name)
-        || super::scim::is_provisioned(state, name)?)
-}
-
-fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
+fn user_upsert_response(outcome: UpsertOutcome, username: &str, id: &str, token: &str) -> Response {
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{username}' created"),
         UpsertOutcome::LoggedIn | _ => format!("you are authenticated as '{username}'"),
     };
-    let body =
-        json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{username}") });
+    let body = json!({ "ok": ok_msg, "token": token, "id": id });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
         .status(StatusCode::CREATED)
@@ -214,39 +197,24 @@ async fn log_in(
     state: &AppState,
     name: &str,
     password: &str,
-) -> Result<(UpsertOutcome, String, String), RegistryError> {
-    if super::scim::is_deprovisioned(state, name)? {
+) -> Result<(UpsertOutcome, String, String, String), RegistryError> {
+    let users = &state.inner.identity.auth.users;
+    if let Some(id) = users.account_id(name).await?
+        && super::scim::is_deprovisioned(state, &id)?
+    {
         return Err(deprovisioned(name));
     }
-    let users = &state.inner.identity.auth.users;
-    let verified = users.password_hash(name).await?;
-    if verified.is_none() {
-        if is_reserved_username(state, name)? {
-            return Err(RegistryError::ReservedUsername { name: name.to_string() });
-        }
-        // Tokens a removed account left behind must not reach the account
-        // this login may create, not even while it is being created.
-        state.inner.identity.auth.revoke_all_tokens(name).await?;
+    let (outcome, id) = users.add_or_login(name, password).await?;
+    let token = state.inner.identity.auth.tokens.issue(&id).await?;
+    if super::scim::is_deprovisioned(state, &id)? {
+        state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
+        return Err(deprovisioned(name));
     }
-    let (outcome, username) = users.add_or_login(name, password).await?;
-    if matches!(outcome, UpsertOutcome::Created) {
-        take_back_if_reserved(state, &username, password).await?;
-    }
-    let token = state.inner.identity.auth.tokens.issue(&username).await?;
-    let refused = match super::scim::is_deprovisioned(state, &username) {
-        Ok(false) => None,
-        Ok(true) => Some(deprovisioned(&username)),
-        Err(err) => Some(err),
+    let Some(current_name) = users.account_name(&id).await? else {
+        state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
+        return Err(RegistryError::Unauthenticated { resource: format!("account {id:?}") });
     };
-    if let Some(err) = refused {
-        undo_login(state, &username, &token, outcome).await?;
-        return Err(err);
-    }
-    if still_the_same_account(state, &username, password, verified.as_deref()).await? {
-        return Ok((outcome, username, token));
-    }
-    state.inner.identity.auth.tokens.revoke_by_raw(&token).await?;
-    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+    Ok((outcome, current_name, id, token))
 }
 
 fn deprovisioned(name: &str) -> RegistryError {
@@ -254,79 +222,6 @@ fn deprovisioned(name: &str) -> RegistryError {
         user: name.to_string(),
         action: "sign in to",
         resource: "this account, which an identity provider deprovisioned".to_string(),
-    }
-}
-
-/// Take back the token a login issued, and the account it created, when a
-/// SCIM deprovisioning of the user landed while the login ran, or the SCIM
-/// directory could no longer be read.
-async fn undo_login(
-    state: &AppState,
-    username: &str,
-    token: &str,
-    outcome: UpsertOutcome,
-) -> Result<(), RegistryError> {
-    let auth = &state.inner.identity.auth;
-    auth.tokens.revoke_by_raw(token).await?;
-    if matches!(outcome, UpsertOutcome::Created) {
-        auth.users.delete_user(username).await?;
-    }
-    Ok(())
-}
-
-/// Fail, removing the account a login created, if its name is reserved or the
-/// unreadable SCIM directory cannot clear it. A login sees an unreserved name
-/// when an admin removes the account, or a SCIM client provisions the name,
-/// after the login looked it up. An account that no longer accepts the login's
-/// password is an admin's rewrite and stays. The name's tokens are revoked
-/// either way, since a concurrent login may have issued one for the created
-/// account.
-async fn take_back_if_reserved(
-    state: &AppState,
-    username: &str,
-    password: &str,
-) -> Result<(), RegistryError> {
-    let refused = match is_reserved_username(state, username) {
-        Ok(false) => return Ok(()),
-        Ok(true) => RegistryError::ReservedUsername { name: username.to_string() },
-        Err(err) => err,
-    };
-    let auth = &state.inner.identity.auth;
-    if still_the_same_account(state, username, password, None).await? {
-        auth.users.delete_user(username).await?;
-    }
-    auth.revoke_all_tokens(username).await?;
-    Err(refused)
-}
-
-/// Whether the account a login verified, or created, is still the one stored,
-/// checked once the login's token exists. An admin may remove the account, or
-/// remove it and create it again, between the check and the issue, after the
-/// removal revoked the account's tokens.
-///
-/// A login that verified a stored hash (`verified`) needs that hash to still
-/// be stored. The hash is salted, so a recreated account or a new password
-/// never matches. A login that created the account has no hash to compare, so
-/// the stored account must accept the password that created it.
-async fn still_the_same_account(
-    state: &AppState,
-    username: &str,
-    password: &str,
-    verified: Option<&str>,
-) -> Result<bool, RegistryError> {
-    let current = state.inner.identity.auth.users.password_hash(username).await?;
-    match (verified, current) {
-        (Some(verified), Some(current)) => {
-            if verified == current {
-                Ok(true)
-            } else if pnpr_auth::is_sha_hash(verified) {
-                pnpr_auth::verify_bcrypt(password.to_string(), current).await
-            } else {
-                Ok(false)
-            }
-        }
-        (None, Some(current)) => pnpr_auth::verify_bcrypt(password.to_string(), current).await,
-        (_, None) => Ok(false),
     }
 }
 

@@ -11,7 +11,7 @@ use super::{
 /// config-parse time.
 #[derive(Debug, Default, Clone)]
 pub enum BackendConfig {
-    /// Local htpasswd users + `SQLite` tokens (or in-memory when no file
+    /// Local JSON accounts + `SQLite` tokens (or in-memory when no file
     /// is configured).
     #[default]
     Local,
@@ -141,18 +141,18 @@ impl SqlBackendSettings {
 #[derive(Debug, Default, Clone)]
 pub struct AuthConfig {
     pub oidc: Vec<oidc::OidcProvider>,
-    pub htpasswd: HtpasswdConfig,
+    pub users: UsersConfig,
     pub tokens: TokensConfig,
     /// The SCIM endpoints, off when `None`.
     pub scim: Option<ScimConfig>,
 }
 
-/// Where the htpasswd users file lives and how many users may sign
+/// Where the JSON account file lives and how many users may sign
 /// up before registration is refused.
 #[derive(Debug, Default, Clone)]
-pub struct HtpasswdConfig {
-    /// Absolute path to the htpasswd file. `None` keeps user state
-    /// in memory (back-compat with `@pnpm/registry-mock`).
+pub struct UsersConfig {
+    /// Absolute path to the account file. `None` keeps user state
+    /// in memory.
     pub file: Option<PathBuf>,
     /// Cap on new user registrations.
     pub max_users: MaxUsers,
@@ -165,7 +165,7 @@ pub struct TokensConfig {
     pub file: Option<PathBuf>,
 }
 
-/// Three-state cap on `auth.htpasswd.max_users`:
+/// Three-state cap on `auth.users.max_users`:
 ///
 /// * absent → registration disabled. Self-registration is opt-in:
 ///   leaving the key out denies new sign-ups. Verdaccio defaults this
@@ -198,24 +198,24 @@ impl MaxUsers {
 
 /// Build the runtime [`AuthConfig`] from the YAML `auth:` block.
 /// Relative paths are resolved against `base_dir` so a path like
-/// `./htpasswd` lives next to the config file (verdaccio's
-/// convention). When `auth.htpasswd.file` is set but
+/// `./users.json` lives next to the config file (verdaccio's
+/// convention). When `auth.users.file` is set but
 /// `auth.tokens.file` is not, tokens default to a `tokens.db`
-/// sibling of the htpasswd file — keeping credentials co-located in
+/// sibling of the account file — keeping credentials co-located in
 /// one directory the operator can lock down (`chmod 600`).
 #[derive(Debug, Clone)]
 pub struct IdentityConfig {
-    /// Where to read/write the htpasswd-format user file and the
+    /// Where to read/write the JSON account file and the
     /// token database. Both stores are in-memory when their paths
     /// are `None`.
     pub auth: AuthConfig,
     /// Which record store backs the auth state (users + tokens).
-    /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
+    /// Defaults to [`BackendConfig::Local`] — a JSON account file
     /// plus `SQLite` token database. The YAML `backend:` block can
     /// switch both stores to one shared SQL database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
-    /// Usernames from `auth.admins`, who may administer every registry.
+    /// Account IDs from `auth.admins`, who may administer every registry.
     pub admins: BTreeSet<String>,
 }
 
@@ -223,37 +223,9 @@ impl IdentityConfig {
     #[must_use]
     pub fn is_admin(&self, identity: &Identity) -> bool {
         match identity {
-            Identity::User { username, .. } => self.admins.contains(username),
+            Identity::User { id, .. } => self.admins.contains(id),
             Identity::Anonymous | _ => false,
         }
-    }
-
-    /// Whether `username` is a configured admin, an OIDC login user,
-    /// or an OIDC workload binding. Such names cannot be self-registered.
-    #[must_use]
-    pub fn is_reserved_name(&self, username: &str) -> bool {
-        if self.admins.contains(username) {
-            return true;
-        }
-        for provider in &self.auth.oidc {
-            if provider.login
-                .as_ref()
-                .is_some_and(|login| {
-                    login.users
-                        .iter()
-                        .any(|binding| binding.username == username)
-                })
-            {
-                return true;
-            }
-            if provider.workloads
-                .iter()
-                .any(|workload| workload.identity.username == username)
-            {
-                return true;
-            }
-        }
-        false
     }
 }
 
@@ -273,16 +245,16 @@ pub(super) fn build_identity_config(
 }
 
 pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
-    let htpasswd_file = file.htpasswd.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
+    let users_file = file.users.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
     let tokens_file = file.tokens.file
         .as_deref()
         .map(|raw| resolve_relative(raw, base_dir))
-        .or_else(|| htpasswd_file.as_deref().map(default_tokens_path_sibling_of));
+        .or_else(|| users_file.as_deref().map(default_tokens_path_sibling_of));
     AuthConfig {
         oidc: file.oidc.clone(),
-        htpasswd: HtpasswdConfig {
-            file: htpasswd_file,
-            max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
+        users: UsersConfig {
+            file: users_file,
+            max_users: file.users.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
         tokens: TokensConfig { file: tokens_file },
         scim: file.scim.clone(),

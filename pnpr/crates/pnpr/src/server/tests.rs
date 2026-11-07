@@ -3,6 +3,7 @@ mod compiler_cache;
 mod npm_errors;
 mod observability;
 mod oidc_groups;
+mod team_members;
 mod web_ui;
 
 use super::{
@@ -18,7 +19,7 @@ use axum::{
     http::{Method, Request, StatusCode, header},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use pnpr_auth::{AuthState, TokenBackend, TokenRecord, UserStore};
+use pnpr_auth::{AuthState, TokenBackend, TokenRecord};
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
 use pnpr_fixtures::MockConfigPresets;
@@ -191,6 +192,9 @@ pub(super) fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
 /// No client endpoint mints read-only or CIDR-restricted tokens, so the
 /// enforcement tests inject one this way.
 struct OneToken {
+    account_reads: std::sync::atomic::AtomicUsize,
+    bulk_reads: std::sync::atomic::AtomicUsize,
+    accounts: std::collections::BTreeSet<String>,
     raw: String,
     record: TokenRecord,
 }
@@ -212,7 +216,7 @@ impl TokenBackend for OneToken {
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        Ok((raw == self.raw).then(|| self.record.username.clone()))
+        Ok((raw == self.raw).then(|| self.record.user_id.clone()))
     }
 
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
@@ -254,8 +258,28 @@ pub(super) fn app_with_config_and_token(
     raw: &str,
     record: TokenRecord,
 ) -> axum::Router {
-    let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.to_string(), record });
-    let auth = AuthState { users: Arc::new(UserStore::in_memory()), tokens };
+    let mut accounts: std::collections::BTreeSet<String> = config.routing.hosted
+        .values()
+        .flat_map(|hosted| {
+            hosted.teams
+                .snapshot()
+                .values()
+                .flat_map(|team| team.members.iter().cloned())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    accounts.insert(record.user_id.clone());
+    let account = Arc::new(OneToken {
+        accounts,
+        raw: raw.to_string(),
+        record,
+        account_reads: std::sync::atomic::AtomicUsize::default(),
+        bulk_reads: std::sync::atomic::AtomicUsize::default(),
+    });
+    let auth = AuthState {
+        users: Arc::clone(&account) as Arc<dyn pnpr_auth::UserBackend>,
+        tokens: account,
+    };
     router_with_auth(config, auth)
 }
 
@@ -326,9 +350,13 @@ async fn team_tokens_reach_package_authorization() {
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
             access: Some(AccessList::new(vec![AccessToken::Team {
-                name: "platform".to_string(),
+                id: "platform".to_string(),
                 directory: TeamDirectory::new(
-                    [("platform".to_string(), ["alice".to_string()].into())].into(),
+                    [(
+                        "platform".to_string(),
+                        pnpr_policy::Team::new("platform", ["alice".to_string()].into()),
+                    )]
+                    .into(),
                 ),
             }])),
             publish: None,
@@ -587,10 +615,13 @@ fn config_with_teams(tmp: &TempDir) -> Config {
         .map(|(team, members)| {
             (
                 team.to_string(),
-                members
-                    .into_iter()
-                    .map(str::to_string)
-                    .collect(),
+                pnpr_policy::Team::new(
+                    team,
+                    members
+                        .into_iter()
+                        .map(str::to_string)
+                        .collect(),
+                ),
             )
         })
         .collect();
@@ -609,7 +640,7 @@ async fn team_listing_serves_config_declared_teams() {
     let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
     // Declaration order is preserved; the shape is what `pnpm team ls`
     // consumes.
-    let expected = serde_json::json!([{ "name": "developers" }, { "name": "admins" }]);
+    let expected = serde_json::json!([{ "id": "developers", "name": "developers" }, { "id": "admins", "name": "admins" }]);
     let response = app
         .clone()
         .oneshot(signed(Method::GET, "/npm/-/org/myorg/team", "tok"))
@@ -631,7 +662,8 @@ async fn team_members_are_listed_sorted() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
     // Members come from a sorted set, not declaration order.
-    let expected = serde_json::json!([{ "name": "alice" }, { "name": "bob" }]);
+    let expected =
+        serde_json::json!([{ "id": "alice", "name": "alice" }, { "id": "bob", "name": "bob" }]);
     let response = app
         .clone()
         .oneshot(signed(Method::GET, "/npm/-/team/myorg/developers/user", "tok"))
@@ -766,7 +798,7 @@ async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
     let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
     config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
         "name": "github", "issuer": "https://token.actions.githubusercontent.com", "audience": "pnpr",
-        "workloads": [{"identity": {"subject": "repo:org/repo:ref:refs/heads/main", "username": "ci"},
+        "workloads": [{"identity": {"subject": "repo:org/repo:ref:refs/heads/main", "userId": "ci"},
             "registry": "local", "packages": ["foo"]}]
     }])).unwrap();
     let token = "header.payload.signature";
@@ -790,7 +822,7 @@ async fn post_v1_login_uses_peer_addr_fallback_for_rate_limiting() {
     config.http.public_url = "https://registry.example".to_string();
     config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
         "name": "login_provider", "issuer": "https://login.example", "audience": "pnpr",
-        "login": { "users": [{ "subject": "alice", "username": "alice" }] },
+        "login": { "users": [{ "subject": "alice", "userId": "alice" }] },
     }]))
     .unwrap();
     let app = crate::router(config);
@@ -845,4 +877,55 @@ async fn post_v1_login_uses_peer_addr_fallback_for_rate_limiting() {
             .status(),
         StatusCode::ACCEPTED,
     );
+}
+
+#[async_trait]
+impl pnpr_auth::UserBackend for OneToken {
+    async fn account_id(&self, name: &str) -> Result<Option<String>> {
+        Ok(self.accounts.contains(name).then(|| name.to_string()))
+    }
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        self.account_reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(self.accounts.contains(id).then(|| id.to_string()))
+    }
+    async fn accounts_by_id(&self, ids: &[String]) -> Result<Vec<pnpr_auth::UserAccount>> {
+        self.bulk_reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(ids
+            .iter()
+            .filter(|id| self.accounts.contains(*id))
+            .map(|id| pnpr_auth::UserAccount { id: id.clone(), username: id.clone() })
+            .collect())
+    }
+
+    async fn list_users(&self) -> Result<Vec<String>> {
+        Ok(vec![self.record.user_id.clone()])
+    }
+    async fn password_hash(&self, _name: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
+    async fn add_or_login(
+        &self,
+        _name: &str,
+        _password: &str,
+    ) -> Result<(pnpr_auth::UpsertOutcome, String)> {
+        unreachable!()
+    }
+    async fn create_user(&self, _name: &str, _password: &str) -> Result<pnpr_auth::UserCreation> {
+        unreachable!()
+    }
+    async fn set_password(&self, _id: &str, _password: &str) -> Result<pnpr_auth::PasswordChange> {
+        unreachable!()
+    }
+    async fn clear_password(&self, _id: &str) -> Result<pnpr_auth::PasswordChange> {
+        unreachable!()
+    }
+    async fn delete_user(&self, _id: &str) -> Result<pnpr_auth::UserRemoval> {
+        unreachable!()
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+    async fn provision_user(&self, _name: &str) -> Result<String> {
+        unreachable!()
+    }
 }

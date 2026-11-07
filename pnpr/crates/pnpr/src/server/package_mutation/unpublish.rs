@@ -85,10 +85,10 @@ async fn collect_package_tombstone_metadata(
     Ok((maintainers, unpublished_versions))
 }
 
-fn collect_maintainers_from_value(val: &Value, maintainers: &mut Vec<String>) {
+pub(super) fn collect_maintainers_from_value(val: &Value, maintainers: &mut Vec<String>) {
     let Some(entries) = val.get("maintainers").and_then(Value::as_array) else { return };
     for entry in entries {
-        let Some(user) = entry.get("name").and_then(Value::as_str) else { continue };
+        let Some(user) = entry.get("userId").and_then(Value::as_str) else { continue };
         if !maintainers
             .iter()
             .any(|existing| existing == user)
@@ -126,7 +126,7 @@ impl Tombstone<'_> {
     async fn write(&self, storage: &pnpr_storage::Storage) -> Result<(), RegistryError> {
         let tombstone = PackageTombstone {
             package: self.name.as_str().to_string(),
-            unpublished_by: self.identity.username().map(ToString::to_string),
+            unpublished_by: self.identity.user_id().map(ToString::to_string),
             unpublished_at: chrono::Utc::now().to_rfc3339(),
             maintainers: self.maintainers.clone(),
             unpublished_versions: self.unpublished_versions.clone(),
@@ -238,7 +238,7 @@ async fn record_tarball_tombstone(
     version: &str,
 ) -> Result<(), RegistryError> {
     let maintainers = read_maintainers_from_storage(storage, name).await;
-    let user = identity.username().map(ToString::to_string);
+    let user = identity.user_id().map(ToString::to_string);
     let version = version.to_string();
     let name_str = name.as_str().to_string();
     storage.update_tombstone(name, move |existing| {

@@ -287,29 +287,20 @@ pub enum RegistryError {
         advisories: String,
     },
 
-    /// New-user registration is off: `auth.htpasswd.max_users` is
+    /// New-user registration is off: `auth.users.max_users` is
     /// unset (the secure default) or set to `-1`. Returned for adduser
     /// on a username that doesn't already exist; existing-user logins
     /// are unaffected.
     #[display(
-        "New user registration is disabled. Set auth.htpasswd.max_users to a positive number to allow sign-ups"
+        "New user registration is disabled. Set auth.users.max_users to a positive number to allow sign-ups"
     )]
     RegistrationDisabled,
 
-    /// `auth.htpasswd.max_users: N` cap reached. Returned for
+    /// `auth.users.max_users: N` cap reached. Returned for
     /// adduser on a username that doesn't already exist.
     #[display("Maximum number of users ({max}) reached")]
     #[from(skip)]
     TooManyUsers { max: u64 },
-
-    /// A registration attempt targeted a reserved username (`auth.admins`,
-    /// an OIDC binding, or a SCIM-provisioned user).
-    #[display("Username {name:?} is reserved")]
-    #[from(skip)]
-    ReservedUsername {
-        #[error(not(source))]
-        name: String,
-    },
 
     /// Caller is not a maintainer of the package.
     #[display("You must be a package maintainer to {action} {package:?}")]
@@ -396,13 +387,13 @@ pub enum RegistryError {
         reason: String,
     },
 
-    /// The htpasswd file on disk couldn't be parsed at startup.
+    /// The account file on disk could not be parsed at startup.
     /// Surfaced as a startup-time error rather than a silent empty
     /// store so a corrupted file can't quietly lock every existing
     /// user out.
-    #[display("Invalid htpasswd file {path}: {reason}")]
+    #[display("Invalid account file {path}: {reason}")]
     #[from(skip)]
-    InvalidHtpasswdFile {
+    InvalidUsersFile {
         #[error(not(source))]
         path: String,
         reason: String,

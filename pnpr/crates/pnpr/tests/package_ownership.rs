@@ -43,7 +43,7 @@ fn config_with_packages(packages_block: &str, admins: &[&str]) -> (TempDir, Conf
     };
     let catch_all = if packages_block.contains("'**'") { "" } else { "      '**': {}\n" };
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    maxUsers: 100\n{admin_line}registries:\n  \
+        "storage: {}\nauth:\n  users:\n    maxUsers: 100\n{admin_line}registries:\n  \
          local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n{catch_all}  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",
@@ -135,10 +135,11 @@ fn authed_get(path: &str, token: &str) -> Request<Body> {
 }
 
 async fn app_router(config: Config, admins: &[&str]) -> axum::Router {
-    let auth = pnpr::AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
-    for admin in admins {
-        auth.users.create_user(admin, "secret123").await.unwrap();
-    }
+    let accounts: Vec<_> = admins
+        .iter()
+        .map(|name| (*name, "secret123"))
+        .collect();
+    let auth = crate::tokens::seeded_auth(&config, &accounts);
     pnpr::router_with_auth(config, auth)
 }
 
@@ -404,6 +405,7 @@ async fn anonymous_caller_cannot_change_maintainers() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
+    let (app, _) = add_user_and_get_token(app, "-", "secret123").await;
     // `-` is the name the audit log gives a caller without a username.
     let dash_maintainer = json!({ "_id": "open-pkg", "maintainers": [{ "name": "-" }] });
     let res = app

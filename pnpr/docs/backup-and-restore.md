@@ -13,7 +13,7 @@ A pnpr instance stores two categories of data:
    - **Hosted storage (`storage`)**: Contains the archives, stored by the identity of their bytes rather than by file name. Only the metadata database maps a package's files to them, so a copy of the store is usable only with the metadata from the same point in time. Back this up regularly.
    - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): holds the package metadata, in SQLite by default or in a libSQL database. SQLite's backup API copies the database consistently, but not at the same point in time as the hosted store, and a publish writes its archives before it commits the metadata that references them. Stop pnpr before copying a SQLite database and the hosted store, or take both copies from the same point in time, and run `pnpr verify` after a restore. Back a libSQL database up according to provider documentation.
    - **Authentication and user state**:
-     - `htpasswd` file (when configured).
+     - `users.json` file (when configured).
      - SQLite token database (`tokens.db`, when configured).
      - If using a networked auth backend (PostgreSQL, MySQL, or Turso/libsql), back up the database according to provider documentation.
 2. **Disposable cache (`cache` / `.pnpr-cache`) (optional)**:
@@ -29,7 +29,7 @@ A pnpr instance stores two categories of data:
 For local filesystem storage, back up the storage directory, the SQLite metadata database, and the auth files together. The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A database configured with `metadata.url` elsewhere needs its own copy. Stop pnpr first, so the copy is consistent and includes the database's `-wal` file:
 
 ```sh
-tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage htpasswd tokens.db
+tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage users.json tokens.db
 ```
 
 To back up while pnpr runs, copy the metadata database with SQLite's backup API instead of copying its file. For the default database of the storage directory above:
@@ -148,7 +148,7 @@ If migrating from Verdaccio or an Apache htpasswd file containing legacy `{SHA}`
 # Dry run: preview entries to import
 pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
 
-# Import into pnpr's htpasswd file
+# Import into pnpr's account file
 pnpr import-htpasswd --source /path/to/old/htpasswd
 ```
 

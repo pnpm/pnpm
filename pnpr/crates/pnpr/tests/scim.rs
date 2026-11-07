@@ -5,15 +5,11 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{
-    AuthState, Config, PasswordChange, TokenBackend, TokenStore, UpsertOutcome, UserBackend,
-    UserCreation, UserRemoval, UserStore, router, router_with_auth,
-};
+use pnpr::{AuthState, Config, router, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::Path,
-    sync::{Arc, OnceLock},
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -24,7 +20,7 @@ const CONFIG: &str = "\
 auth:
   scim:
     token: scim-secret-0123456789abcdef0123456789
-  htpasswd:
+  users:
     maxUsers: 100
 ";
 
@@ -118,284 +114,162 @@ async fn only_the_scim_token_reaches_the_endpoints() {
 }
 
 #[tokio::test]
-async fn users_are_created_found_and_patched() {
+async fn users_have_stable_ids_and_mutable_login_names() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
     let (status, created) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
     assert_eq!(status, StatusCode::CREATED);
-    assert_eq!((&created["id"], &created["active"]), (&json!("alice"), &json!(true)));
+    let id = created["id"].as_str().unwrap();
+    assert_ne!(id, "alice");
     assert_eq!(
-        created["meta"]["location"],
-        json!("http://example.test/-/pnpr/v0/scim/v2/Users/alice"),
+        auth.users
+            .account_id("alice")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(id),
     );
-    let (status, error) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
-    assert_eq!((status, &error["scimType"]), (StatusCode::CONFLICT, &json!("uniqueness")));
-
-    let filter = format!("{USERS}?filter=userName%20eq%20%22alice%22");
-    let (_, found) = scim(&app, "GET", &filter, None).await;
-    assert_eq!(found["totalResults"], json!(1));
-    assert_eq!(found["Resources"][0]["name"]["givenName"], json!("Alice"));
-    let (_, missing) = scim(&app, "GET", &filter.replace("alice", "bob"), None).await;
-    assert_eq!(missing["totalResults"], json!(0));
-
-    let rename = json!({
-        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-        "Operations": [
-            { "op": "replace", "path": "name.givenName", "value": "Alicia" },
-            { "op": "replace", "path": r#"emails[type eq "work"].value"#, "value": "a@example.test" },
-        ],
-    });
-    let (status, patched) = scim(&app, "PATCH", &format!("{USERS}/alice"), Some(rename)).await;
+    let path = format!("{USERS}/{id}");
+    let (_, listed) =
+        scim(&app, "GET", &format!("{USERS}?filter=userName%20eq%20%22alice%22"), None).await;
+    assert_eq!(listed["Resources"][0]["id"], id);
+    let (status, replaced) = scim(&app, "PUT", &path, Some(new_user("renamed"))).await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(replaced["id"], id);
+    assert_eq!(replaced["userName"], "renamed");
     assert_eq!(
-        (&patched["name"]["givenName"], &patched["active"]),
-        (&json!("Alicia"), &json!(true)),
+        auth.users
+            .account_name(id)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("renamed"),
+    );
+    let patch = json!({"schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"], "Operations": [{"op": "replace", "path": "userName", "value": "patched"}]});
+    let (status, patched) = scim(&app, "PATCH", &path, Some(patch)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(patched["id"], id);
+    assert_eq!(
+        auth.users
+            .account_name(id)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("patched"),
     );
 }
 
 #[tokio::test]
-async fn deactivating_a_user_revokes_its_tokens_and_refuses_its_login() {
+async fn deactivation_revokes_credentials_and_reactivation_keeps_the_id() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
+    let (_, created) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let id = created["id"].as_str().unwrap();
+    auth.users.set_password(id, "secret").await.unwrap();
+    let (_, token) = log_in(&app, "alice").await;
+    let token = token.unwrap();
+    let path = format!("{USERS}/{id}");
+    assert_eq!(scim(&app, "PATCH", &path, Some(deactivate())).await.0, StatusCode::OK);
+    assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        auth.users
+            .account_id("alice")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(id),
+    );
+    let (_, reactivated) = scim(&app, "PUT", &path, Some(new_user("alice"))).await;
+    assert_eq!(reactivated["id"], id);
+    assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        auth.users
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(pnpr_auth::NO_PASSWORD_HASH),
+    );
+    let signed_in = auth.tokens.issue(id).await.unwrap();
+    let (status, created_token) =
+        send(&app, "POST", "/-/npm/v1/tokens", Some(&signed_in), Some(json!({}))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(created_token.get("expires").is_none());
+    assert_eq!(whoami(&app, created_token["token"].as_str().unwrap()).await, StatusCode::OK);
+    auth.users.set_password(id, "secret").await.unwrap();
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn deleting_and_reprovisioning_a_name_never_reassigns_its_id() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
+    let (_, created) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let id = created["id"].as_str().unwrap();
+    let old_token = auth.tokens.issue(id).await.unwrap();
+    let path = format!("{USERS}/{id}");
+    assert_eq!(scim(&app, "DELETE", &path, None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(scim(&app, "GET", &path, None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(scim(&app, "PUT", &path, Some(new_user("alice"))).await.0, StatusCode::NOT_FOUND);
+    let restarted = router_with_auth(load_config(dir.path()), auth.clone());
+    let (status, replacement) = scim(&restarted, "POST", USERS, Some(new_user("alice"))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_ne!(replacement["id"], id);
+    assert_eq!(whoami(&restarted, &old_token).await, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn provisioning_cannot_silently_link_an_existing_password_account() {
     let dir = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let app = router_with_auth(load_config(dir.path()), auth.clone());
     let (_, token) = log_in(&app, "alice").await;
-    let token = token.unwrap();
-    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
-    assert_eq!(whoami(&app, &token).await, StatusCode::OK);
-
-    let (status, user) = scim(&app, "PATCH", &format!("{USERS}/alice"), Some(deactivate())).await;
-    assert_eq!((status, &user["active"]), (StatusCode::OK, &json!(false)));
-    assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
-    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
-
-    let reactivate = json!({
-        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-        "Operations": [{ "op": "replace", "value": { "active": true } }],
-    });
+    let original = auth.users
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CONFLICT);
     assert_eq!(
-        scim(&app, "PATCH", &format!("{USERS}/alice"), Some(reactivate)).await.0,
-        StatusCode::OK,
+        auth.users
+            .account_id("alice")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(original.as_str()),
     );
-    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
-    auth.put_user("alice", "secret").await.unwrap();
-    let (status, token) = log_in(&app, "alice").await;
-    assert_eq!(status, StatusCode::CREATED);
     assert_eq!(whoami(&app, &token.unwrap()).await, StatusCode::OK);
-}
-
-#[tokio::test]
-async fn a_deleted_user_stays_refused_and_unlisted_until_provisioned_again() {
-    let dir = TempDir::new().unwrap();
-    let auth = AuthState::in_memory();
-    let app = router_with_auth(load_config(dir.path()), auth.clone());
-    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
-    let path = format!("{USERS}/alice");
-    assert_eq!(scim(&app, "DELETE", &path, None).await.0, StatusCode::NO_CONTENT);
-    assert_eq!(scim(&app, "GET", &path, None).await.0, StatusCode::NOT_FOUND);
-    assert_eq!(scim(&app, "DELETE", &path, None).await.0, StatusCode::NOT_FOUND);
-    let (_, listed) = scim(&app, "GET", USERS, None).await;
-    assert_eq!(listed["totalResults"], json!(0));
-
-    let restarted = router_with_auth(load_config(dir.path()), auth.clone());
-    auth.put_user("alice", "secret").await.unwrap();
-    assert_eq!(log_in(&restarted, "alice").await.0, StatusCode::FORBIDDEN);
+    let (_, created) = scim(&app, "POST", USERS, Some(new_user("bob"))).await;
+    assert_eq!(log_in(&app, "bob").await.0, StatusCode::UNAUTHORIZED);
     assert_eq!(
-        scim(&restarted, "POST", USERS, Some(new_user("alice"))).await.0,
-        StatusCode::CREATED,
-    );
-    auth.put_user("alice", "secret").await.unwrap();
-    assert_eq!(log_in(&restarted, "alice").await.0, StatusCode::CREATED);
-}
-
-#[tokio::test]
-async fn a_provisioned_user_cannot_self_register() {
-    let dir = TempDir::new().unwrap();
-    let auth = AuthState::in_memory();
-    let app = router_with_auth(load_config(dir.path()), auth.clone());
-    let (_, bob_token) = log_in(&app, "bob").await;
-    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
-    assert_eq!(scim(&app, "POST", USERS, Some(new_user("bob"))).await.0, StatusCode::CREATED);
-
-    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
-    assert!(
         auth.users
-            .password_hash("alice")
+            .account_id("bob")
             .await
             .unwrap()
-            .is_none(),
+            .as_deref(),
+        created["id"].as_str(),
     );
-
-    assert_eq!(whoami(&app, &bob_token.unwrap()).await, StatusCode::OK);
-    assert_eq!(log_in(&app, "bob").await.0, StatusCode::CREATED);
 }
 
 #[tokio::test]
-async fn without_auth_scim_the_endpoints_are_not_served() {
-    let dir = TempDir::new().unwrap();
-    let storage = dir.path().join("storage");
-    std::fs::create_dir_all(&storage).unwrap();
-    let path = dir.path().join("config.yaml");
-    std::fs::write(&path, format!("storage: {}\n", storage.display())).unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    let app = router(Config::from_yaml(&path, listen, None).unwrap());
-    let (status, _) = scim(&app, "GET", USERS, None).await;
-    assert!(status == StatusCode::NOT_FOUND || status == StatusCode::BAD_GATEWAY, "{status}");
-}
-
-#[tokio::test]
-async fn reactivating_a_user_first_removes_credentials_a_failed_cleanup_left() {
+async fn reactivation_cleans_up_credentials_left_during_deactivation() {
     let dir = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let app = router_with_auth(load_config(dir.path()), auth.clone());
-    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
-    assert_eq!(
-        scim(&app, "PATCH", &format!("{USERS}/alice"), Some(deactivate())).await.0,
-        StatusCode::OK,
-    );
-    // What a cleanup that failed while alice was inactive would leave behind.
-    auth.users.create_user("alice", "secret").await.unwrap();
-    let left_behind = auth.tokens.issue("alice").await.unwrap();
-
-    let reactivate = json!({
-        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-        "Operations": [{ "op": "replace", "path": "active", "value": true }],
-    });
-    assert_eq!(
-        scim(&app, "PATCH", &format!("{USERS}/alice"), Some(reactivate)).await.0,
-        StatusCode::OK,
-    );
-    assert_eq!(whoami(&app, &left_behind).await, StatusCode::UNAUTHORIZED);
-    assert!(
-        auth.users
-            .password_hash("alice")
-            .await
-            .unwrap()
-            .is_none(),
-    );
-}
-
-/// A user store whose login lets a SCIM client write the user, as if the
-/// write landed while the login ran.
-struct ScimWriteDuringLogin {
-    users: UserStore,
-    app: OnceLock<axum::Router>,
-    write: ScimWrite,
-}
-
-#[derive(Clone, Copy)]
-enum ScimWrite {
-    /// Provision the user before the login stores the account.
-    ProvisionBefore,
-    /// Deactivate the user after the login verified the account.
-    DeactivateAfter,
-}
-
-#[async_trait::async_trait]
-impl UserBackend for ScimWriteDuringLogin {
-    async fn add_or_login(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> pnpr::Result<(UpsertOutcome, String)> {
-        let app = self.app.get().expect("router set");
-        match self.write {
-            ScimWrite::ProvisionBefore => {
-                let (status, _) = scim(app, "POST", USERS, Some(new_user(username))).await;
-                assert_eq!(status, StatusCode::CREATED);
-                self.users.add_or_login(username, password).await
-            }
-            ScimWrite::DeactivateAfter => {
-                let outcome = self.users.add_or_login(username, password).await?;
-                let (status, _) =
-                    scim(app, "PATCH", &format!("{USERS}/{username}"), Some(deactivate())).await;
-                assert_eq!(status, StatusCode::OK);
-                Ok(outcome)
-            }
-        }
-    }
-
-    async fn list_users(&self) -> pnpr::Result<Vec<String>> {
-        self.users.list_users().await
-    }
-
-    async fn password_hash(&self, username: &str) -> pnpr::Result<Option<String>> {
-        self.users.password_hash(username).await
-    }
-
-    async fn create_user(&self, username: &str, password: &str) -> pnpr::Result<UserCreation> {
-        self.users.create_user(username, password).await
-    }
-
-    async fn set_password(&self, username: &str, password: &str) -> pnpr::Result<PasswordChange> {
-        self.users.set_password(username, password).await
-    }
-
-    async fn delete_user(&self, username: &str) -> pnpr::Result<UserRemoval> {
-        self.users.delete_user(username).await
-    }
-}
-
-/// A router whose user store lets a SCIM client `write` during a login.
-fn racing_router(
-    dir: &Path,
-    write: ScimWrite,
-) -> (axum::Router, Arc<ScimWriteDuringLogin>, Arc<TokenStore>) {
-    let users = Arc::new(ScimWriteDuringLogin {
-        users: UserStore::in_memory(),
-        app: OnceLock::new(),
-        write,
-    });
-    let tokens = Arc::new(TokenStore::in_memory());
-    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
-    let app = router_with_auth(load_config(dir), auth);
-    users.app.set(app.clone()).unwrap();
-    (app, users, tokens)
-}
-
-#[tokio::test]
-async fn a_login_racing_a_deactivation_keeps_no_token_or_account() {
-    let dir = TempDir::new().unwrap();
-    let (app, users, tokens) = racing_router(dir.path(), ScimWrite::DeactivateAfter);
-    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
-    users.users.create_user("alice", "secret").await.unwrap();
-
-    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
-    assert!(
-        tokens
-            .list_for_user("alice")
-            .await
-            .unwrap()
-            .is_empty(),
-    );
-    assert!(
-        users.users
-            .password_hash("alice")
-            .await
-            .unwrap()
-            .is_none(),
-    );
-}
-
-#[tokio::test]
-async fn a_registration_racing_a_provisioning_keeps_no_token_or_account() {
-    let dir = TempDir::new().unwrap();
-    let (app, users, tokens) = racing_router(dir.path(), ScimWrite::ProvisionBefore);
-
-    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
-    assert!(
-        tokens
-            .list_for_user("alice")
-            .await
-            .unwrap()
-            .is_empty(),
-    );
-    assert!(
-        users.users
-            .password_hash("alice")
-            .await
-            .unwrap()
-            .is_none(),
-    );
+    let (_, created) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let id = created["id"].as_str().unwrap();
+    let path = format!("{USERS}/{id}");
+    scim(&app, "PATCH", &path, Some(deactivate())).await;
+    auth.users.set_password(id, "secret").await.unwrap();
+    let leftover = auth.tokens.issue(id).await.unwrap();
+    assert_eq!(scim(&app, "PUT", &path, Some(new_user("alice"))).await.0, StatusCode::OK);
+    assert_eq!(whoami(&app, &leftover).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -406,7 +280,12 @@ async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
     std::fs::write(&record, "not a directory").unwrap();
     let auth = AuthState::in_memory();
     auth.users.create_user("alice", "secret").await.unwrap();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let id = auth.users
+        .account_id("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    let token = auth.tokens.issue(&id).await.unwrap();
     let app = router_with_auth(load_config(dir.path()), auth);
 
     assert_eq!(whoami(&app, &token).await, StatusCode::INTERNAL_SERVER_ERROR);
@@ -425,4 +304,26 @@ async fn an_unreadable_directory_refuses_user_credentials_until_it_reads() {
         status = whoami(&app, &token).await;
     }
     assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn deleting_retries_cleanup_after_the_resource_was_marked_removed() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
+    let (_, created) = scim(&app, "POST", USERS, Some(new_user("alice"))).await;
+    let id = created["id"].as_str().unwrap();
+    let token = auth.tokens.issue(id).await.unwrap();
+    let stored = dir.path().join("storage/.scim-users/directory.json");
+    let mut directory: Value = serde_json::from_slice(&std::fs::read(&stored).unwrap()).unwrap();
+    directory["users"][id]["active"] = json!(false);
+    directory["users"][id]["removed"] = json!(true);
+    std::fs::write(&stored, directory.to_string()).unwrap();
+    assert_eq!(
+        scim(&app, "DELETE", &format!("{USERS}/{id}"), None).await.0,
+        StatusCode::NO_CONTENT,
+    );
+    assert_eq!(auth.users.account_name(id).await.unwrap(), None);
+    assert_eq!(whoami(&app, &token).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
 }

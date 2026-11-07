@@ -3,8 +3,7 @@ storage: ./storage
 secret: pnpm-registry-mock-secret-key-32
 
 auth:
-  htpasswd:
-    file: ./htpasswd
+  users:
     # Maximum amount of users allowed to register. Set to -1 by default;
     # test harnesses patch this to allow test user registration.
     maxUsers: -1

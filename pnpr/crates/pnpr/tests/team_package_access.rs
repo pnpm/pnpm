@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{AuthState, Config, router_with_auth};
+use pnpr::{Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -19,7 +19,7 @@ use tower::ServiceExt;
 const CONFIG: &str = "\
 auth:
   admins: [root]
-  htpasswd:
+  users:
     maxUsers: 100
 registries:
   local:
@@ -27,7 +27,7 @@ registries:
     org: \"\"
     rulesManagedBy: api
     teams:
-      devs: [carol]
+      devs: { name: devs, members: [carol] }
     packages:
       '@acme/app':
         access: [root]
@@ -37,7 +37,7 @@ registries:
     type: hosted
     org: fixed
     teams:
-      devs: [carol]
+      devs: { name: devs, members: [carol] }
     packages:
       '@fixed/*': {}
   main:
@@ -59,8 +59,7 @@ fn load_config(dir: &Path) -> Config {
 }
 
 async fn app_router(config: Config) -> axum::Router {
-    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
-    auth.users.create_user("root", "secret").await.unwrap();
+    let auth = crate::tokens::seeded_auth(&config, &[("root", "secret"), ("carol", "secret")]);
     router_with_auth(config, auth)
 }
 

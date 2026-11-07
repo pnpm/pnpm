@@ -19,7 +19,7 @@ pub(super) async fn update_package_maintainers(
     name: &CanonicalPackageName,
     body: &Value,
 ) -> Response {
-    let new_maintainers = match extract_and_validate_maintainers(body, name) {
+    let mut new_maintainers = match extract_and_validate_maintainers(body, name) {
         Ok(maintainers) => maintainers,
         Err(response) => return response,
     };
@@ -39,17 +39,18 @@ pub(super) async fn update_package_maintainers(
         return err.into_response();
     }
 
-    hosted["maintainers"] = Value::Array(new_maintainers);
-    if let Some(time_obj) = hosted.get_mut("time").and_then(Value::as_object_mut) {
-        time_obj.insert("modified".to_string(), json!(chrono::Utc::now().to_rfc3339()));
+    if let Err(err) = bind_maintainer_ids(state, &hosted, &mut new_maintainers).await {
+        return err.into_response();
     }
+    hosted["maintainers"] = Value::Array(new_maintainers);
+    update_modified_time(&mut hosted);
     let bytes = match serde_json::to_vec_pretty(&hosted) {
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
     let version = Some(&hosted_packument.version);
     let written =
-        storage.write_hosted_document_if_current(name, &bytes, version, identity.username()).await;
+        storage.write_hosted_document_if_current(name, &bytes, version, identity.user_id()).await;
     match written {
         Ok(DocumentWrite::Written) => {
             log_maintainers_updated(identity, name, source);
@@ -116,7 +117,7 @@ fn check_maintainer_authority(
         action: "modify maintainers of",
         package: name.as_str().to_string(),
     };
-    let Some(caller) = identity.username() else {
+    let Some(caller) = identity.user_id() else {
         return Err(not_maintainer());
     };
     let is_admin = state.inner.config.identity.admins.contains(caller);
@@ -125,7 +126,7 @@ fn check_maintainer_authority(
         .and_then(Value::as_array)
         .is_some_and(|arr| {
             arr.iter()
-                .any(|entry| entry.get("name").and_then(Value::as_str) == Some(caller))
+                .any(|entry| entry.get("userId").and_then(Value::as_str) == Some(caller))
         });
     if is_admin || is_maintainer { Ok(()) } else { Err(not_maintainer()) }
 }
@@ -148,4 +149,67 @@ fn ok_created() -> Response {
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(r#"{"ok":true}"#))
         .expect("static response builds")
+}
+
+async fn bind_maintainer_ids(
+    state: &AppState,
+    hosted: &Value,
+    maintainers: &mut [Value],
+) -> Result<(), RegistryError> {
+    let previous = hosted.get("maintainers").and_then(Value::as_array);
+    for entry in maintainers {
+        let name = entry
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or(RegistryError::NotFound)?;
+        let existing = previous.and_then(|entries| {
+            entries
+                .iter()
+                .find(|old| old.get("name") == entry.get("name"))
+        });
+        let previous_id = existing
+            .and_then(|old| old.get("userId"))
+            .and_then(Value::as_str);
+        let id = maintainer_id(state, name, entry.get("userId"), previous_id).await?;
+        entry["userId"] = Value::String(id);
+    }
+    Ok(())
+}
+
+fn update_modified_time(hosted: &mut Value) {
+    if let Some(time_obj) = hosted.get_mut("time").and_then(Value::as_object_mut) {
+        time_obj.insert("modified".to_string(), json!(chrono::Utc::now().to_rfc3339()));
+    }
+}
+
+async fn maintainer_id(
+    state: &AppState,
+    name: &str,
+    requested: Option<&Value>,
+    previous: Option<&str>,
+) -> Result<String, RegistryError> {
+    let users = &state.inner.identity.auth.users;
+    match requested {
+        Some(Value::String(id)) if Some(id.as_str()) == previous => Ok(id.clone()),
+        Some(Value::String(id)) => {
+            if users.account_name(id).await?.as_deref() != Some(name) {
+                return Err(RegistryError::BadRequest {
+                    reason: format!("maintainer account ID does not match {name:?}"),
+                });
+            }
+            Ok(id.clone())
+        }
+        Some(_) => Err(RegistryError::BadRequest {
+            reason: "maintainer userId must be a string".to_string(),
+        }),
+        None => match previous {
+            Some(id) => Ok(id.to_string()),
+            None => users
+                .account_id(name)
+                .await?
+                .ok_or_else(|| RegistryError::BadRequest {
+                    reason: format!("unknown maintainer {name:?}"),
+                }),
+        },
+    }
 }

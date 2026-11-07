@@ -8,7 +8,7 @@ use axum::{
 };
 use pnpr::{
     AuthState, Config, OwnedTokens, PasswordChange, RegistryError, TokenBackend, TokenRecord,
-    TokenStore, UpsertOutcome, UserBackend, UserCreation, UserRemoval, UserStore, router_with_auth,
+    TokenStore, UpsertOutcome, UserBackend, UserCreation, UserRemoval, UserStore,
 };
 use serde_json::{Value, json};
 use std::{
@@ -24,7 +24,7 @@ fn load_config(dir: &TempDir) -> Config {
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     let yaml = format!(
-        "storage: {}\nauth:\n  admins: [root]\n  htpasswd:\n    file: ./htpasswd\n    maxUsers: 1\n",
+        "storage: {}\nauth:\n  admins: [root]\n  users:\n    file: ./htpasswd\n    maxUsers: 1\n",
         storage.display(),
     );
     let path = dir.path().join("config.yaml");
@@ -34,9 +34,8 @@ fn load_config(dir: &TempDir) -> Config {
 }
 
 async fn app_router(config: Config) -> axum::Router {
-    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
-    auth.users.create_user("root", "secret").await.unwrap();
-    router_with_auth(config, auth)
+    let auth = crate::tokens::seeded_auth(&config, &[("root", "secret")]);
+    account_router(config, auth).await
 }
 
 async fn send(
@@ -46,9 +45,10 @@ async fn send(
     token: Option<&str>,
     body: Option<Value>,
 ) -> (StatusCode, Value) {
+    let path = crate::tokens::admin_path(app, method, path).await;
     let mut request = Request::builder()
         .method(method)
-        .uri(path)
+        .uri(&path)
         .header("content-type", "application/json");
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
@@ -97,7 +97,15 @@ async fn admins_create_accounts_past_the_registration_cap() {
     assert_eq!(whoami(&app, &bob).await, StatusCode::OK);
 
     let (_, users) = send(&app, "GET", "/-/pnpr/v0/admin/users", Some(&root), None).await;
-    assert_eq!(users, json!({ "users": [{ "name": "bob" }, { "name": "root" }] }));
+    assert_eq!(
+        users["users"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|user| user["name"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["bob", "root"],
+    );
 }
 
 #[tokio::test]
@@ -212,8 +220,25 @@ impl UserBackend for RemovedDuringLogin {
         Ok(PasswordChange::NoSuchUser)
     }
 
+    async fn clear_password(&self, _user_id: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
     async fn delete_user(&self, _username: &str) -> pnpr::Result<UserRemoval> {
         Ok(UserRemoval::NoSuchUser)
+    }
+
+    async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
+        unreachable!()
+    }
+    async fn provision_user(&self, _name: &str) -> pnpr::Result<String> {
+        unreachable!()
     }
 }
 
@@ -222,7 +247,7 @@ async fn a_login_racing_a_removal_keeps_no_token() {
     let dir = TempDir::new().unwrap();
     let tokens = Arc::new(TokenStore::in_memory());
     let auth = AuthState { users: Arc::new(RemovedDuringLogin), tokens: Arc::clone(&tokens) as _ };
-    let app = router_with_auth(load_config(&dir), auth);
+    let app = account_router(load_config(&dir), auth).await;
 
     assert_eq!(login(&app, "bob", "x").await, Err(StatusCode::UNAUTHORIZED));
     assert!(
@@ -269,7 +294,7 @@ impl TokenBackend for FailingRevocation {
 }
 
 #[tokio::test]
-async fn a_failed_revocation_keeps_the_account() {
+async fn a_failed_revocation_still_disables_the_account() {
     let dir = TempDir::new().unwrap();
     let users = Arc::new(UserStore::in_memory());
     users.create_user("root", "secret").await.unwrap();
@@ -277,7 +302,7 @@ async fn a_failed_revocation_keeps_the_account() {
         users: Arc::clone(&users) as _,
         tokens: Arc::new(FailingRevocation(TokenStore::in_memory())),
     };
-    let app = router_with_auth(load_config(&dir), auth);
+    let app = account_router(load_config(&dir), auth).await;
     let root = login(&app, "root", "secret").await.unwrap();
     users.create_user("bob", "x").await.unwrap();
     login(&app, "bob", "x").await.unwrap();
@@ -289,7 +314,7 @@ async fn a_failed_revocation_keeps_the_account() {
             .password_hash("bob")
             .await
             .unwrap()
-            .is_some(),
+            .is_none(),
     );
 }
 
@@ -333,8 +358,25 @@ impl UserBackend for ReplacedDuringLogin {
         Ok(PasswordChange::NoSuchUser)
     }
 
+    async fn clear_password(&self, _user_id: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
     async fn delete_user(&self, _username: &str) -> pnpr::Result<UserRemoval> {
         Ok(UserRemoval::NoSuchUser)
+    }
+
+    async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(None)
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
+        unreachable!()
+    }
+    async fn provision_user(&self, _name: &str) -> pnpr::Result<String> {
+        unreachable!()
     }
 }
 
@@ -348,7 +390,7 @@ async fn an_old_password_gets_no_token_for_a_recreated_account() {
         hashes: std::sync::Mutex::new(hashes),
     };
     let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
-    let app = router_with_auth(load_config(&dir), auth);
+    let app = account_router(load_config(&dir), auth).await;
 
     assert_eq!(login(&app, "bob", "old").await, Err(StatusCode::UNAUTHORIZED));
     assert!(
@@ -370,7 +412,7 @@ async fn a_registration_gets_no_token_for_an_account_recreated_with_another_pass
         hashes: std::sync::Mutex::new(vec![Some(replacement), None]),
     };
     let auth = AuthState { users: Arc::new(users), tokens: Arc::clone(&tokens) as _ };
-    let app = router_with_auth(load_config(&dir), auth);
+    let app = account_router(load_config(&dir), auth).await;
 
     assert_eq!(login(&app, "bob", "mine").await, Err(StatusCode::UNAUTHORIZED));
     assert!(
@@ -388,12 +430,21 @@ async fn a_removed_account_loses_its_tokens_without_any_revocation() {
     let users = Arc::new(UserStore::in_memory());
     let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
     let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::new(tokens) };
-    let app = router_with_auth(load_config(&dir), auth);
+    let app = account_router(load_config(&dir), auth).await;
     users.create_user("bob", "x").await.unwrap();
     let bob = login(&app, "bob", "x").await.unwrap();
     assert_eq!(whoami(&app, &bob).await, StatusCode::OK);
 
-    users.delete_user("bob").await.unwrap();
+    users
+        .delete_user(
+            &users
+                .account_id("bob")
+                .await
+                .unwrap()
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(whoami(&app, &bob).await, StatusCode::UNAUTHORIZED);
 }
 
@@ -404,13 +455,18 @@ async fn a_recreated_account_does_not_inherit_tokens_left_behind() {
     users.create_user("root", "secret").await.unwrap();
     let tokens = Arc::new(OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users)));
     let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
-    let app = router_with_auth(load_config(&dir), auth);
+    let app = account_router(load_config(&dir), auth).await;
     let root = login(&app, "root", "secret").await.unwrap();
     let mut left_behind = Vec::new();
     for name in ["bob", "carol"] {
         users.create_user(name, "old").await.unwrap();
-        left_behind.push(tokens.issue(name).await.unwrap());
-        users.delete_user(name).await.unwrap();
+        let id = users
+            .account_id(name)
+            .await
+            .unwrap()
+            .unwrap();
+        left_behind.push(tokens.issue(&id).await.unwrap());
+        users.delete_user(&id).await.unwrap();
     }
 
     let body = json!({ "password": "new" });
@@ -422,4 +478,116 @@ async fn a_recreated_account_does_not_inherit_tokens_left_behind() {
         assert_eq!(whoami(&app, token).await, StatusCode::UNAUTHORIZED);
     }
     assert_eq!(whoami(&app, &carol).await, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn deleted_names_can_be_reclaimed_without_reviving_tokens() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(&dir);
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret").await.unwrap();
+    let app = account_router(config, auth).await;
+    let root = login(&app, "root", "secret").await.unwrap();
+    let previous = login(&app, "former-member", "old-password").await.unwrap();
+    let path = "/-/pnpr/v0/admin/users/former-member";
+    assert_eq!(send(&app, "DELETE", path, Some(&root), None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(whoami(&app, &previous).await, StatusCode::UNAUTHORIZED);
+    assert!(login(&app, "former-member", "new-password").await.is_ok());
+    assert_eq!(whoami(&app, &previous).await, StatusCode::UNAUTHORIZED);
+    assert!(login(&app, "new-member", "password").await.is_ok());
+}
+
+#[tokio::test]
+async fn deleting_orphan_tokens_does_not_reserve_a_login_name() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret").await.unwrap();
+    auth.tokens.issue("oidc-member").await.unwrap();
+    let users = Arc::clone(&auth.users);
+    let app = account_router(load_config(&dir), auth).await;
+    let root = login(&app, "root", "secret").await.unwrap();
+    assert!(
+        users
+            .password_hash("oidc-member")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/oidc-member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT,
+    );
+    assert_eq!(users.account_id("oidc-member").await.unwrap(), None);
+    assert!(login(&app, "oidc-member", "new-password").await.is_ok());
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/unknown-member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(users.account_id("unknown-member").await.unwrap(), None);
+    assert!(login(&app, "unknown-member", "password").await.is_ok());
+}
+
+#[tokio::test]
+async fn deleting_a_passwordless_oidc_account_frees_its_name_but_not_its_id() {
+    let dir = TempDir::new().unwrap();
+    let mut config = load_config(&dir);
+    config.http.public_url = "https://example.test".to_string();
+    config.identity.auth.oidc = serde_json::from_value(json!([{
+        "name": "company", "issuer": "https://issuer.example.test", "audience": "pnpr",
+        "login": { "users": [{ "subject": "subject-1", "userId": "oidc-member" }] },
+    }]))
+    .unwrap();
+    let auth = AuthState::in_memory();
+    auth.users.create_user("root", "secret").await.unwrap();
+    let users = Arc::clone(&auth.users);
+    let id = users.provision_user("oidc-member").await.unwrap();
+    config.identity.auth.oidc[0].login.as_mut().unwrap().users[0].user_id = id.clone();
+    let app = account_router(config, auth).await;
+    let root = login(&app, "root", "secret").await.unwrap();
+    assert_eq!(
+        send(&app, "DELETE", "/-/pnpr/v0/admin/users/oidc-member", Some(&root), None)
+            .await
+            .0,
+        StatusCode::NO_CONTENT,
+    );
+    assert_eq!(users.account_name(&id).await.unwrap(), None);
+    assert_eq!(
+        send(
+            &app,
+            "PUT",
+            "/-/pnpr/v0/admin/users/oidc-member",
+            Some(&root),
+            Some(json!({"password":"new-password"}))
+        )
+        .await
+        .0,
+        StatusCode::CREATED,
+    );
+}
+
+async fn account_router(mut config: Config, auth: AuthState) -> axum::Router {
+    if let Some(root_id) = auth.users.account_id("root").await.unwrap() {
+        config.identity.admins = [root_id].into();
+    }
+    pnpr::router_with_auth(config, auth)
+}
+
+#[tokio::test]
+async fn invalid_rename_payloads_are_client_errors() {
+    let dir = TempDir::new().unwrap();
+    let app = app_router(load_config(&dir)).await;
+    let root = login(&app, "root", "secret").await.unwrap();
+    let id = crate::tokens::account_id(&app, "root").await.unwrap();
+    let path = format!("/-/pnpr/v0/admin/users/{id}");
+    for payload in [json!({"name": 42}), json!({"name": "renamed", "extra": true})] {
+        assert_eq!(
+            send(&app, "PATCH", &path, Some(&root), Some(payload)).await.0,
+            StatusCode::BAD_REQUEST,
+        );
+    }
+    assert_eq!(crate::tokens::account_id(&app, "root").await, Some(id));
 }

@@ -14,6 +14,7 @@ pub(crate) struct PostgresDatabase {
     pool: PgPool,
 }
 
+mod accounts;
 mod tokens;
 
 pub(crate) type PostgresAuth = SqlAuth<PostgresDatabase>;
@@ -66,15 +67,62 @@ fn postgres_pool_options(
 #[async_trait]
 impl AuthSqlBackend for PostgresDatabase {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
-        let row = sqlx::query("SELECT username, bcrypt_hash FROM users WHERE username = $1")
+        let row = sqlx::query("SELECT username, bcrypt_hash, id FROM users WHERE username = $1")
             .bind(username)
             .fetch_optional(&self.pool)
             .await?;
         row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
-            Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
+            Ok(StoredUser {
+                username: row.try_get(0)?,
+                bcrypt_hash: row.try_get(1)?,
+                id: row.try_get(2)?,
+            })
         })
         .transpose()
         .map_err(RegistryError::from)
+    }
+
+    async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
+        Ok(sqlx::query_scalar("SELECT username FROM users WHERE id = $1 AND bcrypt_hash <> '!'")
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await?)
+    }
+
+    async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
+        let current = self.account_name(user_id).await?.ok_or(RegistryError::NotFound)?;
+        if current == username {
+            return Ok(());
+        }
+        let result =
+            sqlx::query("UPDATE users SET username = $2 WHERE id = $1 AND bcrypt_hash <> '!'")
+                .bind(user_id)
+                .bind(username)
+                .execute(&self.pool)
+                .await;
+        match result {
+            Ok(result) if result.rows_affected() > 0 => Ok(()),
+            Ok(_) => Err(RegistryError::NotFound),
+            Err(err) if is_unique_violation(&err) => Err(RegistryError::AdminConflict {
+                reason: format!("username {username:?} is taken"),
+            }),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
+        let rows = sqlx::query(
+            "SELECT id, username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|row| Ok(crate::UserAccount { id: row.try_get(0)?, username: row.try_get(1)? }))
+            .collect()
+    }
+
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
+        self.accounts_by_id_impl(user_ids).await
     }
 
     async fn user_count(&self) -> Result<u64> {
@@ -112,15 +160,18 @@ impl AuthSqlBackend for PostgresDatabase {
                 return self.existing_or_cap_reached(username).await;
             }
         };
-        let inserted = sqlx::query("INSERT INTO users (username, bcrypt_hash) VALUES ($1, $2)")
-            .bind(username)
-            .bind(bcrypt_hash)
-            .execute(&mut *tx)
-            .await;
+        let id = crate::new_principal_id();
+        let inserted =
+            sqlx::query("INSERT INTO users (username, bcrypt_hash, id) VALUES ($1, $2, $3)")
+                .bind(username)
+                .bind(bcrypt_hash)
+                .bind(&id)
+                .execute(&mut *tx)
+                .await;
         match inserted {
             Ok(_) => {
                 tx.commit().await?;
-                Ok(InsertUser::Created)
+                Ok(InsertUser::Created(id))
             }
             Err(err) if is_unique_violation(&err) => {
                 tx.rollback().await?;
@@ -146,8 +197,8 @@ impl AuthSqlBackend for PostgresDatabase {
         self.find_owned_token_impl(token_hash).await
     }
 
-    async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        self.list_tokens_impl(username).await
+    async fn list_tokens(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>> {
+        self.list_tokens_impl(user_id).await
     }
 
     async fn delete_token(&self, token_hash: &str) -> Result<()> {
@@ -155,20 +206,24 @@ impl AuthSqlBackend for PostgresDatabase {
     }
 
     async fn list_usernames(&self) -> Result<Vec<String>> {
-        Ok(sqlx::query_scalar("SELECT username FROM users ORDER BY username").fetch_all(&self.pool)
-            .await?)
+        Ok(sqlx::query_scalar(
+            "SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
+        )
+        .fetch_all(&self.pool)
+        .await?)
     }
 
     async fn update_password_hash(
         &self,
-        username: &str,
+        user_id: &str,
         bcrypt_hash: &str,
     ) -> Result<PasswordChange> {
-        let updated = sqlx::query("UPDATE users SET bcrypt_hash = $2 WHERE username = $1")
-            .bind(username)
-            .bind(bcrypt_hash)
-            .execute(&self.pool)
-            .await?;
+        let updated =
+            sqlx::query("UPDATE users SET bcrypt_hash = $2 WHERE id = $1 AND bcrypt_hash <> '!'")
+                .bind(user_id)
+                .bind(bcrypt_hash)
+                .execute(&self.pool)
+                .await?;
         if updated.rows_affected() > 0 {
             Ok(PasswordChange::Changed)
         } else {
@@ -178,25 +233,36 @@ impl AuthSqlBackend for PostgresDatabase {
 
     async fn update_user_hash_if_current(
         &self,
-        username: &str,
+        user_id: &str,
         old_hash: &str,
         new_hash: &str,
     ) -> Result<bool> {
-        let updated = sqlx::query(
-            "UPDATE users SET bcrypt_hash = $3 WHERE username = $1 AND bcrypt_hash = $2",
-        )
-        .bind(username)
-        .bind(old_hash)
-        .bind(new_hash)
-        .execute(&self.pool)
-        .await?;
+        let updated =
+            sqlx::query("UPDATE users SET bcrypt_hash = $3 WHERE id = $1 AND bcrypt_hash = $2")
+                .bind(user_id)
+                .bind(old_hash)
+                .bind(new_hash)
+                .execute(&self.pool)
+                .await?;
         Ok(updated.rows_affected() > 0)
     }
 
-    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
+    async fn delete_user(&self, user_id: &str) -> Result<UserRemoval> {
+        self.remove_user_record(user_id).await
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        sqlx::query("SELECT 1;").execute(&self.pool).await.map_err(RegistryError::from)?;
+        Ok(())
+    }
+}
+
+impl PostgresDatabase {
+    async fn remove_user_record(&self, user_id: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
-        let removed = sqlx::query("DELETE FROM users WHERE username = $1")
-            .bind(username)
+        let statement = "UPDATE users SET username = 'deleted:' || id, bcrypt_hash = '!' WHERE id = $1 AND bcrypt_hash <> '!'";
+        let removed = sqlx::query(statement)
+            .bind(user_id)
             .execute(&mut *tx)
             .await?
             .rows_affected();
@@ -210,13 +276,6 @@ impl AuthSqlBackend for PostgresDatabase {
         Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
     }
 
-    async fn check_readiness(&self) -> Result<()> {
-        sqlx::query("SELECT 1;").execute(&self.pool).await.map_err(RegistryError::from)?;
-        Ok(())
-    }
-}
-
-impl PostgresDatabase {
     async fn init_schema(&self) -> Result<()> {
         crate::schema::migrate_postgres(&self.pool).await?;
         self.ensure_user_counter().await
@@ -243,8 +302,9 @@ impl PostgresDatabase {
     }
 
     async fn actual_user_count(&self) -> Result<i64> {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
+            .fetch_one(&self.pool)
+            .await?;
         Ok(count.max(0))
     }
 
@@ -281,8 +341,9 @@ impl PostgresDatabase {
             tx.commit().await?;
             return Ok(false);
         };
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx).await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
+            .fetch_one(&mut *tx)
+            .await?;
         if counter <= count {
             tx.commit().await?;
             return Ok(false);

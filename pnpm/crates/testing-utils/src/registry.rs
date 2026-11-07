@@ -223,7 +223,7 @@ impl TestRegistryInstance {
         config.http.public_url = server_url.trim_end_matches('/').to_string();
         // Registration is opt-in; tests that forward credentials create
         // accounts via adduser against this registry.
-        config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+        config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
         // A long TTL keeps the fixture packuments (whose `time` values are static)
         // from being treated as stale and refetched from the upstream.
         config.http.packument_ttl = std::time::Duration::from_hours(8760);

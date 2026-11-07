@@ -17,16 +17,16 @@ use super::{
 };
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
-    if let Identity::User { username, .. } = identity {
-        record_publisher_in_maintainers(incoming, username);
+    if let Identity::User { id, username, .. } = identity {
+        record_publisher_in_maintainers(incoming, id, username);
     }
     let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
     };
     for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
         match identity {
-            Identity::User { username, .. } => {
-                manifest.insert("_npmUser".to_string(), json!({ "name": username }));
+            Identity::User { id, username, .. } => {
+                manifest.insert("_npmUser".to_string(), json!({ "name": username, "userId": id }));
             }
             _ => {
                 manifest.remove("_npmUser");
@@ -35,22 +35,12 @@ pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
     }
 }
 
-fn record_publisher_in_maintainers(incoming: &mut Value, username: &str) {
+fn record_publisher_in_maintainers(incoming: &mut Value, user_id: &str, username: &str) {
     let Some(incoming_obj) = incoming.as_object_mut() else { return };
-    let maintainers = incoming_obj
-        .entry("maintainers")
-        .or_insert_with(|| json!([]));
-    let publisher = json!({ "name": username });
-    let Some(list) = maintainers.as_array_mut() else {
-        *maintainers = json!([publisher]);
-        return;
-    };
-    let already_present = list
-        .iter()
-        .any(|entry| entry.get("name").and_then(Value::as_str) == Some(username));
-    if !already_present {
-        list.insert(0, publisher);
-    }
+    incoming_obj.insert(
+        "maintainers".to_string(),
+        json!([{ "name": username, "userId": user_id }]),
+    );
 }
 
 /// The stored packument, parsed, with the version its update must be based

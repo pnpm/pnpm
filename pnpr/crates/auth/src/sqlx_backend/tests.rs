@@ -32,6 +32,13 @@ struct CappedBackend {
 
 #[async_trait]
 impl AuthSqlBackend for CanonicalBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(Some(self.user.clone()))
     }
@@ -88,6 +95,13 @@ impl AuthSqlBackend for CanonicalBackend {
 
 #[async_trait]
 impl AuthSqlBackend for SlowLookupBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
     }
@@ -145,6 +159,13 @@ impl AuthSqlBackend for SlowLookupBackend {
 
 #[async_trait]
 impl AuthSqlBackend for SlowWriteBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
     }
@@ -163,7 +184,7 @@ impl AuthSqlBackend for SlowWriteBackend {
         _bcrypt_hash: &str,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
-        Ok(InsertUser::Created)
+        Ok(InsertUser::Created("account-id".to_string()))
     }
 
     async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
@@ -203,6 +224,13 @@ impl AuthSqlBackend for SlowWriteBackend {
 
 #[async_trait]
 impl AuthSqlBackend for CountingLookupBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         self.stored_user_calls.fetch_add(1, Ordering::SeqCst);
         Ok(None)
@@ -222,7 +250,7 @@ impl AuthSqlBackend for CountingLookupBackend {
         _bcrypt_hash: &str,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
-        Ok(InsertUser::Created)
+        Ok(InsertUser::Created("account-id".to_string()))
     }
 
     async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
@@ -260,6 +288,13 @@ impl AuthSqlBackend for CountingLookupBackend {
 
 #[async_trait]
 impl AuthSqlBackend for CappedBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
     }
@@ -320,6 +355,7 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
     let auth = SqlAuth::new(
         CanonicalBackend {
             user: StoredUser {
+                id: "account-id".to_string(),
                 username: "Alice".to_string(),
                 bcrypt_hash: "not-a-bcrypt-hash".to_string(),
             },
@@ -334,10 +370,16 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
 }
 
 #[tokio::test]
-async fn add_or_login_returns_the_stored_username_for_existing_users() {
+async fn add_or_login_returns_the_immutable_id_for_existing_users() {
     let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
     let auth = SqlAuth::new(
-        CanonicalBackend { user: StoredUser { username: "Alice".to_string(), bcrypt_hash } },
+        CanonicalBackend {
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "Alice".to_string(),
+                bcrypt_hash,
+            },
+        },
         MaxUsers::Unlimited,
         Duration::from_secs(30),
     );
@@ -345,7 +387,7 @@ async fn add_or_login_returns_the_stored_username_for_existing_users() {
     let outcome = auth.add_or_login("alice", "secret").await.unwrap();
 
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
-    assert_eq!(outcome.1, "Alice");
+    assert_eq!(outcome.1, "account-id");
 }
 
 #[tokio::test]

@@ -9,8 +9,8 @@ use axum::{
     http::{HeaderValue, Request, StatusCode, header},
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, PasswordChange, TokenStore,
-    TokensConfig, UpsertOutcome, UserBackend, UserCreation, UserRemoval, router, router_with_auth,
+    AuthConfig, AuthState, Config, MaxUsers, PasswordChange, TokenStore, TokensConfig,
+    UpsertOutcome, UserBackend, UserCreation, UserRemoval, UsersConfig, router, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
@@ -30,15 +30,15 @@ fn listen() -> SocketAddr {
 fn static_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
 
-fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) -> Config {
+fn persistent_config(storage: PathBuf, users: PathBuf, tokens_db: PathBuf) -> Config {
     let mut config = static_config(storage);
     config.identity.auth = AuthConfig {
         oidc: Vec::new(),
-        htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
+        users: UsersConfig { file: Some(users), max_users: MaxUsers::Unlimited },
         tokens: TokensConfig { file: Some(tokens_db) },
         scim: None,
     };
@@ -139,8 +139,25 @@ impl UserBackend for CanonicalUserBackend {
         Ok(PasswordChange::NoSuchUser)
     }
 
+    async fn clear_password(&self, _user_id: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
     async fn delete_user(&self, _username: &str) -> pnpr::Result<UserRemoval> {
         Ok(UserRemoval::NoSuchUser)
+    }
+
+    async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(Some("Alice".to_string()))
+    }
+    async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(Some("Alice".to_string()))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
+        unreachable!()
+    }
+    async fn provision_user(&self, _name: &str) -> pnpr::Result<String> {
+        unreachable!()
     }
 }
 
@@ -175,7 +192,7 @@ async fn adduser_issues_token_for_canonical_username() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    assert_eq!(payload["id"].as_str(), Some("org.couchdb.user:Alice"));
+    assert_eq!(payload["id"].as_str(), Some("Alice"));
     assert_eq!(payload["ok"].as_str(), Some("you are authenticated as 'Alice'"));
     let token = payload["token"].as_str().expect("token in response");
 
@@ -330,6 +347,7 @@ async fn token_list_returns_only_callers_tokens() {
     // Issue a second token to alice so the listing has more than one.
     let (app, _alice_token_2) = add_user_and_get_token(app, "alice", "secret").await;
 
+    let alice_id = crate::tokens::account_id(&app, "alice").await.unwrap();
     let response = app
         .oneshot(get_with_bearer("/-/npm/v1/tokens", &alice_token))
         .await
@@ -339,7 +357,7 @@ async fn token_list_returns_only_callers_tokens() {
     let objects = payload["objects"].as_array().expect("objects array");
     assert_eq!(objects.len(), 2, "alice owns two tokens, bob's must not leak");
     for entry in objects {
-        assert_eq!(entry["user"].as_str(), Some("alice"));
+        assert_eq!(entry["user"].as_str(), Some(alice_id.as_str()));
         let key = entry["key"].as_str().expect("key field");
         assert_eq!(key.len(), 64, "key is the SHA-256 hex of the raw token");
         let preview = entry["token"].as_str().expect("token preview");

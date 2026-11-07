@@ -6,7 +6,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{AuthState, Config, router_with_auth};
+use pnpr::{Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -18,7 +18,7 @@ use tower::ServiceExt;
 const CONFIG: &str = "\
 auth:
   admins: [root]
-  htpasswd:
+  users:
     maxUsers: 100
 registries:
   local:
@@ -26,7 +26,7 @@ registries:
     org: \"\"
     rulesManagedBy: api
     teams:
-      readers: [carol]
+      readers: { name: readers, members: [carol] }
     packages:
       '@secret/*':
         access: [$authenticated]
@@ -54,8 +54,7 @@ fn load_config(dir: &Path) -> Config {
 }
 
 async fn app_router(config: Config) -> axum::Router {
-    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
-    auth.users.create_user("root", "secret").await.unwrap();
+    let auth = crate::tokens::seeded_auth(&config, &[("root", "secret"), ("carol", "secret")]);
     router_with_auth(config, auth)
 }
 
@@ -385,7 +384,7 @@ async fn moving_registry_into_ecosystem_group_preserves_rules() {
     let grouped_config_yaml = "\
 auth:
   admins: [root]
-  htpasswd:
+  users:
     maxUsers: 100
 registries:
   npm:
@@ -394,7 +393,7 @@ registries:
       org: \"\"
       rulesManagedBy: api
       teams:
-        readers: [carol]
+        readers: { name: readers, members: [carol] }
       packages:
         '@secret/*':
           access: [$authenticated]
@@ -431,7 +430,7 @@ async fn cargo_and_pypi_hosted_registries_reject_unpublish_rules() {
     let config_yaml = "\
 auth:
   admins: [root]
-  htpasswd:
+  users:
     maxUsers: 100
 registries:
   cargo:
@@ -506,7 +505,7 @@ async fn pre_upgrade_stored_unpublish_override_on_cargo_does_not_lock_out_regist
     let config_yaml = "\
 auth:
   admins: [root]
-  htpasswd:
+  users:
     maxUsers: 100
 registries:
   cargo:

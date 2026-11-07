@@ -197,10 +197,11 @@ enum Named {
 
 fn is_pruned(name: &str, depth: usize) -> bool {
     (depth == 0
-        && matches!(
-            name,
-            "node_modules" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "bun.lockb",
-        ))
+        && (crate::is_lockfile_staging_file(name)
+            || matches!(
+                name,
+                "node_modules" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "bun.lockb",
+            )))
         || ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&name)
 }
 

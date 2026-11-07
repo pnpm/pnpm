@@ -13,18 +13,14 @@ pub enum AccessToken {
     Anonymous,
     /// `$owners` — package owners / maintainers.
     Owners,
-    /// A bare token: a username. Matches an authenticated caller whose
-    /// username equals it — never a team name; teams are referenced with
-    /// the explicit `team:` form.
+    /// An immutable account ID. Teams use the explicit `team:` form.
     User(String),
-    /// A `team:<name>` reference to the owning registry's roster. Matches an
-    /// authenticated caller whose username is a member of `name` at the
-    /// moment the token is evaluated.
-    Team { name: String, directory: TeamDirectory },
+    /// A `team:<id>` reference to the owning registry's live roster.
+    Team { id: String, directory: TeamDirectory },
 }
 
-/// Only the `$`-sigiled spellings are built-ins; any other token is a
-/// username, which can only *narrow* access, so this stays infallible.
+/// Only the `$`-sigiled spellings are built-ins; any other token is an
+/// account ID, which can only *narrow* access, so this stays infallible.
 /// Near-miss spellings (verdaccio's `@all`/bare aliases, an unknown
 /// `$...`) and `team:` references are handled at YAML load (`AccessSpec`
 /// in the config module): the former are rejected, the latter resolved
@@ -54,7 +50,7 @@ impl AccessList {
         Self(tokens)
     }
 
-    /// Build from individual built-in or username tokens (e.g. the
+    /// Build from individual built-in or account-ID tokens (e.g. the
     /// elements of a YAML sequence). Each string is one token, taken
     /// verbatim; `team:` references cannot be built this way.
     pub fn from_tokens<Tokens, Token>(tokens: Tokens) -> Self
@@ -104,7 +100,7 @@ impl AccessList {
     pub fn references_team(&self, team: &str) -> bool {
         self.0
             .iter()
-            .any(|token| matches!(token, AccessToken::Team { name, .. } if name == team))
+            .any(|token| matches!(token, AccessToken::Team { id, .. } if id == team))
     }
 
     /// Whether the access list admits every caller regardless of identity.
@@ -125,7 +121,7 @@ impl AccessList {
 }
 
 /// The resolved caller identity an [`AccessList`] is evaluated against: the
-/// authenticated username (or its absence), and the team memberships the
+/// authenticated account ID and login name (or their absence), and the team memberships the
 /// credential itself carries. Rosters live in the [`AccessToken::Team`]
 /// tokens' directory, so a credential that carries no memberships still
 /// reaches its roster teams.
@@ -135,7 +131,7 @@ pub enum Identity {
     /// No valid credentials were presented.
     Anonymous,
     /// Authenticated as `username`.
-    User { username: String, memberships: Arc<[Membership]> },
+    User { id: String, username: String, memberships: Arc<[Membership]> },
 }
 
 /// A team membership that a credential carries, such as one an OIDC session
@@ -144,19 +140,43 @@ pub enum Identity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Membership {
     pub directory: TeamDirectory,
-    pub team: String,
+    pub team_id: String,
 }
 
 impl Identity {
     #[must_use]
-    pub fn user(username: impl Into<String>) -> Self {
-        Self::member(username, Vec::new())
+    pub fn user(user_id: impl Into<String>) -> Self {
+        Self::member(user_id, Vec::new())
     }
 
     /// A user whose credential carries `memberships`.
     #[must_use]
-    pub fn member(username: impl Into<String>, memberships: Vec<Membership>) -> Self {
-        Self::User { username: username.into(), memberships: memberships.into() }
+    pub fn member(user_id: impl Into<String>, memberships: Vec<Membership>) -> Self {
+        let id = user_id.into();
+        Self::account_member(id.clone(), id, memberships)
+    }
+
+    /// Construct an authenticated account with a separate display name.
+    #[must_use]
+    pub fn account(id: impl Into<String>, username: impl Into<String>) -> Self {
+        Self::account_member(id, username, Vec::new())
+    }
+
+    #[must_use]
+    pub fn account_member(
+        id: impl Into<String>,
+        username: impl Into<String>,
+        memberships: Vec<Membership>,
+    ) -> Self {
+        Self::User { id: id.into(), username: username.into(), memberships: memberships.into() }
+    }
+
+    #[must_use]
+    pub fn user_id(&self) -> Option<&str> {
+        match self {
+            Self::User { id, .. } => Some(id),
+            Self::Anonymous => None,
+        }
     }
 
     #[must_use]
@@ -182,14 +202,18 @@ impl Identity {
             (AccessToken::Authenticated, Identity::User { .. }) => true,
             (AccessToken::Anonymous, Identity::Anonymous) => true,
             (AccessToken::Owners, Identity::User { .. }) => is_owner,
-            (AccessToken::User(name), Identity::User { username, .. }) => name == username,
-            (AccessToken::Team { name, directory }, Identity::User { username, memberships }) => {
-                directory.has_member(name, username)
-                    || memberships
-                        .iter()
-                        .any(|membership| {
-                            membership.directory == *directory && membership.team == *name
-                        })
+            (AccessToken::User(id), Identity::User { id: user_id, .. }) => id == user_id,
+            (
+                AccessToken::Team { id: team_id, directory },
+                Identity::User { id: user_id, memberships, .. },
+            ) => {
+                directory.has_member(team_id, user_id)
+                    || directory.snapshot().contains_key(team_id)
+                        && memberships
+                            .iter()
+                            .any(|membership| {
+                                membership.directory == *directory && membership.team_id == *team_id
+                            })
             }
             _ => false,
         }
@@ -205,7 +229,7 @@ impl std::fmt::Display for AccessToken {
             AccessToken::Anonymous => formatter.write_str("$anonymous"),
             AccessToken::Owners => formatter.write_str("$owners"),
             AccessToken::User(name) => formatter.write_str(name),
-            AccessToken::Team { name, .. } => write!(formatter, "team:{name}"),
+            AccessToken::Team { id, .. } => write!(formatter, "team:{id}"),
         }
     }
 }

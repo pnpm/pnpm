@@ -83,7 +83,6 @@ impl RegistryError {
 
     fn package_log_kind(&self) -> Option<&'static str> {
         match self {
-            RegistryError::ReservedUsername { .. } => Some("reserved_username"),
             RegistryError::NotPackageMaintainer { .. } => Some("not_package_maintainer"),
             RegistryError::PackageTombstoned { .. } => Some("package_tombstoned"),
             RegistryError::CannotRepublishUnpublishedVersion { .. } => {
@@ -101,7 +100,7 @@ impl RegistryError {
             RegistryError::DocumentFormatTooNew { .. } => "document_format_too_new",
             RegistryError::StorageUnavailable { .. } => "storage_unavailable",
             RegistryError::Internal { .. } => "internal",
-            RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
+            RegistryError::InvalidUsersFile { .. } => "invalid_users_file",
             RegistryError::Bcrypt(_) => "bcrypt",
             RegistryError::Sqlite(_) => "sqlite",
             #[cfg(feature = "backend-libsql")]
@@ -126,7 +125,7 @@ impl RegistryError {
         match self {
             RegistryError::StorageUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::Internal { .. }
-            | RegistryError::InvalidHtpasswdFile { .. }
+            | RegistryError::InvalidUsersFile { .. }
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
             | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -233,7 +232,6 @@ impl RegistryError {
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
             | RegistryError::TooManyUsers { .. }
-            | RegistryError::ReservedUsername { .. }
             | RegistryError::NotPackageMaintainer { .. }
             | RegistryError::PackageTombstoned { .. }
             | RegistryError::CannotRepublishUnpublishedVersion { .. } => {

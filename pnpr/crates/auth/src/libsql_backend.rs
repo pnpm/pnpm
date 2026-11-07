@@ -15,9 +15,10 @@
 //!
 //! The SQL is identical to the local backend — the `tokens` table reuses
 //! [`super::token_store::sqlite::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
-//! between the two. Users, which the local backend keeps in an htpasswd
+//! between the two. Users, which the local backend keeps in a JSON account
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
+mod accounts;
 mod schema;
 mod tokens;
 mod user_admin;
@@ -144,12 +145,14 @@ impl LibsqlAuth {
 
     /// The bcrypt hash stored for `username`, or `None` when no such
     /// user exists.
-    async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
+    async fn stored_hash(&self, username: &str) -> Result<Option<(String, String)>> {
         self.pool.read(|conn| async move {
-            let rows =
-                conn.query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
-                    .await?;
-            first_row(rows, |row| Ok(row.get::<String>(0)?)).await
+            let rows = conn.query(
+                "SELECT bcrypt_hash, id FROM users WHERE username = ?1",
+                params![username],
+            )
+            .await?;
+            first_row(rows, |row| Ok((row.get::<String>(0)?, row.get::<String>(1)?))).await
         })
         .await
     }
@@ -158,7 +161,7 @@ impl LibsqlAuth {
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         self.pool.read(|conn| async move {
-            let rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+            let rows = conn.query("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'", ()).await?;
             let Some(count) = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await? else {
                 return Err(missing_count_row());
             };
@@ -209,8 +212,20 @@ impl UserBackend for LibsqlAuth {
         self.list_usernames().await
     }
 
+    async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
+        self.list_accounts_impl().await
+    }
+
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
+        self.accounts_by_id_impl(user_ids).await
+    }
+
     async fn password_hash(&self, username: &str) -> Result<Option<String>> {
-        self.stored_hash(username).await
+        Ok(self
+            .stored_hash(username)
+            .await?
+            .filter(|(hash, _)| hash != super::DELETED_USER_HASH)
+            .map(|(hash, _)| hash))
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
@@ -221,20 +236,36 @@ impl UserBackend for LibsqlAuth {
         Ok(creation)
     }
 
-    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
-        let change = self.update_password(username, password).await?;
-        if change == PasswordChange::Changed {
-            self.sync_replica().await?;
-        }
-        Ok(change)
+    async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
+        self.update_password(user_id, password).await
+    }
+
+    async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
+        self.replace_password_hash(user_id, crate::NO_PASSWORD_HASH).await
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        let removal = self.remove_user(username).await?;
+        let removal = self.remove_user_record(username).await?;
         if removal == UserRemoval::Removed {
             self.sync_replica().await?;
         }
         Ok(removal)
+    }
+
+    async fn provision_user(&self, username: &str) -> Result<String> {
+        self.provision_account(username).await
+    }
+
+    async fn account_id(&self, username: &str) -> Result<Option<String>> {
+        self.account_id_by_name(username).await
+    }
+
+    async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
+        self.account_name_by_id(user_id).await
+    }
+
+    async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
+        self.rename_account(user_id, username).await
     }
 
     async fn check_readiness(&self) -> Result<()> {
@@ -295,21 +326,23 @@ impl LibsqlAuth {
         password: &str,
         hash: &str,
     ) -> Result<(UpsertOutcome, String)> {
+        let id = crate::new_principal_id();
+        let id_ref = id.as_str();
         let inserted = self.pool.write(|conn| async move {
             let inserted = conn.execute(
-                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                params![username, hash],
+                "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?3)",
+                params![username, hash, id_ref],
             )
             .await;
             match inserted {
-                Ok(_) => Ok(Insert::Created),
+                Ok(_) => Ok(Insert::Created(id_ref.to_string())),
                 Err(err) if is_unique_violation(&err) => Ok(Insert::NameTaken),
                 Err(err) => Err(RegistryError::from(err)),
             }
         })
         .await?;
         match inserted {
-            Insert::Created => Ok((UpsertOutcome::Created, username.to_string())),
+            Insert::Created(id) => Ok((UpsertOutcome::Created, id)),
             Insert::NameTaken => self.login_after_lost_insert(username, password).await,
             Insert::CapFull => unreachable!("an uncapped insert has no cap"),
         }
@@ -326,7 +359,7 @@ impl LibsqlAuth {
         let mut can_retry_after_reconcile = true;
         loop {
             match self.try_capped_insert(username, hash).await? {
-                Insert::Created => return Ok((UpsertOutcome::Created, username.to_string())),
+                Insert::Created(id) => return Ok((UpsertOutcome::Created, id)),
                 Insert::NameTaken => return self.login_after_lost_insert(username, password).await,
                 // The counter can overcount after an interrupted write; reconcile it
                 // once before believing the cap is full.
@@ -343,20 +376,22 @@ impl LibsqlAuth {
 
     /// One transaction that claims a counter slot and inserts the user.
     async fn try_capped_insert(&self, username: &str, hash: &str) -> Result<Insert> {
+        let id = crate::new_principal_id();
+        let id_ref = id.as_str();
         self.pool.write(|conn| async move {
             let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
             let Some(tx) = self.claim_cap_slot(tx).await? else {
                 return Ok(Insert::CapFull);
             };
             let inserted = tx.execute(
-                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                params![username, hash],
+                "INSERT INTO users (username, bcrypt_hash, id) VALUES (?1, ?2, ?3)",
+                params![username, hash, id_ref],
             )
             .await;
             match inserted {
                 Ok(_) => {
                     tx.commit().await?;
-                    Ok(Insert::Created)
+                    Ok(Insert::Created(id_ref.to_string()))
                 }
                 Err(err) if is_unique_violation(&err) => {
                     tx.rollback().await?;
@@ -421,16 +456,18 @@ impl LibsqlAuth {
         &self,
         username: &str,
         password: &str,
-        stored: String,
+        stored: (String, String),
     ) -> Result<(UpsertOutcome, String)> {
-        let (outcome, user) =
+        let (stored, id) = stored;
+        let id_ref = id.as_str();
+        let (outcome, _) =
             verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
         if is_sha_hash(&stored) {
             let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
             self.pool.write(|conn| async move {
                 conn.execute(
-                    "UPDATE users SET bcrypt_hash = ?1 WHERE username = ?2 AND bcrypt_hash = ?3",
-                    params![new_hash, username, stored],
+                    "UPDATE users SET bcrypt_hash = ?1 WHERE id = ?2 AND bcrypt_hash = ?3",
+                    params![new_hash, id_ref, stored],
                 )
                 .await?;
                 Ok(())
@@ -438,14 +475,14 @@ impl LibsqlAuth {
             .await?;
             self.sync_replica().await?;
         }
-        Ok((outcome, user))
+        Ok((outcome, id))
     }
 }
 
 /// How a registration's insert ended, decided on its connection and acted on
 /// after the connection is returned.
 enum Insert {
-    Created,
+    Created(String),
     NameTaken,
     CapFull,
 }

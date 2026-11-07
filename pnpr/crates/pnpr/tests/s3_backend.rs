@@ -32,7 +32,7 @@ fn s3_config(storage: PathBuf, store: Arc<dyn ObjectStore>) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.hosted_backend = HostedStoreConfig::ObjectStore { store, prefix: String::new() };
     config
 }
@@ -238,7 +238,7 @@ async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
         store: Arc::clone(&store),
         // Deliberately not `/`-terminated.

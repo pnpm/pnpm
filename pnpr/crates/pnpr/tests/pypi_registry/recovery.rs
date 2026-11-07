@@ -60,7 +60,13 @@ async fn publishers_yank_and_admins_delete_files() {
     let publisher = issue_token(&auth, "publisher").await;
     let admin = issue_token(&auth, "administrator").await;
     let mut config = pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/");
-    config.identity.admins.insert("administrator".to_string());
+    config.identity.admins.insert(
+        auth.users
+            .account_id("administrator")
+            .await
+            .unwrap()
+            .unwrap(),
+    );
     let app = router_with_auth(config, auth);
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
     let content = common::python_wheel("demo-pkg", "1.0.0");

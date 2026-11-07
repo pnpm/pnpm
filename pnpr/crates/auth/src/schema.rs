@@ -4,7 +4,7 @@ use rusqlite::OptionalExtension as _;
 use std::future::Future;
 
 /// Current version of the auth database schema.
-pub const CURRENT_SCHEMA_VERSION: i64 = 2;
+pub const CURRENT_SCHEMA_VERSION: i64 = 3;
 
 /// Table storing schema migrations applied to the auth database.
 pub(crate) const SCHEMA_MIGRATIONS_TABLE_SQL: &str =
@@ -15,11 +15,11 @@ pub(crate) const SCHEMA_MIGRATIONS_TABLE_SQL: &str =
 
 fn check_schema_version(max_version: Option<i64>) -> Result<()> {
     if let Some(version) = max_version
-        && version > CURRENT_SCHEMA_VERSION
+        && version != CURRENT_SCHEMA_VERSION
     {
         return Err(RegistryError::Internal {
             reason: format!(
-                "auth database schema version {version} is newer than supported version {CURRENT_SCHEMA_VERSION}; please upgrade pnpr",
+                "auth database schema version {version} is incompatible with version {CURRENT_SCHEMA_VERSION}; create a new auth database for this experimental release",
             ),
         });
     }
@@ -35,11 +35,8 @@ pub(crate) fn migrate_sqlite(conn: &rusqlite::Connection) -> Result<()> {
         .flatten();
     check_schema_version(max_version)?;
     let current = max_version.unwrap_or(0);
-    if current < 1 {
+    if current == 0 {
         apply_sqlite_v1(conn)?;
-    }
-    if current < 2 {
-        apply_sqlite_v2(conn)?;
     }
     Ok(())
 }
@@ -49,31 +46,10 @@ fn apply_sqlite_v1(conn: &rusqlite::Connection) -> Result<()> {
     conn.execute(super::token_store::sqlite::TOKENS_INDEX_SQL, [])?;
     let now = unix_seconds() as i64;
     conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, ?1) ON CONFLICT (version) DO NOTHING",
+        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (3, ?1) ON CONFLICT (version) DO NOTHING",
         rusqlite::params![now],
     )?;
     Ok(())
-}
-
-fn apply_sqlite_v2(conn: &rusqlite::Connection) -> Result<()> {
-    add_column_if_missing_sqlite(conn, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)")?;
-    add_column_if_missing_sqlite(conn, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT")?;
-    add_column_if_missing_sqlite(conn, "ALTER TABLE tokens ADD COLUMN scopes TEXT")?;
-    add_column_if_missing_sqlite(conn, "ALTER TABLE tokens ADD COLUMN kind VARCHAR(64)")?;
-    let now = unix_seconds() as i64;
-    conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, ?1) ON CONFLICT (version) DO NOTHING",
-        rusqlite::params![now],
-    )?;
-    Ok(())
-}
-
-fn add_column_if_missing_sqlite(conn: &rusqlite::Connection, sql: &str) -> Result<()> {
-    match conn.execute(sql, []) {
-        Ok(_) => Ok(()),
-        Err(err) if err.to_string().contains("duplicate column name") => Ok(()),
-        Err(err) => Err(err.into()),
-    }
 }
 
 /// Run schema migrations on a libsql database. `sync` runs after each
@@ -94,11 +70,8 @@ where
         if let Some(row) = rows.next().await? { row.get(0)? } else { None };
     check_schema_version(max_version)?;
     let current = max_version.unwrap_or(0);
-    if current < 1 {
+    if current == 0 {
         apply_libsql_v1(conn).await?;
-    }
-    if current < 2 {
-        apply_libsql_v2(conn).await?;
     }
     sync().await
 }
@@ -111,35 +84,11 @@ async fn apply_libsql_v1(conn: &libsql::Connection) -> Result<()> {
     conn.execute(super::AUTH_COUNTERS_TABLE_SQL, ()).await?;
     let now = unix_seconds() as i64;
     conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, ?1) ON CONFLICT (version) DO NOTHING",
+        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (3, ?1) ON CONFLICT (version) DO NOTHING",
         libsql::params![now],
     )
     .await?;
     Ok(())
-}
-
-#[cfg(feature = "backend-libsql")]
-async fn apply_libsql_v2(conn: &libsql::Connection) -> Result<()> {
-    add_column_if_missing_libsql(conn, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)").await?;
-    add_column_if_missing_libsql(conn, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT").await?;
-    add_column_if_missing_libsql(conn, "ALTER TABLE tokens ADD COLUMN scopes TEXT").await?;
-    add_column_if_missing_libsql(conn, "ALTER TABLE tokens ADD COLUMN kind VARCHAR(64)").await?;
-    let now = unix_seconds() as i64;
-    conn.execute(
-        "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, ?1) ON CONFLICT (version) DO NOTHING",
-        libsql::params![now],
-    )
-    .await?;
-    Ok(())
-}
-
-#[cfg(feature = "backend-libsql")]
-async fn add_column_if_missing_libsql(conn: &libsql::Connection, sql: &str) -> Result<()> {
-    match conn.execute(sql, ()).await {
-        Ok(_) => Ok(()),
-        Err(err) if err.to_string().contains("duplicate column name") => Ok(()),
-        Err(err) => Err(err.into()),
-    }
 }
 
 /// Run schema migrations on a `PostgreSQL` database.
@@ -151,11 +100,8 @@ pub(crate) async fn migrate_postgres(pool: &sqlx::PgPool) -> Result<()> {
             .await?;
     check_schema_version(max_version)?;
     let current = max_version.unwrap_or(0);
-    if current < 1 {
+    if current == 0 {
         apply_postgres_v1(pool).await?;
-    }
-    if current < 2 {
-        apply_postgres_v2(pool).await?;
     }
     Ok(())
 }
@@ -167,24 +113,7 @@ async fn apply_postgres_v1(pool: &sqlx::PgPool) -> Result<()> {
     sqlx::query(super::token_store::sqlite::TOKENS_INDEX_SQL).execute(pool).await?;
     sqlx::query(super::AUTH_COUNTERS_TABLE_SQL).execute(pool).await?;
     let now = unix_seconds() as i64;
-    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (1, $1) ON CONFLICT (version) DO NOTHING")
-        .bind(now)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-#[cfg(feature = "backend-postgres")]
-async fn apply_postgres_v2(pool: &sqlx::PgPool) -> Result<()> {
-    sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS name VARCHAR(255)").execute(pool)
-        .await?;
-    sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS expires_at BIGINT").execute(pool)
-        .await?;
-    sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS scopes TEXT").execute(pool).await?;
-    sqlx::query("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS kind VARCHAR(64)").execute(pool)
-        .await?;
-    let now = unix_seconds() as i64;
-    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (2, $1) ON CONFLICT (version) DO NOTHING")
+    sqlx::query("INSERT INTO auth_schema_migrations (version, applied_at) VALUES (3, $1) ON CONFLICT (version) DO NOTHING")
         .bind(now)
         .execute(pool)
         .await?;
@@ -200,11 +129,8 @@ pub(crate) async fn migrate_mysql(pool: &sqlx::MySqlPool) -> Result<()> {
             .await?;
     check_schema_version(max_version)?;
     let current = max_version.unwrap_or(0);
-    if current < 1 {
+    if current == 0 {
         apply_mysql_v1(pool).await?;
-    }
-    if current < 2 {
-        apply_mysql_v2(pool).await?;
     }
     Ok(())
 }
@@ -213,7 +139,8 @@ pub(crate) async fn migrate_mysql(pool: &sqlx::MySqlPool) -> Result<()> {
 async fn apply_mysql_v1(pool: &sqlx::MySqlPool) -> Result<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
-            username     VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin PRIMARY KEY,
+            id           VARCHAR(64) PRIMARY KEY,
+            username     VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin UNIQUE NOT NULL,
             bcrypt_hash  TEXT NOT NULL
         )",
     )
@@ -222,13 +149,15 @@ async fn apply_mysql_v1(pool: &sqlx::MySqlPool) -> Result<()> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS tokens (
             token_hash      CHAR(64) PRIMARY KEY,
-            username        VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+            user_id         VARCHAR(64) NOT NULL,
             created_at      BIGINT NOT NULL,
             last_used_at    BIGINT NOT NULL,
             readonly        SMALLINT NOT NULL DEFAULT 0,
             cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]',
             name            VARCHAR(255),
-            expires_at      BIGINT
+            expires_at      BIGINT,
+            scopes          TEXT,
+            kind            VARCHAR(64)
         )",
     )
     .execute(pool)
@@ -236,31 +165,7 @@ async fn apply_mysql_v1(pool: &sqlx::MySqlPool) -> Result<()> {
     create_token_index_mysql(pool).await?;
     sqlx::query(super::AUTH_COUNTERS_TABLE_SQL).execute(pool).await?;
     let now = unix_seconds() as i64;
-    sqlx::query("INSERT IGNORE INTO auth_schema_migrations (version, applied_at) VALUES (1, ?)")
-        .bind(now)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-#[cfg(feature = "backend-mysql")]
-async fn apply_mysql_v2(pool: &sqlx::MySqlPool) -> Result<()> {
-    add_column_if_missing_mysql(pool, "ALTER TABLE tokens ADD COLUMN name VARCHAR(255)").await?;
-    add_column_if_missing_mysql(pool, "ALTER TABLE tokens ADD COLUMN expires_at BIGINT").await?;
-    add_column_if_missing_mysql(pool, "ALTER TABLE tokens ADD COLUMN scopes TEXT").await?;
-    add_column_if_missing_mysql(pool, "ALTER TABLE tokens ADD COLUMN kind VARCHAR(64)").await?;
-    sqlx::query(
-        "ALTER TABLE users MODIFY username VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL",
-    )
-    .execute(pool)
-    .await?;
-    sqlx::query(
-        "ALTER TABLE tokens MODIFY username VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL",
-    )
-    .execute(pool)
-    .await?;
-    let now = unix_seconds() as i64;
-    sqlx::query("INSERT IGNORE INTO auth_schema_migrations (version, applied_at) VALUES (2, ?)")
+    sqlx::query("INSERT IGNORE INTO auth_schema_migrations (version, applied_at) VALUES (3, ?)")
         .bind(now)
         .execute(pool)
         .await?;
@@ -269,30 +174,12 @@ async fn apply_mysql_v2(pool: &sqlx::MySqlPool) -> Result<()> {
 
 #[cfg(feature = "backend-mysql")]
 async fn create_token_index_mysql(pool: &sqlx::MySqlPool) -> Result<()> {
-    let result =
-        sqlx::query("CREATE INDEX tokens_username ON tokens(username)").execute(pool).await;
+    let result = sqlx::query("CREATE INDEX tokens_user_id ON tokens(user_id)").execute(pool).await;
     match result {
         Ok(_) => Ok(()),
         Err(err) if is_duplicate_index_mysql(&err) => Ok(()),
         Err(err) => Err(err.into()),
     }
-}
-
-#[cfg(feature = "backend-mysql")]
-async fn add_column_if_missing_mysql(pool: &sqlx::MySqlPool, sql: &str) -> Result<()> {
-    let result = sqlx::query(sql).execute(pool).await;
-    match result {
-        Ok(_) => Ok(()),
-        Err(err) if is_duplicate_column_mysql(&err) => Ok(()),
-        Err(err) => Err(err.into()),
-    }
-}
-
-#[cfg(feature = "backend-mysql")]
-fn is_duplicate_column_mysql(err: &sqlx::Error) -> bool {
-    err.as_database_error()
-        .and_then(|err| err.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>())
-        .is_some_and(|err| err.number() == 1060)
 }
 
 #[cfg(feature = "backend-mysql")]

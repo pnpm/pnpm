@@ -1,51 +1,33 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
-//! User and token storage for the registry.
+//! Account identity, password credentials, and bearer tokens for the registry.
 //!
-//! Auth state is split into two record stores, each behind a narrow
-//! async trait so the backing store is config-selectable:
+//! Accounts have immutable IDs and mutable login names. Tokens reference IDs.
+//! [`UserStore`] persists native JSON account records; [`TokenStore`] persists
+//! token hashes in `SQLite`. Shared SQL backends store both tables together and
+//! join accounts on token lookups. [`AuthState::load`] selects the backend.
 //!
-//! * [`UserBackend`] — username → bcrypt-hashed password.
-//! * [`TokenBackend`] — SHA-256 token hash → token record.
-//!
-//! Implementations are picked at startup by
-//! [`AuthState::load`]:
-//!
-//! * [`UserStore`] / [`TokenStore`] — the local default. Users are an
-//!   Apache-style htpasswd file; tokens a `SQLite` database. Each keeps
-//!   a full mirror of its state in a `Mutex<...>` and persists on
-//!   every write, so reads (the hot path for `enforce_access`) never
-//!   touch disk. With no file configured both fall back to a pure
-//!   in-memory map (the `@pnpm/registry-mock` shape).
-//! * `backend.libsql`, `backend.postgres`, and `backend.mysql` —
-//!   shared SQL databases that store both records in one place, so
-//!   several stateless pnpr replicas observe a consistent set of users
-//!   and tokens. The on-disk htpasswd format doesn't network, so users
-//!   live in a `users` table here; the `tokens` table matches the local
-//!   schema.
-//!
-//! The raw token is only ever returned to the caller once on `issue`;
-//! only its SHA-256 hash hits storage, so a leak of the database
-//! doesn't grant access on its own.
+//! Raw tokens are returned once; only their SHA-256 hashes are stored.
 
 pub mod oidc;
 pub mod schema;
 pub(crate) mod validation;
 
 pub use htpasswd::{
-    is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt, write_atomic,
+    is_bcrypt_hash, is_sha_hash, lock_htpasswd, parse_htpasswd, parse_htpasswd_line, verify_bcrypt,
+    write_atomic,
 };
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
 pub use owned_tokens::OwnedTokens;
 pub use schema::CURRENT_SCHEMA_VERSION;
 pub use token_store::{NewToken, TokenRecord, TokenStore};
-pub use user_store::UserStore;
+pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
 
 mod htpasswd;
-use htpasswd::{dummy_verify, hash_bcrypt, serialize_htpasswd, verify_returning_user};
+use htpasswd::{dummy_verify, hash_bcrypt, verify_returning_user};
 
 mod token_store;
 use token_store::{fresh_secret, sha256_hex, unix_seconds};
@@ -110,6 +92,13 @@ pub struct AuthState {
     pub tokens: Arc<dyn TokenBackend>,
 }
 
+/// Public identity attributes of an active account.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserAccount {
+    pub id: String,
+    pub username: String,
+}
+
 /// The outcome of [`AuthState::put_user`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserPut {
@@ -139,26 +128,26 @@ impl AuthState {
         Self { users, tokens: Arc::new(tokens) }
     }
 
-    /// Revoke every token `username` holds. Returns how many were revoked.
-    pub async fn revoke_all_tokens(&self, username: &str) -> Result<usize> {
-        self.tokens.revoke_all_for_user(username).await
+    /// Revoke every token `user_id` holds. Returns how many were revoked.
+    pub async fn revoke_all_tokens(&self, user_id: &str) -> Result<usize> {
+        self.tokens.revoke_all_for_user(user_id).await
     }
 
-    /// Create `username` with `password`, or change the password of the
-    /// account that exists. Tokens a removed account left under the name are
-    /// revoked first, so they never reach the new account. `None` means
-    /// another writer removed the account between the two steps.
+    /// Create an account with `username`, or change the existing account
+    /// password. `None` means a concurrent writer removed the account.
     pub async fn put_user(&self, username: &str, password: &str) -> Result<Option<UserPut>> {
-        if self.users.password_hash(username).await?.is_none() {
-            self.revoke_all_tokens(username).await?;
-        }
         match self.users.create_user(username, password).await? {
             UserCreation::Created => Ok(Some(UserPut::Created)),
-            UserCreation::NameTaken => match self.users.set_password(username, password).await? {
-                PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged)),
-                // Another caller removed the user between the two calls.
-                PasswordChange::NoSuchUser => Ok(None),
-            },
+            UserCreation::NameTaken => {
+                let Some(id) = self.users.account_id(username).await? else {
+                    return Ok(None);
+                };
+                match self.users.set_password(&id, password).await? {
+                    PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged)),
+                    // Another caller removed the user between the two calls.
+                    PasswordChange::NoSuchUser => Ok(None),
+                }
+            }
         }
     }
 
@@ -172,7 +161,7 @@ impl AuthState {
     /// Build the auth state from the resolved config. A configured SQL
     /// backend backs both stores with one shared database; otherwise
     /// each local store is in-memory when its file path is unset and
-    /// file-backed otherwise. The fallible step (open the htpasswd /
+    /// file-backed otherwise. The fallible step (open the account /
     /// `SQLite` file, or connect to the configured DB and ensure its
     /// schema) runs here so a malformed file or an unreachable database
     /// surfaces as a startup error before the socket is bound.
@@ -198,7 +187,7 @@ impl AuthState {
     ) -> Result<Self> {
         #[cfg(feature = "backend-libsql")]
         {
-            let shared = Arc::new(LibsqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let shared = Arc::new(LibsqlAuth::connect(settings, auth.users.max_users).await?);
             let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
             let tokens: Arc<dyn TokenBackend> = shared;
             Ok(Self { users, tokens })
@@ -216,7 +205,7 @@ impl AuthState {
     ) -> Result<Self> {
         #[cfg(feature = "backend-postgres")]
         {
-            let shared = Arc::new(PostgresAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let shared = Arc::new(PostgresAuth::connect(settings, auth.users.max_users).await?);
             let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
             let tokens: Arc<dyn TokenBackend> = shared;
             Ok(Self { users, tokens })
@@ -234,7 +223,7 @@ impl AuthState {
     ) -> Result<Self> {
         #[cfg(feature = "backend-mysql")]
         {
-            let shared = Arc::new(MysqlAuth::connect(settings, auth.htpasswd.max_users).await?);
+            let shared = Arc::new(MysqlAuth::connect(settings, auth.users.max_users).await?);
             let users: Arc<dyn UserBackend> = Arc::clone(&shared) as Arc<dyn UserBackend>;
             let tokens: Arc<dyn TokenBackend> = shared;
             Ok(Self { users, tokens })
@@ -247,9 +236,9 @@ impl AuthState {
     }
 
     fn load_local(auth: &AuthConfig) -> Result<Self> {
-        let users = Arc::new(match auth.htpasswd.file.clone() {
-            Some(path) => UserStore::open(path, auth.htpasswd.max_users)?,
-            None => UserStore::in_memory_with_max_users(auth.htpasswd.max_users),
+        let users = Arc::new(match auth.users.file.clone() {
+            Some(path) => UserStore::open(path, auth.users.max_users)?,
+            None => UserStore::in_memory_with_max_users(auth.users.max_users),
         });
         let tokens = match auth.tokens.file.clone() {
             Some(path) => TokenStore::open(path)?,
@@ -271,14 +260,14 @@ fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
     }
 }
 
-/// Username + password record store. Clients reach it through
+/// Immutable account identities and their password credentials. Clients reach it through
 /// [`Self::add_or_login`] (npm `adduser` / `login`); the other operations
 /// back the admin API. pnpr does not verify Basic credentials on requests,
 /// so there is no per-request password check.
 #[async_trait]
 pub trait UserBackend: Send + Sync {
     /// Add a new user or verify a returning one. On success, returns
-    /// the outcome plus the canonical stored username to bind follow-up
+    /// the outcome plus the immutable account ID to bind follow-up
     /// token issuance to the same identity. A wrong password for an
     /// existing user is [`RegistryError::Unauthenticated`], and a new user
     /// past the registration cap is [`RegistryError::RegistrationDisabled`] /
@@ -286,24 +275,60 @@ pub trait UserBackend: Send + Sync {
     async fn add_or_login(&self, username: &str, password: &str)
     -> Result<(UpsertOutcome, String)>;
 
-    /// Every stored username, sorted.
+    /// Active account login names, sorted.
     async fn list_users(&self) -> Result<Vec<String>>;
 
-    /// The stored bcrypt hash of `username`, or `None` when there is no
-    /// such user. The hash is salted, so it differs for every account and
-    /// every password set: equal hashes mean the same account with the same
-    /// password.
+    /// Active account IDs and login names, sorted by login name.
+    async fn list_accounts(&self) -> Result<Vec<UserAccount>> {
+        let mut accounts = Vec::new();
+        for username in self.list_users().await? {
+            if let Some(id) = self.account_id(&username).await? {
+                accounts.push(UserAccount { id, username });
+            }
+        }
+        Ok(accounts)
+    }
+
+    /// Active accounts matching the requested immutable IDs. Missing IDs are omitted.
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<UserAccount>> {
+        let mut accounts = Vec::new();
+        for id in user_ids {
+            if let Some(username) = self.account_name(id).await? {
+                accounts.push(UserAccount { id: id.clone(), username });
+            }
+        }
+        Ok(accounts)
+    }
+
+    /// The credential hash of an active login name. Passwordless accounts
+    /// contain [`NO_PASSWORD_HASH`]; missing or deleted accounts return `None`.
     async fn password_hash(&self, username: &str) -> Result<Option<String>>;
 
     /// Create `username` on an administrator's behalf. Not bound by the
     /// self-registration cap.
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation>;
 
-    /// Replace the password of `username`.
-    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange>;
+    /// Replace the password of the account identified by `user_id`.
+    async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange>;
 
-    /// Remove `username`. The user's tokens are not touched.
-    async fn delete_user(&self, username: &str) -> Result<UserRemoval>;
+    /// Remove password credentials without changing the account ID or login name.
+    async fn clear_password(&self, user_id: &str) -> Result<PasswordChange>;
+
+    /// Disable the account identified by `user_id`, retaining its ID under a
+    /// generated deleted name and freeing its login name. Never reassign the ID.
+    async fn delete_user(&self, user_id: &str) -> Result<UserRemoval>;
+
+    /// Provision a passwordless account. A taken login name is a conflict.
+    async fn provision_user(&self, username: &str) -> Result<String>;
+
+    /// Resolve an active login name to its immutable account ID.
+    async fn account_id(&self, username: &str) -> Result<Option<String>>;
+
+    /// Resolve an active account ID to its current login name.
+    async fn account_name(&self, user_id: &str) -> Result<Option<String>>;
+
+    /// Change an account's login name without changing its ID or grants.
+    async fn rename_user(&self, user_id: &str, username: &str) -> Result<()>;
 
     /// Check that the user store backend is reachable and ready to process requests.
     async fn check_readiness(&self) -> Result<()> {
@@ -321,28 +346,28 @@ pub trait TokenBackend: Send + Sync {
         Ok(())
     }
 
-    /// Mint a fresh token for `username` with custom settings, persist its hash,
+    /// Mint a fresh token for `user_id` with custom settings, persist its hash,
     /// and return the raw token and the stored record.
     async fn issue_token(
         &self,
-        username: &str,
+        user_id: &str,
         new_token: NewToken,
     ) -> Result<(String, TokenRecord)>;
 
-    /// Mint a default read-write token for `username`, persist its hash, and return
+    /// Mint a default read-write token for `user_id`, persist its hash, and return
     /// the raw token. The raw token is never stored.
-    async fn issue(&self, username: &str) -> Result<String> {
-        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
+    async fn issue(&self, user_id: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(user_id, NewToken::default()).await?;
         Ok(raw)
     }
 
-    /// Resolve a raw token back to its username. `Ok(None)` means the
+    /// Resolve a raw token back to its account ID. `Ok(None)` means the
     /// token was never issued, was revoked, or expired; `Err` means the backing
     /// store failed — never conflate the two, or a store outage reads as
     /// "not authenticated".
     async fn lookup(&self, raw: &str) -> Result<Option<String>>;
 
-    /// Resolve a raw token to its full record — the username plus the
+    /// Resolve a raw token to its full record — the account ID plus the
     /// `readonly`, `cidr_whitelist`, and `expires_at` restrictions that
     /// [`Self::lookup`] drops. Returns `Ok(None)` for a token that was never
     /// issued, was revoked, or expired.
@@ -372,9 +397,9 @@ pub trait TokenBackend: Send + Sync {
     /// token; `Err` on a store failure.
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>>;
 
-    /// All tokens owned by `username`, as `(key, record)` pairs where
+    /// All tokens owned by `user_id`, as `(key, record)` pairs where
     /// `key` is the SHA-256 hex digest the listing endpoint surfaces.
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
+    async fn list_for_user(&self, user_id: &str) -> Result<Vec<(String, TokenRecord)>>;
 
     /// Remove a token by its key (the SHA-256 hex digest). Returns the
     /// deleted record so a higher layer can confirm the revocation.
@@ -387,10 +412,10 @@ pub trait TokenBackend: Send + Sync {
         self.revoke_by_key(&sha256_hex(raw.as_bytes())).await
     }
 
-    /// Remove every token `username` holds. Returns how many were removed.
-    async fn revoke_all_for_user(&self, username: &str) -> Result<usize> {
+    /// Remove every token `user_id` holds. Returns how many were removed.
+    async fn revoke_all_for_user(&self, user_id: &str) -> Result<usize> {
         let mut revoked = 0;
-        for (key, _) in &self.list_for_user(username).await? {
+        for (key, _) in &self.list_for_user(user_id).await? {
             if self.revoke_by_key(key).await?.is_some() {
                 revoked += 1;
             }
@@ -434,7 +459,7 @@ pub enum PasswordChange {
     NoSuchUser,
 }
 
-/// What [`UserBackend::delete_user`] did.
+/// The outcome of removing an account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserRemoval {
     /// The account is gone.
@@ -443,12 +468,11 @@ pub enum UserRemoval {
     NoSuchUser,
 }
 
-/// `users` table DDL — only shared-database backends need it, since
-/// the local backend keeps users in an htpasswd file. One bcrypt hash
-/// per username, the same `$2y$...` string the htpasswd file would hold.
+/// SQL account records, keyed by immutable ID.
 #[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
 pub(crate) const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
-    username     VARCHAR(255) PRIMARY KEY,
+    id           VARCHAR(64) PRIMARY KEY,
+    username     VARCHAR(255) UNIQUE NOT NULL,
     bcrypt_hash  TEXT NOT NULL
 )";
 
@@ -459,4 +483,18 @@ pub(crate) const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS aut
 )";
 
 #[cfg(test)]
+mod retirement_tests;
+#[cfg(test)]
 mod tests;
+
+/// A deleted account credential that cannot authenticate.
+pub const DELETED_USER_HASH: &str = "!";
+
+/// Generate an opaque identity independently of any reusable name.
+#[must_use]
+pub fn new_principal_id() -> String {
+    sha256_hex(&fresh_secret())
+}
+
+/// An account whose credentials are managed by an identity provider.
+pub const NO_PASSWORD_HASH: &str = "*";
