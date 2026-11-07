@@ -96,6 +96,14 @@ fn acquire_ordered_locks_slots_in_path_order_and_deduplicates_keys() {
 }
 
 #[test]
+fn nested_install_recognizes_a_slot_held_by_its_parent_build() {
+    let slot_path = std::path::Path::new("/store/links/pkg/1.0.0/hash");
+
+    assert!(super::slot_lock_is_inherited(slot_path, "/store/links/pkg/1.0.0/hash",));
+    assert!(!super::slot_lock_is_inherited(slot_path, "/store/links/pkg/1.0.0/other-hash",));
+}
+
+#[test]
 fn existing_slot_acquisition_rejects_the_empty_parent_left_by_prune() {
     let root = tempdir().expect("temporary slot root");
     let slot_path = root.path().join("slot");

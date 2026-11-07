@@ -17,6 +17,7 @@ const WAIT: Duration = Duration::from_mins(10);
 /// Comfortably above how long a build can legitimately take, so a holder
 /// that cannot prove it is alive never has its lock stolen mid-build.
 const ABANDONED_AFTER: Duration = Duration::from_mins(30);
+pub const GVS_LOCKED_SLOT_PATHS_ENV: &str = "PNPM_GVS_LOCKED_SLOT_PATHS";
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Failed to lock global virtual store slot for {dep_path}: {source}")]
@@ -95,7 +96,7 @@ impl GlobalVirtualStoreSlot {
     ) -> Result<Vec<Self>, GvsSlotLockError> {
         let mut keys = keys.into_iter().collect::<Vec<_>>();
         keys.sort_by_key(|key| layout.slot_dir(key));
-        keys.dedup();
+        keys.dedup_by(|left, right| layout.slot_dir(left) == layout.slot_dir(right));
         let mut slots = Vec::with_capacity(keys.len());
         for key in keys {
             if let Some(slot) = Self::acquire(layout, &key)? {
@@ -111,7 +112,7 @@ impl GlobalVirtualStoreSlot {
     ) -> Result<Vec<Self>, GvsSlotLockError> {
         let mut keys = keys.into_iter().collect::<Vec<_>>();
         keys.sort_by_key(|key| layout.slot_dir(key));
-        keys.dedup();
+        keys.dedup_by(|left, right| layout.slot_dir(left) == layout.slot_dir(right));
         let mut slots = Vec::with_capacity(keys.len());
         for key in keys {
             if let Some(slot) = Self::acquire_existing(layout, &key)? {
@@ -191,6 +192,15 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn acquire_path(path: PathBuf, key: &PackageKey) -> Result<Self, GvsSlotLockError> {
+        if inherited_slot_locks().iter().any(|locked| slot_lock_is_inherited(&path, locked)) {
+            return Err(GvsSlotLockError {
+                dep_path: key.to_string(),
+                source: io::Error::new(
+                    io::ErrorKind::WouldBlock,
+                    "a nested install cannot wait on a slot held by its parent build",
+                ),
+            });
+        }
         let lock = DirLock::acquire_waiting(&path.join(SLOT_LOCK_DIR), WAIT, ABANDONED_AFTER)
             .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?;
         Ok(Self::from_path(path, key, Some(lock)))
@@ -366,6 +376,17 @@ impl GlobalVirtualStoreSlot {
         }
         Ok(true)
     }
+}
+
+fn inherited_slot_locks() -> Vec<String> {
+    let Ok(value) = std::env::var(GVS_LOCKED_SLOT_PATHS_ENV) else {
+        return Vec::new();
+    };
+    serde_json::from_str(&value).unwrap_or_default()
+}
+
+fn slot_lock_is_inherited(path: &std::path::Path, inherited_path: &str) -> bool {
+    std::path::Path::new(inherited_path) == path
 }
 
 #[cfg(test)]

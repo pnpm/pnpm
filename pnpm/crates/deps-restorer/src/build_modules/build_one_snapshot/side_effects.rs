@@ -251,7 +251,9 @@ fn lock_slot_missing_overlay(
     snapshot_key: &PackageKey,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> Result<Option<Option<crate::GlobalVirtualStoreSlot>>, BuildModulesError> {
-    let slot = if context.directories.layout.enable_global_virtual_store() {
+    let slot = if context.directories.layout.enable_global_virtual_store()
+        && context.directories.pkg_roots_by_key.is_none()
+    {
         crate::GlobalVirtualStoreSlot::acquire(context.directories.layout, snapshot_key)
             .map_err(BuildModulesError::SlotLock)?
     } else {
@@ -268,6 +270,9 @@ fn frozen_store_slot_carries_overlay(
     snapshot_key: &PackageKey,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> Result<bool, BuildModulesError> {
+    if context.directories.pkg_roots_by_key.is_some() {
+        return Ok(false);
+    }
     let slot =
         crate::GlobalVirtualStoreSlot::acquire_existing(context.directories.layout, snapshot_key)
             .map_err(BuildModulesError::SlotLock)?;

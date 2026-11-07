@@ -48,6 +48,7 @@ pub(super) fn run_scripts_in_every_copy<Reporter: self::Reporter>(
             &dir,
             &extra_bin_paths,
             slot_lock,
+            bin_slot_locks,
             run,
         )?
         else {
@@ -66,6 +67,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
     slot_lock: Option<&crate::GlobalVirtualStoreSlot>,
+    bin_slot_locks: &[&crate::GlobalVirtualStoreSlot],
     run: &ScriptRun<'_>,
 ) -> Result<Option<bool>, BuildModulesError> {
     let result = run_candidate_hooks::<Reporter>(
@@ -73,6 +75,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
         snapshot_key,
         pkg_dir,
         extra_bin_paths,
+        bin_slot_locks,
         run.optional,
     );
     match result {
@@ -113,8 +116,29 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
     snapshot_key: &PackageKey,
     pkg_dir: &Path,
     extra_bin_paths: &[PathBuf],
+    bin_slot_locks: &[&crate::GlobalVirtualStoreSlot],
     optional: bool,
 ) -> Result<bool, pnpm_executor::LifecycleScriptError> {
+    let mut extra_env = (*context.scripts.extra_env).clone();
+    let mut held_paths = std::env::var(crate::GVS_LOCKED_SLOT_PATHS_ENV)
+        .ok()
+        .and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
+        .unwrap_or_default();
+    held_paths.extend(
+        bin_slot_locks
+            .iter()
+            .map(|slot| {
+                slot.path()
+                    .to_string_lossy()
+                    .into_owned()
+            }),
+    );
+    held_paths.sort();
+    held_paths.dedup();
+    extra_env.insert(
+        crate::GVS_LOCKED_SLOT_PATHS_ENV.to_string(),
+        serde_json::to_string(&held_paths).expect("slot paths serialize to JSON"),
+    );
     run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: context.directories.lockfile_dir,
@@ -122,7 +146,7 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
             npm_execpath: None,
             node_gyp_path: pnpm_executor::bundled_node_gyp_entry(),
             user_agent: Some(context.scripts.user_agent),
-            extra_env: context.scripts.extra_env,
+            extra_env: &extra_env,
         },
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths,

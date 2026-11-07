@@ -3,8 +3,8 @@ pub(crate) mod linked_archives;
 pub use cache_keys::lookup_known_bins;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use gvs_slot_lock::{
-    BuildRequirement, GlobalVirtualStoreSlot, GlobalVirtualStoreSlotPhase,
-    GlobalVirtualStoreSlotState, GvsSlotLockError,
+    BuildRequirement, GVS_LOCKED_SLOT_PATHS_ENV, GlobalVirtualStoreSlot,
+    GlobalVirtualStoreSlotPhase, GlobalVirtualStoreSlotState, GvsSlotLockError,
 };
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 

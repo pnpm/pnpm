@@ -86,6 +86,7 @@ pub enum CreateVirtualDirError {
     SlotLock(#[error(source)] crate::GvsSlotLockError),
 
     #[display("Failed to read global virtual store slot state at {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_READ_GVS_SLOT_STATE))]
     ReadSlotState {
         path: PathBuf,
         #[error(source)]
@@ -93,6 +94,7 @@ pub enum CreateVirtualDirError {
     },
 
     #[display("Failed to read the build marker at {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_READ_BUILD_MARKER))]
     ReadBuildMarker {
         path: PathBuf,
         #[error(source)]
@@ -100,6 +102,7 @@ pub enum CreateVirtualDirError {
     },
 
     #[display("Failed to update global virtual store slot state at {path:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_GVS_SLOT_STATE))]
     WriteSlotState {
         path: PathBuf,
         #[error(source)]

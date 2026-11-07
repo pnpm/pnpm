@@ -408,7 +408,9 @@ fn lock_bin_slots(
         .collect();
     slot_keys.push(slot_key.clone());
     slot_keys.sort_by_key(|key| context.layout.slot_dir(key));
-    slot_keys.dedup();
+    slot_keys.dedup_by(|left, right| {
+        context.layout.slot_dir(left) == context.layout.slot_dir(right)
+    });
     slot_keys
         .iter()
         .map(|key| {
