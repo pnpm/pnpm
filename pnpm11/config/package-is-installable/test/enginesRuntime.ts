@@ -19,3 +19,15 @@ test('leaves named runtime selectors to the shared Node.js version', () => {
     engines: { node: '>=24' },
   })).toBeUndefined()
 })
+
+test('uses engines.runtime when devEngines.runtime has no version', () => {
+  expect(getDownloadedNodeVersionFromEnginesRuntime({
+    devEngines: {
+      runtime: { name: 'node', onFail: 'download' },
+    },
+    engines: {
+      runtime: { name: 'node', version: '24.3.0', onFail: 'download' },
+      node: '>=24',
+    },
+  })).toBe('24.3.0')
+})

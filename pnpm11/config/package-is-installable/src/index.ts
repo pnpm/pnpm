@@ -46,7 +46,7 @@ function findNodeRuntime (manifest: ProjectManifest): { name: string, version?: 
   for (const runtime of [manifest.devEngines?.runtime, manifest.engines?.runtime]) {
     const runtimes = runtime == null ? [] : Array.isArray(runtime) ? runtime : [runtime]
     const nodeRuntime = runtimes.find((entry) => entry.name === 'node')
-    if (nodeRuntime != null) return nodeRuntime
+    if (typeof nodeRuntime?.version === 'string') return nodeRuntime
   }
   return undefined
 }
