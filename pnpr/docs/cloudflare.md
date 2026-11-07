@@ -176,20 +176,27 @@ export class PnprContainer extends Container<Env> {
   // Wait longer than the library's default for a cold start, so the first
   // request after a sleep gets an answer instead of a 500.
   override async fetch(request: Request): Promise<Response> {
-    if (!this.ctx.container?.running) {
-      try {
+    try {
+      if (!this.ctx.container?.running) {
         await this.startAndWaitForPorts(7677, {
           instanceGetTimeoutMS: 120_000,
           portReadyTimeoutMS: 180_000,
           abort: request.signal,
         });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return new Response(`pnpr is starting, retry shortly (${message})\n`, { status: 503 });
       }
+      return await super.fetch(request);
+    } catch (error) {
+      return unavailable(error);
     }
-    return super.fetch(request);
   }
+}
+
+function unavailable(error: unknown): Response {
+  console.error("Registry request failed", error);
+  return new Response("Registry temporarily unavailable, retry shortly\n", {
+    status: 503,
+    headers: { "Retry-After": "5" },
+  });
 }
 
 export default {
@@ -204,15 +211,19 @@ export default {
     headers.set("accept-encoding", "zstd, gzip");
     headers.delete("x-forwarded-for");
     headers.set("x-real-ip", request.headers.get("cf-connecting-ip") ?? "");
-    const response = await getContainer(env.PNPR, "pnpr").fetch(
-      new Request(request, { headers }),
-    );
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-      encodeBody: "manual",
-    });
+    try {
+      const response = await getContainer(env.PNPR, "pnpr").fetch(
+        new Request(request, { headers }),
+      );
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        encodeBody: "manual",
+      });
+    } catch (error) {
+      return unavailable(error);
+    }
   },
 };
 ```

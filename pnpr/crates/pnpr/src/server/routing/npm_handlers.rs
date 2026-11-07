@@ -407,7 +407,9 @@ async fn unpublish_version_tarball(
     raw_name: &str,
     version: &str,
 ) -> Response {
-    if super::super::revision_tarballs::parse_revision_version(version).is_some() {
+    if super::super::publishing::is_valid_semver(version)
+        && super::super::revision_tarballs::parse_revision_version(version).is_some()
+    {
         return not_found();
     }
     let canonical = match CanonicalPackageName::parse(raw_name, Ecosystem::Npm) {

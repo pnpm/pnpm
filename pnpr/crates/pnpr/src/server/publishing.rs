@@ -291,6 +291,11 @@ pub(super) fn check_body_versions(incoming: &Value) -> Result<(), RegistryError>
                 reason: format!("version key {version_key:?} is not valid semver"),
             });
         }
+        if version_key.contains('+') {
+            return Err(RegistryError::BadRequest {
+                reason: format!("cannot publish version {version_key:?} with build metadata"),
+            });
+        }
         let manifest_version = manifest.get("version").and_then(Value::as_str);
         let Some(manifest_version) = manifest_version else {
             return Err(RegistryError::BadRequest {
@@ -311,7 +316,7 @@ pub(super) fn check_body_versions(incoming: &Value) -> Result<(), RegistryError>
 /// Whether `raw` is a version npm clients can install: strict `SemVer` 2.0,
 /// as the `semver` crate parses it for Cargo publishes, within the length and
 /// integer limits of the npm parser pnpr reads stored versions with.
-fn is_valid_semver(raw: &str) -> bool {
+pub(super) fn is_valid_semver(raw: &str) -> bool {
     semver::Version::parse(raw).is_ok() && node_semver::Version::parse(raw).is_ok()
 }
 
