@@ -93,6 +93,7 @@ Every request routes through the registry graph:
   as `<registry>/<name>@<version>` and stay canonical for the base the client
   addressed (`/npm/` or `/npm/~<name>/`), so lockfiles don't bake in a
   registry name.
+- Full package metadata omits `access` when its value is `null`.
 
 ## pnpr protocol endpoints
 

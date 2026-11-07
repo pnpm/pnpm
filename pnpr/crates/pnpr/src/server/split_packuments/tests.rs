@@ -227,12 +227,24 @@ fn a_release_record_leaves_out_what_may_change() {
 #[test]
 fn npm_documents_carry_no_pnpr_facts() {
     let mut doc = packument();
+    doc["formatVersion"] = json!(1);
+    doc["access"] = Value::Null;
     doc["versions"]["1.0.0"]["dist"]["revision"] = json!(1);
     doc["versions"]["1.0.0"]["dist"]["revisions"] = json!([]);
     without_pnpr_facts_in(&mut doc);
+    assert!(doc.get("formatVersion").is_none());
+    assert!(doc.get("access").is_none());
     let dist = &doc["versions"]["1.0.0"]["dist"];
     for omitted in ["pnpr", "revision", "revisions"] {
         assert!(dist.get(omitted).is_none(), "{omitted}");
     }
     assert_eq!(dist["integrity"], json!("sha512-d"));
+}
+
+#[test]
+fn npm_documents_preserve_explicit_access() {
+    let mut doc = packument();
+    doc["access"] = json!("public");
+    without_pnpr_facts_in(&mut doc);
+    assert_eq!(doc["access"], json!("public"));
 }
