@@ -19,10 +19,11 @@ mod injected_workspace;
 mod linked_workspace;
 mod unlocked_deps;
 
+mod revision_auth;
 mod server_config;
 use server_config::{
     PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
-    cold_revision_mock_command, distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth,
+    cold_revision_mock_command, distinct_public_route_registries, mint_pnpr_token,
     serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
 };
 

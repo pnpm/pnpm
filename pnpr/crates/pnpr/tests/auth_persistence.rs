@@ -225,11 +225,9 @@ async fn corrupt_htpasswd_fails_startup_with_diagnostic() {
     );
 }
 
-/// htpasswd file produced by pnpr is readable by Apache's `htpasswd
-/// -v` — cross-tool compatibility. Skipped silently when the host
-/// doesn't have htpasswd installed (some CI images don't).
+/// Stored bcrypt hashes can be verified by Apache when its htpasswd tool is installed.
 #[tokio::test]
-async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
+async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
     if Command::new("htpasswd")
         .arg("-h")
         .output()
@@ -241,11 +239,12 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
 
     let auth_dir = TempDir::new().unwrap();
     let storage = TempDir::new().unwrap();
-    let htpasswd = auth_dir.path().join("htpasswd");
+    let users_file = auth_dir.path().join("users.json");
+    let htpasswd = auth_dir.path().join("apache-htpasswd");
 
     let config = persistent_config(
         storage.path().to_path_buf(),
-        htpasswd.clone(),
+        users_file.clone(),
         auth_dir.path().join("tokens.db"),
     );
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
@@ -258,6 +257,11 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
+
+    let accounts: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(users_file).unwrap()).unwrap();
+    let hash = accounts["alice"]["password_hash"].as_str().unwrap();
+    std::fs::write(&htpasswd, format!("alice:{hash}\n")).unwrap();
 
     // `htpasswd -v` (verify-only) exits 0 when the password matches.
     let status = Command::new("htpasswd")
