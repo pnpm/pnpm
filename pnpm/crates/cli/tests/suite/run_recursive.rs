@@ -42,6 +42,36 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     }
 }
 
+#[test]
+fn recursive_run_checks_node_engines_against_each_projects_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[(
+            "project-1",
+            json!({
+                "name": "project-1",
+                "engines": { "node": ">=99.0.0" },
+                "devEngines": { "runtime": { "name": "node", "version": "99.0.0" } },
+                "scripts": { "test": "node -e \"process.stdout.write('ok')\"" },
+            }),
+        )],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-1\nengineStrict: true\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet
+        .with_args(["run", "-r", "test"])
+        .output()
+        .expect("run recursive script");
+
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    drop(root);
+}
+
 /// Place a runnable `name` in `bin_dir` whose program is the Node source
 /// `body`, standing in for an installed dependency's bin on `PATH`.
 ///

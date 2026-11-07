@@ -26,7 +26,11 @@ pub(super) fn check_from_files(
             bin_projects: None,
         },
     )?;
-    Ok(CoveredProjects::of(workspace_projects.as_ref().map(Vec::len), &project_manifests))
+    Ok(CoveredProjects::of(
+        workspace_projects.as_ref().map(Vec::len),
+        &project_manifests,
+        check.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ))
 }
 
 /// [`crate::install::load_checked_workspace_projects`] inside the

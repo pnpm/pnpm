@@ -3,7 +3,7 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-version'
-import type { SupportedArchitectures } from '@pnpm/types'
+import type { ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 import semver from 'semver'
 
 import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine.js'
@@ -14,16 +14,15 @@ export type { Engine } from './checkEngine.js'
 export type { Platform, WantedPlatform } from './checkPlatform.js'
 export { inferPlatformFromPackageName } from './inferPlatformFromPackageName.js'
 
-export function getNodeVersionFromEnginesRuntime (manifest: {
-  devEngines?: { runtime?: { name?: string, version?: string, onFail?: string } | Array<{ name?: string, version?: string, onFail?: string }> }
-  engines?: { runtime?: { name?: string, version?: string, onFail?: string } | Array<{ name?: string, version?: string, onFail?: string }> }
-}): string | undefined {
+export function getNodeVersionFromEnginesRuntime (manifest: ProjectManifest, runtimeOnFail?: string): string | undefined {
   for (const runtime of [manifest.devEngines?.runtime, manifest.engines?.runtime]) {
     const runtimes = runtime == null ? [] : Array.isArray(runtime) ? runtime : [runtime]
     const nodeRuntime = runtimes.find((entry) => entry.name === 'node')
-    if (typeof nodeRuntime?.version !== 'string' || !semver.validRange(nodeRuntime.version)) continue
-    if (nodeRuntime.onFail !== 'download') return semver.valid(nodeRuntime.version) ?? undefined
-    return semver.minVersion(nodeRuntime.version)?.version
+    if (typeof nodeRuntime?.version !== 'string') continue
+    const version = nodeRuntime.version.trim()
+    if (!semver.validRange(version)) continue
+    if ((runtimeOnFail ?? nodeRuntime.onFail) !== 'download') return semver.valid(version) ?? undefined
+    return semver.minVersion(version)?.version
   }
   return undefined
 }

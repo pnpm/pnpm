@@ -65,7 +65,11 @@ pub(super) fn check_from_records(
         return RecordsCheck::Undecided(Some(listed));
     }
     tracing::debug!(target: "pacquet::install", "the recorded manifests decided the install");
-    RecordsCheck::UpToDate(CoveredProjects::of(Some(stand_ins.projects.len()), &project_manifests))
+    RecordsCheck::UpToDate(CoveredProjects::of(
+        Some(stand_ins.projects.len()),
+        &project_manifests,
+        check.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ))
 }
 
 /// The workspace a check lists projects in.

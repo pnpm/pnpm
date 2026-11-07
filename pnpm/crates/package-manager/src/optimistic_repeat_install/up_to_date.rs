@@ -31,7 +31,6 @@ use pnpm_config::{Config, NodeLinker};
 use pnpm_executor::PROJECT_LIFECYCLE_STAGES;
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_is_installable::PackageInstallabilityManifest;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace_state::{WorkspaceState, load_workspace_state};
 use std::path::{Path, PathBuf};
@@ -61,7 +60,7 @@ pub struct UpToDateWorkspace {
     /// What each covered project requires of the host, per
     /// [`pnpm_deps_restorer::project_host_requirements`], by project
     /// directory. A project that requires nothing is left out.
-    pub host_requirements: Vec<(PathBuf, PackageInstallabilityManifest)>,
+    pub host_requirements: Vec<(PathBuf, pnpm_deps_restorer::ProjectHostRequirements)>,
 }
 
 /// The projects a check found up to date.
@@ -69,18 +68,19 @@ struct CoveredProjects {
     /// See [`UpToDateWorkspace::project_count`].
     count: Option<usize>,
     /// See [`UpToDateWorkspace::host_requirements`].
-    host_requirements: Vec<(PathBuf, PackageInstallabilityManifest)>,
+    host_requirements: Vec<(PathBuf, pnpm_deps_restorer::ProjectHostRequirements)>,
 }
 
 impl CoveredProjects {
     fn new<'a>(
         count: Option<usize>,
         manifests: impl IntoIterator<Item = (&'a Path, &'a PackageManifest)>,
+        runtime_on_fail: Option<&str>,
     ) -> Self {
         let host_requirements = manifests
             .into_iter()
             .filter_map(|(root_dir, manifest)| {
-                pnpm_deps_restorer::project_host_requirements(manifest.value())
+                pnpm_deps_restorer::project_host_requirements(manifest.value(), runtime_on_fail)
                     .map(|requirements| (root_dir.to_path_buf(), requirements))
             })
             .collect();
@@ -95,12 +95,17 @@ impl CoveredProjects {
         }
     }
 
-    fn of(count: Option<usize>, manifests: &[(PathBuf, &PackageManifest)]) -> Self {
+    fn of(
+        count: Option<usize>,
+        manifests: &[(PathBuf, &PackageManifest)],
+        runtime_on_fail: Option<&str>,
+    ) -> Self {
         Self::new(
             count,
             manifests
                 .iter()
                 .map(|(root_dir, manifest)| (root_dir.as_path(), *manifest)),
+            runtime_on_fail,
         )
     }
 }

@@ -128,6 +128,8 @@ function createProjectsFilterOptions (config: Config, wsDir: string): Parameters
     catalogs: config.catalogs,
     engineStrict: config.engineStrict,
     nodeVersion: config.nodeVersion,
+    nodeVersionFromEnginesRuntime: config.nodeVersionFromEnginesRuntime,
+    runtimeOnFail: config.runtimeOnFail,
     patterns: config.workspacePackagePatterns,
     modulesDir: config.modulesDir,
     modulesDirsByProjectName: config.modulesDirsByProjectName,

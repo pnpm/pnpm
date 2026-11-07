@@ -62,7 +62,12 @@ pub fn install_already_up_to_date_per_project(
     let manifests = projects
         .iter()
         .map(|project| (project.root_dir.as_path(), &project.manifest));
-    Ok(CoveredProjects::new(Some(projects.len()), manifests).into_workspace(workspace_root.clone()))
+    Ok(CoveredProjects::new(
+        Some(projects.len()),
+        manifests,
+        check.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    )
+    .into_workspace(workspace_root.clone()))
 }
 
 /// The configuration that keeps the per-project fast path off.

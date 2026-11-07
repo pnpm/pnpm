@@ -11,7 +11,6 @@ use pnpm_config::{Config, PNPM_VERSION};
 use pnpm_package_is_installable::{
     InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest, check_package,
 };
-use pnpm_package_manifest::node_version_from_engines_runtime;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_workspace::Project;
 use std::{
@@ -63,37 +62,35 @@ impl<'a> ProjectHost<'a> {
     pub(crate) fn check(
         &self,
         project_dir: &Path,
-        requirements: &PackageInstallabilityManifest,
+        requirements: &pnpm_deps_restorer::ProjectHostRequirements,
     ) -> Result<Vec<LogEvent>, InitStateError> {
         let engines = PackageInstallabilityManifest {
-            engines: requirements.engines.clone(),
+            engines: requirements.installability.engines.clone(),
             ..PackageInstallabilityManifest::default()
         };
-        let platform = PackageInstallabilityManifest { engines: None, ..requirements.clone() };
+        let platform =
+            PackageInstallabilityManifest { engines: None, ..requirements.installability.clone() };
         [engines, platform]
             .iter()
-            .filter_map(|part| self.check_part(project_dir, part).transpose())
+            .filter_map(|part| self.check_part(project_dir, requirements, part).transpose())
             .collect()
     }
 
     fn check_part(
         &self,
         project_dir: &Path,
+        host_requirements: &pnpm_deps_restorer::ProjectHostRequirements,
         requirements: &PackageInstallabilityManifest,
     ) -> Result<Option<LogEvent>, InitStateError> {
         let wanted_engine = requirements.engines.as_ref();
-        let project_node_version = if self.config.node_version.is_none()
+        let project_node_version = self.config.node_version.is_none()
             && !self.config.skip_runtimes
-            && wanted_engine.and_then(|engine| engine.node.as_ref()).is_some()
-        {
-            pnpm_workspace::try_read_project_manifest(project_dir)
-                .map_err(InitStateError::ManifestRead)?
-                .and_then(|(_, manifest)| node_version_from_engines_runtime(manifest.value()))
-        } else {
-            None
-        };
+            && wanted_engine.and_then(|engine| engine.node.as_ref()).is_some();
         let node_version = match wanted_engine.and_then(|engine| engine.node.as_ref()) {
-            Some(_) => project_node_version.as_deref().unwrap_or_else(|| self.node_version()),
+            Some(_) if project_node_version => {
+                host_requirements.node_version.as_deref().unwrap_or_else(|| self.node_version())
+            }
+            Some(_) => self.node_version(),
             None => "",
         };
         let pnpm_version =
@@ -124,7 +121,7 @@ impl<'a> ProjectHost<'a> {
     /// the warnings to emit, so that a run that fails emits none.
     pub(crate) fn check_projects(
         &self,
-        projects: &[(PathBuf, PackageInstallabilityManifest)],
+        projects: &[(PathBuf, pnpm_deps_restorer::ProjectHostRequirements)],
     ) -> Result<Vec<LogEvent>, InitStateError> {
         let root_dir = pnpm_fs::lexical_normalize(self.root_dir);
         self.check_each(

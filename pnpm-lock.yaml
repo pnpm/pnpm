@@ -2757,6 +2757,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../matcher
+      '@pnpm/config.package-is-installable':
+        specifier: workspace:*
+        version: link:../package-is-installable
       '@pnpm/config.registry-auth-key':
         specifier: workspace:*
         version: link:../registry-auth-key

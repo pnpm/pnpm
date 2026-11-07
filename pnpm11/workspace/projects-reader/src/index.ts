@@ -34,6 +34,8 @@ export interface FindWorkspaceProjectsOpts {
 
   engineStrict?: boolean
   nodeVersion?: string
+  nodeVersionFromEnginesRuntime?: boolean
+  runtimeOnFail?: 'download' | 'error' | 'warn' | 'ignore'
   sharedWorkspaceLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
 }
@@ -46,7 +48,7 @@ export async function findWorkspaceProjects (
   for (const project of projects) {
     packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
-      nodeVersion: opts?.nodeVersion ?? getNodeVersionFromEnginesRuntime(project.manifest),
+      nodeVersion: getProjectNodeVersion(project.manifest, opts),
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
@@ -70,7 +72,7 @@ export function findWorkspaceProjectsSync (
   for (const project of projects) {
     packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
-      nodeVersion: opts?.nodeVersion ?? getNodeVersionFromEnginesRuntime(project.manifest),
+      nodeVersion: getProjectNodeVersion(project.manifest, opts),
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
@@ -83,6 +85,16 @@ export function findWorkspaceProjectsSync (
   }
 
   return projects
+}
+
+function getProjectNodeVersion (
+  manifest: ProjectManifest,
+  opts?: Pick<FindWorkspaceProjectsOpts, 'nodeVersion' | 'nodeVersionFromEnginesRuntime' | 'runtimeOnFail'>
+): string | undefined {
+  const projectRuntime = getNodeVersionFromEnginesRuntime(manifest, opts?.runtimeOnFail)
+  return opts?.nodeVersionFromEnginesRuntime
+    ? projectRuntime ?? opts.nodeVersion
+    : opts?.nodeVersion ?? projectRuntime
 }
 
 type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir' | 'modulesDirsByProjectName'>

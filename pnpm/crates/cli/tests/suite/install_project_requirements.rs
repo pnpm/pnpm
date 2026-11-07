@@ -107,13 +107,16 @@ fn engine_strict_rejects_a_workspace_project_node_mismatch() {
 #[test]
 fn a_workspace_project_checks_node_engines_against_its_runtime() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\n")
-        .expect("write workspace settings");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "engineStrict: true\nruntimeOnFail: download\n",
+    )
+    .expect("write workspace settings");
     write_workspace(
         &workspace,
         &serde_json::json!({
             "engines": { "node": ">=99.0.0" },
-            "devEngines": { "runtime": { "name": "node", "version": "99.0.0" } },
+            "devEngines": { "runtime": { "name": "node", "version": "^99.0.0" } },
         }),
     );
 

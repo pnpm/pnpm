@@ -175,6 +175,37 @@ fn recursive_exec_runs_command_in_every_project() {
     drop(root);
 }
 
+#[test]
+fn recursive_exec_checks_node_engines_against_each_projects_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-1\nengineStrict: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+            "devEngines": { "runtime": { "name": "node", "version": "99.0.0" } },
+        })
+        .to_string(),
+    )
+    .expect("write project manifest");
+
+    pacquet
+        .with_args(["exec", "-r"])
+        .with_args(marker_args("runtime.txt"))
+        .assert()
+        .success();
+
+    assert!(workspace.join("project-1/runtime.txt").exists());
+    drop(root);
+}
+
 /// pnpm's own options are parsed up to the command name, so `-r` after the
 /// `exec` keyword still selects every project rather than reaching the
 /// command.
