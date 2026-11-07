@@ -25,6 +25,13 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
     Ok(canonical)
 }
 
+/// Whether `path` is on a network share: a UNC path, or a path on a drive
+/// letter mapped to a share.
+#[cfg(windows)]
+pub(crate) fn is_on_network_drive(path: &Path) -> bool {
+    is_unc_path(path) || drive_letter(path).is_some_and(|drive| mapped_drive(drive).is_some())
+}
+
 #[cfg(windows)]
 fn is_unc_path(path: &Path) -> bool {
     use std::path::Prefix;

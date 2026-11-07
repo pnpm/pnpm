@@ -1,3 +1,4 @@
+use derive_more::{Display, Error};
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -38,6 +39,36 @@ pub(super) fn create_with_contents(
     contents: &Path,
     link: &Path,
 ) -> io::Result<()> {
+    create_link(original, contents, link)
+        .map_err(|error| explain_network_share_refusal(link, error))
+}
+
+/// A link on a network share that the share refused. Many SMB servers,
+/// Windows ones included, deny both the symlink and the junction, and
+/// pnpm 11 fails there in the same way. The refusal stays reachable as
+/// the source.
+#[derive(Debug, Display, Error)]
+#[display(
+    "The network share refused the link. Windows file shares often refuse junctions and \
+     symlinks. Set `nodeLinker: hoisted` in pnpm-workspace.yaml to copy dependencies into \
+     node_modules instead of linking them, or move the project to a local drive."
+)]
+pub(super) struct NetworkShareLinkError {
+    source: io::Error,
+}
+
+/// Keep the kind of a refused link, but say what to do about it when the
+/// link is on a network share.
+pub(super) fn explain_network_share_refusal(link: &Path, error: io::Error) -> io::Error {
+    let refused =
+        matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::Unsupported);
+    if !refused || !crate::mapped_drive_path::is_on_network_drive(link) {
+        return error;
+    }
+    io::Error::new(error.kind(), NetworkShareLinkError { source: error })
+}
+
+fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
     match MODE.load(Ordering::Relaxed) {
         USE_SYMLINK => match std::os::windows::fs::symlink_dir(contents, link) {
             Err(error) if should_fallback_to_junction(&error) => {

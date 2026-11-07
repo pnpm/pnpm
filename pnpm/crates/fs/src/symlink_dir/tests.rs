@@ -773,3 +773,41 @@ fn force_symlink_inner_gives_up_on_a_stale_link_that_survives_removal() {
         "the error names the stale link that could not be retargeted: {error}",
     );
 }
+
+/// A share that refuses links gets advice, since nothing pnpm does on the
+/// link itself can get past the refusal (pnpm/pnpm#17747). The kind and the
+/// OS error stay as they were.
+#[cfg(windows)]
+#[test]
+fn windows_refused_link_on_a_share_suggests_the_hoisted_linker() {
+    let link = std::path::Path::new(r"\\server\share\project\node_modules\pkg");
+    let refusal = std::io::Error::from_raw_os_error(5);
+
+    let error = super::windows::explain_network_share_refusal(link, refusal);
+
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    let message = error.to_string();
+    assert!(message.contains("nodeLinker: hoisted"), "the error must say what to do: {message}");
+    let os_error = std::error::Error::source(error.get_ref().expect("wrapped error"))
+        .and_then(|source| source.downcast_ref::<std::io::Error>())
+        .and_then(std::io::Error::raw_os_error);
+    assert_eq!(os_error, Some(5), "the refusal must stay the source");
+}
+
+/// Only a refusal on a share gets the advice: a local link or another kind
+/// of failure has a different cause.
+#[cfg(windows)]
+#[test]
+fn windows_other_link_failures_are_not_blamed_on_a_share() {
+    let local = std::path::Path::new(r"C:\project\node_modules\pkg");
+    let error =
+        super::windows::explain_network_share_refusal(local, std::io::Error::from_raw_os_error(5));
+    assert_eq!(error.raw_os_error(), Some(5), "a local refusal stays as it was");
+
+    let share = std::path::Path::new(r"\\server\share\project\node_modules\pkg");
+    let error = super::windows::explain_network_share_refusal(
+        share,
+        std::io::Error::from(std::io::ErrorKind::NotFound),
+    );
+    assert!(!error.to_string().contains("nodeLinker"), "a missing parent is not a refusal");
+}
