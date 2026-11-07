@@ -73,7 +73,7 @@ function shouldLockDirectDependency (
 ): boolean {
   return !excludeLinksFromLockfile ||
     !(dep as LinkedDependency).isLinkedDependency ||
-    spec.startsWith('workspace:')
+    (dep.catalogLookup?.specifier ?? spec).startsWith('workspace:')
 }
 
 function addResolvedDirectDependency (

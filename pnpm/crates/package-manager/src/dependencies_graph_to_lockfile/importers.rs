@@ -1,6 +1,6 @@
 use super::{
-    DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileFlags,
-    ImporterLockfileInput,
+    Catalogs, DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileFlags,
+    ImporterLockfileInput, parse_catalog_protocol,
 };
 use pnpm_lockfile::{
     ImporterDepVersion, LockfileResolution, ParseImporterDepVersionError, PkgName, PkgNameVerPeer,
@@ -20,6 +20,11 @@ use std::collections::HashMap;
 pub(super) fn build_importers(
     opts: &GraphToLockfileOptions<'_>,
 ) -> Result<HashMap<String, ProjectSnapshot>, DependenciesGraphToLockfileError> {
+    let flags = ImporterLockfileFlags {
+        exclude_links_from_lockfile: opts.settings.exclude_links_from_lockfile,
+        auto_install_peers: opts.settings.auto_install_peers,
+        include_peer_dependencies: opts.manifest_settings.include_peer_dependencies,
+    };
     let importer_results: Vec<(
         &String,
         Result<ProjectSnapshot, DependenciesGraphToLockfileError>,
@@ -28,16 +33,13 @@ pub(super) fn build_importers(
         .collect::<Vec<_>>()
         .into_par_iter()
         .map(|(id, input)| {
-            let importer = build_importer(
-                input,
-                opts.graph,
-                &ImporterLockfileFlags {
-                    exclude_links_from_lockfile: opts.settings.exclude_links_from_lockfile,
-                    auto_install_peers: opts.settings.auto_install_peers,
-                    include_peer_dependencies: opts.manifest_settings.include_peer_dependencies,
-                },
-            );
-            (id, importer)
+            let sources = DirectEntrySources {
+                manifest: input.manifest,
+                graph: opts.graph,
+                flags: &flags,
+                catalogs: opts.catalogs,
+            };
+            (id, build_importer(input, &sources))
         })
         .collect();
     let mut importers: HashMap<String, ProjectSnapshot> =
@@ -85,20 +87,18 @@ pub(super) fn catalog_snapshot_version(
 /// When `exclude_links_from_lockfile` is `true`, a `link:` direct
 /// dependency is omitted from the importer's `specifiers` and
 /// `dependencies` / `devDependencies` / `optionalDependencies` maps
-/// — unless its manifest specifier starts with `workspace:`, which
+/// — unless its manifest or catalog specifier starts with `workspace:`, which
 /// still records the resolved workspace-sibling target so the
 /// lockfile stays a complete description of the workspace graph.
 pub(super) fn build_importer(
     input: &ImporterLockfileInput<'_>,
-    graph: &DependenciesGraph,
-    flags: &ImporterLockfileFlags,
+    sources: &DirectEntrySources<'_>,
 ) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
     let mut groups = ImporterDependencyGroups::default();
     let mut specifiers: HashMap<String, String> = HashMap::new();
-    let alias_to_group = manifest_alias_to_group(input.manifest, flags.auto_install_peers);
-    let sources = DirectEntrySources { manifest: input.manifest, graph, flags };
+    let alias_to_group = manifest_alias_to_group(input.manifest, sources.flags.auto_install_peers);
     for (alias, dep_path) in &input.direct_dependencies_by_alias {
-        let Some((name_for_key, spec)) = importer_direct_entry(alias, dep_path, &sources)? else {
+        let Some((name_for_key, spec)) = importer_direct_entry(alias, dep_path, sources)? else {
             continue;
         };
         specifiers.insert(alias.clone(), spec.specifier.clone());
@@ -127,6 +127,7 @@ pub(super) struct DirectEntrySources<'a> {
     manifest: &'a PackageManifest,
     graph: &'a DependenciesGraph,
     flags: &'a ImporterLockfileFlags,
+    catalogs: &'a Catalogs,
 }
 /// One direct dependency's importer entry: the key it is recorded under and
 /// its specifier and resolved version. `None` leaves the alias out of the
@@ -153,14 +154,7 @@ pub(super) fn importer_direct_entry(
     ) else {
         return Ok(None);
     };
-    let Some(version) = direct_dep_version(
-        alias,
-        dep_path,
-        &specifier,
-        sources.graph,
-        sources.flags.exclude_links_from_lockfile,
-    )?
-    else {
+    let Some(version) = direct_dep_version(alias, dep_path, &specifier, sources)? else {
         return Ok(None);
     };
     Ok(Some((name_for_key, ResolvedDependencySpec { specifier, version })))
@@ -193,16 +187,21 @@ pub(super) fn direct_dep_version(
     alias: &str,
     dep_path: &DepPath,
     specifier: &str,
-    graph: &DependenciesGraph,
-    exclude_links_from_lockfile: bool,
+    sources: &DirectEntrySources<'_>,
 ) -> Result<Option<ImporterDepVersion>, DependenciesGraphToLockfileError> {
     if let Some(target) = dep_path.as_str().strip_prefix("link:") {
-        if exclude_links_from_lockfile && !specifier.starts_with("workspace:") {
-            return Ok(None);
+        if sources.flags.exclude_links_from_lockfile {
+            let effective_specifier = parse_catalog_protocol(specifier)
+                .and_then(|name| sources.catalogs.get(name))
+                .and_then(|catalog| catalog.get(alias))
+                .map_or(specifier, String::as_str);
+            if !effective_specifier.starts_with("workspace:") {
+                return Ok(None);
+            }
         }
         return Ok(Some(ImporterDepVersion::Link(target.to_string())));
     }
-    let Some(node) = graph.get(dep_path) else { return Ok(None) };
+    let Some(node) = sources.graph.get(dep_path) else { return Ok(None) };
     importer_dep_version(alias, node)
         .map(Some)
         .map_err(|source| DependenciesGraphToLockfileError::ImporterDependency {

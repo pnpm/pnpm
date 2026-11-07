@@ -466,3 +466,45 @@ test('a frozen install links a workspace package that a catalog entry resolved t
 
   expect(fs.realpathSync('project-1/node_modules/project-2')).toBe(fs.realpathSync('project-2'))
 })
+
+test.each([
+  ['default', 'catalog:', 'project-2', 'workspace:*'],
+  ['named', 'catalog:named', 'project-2', 'workspace:*'],
+  ['named', 'catalog:named', 'alias', 'workspace:project-2@*'],
+])('keeps %s catalog workspace link %s for %s through a frozen reinstall', async (catalogName, specifier, alias, workspaceSpecifier) => {
+  const packages = [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: { [alias]: specifier },
+    },
+    { name: 'project-2', version: '1.0.0' },
+  ]
+  preparePackages(packages)
+  const allProjects = packages.map((manifest) => ({
+    buildIndex: 0,
+    manifest,
+    rootDir: path.resolve(manifest.name) as ProjectRootDir,
+  }))
+  const importers: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  const options = testDefaults({
+    allProjects,
+    catalogs: { [catalogName]: { [alias]: workspaceSpecifier } },
+    excludeLinksFromLockfile: true,
+  })
+  await mutateModules(importers, options)
+
+  const lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
+  expect(lockfile.importers?.['project-1'].dependencies?.[alias]).toStrictEqual({
+    specifier,
+    version: 'link:../project-2',
+  })
+
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  rimrafSync('project-2/node_modules')
+  await mutateModules(importers, { ...options, frozenLockfile: true })
+
+  expect(fs.realpathSync(path.join('project-1/node_modules', alias))).toBe(fs.realpathSync('project-2'))
+  expect(readYamlFileSync(WANTED_LOCKFILE)).toStrictEqual(lockfile)
+})

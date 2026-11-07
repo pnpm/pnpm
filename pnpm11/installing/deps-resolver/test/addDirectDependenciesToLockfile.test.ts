@@ -2,6 +2,42 @@ import { expect, test } from '@jest/globals'
 import type { PkgResolutionId } from '@pnpm/types'
 
 import { addDirectDependenciesToLockfile } from '../lib/addDirectDependenciesToLockfile.js'
+import type { ResolvedDirectDependency } from '../lib/resolveDependencyTree.js'
+
+test.each([
+  ['catalog:', 'default'],
+  ['catalog:named', 'named'],
+])('keeps a workspace dependency resolved from %s when links are excluded', (specifier, catalogName) => {
+  const dependency: ResolvedDirectDependency & { isLinkedDependency: true } = {
+    alias: 'workspace-dep',
+    catalogLookup: {
+      catalogName,
+      specifier: 'workspace:*',
+      userSpecifiedBareSpecifier: specifier,
+    },
+    dev: false,
+    isLinkedDependency: true,
+    name: 'workspace-dep',
+    optional: false,
+    pkgId: 'link:../workspace-dep' as PkgResolutionId,
+    resolution: { type: 'directory', directory: '../workspace-dep' },
+    version: '1.0.0',
+  }
+  const projectSnapshot = addDirectDependenciesToLockfile({
+    directDependencies: [dependency],
+    excludeLinksFromLockfile: true,
+    linkedPackages: [],
+    newManifest: { dependencies: { 'workspace-dep': specifier } },
+    projectSnapshot: { specifiers: {} },
+  })
+
+  expect(projectSnapshot).toStrictEqual({
+    dependencies: { 'workspace-dep': 'link:../workspace-dep' },
+    devDependencies: {},
+    optionalDependencies: {},
+    specifiers: { 'workspace-dep': specifier },
+  })
+})
 
 test('addDirectDependenciesToLockfile() locks a dependency whose alias is an Object.prototype key', () => {
   const projectSnapshot = addDirectDependenciesToLockfile({
