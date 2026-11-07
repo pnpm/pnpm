@@ -94,8 +94,11 @@ impl DirLock {
         abandoned_after: Duration,
     ) -> io::Result<DirLock> {
         loop {
-            if let Some(lock) = Self::acquire(path.to_path_buf(), wait, abandoned_after)? {
-                return Ok(lock);
+            match Self::acquire(path.to_path_buf(), wait, abandoned_after) {
+                Ok(Some(lock)) => return Ok(lock),
+                Ok(None) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
             }
             sleep(POLL_INTERVAL);
         }

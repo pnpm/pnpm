@@ -85,6 +85,13 @@ pub enum CreateVirtualDirError {
     #[diagnostic(transparent)]
     SlotLock(#[error(source)] crate::GvsSlotLockError),
 
+    #[display("Failed to read global virtual store slot state at {path:?}: {source}")]
+    ReadSlotState {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
     #[display("Failed to read the build marker at {path:?}: {source}")]
     ReadBuildMarker {
         path: PathBuf,
@@ -222,7 +229,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         {
             let populated = slot
                 .is_populated()
-                .map_err(|source| CreateVirtualDirError::WriteSlotState {
+                .map_err(|source| CreateVirtualDirError::ReadSlotState {
                     path: slot.path().to_path_buf(),
                     source,
                 })?;
@@ -351,11 +358,15 @@ fn finish_slot_population(
     cas_paths: &pnpm_fs::CasPaths,
 ) -> Result<(), CreateVirtualDirError> {
     if let Some(slot) = slot {
-        slot.finish_population(cas_paths.contains_key(NEEDS_BUILD_MARKER))
-            .map_err(|source| CreateVirtualDirError::WriteSlotState {
-                path: slot.path().to_path_buf(),
-                source,
-            })?;
+        slot.finish_population(if cas_paths.contains_key(NEEDS_BUILD_MARKER) {
+            crate::BuildRequirement::Required
+        } else {
+            crate::BuildRequirement::NotRequired
+        })
+        .map_err(|source| CreateVirtualDirError::WriteSlotState {
+            path: slot.path().to_path_buf(),
+            source,
+        })?;
     }
     Ok(())
 }

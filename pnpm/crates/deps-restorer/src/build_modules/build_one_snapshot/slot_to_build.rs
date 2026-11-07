@@ -9,12 +9,11 @@ use super::{
     BuildCandidate, BuildOneSnapshot,
 };
 
-/// The package directory to build in, with the lock that serializes a
-/// build into an isolated global-virtual-store slot with every other
-/// install's build of it. The slot is marked mid-build before it is
-/// returned. `None` when there is nothing to build: the snapshot has no
-/// directory, another install built the slot while this one waited for
-/// its lock, or another install's build of it did not finish.
+/// The package directory and locks held while applying its build. In a
+/// global virtual store, the package and dependency slots are locked in
+/// path order so bin refresh cannot invert their order with another build.
+/// `None` when the snapshot has no directory, another install built its
+/// slot while this one waited, or another install's build did not finish.
 #[derive(Clone, Copy)]
 pub(super) struct SlotToBuild<'a> {
     pub(super) context: &'a BuildOneSnapshot<'a>,
@@ -23,9 +22,15 @@ pub(super) struct SlotToBuild<'a> {
     pub(super) cache_key: Option<&'a str>,
 }
 
+pub(super) struct LockedSlotToBuild {
+    pub(super) package_dir: PathBuf,
+    pub(super) slot: Option<crate::GlobalVirtualStoreSlot>,
+    pub(super) dependency_slots: Vec<crate::GlobalVirtualStoreSlot>,
+}
+
 pub(super) fn slot_to_build(
     input: SlotToBuild<'_>,
-) -> Result<Option<(PathBuf, Option<crate::GlobalVirtualStoreSlot>)>, BuildModulesError> {
+) -> Result<Option<LockedSlotToBuild>, BuildModulesError> {
     let SlotToBuild {
         context, snapshot_key, candidate, ..
     } = input;
@@ -36,22 +41,72 @@ pub(super) fn slot_to_build(
     else {
         return Ok(None);
     };
-    if !(candidate.patch.is_some() || candidate.should_run_scripts)
-        || (context.directories.pkg_roots_by_key.is_some()
-            && !context.directories.layout.enable_global_virtual_store())
-    {
-        return Ok(Some((pkg_dir, None)));
+    if !(candidate.patch.is_some() || candidate.should_run_scripts) {
+        return Ok(Some(LockedSlotToBuild {
+            package_dir: pkg_dir,
+            slot: None,
+            dependency_slots: Vec::new(),
+        }));
     }
-    let slot = crate::GlobalVirtualStoreSlot::acquire(context.directories.layout, snapshot_key)
-        .map_err(BuildModulesError::SlotLock)?;
+    if context.directories.pkg_roots_by_key.is_some()
+        || !context.directories.layout.enable_global_virtual_store()
+    {
+        return Ok(Some(LockedSlotToBuild {
+            package_dir: pkg_dir,
+            slot: None,
+            dependency_slots: Vec::new(),
+        }));
+    }
+    if context.directories.layout.hashed_slot_dir(snapshot_key).is_none() {
+        if built_by_an_earlier_install(&input, &pkg_dir.join(NEEDS_BUILD_MARKER))? {
+            return Ok(None);
+        }
+        if !mark_slot_build_started(
+            None,
+            &pkg_dir,
+            snapshot_key,
+            &pkg_dir.join(NEEDS_BUILD_MARKER),
+        )? {
+            return Ok(None);
+        }
+        return Ok(Some(LockedSlotToBuild {
+            package_dir: pkg_dir,
+            slot: None,
+            dependency_slots: Vec::new(),
+        }));
+    }
+    let mut slot_keys = vec![snapshot_key.clone()];
+    if let Some(snapshot) = context.graph.snapshots.get(snapshot_key) {
+        slot_keys.extend(
+            snapshot.dependencies
+                .iter()
+                .flatten()
+                .chain(snapshot.optional_dependencies.iter().flatten())
+                .filter_map(|(alias, dependency)| dependency.resolve(alias))
+                .filter(|key| context.directories.layout.hashed_slot_dir(key).is_some()),
+        );
+    }
+    let mut slot_locks =
+        crate::GlobalVirtualStoreSlot::acquire_ordered(context.directories.layout, slot_keys)
+            .map_err(BuildModulesError::SlotLock)?;
+    let package_slot_path = context.directories.layout.slot_dir(snapshot_key);
+    let package_slot_index = slot_locks
+        .iter()
+        .position(|slot| slot.path() == package_slot_path)
+        .expect("the package slot is included in its build lock set");
+    let slot = slot_locks.swap_remove(package_slot_index);
     let marker = pkg_dir.join(NEEDS_BUILD_MARKER);
     if built_by_an_earlier_install(&input, &marker)? {
         return Ok(None);
     }
-    if !mark_slot_build_started(slot.as_ref(), &pkg_dir, snapshot_key, &marker)? {
+    if !mark_slot_build_started(Some(&slot), &pkg_dir, snapshot_key, &marker)? {
         return Ok(None);
     }
-    Ok(Some((pkg_dir, slot)))
+    Ok(Some(LockedSlotToBuild {
+        package_dir: pkg_dir,
+        slot: Some(slot),
+        dependency_slots: slot_locks,
+    }))
 }
 
 fn mark_slot_build_started(
@@ -69,7 +124,7 @@ fn mark_slot_build_started(
             });
     };
     let state = slot
-        .state(&package_dir.join("package.json"), true)
+        .state(&package_dir.join("package.json"), crate::BuildRequirement::Required)
         .map_err(|source| BuildModulesError::ReadBuildMarker {
             path: marker.to_path_buf(),
             source,

@@ -3,8 +3,8 @@ pub(crate) mod linked_archives;
 pub use cache_keys::lookup_known_bins;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use gvs_slot_lock::{
-    GlobalVirtualStoreSlot, GlobalVirtualStoreSlotPhase, GlobalVirtualStoreSlotState,
-    GvsSlotLockError,
+    BuildRequirement, GlobalVirtualStoreSlot, GlobalVirtualStoreSlotPhase,
+    GlobalVirtualStoreSlotState, GvsSlotLockError,
 };
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
@@ -266,6 +266,7 @@ pub enum CreateVirtualStoreError {
     },
     #[diagnostic(transparent)]
     LoadedBins(#[error(source)] crate::LinkVirtualStoreBinsError),
+    #[diagnostic(transparent)]
     SlotLock(#[error(source)] crate::GvsSlotLockError),
 
     #[display("Failed to read global virtual store slot state at {path:?}: {error}")]
@@ -276,18 +277,22 @@ pub enum CreateVirtualStoreError {
         error: std::io::Error,
     },
 
+    #[display("Failed to update global virtual store slot state at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_GVS_SLOT_STATE))]
+    WriteSlotState {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
+
     #[display("Cannot install with nodeLinker.type=loaded: {message}")]
     #[diagnostic(code(ERR_PNPM_CAS_CONFIGURATION))]
-    CasConfiguration {
-        message: &'static str,
-    },
+    CasConfiguration { message: &'static str },
     #[display(
         "Package {package} needs materialization with the loaded linker. Add its name to nodeLinker.excluded."
     )]
     #[diagnostic(code(ERR_PNPM_CAS_REQUIRES_MATERIALIZATION))]
-    CasRequiresMaterialization {
-        package: String,
-    },
+    CasRequiresMaterialization { package: String },
     #[diagnostic(transparent)]
     InstallPackageBySnapshot(#[error(source)] InstallPackageBySnapshotError),
 
@@ -295,10 +300,7 @@ pub enum CreateVirtualStoreError {
         "Lockfile has a snapshot entry `{snapshot_key}` with no matching metadata entry (`{metadata_key}`) in `packages:`."
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGE_METADATA))]
-    MissingPackageMetadata {
-        snapshot_key: String,
-        metadata_key: String,
-    },
+    MissingPackageMetadata { snapshot_key: String, metadata_key: String },
 
     #[display(
         "Lockfile has a `snapshots:` section but no `packages:` section; every entry in `snapshots:` must have a matching metadata entry. The lockfile is malformed."

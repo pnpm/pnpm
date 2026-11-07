@@ -25,7 +25,7 @@ pub(super) fn retain(
             .map_err(CreateVirtualStoreError::SlotLock)?;
         if let Some(slot) = &slot {
             slot.begin_population()
-                .map_err(|error| CreateVirtualStoreError::ReadSlotState {
+                .map_err(|error| CreateVirtualStoreError::WriteSlotState {
                     path: slot.path().to_path_buf(),
                     error,
                 })?;
@@ -36,8 +36,8 @@ pub(super) fn retain(
                 source,
             })?;
         if let Some(slot) = &slot {
-            slot.finish_population(false)
-                .map_err(|error| CreateVirtualStoreError::ReadSlotState {
+            slot.finish_population(crate::BuildRequirement::NotRequired)
+                .map_err(|error| CreateVirtualStoreError::WriteSlotState {
                     path: slot.path().to_path_buf(),
                     error,
                 })?;

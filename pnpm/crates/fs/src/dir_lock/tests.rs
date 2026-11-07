@@ -3,6 +3,7 @@ use std::{
     fs::{self, File, TryLockError},
     io,
     path::Path,
+    sync::mpsc,
     thread,
     thread::sleep,
     time::Duration,
@@ -58,6 +59,36 @@ fn a_second_acquire_gives_up_while_the_first_is_held() {
     let contended =
         DirLock::acquire(path, Duration::from_millis(100), NEVER_ABANDONED).expect("acquire");
     assert!(contended.is_none(), "a held lock is not handed out twice");
+}
+
+#[test]
+fn waiting_retries_when_its_parent_directory_is_renamed() {
+    let root = tempdir().expect("create tempdir");
+    let slot = root.path().join("slot");
+    let lock_path = slot.join(".pnpm-build.lock");
+    let held = DirLock::acquire(lock_path.clone(), Duration::ZERO, NEVER_ABANDONED)
+        .expect("acquire")
+        .expect("uncontended lock is taken");
+    let waiting_path = lock_path.clone();
+    let (started, ready) = mpsc::channel();
+    let waiter = thread::spawn(move || {
+        started
+            .send(())
+            .expect("signal waiter start");
+        DirLock::acquire_waiting(&waiting_path, Duration::from_secs(1), NEVER_ABANDONED)
+    });
+    ready.recv().expect("waiter started");
+    sleep(Duration::from_millis(100));
+
+    fs::rename(&slot, root.path().join("pruned-slot")).expect("rename slot during prune");
+    drop(held);
+    let acquired = waiter
+        .join()
+        .expect("waiter thread")
+        .expect("waiter retries after prune");
+
+    assert!(lock_path.is_dir(), "the retry recreates the slot lock");
+    drop(acquired);
 }
 
 /// A process that dies holding the lock must not wedge every later run,

@@ -83,11 +83,16 @@ fn build_candidate<Reporter: self::Reporter>(
     cache_key: Option<&str>,
     optional: bool,
 ) -> Result<(), BuildModulesError> {
-    let Some((pkg_dir, slot_lock)) =
+    let Some(locked_slot) =
         slot_to_build(slot_to_build::SlotToBuild { context, snapshot_key, candidate, cache_key })?
     else {
         return Ok(());
     };
+    let slot_to_build::LockedSlotToBuild {
+        package_dir: pkg_dir,
+        slot: slot_lock,
+        dependency_slots: bin_slot_locks,
+    } = locked_slot;
 
     // Apply the patch before running postinstall hooks. A snapshot
     // with a patch entry but no resolved `patch_file_path` is a hard
@@ -100,11 +105,16 @@ fn build_candidate<Reporter: self::Reporter>(
         return Ok(());
     };
 
+    let held_bin_slots = slot_lock
+        .iter()
+        .chain(bin_slot_locks.iter())
+        .collect::<Vec<_>>();
     let Some(has_side_effects) = run_scripts_in_every_copy::<Reporter>(
         context,
         snapshot_key,
         &pkg_dir,
         slot_lock.as_ref(),
+        &held_bin_slots,
         &candidate.script_run(optional),
     )?
     else {

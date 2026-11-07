@@ -57,7 +57,8 @@ pub(crate) fn slot_carries_overlay(
     overlay: &SideEffectsOverlay,
 ) -> bool {
     let pkg_dir = slot.package_path();
-    let Ok(state) = slot.state(&pkg_dir.join("package.json"), false) else {
+    let Ok(state) = slot.state(&pkg_dir.join("package.json"), crate::BuildRequirement::NotRequired)
+    else {
         return false;
     };
     matches!(
@@ -397,7 +398,14 @@ pub(crate) fn built_slot_is_complete(directory: &Path) -> Result<bool, BuildModu
     if let Some(state_file) = state_file {
         match fs::read_to_string(&state_file) {
             Ok(state) => {
-                return Ok(state == "built" || (state == "populated" && !exists(&marker)?));
+                let phase = crate::GlobalVirtualStoreSlotPhase::parse(&state)
+                    .map_err(|source| BuildModulesError::ReadBuildMarker {
+                        path: state_file.clone(),
+                        source,
+                    })?;
+                return Ok(phase == crate::GlobalVirtualStoreSlotPhase::Built
+                    || (phase == crate::GlobalVirtualStoreSlotPhase::Populated
+                        && !exists(&marker)?));
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(source) => {

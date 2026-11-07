@@ -7,7 +7,7 @@ use pnpm_cmd_shim::{LinkBinsOptions, is_shim_pointing_at};
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
-    SnapshotEntry, VariationsResolution,
+    SnapshotDepRef, SnapshotEntry, VariationsResolution,
 };
 use serde_json::json;
 use std::{
@@ -441,6 +441,72 @@ fn lockfile_driven_linking_only_visits_selected_snapshots() {
     };
     assert!(bin_path(&selected).exists());
     assert!(!bin_path(&unchanged).exists());
+}
+
+#[test]
+fn frozen_store_without_gvs_links_project_local_bins() {
+    let tmp = tempdir().expect("temporary project");
+    let virtual_dir = tmp.path().join("node_modules/.pnpm");
+    let parent: PackageKey = "parent@1.0.0".parse().expect("parent key");
+    let child: PackageKey = "child@1.0.0".parse().expect("child key");
+    let dependencies = HashMap::from([(
+        "child".parse().expect("child name"),
+        "1.0.0".parse::<SnapshotDepRef>().expect("child reference"),
+    )]);
+    let snapshots = HashMap::from([
+        (
+            parent.clone(),
+            SnapshotEntry { dependencies: Some(dependencies), ..SnapshotEntry::default() },
+        ),
+        (child.clone(), SnapshotEntry::default()),
+    ]);
+    let packages = HashMap::from([
+        (
+            parent.clone(),
+            metadata_with_resolution(
+                LockfileResolution::Directory(DirectoryResolution { directory: "parent".into() }),
+                None,
+            ),
+        ),
+        (
+            child,
+            metadata_with_resolution(
+                LockfileResolution::Directory(DirectoryResolution { directory: "child".into() }),
+                Some(true),
+            ),
+        ),
+    ]);
+    let mut config = pnpm_config::Config::new();
+    config.set_virtual_store_dir(virtual_dir);
+    config.frozen_store = true;
+    let layout =
+        VirtualStoreLayout::new(&config, None, Some(&snapshots), Some(&packages), None, None);
+    let parent_dir = layout.slot_dir(&parent).join("node_modules/parent");
+    let child_dir = layout.slot_dir(&parent).join("node_modules/child");
+    create_dir_all(&parent_dir).expect("create parent package");
+    create_dir_all(&child_dir).expect("create child package");
+    write_file(parent_dir.join("package.json"), r#"{"name":"parent","version":"1.0.0"}"#).unwrap();
+    write_file(
+        child_dir.join("package.json"),
+        r#"{"name":"child","version":"1.0.0","bin":"cli.js"}"#,
+    )
+    .unwrap();
+    write_file(child_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    LinkVirtualStoreBins {
+        layout: &layout,
+        snapshots: Some(&snapshots),
+        selected_snapshots: Some(std::slice::from_ref(&parent)),
+        packages: Some(&packages),
+        package_manifests: &HashMap::default(),
+        package_bins: None,
+        skipped: &SkippedSnapshots::default(),
+        link_options: &LinkBinsOptions::default(),
+    }
+    .run()
+    .expect("frozen local virtual store can link dependency bins");
+
+    assert!(parent_dir.join("node_modules/.bin/child").exists());
 }
 
 /// [`BinCandidates::Aliases`] walks the project's `node_modules/<dep>`

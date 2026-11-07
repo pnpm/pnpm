@@ -72,10 +72,22 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
 ) -> Result<SnapshotPlan<'a>, CreateVirtualStoreError> {
     let probe = WarmSlotProbe::of(&inputs);
     let SnapshotPlanInputs { snapshots, cache_keys, .. } = inputs;
+    let locked_slots = crate::GlobalVirtualStoreSlot::acquire_existing_ordered(
+        probe.layout,
+        snapshots
+            .keys()
+            .filter(|key| !probe.policy.is_hoisted && probe.layout.hashed_slot_dir(key).is_some())
+            .cloned(),
+    )
+    .map_err(CreateVirtualStoreError::SlotLock)?;
+    let slots = locked_slots
+        .into_iter()
+        .map(|slot| (slot.path().to_path_buf(), slot))
+        .collect::<HashMap<_, _>>();
     let mut markers = MarkerProbes::default();
     let (survivors, has_git_hosted_survivor) =
-        survivors::<Reporter>(snapshots, &probe, &mut markers, cache_keys)?;
-    let marker_rebuilds = marker_rebuilds(markers, &survivors, &probe)?;
+        survivors::<Reporter>(snapshots, &probe, &slots, &mut markers, cache_keys)?;
+    let marker_rebuilds = marker_rebuilds(markers, &survivors, &probe, &slots)?;
     let skipped_entries = skipped_entries(snapshots, &survivors, probe.policy.skipped, cache_keys);
     Ok(SnapshotPlan { survivors, skipped_entries, marker_rebuilds, has_git_hosted_survivor })
 }
@@ -85,6 +97,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
 fn survivors<'a, Reporter: self::Reporter>(
     snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     probe: &WarmSlotProbe<'a, '_>,
+    slots: &HashMap<std::path::PathBuf, crate::GlobalVirtualStoreSlot>,
     markers: &mut MarkerProbes,
     cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
 ) -> Result<(Vec<SnapshotWithCacheKey<'a>>, bool), CreateVirtualStoreError> {
@@ -99,7 +112,8 @@ fn survivors<'a, Reporter: self::Reporter>(
         // because a warm-slot lstat error must abort the install rather
         // than quietly converting the slot into a rebuild on every run.
         .try_fold(Vec::new(), |mut entries, (snapshot_key, snapshot)| {
-            if !warm_slot_is_current::<Reporter>(probe, snapshot_key, snapshot, markers)? {
+            let slot = slots.get(&probe.layout.slot_dir(snapshot_key));
+            if !warm_slot_is_current::<Reporter>(probe, snapshot_key, snapshot, slot, markers)? {
                 let cache_key = cache_keys
                     .remove(snapshot_key)
                     .expect("CasPrefetch::start derived a cache key for every lockfile snapshot")?;
@@ -117,6 +131,7 @@ fn marker_rebuilds(
     markers: MarkerProbes,
     survivors: &[SnapshotWithCacheKey<'_>],
     probe: &WarmSlotProbe<'_, '_>,
+    slots: &HashMap<std::path::PathBuf, crate::GlobalVirtualStoreSlot>,
 ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
     let MarkerProbes { keys: probed, mut rebuilds } = markers;
     if !probe.policy.is_hoisted {
@@ -124,14 +139,8 @@ fn marker_rebuilds(
             .iter()
             .filter(|(snapshot_key, _, _)| !probed.contains(*snapshot_key))
         {
-            let slot = crate::GlobalVirtualStoreSlot::acquire_existing(probe.layout, snapshot_key)
-                .map_err(CreateVirtualStoreError::SlotLock)?;
-            if gvs_slot_needs_rebuild(
-                probe.layout,
-                probe.allow_build_policy,
-                snapshot_key,
-                slot.as_ref(),
-            )? {
+            let slot = slots.get(&probe.layout.slot_dir(snapshot_key));
+            if gvs_slot_needs_rebuild(probe.layout, probe.allow_build_policy, snapshot_key, slot)? {
                 rebuilds.insert((*snapshot_key).clone());
             }
         }
@@ -213,26 +222,20 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     probe: &WarmSlotProbe<'_, '_>,
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
+    slot: Option<&crate::GlobalVirtualStoreSlot>,
     markers: &mut MarkerProbes,
 ) -> Result<bool, CreateVirtualStoreError> {
     if !slot_probe_applies(probe, snapshot_key) {
         return Ok(false);
     }
-    let slot = crate::GlobalVirtualStoreSlot::acquire_existing(probe.layout, snapshot_key)
-        .map_err(CreateVirtualStoreError::SlotLock)?;
-    if !slot_state_allows_reuse(slot.as_ref())? {
+    if !slot_state_allows_reuse(slot)? {
         return Ok(false);
     }
-    if !warm_slot_contents_match::<Reporter>(probe, snapshot_key, snapshot, markers, slot.as_ref())?
-    {
+    if !warm_slot_contents_match::<Reporter>(probe, snapshot_key, snapshot, markers, slot)? {
         return Ok(false);
     }
-    let needs_rebuild = gvs_slot_needs_rebuild(
-        probe.layout,
-        probe.allow_build_policy,
-        snapshot_key,
-        slot.as_ref(),
-    )?;
+    let needs_rebuild =
+        gvs_slot_needs_rebuild(probe.layout, probe.allow_build_policy, snapshot_key, slot)?;
     markers.keys.insert(snapshot_key.clone());
     if needs_rebuild {
         markers.rebuilds.insert(snapshot_key.clone());
@@ -247,7 +250,7 @@ fn slot_state_allows_reuse(
         return Ok(true);
     };
     let state = slot
-        .state(&slot.package_path().join("package.json"), false)
+        .state(&slot.package_path().join("package.json"), crate::BuildRequirement::NotRequired)
         .map_err(|error| CreateVirtualStoreError::ReadSlotState {
             path: slot.path().to_path_buf(),
             error,

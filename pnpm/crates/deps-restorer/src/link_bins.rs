@@ -138,19 +138,19 @@ impl LinkVirtualStoreBins<'_> {
             + FsSetExecutable
             + FsEnsureExecutableBits,
     {
-        self.run_with_slot_lock_and::<Sys>(None)
+        self.run_with_slot_lock_and::<Sys>(&[])
     }
 
-    pub(crate) fn run_with_slot_lock(
+    pub(crate) fn run_with_slot_locks(
         self,
-        locked_slot: Option<&crate::GlobalVirtualStoreSlot>,
+        locked_slots: &[&crate::GlobalVirtualStoreSlot],
     ) -> Result<(), LinkVirtualStoreBinsError> {
-        self.run_with_slot_lock_and::<Host>(locked_slot)
+        self.run_with_slot_lock_and::<Host>(locked_slots)
     }
 
     fn run_with_slot_lock_and<Sys>(
         self,
-        locked_slot: Option<&crate::GlobalVirtualStoreSlot>,
+        locked_slots: &[&crate::GlobalVirtualStoreSlot],
     ) -> Result<(), LinkVirtualStoreBinsError>
     where
         Sys: FsReadDir
@@ -169,7 +169,7 @@ impl LinkVirtualStoreBins<'_> {
             self.run_lockfile_driven::<Sys>(
                 snapshots,
                 BinSlotSets { has_bin: has_bin_set.as_ref(), bundling: &bundling_set },
-                locked_slot,
+                locked_slots,
             )
         } else {
             // No snapshots (lockfile absent or empty): fall back to a
@@ -195,7 +195,7 @@ impl LinkVirtualStoreBins<'_> {
         &self,
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
         sets: BinSlotSets<'_>,
-        locked_slot: Option<&crate::GlobalVirtualStoreSlot>,
+        locked_slots: &[&crate::GlobalVirtualStoreSlot],
     ) -> Result<(), LinkVirtualStoreBinsError>
     where
         Sys: FsReadDir
@@ -233,7 +233,7 @@ impl LinkVirtualStoreBins<'_> {
         slot_entries
             .par_iter()
             .try_for_each(|(slot_key, snapshot)| {
-                link_slot_bins::<Sys>(&context, slot_key, snapshot, locked_slot)
+                link_slot_bins::<Sys>(&context, slot_key, snapshot, locked_slots)
             })
     }
 }
@@ -343,7 +343,7 @@ fn link_slot_bins<Sys>(
     context: &SlotBinContext<'_>,
     slot_key: &PackageKey,
     snapshot: &SnapshotEntry,
-    locked_slot: Option<&crate::GlobalVirtualStoreSlot>,
+    locked_slots: &[&crate::GlobalVirtualStoreSlot],
 ) -> Result<(), LinkVirtualStoreBinsError>
 where
     Sys: FsReadDir
@@ -356,7 +356,7 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    if context.layout.frozen_store() {
+    if context.layout.frozen_store() && context.layout.enable_global_virtual_store() {
         return Ok(());
     }
     let with_bin = children_with_bins(snapshot, context.sets.has_bin);
@@ -367,7 +367,7 @@ where
         return Ok(());
     }
 
-    let _slot_locks = lock_bin_slots(context, slot_key, &with_bin, locked_slot)?;
+    let _slot_locks = lock_bin_slots(context, slot_key, &with_bin, locked_slots)?;
 
     let modules_dir = context.layout.slot_dir(slot_key).join("node_modules");
     let self_pkg_dir = slot_own_pkg_dir(&modules_dir, slot_key);
@@ -400,7 +400,7 @@ fn lock_bin_slots(
     context: &SlotBinContext<'_>,
     slot_key: &PackageKey,
     with_bin: &[(&PkgName, PackageKey, PackageKey)],
-    locked_slot: Option<&crate::GlobalVirtualStoreSlot>,
+    locked_slots: &[&crate::GlobalVirtualStoreSlot],
 ) -> Result<Vec<Option<crate::GlobalVirtualStoreSlot>>, LinkVirtualStoreBinsError> {
     let mut slot_keys: Vec<PackageKey> = with_bin
         .iter()
@@ -412,7 +412,10 @@ fn lock_bin_slots(
     slot_keys
         .iter()
         .map(|key| {
-            if locked_slot.is_some_and(|slot| slot.path() == context.layout.slot_dir(key)) {
+            if locked_slots
+                .iter()
+                .any(|slot| slot.path() == context.layout.slot_dir(key))
+            {
                 return Ok(None);
             }
             crate::GlobalVirtualStoreSlot::acquire_existing(context.layout, key)

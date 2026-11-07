@@ -76,6 +76,13 @@ new file mode 100644
     }
 
     fn build(&self) -> Result<crate::BuildModulesOutput, BuildModulesError> {
+        self.build_with_pkg_roots(None)
+    }
+
+    fn build_with_pkg_roots(
+        &self,
+        pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+    ) -> Result<crate::BuildModulesOutput, BuildModulesError> {
         let snapshots = HashMap::from([(self.pkg_key.clone(), SnapshotEntry::default())]);
         let requires_build = HashMap::from([(self.pkg_key.clone(), true)]);
         let importers = root_importers(&[("is-positive", "1.0.0")]);
@@ -104,7 +111,7 @@ new file mode 100644
             directories: crate::BuildLayout {
                 link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
                 layout: self.layout,
-                pkg_roots_by_key: None,
+                pkg_roots_by_key,
                 gather_ancestor_bin_paths: false,
                 modules_dir: &modules_dir,
                 lockfile_dir: self.root.path(),
@@ -142,4 +149,22 @@ new file mode 100644
         }
         .run::<SilentReporter>()
     }
+}
+
+#[test]
+fn hoisted_build_does_not_create_a_global_virtual_store_slot() {
+    let slot = PatchedSlot::new();
+    let slot_path = slot.layout.slot_dir(&slot.pkg_key);
+    fs::remove_dir_all(&slot_path).expect("remove the global slot");
+    let project_pkg_dir = slot.root.path().join("node_modules/is-positive");
+    fs::create_dir_all(&project_pkg_dir).expect("create hoisted package directory");
+    fs::write(project_pkg_dir.join("package.json"), r#"{"name":"is-positive","version":"1.0.0"}"#)
+        .expect("write package manifest");
+    let pkg_roots_by_key = HashMap::from([(slot.pkg_key.clone(), vec![project_pkg_dir.clone()])]);
+
+    slot.build_with_pkg_roots(Some(&pkg_roots_by_key))
+        .expect("hoisted build must not require a global slot");
+
+    assert!(project_pkg_dir.join("patched.txt").exists());
+    assert!(!slot_path.exists(), "a hoisted build must leave the global store untouched");
 }

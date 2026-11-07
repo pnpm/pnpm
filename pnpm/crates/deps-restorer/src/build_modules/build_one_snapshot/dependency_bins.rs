@@ -12,7 +12,7 @@ mod tests;
 pub(super) fn refresh(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
-    locked_slot: Option<&crate::GlobalVirtualStoreSlot>,
+    locked_slots: &[&crate::GlobalVirtualStoreSlot],
 ) -> Result<(), BuildModulesError> {
     let changed = changed_dependencies(context, snapshot_key);
     if changed.is_empty() {
@@ -33,7 +33,7 @@ pub(super) fn refresh(
         skipped: context.graph.skipped,
         link_options: &options,
     }
-    .run_with_slot_lock(locked_slot)
+    .run_with_slot_locks(locked_slots)
     .map_err(BuildModulesError::BinLink)
 }
 

@@ -63,7 +63,7 @@ fn slot_is_mutating(
         return Ok(false);
     };
     let state = slot
-        .state(&slot.package_path().join("package.json"), false)
+        .state(&slot.package_path().join("package.json"), crate::BuildRequirement::NotRequired)
         .map_err(|source| BuildModulesError::ReadBuildMarker {
             path: slot.package_path().join(crate::NEEDS_BUILD_MARKER),
             source,
