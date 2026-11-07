@@ -190,7 +190,10 @@ fn project_modules_dirs(
 /// The modules directory an isolated install creates for the workspace
 /// project at `root_dir`.
 fn sibling_modules_dir(config: &Config, root_dir: &Path, manifest: &PackageManifest) -> PathBuf {
-    config.project_modules_dir(root_dir, manifest_string_field(manifest, "name").as_deref())
+    root_dir.join(config.modules_dir_name_for(
+        root_dir,
+        manifest_string_field(manifest, "name").as_deref(),
+    ))
 }
 
 /// The root importer uses `config.modules_dir`; under the isolated linker

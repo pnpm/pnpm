@@ -75,3 +75,21 @@ fn a_project_modules_dir_follows_the_install_rule_for_a_modules_dir_outside_the_
         pnpm_fs::lexical_normalize(&project.join("../vendor")),
     );
 }
+
+#[test]
+fn the_lockfile_dir_spelled_another_way_gets_the_configured_modules_dir() {
+    let temp = tempfile::tempdir().unwrap();
+    let real = dunce::canonicalize(temp.path()).unwrap().join("workspace");
+    std::fs::create_dir(&real).unwrap();
+    let alias = real.with_file_name("alias");
+    pnpm_fs::symlink_dir(&real, &alias).unwrap();
+    let mut config = Config::new();
+    config.explicit_settings.insert("modulesDir".to_string(), "../vendor".into());
+    config.anchor_lockfile_paths(&alias);
+    config.workspace_dir = Some(alias.clone());
+    config.shared_workspace_lockfile = true;
+    assert_eq!(
+        config.project_modules_dir(&real, None),
+        pnpm_fs::lexical_normalize(&real.join("../vendor")),
+    );
+}
