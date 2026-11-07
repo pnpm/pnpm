@@ -45,8 +45,10 @@ With [`engineStrict`](./settings/cli.md#enginestrict) enabled, an incompatible
 dependencies are exempt. With it disabled, an incompatible `engines.node` in
 the project prints a warning.
 
-In a workspace, these checks apply to every workspace project. A project whose
-`os`, `cpu`, or `libc` excludes the current platform prints a warning.
+In a workspace, these checks apply to every workspace project, even when
+`pnpm add` or `pnpm remove` changes only one of them. `pnpm run -r` and
+`pnpm exec -r` run them too, before running anything. A project whose `os`,
+`cpu`, or `libc` excludes the current platform prints a warning.
 
 ## engines.runtime
 
