@@ -43,15 +43,19 @@ pub(super) fn create_with_contents(
         .map_err(|error| explain_network_share_refusal(link, error))
 }
 
-/// A link on a network share that the share refused. Many SMB servers,
+/// A link on a network share that could not be created. Many SMB servers,
 /// Windows ones included, deny both the symlink and the junction, and
-/// pnpm 11 fails there in the same way. The refusal stays reachable as
+/// pnpm 11 fails there in the same way. The share's permissions can deny
+/// it too, so the message doesn't claim to know which. The hoisted linker
+/// still links `link:` and `workspace:` dependencies, so the advice
+/// doesn't promise it avoids every link. The refusal stays reachable as
 /// the source.
 #[derive(Debug, Display, Error)]
 #[display(
-    "The network share refused the link. Windows file shares often refuse junctions and \
-     symlinks. Set `nodeLinker: hoisted` in pnpm-workspace.yaml to copy dependencies into \
-     node_modules instead of linking them, or move the project to a local drive."
+    "Could not create a link on a network share. Windows file shares often refuse junctions \
+     and symlinks. If this one does, move the project to a local drive, or set `nodeLinker: \
+     hoisted` in pnpm-workspace.yaml, which copies registry dependencies into node_modules \
+     instead of linking them. Workspace packages are linked even with the hoisted linker."
 )]
 pub(super) struct NetworkShareLinkError {
     source: io::Error,

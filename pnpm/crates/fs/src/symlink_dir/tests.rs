@@ -788,6 +788,10 @@ fn windows_refused_link_on_a_share_suggests_the_hoisted_linker() {
     assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
     let message = error.to_string();
     assert!(message.contains("nodeLinker: hoisted"), "the error must say what to do: {message}");
+    assert!(
+        message.contains("Workspace packages are linked"),
+        "the hoisted advice must not promise a link-free install: {message}",
+    );
     let os_error = std::error::Error::source(error.get_ref().expect("wrapped error"))
         .and_then(|source| source.downcast_ref::<std::io::Error>())
         .and_then(std::io::Error::raw_os_error);
