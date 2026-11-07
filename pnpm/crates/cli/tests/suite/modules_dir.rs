@@ -568,3 +568,125 @@ fn registry_bin_sets_node_path(project_dir: &Path) -> bool {
     };
     fs::read_to_string(project_dir.join(shim)).expect("read the shim").contains("NODE_PATH=")
 }
+
+#[test]
+fn a_modules_dir_outside_the_project_is_the_root_projects_only() {
+    for linker in ["isolated", "hoisted"] {
+        for setting in [ModulesDirSetting::Absolute, ModulesDirSetting::Climbing] {
+            install_with_modules_dir_outside_the_project(linker, setting);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum IsPositive {
+    Declared,
+    Removed,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ModulesDirSetting {
+    Absolute,
+    Climbing,
+}
+
+fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSetting) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let root_modules_dir = workspace
+        .parent()
+        .expect("workspace parent")
+        .join("vendor");
+    let project_modules_dir = workspace.join("project-1/vendor");
+    let modules_dir = match setting {
+        ModulesDirSetting::Absolute => root_modules_dir.to_string_lossy().replace('\\', "/"),
+        ModulesDirSetting::Climbing => "../vendor".to_string(),
+    };
+    append_workspace_yaml_key(&workspace, "modulesDir", &modules_dir);
+    append_workspace_yaml_key(&workspace, "nodeLinker", linker);
+    append_workspace_yaml_key(&workspace, "packages", "['project-1']");
+    append_workspace_yaml_key(&workspace, "allowBuilds", "{'@pnpm.e2e/generated-bins': true}");
+    let write_manifests = |is_positive: IsPositive| {
+        let dependencies = |version: &str| {
+            let mut dependencies = serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" });
+            match is_positive {
+                IsPositive::Declared => dependencies["is-positive"] = version.into(),
+                IsPositive::Removed => {}
+            }
+            dependencies
+        };
+        let mut root_dependencies = dependencies("3.1.0");
+        root_dependencies["@pnpm.e2e/generated-bins"] = "1.0.0".into();
+        write_manifest(
+            &workspace,
+            &serde_json::json!({ "name": "root", "dependencies": root_dependencies }),
+        );
+        write_manifest(
+            &workspace.join("project-1"),
+            &serde_json::json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "dependencies": dependencies("1.0.0"),
+            }),
+        );
+    };
+    let installed_version = |dir: &Path| -> String {
+        let manifest = fs::read_to_string(dir.join("is-positive/package.json"))
+            .unwrap_or_else(|error| panic!("read {}: {error}", dir.display()));
+        let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse manifest");
+        manifest["version"]
+            .as_str()
+            .expect("version")
+            .to_string()
+    };
+    let has_bin = |dir: &Path, command: &str| {
+        fs::read_dir(dir.join(".bin"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(command)
+            })
+    };
+    let assert_nothing_outside = |context: &str| {
+        assert!(!workspace.join("vendor").exists(), "{context}");
+        assert!(!root_modules_dir.join("../project-1").exists(), "{context}");
+    };
+    write_manifests(IsPositive::Declared);
+
+    for args in [&["install"][..], &["install", "--frozen-lockfile"]] {
+        let context = format!("{linker} {setting:?} {args:?}");
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert_eq!(installed_version(&root_modules_dir), "3.1.0", "{context}");
+        assert_eq!(installed_version(&project_modules_dir), "1.0.0", "{context}");
+        assert!(has_bin(&root_modules_dir, "hello-world-js-bin"), "{context}");
+        assert!(has_bin(&root_modules_dir, "cmd1"), "{context}");
+        assert_nothing_outside(&context);
+        fs::remove_dir_all(&root_modules_dir).expect("remove the root modules dir");
+        fs::remove_dir_all(&project_modules_dir).expect("remove project-1/vendor");
+    }
+
+    let context = format!("{linker} {setting:?} removal");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    write_manifests(IsPositive::Removed);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!root_modules_dir.join("is-positive").exists(), "{context}");
+    assert!(!project_modules_dir.join("is-positive").exists(), "{context}");
+    assert!(has_bin(&root_modules_dir, "hello-world-js-bin"), "{context}");
+    assert_nothing_outside(&context);
+
+    drop((root, mock_instance));
+}

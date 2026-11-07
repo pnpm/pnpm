@@ -171,12 +171,15 @@ pub(super) fn finish_importer_top_level_bins(
     let mut claimed_importer_bins = inputs.pending_bins
         .map(|pending| pending.claimed_importer_bins.clone())
         .unwrap_or_default();
-    let modules_dir_name = inputs.policy.config.modules_dir_name();
+    let modules_dirs = crate::ImporterModulesDirs::from_config(
+        inputs.policy.config,
+        inputs.directories.workspace_root,
+    );
     for (importer_id, importer_snapshot) in inputs.graph.importers {
         if let Some((modules_dir, linked)) = super::link_importer_top_level_bins(
             inputs,
             mutated_slots,
-            modules_dir_name,
+            &modules_dirs,
             importer_id,
             importer_snapshot,
             plans,
@@ -184,7 +187,7 @@ pub(super) fn finish_importer_top_level_bins(
             claimed_importer_bins.claim_recorded(&modules_dir, linked);
         }
     }
-    let selected_dirs = selected_importer_modules_dirs(inputs, modules_dir_name);
+    let selected_dirs = selected_importer_modules_dirs(inputs, &modules_dirs);
     claimed_importer_bins
         .prune_stale_bins(
             claimed_importer_bins
@@ -200,16 +203,18 @@ pub(super) fn finish_importer_top_level_bins(
 
 fn selected_importer_modules_dirs(
     inputs: &BuildPhaseInputs<'_>,
-    modules_dir_name: &std::ffi::OsStr,
+    modules_dirs: &crate::ImporterModulesDirs,
 ) -> Option<HashSet<PathBuf>> {
     (!inputs.graph.trusted_importer_ids.is_empty()).then(|| {
         let mut dirs = HashSet::new();
         for importer_id in inputs.graph.trusted_importer_ids {
             let project_dir =
-                super::importer_root_dir(inputs.directories.top_level_bin_root, importer_id);
-            dirs.insert(pnpm_fs::lexical_normalize(&project_dir.join(modules_dir_name)));
+                super::importer_root_dir(inputs.directories.workspace_root, importer_id);
+            dirs.insert(pnpm_fs::lexical_normalize(&modules_dirs.of(&project_dir)));
+            // The link pass places a symlinked project's modules directory
+            // under its `std::fs::canonicalize` path, so match that spelling.
             if let Ok(real_dir) = std::fs::canonicalize(&project_dir) {
-                dirs.insert(pnpm_fs::lexical_normalize(&real_dir.join(modules_dir_name)));
+                dirs.insert(pnpm_fs::lexical_normalize(&modules_dirs.of(&real_dir)));
             }
         }
         dirs

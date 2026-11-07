@@ -18,8 +18,7 @@ use crate::{
     SkippedSnapshots,
     hoist::HoistedDependencies,
     prune_direct_deps::{
-        PruneDirectDepsError, UnlinkedDependency, confined_modules_dir, is_real_dir,
-        remove_direct_dep_link,
+        PruneDirectDepsError, UnlinkedDependency, is_real_dir, remove_direct_dep_link,
     },
     symlink_direct_dependencies::{importer_root_dir, link_target_dir, validate_importer_id},
 };
@@ -35,7 +34,6 @@ use pnpm_reporter::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
@@ -81,7 +79,7 @@ impl PruneStaleModules<'_> {
     pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
         StaleDirectDepLinks {
             workspace_root: self.workspace_root,
-            modules_dir_name: self.config.modules_dir_name(),
+            modules_dirs: crate::ImporterModulesDirs::from_config(self.config, self.workspace_root),
             wanted_lockfile: self.wanted_lockfile,
             current_lockfile: self.current_lockfile,
             linked: self.linked,
@@ -106,7 +104,10 @@ impl PruneStaleModules<'_> {
         )?;
         prune_workspace_hoists(
             &WorkspaceHoistDirs {
-                workspace_root: self.workspace_root,
+                modules_dirs: &crate::ImporterModulesDirs::from_config(
+                    self.config,
+                    self.workspace_root,
+                ),
                 private: &self.config.install_state_dir.join("node_modules"),
                 public: &self.config.modules_dir,
             },
@@ -121,10 +122,10 @@ impl PruneStaleModules<'_> {
 /// The direct-dependency links a previous install wrote that the wanted
 /// lockfile no longer records at the same version, or that the workspace
 /// root now provides under `dedupeDirectDeps`. Both linkers write these
-/// links to `<importer>/<modules_dir_name>`, and both prune them here.
+/// links to the importer's modules directory, and both prune them here.
 pub(crate) struct StaleDirectDepLinks<'a> {
     pub workspace_root: &'a Path,
-    pub modules_dir_name: &'a OsStr,
+    pub modules_dirs: crate::ImporterModulesDirs,
     pub wanted_lockfile: &'a Lockfile,
     pub current_lockfile: &'a Lockfile,
     pub linked: LinkedDirectDeps<'a>,
@@ -173,10 +174,9 @@ impl<'a> StaleDirectDepLinks<'a> {
                 continue;
             }
             let importer_dir = importer_root_dir(self.workspace_root, importer_id);
-            let Some(modules_dir) = confined_modules_dir(
-                &importer_dir.join(self.modules_dir_name),
-                self.workspace_root,
-            ) else {
+            let Some(modules_dir) =
+                self.modules_dirs.confined(&self.modules_dirs.of(&importer_dir))
+            else {
                 continue;
             };
             let wanted_specs = self.linked.of(wanted_snapshot);
@@ -265,9 +265,9 @@ impl<'a> LinkedDirectDeps<'a> {
 }
 
 /// Where [`prune_workspace_hoists`] looks for each kind of workspace
-/// hoist link. Both are confined to `workspace_root`.
+/// hoist link. Both are confined by [`crate::ImporterModulesDirs::confined`].
 pub(crate) struct WorkspaceHoistDirs<'a> {
-    pub workspace_root: &'a Path,
+    pub modules_dirs: &'a crate::ImporterModulesDirs,
     pub private: &'a Path,
     pub public: &'a Path,
 }
@@ -282,8 +282,8 @@ pub(crate) fn prune_workspace_hoists(
     wanted_hoisted_dependencies: Option<&HoistedDependencies>,
 ) -> Result<(), PruneDirectDepsError> {
     let Some(prior) = prior_hoisted_dependencies else { return Ok(()) };
-    let private_dir = confined_modules_dir(dirs.private, dirs.workspace_root);
-    let public_dir = confined_modules_dir(dirs.public, dirs.workspace_root);
+    let private_dir = dirs.modules_dirs.confined(dirs.private);
+    let public_dir = dirs.modules_dirs.confined(dirs.public);
     for (project_id, aliases) in prior {
         if project_id
             .parse()
@@ -415,8 +415,9 @@ fn prune_orphan_snapshots(
     };
     // Hoist links live in exactly two dirs; resolve + confine each once.
     let private_dir = config.install_state_dir.join("node_modules");
-    let private_dir = confined_modules_dir(&private_dir, workspace_root);
-    let public_dir = confined_modules_dir(&config.modules_dir, workspace_root);
+    let modules_dirs = crate::ImporterModulesDirs::from_config(config, workspace_root);
+    let private_dir = modules_dirs.confined(&private_dir);
+    let public_dir = modules_dirs.confined(&config.modules_dir);
     for key in orphan_keys {
         let Some(aliases) = prior_hoisted.get(&key.to_string()) else {
             continue;

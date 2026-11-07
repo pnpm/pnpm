@@ -105,12 +105,6 @@ pub(super) struct OnDiskOutput {
     pub(super) skipped: SkippedSnapshots,
 }
 impl<'a> OnDiskInputs<'a> {
-    /// See `linking::run_link_phase` for why this anchors on
-    /// `Config::modules_dir_anchor` rather than the install root.
-    fn symlink_root(&self) -> &'a Path {
-        self.ctx.config.modules_dir_anchor().unwrap_or(self.ctx.workspace_root)
-    }
-
     /// Materialize the virtual store. Skipped snapshots stay out of every
     /// map the output carries; the fetch failures it reports are folded into
     /// the skip set by the caller before anything links.
@@ -229,7 +223,6 @@ impl<'a> OnDiskInputs<'a> {
                     manifests: &project_manifests,
                     package_map_manifests: &package_map_project_manifests,
                     dependency_groups: self.install.projects.dependency_groups,
-                    symlink_root: self.symlink_root(),
                     trusted_importer_ids: self.projects.project_anchor_importer_ids,
                     root_component_importers: &root_component_importers,
                 },
@@ -270,9 +263,7 @@ impl<'a> OnDiskInputs<'a> {
     /// Run lifecycle scripts, report ignored builds, and re-link top-level
     /// bins: the build phase the frozen path runs, so `pacquet add esbuild`
     /// reports the blocked `esbuild` build (and builds approved packages)
-    /// exactly like `pnpm`. Scripts see the install root as `INIT_CWD`; the
-    /// post-build bin link anchors on [`Self::symlink_root`], where this
-    /// path placed `node_modules`.
+    /// exactly like `pnpm`. Scripts see the install root as `INIT_CWD`.
     ///
     /// Consumes the inputs: the store-index writer handle is dropped once
     /// the side-effects-cache rows are queued, so the channel closes and
@@ -284,7 +275,6 @@ impl<'a> OnDiskInputs<'a> {
         linked: &pnpm_deps_restorer::linking::LinkPhaseOutput,
         skipped: &SkippedSnapshots,
     ) -> Result<crate::BuildModulesOutput, InstallWithFreshLockfileError> {
-        let top_level_bin_root = self.symlink_root();
         let engine_name = settle_engine_name(
             self.runtime.deferred_engine_name.take(),
             self.runtime.engine_name.take(),
@@ -301,7 +291,7 @@ impl<'a> OnDiskInputs<'a> {
                     engine_name.as_deref(),
                     &self.store.store_index_writer,
                 ),
-                directories: build_directories(self.ctx, linked, top_level_bin_root),
+                directories: build_directories(self.ctx, linked),
                 graph: self.build_graph(materialized, linked),
                 policy: pnpm_deps_restorer::BuildPhasePolicy {
                     config: self.ctx.config,
@@ -445,11 +435,9 @@ impl<'a> super::FreshPriorInstall<'a> {
 fn build_directories<'a>(
     ctx: &'a pnpm_deps_restorer::InstallContext<'a>,
     linked: &'a pnpm_deps_restorer::linking::LinkPhaseOutput,
-    top_level_bin_root: &'a Path,
 ) -> pnpm_deps_restorer::BuildPhaseDirectories<'a> {
     pnpm_deps_restorer::BuildPhaseDirectories {
         workspace_root: ctx.workspace_root,
-        top_level_bin_root,
         layout: ctx.linker.layout,
         hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
         is_hoisted: ctx.is_hoisted(),

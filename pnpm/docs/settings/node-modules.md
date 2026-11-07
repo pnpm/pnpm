@@ -14,6 +14,11 @@ sidebar_label: "node_modules & hoisting"
 The directory in which dependencies will be installed (instead of
 `node_modules`).
 
+In a workspace, a relative path is used inside every project. An absolute path,
+or one that starts with `..`, is the root project's directory only. Every other
+project uses a directory named after its last part, such as `vendor` for
+`../vendor`.
+
 ### nodeLinker
 
 * Default: **isolated**

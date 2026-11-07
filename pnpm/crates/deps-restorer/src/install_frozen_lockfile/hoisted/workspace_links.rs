@@ -30,7 +30,7 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
         context: crate::ImporterLinkContext {
             config: inputs.config,
             layout: inputs.graph.layout,
-            workspace_root: inputs.projects.symlink_workspace_root,
+            workspace_root: inputs.projects.walker_lockfile_dir,
             link_options,
         },
         graph: crate::ImporterDependencyGraph {
@@ -91,6 +91,8 @@ fn trusted_importer_ids(inputs: &HoistedLinkerInputs<'_>) -> HashSet<String> {
 }
 
 fn workspace_linked_bin_dirs(inputs: &HoistedLinkerInputs<'_>) -> HashSet<PathBuf> {
+    let modules_dirs =
+        crate::ImporterModulesDirs::from_config(inputs.config, inputs.projects.walker_lockfile_dir);
     inputs.projects.manifests
         .iter()
         .filter_map(|(project_dir, _)| {
@@ -105,15 +107,7 @@ fn workspace_linked_bin_dirs(inputs: &HoistedLinkerInputs<'_>) -> HashSet<PathBu
                     matches!(dependency.version, pnpm_lockfile::ImporterDepVersion::Link(_))
                 });
 
-            has_links.then(|| {
-                if pnpm_fs::lexical_normalize(project_dir)
-                    == pnpm_fs::lexical_normalize(inputs.projects.walker_lockfile_dir)
-                {
-                    inputs.config.modules_dir.clone()
-                } else {
-                    project_dir.join(inputs.config.modules_dir_name())
-                }
-            })
+            has_links.then(|| modules_dirs.of(project_dir))
         })
         .collect()
 }
