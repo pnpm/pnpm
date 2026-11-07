@@ -301,7 +301,7 @@ fn outdated_ignores_unresolvable_package_config_overrides_in_a_shared_lockfile()
     append_workspace_yaml_key(
         &workspace,
         "packageConfigs",
-        "{ app: { overrides: { foo: $missing } } }",
+        format!("{{ test-outdated: {{ overrides: {{ foo: $missing, '{DEP}': '-' }} }} }}"),
     );
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
 
@@ -851,6 +851,39 @@ fn outdated_recursive_resolves_project_override_references_without_lockfile() {
         stdout.contains(DEP),
         "the project override reference should resolve: stdout={stdout}, stderr={stderr}",
     );
+    assert!(stdout.contains("101.0.0"), "the resolved range should be checked: {stdout}");
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_resolves_project_override_references_enabled_by_env() {
+    let (root, workspace, anchor) = setup();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\noverrides:\n  '{DEP}': 'npm:{FOO}@100.1.0'\npackageConfigs:\n  app:\n    overrides:\n      '{DEP}': '${DEP}'\n",
+        ),
+    )
+    .expect("write workspace manifest");
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create workspace project");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project manifest");
+
+    let output = pacquet(&workspace, ["outdated", "--recursive"])
+        .with_env("PNPM_CONFIG_SHARED_WORKSPACE_LOCKFILE", "false")
+        .output()
+        .expect("run recursive outdated with dedicated lockfiles from the environment");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "stdout={stdout}, stderr={stderr}");
     assert!(stdout.contains("101.0.0"), "the resolved range should be checked: {stdout}");
 
     drop((root, anchor));

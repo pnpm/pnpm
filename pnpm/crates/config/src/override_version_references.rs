@@ -26,7 +26,7 @@ const REFERENCEABLE_GROUPS: [DependencyGroup; 3] =
 /// every reference then fails to resolve. A manifest that exists but
 /// cannot be read or parsed propagates its own error instead — the
 /// unreadable file is what the user has to fix.
-pub(crate) fn resolve_version_references(
+pub fn resolve_version_references(
     overrides: &mut IndexMap<String, String>,
     root_dir: &Path,
 ) -> Result<(), LoadWorkspaceYamlError> {

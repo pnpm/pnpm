@@ -104,9 +104,32 @@ impl OutdatedRun {
         let Some(overrides) = self.configured_override_map(manifest) else {
             return Ok(None);
         };
+        let overrides = self.resolve_package_config_references(overrides)?;
         parse_overrides_iter(overrides.iter(), &self.catalogs)
             .map(Some)
             .map_err(miette::Report::new)
+    }
+
+    /// Config loading resolves `$name` references only in the workspace-wide
+    /// `overrides`, so a `packageConfigs` entry's references are resolved here,
+    /// once the final settings decide that the entry applies.
+    fn resolve_package_config_references<'a>(
+        &self,
+        overrides: &'a indexmap::IndexMap<String, String>,
+    ) -> miette::Result<Cow<'a, indexmap::IndexMap<String, String>>> {
+        let Some(workspace_dir) = self.config.workspace_dir.as_deref() else {
+            return Ok(Cow::Borrowed(overrides));
+        };
+        if !overrides
+            .values()
+            .any(|spec| spec.starts_with('$'))
+        {
+            return Ok(Cow::Borrowed(overrides));
+        }
+        let mut resolved = overrides.clone();
+        pnpm_config::resolve_override_version_references(&mut resolved, workspace_dir)
+            .map_err(miette::Report::new)?;
+        Ok(Cow::Owned(resolved))
     }
 
     fn configured_override_map(
