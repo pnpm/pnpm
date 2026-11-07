@@ -20,6 +20,7 @@ fn slot_state_changes_only_through_the_locked_owner() {
         slot.state(&completion_marker, false).expect("read populated slot").phase,
         GlobalVirtualStoreSlotPhase::Populated,
     );
+    assert!(slot.is_populated().expect("check populated slot"));
     std::fs::write(slot.package_path().join(crate::NEEDS_BUILD_MARKER), "")
         .expect("write pending marker");
     slot.finish_population(true).expect("mark build pending");
@@ -27,6 +28,7 @@ fn slot_state_changes_only_through_the_locked_owner() {
         slot.state(&completion_marker, true).expect("read pending build").phase,
         GlobalVirtualStoreSlotPhase::BuildPending,
     );
+    assert!(!slot.is_populated().expect("check pending slot"));
     slot.mark_build_started().expect("mark build started");
     assert_eq!(
         slot.state(&completion_marker, true).expect("read active build").phase,

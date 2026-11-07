@@ -215,6 +215,15 @@ impl GlobalVirtualStoreSlot {
         self.write_state("populating")
     }
 
+    pub fn is_populated(&self) -> io::Result<bool> {
+        match self.read_state_file()? {
+            Some(GlobalVirtualStoreSlotPhase::Populated | GlobalVirtualStoreSlotPhase::Built) => {
+                Ok(true)
+            }
+            Some(_) | None => Ok(false),
+        }
+    }
+
     pub fn finish_population(&self, needs_build: bool) -> io::Result<()> {
         self.write_state(if needs_build { "build-pending" } else { "populated" })
     }

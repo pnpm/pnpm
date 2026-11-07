@@ -6,6 +6,7 @@ use slot_paths::{SlotForceInputs, SlotPaths, cas_paths_with_build_marker, slot_i
 use crate::{
     DirCloneCache, ImportIndexedDirError, NEEDS_BUILD_MARKER, SymlinkPackageError,
     VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
+    import_indexed_dir::marker_present,
     safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
 };
 use derive_more::{Display, Error};
@@ -214,6 +215,20 @@ impl CreateVirtualDirBySnapshot<'_> {
         interrupted_build: bool,
         global_slot: Option<&crate::GlobalVirtualStoreSlot>,
     ) -> Result<(), CreateVirtualDirError> {
+        if !interrupted_build
+            && !self.source.force
+            && let Some(slot) = global_slot
+        {
+            let populated = slot
+                .is_populated()
+                .map_err(|source| CreateVirtualDirError::WriteSlotState {
+                    path: slot.path().to_path_buf(),
+                    source,
+                })?;
+            if populated && marker_present(save_path, cas_paths) {
+                return Ok(());
+            }
+        }
         // An interrupted build and a forced import both re-import with
         // `force`, which the cache's fresh-destination clone cannot serve.
         // For the forced one that is also a correctness bar, not just a
