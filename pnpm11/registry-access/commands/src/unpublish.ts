@@ -317,6 +317,7 @@ async function sendMutation (
       method: init.method,
       headers: {
         'npm-auth-type': ctx.authType,
+        'npm-command': 'unpublish',
         ...(init.body != null ? { 'content-type': 'application/json' } : {}),
         ...(otp ? { 'npm-otp': otp } : {}),
       },
