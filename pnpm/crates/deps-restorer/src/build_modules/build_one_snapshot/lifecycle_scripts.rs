@@ -119,26 +119,7 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
     bin_slot_locks: &[&crate::GlobalVirtualStoreSlot],
     optional: bool,
 ) -> Result<bool, pnpm_executor::LifecycleScriptError> {
-    let mut extra_env = (*context.scripts.extra_env).clone();
-    let mut held_paths = std::env::var(crate::GVS_LOCKED_SLOT_PATHS_ENV)
-        .ok()
-        .and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
-        .unwrap_or_default();
-    held_paths.extend(
-        bin_slot_locks
-            .iter()
-            .map(|slot| {
-                slot.path()
-                    .to_string_lossy()
-                    .into_owned()
-            }),
-    );
-    held_paths.sort();
-    held_paths.dedup();
-    extra_env.insert(
-        crate::GVS_LOCKED_SLOT_PATHS_ENV.to_string(),
-        serde_json::to_string(&held_paths).expect("slot paths serialize to JSON"),
-    );
+    let extra_env = extra_env_with_locked_slots(context.scripts.extra_env, bin_slot_locks);
     run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: context.directories.lockfile_dir,
@@ -163,6 +144,33 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
 
         optional,
     })
+}
+
+fn extra_env_with_locked_slots(
+    base: &std::collections::HashMap<String, String>,
+    slots: &[&crate::GlobalVirtualStoreSlot],
+) -> std::collections::HashMap<String, String> {
+    let mut extra_env = base.clone();
+    let mut held_paths = std::env::var(crate::GVS_LOCKED_SLOT_PATHS_ENV)
+        .ok()
+        .and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
+        .unwrap_or_default();
+    held_paths.extend(
+        slots
+            .iter()
+            .map(|slot| {
+                slot.path()
+                    .to_string_lossy()
+                    .into_owned()
+            }),
+    );
+    held_paths.sort();
+    held_paths.dedup();
+    extra_env.insert(
+        crate::GVS_LOCKED_SLOT_PATHS_ENV.to_string(),
+        serde_json::to_string(&held_paths).expect("slot paths serialize to JSON"),
+    );
+    extra_env
 }
 
 /// The directories a snapshot's build scripts get on `PATH` besides the ones

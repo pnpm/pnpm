@@ -74,43 +74,59 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
 ) -> Result<SnapshotPlan<'a>, CreateVirtualStoreError> {
     let probe = WarmSlotProbe::of(&inputs);
     let SnapshotPlanInputs { snapshots, cache_keys, .. } = inputs;
+    let (survivors, marker_rebuilds, has_git_hosted_survivor) =
+        plan_snapshot_batches::<Reporter>(snapshots, &probe, cache_keys)?;
+    let skipped_entries = skipped_entries(snapshots, &survivors, probe.policy.skipped, cache_keys);
+    Ok(SnapshotPlan { survivors, skipped_entries, marker_rebuilds, has_git_hosted_survivor })
+}
+
+fn plan_snapshot_batches<'a, Reporter: self::Reporter>(
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    probe: &WarmSlotProbe<'a, '_>,
+    cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+) -> Result<(Vec<SnapshotWithCacheKey<'a>>, HashSet<PackageKey>, bool), CreateVirtualStoreError> {
     let mut ordered_keys = snapshots.keys().collect::<Vec<_>>();
     ordered_keys.sort_by_key(|key| probe.layout.slot_dir(key));
-    let mut survivors_all = Vec::new();
-    let mut marker_rebuilds_all = HashSet::new();
+    let mut survivors = Vec::new();
+    let mut marker_rebuilds = HashSet::new();
     let mut has_git_hosted_survivor = false;
     for batch in ordered_keys.chunks(SLOT_LOCK_BATCH_SIZE) {
-        let locked_slots = crate::GlobalVirtualStoreSlot::acquire_existing_ordered(
-            probe.layout,
-            batch
-                .iter()
-                .filter(|key| {
-                    !probe.policy.skipped.contains(key)
-                        && probe.layout.hashed_slot_dir(key).is_some()
-                        && slot_probe_applies(&probe, key)
-                })
-                .map(|key| (*key).clone()),
-        )
-        .map_err(CreateVirtualStoreError::SlotLock)?;
-        let slots = locked_slots
-            .into_iter()
-            .map(|slot| (slot.path().to_path_buf(), slot))
-            .collect::<HashMap<_, _>>();
-        let mut markers = MarkerProbes::default();
-        let (mut survivors, has_git_survivor) =
-            survivors::<Reporter>(batch, snapshots, &probe, &slots, &mut markers, cache_keys)?;
+        let (mut batch_survivors, batch_rebuilds, has_git_survivor) =
+            plan_snapshot_batch::<Reporter>(batch, snapshots, probe, cache_keys)?;
         has_git_hosted_survivor |= has_git_survivor;
-        marker_rebuilds_all.extend(marker_rebuilds(markers, &survivors, &probe, &slots)?);
-        survivors_all.append(&mut survivors);
+        marker_rebuilds.extend(batch_rebuilds);
+        survivors.append(&mut batch_survivors);
     }
-    let skipped_entries =
-        skipped_entries(snapshots, &survivors_all, probe.policy.skipped, cache_keys);
-    Ok(SnapshotPlan {
-        survivors: survivors_all,
-        skipped_entries,
-        marker_rebuilds: marker_rebuilds_all,
-        has_git_hosted_survivor,
-    })
+    Ok((survivors, marker_rebuilds, has_git_hosted_survivor))
+}
+
+fn plan_snapshot_batch<'a, Reporter: self::Reporter>(
+    batch: &[&'a PackageKey],
+    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
+    probe: &WarmSlotProbe<'a, '_>,
+    cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+) -> Result<(Vec<SnapshotWithCacheKey<'a>>, HashSet<PackageKey>, bool), CreateVirtualStoreError> {
+    let locked_slots = crate::GlobalVirtualStoreSlot::acquire_existing_ordered(
+        probe.layout,
+        batch
+            .iter()
+            .filter(|key| {
+                !probe.policy.skipped.contains(key)
+                    && probe.layout.hashed_slot_dir(key).is_some()
+                    && slot_probe_applies(probe, key)
+            })
+            .map(|key| (*key).clone()),
+    )
+    .map_err(CreateVirtualStoreError::SlotLock)?;
+    let slots = locked_slots
+        .into_iter()
+        .map(|slot| (slot.path().to_path_buf(), slot))
+        .collect::<HashMap<_, _>>();
+    let mut markers = MarkerProbes::default();
+    let (survivors, has_git_survivor) =
+        survivors::<Reporter>(batch, snapshots, probe, &slots, &mut markers, cache_keys)?;
+    let marker_rebuilds = marker_rebuilds(markers, &survivors, probe, &slots)?;
+    Ok((survivors, marker_rebuilds, has_git_survivor))
 }
 
 /// The snapshots this install materializes, and whether any of them is
