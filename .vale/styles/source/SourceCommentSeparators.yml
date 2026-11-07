@@ -4,4 +4,4 @@ level: error
 scope: raw
 nonword: true
 tokens:
-  - '(?m)^\s*//!?\s*-{6,}\s*$'
+  - '(?m)^\s*//[!/ ]?\s*-{6,}\s*$'

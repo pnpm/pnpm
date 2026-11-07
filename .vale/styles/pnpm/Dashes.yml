@@ -5,3 +5,4 @@ level: error
 nonword: true
 tokens:
   - '[—–]'
+  - '\s--\s'

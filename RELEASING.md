@@ -15,7 +15,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 2. Review and merge that PR.
 
 3. Fetch the merge commit and tag each product whose version changed. Tag names
-   must match what `release.yml` expects, `v<version>` for the pnpm CLIs,
+   must match what `release.yml` expects — `v<version>` for the pnpm CLIs,
    `pnpr@<version>` for pnpr, `get-pnpm@<version>` for get-pnpm:
 
    | Product           | Manifest                         | Tag prefix  |
@@ -41,7 +41,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
      "get-pnpm@$(git show "$SHA:pnpm/npm/get-pnpm/package.json" | jq -r .version)"
    )
 
-   # Keep only the products whose version actually changed this release,
+   # Keep only the products whose version actually changed this release —
    # drop the rest from the array before tagging.
    for tag in "${tags[@]}"; do
      git tag -s "$tag" -m "$tag" "$SHA"
@@ -52,7 +52,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    <name>`) has no object to carry a signature, and `git verify-tag` fails on it
    with `cannot verify a non-tag object of type commit`.
 
-4. Verify **every** tag you just created before pushing, a multi-product
+4. Verify **every** tag you just created before pushing — a multi-product
    release must not leave one of its tags unchecked, and a pnpr-only release
    has no `v<version>` tag at all. `release.yml` rejects an unsigned tag
    anyway, but catching it here saves a failed run:
@@ -84,7 +84,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    IDs from the completed job's summary (`pnpm stage approve <stage-id> ...`)
    approves that set instead.
 
-   Approval requires interactive 2FA, once for the whole selection, pnpm asks
+   Approval requires interactive 2FA, once for the whole selection — pnpm asks
    for another one-time password only when the registry stops accepting the
    one it holds. The npm trusted publishers for `pnpm`, `@pnpm/exe`,
    `@pnpm/napi`, and their platform packages must allow staged publishing only,
@@ -98,15 +98,15 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 ## Reruns and partial releases
 
 `release.yml`'s plan job asks npm whether each product's *gate* package is
-already published, the one that product's publish job publishes last (`pnpm`
-for both CLIs, `@pnpm/pnpr` for pnpr, `get-pnpm` for get-pnpm), and skips the product entirely if it
+already published — the one that product's publish job publishes last (`pnpm`
+for both CLIs, `@pnpm/pnpr` for pnpr, `get-pnpm` for get-pnpm) — and skips the product entirely if it
 is. A release that ran to completion is therefore a no-op on rerun.
 
 When a run fails and the fix is a code change, commit the fix, move the tag to
 the new commit and push it again:
 
 ```bash
-TAG=v<version>        # or pnpr@<version> or get-pnpm@<version>, the tag of the product that failed
+TAG=v<version>        # or pnpr@<version> or get-pnpm@<version> — the tag of the product that failed
 FIXED=<sha-of-the-fix-commit>
 
 git push origin ":refs/tags/$TAG"     # drop the remote tag
@@ -121,21 +121,21 @@ what `release.yml` builds and publishes from, so a tag that accidentally names
 the wrong commit ships unreviewed code under a released version number.
 
 Re-creating the tag this way changes the ref, which fires a `push` event and
-starts a fresh run. The tag must be re-signed, `git tag -f` without `-s` would
+starts a fresh run. The tag must be re-signed — `git tag -f` without `-s` would
 quietly replace a signed tag with an unsigned one, which `release.yml` now
 rejects outright.
 
 Pushing a tag that is *already* on the remote unchanged is a different matter:
 it is a no-op, fires no event, and starts no run. To rerun the same commit
 without moving the tag, re-run the failed run from the Actions UI, or dispatch
-the workflow **against the release tag itself**, `validate-release-ref`
+the workflow **against the release tag itself** — `validate-release-ref`
 rejects a dispatch from a branch, so dispatching from the default branch
 publishes nothing.
 
 Either way, because the gate package is published last, a run that failed
 partway leaves the gate unpublished, so the plan job picks the product up
 again. But the packages that did publish before the failure are immutable on
-npm and cannot be republished at the same version, read the failed run's logs
+npm and cannot be republished at the same version — read the failed run's logs
 to see how far it got. If the fix has to change something already published,
 the release needs a new version rather than a retry.
 
@@ -171,7 +171,7 @@ root: anyone whose key lands there can cut a release.
 A maintainer cutting releases needs a PGP key configured for git and registered
 with GitHub:
 
-<!-- cspell:ignore signingkey,>
+<!-- cspell:ignore signingkey -->
 
 ```bash
 git config --global user.signingkey <fingerprint>
@@ -183,7 +183,7 @@ gpg --armor --export <fingerprint> | gh gpg-key add -
 ```
 
 The key's user ID must carry the same email as `user.email`, and that address
-must be verified on the GitHub account, otherwise the signature is valid but
+must be verified on the GitHub account — otherwise the signature is valid but
 GitHub still renders it Unverified.
 
 ## Known gap

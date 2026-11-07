@@ -10,7 +10,7 @@ pnpm add @pnpm/fetching.binary-fetcher
 
 ## Testing
 
-### Test fixtures
+### Test Fixtures
 
 The `test/fixtures/` directory contains malicious ZIP files for testing path traversal protection:
 
@@ -24,7 +24,7 @@ These fixtures are manually crafted because AdmZip's `addFile()` sanitizes paths
 
 > **Note:** The backslash test only runs on Windows because `\` is a valid filename character on Unix.
 
-### Regenerating fixtures
+### Regenerating Fixtures
 
 ```bash
 node --experimental-strip-types scripts/create-fixtures.ts

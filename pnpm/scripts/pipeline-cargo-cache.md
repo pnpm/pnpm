@@ -92,8 +92,8 @@ and Cargo snapshot caching. Their scripts still run, including when the
 submodule contains local edits or has not been initialized. Their run reports
 record a null task key.
 
-Projects Git cannot enumerate, outside a Git work tree, or on a machine without
-`git`, bypass task caching the same way, because the default input set is the
+Projects Git cannot enumerate — outside a Git work tree, or on a machine without
+`git` — bypass task caching the same way, because the default input set is the
 project's Git-tracked and untracked, unignored files. Their scripts still run and
 their run reports record a null task key. The run names each such project in a warning.
 

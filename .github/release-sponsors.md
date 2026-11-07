@@ -1,6 +1,6 @@
-<!-- sponsors,>
+<!-- sponsors -->
 
-## Platinum sponsors
+## Platinum Sponsors
 
 <table>
   <tbody>
@@ -44,7 +44,7 @@
   </tbody>
 </table>
 
-## Gold sponsors
+## Gold Sponsors
 
 <table>
   <tbody>
@@ -126,4 +126,4 @@
   </tbody>
 </table>
 
-<!-- sponsors end,>
+<!-- sponsors end -->

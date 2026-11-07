@@ -1,6 +1,6 @@
 ---
 name: pull-requests
-description: Take a change through a pull request in the pnpm repository, opening it, then staying with it after every push until CI is green and the review round is quiet. Use when opening a PR, after pushing to one, when a check fails, or when review comments arrive.
+description: Take a change through a pull request in the pnpm repository — opening it, then staying with it after every push until CI is green and the review round is quiet. Use when opening a PR, after pushing to one, when a check fails, or when review comments arrive.
 ---
 
 # Pull requests
@@ -32,7 +32,7 @@ the PR merges.
 
 CI runs on a draft here; the reviewers do not. That asymmetry is the whole point
 of opening as one. A failing lint job, a test you forgot to update, a bug your
-own review pass catches, in draft each of those costs a push and nothing else,
+own review pass catches — in draft each of those costs a push and nothing else,
 while on a ready PR each one burns a review round and leaves a thread behind.
 
 So stay in draft until the checks are green and your own pass over the diff is
@@ -65,7 +65,7 @@ is still a draft too; the review steps start when you mark it ready.
    verdict. Act on what holds. Reply on every thread either way, naming the
    commit that fixed it or the reason you are not acting, and then resolve it:
    the thread is the record a reviewer checks each fix against. Reply once that
-   commit is on the remote branch, never before, a hash read off a local commit
+   commit is on the remote branch, never before — a hash read off a local commit
    that a rebase or an amend then rewrites names something nobody can look up. Resolving needs
    GraphQL (`resolveReviewThread`); the REST comment API cannot do it.
 4. **Bring the title and description with the code.** Reread them after any push
@@ -102,7 +102,7 @@ flight, and a trickle of pushes restarts it over and over.
 ## Failing checks
 
 Never write a failure off as pre-existing, flaky, or unrelated without evidence
-for that claim, `AGENTS.md` makes this a repo rule, and the first guess is
+for that claim — `AGENTS.md` makes this a repo rule, and the first guess is
 usually wrong. Pull the failing log (`gh run view <run> --log-failed`),
 reproduce it locally with the selection from the
 [`testing-changes`](../testing-changes/SKILL.md) skill, and fix the cause.
@@ -130,8 +130,8 @@ resumes the paused rebase instead of checking the branch out again. Add
 `--no-push` when you want to inspect the rewritten commits before publishing
 them; it stops after the rebase and prints the push command. The rebase is
 recorded as belonging to the PR it was started for, so `--continue` refuses a
-pause that belongs to another PR, the same head branch name can belong to
-another fork, instead of force-pushing the rewritten commits to its branch.
+pause that belongs to another PR — the same head branch name can belong to
+another fork — instead of force-pushing the rewritten commits to its branch.
 
 Rebase rather than merging `main` in: the branch protection on `main` requires
 linear history and merge commits are disabled, which is why the script and
@@ -141,7 +141,7 @@ Fold the rebase into the push that carries your fixes when you can, and answer
 the threads after that push, not before: the rebase rewrites your fix commits,
 so a hash quoted ahead of it names a commit the branch never receives. The force
 push also marks the open comments outdated and moves their anchors, which is the
-second reason the reply has to carry the hash, the line the comment hangs on no
+second reason the reply has to carry the hash — the line the comment hangs on no
 longer points at the fix.
 
 Re-read the diff after a rebase. A conflict resolved wrongly is a real bug that
