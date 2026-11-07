@@ -1053,3 +1053,45 @@ async fn publish_supports_scoped_packages() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn unpublish_rejects_invalid_versions() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "publisher", "secret123").await;
+    for name in ["widgets", "@example/widgets"] {
+        let archive = npm_tgz(name, "1.0.0", b"module.exports = 1");
+        let mut request = put_json(&format!("/npm/{name}"), publish_doc(name, "1.0.0", &archive));
+        request
+            .headers_mut()
+            .insert("Authorization", format!("Bearer {token}").parse().unwrap());
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+    }
+    for path in [
+        "/npm/widgets@not-a-version",
+        "/npm/@example/widgets@not-a-version",
+        "/npm/widgets/-/widgets-not-a-version.tgz",
+        "/npm/@example/widgets/-/widgets-not-a-version.tgz",
+        "/npm/widgets@01.0.0/-rev/1",
+        "/npm/@example/widgets@01.0.0/-rev/1",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::delete(path)
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains("not valid semver"), "{reason}");
+    }
+}

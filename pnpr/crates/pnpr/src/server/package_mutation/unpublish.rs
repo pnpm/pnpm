@@ -150,6 +150,12 @@ pub(crate) async fn delete_tarball(
         Ok(parsed) => parsed,
         Err(err) => return err.into_response(),
     };
+    if !super::super::publishing::is_valid_semver(&version) {
+        return RegistryError::BadRequest {
+            reason: format!("version {version:?} is not valid semver"),
+        }
+        .into_response();
+    }
     let target = match resolve_and_authorize_unpublish(state, identity, registry, &name).await {
         Ok(target) => target,
         Err(response) => return response,

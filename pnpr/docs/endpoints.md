@@ -478,7 +478,9 @@ name and target rules. A package-document update cannot remove `latest` while
 published versions remain.
 
 Every key under `versions` and its manifest's `version` must be valid SemVer.
-pnpr rejects an invalid version with `400`.
+pnpr rejects an invalid version with `400`, including versions in DELETE requests.
+Publish version keys with build metadata, such as `1.0.0+build.5`, return `400`
+with a message explaining that build metadata cannot be published.
 
 ### Packument revisions
 
