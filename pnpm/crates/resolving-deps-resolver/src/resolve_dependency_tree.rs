@@ -16,8 +16,7 @@ pub(crate) use catalogs::resolve_catalog_specifiers;
 pub(crate) use importer::importer_direct_wanted_specs;
 
 pub(crate) use reuse::{
-    preseed_changed_direct_versions, record_changed_direct_deps,
-    resolve_direct_dependency_detached, unwrap_package_name,
+    preseed_changed_direct_versions, record_changed_direct_deps, resolve_direct_dependency_detached,
 };
 
 pub(crate) use workspace_ctx::SyncCursor;

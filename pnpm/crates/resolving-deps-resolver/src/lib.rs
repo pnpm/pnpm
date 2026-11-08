@@ -124,6 +124,7 @@ mod resolve_peers;
 mod resolve_workspace;
 mod resolved_tree;
 mod strongly_connected_components;
+mod unwrap_package_name;
 
 #[cfg(test)]
 mod tests;

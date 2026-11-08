@@ -106,7 +106,7 @@ impl<'a> WantedRegistryRange<'a> {
         if bare_specifier.starts_with("npm:") {
             let alias_name = alias.to_string();
             let (name, range) =
-                crate::resolve_dependency_tree::unwrap_package_name(&alias_name, bare_specifier);
+                crate::unwrap_package_name::unwrap_package_name(&alias_name, bare_specifier);
             let registry = registries.routed_registry(name);
             return Some(Self {
                 name: Cow::Owned(name.parse().ok()?),
