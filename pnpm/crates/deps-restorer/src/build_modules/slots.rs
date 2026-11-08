@@ -94,6 +94,23 @@ pub(crate) fn is_started_build_marker(marker: &Path) -> std::io::Result<bool> {
     }
 }
 
+/// Record in `marker` that the build of `key`, which has no slot lock to
+/// record it under, started. A missing package directory is left alone, and
+/// any other failure only loses the record, so it is logged.
+pub(crate) fn record_started_build(marker: &Path, key: &PackageKey) {
+    if let Err(error) = std::fs::write(marker, STARTED_BUILD_MARKER)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        tracing::warn!(
+            target: "pacquet::build",
+            ?error,
+            dep_path = %key,
+            marker = %marker.display(),
+            "failed to mark the global virtual store slot as mid-build",
+        );
+    }
+}
+
 /// Remove every installed copy of an optional dependency whose build
 /// failed, so a consumer that probes for it finds it absent rather than
 /// half-built. The next install finds the directory missing and retries
