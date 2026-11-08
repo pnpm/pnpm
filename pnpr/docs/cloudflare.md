@@ -69,13 +69,6 @@ database:
   replicaPath: /pnpr/cache/metadata-replica.db
   syncInterval: 10s
 
-database:
-  url: ${PNPR_LIBSQL_URL}
-  authToken: ${PNPR_LIBSQL_TOKEN}
-  # Token lookups read a local replica of the Turso database. The replica
-  # lives on the container's ephemeral disk and is rebuilt on each start.
-  replicaPath: /pnpr/cache/auth-replica.db
-
 secret: ${PNPR_SECRET}
 
 # The Worker below passes the client's address in X-Real-IP.

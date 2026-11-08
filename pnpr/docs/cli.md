@@ -97,7 +97,7 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 
 ### migrate-storage
 
-Migrates hosted package blobs from local filesystem storage to an S3-compatible object store. Package metadata stays in its [database](storage.md#libsql-metadata), which an S3 deployment reads through a libSQL `database.url`. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `database.url` at it. A run that is not `--dry-run` refuses any other metadata.
+Migrates hosted package blobs from local filesystem storage to an S3-compatible object store. Package metadata stays in the database selected by `database.url`. S3 deployments support libSQL, PostgreSQL, or MySQL metadata. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `database.url` at it. A run that is not `--dry-run` refuses local SQLite metadata.
 
 ```sh
 # Preview packages and blobs that would be transferred

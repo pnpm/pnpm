@@ -327,4 +327,5 @@ CREATE TABLE IF NOT EXISTS record_generation (
     singleton BIGINT PRIMARY KEY CHECK (singleton = 1),
     generation BIGINT NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
-INSERT INTO record_generation (singleton, generation) VALUES (1, 0);
+INSERT INTO record_generation (singleton, generation) VALUES (1, 0)
+    ON DUPLICATE KEY UPDATE singleton = record_generation.singleton;

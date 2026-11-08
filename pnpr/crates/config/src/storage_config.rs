@@ -57,8 +57,8 @@ pub enum MetadataBackend {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct DatabaseFile {
     /// The metadata database: `sqlite:<path>`, with a relative path resolved
-    /// against the config file's directory, or a libSQL database
-    /// (`libsql://`, or `http://` and `https://` for a self-hosted `sqld`).
+    /// against the config file's directory, `postgres://`, `mysql://`, or
+    /// libSQL (`libsql://`, `http://`, or `https://`).
     /// Without it, a filesystem hosted store keeps its metadata in
     /// [`default_metadata_path`].
     #[serde(default)]
@@ -73,11 +73,13 @@ pub(crate) struct DatabaseFile {
     /// how stale a replica read may be.
     #[serde(default)]
     sync_interval: Option<Interval>,
-    /// Most libSQL operations running at once.
+    /// Maximum concurrent libSQL operations or PostgreSQL/MySQL pool connections.
     #[serde(default)]
     max_connections: Option<u32>,
+    /// PostgreSQL/MySQL operation and pool-acquisition timeout.
     #[serde(default)]
     timeout: Option<Interval>,
+    /// PostgreSQL/MySQL auth connection and schema-initialization timeout.
     #[serde(default)]
     startup_timeout: Option<Interval>,
 }
@@ -108,7 +110,7 @@ pub(crate) fn resolve_metadata_backend(
         ));
     }
     match &file.url {
-        None if has_libsql_settings(file) => Err(invalid(LIBSQL_ONLY_SETTINGS)),
+        None if has_remote_settings(file) => Err(invalid(REMOTE_ONLY_SETTINGS)),
         None => default_metadata(storage, on_fs),
         Some(url) if is_network_sql_url(url) => network_metadata(file, url),
         Some(url) if is_libsql_url(url) => libsql_metadata(file, url, base_dir),
@@ -131,12 +133,10 @@ fn default_metadata(storage: &Path, on_fs: bool) -> Result<MetadataBackend, Regi
     }
 }
 
-/// Why settings only a libSQL URL takes are refused anywhere else.
-const LIBSQL_ONLY_SETTINGS: &str = "database.authToken, replicaPath, syncInterval, and \
-                                    maxConnections apply only to a libSQL metadata URL";
+const REMOTE_ONLY_SETTINGS: &str = "database.authToken, replicaPath, and syncInterval require a \
+    libSQL URL. database.maxConnections requires a libSQL, PostgreSQL, or MySQL URL";
 
-/// Whether `file` sets anything only a libSQL URL takes.
-fn has_libsql_settings(file: &DatabaseFile) -> bool {
+fn has_remote_settings(file: &DatabaseFile) -> bool {
     file.auth_token.is_some()
         || file.replica_path.is_some()
         || file.sync_interval.is_some()
@@ -159,8 +159,8 @@ fn sqlite_metadata(
             reason: "database.url names an unsupported database; use `sqlite:<path>`, `postgres://`, `mysql://`, or `libsql://<host>`".to_string(),
         });
     };
-    if has_libsql_settings(file) {
-        return Err(invalid(LIBSQL_ONLY_SETTINGS));
+    if has_remote_settings(file) {
+        return Err(invalid(REMOTE_ONLY_SETTINGS));
     }
     if path.is_empty() {
         return Err(invalid("database.url `sqlite:` needs a path after the colon"));

@@ -89,25 +89,31 @@ pub(super) fn prepare(connection: &dyn Connection) -> Result<Option<Stored>> {
             .iter()
             .any(|table| table.eq_ignore_ascii_case(name))
     };
-    if has(MARKER) {
+    if has(MARKER) && !transaction.recover_schema_initialization()? {
         return Ok(match stored(&*transaction)? {
             Stored::Version(stored) if stored == SCHEMA_VERSION => incomplete(has),
             stored => Some(stored),
         });
     }
-    if table_names(TABLES).iter().any(|table| has(table)) {
+    if !has(MARKER) && table_names(TABLES).iter().any(|table| has(table)) {
         return Ok(Some(Stored::Unmarked));
     }
-    for statement in statements(&connection.schema_tables()) {
-        transaction.execute(&statement, params![])?;
+    if !has(MARKER) {
+        transaction.create_schema()?;
     }
-    transaction.execute(connection.schema_marker(), params![])?;
-    transaction.execute(
-        &format!("INSERT INTO {MARKER} (version) VALUES (?1)"),
-        params![SCHEMA_VERSION],
-    )?;
     transaction.commit()?;
     Ok(None)
+}
+
+pub(super) fn create(connection: &(impl Connection + ?Sized)) -> Result<()> {
+    for statement in statements(&connection.schema_tables()) {
+        connection.execute(&statement, params![])?;
+    }
+    connection.execute(connection.schema_marker(), params![])?;
+    connection.execute(
+        &format!("INSERT INTO {MARKER} (version) VALUES (?1)"),
+        params![SCHEMA_VERSION],
+    )
 }
 
 /// The metadata tables a database marked with this pnpr's version lacks, given

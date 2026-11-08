@@ -2,6 +2,7 @@
 
 #[macro_use]
 mod conformance;
+mod batched_reads;
 mod blobs;
 mod concurrency;
 #[cfg(feature = "backend-libsql")]

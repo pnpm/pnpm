@@ -1,4 +1,4 @@
-use super::super::adapter::Param;
+use super::super::adapter::{Param, Query};
 use pnpr_error::{RegistryError, Result};
 use std::fmt::Write as _;
 
@@ -140,13 +140,42 @@ impl Dialect {
         sql: &str,
         params: &[Param<'value>],
     ) -> Result<(String, Vec<Param<'value>>)> {
+        let mut ordered = Vec::new();
+        let sql = self.statement_into(sql, params, &mut ordered)?;
+        Ok((sql, ordered))
+    }
+
+    pub(super) fn batch<'value>(
+        self,
+        queries: &[Query<'value>],
+    ) -> Result<(String, Vec<Param<'value>>)> {
+        let mut ordered = Vec::new();
+        let mut statements = Vec::with_capacity(queries.len());
+        let integer = match self {
+            Self::Postgres => "BIGINT",
+            Self::Mysql => "SIGNED",
+        };
+        for (index, query) in queries.iter().enumerate() {
+            let sql = self.statement_into(query.sql, &query.params, &mut ordered)?;
+            statements.push(format!(
+                "SELECT CAST({index} AS {integer}) AS batch_index, batch.* FROM ({sql}) AS batch",
+            ));
+        }
+        Ok((statements.join(" UNION ALL "), ordered))
+    }
+
+    fn statement_into<'value>(
+        self,
+        sql: &str,
+        params: &[Param<'value>],
+        ordered: &mut Vec<Param<'value>>,
+    ) -> Result<String> {
         let sql = self.functions(sql);
         let sql = match self {
             Self::Postgres => sql,
             Self::Mysql => mysql_upsert(&sql)?,
         };
         let mut rendered = String::with_capacity(sql.len());
-        let mut ordered = Vec::new();
         let mut chars = sql.chars().peekable();
         let mut quoted = false;
         while let Some(character) = chars.next() {
@@ -165,7 +194,7 @@ impl Dialect {
                 Self::Mysql => rendered.push('?'),
             }
         }
-        Ok((rendered, ordered))
+        Ok(rendered)
     }
 }
 

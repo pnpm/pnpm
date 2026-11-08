@@ -1,6 +1,6 @@
 //! Network SQL connections used from the metadata blocking pool.
 
-use super::adapter::{Adapter, Connection, Param, ReadSource, Row, Value};
+use super::adapter::{Adapter, Connection, Param, Query, ReadSource, Row, Value};
 use pnpr_config::SqlBackendSettings;
 use pnpr_error::{RegistryError, Result};
 use sqlx::{TypeInfo, ValueRef, pool::PoolConnection};
@@ -10,14 +10,16 @@ use std::{
 };
 
 mod dialect;
+mod mysql_schema;
 use dialect::Dialect;
 
 macro_rules! driver {
     ($module:ident, $database:ty, $pool:ty, $pool_fn:path, $row:ty) => {
         pub(super) mod $module {
             use super::{
-                Adapter, Cell, Connection, Dialect, Duration, Param, PoolConnection, ReadSource,
-                RefCell, RegistryError, Result, Row, SqlBackendSettings, TypeInfo, Value, ValueRef,
+                Adapter, Cell, Connection, Dialect, Duration, Param, PoolConnection, Query,
+                ReadSource, RefCell, RegistryError, Result, Row, SqlBackendSettings, TypeInfo,
+                Value, ValueRef,
             };
             use sqlx::Row as _;
             #[derive(Debug)]
@@ -46,10 +48,15 @@ macro_rules! driver {
                         runtime,
                         timeout: self.timeout,
                         schema_locked: Cell::new(false),
+                        transaction_open: Cell::new(false),
                     };
                     let result = operation(&connection);
                     // A failed commit or rollback must not return an open transaction to the pool.
-                    let rollback = connection.execute_batch("ROLLBACK");
+                    let rollback = if connection.transaction_open.get() {
+                        connection.rollback()
+                    } else {
+                        Ok(())
+                    };
                     let unlock = if connection.schema_locked.get() {
                         connection.execute_batch(connection.dialect.unlock_schema())
                     } else {
@@ -92,6 +99,7 @@ macro_rules! driver {
                 runtime: tokio::runtime::Handle,
                 timeout: Duration,
                 schema_locked: Cell<bool>,
+                transaction_open: Cell<bool>,
             }
 
             impl Drop for NetworkConnection {
@@ -105,7 +113,14 @@ macro_rules! driver {
             impl NetworkConnection {
                 fn rows(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
                     let (sql, params) = self.dialect.statement(sql, params)?;
-                    let mut query = sqlx::query(&sql);
+                    self.fetch(&sql, params)?
+                        .iter()
+                        .map(|row| decode_row(row, 0))
+                        .collect()
+                }
+
+                fn fetch(&self, sql: &str, params: Vec<Param<'_>>) -> Result<Vec<$row>> {
+                    let mut query = sqlx::query(sql);
                     for param in params {
                         query = match param {
                             Param::Null => query.bind(Option::<String>::None),
@@ -125,13 +140,27 @@ macro_rules! driver {
                         .map_err(|_| RegistryError::Internal {
                             reason: "metadata database operation timed out".to_string(),
                         })??;
-                    rows.iter()
-                        .map(decode_row)
-                        .collect()
+                    Ok(rows)
                 }
             }
 
             impl Connection for NetworkConnection {
+                fn recover_schema_initialization(&self) -> Result<bool> {
+                    if matches!(self.dialect, Dialect::Mysql) {
+                        return super::mysql_schema::recover(self);
+                    }
+                    Ok(false)
+                }
+
+                fn create_schema(&self) -> Result<()> {
+                    if matches!(self.dialect, Dialect::Mysql) {
+                        super::mysql_schema::begin(self)?;
+                        super::mysql_schema::finish(self)
+                    } else {
+                        super::super::schema::create(self)
+                    }
+                }
+
                 fn lock_schema(&self) -> Result<()> {
                     // A lost response may still have acquired the session lock.
                     self.schema_locked.set(true);
@@ -153,6 +182,29 @@ macro_rules! driver {
                     self.rows(sql, params)
                 }
 
+                fn query_all(&self, queries: &[Query<'_>]) -> Result<Vec<Vec<Row>>> {
+                    let Some(first) = queries.first() else { return Ok(Vec::new()) };
+                    if queries.len() == 1
+                        || queries
+                            .iter()
+                            .any(|query| query.sql != first.sql)
+                    {
+                        return queries
+                            .iter()
+                            .map(|query| self.rows(query.sql, &query.params))
+                            .collect();
+                    }
+                    let (sql, params) = self.dialect.batch(queries)?;
+                    let mut results = vec![Vec::new(); queries.len()];
+                    for row in self.fetch(&sql, params)? {
+                        let index: i64 = row.try_get(0)?;
+                        results[usize::try_from(index).expect("batch index")].push(decode_row(
+                            &row, 1,
+                        )?);
+                    }
+                    Ok(results)
+                }
+
                 fn execute_batch(&self, sql: &str) -> Result<()> {
                     let mut connection = self.connection.borrow_mut();
                     self.runtime
@@ -170,11 +222,25 @@ macro_rules! driver {
                 }
 
                 fn begin_write(&self) -> Result<()> {
+                    self.transaction_open.set(true);
                     self.execute_batch(self.dialect.begin_write())
                 }
 
                 fn begin_read(&self) -> Result<()> {
+                    self.transaction_open.set(true);
                     self.execute_batch(self.dialect.begin_read())
+                }
+
+                fn commit(&self) -> Result<()> {
+                    self.execute_batch("COMMIT")?;
+                    self.transaction_open.set(false);
+                    Ok(())
+                }
+
+                fn rollback(&self) -> Result<()> {
+                    self.execute_batch("ROLLBACK")?;
+                    self.transaction_open.set(false);
+                    Ok(())
                 }
 
                 fn schema_tables(&self) -> String {
@@ -190,9 +256,9 @@ macro_rules! driver {
                 }
             }
 
-            fn decode_row(row: &$row) -> Result<Row> {
+            fn decode_row(row: &$row, start: usize) -> Result<Row> {
                 let mut values = Vec::with_capacity(row.len());
-                for index in 0..row.len() {
+                for index in start..row.len() {
                     let raw = row.try_get_raw(index)?;
                     let value = if raw.is_null() {
                         Value::Null

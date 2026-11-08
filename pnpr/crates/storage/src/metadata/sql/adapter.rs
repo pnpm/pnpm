@@ -40,6 +40,14 @@ pub(crate) trait Connection {
         Ok(())
     }
 
+    fn recover_schema_initialization(&self) -> Result<bool> {
+        Ok(false)
+    }
+
+    fn create_schema(&self) -> Result<()> {
+        super::schema::create(self)
+    }
+
     fn schema_tables(&self) -> String {
         super::schema::TABLES.to_string()
     }
@@ -59,8 +67,8 @@ pub(crate) trait Connection {
     /// Run one statement and return every row it produced.
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>>;
 
-    /// Run `queries` in order and return the rows of each, in one round trip
-    /// to a remote database.
+    /// Run `queries` in order and return the rows of each. Remote adapters
+    /// combine compatible queries into one round trip.
     fn query_all(&self, queries: &[Query<'_>]) -> Result<Vec<Vec<Row>>> {
         queries
             .iter()

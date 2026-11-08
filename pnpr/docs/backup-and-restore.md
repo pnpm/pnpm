@@ -66,7 +66,7 @@ To restore:
 
 ## S3 and object storage
 
-When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs live in your S3-compatible bucket and package metadata in the [libSQL database](storage.md#libsql-metadata) `database.url` names. Back them up together.
+When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs live in your S3-compatible bucket and package metadata in the libSQL, PostgreSQL, or MySQL database selected by `database.url`. Back them up together.
 
 ### Recommended S3 settings
 

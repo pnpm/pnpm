@@ -245,7 +245,7 @@ fn fragment_query(key: &FragmentKey) -> Query<'_> {
     let (catalog, ecosystem, name) = key.package.params();
     if key.representation == Representation::Accepted {
         return query!(
-            "SELECT manifest, inputs, NULL, NULL, NULL FROM accepted_manifests
+            "SELECT manifest, inputs, NULL AS readme, NULL AS readme_filename, NULL AS deprecated FROM accepted_manifests
              WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
                AND revision_key = ?5 AND profile = ?6",
             catalog,

@@ -172,8 +172,8 @@ database:
   authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
-A registry that hosts packages on S3 needs `database.url` to name a libSQL
-database. pnpr refuses to start without one.
+A registry that hosts packages on S3 needs `database.url` to name a libSQL,
+PostgreSQL, or MySQL database. pnpr refuses to start without one.
 
 | Key | Required | Description |
 | --- | --- | --- |
@@ -240,19 +240,17 @@ s3:
   secretAccessKey: minioadmin
 ```
 
-### Storing users and tokens in a shared SQL database
+### Sharing package metadata, users, and tokens
 
-Auth state — the registered users and their bearer tokens — is the other
-piece of per-instance disk state. By default users live in an
-htpasswd file and tokens in a local SQLite database (see `auth:` above),
-so two `pnpr` replicas don't see each other's accounts. Adding a
-`database:` block moves both into one shared SQL database, so several
-stateless replicas share a consistent set of logins and tokens — the
-auth half of running `pnpr` horizontally scaled.
+A libSQL, PostgreSQL, or MySQL `database.url` selects the database for package
+metadata, users, and tokens.
+Before changing it on an existing registry, move or restore its package metadata
+into the target database. Changing the URL does not copy data. An empty database
+has no published packages.
 
-The same auth traits drive every backend, and the SQL schema sticks to
-common column types so records can be moved between supported drivers.
-Only one backend may be selected in a config file.
+Without a shared database, users live in an htpasswd file and tokens in a local
+SQLite database (see `auth:` above). Replicas using the same shared database see
+the same accounts, tokens, and package metadata.
 
 Database drivers are Cargo-feature gated:
 
