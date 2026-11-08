@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use std::{fs, io, path::PathBuf, time::Duration};
 
 enum ExistingSlotLockAttempt {
-    Acquired(Option<GlobalVirtualStoreSlot>),
+    Acquired(Option<Box<GlobalVirtualStoreSlot>>),
     Busy,
 }
 
@@ -61,7 +61,7 @@ impl GlobalVirtualStoreSlot {
         let mut busy = false;
         for attempt in attempts {
             match attempt? {
-                ExistingSlotLockAttempt::Acquired(Some(slot)) => slots.push(slot),
+                ExistingSlotLockAttempt::Acquired(Some(slot)) => slots.push(*slot),
                 ExistingSlotLockAttempt::Acquired(None) => {}
                 ExistingSlotLockAttempt::Busy => busy = true,
             }
@@ -80,7 +80,8 @@ impl GlobalVirtualStoreSlot {
             return Ok(ExistingSlotLockAttempt::Acquired(None));
         };
         if layout.frozen_store() {
-            return Self::open_existing_path(path, key).map(ExistingSlotLockAttempt::Acquired);
+            return Self::open_existing_path(path, key)
+                .map(|slot| ExistingSlotLockAttempt::Acquired(slot.map(Box::new)));
         }
         if !path.is_dir() {
             return Ok(ExistingSlotLockAttempt::Acquired(None));
@@ -107,7 +108,7 @@ impl GlobalVirtualStoreSlot {
             }
             return Ok(ExistingSlotLockAttempt::Acquired(None));
         }
-        Ok(ExistingSlotLockAttempt::Acquired(Some(slot)))
+        Ok(ExistingSlotLockAttempt::Acquired(Some(Box::new(slot))))
     }
 
     fn try_acquire_path(path: PathBuf, key: &PackageKey) -> Result<Option<Self>, GvsSlotLockError> {

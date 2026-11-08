@@ -132,7 +132,6 @@ impl DirLock {
             held: HeldFile::open(&path),
             path,
             abandoned_after,
-            deadline,
             release_retry_started: None,
         };
         loop {
@@ -164,7 +163,6 @@ struct Acquisition {
     path: PathBuf,
     held: HeldFile,
     abandoned_after: Duration,
-    deadline: Instant,
     release_retry_started: Option<Instant>,
 }
 
@@ -175,7 +173,7 @@ impl Acquisition {
         if self.held.lock() == Liveness::Busy {
             return Ok(CreateAttempt::Held);
         }
-        match try_create_lock_dir(&self.path, self.deadline, &mut self.release_retry_started)? {
+        match try_create_lock_dir(&self.path, &mut self.release_retry_started)? {
             CreateAttempt::Held => {}
             attempt => return Ok(attempt),
         }
@@ -429,7 +427,6 @@ enum CreateAttempt {
 /// retried within its own budget rather than reported as contention.
 fn try_create_lock_dir(
     path: &Path,
-    deadline: Instant,
     release_retry_started: &mut Option<Instant>,
 ) -> io::Result<CreateAttempt> {
     let error = match fs::create_dir(path) {
@@ -438,7 +435,7 @@ fn try_create_lock_dir(
     };
     if is_transient_release_error(&error) {
         let started = release_retry_started.get_or_insert_with(Instant::now);
-        if Instant::now() >= deadline || started.elapsed() >= RELEASE_RETRY_BUDGET {
+        if started.elapsed() >= RELEASE_RETRY_BUDGET {
             return Err(error);
         }
         sleep(POLL_INTERVAL);
