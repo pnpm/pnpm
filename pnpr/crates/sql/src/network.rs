@@ -168,10 +168,21 @@ macro_rules! driver {
                             tokio::time::timeout(self.timeout, query.fetch_all(&mut **connection))
                                 .await
                         })
-                        .map_err(|_| RegistryError::Internal {
-                            reason: "metadata database operation timed out".to_string(),
-                        })??;
+                        .map_err(|_| self.mark_timed_out(&mut connection))??;
                     Ok(rows)
+                }
+
+                fn mark_timed_out(
+                    &self,
+                    connection: &mut PoolConnection<$database>,
+                ) -> RegistryError {
+                    // A cancelled future leaves an unread response on the wire.
+                    connection.close_on_drop();
+                    self.transaction_open.set(false);
+                    self.schema_locked.set(false);
+                    RegistryError::Internal {
+                        reason: "metadata database operation timed out".to_string(),
+                    }
                 }
             }
 
@@ -252,9 +263,7 @@ macro_rules! driver {
                             )
                             .await
                         })
-                        .map_err(|_| RegistryError::Internal {
-                            reason: "metadata database operation timed out".to_string(),
-                        })??;
+                        .map_err(|_| self.mark_timed_out(&mut connection))??;
                     Ok(())
                 }
 
