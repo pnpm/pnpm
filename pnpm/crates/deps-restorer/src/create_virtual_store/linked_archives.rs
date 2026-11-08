@@ -77,7 +77,8 @@ fn package_dir(layout: &VirtualStoreLayout, snapshot_key: &PackageKey) -> PathBu
 
 /// Whether the slot of `snapshot_key` holds another archive of a package with
 /// platform variants than the one `supported` links: its record names
-/// another integrity, or it has none.
+/// another integrity, or it has none. Without `locked_slot` the record is
+/// read without the lock, so the caller never waits on another install.
 pub(crate) fn slot_holds_other_variant(
     layout: &VirtualStoreLayout,
     (snapshot_key, packages): (&PackageKey, &HashMap<PackageKey, PackageMetadata>),
@@ -88,9 +89,11 @@ pub(crate) fn slot_holds_other_variant(
         return Ok(false);
     };
     if layout.hashed_slot_dir(snapshot_key).is_some() {
-        let owned_slot = match locked_slot {
-            Some(_) => None,
-            None => crate::GlobalVirtualStoreSlot::acquire_existing(layout, snapshot_key)?,
+        let owned_slot = match (locked_slot, layout.hashed_slot_dir(snapshot_key)) {
+            (None, Some(path)) => {
+                crate::GlobalVirtualStoreSlot::open_existing_path(path, snapshot_key)?
+            }
+            _ => None,
         };
         let slot = locked_slot.or(owned_slot.as_ref());
         let Some(slot) = slot else { return Ok(false) };

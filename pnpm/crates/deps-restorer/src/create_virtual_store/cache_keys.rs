@@ -280,24 +280,11 @@ impl SlotReuse<'_> {
         {
             return Ok(true);
         }
-        let Some(metadata) = self.packages.get(&snapshot_key.without_peer()) else {
-            return Ok(false);
-        };
-        if super::linked_archives::linked_integrity(
-            &metadata.resolution,
-            self.supported_architectures,
-        )
-        .is_none()
-        {
-            return Ok(false);
-        }
-        let slot = crate::GlobalVirtualStoreSlot::acquire_existing(self.layout, snapshot_key)
-            .map_err(CreateVirtualStoreError::SlotLock)?;
         super::linked_archives::slot_holds_other_variant(
             self.layout,
             (snapshot_key, self.packages),
             self.supported_architectures,
-            slot.as_ref(),
+            None,
         )
         .map_err(CreateVirtualStoreError::SlotLock)
     }
