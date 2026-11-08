@@ -163,7 +163,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
 ) -> Result<bool, BuildModulesError> {
     let (key, overlay) = cached;
     trace_side_effects_cache_hit(snapshot_key, key);
-    if context.cache.frozen_store && context.directories.layout.enable_global_virtual_store() {
+    if should_verify_frozen_global_slot(context) {
         return frozen_store_slot_carries_overlay(context, snapshot_key, overlay);
     }
     let Some(slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay)? else {
@@ -204,6 +204,12 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     }
     mark_global_slot_built(slot_lock)?;
     Ok(true)
+}
+
+fn should_verify_frozen_global_slot(context: &BuildOneSnapshot<'_>) -> bool {
+    context.cache.frozen_store
+        && context.directories.layout.enable_global_virtual_store()
+        && context.directories.pkg_roots_by_key.is_none()
 }
 
 fn mark_global_slot_built(

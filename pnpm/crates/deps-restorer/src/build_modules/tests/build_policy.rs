@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use super::create_postinstall_modifies_source_fixture;
 use super::{
     super::{
         BuildModules, ScheduledBuilds, ScheduledBuildsInputs, allow_build_policy::AllowBuildPolicy,
@@ -5,8 +7,6 @@ use super::{
     },
     TEST_LOGGED_METHODS, create_buildable_pkg, key, policy_from_specs, root_importers,
 };
-#[cfg(unix)]
-use super::{create_failing_postinstall_fixture, create_postinstall_modifies_source_fixture};
 use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
 use pnpm_config::{Config, PackageImportMethod};
 use pnpm_lockfile::SnapshotEntry;
@@ -759,7 +759,13 @@ fn using_side_effects_cache_skips_rebuild() {
     let modules_dir = tempdir().expect("create temp dir");
     let lockfile_dir = tempdir().expect("create temp dir");
 
-    create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
+    let pkg_dir = virtual_store_dir.path().join("node_modules/@pnpm.e2e/failing-postinstall");
+    fs::create_dir_all(&pkg_dir).expect("create hoisted package dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        r#"{"name":"@pnpm.e2e/failing-postinstall","version":"1.0.0","scripts":{"postinstall":"echo hello && echo world && exit 1"}}"#,
+    )
+    .expect("write package manifest");
 
     // Compute the cache key the same way `BuildModules` will, then
     // pre-populate `side_effects_maps_by_snapshot` with a matching
@@ -782,11 +788,8 @@ fn using_side_effects_cache_skips_rebuild() {
             include_dep_graph_hash: true,
         },
     );
-    let pkg_dir = virtual_store_dir
-        .path()
-        .join("@pnpm.e2e+failing-postinstall@1.0.0")
-        .join("node_modules")
-        .join("@pnpm.e2e/failing-postinstall");
+    let pkg_roots_by_key = HashMap::from([(pkg_key.clone(), vec![pkg_dir.clone()])]);
+    let layout = super::gvs_layout(virtual_store_dir.path());
     let cas_source = tempdir().expect("create temp dir");
     let side_effect_blob = cas_source.path().join("generated-by-postinstall");
     fs::write(&side_effect_blob, b"built").expect("write side-effect blob");
@@ -814,16 +817,13 @@ fn using_side_effects_cache_skips_rebuild() {
             write: false,
             publisher: None,
             store: None,
-            frozen_store: false,
+            frozen_store: true,
         },
         directories: crate::BuildLayout {
             link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
-            layout: &VirtualStoreLayout::legacy(
-                virtual_store_dir.path(),
-                pnpm_config::default_virtual_store_dir_max_length() as usize,
-            ),
-            pkg_roots_by_key: None,
-            gather_ancestor_bin_paths: false,
+            layout,
+            pkg_roots_by_key: Some(&pkg_roots_by_key),
+            gather_ancestor_bin_paths: true,
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
