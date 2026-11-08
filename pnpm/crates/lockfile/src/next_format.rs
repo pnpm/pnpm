@@ -13,8 +13,9 @@
 //! builds the peer-suffixed ones back.
 
 pub use read::restore_sections;
+pub use variants::NextVariants;
 
-pub(crate) use parse::{Shape, declares_next_format, parse_sections_in_parallel};
+pub(crate) use parse::{Shape, declares_next_format};
 
 use crate::{
     Lockfile, LockfileSettings, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,
@@ -29,6 +30,7 @@ mod document;
 mod parse;
 mod read;
 mod tarjan;
+mod variants;
 mod write;
 
 /// The `lockfileVersion` major of the next format.
@@ -61,7 +63,7 @@ impl LockfileFormat {
 
 /// The next format's `snapshots`: every peer variant of a package, under the
 /// package's key.
-pub type NextSnapshots = HashMap<PackageKey, Vec<NextSnapshotEntry>>;
+pub type NextSnapshots = HashMap<PackageKey, NextVariants>;
 
 /// One peer variant of a package.
 ///
@@ -138,30 +140,15 @@ impl NextSnapshotEntry {
     }
 }
 
-/// An importer of the next format. Its versions carry no peer groups.
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NextProjectSnapshot {
-    #[serde(flatten)]
-    pub snapshot: ProjectSnapshot,
-
-    /// The peers bound below this project that its own dependencies don't
-    /// hold.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
-    pub transitive_peer_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
-}
-
 /// A lockfile in the next format, as read from the file.
-pub type NextLockfile = crate::LockfileDocument<NextProjectSnapshot, Vec<NextSnapshotEntry>>;
+pub type NextLockfile = crate::LockfileDocument<ProjectSnapshot, NextVariants>;
 
 /// The two sections that differ between the formats.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NextSections {
-    pub importers: HashMap<String, NextProjectSnapshot>,
+    /// Importers whose versions have no peer groups, except where the
+    /// importer's scope does not select the variant.
+    pub importers: HashMap<String, ProjectSnapshot>,
     pub snapshots: Option<NextSnapshots>,
 }
 
@@ -183,10 +170,6 @@ pub struct RestoreContext<'a> {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum NextFormatError {
-    #[display("{referrer} binds the peer {name} to two different packages")]
-    #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_CONFLICTING_BINDINGS))]
-    ConflictingBindings { referrer: String, name: String },
-
     #[display("The peer name {name} recorded by {referrer} is not a valid package name")]
     #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_INVALID_PEER_NAME))]
     InvalidPeerName { referrer: String, name: String },

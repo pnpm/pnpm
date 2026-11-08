@@ -1,21 +1,19 @@
 //! The next format's importers, and references without peer groups.
 
-use super::{
-    super::{NextFormatError, NextProjectSnapshot, NextSnapshotEntry},
-    Explicit,
-};
+use super::Explicit;
 use crate::{
-    ImporterDepVersion, PackageKey, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
+    ImporterDepVersion, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
     ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
 };
 use std::collections::HashMap;
 
-pub(super) fn next_importer<'e>(
+/// The importer with its versions' peer groups dropped, except where its
+/// scope does not select the variant.
+pub(super) fn next_importer(
     id: &str,
     importer: &ProjectSnapshot,
-    entry_of: &impl Fn(&PackageKey) -> Option<&'e NextSnapshotEntry>,
     explicit: &Explicit,
-) -> Result<NextProjectSnapshot, NextFormatError> {
+) -> ProjectSnapshot {
     let mut snapshot = importer.clone();
     for map in [
         &mut snapshot.dependencies,
@@ -31,34 +29,7 @@ pub(super) fn next_importer<'e>(
             }
         }
     }
-    let transitive = importer_transitive_peers(id, importer, entry_of)?;
-    Ok(NextProjectSnapshot { snapshot, transitive_peer_dependencies: non_empty(transitive) })
-}
-
-/// The peers the importer's dependencies bind to something other than the
-/// importer's own dependency of that name.
-pub(super) fn importer_transitive_peers<'e>(
-    id: &str,
-    importer: &ProjectSnapshot,
-    entry_of: &impl Fn(&PackageKey) -> Option<&'e NextSnapshotEntry>,
-) -> Result<HashMap<PkgName, SnapshotDepRef>, NextFormatError> {
-    let bindings = importer_dependencies(importer)
-        .filter_map(|(alias, spec)| spec.version.resolved_key(alias).and_then(|key| entry_of(&key)))
-        .flat_map(NextSnapshotEntry::bindings)
-        .filter(|(name, reference)| !same_importer_target(importer, name, reference));
-    let mut transitive: HashMap<PkgName, SnapshotDepRef> = HashMap::new();
-    for (name, reference) in bindings {
-        let reference = without_peer_bindings(reference);
-        if let Some(previous) = transitive.insert(name.clone(), reference.clone())
-            && previous != reference
-        {
-            return Err(NextFormatError::ConflictingBindings {
-                referrer: format!("importer {id}"),
-                name: name.to_string(),
-            });
-        }
-    }
-    Ok(transitive)
+    snapshot
 }
 
 pub(in crate::next_format) fn importer_dependencies(
@@ -68,19 +39,6 @@ pub(in crate::next_format) fn importer_dependencies(
         .into_iter()
         .flatten()
         .flat_map(ResolvedDependencyMap::iter)
-}
-
-pub(super) fn same_importer_target(
-    importer: &ProjectSnapshot,
-    name: &PkgName,
-    reference: &SnapshotDepRef,
-) -> bool {
-    importer_dependencies(importer)
-        .find(|(alias, _)| *alias == name)
-        .is_some_and(|(_, spec)| {
-            let own = spec.version.resolved_key(name).map(|key| key.without_peer_bindings());
-            own.is_some() && own == reference.resolve(name).map(|key| key.without_peer_bindings())
-        })
 }
 
 pub(super) fn without_peer_bindings(reference: &SnapshotDepRef) -> SnapshotDepRef {

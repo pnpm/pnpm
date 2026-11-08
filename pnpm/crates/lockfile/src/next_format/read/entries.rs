@@ -1,7 +1,7 @@
 //! The peer-suffixed snapshot entries and importers.
 
 use super::{
-    super::{NextProjectSnapshot, NextSnapshotEntry, RestoreContext},
+    super::{NextSnapshotEntry, RestoreContext},
     Graph, Provider, Vid, child_named,
 };
 use crate::{
@@ -94,10 +94,10 @@ impl Graph<'_> {
     pub(super) fn restore_importer(
         &self,
         id: &str,
-        importer: &NextProjectSnapshot,
+        importer: &ProjectSnapshot,
         keys: &[PkgNameVerPeer],
     ) -> ProjectSnapshot {
-        let mut snapshot = importer.snapshot.clone();
+        let mut snapshot = importer.clone();
         let chosen = &self.importer_children[id];
         for map in [
             &mut snapshot.dependencies,

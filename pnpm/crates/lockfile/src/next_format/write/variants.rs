@@ -8,7 +8,9 @@ use super::{
         transitive_named_in_key,
     },
     {
-        super::{NextFormatError, NextSections, NextSnapshotEntry, NextSnapshots, read},
+        super::{
+            NextFormatError, NextSections, NextSnapshotEntry, NextSnapshots, NextVariants, read,
+        },
         Explicit, child, children,
     },
 };
@@ -83,8 +85,6 @@ impl Variant<'_> {
 pub(super) struct Variants<'a> {
     /// Every package's variants, in the order the writer lists them.
     by_package: Vec<(PackageKey, Vec<Variant<'a>>)>,
-    /// Where each snapshot key is in `by_package`.
-    position: HashMap<&'a PackageKey, (usize, usize)>,
 }
 
 /// A snapshot's transitive peers: those its key names, those left for
@@ -179,17 +179,7 @@ impl<'a> Variants<'a> {
             .for_each(|(_, variants)| {
                 variants.sort_by_cached_key(|variant| variant.key.to_string());
             });
-        let position = by_package
-            .iter()
-            .enumerate()
-            .flat_map(|(package, (_, variants))| {
-                variants
-                    .iter()
-                    .enumerate()
-                    .map(move |(index, variant)| (variant.key, (package, index)))
-            })
-            .collect();
-        Variants { by_package, position }
+        Variants { by_package }
     }
 
     pub(super) fn sections(
@@ -197,25 +187,20 @@ impl<'a> Variants<'a> {
         lockfile: &Lockfile,
         explicit: &Explicit,
     ) -> Result<NextSections, NextFormatError> {
-        let lists: Vec<Vec<NextSnapshotEntry>> = self.by_package
+        let lists: Vec<NextVariants> = self.by_package
             .par_iter()
             .map(|(_, variants)| {
                 variants
                     .iter()
                     .map(|variant| variant.next_entry(explicit))
-                    .collect()
+                    .collect::<Vec<_>>()
+                    .into()
             })
             .collect();
-        let entry_of = |key: &PackageKey| {
-            let &(package, index) = self.position.get(key)?;
-            lists[package].get(index)
-        };
         let importers = lockfile.importers
             .par_iter()
-            .map(|(id, importer)| {
-                Ok((id.clone(), next_importer(id, importer, &entry_of, explicit)?))
-            })
-            .collect::<Result<_, NextFormatError>>()?;
+            .map(|(id, importer)| (id.clone(), next_importer(id, importer, explicit)))
+            .collect();
         let snapshots = lockfile.snapshots
             .as_ref()
             .map(|_| {

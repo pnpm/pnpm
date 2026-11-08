@@ -23,11 +23,8 @@ mod entries;
 mod keys;
 mod scope;
 
-use super::{
-    NextProjectSnapshot, NextSections, NextSnapshotEntry, NextSnapshots, RestoreContext,
-    RestoredSections,
-};
-use crate::{PackageKey, PkgName, PkgNameVerPeer, PkgVerPeer};
+use super::{NextSections, NextSnapshotEntry, NextSnapshots, RestoreContext, RestoredSections};
+use crate::{PackageKey, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot};
 use rayon::prelude::*;
 use std::collections::HashMap;
 
@@ -52,7 +49,7 @@ pub(super) fn restore_with_variant_keys(
     let Some(snapshots) = sections.snapshots.as_ref() else {
         let importers = sections.importers
             .iter()
-            .map(|(id, importer)| (id.clone(), importer.snapshot.clone()))
+            .map(|(id, importer)| (id.clone(), importer.clone()))
             .collect();
         let sections = RestoredSections { importers, snapshots: None };
         return Restored { sections, variant_keys: HashMap::new() };
@@ -90,7 +87,7 @@ struct Graph<'a> {
     keys: Vec<&'a PackageKey>,
     entries: Vec<&'a NextSnapshotEntry>,
     variants: HashMap<&'a PackageKey, (Vid, usize)>,
-    importers: HashMap<&'a str, &'a NextProjectSnapshot>,
+    importers: HashMap<&'a str, &'a ProjectSnapshot>,
     /// Each variant's chosen children, sorted by name.
     children: Vec<Vec<(&'a PkgName, Vid)>>,
     importer_children: HashMap<&'a str, Vec<(&'a PkgName, Vid)>>,
@@ -101,10 +98,7 @@ struct Graph<'a> {
 }
 
 impl<'a> Graph<'a> {
-    fn new(
-        snapshots: &'a NextSnapshots,
-        importers: &'a HashMap<String, NextProjectSnapshot>,
-    ) -> Self {
+    fn new(snapshots: &'a NextSnapshots, importers: &'a HashMap<String, ProjectSnapshot>) -> Self {
         let mut graph = Graph::index(snapshots, importers);
         graph.children = (0..graph.keys.len())
             .into_par_iter()
@@ -129,14 +123,14 @@ impl<'a> Graph<'a> {
 
     fn index(
         snapshots: &'a NextSnapshots,
-        importers: &'a HashMap<String, NextProjectSnapshot>,
+        importers: &'a HashMap<String, ProjectSnapshot>,
     ) -> Self {
         let mut keys = Vec::new();
         let mut entries = Vec::new();
         let mut variants = HashMap::with_capacity(snapshots.len());
         for (key, list) in snapshots {
             variants.insert(key, (keys.len(), list.len()));
-            for entry in list {
+            for entry in list.iter() {
                 keys.push(key);
                 entries.push(entry);
             }

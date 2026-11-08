@@ -1,10 +1,10 @@
 //! The next format's document, borrowed from a [`Lockfile`] and its converted
 //! sections, so writing it serializes nothing twice.
 
-use super::{NextProjectSnapshot, NextSections, NextSnapshots};
+use super::{NextSections, NextSnapshots};
 use crate::{
     CatalogSnapshots, Lockfile, LockfileExtra, LockfileSettings, LockfileVersion, PackageKey,
-    PackageMetadata,
+    PackageMetadata, ProjectSnapshot,
 };
 use indexmap::IndexMap;
 use serde::{Serialize, Serializer};
@@ -37,7 +37,7 @@ pub(super) struct NextDocument<'a> {
     #[serde(skip_serializing_if = "is_none")]
     patched_dependencies: &'a Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
-    importers: &'a HashMap<String, NextProjectSnapshot>,
+    importers: &'a HashMap<String, ProjectSnapshot>,
     #[serde(skip_serializing_if = "is_none", serialize_with = "sorted_map_opt")]
     packages: &'a Option<HashMap<PackageKey, PackageMetadata>>,
     #[serde(skip_serializing_if = "is_none", serialize_with = "sorted_map_opt")]

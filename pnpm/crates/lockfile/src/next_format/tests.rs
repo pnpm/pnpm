@@ -71,25 +71,23 @@ fn optional_peer_bound_from_the_root_round_trips() {
             ""
             "snapshots:"
             ""
-            "  buffer-impl@3.7.1:"
-            "    - {}"
+            "  buffer-impl@3.7.1: {}"
             ""
             "  container@3.2.2:"
-            "    - dependencies:"
-            "        fs-impl: 4.8.4"
-            "      transitivePeerDependencies:"
-            "        buffer-impl: 3.7.1"
-            "      missingPeerDependencies:"
-            "        - abort-impl"
+            "    dependencies:"
+            "      fs-impl: 4.8.4"
+            "    transitivePeerDependencies:"
+            "      buffer-impl: 3.7.1"
+            "    missingPeerDependencies:"
+            "      - abort-impl"
             ""
             "  fs-impl@4.8.4:"
-            "    - dependencies:"
-            "        path-impl: 3.1.2"
-            "      peerDependencies:"
-            "        buffer-impl: 3.7.1"
+            "    peerDependencies:"
+            "      buffer-impl: 3.7.1"
+            "    dependencies:"
+            "      path-impl: 3.1.2"
             ""
-            "  path-impl@3.1.2:"
-            "    - {}"
+            "  path-impl@3.1.2: {}"
         },
     );
 }
@@ -243,6 +241,9 @@ fn corpus_round_trips() {
     for path in corpus.lines().map(Path::new) {
         let Ok(text) = std::fs::read_to_string(path) else { continue };
         let Ok(Some(lockfile)) = Lockfile::parse(&text, path) else { continue };
+        if !parallel_parse_matches_whole(&text, &lockfile) {
+            failures.push(format!("{}: the parallel parse differs", path.display()));
+        }
         let lockfile = as_next(lockfile);
         let yaml = match lockfile.to_yaml_string() {
             Ok(yaml) => yaml,
@@ -303,4 +304,14 @@ fn compare_timings() {
             next_text.len(),
         );
     }
+}
+
+/// Whether `lockfile`, parsed section by section, equals `text` parsed whole.
+fn parallel_parse_matches_whole(text: &str, lockfile: &Lockfile) -> bool {
+    let whole: Lockfile = serde_saphyr::from_str(&crate::extract_main_document(text))
+        .expect("parse the document whole");
+    whole.snapshots == lockfile.snapshots
+        && whole.importers == lockfile.importers
+        && whole.packages == lockfile.packages
+        && whole.extra == lockfile.extra
 }

@@ -1,11 +1,11 @@
 //! Matching a reference to one variant of the package it names.
 
 use super::{
-    super::{NextProjectSnapshot, write::importer_dependencies},
-    Graph, Referrer, Vid, compare_names, has_peer_groups,
+    super::write::importer_dependencies, Graph, Referrer, Vid, compare_names, has_peer_groups,
 };
 use crate::{
-    ImporterDepVersion, PkgName, PkgNameVerPeer, SnapshotDepRef, split_peer_suffix_segments,
+    ImporterDepVersion, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotDepRef,
+    split_peer_suffix_segments,
 };
 use pnpm_deps_path::link_path_to_peer_version;
 use std::collections::HashSet;
@@ -29,9 +29,9 @@ impl<'a> Graph<'a> {
     pub(super) fn choose_importer_children(
         &self,
         id: &'a str,
-        importer: &'a NextProjectSnapshot,
+        importer: &'a ProjectSnapshot,
     ) -> Vec<(&'a PkgName, Vid)> {
-        let mut children: Vec<(&'a PkgName, Vid)> = importer_dependencies(&importer.snapshot)
+        let mut children: Vec<(&'a PkgName, Vid)> = importer_dependencies(importer)
             .filter_map(|(alias, spec)| {
                 let key = spec.version.resolved_key(alias)?;
                 Some((alias, self.choose(&key, Referrer::Importer(id))?))
@@ -124,18 +124,9 @@ impl<'a> Graph<'a> {
                 Some(scoped) => same_target(name, scoped, reference),
                 None => self.is_itself(vid, name, reference),
             },
-            Referrer::Importer(id) => {
-                let importer = self.importers[id];
-                let own =
-                    importer_dependencies(&importer.snapshot).find(|(alias, _)| *alias == name);
-                if let Some((_, spec)) = own {
-                    return importer_target_is(name, &spec.version, reference);
-                }
-                importer.transitive_peer_dependencies
-                    .as_ref()
-                    .and_then(|transitive| transitive.get(name))
-                    .is_some_and(|scoped| same_target(name, scoped, reference))
-            }
+            Referrer::Importer(id) => importer_dependencies(self.importers[id])
+                .find(|(alias, _)| *alias == name)
+                .is_some_and(|(_, spec)| importer_target_is(name, &spec.version, reference)),
         }
     }
 
