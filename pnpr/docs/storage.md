@@ -145,8 +145,9 @@ takes the database write lock and runs each pending migration step in order.
 Steps run in one transaction on SQLite, libSQL, and PostgreSQL, and record
 their version in `schema_migrations` after completing on MySQL.
 
-pnpr refuses a database from a newer release, or one whose `schema_migrations`
-table lacks expected tables. It also refuses a pre-1.0 database without
+pnpr refuses a database from a newer release. It refuses a database whose
+`schema_migrations` table cannot be read, or that records a version but lacks
+some of pnpr's tables. It also refuses a pre-1.0 database without
 `schema_migrations` (such as one holding `schema_version`,
 `auth_schema_migrations`, or unmarked tables) before changing anything in it.
 To replace a pre-1.0 database, drop its pnpr tables or delete the SQLite file

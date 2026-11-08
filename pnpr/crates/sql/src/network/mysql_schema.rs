@@ -1,5 +1,5 @@
 use super::super::{adapter::Connection, schema::MARKER};
-use pnpr_error::Result;
+use pnpr_error::{RegistryError, Result};
 
 /// The table comment placed on [`MARKER`] on `MySQL` before step 1 finishes.
 const INIT_COMMENT: &str = "pnpr-init:1";
@@ -67,10 +67,12 @@ fn index_exists(connection: &dyn Connection, statement: &str) -> Result<bool> {
     };
     let name = rest[..on_pos].trim();
     let after_on = &rest[on_pos + " ON ".len()..];
-    let table = after_on
+    let Some(table) = after_on
         .split(|character: char| character.is_whitespace() || character == '(')
         .find(|token| !token.is_empty())
-        .expect("static index table");
+    else {
+        return Err(unparsable_ddl(statement));
+    };
     Ok(connection
         .query_optional(
             "SELECT 1 FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ?1 AND index_name = ?2 LIMIT 1",
@@ -88,14 +90,17 @@ fn column_exists(connection: &dyn Connection, statement: &str) -> Result<bool> {
     };
     let table = after_alter[..add_pos].trim();
     let after_add = after_alter[add_pos + " ADD COLUMN ".len()..].trim_start();
-    let column = after_add
-        .split_whitespace()
-        .next()
-        .expect("static column name");
+    let Some(column) = after_add.split_whitespace().next() else {
+        return Err(unparsable_ddl(statement));
+    };
     Ok(connection
         .query_optional(
             "SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?1 AND column_name = ?2 LIMIT 1",
             params![table, column],
         )?
         .is_some())
+}
+
+fn unparsable_ddl(statement: &str) -> RegistryError {
+    RegistryError::Internal { reason: format!("cannot read MySQL DDL statement: {statement}") }
 }

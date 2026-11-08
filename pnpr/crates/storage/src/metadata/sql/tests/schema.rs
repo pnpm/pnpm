@@ -232,7 +232,15 @@ async fn applying_every_step_matches_the_fresh_schema(db: Db) {
 
     wipe_tables(&db, &fresh.tables).await;
 
-    open(&db).await.unwrap();
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        let refused = schema::prepare_adapter_with_steps(&*adapter, schema::STEPS)?;
+        assert_eq!(refused, None);
+        Ok::<_, RegistryError>(())
+    })
+    .await
+    .unwrap()
+    .unwrap();
     let migrated = snapshot(&db).await;
     assert_eq!(migrated, fresh);
 }
@@ -256,7 +264,7 @@ fn step_3_rust_data_fix(connection: &dyn Connection) -> Result<()> {
         )?;
     }
     connection.execute(
-        "UPDATE record_generation SET generation = generation + 10 WHERE singleton = 1",
+        "UPDATE record_generation SET generation = generation + 10 WHERE singleton = 1 AND generation < 10",
         params![],
     )
 }

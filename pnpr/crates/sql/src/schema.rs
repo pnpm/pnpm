@@ -46,6 +46,11 @@ pub const MARKER_TABLE: &str =
 pub const TABLES: &str = include_str!("schema/tables.sql");
 
 /// One forward-only migration step.
+///
+/// On databases where DDL commits implicitly (`MySQL`), a step can run again
+/// after an interruption, because its version is recorded only after it
+/// returns. Write each step so that a second run gives the same result: run
+/// DDL through [`Connection::execute_ddl`] and make data fixes idempotent.
 pub type Step = fn(&dyn Connection) -> Result<()>;
 
 /// Every numbered migration step in order (`1..=SCHEMA_VERSION`).
