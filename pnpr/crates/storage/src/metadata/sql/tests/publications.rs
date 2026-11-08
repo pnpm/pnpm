@@ -1,13 +1,21 @@
 //! Atomic publications, their recorded outcomes, and publication lookups.
 
-use super::{Db, npm, packument, read, storage, write};
-use crate::metadata::{
-    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, ReleaseRecords, SqlMetadata,
+use super::{Db, npm, packument, read, schema::execute, storage, write};
+use crate::{
+    metadata::{
+        BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, ReleaseRecords,
+        SqlMetadata,
+        sql::{adapter::ReadSource, schema},
+    },
+    publish::now_millis,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 fn document(name: &str, document: &Value) -> BatchDocument {
     BatchDocument {
@@ -103,6 +111,106 @@ async fn a_retried_request_gets_its_recorded_outcome(db: Db) {
     reused.idempotency_key = "request:digest".to_string();
     let err = commit(database, vec![document("core", &doc)], reused).await.unwrap_err();
     assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
+}
+
+async fn outcome_keys(db: &Db) -> Vec<String> {
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        let mut keys = Vec::new();
+        adapter
+            .read(ReadSource::Primary, &mut |connection| {
+                keys = connection
+                    .query(
+                        "SELECT idempotency_key FROM publication_outcomes ORDER BY idempotency_key",
+                        params![],
+                    )?
+                    .into_iter()
+                    .map(|mut row| row.get::<String>(0))
+                    .collect::<pnpr_error::Result<Vec<_>>>()?;
+                Ok(())
+            })
+            .unwrap();
+        keys
+    })
+    .await
+    .unwrap()
+}
+
+async fn sweep_query_plan(db: &Db) -> Vec<String> {
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        let mut details = Vec::new();
+        adapter
+            .read(ReadSource::Replica, &mut |connection| {
+                details = connection
+                    .query(
+                        "EXPLAIN QUERY PLAN DELETE FROM publication_outcomes WHERE committed_at < ?1",
+                        params![0_i64],
+                    )?
+                    .into_iter()
+                    .map(|mut row| row.get::<String>(3))
+                    .collect::<pnpr_error::Result<Vec<_>>>()?;
+                Ok(())
+            })
+            .unwrap();
+        details
+    })
+    .await
+    .unwrap()
+}
+
+async fn expired_outcomes_are_swept_by_committed_at_index(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    commit(
+        database,
+        vec![document("core", &packument("core", &["1.0.0"]))],
+        request("stale", None),
+    )
+    .await
+    .unwrap();
+    commit(
+        database,
+        vec![document("widgets", &packument("widgets", &["1.0.0"]))],
+        request("retained", None),
+    )
+    .await
+    .unwrap();
+    let plan = sweep_query_plan(&db).await;
+    assert!(
+        plan.iter()
+            .any(|detail| detail.contains("publication_outcomes_by_committed_at")),
+        "{plan:?}",
+    );
+    assert!(
+        !plan
+            .iter()
+            .any(|detail| detail.contains("SCAN publication_outcomes")),
+        "{plan:?}",
+    );
+
+    execute(
+        &db,
+        &["UPDATE publication_outcomes SET committed_at = 0 WHERE idempotency_key = 'request:stale'"],
+    )
+    .await;
+    assert!(
+        database
+            .recorded_outcome("acme", &request("stale", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(outcome_keys(&db).await, ["request:retained", "request:stale"]);
+
+    commit(
+        database,
+        vec![document("extra", &packument("extra", &["1.0.0"]))],
+        request("fresh", None),
+    )
+    .await
+    .unwrap();
+    assert_eq!(outcome_keys(&db).await, ["request:fresh", "request:retained"]);
 }
 
 async fn an_unpublished_member_invalidates_the_recorded_outcome(db: Db) {
@@ -374,10 +482,117 @@ conformance! {
     a_release_record_must_describe_its_version,
     a_batch_commits_every_package_under_one_generation_or_none,
     a_retried_request_gets_its_recorded_outcome,
+    expired_outcomes_are_swept_by_committed_at_index,
     an_unpublished_member_invalidates_the_recorded_outcome,
     publications_are_found_by_id_name_and_member,
     a_version_written_outside_a_publish_request_gets_a_publication,
     a_publication_without_a_request_records_its_publisher,
     a_publication_cannot_bring_back_a_removed_version,
     competing_publications_of_one_version_commit_once,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum OutcomeIndex {
+    WithoutIndex,
+    WithIndex,
+}
+
+async fn seed_outcomes(db: &Db, prefix: &str, count: usize, base_millis: i64) {
+    if count == 0 {
+        return;
+    }
+    let sql = format!(
+        "WITH RECURSIVE series(i) AS (
+             SELECT 1
+             UNION ALL
+             SELECT i + 1 FROM series WHERE i < {count}
+         )
+         INSERT INTO publication_outcomes (
+             catalog, principal, idempotency_key, request_digest,
+             generation, publication, committed_at
+         )
+         SELECT
+             'acme',
+             'principal-' || (i % 64),
+             '{prefix}-' || printf('%06d', i),
+             'digest-' || printf('%056d', i),
+             i,
+             i,
+             {base_millis} + i
+         FROM series",
+    );
+    execute(db, &[&sql]).await;
+}
+
+async fn measure_outcome_sweep(
+    db: Db,
+    layout: OutcomeIndex,
+    retained: usize,
+    expired_per_publish: usize,
+) {
+    let mut tables = schema::TABLES.to_string();
+    if matches!(layout, OutcomeIndex::WithoutIndex) {
+        tables = tables.replace(
+            "CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at\n    ON publication_outcomes (committed_at);\n",
+            "",
+        );
+        assert!(!tables.contains("publication_outcomes_by_committed_at"));
+    }
+    let mut statements: Vec<_> = schema::statements(&tables).collect();
+    statements.push(schema::MARKER_TABLE.to_string());
+    statements.push(format!("INSERT INTO schema_version VALUES ('{}')", schema::SCHEMA_VERSION));
+    let refs: Vec<_> = statements
+        .iter()
+        .map(String::as_str)
+        .collect();
+    execute(&db, &refs).await;
+    seed_outcomes(&db, "retained", retained, now_millis()).await;
+
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    let mut times = Vec::new();
+    for sample in 0..16 {
+        let prefix = format!("expired-{sample}");
+        seed_outcomes(&db, &prefix, expired_per_publish, 1).await;
+        let name = format!("pkg-{sample}");
+        let batch = vec![document(&name, &packument(&name, &["1.0.0"]))];
+        let req = request(&name, None);
+        let started = Instant::now();
+        commit(database, batch, req).await.unwrap();
+        let elapsed = started.elapsed();
+        if sample > 0 {
+            times.push(elapsed);
+        }
+    }
+    assert_eq!(outcome_keys(&db).await.len(), retained + 16);
+    times.sort();
+    let milliseconds = |duration: Duration| duration.as_secs_f64() * 1000.0;
+    eprintln!(
+        "{layout:?} (retained={retained}, expired_per_publish={expired_per_publish}): median {:.2} ms, min {:.2} ms, max {:.2} ms ({} publishes)",
+        milliseconds(times[times.len() / 2]),
+        milliseconds(times[0]),
+        milliseconds(times[times.len() - 1]),
+        times.len(),
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "manual outcome-retention sweep benchmark"]
+async fn outcome_retention_sweep_on_sqlite() {
+    for (retained, expired) in [(10_000, 0), (10_000, 100), (50_000, 0), (50_000, 500)] {
+        for layout in [OutcomeIndex::WithoutIndex, OutcomeIndex::WithIndex] {
+            measure_outcome_sweep(Db::sqlite(), layout, retained, expired).await;
+        }
+    }
+}
+
+#[cfg(feature = "backend-libsql")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "manual outcome-retention sweep benchmark"]
+async fn outcome_retention_sweep_on_libsql_primary() {
+    for (retained, expired) in [(10_000, 0), (10_000, 100), (50_000, 0), (50_000, 500)] {
+        for layout in [OutcomeIndex::WithoutIndex, OutcomeIndex::WithIndex] {
+            measure_outcome_sweep(Db::libsql(false).await, layout, retained, expired).await;
+        }
+    }
 }

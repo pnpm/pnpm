@@ -22,7 +22,7 @@ use std::fmt;
 /// another version is refused, and the operator wipes pnpr's metadata tables
 /// by hand so that pnpr creates them afresh. With 1.0 the schema moves to
 /// numbered migrations.
-pub(super) const SCHEMA_VERSION: &str = "0.4";
+pub(super) const SCHEMA_VERSION: &str = "0.5";
 
 /// The table that marks a database as pnpr's metadata. Its one row is the
 /// [`SCHEMA_VERSION`] of the layout that created the tables.
