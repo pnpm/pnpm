@@ -1,7 +1,9 @@
 pub(super) mod slot_paths;
 #[cfg(test)]
 pub mod tests;
-use slot_paths::{SlotForceInputs, SlotPaths, cas_paths_with_build_marker, slot_import_opts};
+use slot_paths::{
+    OpenedSlot, SlotForceInputs, SlotPaths, cas_paths_with_build_marker, slot_import_opts,
+};
 
 use crate::{
     DirCloneCache, ImportIndexedDirError, NEEDS_BUILD_MARKER, SymlinkPackageError,
@@ -134,23 +136,23 @@ impl CreateVirtualDirBySnapshot<'_> {
         let _link_concurrency_guard =
             self.link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let (slot, global_slot, interrupted_build) = self.open_slot()?;
+        let slot = self.open_slot()?;
         let marked_cas_paths = cas_paths_with_build_marker(
             self.cas_paths,
-            &slot.save_path,
+            &slot.paths.save_path,
             self.source.build_marker,
-            (interrupted_build, self.source.force),
+            (slot.interrupted_build, self.source.force),
         );
         let cas_paths = marked_cas_paths.as_ref().unwrap_or(self.cas_paths);
 
         self.import_and_link::<Reporter>(
-            &slot,
+            &slot.paths,
             cas_paths,
-            interrupted_build,
-            global_slot.as_ref(),
+            slot.interrupted_build,
+            slot.global_slot.as_ref(),
         )?;
 
-        emit_imported::<Reporter>(&self, &slot);
+        emit_imported::<Reporter>(&self, &slot.paths);
         Ok(())
     }
 
@@ -193,10 +195,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         Ok(())
     }
 
-    fn open_slot(
-        &self,
-    ) -> Result<(SlotPaths, Option<crate::GlobalVirtualStoreSlot>, bool), CreateVirtualDirError>
-    {
+    fn open_slot(&self) -> Result<OpenedSlot, CreateVirtualDirError> {
         let slot = SlotPaths::new(self.layout, self.dependencies.package_key)?;
         let global_slot =
             crate::GlobalVirtualStoreSlot::acquire(self.layout, self.dependencies.package_key)
@@ -211,7 +210,7 @@ impl CreateVirtualDirBySnapshot<'_> {
                 })?,
             None => slot.save_path.join(NEEDS_BUILD_MARKER).is_file(),
         };
-        Ok((slot, global_slot, interrupted_build))
+        Ok(OpenedSlot { paths: slot, global_slot, interrupted_build })
     }
 
     fn import_method(&self) -> PackageImportMethod {

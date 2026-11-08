@@ -11,6 +11,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub(super) struct OpenedSlot {
+    pub(super) paths: SlotPaths,
+    pub(super) global_slot: Option<crate::GlobalVirtualStoreSlot>,
+    pub(super) interrupted_build: bool,
+}
+
 /// The slot's directories, created.
 pub(super) struct SlotPaths {
     pub(super) node_modules: PathBuf,
