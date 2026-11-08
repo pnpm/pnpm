@@ -130,6 +130,10 @@ The SQLite and libSQL metadata tables use rowid storage for package state,
 accepted manifests, READMEs, release records, and log entries. Large payloads
 stay out of the interior pages used to look up their keys.
 
+Metadata timestamps use milliseconds since the Unix epoch and the server's
+application clock. Package publication times must use RFC 3339. Responses
+render them in UTC with millisecond precision.
+
 ### Schema changes {#metadata-schema-changes}
 
 pnpr creates its tables in an empty database and marks the database with

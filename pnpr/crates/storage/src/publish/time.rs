@@ -4,8 +4,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// the shape npm and verdaccio use in `time.modified`.
 #[must_use]
 pub fn now_iso() -> String {
-    let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-    iso_from_unix_millis(since_epoch.as_millis() as i64)
+    iso_from_unix_millis(now_millis())
+}
+
+/// The application clock in milliseconds since the Unix epoch.
+pub(crate) fn now_millis() -> i64 {
+    let elapsed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
 }
 
 /// Format a unix-millis timestamp as an ISO-8601 / RFC-3339 string

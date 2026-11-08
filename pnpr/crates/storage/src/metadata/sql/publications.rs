@@ -10,21 +10,19 @@ use super::{
     batch::Batch,
     to_column, to_generation,
 };
-use crate::metadata::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome};
+use crate::{
+    metadata::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome},
+    publish::{iso_from_unix_millis, now_millis},
+};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 /// How long a recorded outcome answers a retry of its request.
 pub(super) const OUTCOME_RETENTION: Duration = Duration::from_hours(7 * 24);
 
-fn now_secs() -> i64 {
-    let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-    i64::try_from(since_epoch.as_secs()).unwrap_or(i64::MAX)
-}
-
 fn retention_cutoff() -> i64 {
-    now_secs() - i64::try_from(OUTCOME_RETENTION.as_secs()).unwrap_or(i64::MAX)
+    now_millis() - i64::try_from(OUTCOME_RETENTION.as_millis()).unwrap_or(i64::MAX)
 }
 
 /// The retained outcome of an identical request whose npm versions have not
@@ -166,7 +164,7 @@ fn record_outcome(
                 request.request_digest,
                 to_column(batch.generation()),
                 publication.map(to_column),
-                now_secs(),
+                now_millis(),
             ],
         )?;
     Ok(())
@@ -218,7 +216,7 @@ fn insert_publication(
         .execute(
             "INSERT INTO publications (catalog, id, name, principal, committed_at)
          VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![batch.catalog(), id, name, principal, crate::publish::now_iso()],
+            params![batch.catalog(), id, name, principal, now_millis()],
         )?;
     for member in members {
         batch
@@ -268,7 +266,7 @@ pub(super) fn publication(
         id: to_generation(row.get(0)?),
         name: row.get(1)?,
         publisher: row.get(2)?,
-        committed_at: row.get(3)?,
+        committed_at: iso_from_unix_millis(row.get(3)?),
         members: Vec::new(),
     };
     with_members(connection, publication).map(Some)

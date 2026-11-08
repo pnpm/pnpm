@@ -23,7 +23,7 @@ pub(super) fn record_package(
          ON CONFLICT (catalog, ecosystem, name) DO UPDATE SET
            maintainers = CASE WHEN excluded.maintainers = '[]' THEN removed_packages.maintainers ELSE excluded.maintainers END,
            unpublished_at = excluded.unpublished_at, unpublished_by = excluded.unpublished_by",
-        params![catalog, ecosystem, name, maintainers, crate::publish::now_iso(), principal],
+        params![catalog, ecosystem, name, maintainers, crate::publish::now_millis(), principal],
     )?;
     Ok(())
 }
@@ -80,7 +80,7 @@ fn read_package(connection: &dyn Connection, key: &PackageKey) -> Result<Option<
     Ok(Some(PackageTombstone {
         package: name.to_string(),
         maintainers: serde_json::from_str(&maintainers)?,
-        unpublished_at: row.get(1)?,
+        unpublished_at: crate::publish::iso_from_unix_millis(row.get(1)?),
         unpublished_by: row.get(2)?,
         unpublished_versions,
     }))

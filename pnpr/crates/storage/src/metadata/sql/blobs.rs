@@ -13,10 +13,6 @@ use crate::{
 use pnpr_error::{RegistryError, Result};
 use std::collections::BTreeMap;
 
-/// The current time in seconds since the Unix epoch, as the database tells
-/// it, so every instance reads one clock.
-pub(super) const NOW: &str = "CAST(strftime('%s', 'now') AS INTEGER)";
-
 /// The rows of the blobs a JSON array of identities names, in one namespace.
 pub(super) const ROWS: &str = "SELECT integrity, incarnation, state, size FROM blobs
      WHERE catalog = ?1 AND ecosystem = ?2

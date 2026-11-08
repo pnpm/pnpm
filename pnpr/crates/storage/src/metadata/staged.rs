@@ -40,7 +40,7 @@ impl StagedState {
 pub(crate) struct StagedRecord {
     /// The incarnation its bytes are stored under.
     pub(crate) incarnation: u64,
-    /// When it was last uploaded, in seconds since the Unix epoch; `0` once
+    /// When it was last uploaded, in milliseconds since the Unix epoch; `0` once
     /// given back or claimed.
     pub(crate) staged_at: u64,
     pub(crate) size: u64,
