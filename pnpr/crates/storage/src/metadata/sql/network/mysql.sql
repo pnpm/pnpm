@@ -172,7 +172,7 @@ CREATE INDEX versions_by_accepted_generation
 CREATE UNIQUE INDEX publications_by_name
     ON publications (catalog, name);
 
--- Insert-only: each artifact belongs to the publication that introduced it.
+-- Insert-only: each artifact belongs to every publication that introduced it.
 -- Kept when the package is removed.
 CREATE TABLE IF NOT EXISTS publication_members (
     catalog VARBINARY(512) NOT NULL,
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS publication_members (
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     artifact VARBINARY(512) NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, artifact)
+    PRIMARY KEY (catalog, ecosystem, name, version, artifact, publication)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 CREATE INDEX publication_members_by_publication
     ON publication_members (catalog, publication);

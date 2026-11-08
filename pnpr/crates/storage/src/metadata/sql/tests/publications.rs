@@ -3,14 +3,14 @@
 use super::{Db, npm, packument, read, schema::execute, storage, write};
 use crate::{
     metadata::{
-        BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, ReleaseRecords,
-        SqlMetadata,
+        ArtifactMember, BatchDocument, PublicationCommit, PublicationRequest, PublishNotes,
+        ReleaseRecords, SqlMetadata,
         sql::{adapter::ReadSource, schema},
     },
     publish::now_millis,
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::Ecosystem;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use serde_json::{Value, json};
 use std::{
     sync::Arc,
@@ -263,6 +263,158 @@ async fn an_unpublished_member_invalidates_the_recorded_outcome(db: Db) {
     assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
 }
 
+fn oci_document(name: &str, digests: &[&str], tags: &[(&str, &str)]) -> Value {
+    let manifests: Vec<Value> = digests
+        .iter()
+        .map(|digest| {
+            json!({
+                "digest": digest,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "size": 128,
+            })
+        })
+        .collect();
+    let tags: Vec<Value> = tags
+        .iter()
+        .map(|(tag, digest)| json!({ "tag": tag, "digest": digest, "updated": 1 }))
+        .collect();
+    json!({
+        "formatVersion": 2,
+        "name": name,
+        "manifests": manifests,
+        "tags": tags,
+    })
+}
+
+async fn a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republish(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    let oci_org = storage.for_hosted("acme", Ecosystem::Oci);
+    let key = CanonicalPackageName::parse("acme/app", Ecosystem::Oci).unwrap();
+    let digest = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+    let artifact = "sha256-1111111111111111111111111111111111111111111111111111111111111111";
+    let member = ArtifactMember {
+        ecosystem: Ecosystem::Oci,
+        name: "acme/app".to_string(),
+        version: String::new(),
+        artifact: artifact.to_string(),
+    };
+    let doc = |digests: &[&str], tags: &[(&str, &str)], expected| BatchDocument {
+        ecosystem: Ecosystem::Oci,
+        name: "acme/app".to_string(),
+        bytes: serde_json::to_vec(&oci_document("acme/app", digests, tags)).unwrap(),
+        expected,
+        principal: Some("alice".to_string()),
+        records: ReleaseRecords::new(),
+    };
+    let first = database
+        .commit_publication(
+            "acme",
+            vec![doc(&[digest], &[("1.0", digest)], None)],
+            vec![member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-one", Some("oci-v1"))),
+        )
+        .await
+        .unwrap();
+    assert_eq!((first.generation.value, first.publication), (1, Some(1)));
+
+    // Deleting only a tag leaves the manifest in the document, so the batch
+    // outcome stays replayable.
+    oci_org
+        .update_hosted_document_with_retry(&key, 1, None, |_| {
+            Ok(Some(serde_json::to_vec(&oci_document("acme/app", &[digest], &[])).unwrap()))
+        })
+        .await
+        .unwrap();
+    let replayed = database
+        .commit_publication(
+            "acme",
+            vec![doc(&[digest], &[("1.0", digest)], None)],
+            vec![member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-one", Some("oci-v1"))),
+        )
+        .await
+        .unwrap();
+    assert!(replayed.replayed);
+    assert_eq!((replayed.generation.value, replayed.publication), (1, Some(1)));
+
+    // Deleting the manifest from the document invalidates the recorded outcome.
+    oci_org
+        .update_hosted_document_with_retry(&key, 1, None, |_| Ok(Some(Vec::new())))
+        .await
+        .unwrap();
+    assert!(
+        database
+            .recorded_outcome("acme", &request("oci-one", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let mut reused = request("different", None);
+    reused.idempotency_key = "request:oci-one".to_string();
+    let err = commit(database, Vec::new(), reused).await.unwrap_err();
+    assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
+
+    // Republishing the deleted OCI manifest in a later publication succeeds,
+    // records its membership in the new publication while keeping the earlier
+    // outcome invalidated, and invalidates again if the package is removed.
+    let second = database
+        .commit_publication(
+            "acme",
+            vec![doc(&[digest], &[("2.0", digest)], None)],
+            vec![member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-two", Some("oci-v2"))),
+        )
+        .await
+        .unwrap();
+    assert!(!second.replayed);
+    assert_eq!(second.publication, Some(second.generation.value));
+    assert_eq!(
+        database
+            .publication("acme", "oci-v1")
+            .await
+            .unwrap()
+            .unwrap()
+            .members,
+        vec![member.clone()],
+    );
+    assert_eq!(
+        database
+            .publication("acme", "oci-v2")
+            .await
+            .unwrap()
+            .unwrap()
+            .members,
+        vec![member],
+    );
+    assert!(
+        database
+            .recorded_outcome("acme", &request("oci-one", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        database
+            .recorded_outcome("acme", &request("oci-two", None))
+            .await
+            .unwrap()
+            .map(|outcome| outcome.generation),
+        Some(second.generation.value),
+    );
+    assert!(oci_org.remove_package(&key, None).await.unwrap());
+    assert!(
+        database
+            .recorded_outcome("acme", &request("oci-two", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}
+
 async fn publications_are_found_by_id_name_and_member(db: Db) {
     let storage = storage(&db);
     let database = storage.sql_metadata();
@@ -495,6 +647,7 @@ conformance! {
     a_retried_request_gets_its_recorded_outcome,
     expired_outcomes_are_swept,
     an_unpublished_member_invalidates_the_recorded_outcome,
+    a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republish,
     publications_are_found_by_id_name_and_member,
     a_version_written_outside_a_publish_request_gets_a_publication,
     a_publication_without_a_request_records_its_publisher,

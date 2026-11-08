@@ -10,7 +10,7 @@ use super::{
     to_column, to_generation,
 };
 use crate::{
-    BlobId, DocumentWrite,
+    DocumentWrite,
     metadata::{ArtifactMember, ReleaseRecords},
 };
 use pnpr_error::{RegistryError, Result};
@@ -218,14 +218,30 @@ fn apply_whole_document(
     bytes: &[u8],
 ) -> Result<bool> {
     if bytes.is_empty() {
-        if current.is_none() {
+        let Some(row) = current else {
             return Ok(false);
-        }
+        };
+        super::removed::record_oci_manifests(
+            commit.transaction,
+            commit.key,
+            commit.generation,
+            &row.state,
+            b"",
+        )?;
         commit.delete_state()?;
         return Ok(true);
     }
     if current.is_some_and(|row| row.state == bytes) {
         return Ok(false);
+    }
+    if let Some(row) = current {
+        super::removed::record_oci_manifests(
+            commit.transaction,
+            commit.key,
+            commit.generation,
+            &row.state,
+            bytes,
+        )?;
     }
     commit.write_state(bytes)?;
     Ok(true)
@@ -366,19 +382,6 @@ pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
     Ok(ssri::Integrity::from(input).to_string())
 }
 
-/// The tables holding a package's rows other than its history, each before
-/// the tables its rows reference.
-const PACKAGE_TABLES: [&str; 8] = [
-    "artifact_blobs",
-    "release_records",
-    "accepted_manifests",
-    "readmes",
-    "annotations",
-    "versions",
-    "tags",
-    "packages",
-];
-
 /// Move every tag the document points elsewhere, recording each move with
 /// `principal`.
 fn apply_tags(
@@ -404,50 +407,6 @@ fn apply_tags(
         }
     }
     Ok(changed)
-}
-
-/// Remove every row of the package except its tag history and the identities
-/// of its versions, which stay removed, under a new generation. Returns the
-/// blobs its files were mapped to, `None` when there was no package.
-pub(super) fn remove_package(
-    connection: &dyn Connection,
-    key: &PackageKey,
-    principal: Option<&str>,
-) -> Result<Option<Vec<BlobId>>> {
-    let (catalog, ecosystem, name) = key.params();
-    let mapped = query!(
-        "SELECT DISTINCT integrity FROM artifact_blobs
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
-        catalog,
-        ecosystem,
-        name,
-    );
-    let (mut batch, results) =
-        Batch::begin_with(connection, &key.catalog, &[package_row_query(key), mapped])?;
-    let mut results = results.into_iter();
-    let Some(row) = package_row_from(results.next().unwrap_or_default())? else {
-        return Ok(None);
-    };
-    super::removed::record_package(batch.transaction(), key, &row.state, principal)?;
-    let ids = super::blobs::ids_from_rows(results.next().unwrap_or_default())?;
-    batch.transaction().execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
-         SELECT catalog, ecosystem, name, version, revision_key, ?4 FROM versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
-         ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, to_column(batch.generation())],
-    )?;
-    for table in PACKAGE_TABLES {
-        batch
-            .transaction()
-            .execute(
-                &format!("DELETE FROM {table} WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3"),
-                params![catalog, ecosystem, name],
-            )?;
-    }
-    batch.touch(key);
-    batch.finish()?;
-    Ok(Some(ids))
 }
 
 pub(super) fn parse_json<Parsed: serde::de::DeserializeOwned>(text: &str) -> Result<Parsed> {

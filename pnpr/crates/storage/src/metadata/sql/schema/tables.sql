@@ -176,7 +176,7 @@ CREATE INDEX IF NOT EXISTS versions_by_accepted_generation
 CREATE UNIQUE INDEX IF NOT EXISTS publications_by_name
     ON publications (catalog, name) WHERE name IS NOT NULL;
 
--- Insert-only: each artifact belongs to the publication that introduced it.
+-- Insert-only: each artifact belongs to every publication that introduced it.
 -- Kept when the package is removed.
 CREATE TABLE IF NOT EXISTS publication_members (
     catalog TEXT NOT NULL,
@@ -185,7 +185,7 @@ CREATE TABLE IF NOT EXISTS publication_members (
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     artifact TEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, artifact)
+    PRIMARY KEY (catalog, ecosystem, name, version, artifact, publication)
 ) STRICT, WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS publication_members_by_publication
     ON publication_members (catalog, publication);
