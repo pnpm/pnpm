@@ -129,6 +129,25 @@ async fn payload_tables_have_rowids(db: Db) {
     .unwrap();
 }
 
+async fn unused_publication_indexes_are_absent(db: Db) {
+    open(&db).await.unwrap();
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        adapter.read(ReadSource::Primary, &mut |connection| {
+            let rows = connection.query(
+                "SELECT name FROM sqlite_master WHERE type = 'index' AND name IN
+                 ('publication_outcomes_by_key', 'versions_by_accepted_generation')",
+                params![],
+            )?;
+            assert!(rows.is_empty());
+            Ok(())
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap();
+}
+
 async fn a_matching_version_opens(db: Db) {
     open(&db).await.unwrap();
     let created = tables(&db).await;
@@ -138,7 +157,7 @@ async fn a_matching_version_opens(db: Db) {
 }
 
 async fn another_version_is_refused(db: Db) {
-    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.4')");
+    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.5')");
     execute(
         &db,
         &[
@@ -149,7 +168,7 @@ async fn another_version_is_refused(db: Db) {
     )
     .await;
     let reason = refused(&db).await;
-    assert!(reason.contains("holds schema version 0.4,"), "{reason}");
+    assert!(reason.contains("holds schema version 0.5,"), "{reason}");
     // Once the operator wipes the tables, pnpr creates them afresh.
     execute(&db, &[&format!("DROP TABLE {MARKER}"), "DROP TABLE catalogs"]).await;
     open(&db).await.unwrap();
@@ -173,12 +192,12 @@ async fn an_integer_schema_version_is_refused(db: Db) {
 async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
     open(&db).await.unwrap();
     // A wipe that drops the tables but leaves the marker.
-    execute(&db, &["DROP TABLE catalogs", "DROP TABLE note_history"]).await;
+    execute(&db, &["DROP TABLE catalogs", "DROP TABLE notes"]).await;
     let reason = refused(&db).await;
     assert!(
         reason.contains(&format!(
             "holds schema version {SCHEMA_VERSION} without the metadata tables catalogs, \
-             note_history,"
+             notes,"
         )),
         "{reason}",
     );
@@ -205,7 +224,8 @@ fn every_metadata_table_is_known() {
     let tables = schema::table_names(TABLES);
     assert_eq!(tables.len(), TABLES.matches("CREATE TABLE").count(), "{tables:?}");
     assert!(tables.contains(&"catalogs".to_string()));
-    assert!(tables.contains(&"note_history".to_string()));
+    assert!(tables.contains(&"notes".to_string()));
+    assert!(!tables.contains(&"note_history".to_string()));
     assert!(!tables.contains(&MARKER.to_string()));
     assert_eq!(schema::table_names(schema::MARKER_TABLE), [MARKER]);
     let upper = TABLES.to_ascii_uppercase();
@@ -224,6 +244,6 @@ fn a_table_is_known_however_its_statement_is_spaced_or_cased() {
 }
 
 mod embedded_layout {
-    use super::payload_tables_have_rowids;
-    embedded_conformance!(payload_tables_have_rowids);
+    use super::{payload_tables_have_rowids, unused_publication_indexes_are_absent};
+    embedded_conformance!(payload_tables_have_rowids, unused_publication_indexes_are_absent);
 }
