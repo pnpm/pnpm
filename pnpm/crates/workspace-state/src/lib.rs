@@ -380,6 +380,9 @@ pub struct WorkspaceStateSettings {
     /// `runtime`, recorded only while it is off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<bool>,
+    /// `runtimeOnFail`, recorded only when set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_on_fail: Option<RuntimeOnFail>,
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,
@@ -441,6 +444,18 @@ pub struct WorkspaceStateSettings {
 pub enum TrustPolicy {
     Off,
     NoDowngrade,
+}
+
+/// pnpm's `runtimeOnFail: 'download' | 'error' | 'warn' | 'ignore'`. Same
+/// wire format as `pnpm_config::RuntimeOnFail`; duplicated here for the same
+/// reason as [`NodeLinker`] below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeOnFail {
+    Download,
+    Error,
+    Warn,
+    Ignore,
 }
 
 /// pnpm's `nodeLinker: 'hoisted' | 'isolated' | 'pnp'`. Same wire

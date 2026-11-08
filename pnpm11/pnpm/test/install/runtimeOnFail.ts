@@ -48,6 +48,25 @@ test('runtimeOnFail=ignore prevents Node.js download even when manifest sets onF
   expect(lockfile.importers['.'].devDependencies).toBeUndefined()
 })
 
+test('a repeat install downloads Node.js after runtimeOnFail changes to download', async () => {
+  const project = prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24.0.0',
+      },
+    },
+  })
+  fs.writeFileSync('pnpm-workspace.yaml', 'runtimeOnFail: ignore\n', 'utf8')
+  await execPnpm(['install'])
+  expectNoNodeBin()
+
+  fs.writeFileSync('pnpm-workspace.yaml', 'runtimeOnFail: download\n', 'utf8')
+  await execPnpm(['install'])
+
+  project.isExecutable('.bin/node')
+})
+
 test('--no-runtime keeps the runtime entry in the lockfile but skips installing the binary', async () => {
   const project = prepare({
     devEngines: {

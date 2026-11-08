@@ -9,7 +9,7 @@
 use super::{super::config_blocks_fast_path, current_settings, isolated_included};
 use crate::install_state::first_setting_drift;
 use indexmap::IndexMap;
-use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
+use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, RuntimeOnFail, TrustPolicy};
 use pnpm_workspace_state::WorkspaceState;
 use std::{collections::BTreeSet, path::Path};
 
@@ -244,7 +244,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("resolution_mode", NotAnInput(RESOLUTION_ONLY)),
     ("resolve_peers_from_workspace_root", NotAnInput(RESOLUTION_ONLY)),
     ("reverse", NotAnInput(CLI_ONLY)),
-    ("runtime_on_fail", NotAnInput("whether a missing runtime fails the command")),
+    ("runtime_on_fail", Recorded { key: "runtimeOnFail", change: |config| config.runtime_on_fail = Some(RuntimeOnFail::Download) }),
     ("save_catalog_name", NotAnInput(OTHER_COMMAND)),
     ("save_exact", NotAnInput(OTHER_COMMAND)),
     ("save_peer", NotAnInput(OTHER_COMMAND)),

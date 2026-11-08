@@ -131,6 +131,8 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'publicHoistPattern',
   // Turned back on, it links the runtime the last install skipped.
   'runtime',
+  // It decides whether the install links the runtime a project declares.
+  'runtimeOnFail',
   // `node_modules` is linked from the store and virtual store it was
   // installed with, so a change to either must reach the install, which
   // recreates it. Recorded as resolved by `resolveStoreLocationSettings`.
