@@ -138,7 +138,7 @@ async fn a_matching_version_opens(db: Db) {
 }
 
 async fn another_version_is_refused(db: Db) {
-    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.3')");
+    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.4')");
     execute(
         &db,
         &[
@@ -149,7 +149,7 @@ async fn another_version_is_refused(db: Db) {
     )
     .await;
     let reason = refused(&db).await;
-    assert!(reason.contains("holds schema version 0.3,"), "{reason}");
+    assert!(reason.contains("holds schema version 0.4,"), "{reason}");
     // Once the operator wipes the tables, pnpr creates them afresh.
     execute(&db, &[&format!("DROP TABLE {MARKER}"), "DROP TABLE catalogs"]).await;
     open(&db).await.unwrap();
