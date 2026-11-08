@@ -259,6 +259,7 @@ pub(super) struct SlotReuse<'a> {
     pub(super) current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     /// Replace the slot even when its recorded metadata is unchanged.
     pub(super) force: bool,
+    pub(super) is_hoisted: bool,
     pub(super) layout: &'a crate::VirtualStoreLayout,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
@@ -272,9 +273,23 @@ impl SlotReuse<'_> {
         &self,
         snapshot_key: &PackageKey,
     ) -> Result<bool, CreateVirtualStoreError> {
+        if self.is_hoisted {
+            return Ok(false);
+        }
         if self.force || package_content_changed(self.current_packages, self.packages, snapshot_key)
         {
             return Ok(true);
+        }
+        let Some(metadata) = self.packages.get(&snapshot_key.without_peer()) else {
+            return Ok(false);
+        };
+        if super::linked_archives::linked_integrity(
+            &metadata.resolution,
+            self.supported_architectures,
+        )
+        .is_none()
+        {
+            return Ok(false);
         }
         let slot = crate::GlobalVirtualStoreSlot::acquire_existing(self.layout, snapshot_key)
             .map_err(CreateVirtualStoreError::SlotLock)?;

@@ -3,7 +3,7 @@ use crate::{VirtualStoreLayout, platform_selection::host_platform_selector};
 use pnpm_config::Config;
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, PlatformAssetResolution,
-    PlatformAssetTarget, VariationsResolution,
+    PlatformAssetTarget, SnapshotEntry, VariationsResolution,
 };
 use std::{collections::HashMap, fs, path::Path};
 
@@ -25,6 +25,17 @@ fn layout(install_state_dir: &Path) -> VirtualStoreLayout {
     VirtualStoreLayout::new(&config, None, None, None, None, None)
 }
 
+fn global_layout(
+    root: &Path,
+    packages: &HashMap<PackageKey, PackageMetadata>,
+) -> VirtualStoreLayout {
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = root.join("links");
+    let snapshots = HashMap::from([(key(), SnapshotEntry::default())]);
+    VirtualStoreLayout::new(&config, None, Some(&snapshots), Some(packages), None, None)
+}
+
 fn packages(integrity: &str) -> HashMap<PackageKey, PackageMetadata> {
     HashMap::from([(key(), metadata_with_integrity(integrity))])
 }
@@ -37,6 +48,7 @@ fn an_unchanged_integrity_keeps_the_slot() {
         packages: &wanted,
         current_packages: Some(&current),
         force: false,
+        is_hoisted: false,
         layout: &layout(Path::new("/nonexistent")),
         supported_architectures: None,
     };
@@ -55,6 +67,7 @@ fn a_changed_integrity_replaces_the_slot() {
         packages: &wanted,
         current_packages: Some(&current),
         force: false,
+        is_hoisted: false,
         layout: &layout(Path::new("/nonexistent")),
         supported_architectures: None,
     };
@@ -74,6 +87,7 @@ fn force_replaces_the_slot_with_or_without_previous_records() {
             packages: &wanted,
             current_packages,
             force: true,
+            is_hoisted: false,
             layout: &layout(Path::new("/nonexistent")),
             supported_architectures: None,
         };
@@ -95,6 +109,7 @@ fn a_first_install_without_force_leaves_the_verdict_to_the_import() {
         packages: &wanted,
         current_packages: None,
         force: false,
+        is_hoisted: false,
         layout: &layout(Path::new("/nonexistent")),
         supported_architectures: None,
     };
@@ -155,6 +170,7 @@ fn a_slot_holding_another_archive_is_replaced() {
         packages: &packages,
         current_packages: Some(&packages),
         force: false,
+        is_hoisted: false,
         layout: &layout,
         supported_architectures: None,
     };
@@ -182,6 +198,28 @@ fn a_slot_holding_another_archive_is_replaced() {
     );
 }
 
+#[test]
+fn hoisted_downloads_do_not_compare_global_variant_slots() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let packages = variations_packages();
+    let layout = global_layout(dir.path(), &packages);
+    write_slot(&layout, Some(OLD));
+    let reuse = SlotReuse {
+        packages: &packages,
+        current_packages: Some(&packages),
+        force: false,
+        is_hoisted: true,
+        layout: &layout,
+        supported_architectures: None,
+    };
+
+    assert!(
+        !reuse
+            .must_replace(&key())
+            .expect("hoisted downloads do not read GVS slots"),
+    );
+}
+
 /// Only a slot this pass imported is recorded: one the install skips, such as
 /// an installability-skipped snapshot whose old slot is still on disk, keeps
 /// no record, so the install that later imports it replaces it.
@@ -199,6 +237,7 @@ fn a_slot_the_install_did_not_import_is_not_recorded() {
         packages: &packages,
         current_packages: Some(&packages),
         force: false,
+        is_hoisted: false,
         layout: &layout,
         supported_architectures: None,
     };
