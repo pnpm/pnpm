@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { writeYamlFileSync } from 'write-yaml-file'
