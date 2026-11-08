@@ -27,11 +27,9 @@ CREATE TABLE IF NOT EXISTS versions (
     version VARBINARY(512) NOT NULL,
     revision_key VARBINARY(512) NOT NULL,
     integrity VARBINARY(512) NOT NULL,
-    published_at LONGTEXT,
+    published_at BIGINT,
     accepted_generation BIGINT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key),
-    FOREIGN KEY (catalog, ecosystem, name)
-        REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the manifest accepted for a version under an interpretation
@@ -50,9 +48,7 @@ CREATE TABLE IF NOT EXISTS accepted_manifests (
     manifest LONGTEXT NOT NULL,
     inputs LONGTEXT NOT NULL,
     accepted_digest LONGTEXT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
-    FOREIGN KEY (catalog, ecosystem, name, version, revision_key)
-        REFERENCES versions (catalog, ecosystem, name, version, revision_key) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the exact bytes of a version's release record, as accepted
@@ -69,10 +65,7 @@ CREATE TABLE IF NOT EXISTS release_records (
     record LONGBLOB NOT NULL,
     digest VARBINARY(512) NOT NULL,
     log_index BIGINT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile),
-    FOREIGN KEY (catalog, ecosystem, name, version, revision_key, profile)
-        REFERENCES accepted_manifests (catalog, ecosystem, name, version, revision_key, profile)
-        ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key, profile)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: the transparency log of each catalog's records of one
@@ -108,9 +101,7 @@ CREATE TABLE IF NOT EXISTS readmes (
     revision_key VARBINARY(512) NOT NULL,
     readme LONGTEXT,
     readme_filename LONGTEXT,
-    PRIMARY KEY (catalog, ecosystem, name, version, revision_key),
-    FOREIGN KEY (catalog, ecosystem, name, version, revision_key)
-        REFERENCES versions (catalog, ecosystem, name, version, revision_key) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version, revision_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -120,9 +111,7 @@ CREATE TABLE IF NOT EXISTS tags (
     tag VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, tag),
-    FOREIGN KEY (catalog, ecosystem, name)
-        REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, tag)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- Insert-only: every move of a tag, so a release-age or downgrade policy can
@@ -137,7 +126,7 @@ CREATE TABLE IF NOT EXISTS tag_history (
     previous LONGTEXT,
     target LONGTEXT,
     principal VARBINARY(512),
-    changed_at LONGTEXT NOT NULL,
+    changed_at BIGINT NOT NULL,
     PRIMARY KEY (catalog, ecosystem, name, tag, generation)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
@@ -164,9 +153,7 @@ CREATE TABLE IF NOT EXISTS annotations (
     version VARBINARY(512) NOT NULL,
     deprecated LONGTEXT NOT NULL,
     generation BIGINT NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version),
-    FOREIGN KEY (catalog, ecosystem, name)
-        REFERENCES packages (catalog, ecosystem, name) ON DELETE CASCADE
+    PRIMARY KEY (catalog, ecosystem, name, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- A commit that introduced artifacts. `id` is the catalog generation it
@@ -176,7 +163,7 @@ CREATE TABLE IF NOT EXISTS publications (
     id BIGINT NOT NULL,
     name VARBINARY(512),
     principal VARBINARY(512),
-    committed_at LONGTEXT NOT NULL,
+    committed_at BIGINT NOT NULL,
     PRIMARY KEY (catalog, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 -- The versions a commit accepted, which are its publication's members.
@@ -194,8 +181,7 @@ CREATE TABLE IF NOT EXISTS publication_members (
     name VARBINARY(512) NOT NULL,
     version VARBINARY(512) NOT NULL,
     artifact VARBINARY(512) NOT NULL,
-    PRIMARY KEY (catalog, ecosystem, name, version, artifact),
-    FOREIGN KEY (catalog, publication) REFERENCES publications (catalog, id)
+    PRIMARY KEY (catalog, ecosystem, name, version, artifact)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 CREATE INDEX publication_members_by_publication
     ON publication_members (catalog, publication);
@@ -226,7 +212,7 @@ CREATE TABLE IF NOT EXISTS notes (
     name VARBINARY(512) NOT NULL,
     subject VARBINARY(512) NOT NULL,
     text LONGTEXT,
-    modified_at LONGTEXT NOT NULL,
+    modified_at BIGINT NOT NULL,
     principal VARBINARY(512),
     initial_digest LONGTEXT,
     PRIMARY KEY (catalog, kind, ecosystem, name, subject)
@@ -240,7 +226,7 @@ CREATE TABLE IF NOT EXISTS note_history (
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     subject VARBINARY(512) NOT NULL,
-    changed_at LONGTEXT NOT NULL,
+    changed_at BIGINT NOT NULL,
     principal VARBINARY(512),
     previous LONGTEXT,
     next LONGTEXT
@@ -250,7 +236,7 @@ CREATE TABLE IF NOT EXISTS note_history (
 -- the incarnation stored under `<integrity>.<incarnation>` now, `live`,
 -- `reclaiming`, or `gone`. Never removed, so incarnations only grow and a key
 -- a reclaim may remove is never written again. `changed_at` is when `state`
--- last changed, in seconds since the Unix epoch.
+-- last changed.
 CREATE TABLE IF NOT EXISTS blobs (
     catalog VARBINARY(512) NOT NULL,
     ecosystem VARBINARY(512) NOT NULL,
@@ -265,7 +251,7 @@ CREATE INDEX blobs_by_state ON blobs (catalog, ecosystem, state);
 
 -- Each public file name of a package, mapped to the blob holding its bytes,
 -- by the commit that publishes it or an image blob's upload, and dropped
--- with its version or package. `mapped_at` is in seconds since the epoch.
+-- with its version or package.
 CREATE TABLE IF NOT EXISTS artifact_blobs (
     catalog VARBINARY(512) NOT NULL,
     ecosystem VARBINARY(512) NOT NULL,
@@ -284,8 +270,8 @@ CREATE INDEX artifact_blobs_by_integrity
 -- of its bytes ahead of the commit that claims it. The bytes stay in the
 -- hosted store under `<digest>.<incarnation>`. `state` is `incomplete`,
 -- `complete`, or `gone`; never removed, so incarnations only grow and a key
--- a sweep may remove is never written again. `staged_at` is in seconds since
--- the epoch, `0` once given back or claimed.
+-- a sweep may remove is never written again. `staged_at` is `0` once given
+-- back or claimed.
 CREATE TABLE IF NOT EXISTS staged_archives (
     principal VARBINARY(512) NOT NULL,
     digest VARBINARY(512) NOT NULL,
@@ -317,7 +303,7 @@ CREATE TABLE IF NOT EXISTS removed_packages (
     ecosystem VARBINARY(512) NOT NULL,
     name VARBINARY(512) NOT NULL,
     maintainers LONGTEXT NOT NULL,
-    unpublished_at LONGTEXT NOT NULL,
+    unpublished_at BIGINT NOT NULL,
     unpublished_by LONGTEXT,
     PRIMARY KEY (catalog, ecosystem, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;

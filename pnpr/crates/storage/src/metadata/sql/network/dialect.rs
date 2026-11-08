@@ -89,13 +89,7 @@ impl Dialect {
     }
 
     fn functions(self, sql: &str) -> String {
-        let mut sql = match self {
-            Self::Postgres => sql.replace(
-                super::super::blobs::NOW,
-                "CAST(FLOOR(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)) AS BIGINT)",
-            ),
-            Self::Mysql => sql.replace(super::super::blobs::NOW, "UNIX_TIMESTAMP()"),
-        };
+        let mut sql = sql.to_string();
         if matches!(self, Self::Mysql) {
             sql = sql.replace(
                 "SELECT value FROM json_each(",
