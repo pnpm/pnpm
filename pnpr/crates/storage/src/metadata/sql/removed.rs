@@ -10,7 +10,7 @@ use crate::{BlobId, PackageTombstone, metadata::PackageMetadata};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use serde_json::Value;
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashSet};
 
 /// The tables holding a package's rows other than its history, each before
 /// the tables its rows reference.
@@ -127,18 +127,17 @@ fn removed_oci_artifacts(previous: &[u8], incoming: &[u8]) -> Result<Vec<String>
     if before.manifests.is_empty() {
         return Ok(Vec::new());
     }
-    let after = if incoming.is_empty() {
-        Vec::new()
+    let after: HashSet<Cow<'_, str>> = if incoming.is_empty() {
+        HashSet::new()
     } else {
         serde_json::from_slice::<StoredImageManifests<'_>>(incoming)?.manifests
+            .into_iter()
+            .map(|entry| entry.digest)
+            .collect()
     };
     Ok(before.manifests
         .into_iter()
-        .filter(|entry| {
-            !after
-                .iter()
-                .any(|kept| kept.digest == entry.digest)
-        })
+        .filter(|entry| !after.contains(&entry.digest))
         .map(|entry| entry.digest.replacen(':', "-", 1))
         .collect())
 }
