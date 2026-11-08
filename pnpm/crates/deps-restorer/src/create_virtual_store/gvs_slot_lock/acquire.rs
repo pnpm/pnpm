@@ -69,7 +69,7 @@ impl GlobalVirtualStoreSlot {
 
 /// When a caller retrying [`GlobalVirtualStoreSlot::try_acquire`] for `key`
 /// gives up: `None` for a top-level install, which keeps retrying, and the
-/// end of [`NESTED_WAIT`] for an install started by a build script.
+/// end of the nested-install wait for an install started by a build script.
 pub(crate) fn slot_retry_deadline(key: &PackageKey) -> Result<Option<Instant>, GvsSlotLockError> {
     let inherited = inherited_slot_locks()
         .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?;
