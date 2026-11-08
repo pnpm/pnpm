@@ -24,17 +24,17 @@ fn find_hosted<'a>(
         .then_some(first)
 }
 
-/// The identity of a browser session: its username, and a membership for
+/// The identity of a browser session: its account ID, and a membership for
 /// every team its groups claim earned.
-pub(super) fn session_identity(config: &Config, user: SessionUser) -> Identity {
+pub(super) fn session_identity(config: &Config, user: SessionUser, username: String) -> Identity {
     let memberships = user.teams
         .into_iter()
         .filter_map(|grant| {
             let hosted = find_hosted(&config.routing.hosted, &grant.registry)?;
-            Some(Membership { directory: hosted.teams.clone(), team: grant.team })
+            Some(Membership { directory: hosted.teams.clone(), team_id: grant.team_id })
         })
         .collect();
-    Identity::member(user.username, memberships)
+    Identity::account_member(user.user_id, username, memberships)
 }
 
 /// Every group grant names a hosted registry and a team it can hold: on a
@@ -50,13 +50,13 @@ pub(super) fn validate_group_grants(config: &Config) -> Result<(), RegistryError
         };
         let hosted = find_hosted(&config.routing.hosted, &grant.registry)
             .ok_or_else(|| invalid(format!("{:?} is not a hosted registry", grant.registry)))?;
-        validate_team_name(&grant.team).map_err(invalid)?;
+        validate_team_name(&grant.team_id).map_err(invalid)?;
         if hosted.teams_managed_by == Management::Config
-            && !hosted.teams.snapshot().contains_key(&grant.team)
+            && !hosted.teams.snapshot().contains_key(&grant.team_id)
         {
             return Err(invalid(format!(
                 "registry {:?} does not declare the team {:?}",
-                grant.registry, grant.team,
+                grant.registry, grant.team_id,
             )));
         }
     }

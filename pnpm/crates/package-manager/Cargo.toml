@@ -31,6 +31,7 @@ pnpm-engine-runtime-bun-resolver = { workspace = true }
 pnpm-engine-runtime-deno-resolver = { workspace = true }
 pnpm-engine-runtime-node-resolver = { workspace = true }
 pnpm-executor = { workspace = true }
+pnpm-process = { path = "../process" }
 pnpm-fs = { workspace = true }
 pnpm-git-fetcher = { workspace = true }
 pnpm-lockfile = { workspace = true }

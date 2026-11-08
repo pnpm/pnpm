@@ -2,8 +2,8 @@
 //! before the linker writes the tree.
 
 use super::{HoistedLinkerError, HoistedLinkerInputs, workspace_links::ALL_DEPENDENCY_GROUPS};
-use crate::SkippedSnapshots;
-use pnpm_reporter::SilentReporter;
+use crate::{SkippedSnapshots, prune_stale_modules::ReportedRemovals};
+use pnpm_reporter::Reporter;
 
 /// Runs before the linker writes the tree, so no package is imported at
 /// a path that is still a project's link.
@@ -13,7 +13,10 @@ pub(super) fn unlink_prior_workspace_hoists(
     let modules_dir = &inputs.config.modules_dir;
     crate::prune_stale_modules::prune_workspace_hoists(
         &crate::prune_stale_modules::WorkspaceHoistDirs {
-            workspace_root: inputs.projects.walker_lockfile_dir,
+            modules_dirs: &crate::ImporterModulesDirs::from_config(
+                inputs.config,
+                inputs.projects.walker_lockfile_dir,
+            ),
             private: modules_dir,
             public: modules_dir,
         },
@@ -26,23 +29,23 @@ pub(super) fn unlink_prior_workspace_hoists(
 
 /// Runs before the linker writes the tree, so a package that replaces a
 /// removed `link:` dependency is not imported through the old link.
-pub(super) fn unlink_stale_direct_links(
+pub(super) fn unlink_stale_direct_links<Reporter: self::Reporter>(
     inputs: &HoistedLinkerInputs<'_>,
     skipped: &SkippedSnapshots,
 ) -> Result<(), HoistedLinkerError> {
     let Some(current_lockfile) = inputs.prior.current_lockfile else { return Ok(()) };
     crate::prune_stale_modules::StaleDirectDepLinks {
-        workspace_root: inputs.projects.symlink_workspace_root,
-        modules_dir_name: inputs.config.modules_dir_name(),
+        workspace_root: inputs.projects.walker_lockfile_dir,
+        modules_dirs: crate::ImporterModulesDirs::from_config(
+            inputs.config,
+            inputs.projects.walker_lockfile_dir,
+        ),
         wanted_lockfile: inputs.graph.lockfile,
         current_lockfile,
         linked: crate::LinkedDirectDeps { included_groups: &ALL_DEPENDENCY_GROUPS, skipped },
-        // Off until the dedupe compares resolved `link:` targets as the
-        // link pass does (pnpm/tasks#289).
-        dedupe_direct_deps: false,
+        dedupe_direct_deps: inputs.config.dedupe_direct_deps,
+        reported: ReportedRemovals::UnlinkedLinkDependencies,
     }
-    // `report_direct_dependency_changes` reports this linker's other
-    // removals; a `link:` removal goes unreported (pnpm/tasks#289).
-    .unlink::<SilentReporter>()
+    .unlink::<Reporter>()
     .map_err(HoistedLinkerError::PruneStaleLinks)
 }

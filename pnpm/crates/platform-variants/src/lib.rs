@@ -8,6 +8,7 @@
 //! with [`select`].
 
 pub use manifests::variant_manifests;
+pub(crate) use pnpm_process as process;
 pub use selection::{AmbiguousSelection, Host, HostFloors, Purpose, select};
 pub use tag::{MAX_VARIANT_TAG_BYTES, canonical_spelling, is_valid_variant_tag, variant_tag};
 
@@ -23,11 +24,6 @@ pub fn host_floors() -> HostFloors {
 mod manifests;
 mod selection;
 mod tag;
-
-#[cfg(target_family = "wasm")]
-pub(crate) use pnpm_process as process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
 
 use derive_more::{Display, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

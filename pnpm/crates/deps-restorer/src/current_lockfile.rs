@@ -14,6 +14,7 @@
 //! those slots were already on disk and skip work that should
 //! actually run.
 
+pub use missing_projects::missing_project_importers;
 pub use platform_archives::{KeptArchive, PlatformArchivesInput, StoredArchive, platform_archives};
 pub use reachability::{GroupSelection, ReachableLockfileGraph, VariantWalk, collect_reachable};
 pub use variant_snapshots::{has_variant_snapshots, with_selected_variant_snapshots};

@@ -27,6 +27,7 @@ import {
 import { rimraf } from '@zkochan/rimraf'
 import { difference, equals, mergeAll, pickAll } from 'ramda'
 
+import { isProvidedByRoot } from './dedupeByRoot.js'
 import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency.js'
 
 export type PruneImporter = {
@@ -109,14 +110,16 @@ async function pruneImporterDirectDeps (
       ? (await readModulesDir(modulesDir) ?? [])
       : []
   )
-  const depsToRemove = collectDepsToRemove({
+  const { depsToRemove, dedupedByRoot } = collectDepsToRemove({
     allCurrentPackages,
     currentPkgs,
     dedupeDirectDeps: opts.dedupeDirectDeps,
     hoistedDependencies: opts.hoistedDependencies,
     id,
+    lockfileDir: opts.lockfileDir,
     pruneDirectDependencies,
     removePackages,
+    rootDir,
     wantedPkgs,
     wantedRootPkgs,
   })
@@ -124,6 +127,7 @@ async function pruneImporterDirectDeps (
   await removeDirectDependencies({
     binsDir,
     currentImporter,
+    dedupedByRoot,
     depsToRemove,
     dryRun: opts.dryRun,
     modulesDir,
@@ -137,37 +141,49 @@ interface CollectDepsToRemoveOptions {
   dedupeDirectDeps?: boolean
   hoistedDependencies: HoistedDependencies
   id: ProjectId
+  lockfileDir: string
   pruneDirectDependencies?: boolean
   removePackages?: string[]
+  rootDir: string
   wantedPkgs: Record<string, string>
   wantedRootPkgs: Record<string, string>
 }
 
-function collectDepsToRemove (opts: CollectDepsToRemoveOptions): Set<string> {
+interface DepsToRemove {
+  depsToRemove: Set<string>
+  /** The dependencies in `depsToRemove` that the wanted lockfile still records, because the root provides them. */
+  dedupedByRoot: Set<string>
+}
+
+function collectDepsToRemove (opts: CollectDepsToRemoveOptions): DepsToRemove {
   const depsToRemove = new Set(
     (opts.removePackages ?? []).filter((pkg) => opts.allCurrentPackages.has(pkg))
   )
+  const dedupedByRoot = new Set<string>()
   for (const [depName, depVersion] of opts.currentPkgs) {
-    if (shouldRemoveCurrentPkg(depName, depVersion, opts)) {
+    if (depsToRemove.has(depName)) continue
+    if (opts.wantedPkgs[depName] !== depVersion) {
       depsToRemove.add(depName)
+    } else if (isDedupedByRoot(depName, depVersion, opts)) {
+      depsToRemove.add(depName)
+      dedupedByRoot.add(depName)
     }
   }
   if (opts.pruneDirectDependencies) {
     addUnwantedDirectDeps(depsToRemove, opts.allCurrentPackages, opts.wantedPkgs, opts.hoistedDependencies)
   }
-  return depsToRemove
+  return { depsToRemove, dedupedByRoot }
 }
 
-function shouldRemoveCurrentPkg (
+function isDedupedByRoot (
   depName: string,
   depVersion: string,
-  opts: Pick<CollectDepsToRemoveOptions, 'dedupeDirectDeps' | 'id' | 'wantedPkgs' | 'wantedRootPkgs'>
+  opts: Pick<CollectDepsToRemoveOptions, 'dedupeDirectDeps' | 'id' | 'lockfileDir' | 'rootDir' | 'wantedRootPkgs'>
 ): boolean {
-  const wantedVersion = opts.wantedPkgs[depName]
-  if (!wantedVersion || wantedVersion !== depVersion) {
-    return true
-  }
-  return Boolean(opts.dedupeDirectDeps && opts.id !== '.' && wantedVersion === opts.wantedRootPkgs[depName])
+  if (!opts.dedupeDirectDeps || opts.id === '.') return false
+  const rootVersion = opts.wantedRootPkgs[depName]
+  return rootVersion != null &&
+    isProvidedByRoot({ ref: depVersion, rootDir: opts.rootDir }, { ref: rootVersion, rootDir: opts.lockfileDir })
 }
 
 function addUnwantedDirectDeps (
@@ -185,17 +201,16 @@ function addUnwantedDirectDeps (
   }
 }
 
-interface RemoveDirectDepsOptions {
+interface RemoveDirectDepsOptions extends DepsToRemove {
   binsDir: string
   currentImporter: ProjectSnapshot
-  depsToRemove: Set<string>
   dryRun?: boolean
   modulesDir: string
   rootDir: ProjectRootDir
 }
 
 async function removeDirectDependencies (opts: RemoveDirectDepsOptions): Promise<void> {
-  const { binsDir, currentImporter, depsToRemove, dryRun, modulesDir, rootDir } = opts
+  const { binsDir, currentImporter, dedupedByRoot, depsToRemove, dryRun, modulesDir, rootDir } = opts
   const removedFromScopes = new Set<string>()
   await Promise.all(Array.from(depsToRemove).map(async (depName) => {
     const scope = getScopeFromPackageName(depName)
@@ -208,6 +223,7 @@ async function removeDirectDependencies (opts: RemoveDirectDepsOptions): Promise
         currentImporter.dependencies?.[depName] != null && 'dependencies' ||
         undefined,
       name: depName,
+      stillWanted: dedupedByRoot.has(depName),
     }, {
       binsDir,
       dryRun,

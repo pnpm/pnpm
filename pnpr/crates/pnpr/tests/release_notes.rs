@@ -26,7 +26,7 @@ fn app_at(tmp: &TempDir, public_url: &str) -> Router {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     config.http.public_url = public_url.to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.metadata = MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     router(config)
 }
@@ -73,7 +73,7 @@ fn json_body(value: &Value) -> Body {
 }
 
 async fn token(app: &Router) -> String {
-    let body = json!({ "name": "alice", "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": "alice", "password": "secret123", "type": "user", "roles": [] });
     let answer = send(app, "PUT", "/-/user/org.couchdb.user:alice", None, json_body(&body)).await;
     assert_eq!(answer.status, StatusCode::CREATED);
     answer.json()["token"]
@@ -226,8 +226,14 @@ async fn an_unpublished_version_serves_no_note() {
         .as_object_mut()
         .unwrap()
         .remove("1.0.0");
-    let rewritten =
-        send(&app, "PUT", "/npm/pruned/-rev/1", Some(&token), json_body(&packument)).await;
+    let rewritten = send(
+        &app,
+        "PUT",
+        &format!("/npm/pruned/-rev/{}", packument["_rev"].as_str().unwrap()),
+        Some(&token),
+        json_body(&packument),
+    )
+    .await;
     assert_eq!(rewritten.status, StatusCode::CREATED, "{}", rewritten.text());
 
     let removed = send(&app, "GET", "/npm/pruned/1.0.0/notes", None, Body::empty()).await;
@@ -247,7 +253,7 @@ async fn an_unpublished_version_serves_no_note() {
 }
 
 #[tokio::test]
-async fn a_version_spelled_dist_tag_names_the_version_it_points_at() {
+async fn a_version_spelled_dist_tag_is_rejected() {
     let tmp = TempDir::new().unwrap();
     let app = app(&tmp);
     let token = token(&app).await;
@@ -262,9 +268,9 @@ async fn a_version_spelled_dist_tag_names_the_version_it_points_at() {
         Body::from(r#""1.0.0""#),
     )
     .await;
-    assert_eq!(tag.status, StatusCode::CREATED, "{}", tag.text());
+    assert_eq!(tag.status, StatusCode::BAD_REQUEST, "{}", tag.text());
     let note = send(&app, "GET", "/npm/tagged/v9.9.9/notes", None, Body::empty()).await;
-    assert_eq!((note.status, note.text()), (StatusCode::OK, "- one\n"));
+    assert_eq!(note.status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

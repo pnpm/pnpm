@@ -102,3 +102,29 @@ fn a_publish_does_not_rebase_once_the_owners_changed() {
 
     assert_eq!(rebase_packument(Some(&base), &ours, &current), None);
 }
+
+#[test]
+fn a_client_revision_precondition_forbids_rebasing() {
+    use super::{StagedPublish, rebase_bases};
+    use crate::server::publishing::{StagedBase, Verification};
+    use pnpr_package_name::CanonicalPackageName;
+    use pnpr_registry::Ecosystem;
+
+    let mut staged = [StagedPublish {
+        name: CanonicalPackageName::parse("widget", Ecosystem::Npm).unwrap(),
+        ecosystem: Ecosystem::Npm,
+        document: Vec::new(),
+        base: StagedBase {
+            revision_checked: true,
+            packument: Some(json!({ "versions": {} })),
+            ..StagedBase::default()
+        },
+        slots: Vec::new(),
+        org: None,
+        publisher: None,
+        verification: Verification::default(),
+    }];
+    assert!(rebase_bases(&mut staged).is_none());
+    staged[0].base.revision_checked = false;
+    assert!(rebase_bases(&mut staged).is_some());
+}

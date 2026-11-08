@@ -21,7 +21,7 @@ When [`dedupePeerDependents`](#dedupepeerdependents) is `true`, that version can
 
 When `dedupePeerDependents` is `false`, or [`projectScopedOptionalPeers`](#projectscopedoptionalpeers) is `true`, that version must come from the project's own dependencies. The workspace root's dependencies also count if [`resolvePeersFromWorkspaceRoot`](#resolvepeersfromworkspaceroot) is `true`.
 
-pnpm skips that version if installing it would leave the project with an unmet peer dependency. This covers the version's own peers and the required peers that pnpm would install with it from versions already in the workspace. A required peer that pnpm would resolve from the registry is not checked.
+pnpm skips that version if installing it would leave the project with an unmet peer dependency. This covers the version's own peers, the required peers that pnpm would install with it, and their peers in turn. `dedupePeerDependents` does not give the skipped peer back to the project by sharing another project's instance of the package that declares it.
 
 pnpm also resolves optional peers this way when `autoInstallPeers` is `false` and `dedupePeerDependents` is `true`. To stop it, set both settings to `false`.
 

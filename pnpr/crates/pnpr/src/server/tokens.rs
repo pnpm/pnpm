@@ -113,7 +113,12 @@ pub(super) async fn create_token(
         .with_expires_at(expires_at)
         .with_scopes(payload.scopes)
         .with_kind(payload.kind);
-    match state.inner.identity.auth.tokens.issue_token(&username, new_token).await {
+    match state.inner.identity.auth.tokens.issue_token(
+        identity.user_id().expect("authenticated caller"),
+        new_token,
+    )
+    .await
+    {
         Ok((raw, record)) => json_response(StatusCode::OK, &create_token_response(&raw, &record)),
         Err(err) => err.into_response(),
     }
@@ -221,7 +226,9 @@ async fn verify_caller_password(
     username: &str,
     password: Option<&str>,
 ) -> Result<(), RegistryError> {
-    if let Some(hash) = state.inner.identity.auth.users.password_hash(username).await? {
+    if let Some(hash) = state.inner.identity.auth.users.password_hash(username).await?
+        && hash != pnpr_auth::NO_PASSWORD_HASH
+    {
         let Some(password) = password else {
             state.inner.identity.login_rate_limiter.record_failure(client_ip, username);
             return Err(RegistryError::Unauthenticated {
@@ -246,7 +253,7 @@ fn create_token_response(raw_token: &str, record: &TokenRecord) -> Value {
     let mut obj = json!({
         "token": raw_token,
         "key": key,
-        "user": record.username,
+        "user": record.user_id,
         "readonly": record.readonly,
         "cidr_whitelist": record.cidr_whitelist,
         "created": token_timestamp_iso(record.created_at),
@@ -268,11 +275,14 @@ fn create_token_response(raw_token: &str, record: &TokenRecord) -> Value {
 }
 
 pub(super) async fn list_tokens(state: &AppState, identity: &Identity) -> Response {
-    let username = match require_caller(identity, "token list") {
-        Ok(username) => username,
-        Err(err) => return err.into_response(),
-    };
-    let tokens = match state.inner.identity.auth.tokens.list_for_user(&username).await {
+    if let Err(err) = require_caller(identity, "token list") {
+        return err.into_response();
+    }
+    let tokens = match state.inner.identity.auth.tokens.list_for_user(
+        identity.user_id().expect("authenticated caller"),
+    )
+    .await
+    {
         Ok(tokens) => tokens,
         Err(err) => return err.into_response(),
     };
@@ -293,12 +303,14 @@ pub(super) async fn revoke_token_by_key(
         Err(err) => return err.into_response(),
     };
     match state.inner.identity.auth.tokens.find_by_key(key).await {
-        Ok(Some(record)) if record.username != username => RegistryError::Forbidden {
-            user: username,
-            action: "revoke",
-            resource: "this token".to_string(),
+        Ok(Some(record)) if Some(record.user_id.as_str()) != identity.user_id() => {
+            RegistryError::Forbidden {
+                user: username,
+                action: "revoke",
+                resource: "this token".to_string(),
+            }
+            .into_response()
         }
-        .into_response(),
         Ok(Some(_)) => match state.inner.identity.auth.tokens.revoke_by_key(key).await {
             Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
             Ok(None) => not_found(),
@@ -310,19 +322,20 @@ pub(super) async fn revoke_token_by_key(
 }
 
 pub(super) async fn logout(state: &AppState, identity: &Identity, raw_token: &str) -> Response {
-    let username = match require_caller(identity, "logout") {
-        Ok(username) => username,
-        Err(err) => return err.into_response(),
-    };
-    if let Some(resp) = try_logout_session(state, &username, raw_token) {
+    if let Err(err) = require_caller(identity, "logout") {
+        return err.into_response();
+    }
+    if let Some(resp) =
+        try_logout_session(state, identity.user_id().expect("authenticated caller"), raw_token)
+    {
         return resp;
     }
-    logout_bearer_token(state, &username, raw_token).await
+    logout_bearer_token(state, identity.user_id().expect("authenticated caller"), raw_token).await
 }
 
 fn try_logout_session(state: &AppState, username: &str, raw_token: &str) -> Option<Response> {
     match state.inner.identity.oidc.session(raw_token) {
-        Ok(Some(owner)) if owner.username == username => {
+        Ok(Some(owner)) if owner.user_id == username => {
             state.inner.identity.oidc.revoke_session(raw_token);
             Some(json_response(StatusCode::OK, &json!({ "ok": true })))
         }
@@ -367,7 +380,7 @@ pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) 
     let mut obj = json!({
         "key": key,
         "token": preview,
-        "user": record.username,
+        "user": record.user_id,
         "cidr_whitelist": record.cidr_whitelist,
         "readonly": record.readonly,
         "created": created,

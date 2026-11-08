@@ -164,13 +164,14 @@ impl<'a> MaterializationWorkspace<'a> {
                 lockfile,
                 self.workspace_root,
                 selected,
+                Some(self.real_importer_ids),
                 hoisted_prior,
                 &groups,
                 &skipped,
             )
         } else {
             let ids = (!ignore_manifest_check).then_some(self.real_importer_ids);
-            let initial = initial_materialization_ids(lockfile, ids, None);
+            let initial = initial_materialization_ids(lockfile, ids, None, None);
             crate::materialization_closure(
                 lockfile,
                 self.workspace_root,

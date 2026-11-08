@@ -8,8 +8,8 @@ pub use access::{
 };
 pub use artifacts::{ArtifactQuota, ArtifactsFeature, StorageAccess};
 pub use backend_config::{
-    AuthConfig, BackendConfig, HtpasswdConfig, IdentityConfig, LibsqlSettings, MaxUsers,
-    SqlBackendSettings, TokensConfig,
+    AuthConfig, BackendConfig, IdentityConfig, LibsqlSettings, MaxUsers, SqlBackendSettings,
+    TokensConfig, UsersConfig,
 };
 pub use byte_size::{ByteSize, parse_byte_size};
 pub use gc::GcConfig;
@@ -18,7 +18,7 @@ pub use ip_network::{IpNetwork, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use metrics::MetricsConfig;
 pub use package_documents::PackageDocumentsConfig;
-pub use pnpr_policy::{TeamDirectory, Teams};
+pub use pnpr_policy::{Team, TeamDirectory, Teams};
 pub use release_records::ReleaseRecordsConfig;
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
@@ -40,17 +40,16 @@ mod artifacts;
 use artifacts::{parse_artifact_quota, parse_storage_access};
 
 mod backend_config;
-use backend_config::{build_backend_config, build_identity_config};
+use backend_config::build_identity_config;
 
 mod byte_size;
 
 mod config_file;
 use config_file::{
-    ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
-    DefaultRegistryFile, FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile,
-    PipelineFeatureFile, RegistryFile, RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock,
-    RemovedUplinksBlock, RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile,
-    UpstreamFile,
+    ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, ConfigFile, CorsFile, DefaultRegistryFile,
+    FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
+    RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock, RemovedUplinksBlock,
+    RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
 };
 
 mod gc;
@@ -293,6 +292,8 @@ pub enum TarballFormat {
 pub struct OciConfig {
     pub bearer_auth: bool,
     pub max_blob_bytes: u64,
+    /// Optional upload chunk size hint in bytes; omitted by default.
+    pub chunk_max_bytes: Option<std::num::NonZeroU64>,
     pub max_manifest_bytes: usize,
 }
 
@@ -301,6 +302,7 @@ impl Default for OciConfig {
         Self {
             bearer_auth: false,
             max_blob_bytes: 10 * 1024 * 1024 * 1024,
+            chunk_max_bytes: None,
             max_manifest_bytes: 4 * 1024 * 1024,
         }
     }

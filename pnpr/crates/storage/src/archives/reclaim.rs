@@ -23,9 +23,19 @@ impl Storage {
     /// `reclaiming` for a later reclaim, and the error is returned once the
     /// rest are recorded.
     pub async fn reclaim_blobs(&self, ids: Vec<BlobId>) -> Result<Vec<BlobRef>> {
+        self.reclaim_blobs_with(ids, |_| {}).await
+    }
+
+    /// Like [`Self::reclaim_blobs`], calling `on_removed` after each archive's
+    /// bytes are removed, even if another removal or metadata update fails.
+    pub async fn reclaim_blobs_with(
+        &self,
+        ids: Vec<BlobId>,
+        on_removed: impl Fn(&BlobRef),
+    ) -> Result<Vec<BlobRef>> {
         let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
         let marked = self.database.mark_reclaiming(catalog, ecosystem, ids).await?;
-        self.remove_reclaiming(marked).await
+        self.remove_reclaiming(marked, on_removed).await
     }
 
     /// The live blobs of this namespace that nothing maps, with their rows.
@@ -40,7 +50,7 @@ impl Storage {
     pub async fn finish_stale_reclaims(&self, lease: Duration) -> Result<Vec<BlobRef>> {
         let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
         let stale = self.database.stale_reclaims(catalog, ecosystem, lease).await?;
-        self.remove_reclaiming(stale).await
+        self.remove_reclaiming(stale, |_| {}).await
     }
 
     /// Remove the keys of `stored`, incarnations stored in this namespace
@@ -76,12 +86,19 @@ impl Storage {
     }
 
     /// Remove the keys of `reclaiming` and record them gone.
-    async fn remove_reclaiming(&self, reclaiming: Vec<BlobRef>) -> Result<Vec<BlobRef>> {
+    async fn remove_reclaiming(
+        &self,
+        reclaiming: Vec<BlobRef>,
+        on_removed: impl Fn(&BlobRef),
+    ) -> Result<Vec<BlobRef>> {
         let mut removed = Vec::with_capacity(reclaiming.len());
         let mut failure = None;
         for blob in reclaiming {
             match self.hosted.remove_archive(&blob.key()).await {
-                Ok(_) => removed.push(blob),
+                Ok(_) => {
+                    on_removed(&blob);
+                    removed.push(blob);
+                }
                 Err(error) => {
                     tracing::warn!(
                         key = %blob.key(),
@@ -106,6 +123,18 @@ impl Storage {
         expected: Option<u64>,
         artifacts: Vec<impl Into<Unmapping>>,
     ) -> Result<Option<Vec<BlobRef>>> {
+        self.unmap_hosted_artifacts_with(name, expected, artifacts, |_| {}).await
+    }
+
+    /// Like [`Self::unmap_hosted_artifacts`], notifying `on_removed` under
+    /// the contract of [`Self::reclaim_blobs_with`].
+    pub async fn unmap_hosted_artifacts_with(
+        &self,
+        name: &pnpr_package_name::CanonicalPackageName,
+        expected: Option<u64>,
+        artifacts: Vec<impl Into<Unmapping>>,
+        on_removed: impl Fn(&BlobRef),
+    ) -> Result<Option<Vec<BlobRef>>> {
         let (catalog, ecosystem) = (self.metadata.catalog(), self.metadata.ecosystem());
         let unmappings = artifacts
             .into_iter()
@@ -119,7 +148,7 @@ impl Storage {
         )
         .await?;
         match unmapped {
-            Some(ids) => Ok(Some(self.reclaim_blobs(ids).await?)),
+            Some(ids) => Ok(Some(self.reclaim_blobs_with(ids, on_removed).await?)),
             None => Ok(None),
         }
     }

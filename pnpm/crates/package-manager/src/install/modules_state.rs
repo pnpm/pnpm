@@ -4,7 +4,7 @@ pub(crate) use integrity::{
 
 pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_require_recovery};
 pub(super) use merge_metadata::{
-    current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
+    current_contains_ignored_build, merge_filtered_modules_metadata, merge_pending_builds,
 };
 pub(super) use settings_diff::{refuse_drifted_modules_dir, same_path};
 

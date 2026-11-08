@@ -1,10 +1,9 @@
 import os from 'node:os'
 
-import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
+import { applyRuntimeOnFailOverride, getNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
 
 import { transformPathKeys } from '../transformPath.js'
 import type { ConfigBuildState, PnpmConfigInProgress } from './configBuildState.js'
-import { getNodeVersionFromEnginesRuntime } from './packageManager.js'
 import { applyRemoteSideEffectsCacheEnv } from './sideEffectsCache.js'
 
 export function finalizeConfig ({ cliOptions, env, pnpmConfig }: ConfigBuildState): void {

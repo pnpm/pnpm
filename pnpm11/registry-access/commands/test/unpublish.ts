@@ -224,6 +224,7 @@ describe('unpublish: OTP challenges', () => {
     await expect(unpublish.handler({ ...OPTS, cliOptions: { force: true, otp: '123456' } }, ['test-pkg']))
       .resolves.toBe('Successfully unpublished all 2 version(s) of test-pkg')
     expect(deleteHeaders['npm-auth-type']).toBe('legacy')
+    expect(deleteHeaders['npm-command']).toBe('unpublish')
     expect(deleteHeaders['npm-otp']).toBe('123456')
   })
 
@@ -258,12 +259,14 @@ describe('unpublish: OTP challenges', () => {
   test('the web-auth flow answers the challenge and its token is reused by the tarball delete', async () => {
     const restoreTty = overrideTty(true)
     const putOtpHeaders: Array<string | string[] | undefined> = []
+    const putCommandHeaders: Array<string | string[] | undefined> = []
     let tarballDeleteHeaders: Headers = {}
     try {
       getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT).times(2)
       getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'PUT', path: '/test-pkg/-rev/3-abc' }).reply(({ headers }) => {
         const otp = (headers as Headers)['npm-otp']
         putOtpHeaders.push(otp)
+        putCommandHeaders.push((headers as Headers)['npm-command'])
         if (otp === 'web-token') return { statusCode: 200, data: {} }
         return { statusCode: 401, data: WEB_AUTH_CHALLENGE }
       }).times(2)
@@ -276,7 +279,9 @@ describe('unpublish: OTP challenges', () => {
       await expect(unpublish.handler({ ...OPTS, cliOptions: {} }, ['test-pkg@0.0.1']))
         .resolves.toBe('Successfully unpublished 1 version(s) of test-pkg')
       expect(putOtpHeaders).toEqual([undefined, 'web-token'])
+      expect(putCommandHeaders).toEqual(['unpublish', 'unpublish'])
       expect(tarballDeleteHeaders['npm-auth-type']).toBe('web')
+      expect(tarballDeleteHeaders['npm-command']).toBe('unpublish')
       expect(tarballDeleteHeaders['npm-otp']).toBe('web-token')
     } finally {
       restoreTty()

@@ -4,10 +4,12 @@ use super::{
     TMUTIL_MAX_PATHS_PER_BATCH, new_directories_to_exclude, tmutil_command, tmutil_failure_message,
 };
 use pnpm_config::Config;
-use pnpm_store_dir::StoreDir;
-use std::{ffi::OsStr, fs, io, path::PathBuf};
 #[cfg(unix)]
-use std::{process::Command, time::Duration};
+use pnpm_process::Command;
+use pnpm_store_dir::StoreDir;
+#[cfg(unix)]
+use std::time::Duration;
+use std::{ffi::OsStr, fs, io, path::PathBuf};
 use tempfile::tempdir;
 
 #[test]
@@ -141,11 +143,7 @@ fn selects_relocated_workspace_modules_directories() {
 
     assert_eq!(
         new_directories_to_exclude(&config, &workspace_root, std::slice::from_ref(&project_dir)),
-        vec![
-            modules_dir,
-            project_dir.join("node_modules"),
-            workspace_root.join("nested/packages/child/node_modules"),
-        ],
+        vec![modules_dir, project_dir.join("node_modules")],
     );
 }
 

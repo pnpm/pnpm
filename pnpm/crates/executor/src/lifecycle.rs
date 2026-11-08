@@ -557,7 +557,6 @@ fn run_in_emulator<Reporter: self::Reporter>(
 /// `arg` is correct.
 #[cfg(windows)]
 pub fn push_script_arg(cmd: &mut Command, script: &str, windows_verbatim_args: bool) {
-    use std::os::windows::process::CommandExt;
     if windows_verbatim_args {
         cmd.raw_arg(script);
     } else {

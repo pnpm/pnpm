@@ -467,6 +467,33 @@ fn windows_rename_failure_with_missing_destination_is_not_reusable() {
     assert!(!staging.exists(), "the staged junction must be cleaned up");
 }
 
+/// `junction::create` makes the staging directory before it writes the
+/// reparse point. A target too long for the reparse buffer fails after
+/// that, and the staging directory must not stay behind
+/// (pnpm/tasks#279).
+#[cfg(windows)]
+#[test]
+fn windows_failed_junction_leaves_no_staging_directory() {
+    let root = tempdir().expect("create temp dir");
+    let parent = root.path().join("node_modules");
+    fs::create_dir(&parent).expect("create link parent");
+    let link = parent.join("pkg");
+    // 25 components of 200 characters exceed the buffer's ~4,000 characters.
+    let target = root
+        .path()
+        .join(vec!["t".repeat(200); 25].join(r"\"));
+
+    let error = super::windows::create_junction(&target, &link)
+        .expect_err("a target longer than the reparse buffer must fail");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "{error}");
+    let leftovers: Vec<_> = fs::read_dir(&parent)
+        .expect("read link parent")
+        .map(|entry| entry.expect("read entry").file_name())
+        .collect();
+    assert!(leftovers.is_empty(), "no staging directory may remain: {leftovers:?}");
+}
+
 /// An editor or dev server holding a file under a directory installed by
 /// another package manager keeps that directory from being moved aside.
 #[cfg(windows)]
@@ -745,4 +772,46 @@ fn force_symlink_inner_gives_up_on_a_stale_link_that_survives_removal() {
         error.to_string().contains("still does after it was removed"),
         "the error names the stale link that could not be retargeted: {error}",
     );
+}
+
+/// A share that refuses links gets advice, since nothing pnpm does on the
+/// link itself can get past the refusal (pnpm/pnpm#17747). The kind and the
+/// OS error stay as they were.
+#[cfg(windows)]
+#[test]
+fn windows_refused_link_on_a_share_suggests_the_hoisted_linker() {
+    let link = std::path::Path::new(r"\\server\share\project\node_modules\pkg");
+    let refusal = std::io::Error::from_raw_os_error(5);
+
+    let error = super::windows::explain_network_share_refusal(link, refusal);
+
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    let message = error.to_string();
+    assert!(message.contains("nodeLinker: hoisted"), "the error must say what to do: {message}");
+    assert!(
+        message.contains("Workspace packages are linked"),
+        "the hoisted advice must not promise a link-free install: {message}",
+    );
+    let os_error = std::error::Error::source(error.get_ref().expect("wrapped error"))
+        .and_then(|source| source.downcast_ref::<std::io::Error>())
+        .and_then(std::io::Error::raw_os_error);
+    assert_eq!(os_error, Some(5), "the refusal must stay the source");
+}
+
+/// Only a refusal on a share gets the advice: a local link or another kind
+/// of failure has a different cause.
+#[cfg(windows)]
+#[test]
+fn windows_other_link_failures_are_not_blamed_on_a_share() {
+    let local = std::path::Path::new(r"C:\project\node_modules\pkg");
+    let error =
+        super::windows::explain_network_share_refusal(local, std::io::Error::from_raw_os_error(5));
+    assert_eq!(error.raw_os_error(), Some(5), "a local refusal stays as it was");
+
+    let share = std::path::Path::new(r"\\server\share\project\node_modules\pkg");
+    let error = super::windows::explain_network_share_refusal(
+        share,
+        std::io::Error::from(std::io::ErrorKind::NotFound),
+    );
+    assert!(!error.to_string().contains("nodeLinker"), "a missing parent is not a refusal");
 }

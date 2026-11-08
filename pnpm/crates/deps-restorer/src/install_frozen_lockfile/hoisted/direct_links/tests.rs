@@ -16,18 +16,18 @@ fn write_package(root: &Path, command: &str) {
 }
 
 fn initial_link(modules: &Path, aliases: &[&str]) -> Vec<PackageBinSource> {
-    let deps = aliases
+    let aliases = aliases
         .iter()
-        .map(|alias| (*alias, None))
+        .map(|alias| (*alias).to_owned())
         .collect::<Vec<_>>();
-    crate::link_bins::link_named_dep_bins_with_sources(
+    crate::link_bins_dir(
         modules,
-        &deps,
-        &LinkBinsOptions::default(),
-        true,
+        crate::BinCandidates::Aliases(&aliases),
+        crate::BinsDirPass::new(&LinkBinsOptions::default())
+            .with_targets(crate::BinTargets::MayBeBuilt),
     )
     .unwrap()
-    .1
+    .sources
 }
 
 fn direct_link(

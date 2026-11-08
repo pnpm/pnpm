@@ -27,7 +27,7 @@ auth:
         clientSecret: ${OIDC_CLIENT_SECRET}
         users:
           - subject: 'the-users-stable-sub-claim'
-            username: alice
+            userId: <account-id>
             claims:
               hd: example.com
 ```
@@ -35,9 +35,11 @@ auth:
 `audience` is the application's client ID. `clientSecret` can be omitted for
 providers that support public clients with PKCE. `subject` is the exact `sub`
 claim issued to this application, not an email address. Each binding maps that
-subject to a pnpr username, and the registry's existing access rules and teams
+subject to an existing pnpr account ID, and the registry's existing access rules and teams
 then apply. Extra `claims` are exact string matches and all of them must match.
-There is no automatic account creation, and no linking by email.
+Create the account with `pnpr add-user` or SCIM before binding it. There is no
+automatic account creation or linking by email or username. Renaming the
+account does not change the binding. A deleted account ID cannot sign in.
 
 ### Teams from groups
 
@@ -53,19 +55,20 @@ auth:
       login:
         users:
           - subject: 'the-users-stable-sub-claim'
-            username: alice
+            userId: <account-id>
         groups:
           claim: groups
           teams:
             - group: 7f3c2a10-0000-0000-0000-000000000000
               registry: private
-              team: platform
+              teamId: <team-id>
 ```
 
 - `claim` names the ID-token claim that lists the groups, either as a list of
   strings or as one string. It defaults to `groups`.
-- A session whose claim lists `group` is a member of `team` on the hosted
-  registry `registry`, as if the team listed its username. `registry` is the
+- `teamId` is the stable team ID, not its display name.
+- A session whose claim lists `group` is a member of `teamId` on the hosted
+  registry `registry`, as if the team listed its account ID. `registry` is the
   registry's key in `registries:`.
 - The membership lasts as long as the session. Removing someone from a group
   takes effect at their next sign-in, within an hour. It never applies to the
@@ -114,12 +117,20 @@ CLI opens the browser to sign in and polls until authentication completes. If no
 OIDC provider declares `login:`, `/-/v1/login` returns `404` and the CLI falls back
 to username and password authentication (`/-/user/org.couchdb.user:{name}`).
 
+A passwordless account can create personal access tokens while signed in.
+These are separate account credentials. They carry the account's ordinary
+permissions, not the session's provider-group memberships, and use the expiry
+requested through the token API. Without an expiry, they remain valid until
+revoked, including after browser logout or session expiry. SCIM deactivation
+revokes both kinds of credential. Accounts with a password must provide it to
+create a personal access token.
+
 An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](container-images.md#authentication).
 
 ## GitHub Actions keyless publishing
 
-Configure a dedicated workload username, a named hosted npm registry, and exact
-package names. The package's normal `publish` rule must grant that username
+Create a dedicated workload account, a named hosted npm registry, and exact
+package names. The package's normal `publish` rule must grant that account ID
 access too.
 
 ```yaml title="pnpr.yaml"
@@ -128,7 +139,7 @@ registries:
     type: hosted
     packages:
       '@example/widget':
-        publish: [release-ci]
+        publish: [<workload-account-id>]
 auth:
   oidc:
     - name: github
@@ -137,7 +148,7 @@ auth:
       workloads:
         - identity:
             subject: repo:example/widgets:ref:refs/heads/main
-            username: release-ci
+            userId: <workload-account-id>
             claims:
               repository_id: '123456789'
               repository_owner_id: '987654321'
@@ -209,10 +220,10 @@ Every block rejects unknown keys.
 | `issuer` | yes | The provider's issuer URL. |
 | `audience` | yes | The expected `aud` claim. For browser sign-in, the client ID. |
 | `login.clientSecret` | no | Client secret for browser sign-in. Omit for public clients with PKCE. |
-| `login.users` | yes, with `login` | Bindings of `subject`, `username`, and optional `claims`. |
+| `login.users` | yes, with `login` | Bindings of `subject`, `userId`, and optional `claims`. |
 | `login.groups.claim` | no | The ID-token claim that lists groups. Defaults to `groups`. |
-| `login.groups.teams` | yes, with `groups` | Grants of `group`, `registry`, and `team`. See [Teams from groups](#teams-from-groups). |
-| `workloads[].identity` | yes | A binding of `subject`, `username`, and optional `claims`. |
+| `login.groups.teams` | yes, with `groups` | Grants of `group`, `registry`, and `teamId`. See [Teams from groups](#teams-from-groups). |
+| `workloads[].identity` | yes | A binding of `subject`, `userId`, and optional `claims`. |
 | `workloads[].registry` | yes | The hosted npm registry the workload publishes to. |
 | `workloads[].packages` | yes | The exact package names the workload may publish. |
 

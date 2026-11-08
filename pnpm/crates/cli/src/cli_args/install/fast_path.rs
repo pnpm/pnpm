@@ -31,6 +31,28 @@ fn warn_about_config(
     warn_deprecated_override_version_references(config, emit);
 }
 
+/// Check what the projects `up_to_date` covers require of the host, as the
+/// install does. The root project is checked here only before the config
+/// setup, which checks it otherwise. Returns the warnings about the other
+/// projects, so that a declined fast path emits none of them.
+fn check_host_requirements(
+    manifest_path: &std::path::Path,
+    config: &pnpm_config::Config,
+    up_to_date: &pnpm_package_manager::UpToDateWorkspace,
+    attempt: Attempt,
+    emit: fn(&pnpm_reporter::LogEvent),
+) -> Result<Vec<pnpm_reporter::LogEvent>, &'static str> {
+    let root_dir = crate::state::root_project_dir(manifest_path, config);
+    let project_warnings = crate::state::ProjectHost::new(config, root_dir)
+        .check_projects(&up_to_date.host_requirements)
+        .map_err(|_| "a workspace project's host requirements are not met")?;
+    if matches!(attempt, Attempt::BeforeConfig) {
+        crate::state::check_root_project_engine(manifest_path, config, emit)
+            .map_err(|_| "root project engine check failed")?;
+    }
+    Ok(project_warnings)
+}
+
 fn report_up_to_date_install(
     config: &pnpm_config::Config,
     up_to_date: &pnpm_package_manager::UpToDateWorkspace,
@@ -211,16 +233,12 @@ impl InstallArgs {
                 config.supported_architectures.clone(),
             ),
         })?;
+        let project_warnings =
+            check_host_requirements(&manifest_path, config, &up_to_date, attempt, emit)?;
         if matches!(attempt, Attempt::BeforeConfig) {
-            crate::state::check_root_project_engine(
-                &manifest_path,
-                config,
-                !config.skip_runtimes,
-                emit,
-            )
-            .map_err(|_| "root project engine check failed")?;
             warn_about_config(root_manifest.as_ref(), config, emit);
         }
+        project_warnings.iter().for_each(emit);
         report_up_to_date_install(config, &up_to_date, emit);
         Ok(())
     }

@@ -14,7 +14,8 @@
         "tls-and-reverse-proxy",
         "cloudflare",
         "webhooks",
-        "auth-backends",
+        { "type": "doc", "id": "auth-backends", "label": "Shared database" },
+        "identity",
         "oidc",
         "scim"
       ]

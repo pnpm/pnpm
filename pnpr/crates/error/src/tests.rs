@@ -5,6 +5,76 @@ use tokio::net::TcpListener;
 
 use super::RegistryError;
 
+#[test]
+fn log_message_preserves_scoped_package_urls() {
+    assert_eq!(
+        super::redact_url_credentials("https://registry.npmjs.org/@babel/cli"),
+        "https://registry.npmjs.org/@babel/cli",
+    );
+}
+
+#[test]
+fn log_message_redacts_credentials_in_scoped_package_urls() {
+    assert_eq!(
+        super::redact_url_credentials("https://user:secret@registry.npmjs.org/@babel/cli"),
+        "https://redacted@registry.npmjs.org/@babel/cli",
+    );
+}
+
+#[test]
+fn log_message_redacts_malformed_credentials_that_parse_as_a_port() {
+    assert_eq!(
+        super::redact_url_credentials("postgres://admin:123/secret@db.example/pnpr"),
+        "postgres://redacted@db.example/pnpr",
+    );
+}
+
+#[test]
+fn log_message_redacts_malformed_credentials_in_scoped_package_urls() {
+    assert_eq!(
+        super::redact_url_credentials("https://user:pa/ss@registry.npmjs.org/@babel/cli"),
+        "https://redacted@registry.npmjs.org/@babel/cli",
+    );
+}
+
+#[test]
+fn log_message_preserves_at_signs_in_package_url_paths() {
+    for url in [
+        "https://registry.npmjs.org/@babel/cli@7.0.0",
+        "https://registry.example/pkg/-/pkg@1.0.0.tgz",
+        "http://localhost:4873/@babel/cli",
+    ] {
+        assert_eq!(super::redact_url_credentials(url), url);
+    }
+}
+
+#[test]
+fn log_message_redacts_malformed_password_ending_in_a_slash() {
+    assert_eq!(
+        super::redact_url_credentials("https://user:secret/@registry.example/package"),
+        "https://redacted@registry.example/package",
+    );
+}
+
+#[test]
+fn log_message_redacts_port_parsed_passwords_containing_a_query_or_fragment_delimiter() {
+    for (url, expected) in [
+        ("postgres://admin:123/se#cret@db.example/pnpr", "postgres://redacted"),
+        ("postgres://admin:123/se?cret@db.example/pnpr", "postgres://redacted"),
+        ("http://localhost:4873/x#token=a@secret", "http://redacted"),
+    ] {
+        assert_eq!(super::redact_url_credentials(url), expected);
+    }
+}
+
+#[test]
+fn log_message_drops_fragment_containing_an_at_sign() {
+    assert_eq!(
+        super::redact_url_credentials("https://db.example/pnpr#password=alice@fragment-secret"),
+        "https://db.example/pnpr",
+    );
+}
+
 /// `reqwest::Error` has no public constructor, so the only way to
 /// get a real `is_timeout()` error in a test is to actually time
 /// out. Spin up a TCP listener that accepts and holds the socket
@@ -130,10 +200,18 @@ fn log_message_redacts_malformed_database_url_credentials() {
 
     let message = err.log_message();
 
-    assert!(message.contains("postgres://redacted@db.example/pnpr?password=redacted"));
-    assert!(!message.contains("admin"));
-    assert!(!message.contains("sec#ret"));
-    assert!(!message.contains("query-secret"));
+    assert_eq!(message, "Internal error: connection failed for postgres://redacted");
+}
+
+#[test]
+fn log_message_redacts_unparsable_urls_with_query_or_fragment_before_at_sign() {
+    for (url, expected) in [
+        ("https://host:bad/x#token=a@secret", "https://redacted"),
+        ("postgres://admin:pa?ss@db.example/pnpr", "postgres://redacted"),
+        ("https://host:bad/@scope/pkg?token=a@secret", "https://redacted"),
+    ] {
+        assert_eq!(super::redact_url_credentials(url), expected);
+    }
 }
 
 #[test]
@@ -194,7 +272,10 @@ fn is_transient_upstream_error_only_for_availability_failures() {
     }
 
     // An open circuit is an availability failure too.
-    let circuit_open = RegistryError::UpstreamUnavailable { upstream: "npmjs".to_string() };
+    let circuit_open = RegistryError::UpstreamUnavailable {
+        upstream: "npmjs".to_string(),
+        retry_after: std::time::Duration::from_secs(30),
+    };
     assert!(circuit_open.is_transient_upstream_error());
 
     // Every 4xx is an authoritative response about this request — including
@@ -238,4 +319,19 @@ fn upstream_body_errors_preserve_gateway_status_and_log_kind() {
         assert_eq!(error.log_kind(), "upstream");
         assert!(error.is_transient_upstream_error());
     }
+}
+
+#[test]
+fn circuit_open_response_names_upstream_and_rounds_retry_after_up() {
+    use axum::response::IntoResponse;
+    let error = RegistryError::UpstreamUnavailable {
+        upstream: "example-upstream".to_string(),
+        retry_after: std::time::Duration::from_millis(1250),
+    };
+    assert!(error.public_message().contains("example-upstream"));
+    let shared = RegistryError::Shared(std::sync::Arc::new(error));
+    assert!(shared.public_message().contains("example-upstream"));
+    let response = shared.into_response();
+    assert_eq!(response.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.headers()["retry-after"], "2");
 }

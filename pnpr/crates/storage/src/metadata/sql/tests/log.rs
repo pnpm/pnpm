@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 const SIGNING_KEY: &str =
     "PRIVATE+KEY+PeterNeumann+c74f20a3+AYEKFALVFGyNhPJEMzD1QIDr+Y7hfZx09iUvxdXHKDFz";
 
-fn record_of(name: &str, version: &str) -> Vec<u8> {
+pub(super) fn record_of(name: &str, version: &str) -> Vec<u8> {
     let record = json!({
         "schema": "pnpr-release-record/1",
         "purl": format!("pkg:npm/{name}@{version}"),
@@ -185,6 +185,14 @@ async fn a_removed_version_keeps_its_log_entry(db: Db) {
     super::write(&org, "core", &packument("core", &[])).await;
     let log = LogId { catalog: "acme".to_string(), ecosystem: Ecosystem::Npm };
     let database = storage.sql_metadata();
+    let core = CanonicalPackageName::parse("core", Ecosystem::Npm).unwrap();
+    assert!(
+        database
+            .release_record_entry(&core, "acme", "1.0.0")
+            .await
+            .unwrap()
+            .is_none(),
+    );
     assert_eq!(database.log_size(&log).await.unwrap(), 2);
     let signer = NoteSigner::from_private_key(SIGNING_KEY).unwrap();
     assert_eq!(storage.integrate_log(&log, &signer).await.unwrap().size, 2);

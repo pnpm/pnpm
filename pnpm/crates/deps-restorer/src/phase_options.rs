@@ -15,10 +15,6 @@ pub struct LinkProjects<'a> {
     pub manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub package_map_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub dependency_groups: &'a [DependencyGroup],
-    /// Anchor for each importer's `node_modules`. The frozen path uses
-    /// `workspace_root`; the fresh path uses `Config::modules_dir_anchor`,
-    /// because its tests relocate `modules_dir` away from the manifest.
-    pub symlink_root: &'a Path,
     /// Importer ids allowed to live outside the lockfile dir (Bit's
     /// capsule installs).
     pub trusted_importer_ids: &'a std::collections::HashSet<String>,
@@ -36,6 +32,7 @@ pub struct LinkLockfiles<'a> {
     /// Restricts per-slot bin linking to this install's materialized
     /// snapshots. `None` keeps rebuild's all-slot behavior.
     pub materialized_snapshots: Option<&'a [PackageKey]>,
+    pub selected_snapshots: Option<&'a [PackageKey]>,
     /// The lockfile the module-resolution sidecars describe. The frozen
     /// path filters to the current install first; the fresh path already
     /// holds a materialization closure.
@@ -47,10 +44,11 @@ pub struct LinkPackageData<'a> {
     pub package_bins: Option<&'a PackageBins>,
     /// Per-snapshot `requiresBuild` flags from the store-index prefetch,
     /// gating the importer bin pass's use of `package_manifests` — see
-    /// [`crate::link_direct_dep_bins_prefetched`]. `None` when the
+    /// [`crate::BinCandidates::Prefetched`]. `None` when the
     /// caller has no prefetch (the fresh-lockfile installer).
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
+    pub cas_paths_by_snapshot: Option<crate::CasPathsBySnapshot>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -107,12 +105,6 @@ pub struct HoistedProjects<'a> {
     pub package_map_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     /// Lockfile root the walker resolves hoisted directories against.
     pub walker_lockfile_dir: &'a Path,
-    /// Anchor for [`crate::SymlinkDirectDependencies`]'s per-importer
-    /// `node_modules` lookup. Equals `walker_lockfile_dir` on the
-    /// frozen path; the fresh path passes `Config::modules_dir_anchor`
-    /// so relocated `modules_dir` test configs land symlinks where the
-    /// rest of the install writes.
-    pub symlink_workspace_root: &'a Path,
 }
 
 #[derive(Clone, Copy)]
@@ -158,7 +150,9 @@ pub struct HoistedLinkGraph<'a> {
 #[derive(Clone, Copy)]
 pub struct BuildPhaseGraph<'a> {
     pub trusted_importer_ids: &'a std::collections::HashSet<String>,
-    pub loaded_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    /// The snapshots the loaded linker gave physical directories. `None`
+    /// falls back to the `nodeLinker.excluded` closure.
+    pub loaded_snapshots: Option<&'a [PackageKey]>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
@@ -209,12 +203,6 @@ pub struct BuildPhaseDirectories<'a> {
     /// `BuildModules` as `lockfile_dir`, where it sets each script's
     /// `INIT_CWD` and the lifecycle log prefix.
     pub workspace_root: &'a Path,
-    /// Directory each importer's `node_modules/.bin` is anchored under
-    /// in the post-build top-level bin pass. Equals `workspace_root`
-    /// in production (and on the frozen path); the fresh path passes
-    /// its `symlink_root` (`Config::modules_dir_anchor`), which can
-    /// differ when a test relocates `modules_dir`.
-    pub top_level_bin_root: &'a Path,
     pub layout: &'a VirtualStoreLayout,
     pub hoisted_pkg_roots_by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
     pub is_hoisted: bool,

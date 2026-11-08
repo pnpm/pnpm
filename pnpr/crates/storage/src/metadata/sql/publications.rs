@@ -10,47 +10,36 @@ use super::{
     batch::Batch,
     to_column, to_generation,
 };
-use crate::metadata::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome};
+use crate::{
+    metadata::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome},
+    publish::{iso_from_unix_millis, now_millis},
+};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::Ecosystem;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 /// How long a recorded outcome answers a retry of its request.
 pub(super) const OUTCOME_RETENTION: Duration = Duration::from_hours(7 * 24);
 
-fn now_secs() -> i64 {
-    let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-    i64::try_from(since_epoch.as_secs()).unwrap_or(i64::MAX)
-}
-
 fn retention_cutoff() -> i64 {
-    now_secs() - i64::try_from(OUTCOME_RETENTION.as_secs()).unwrap_or(i64::MAX)
+    now_millis() - i64::try_from(OUTCOME_RETENTION.as_millis()).unwrap_or(i64::MAX)
 }
 
-/// The recorded outcome of `principal`'s request under `key` in `catalog`,
-/// when it is still retained and its request had `digest`. The same request
-/// sent to another catalog is another publish.
+/// The retained outcome of an identical request whose published members have
+/// not been removed since it committed.
 pub(super) fn recorded_outcome(
     connection: &dyn Connection,
     catalog: &str,
-    principal: &str,
-    key: &str,
-    digest: &str,
+    request: &PublicationRequest,
 ) -> Result<Option<RecordedOutcome>> {
-    let row = connection.query_optional(
-        "SELECT catalog, generation, publication FROM publication_outcomes
-         WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3
-           AND request_digest = ?4 AND committed_at >= ?5",
-        params![catalog, principal, key, digest, retention_cutoff()],
-    )?;
-    row.map(|mut row| {
-        Ok(RecordedOutcome {
-            catalog: row.get(0)?,
-            generation: to_generation(row.get(1)?),
-            publication: row.get::<Option<i64>>(2)?.map(to_generation),
-        })
-    })
-    .transpose()
+    let query = claim_query(catalog, request);
+    let Some(mut row) = connection.query_optional(query.sql, &query.params)? else {
+        return Ok(None);
+    };
+    if row.get::<String>(0)? != request.request_digest {
+        return Ok(None);
+    }
+    outcome(catalog, row)
 }
 
 /// The read of the request's idempotency claim, which [`claim`] checks
@@ -60,7 +49,23 @@ pub(super) fn claim_query<'query>(
     request: &'query PublicationRequest,
 ) -> Query<'query> {
     Query {
-        sql: "SELECT request_digest, generation, publication FROM publication_outcomes
+        sql: "SELECT request_digest, generation, publication,
+                     NOT EXISTS (
+                         SELECT 1 FROM publication_members AS member
+                         WHERE member.catalog = outcome.catalog
+                           AND member.publication = outcome.publication
+                           AND EXISTS (
+                               SELECT 1 FROM removed_versions AS removed
+                               WHERE removed.catalog = member.catalog
+                                 AND removed.ecosystem = member.ecosystem
+                                 AND removed.name = member.name
+                                 AND removed.version = member.version
+                                 AND (member.ecosystem != 'oci'
+                                      OR removed.revision_key = member.artifact)
+                                 AND removed.generation > outcome.generation
+                           )
+                     )
+              FROM publication_outcomes AS outcome
               WHERE catalog = ?1 AND principal = ?2 AND idempotency_key = ?3
                 AND committed_at >= ?4",
         params: vec![
@@ -73,8 +78,8 @@ pub(super) fn claim_query<'query>(
 }
 
 /// Check the request's idempotency claim, read by [`claim_query`]: the
-/// outcome of an identical request already committed, `None` for a new one,
-/// or a conflict when the key was used for another request.
+/// replayable outcome of an identical request, `None` when the request must
+/// be evaluated again, or a conflict when the key was used for another request.
 pub(super) fn claim(
     batch: &Batch<'_>,
     request: &PublicationRequest,
@@ -82,14 +87,21 @@ pub(super) fn claim(
 ) -> Result<Option<RecordedOutcome>> {
     let Some(mut stored) = rows.into_iter().next() else { return Ok(None) };
     let digest: String = stored.get(0)?;
-    let generation = to_generation(stored.get(1)?);
-    let publication = stored.get::<Option<i64>>(2)?.map(to_generation);
     if digest != request.request_digest {
         return Err(RegistryError::AdminConflict {
             reason: "the idempotency key was already used for a different request".to_string(),
         });
     }
-    Ok(Some(RecordedOutcome { catalog: batch.catalog().to_string(), generation, publication }))
+    outcome(batch.catalog(), stored)
+}
+
+fn outcome(catalog: &str, mut row: Row) -> Result<Option<RecordedOutcome>> {
+    if row.get::<i64>(3)? == 0 {
+        return Ok(None);
+    }
+    let generation = to_generation(row.get(1)?);
+    let publication = row.get::<Option<i64>>(2)?.map(to_generation);
+    Ok(Some(RecordedOutcome { catalog: catalog.to_string(), generation, publication }))
 }
 
 /// Record the publication the batch commits, when it introduced any
@@ -154,7 +166,7 @@ fn record_outcome(
                 request.request_digest,
                 to_column(batch.generation()),
                 publication.map(to_column),
-                now_secs(),
+                now_millis(),
             ],
         )?;
     Ok(())
@@ -206,7 +218,7 @@ fn insert_publication(
         .execute(
             "INSERT INTO publications (catalog, id, name, principal, committed_at)
          VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![batch.catalog(), id, name, principal, crate::publish::now_iso()],
+            params![batch.catalog(), id, name, principal, now_millis()],
         )?;
     for member in members {
         batch
@@ -256,7 +268,7 @@ pub(super) fn publication(
         id: to_generation(row.get(0)?),
         name: row.get(1)?,
         publisher: row.get(2)?,
-        committed_at: row.get(3)?,
+        committed_at: iso_from_unix_millis(row.get(3)?),
         members: Vec::new(),
     };
     with_members(connection, publication).map(Some)

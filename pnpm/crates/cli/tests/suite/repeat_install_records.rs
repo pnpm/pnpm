@@ -15,7 +15,7 @@ use std::{fs, path::Path};
 mod opens;
 
 /// The debug event the fast path logs when the records decided.
-const DECIDED_FROM_RECORDS: &str = "the recorded manifests decided the install";
+pub(crate) const DECIDED_FROM_RECORDS: &str = "the recorded manifests decided the install";
 
 /// The span that reads the project manifests.
 const READ_PROJECTS_SPAN: &str = "discover_workspace_projects";
@@ -67,7 +67,7 @@ fn wait_past_whole_second_rounding(workspace: &Path) {
 /// whole seconds. The first install can record the lockfile in the tick it
 /// wrote it, and the next install then rehashes it and writes the state. This
 /// one takes that write, so the state is settled and its records trusted.
-fn trust_recorded_stats(workspace: &Path, registry: &str) {
+pub(crate) fn trust_recorded_stats(workspace: &Path, registry: &str) {
     wait_past_whole_second_rounding(workspace);
     pacquet_in(workspace)
         .with_env("PNPM_CONFIG_REGISTRY", registry)
@@ -77,7 +77,7 @@ fn trust_recorded_stats(workspace: &Path, registry: &str) {
 }
 
 /// `pnpm install` with the fast path's trace, returning its output.
-fn traced_install(workspace: &Path, registry: &str) -> String {
+pub(crate) fn traced_install(workspace: &Path, registry: &str) -> String {
     let output = pacquet_in(workspace)
         .with_env("PNPM_CONFIG_REGISTRY", registry)
         .with_env("TRACE", "pacquet::install=debug")

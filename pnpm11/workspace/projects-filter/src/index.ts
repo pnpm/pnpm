@@ -66,6 +66,9 @@ export async function filterProjectsFromDir (
   opts: FilterProjectsOptions & {
     engineStrict?: boolean
     nodeVersion?: string
+    nodeVersionFromEnginesRuntime?: boolean
+    runtimeOnFail?: 'download' | 'error' | 'warn' | 'ignore'
+    skipRuntimes?: boolean
     patterns?: string[]
     modulesDir?: string
     modulesDirsByProjectName?: Record<string, string>
@@ -79,6 +82,9 @@ export async function filterProjectsFromDir (
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     nodeVersion: opts.nodeVersion,
+    nodeVersionFromEnginesRuntime: opts.nodeVersionFromEnginesRuntime,
+    runtimeOnFail: opts.runtimeOnFail,
+    skipRuntimes: opts.skipRuntimes,
     supportedArchitectures: opts.supportedArchitectures,
   })
   return {

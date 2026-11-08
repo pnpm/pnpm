@@ -3,10 +3,13 @@
 //! in the graph is not hoisted where its own peers would conflict.
 
 use super::context;
-use crate::{resolve_dependency_tree::WorkspaceTreeCtx, resolved_tree::ResolvedPackage};
+use crate::{
+    parent_pkg_aliases::declared_peer_dependencies, resolve_dependency_tree::WorkspaceTreeCtx,
+    resolved_tree::ResolvedPackage,
+};
 use pnpm_resolving_resolver_base::get_peer_version_range;
 use rustc_hash::FxHashMap as HashMap;
-use std::cell::OnceCell;
+use std::cell::{OnceCell, RefCell};
 
 /// The package's real name and installed version.
 pub(crate) fn resolved_name_and_version(package: &ResolvedPackage) -> (String, String) {
@@ -21,32 +24,68 @@ pub(crate) struct CandidatePeer {
     pub(crate) optional: bool,
 }
 
+impl CandidatePeer {
+    /// The peers `manifest` declares.
+    pub(crate) fn from_manifest(manifest: &serde_json::Value) -> Vec<CandidatePeer> {
+        declared_peer_dependencies(manifest)
+            .into_iter()
+            .map(|(name, peer)| CandidatePeer {
+                name,
+                range: peer.version,
+                optional: peer.optional,
+            })
+            .collect()
+    }
+}
+
 /// Looks up the peers an optional peer candidate declares. A candidate is
 /// found by name and version, since a package resolved from a named
 /// registry has a different id. One seeded only from the wanted lockfile
 /// has no resolved package yet, so the lockfile describes its peers
-/// instead. The name-and-version index is built on the first miss and
-/// reused for the rest of the selection.
+/// instead. A package resolved only for the check, without being added to
+/// the tree, is described by its own manifest first. The name-and-version
+/// index is built on the first miss and reused for the rest of the
+/// selection.
 pub(crate) struct CandidatePeers<'workspace> {
     workspace: &'workspace WorkspaceTreeCtx,
+    detached: RefCell<HashMap<String, Vec<CandidatePeer>>>,
     by_name_version: OnceCell<HashMap<String, Vec<CandidatePeer>>>,
 }
 
 impl<'workspace> CandidatePeers<'workspace> {
     pub(crate) fn new(workspace: &'workspace WorkspaceTreeCtx) -> Self {
-        CandidatePeers { workspace, by_name_version: OnceCell::new() }
+        CandidatePeers { workspace, detached: RefCell::default(), by_name_version: OnceCell::new() }
     }
 
-    /// The peers `name@version` declares, or `None` when neither the
-    /// resolved packages nor the wanted lockfile know it.
+    /// Records the peers of `pkg_id`, a `name@version` resolved without
+    /// being added to the tree.
+    pub(crate) fn insert_detached(&self, pkg_id: String, peers: Vec<CandidatePeer>) {
+        self.detached.borrow_mut().insert(pkg_id, peers);
+    }
+
+    /// The peers `name@version` declares, or `None` when nothing describes
+    /// it.
     pub(crate) fn get(&self, name: &str, version: &str) -> Option<Vec<CandidatePeer>> {
         let pkg_id = format!("{name}@{version}");
+        if let Some(peers) = self.detached.borrow().get(&pkg_id) {
+            return Some(peers.clone());
+        }
         if let Some(peers) = self.workspace.inspect_package(&pkg_id, peers_of) {
             return Some(peers);
         }
         self.by_name_version()
             .get(&pkg_id)
             .cloned()
+    }
+
+    /// Whether [`Self::get`] knows the peers of `name@version`.
+    pub(crate) fn contains(&self, name: &str, version: &str) -> bool {
+        let pkg_id = format!("{name}@{version}");
+        self.detached.borrow().contains_key(&pkg_id)
+            || self.workspace
+                .inspect_package(&pkg_id, |_| ())
+                .is_some()
+            || self.by_name_version().contains_key(&pkg_id)
     }
 
     fn by_name_version(&self) -> &HashMap<String, Vec<CandidatePeer>> {
@@ -125,7 +164,8 @@ pub(crate) type RequiredPeerVersionsPicker<'a> =
 /// there are hoisted together, one wave at a time, at the `(name, version)`
 /// pairs `pick_required_peer_versions` returns for the missing required
 /// peers each package of the wave declares. They resolve their own peers
-/// the same way.
+/// the same way. A wave that rejects a version already known stops the
+/// check before the next wave is picked.
 pub(crate) fn accepts_optional_peer_candidate(
     candidate_peers: &CandidatePeers<'_>,
     pick_required_peer_versions: &RequiredPeerVersionsPicker<'_>,
@@ -146,6 +186,9 @@ pub(crate) fn accepts_optional_peer_candidate(
                 .get(name)
                 .or_else(|| provided_versions.get(name))
         };
+        if !peers_of_wave.iter().all(|peers| peers_accept_versions(peers, &version_of)) {
+            return false;
+        }
         let missing_of_wave: Vec<Vec<CandidatePeer>> = peers_of_wave
             .iter()
             .map(|peers| missing_peers(peers, &version_of))

@@ -100,7 +100,7 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
-    let wheel = b"PK\x03\x04 pretend wheel".to_vec();
+    let wheel = common::python_wheel("demo-pkg", "1.0.0");
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
 
     let response = app
@@ -211,14 +211,16 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, wheel);
 
-    // The named form is caller-scoped and points file URLs at itself.
+    // The named form of a public project stays cacheable and points file
+    // URLs at itself.
     let response = app
         .clone()
         .oneshot(get("/pypi/~internal/simple/demo-pkg/", Some(JSON)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    assert!(!response.headers().contains_key(header::CACHE_CONTROL));
+    assert_eq!(response.headers()[header::VARY], "Accept");
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         page["files"][0]["url"],
@@ -244,7 +246,7 @@ async fn upload_is_authenticated_and_validated() {
     let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
-    let wheel = b"wheel bytes".to_vec();
+    let wheel = common::python_wheel("demo-pkg", "1.0.0");
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
     let good = wheel_upload("demo-pkg", "1.0.0", filename, &wheel);
 
@@ -359,6 +361,7 @@ async fn upload_is_authenticated_and_validated() {
 async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     let mut upstream = mockito::Server::new_async().await;
     let wheel = b"requests wheel bytes".to_vec();
+    let metadata = b"Metadata-Version: 2.1\nName: sample-pkg\nVersion: 2.32.0\n";
     let filename = "requests-2.32.0-py3-none-any.whl";
     let page_mock = upstream
         .mock("GET", "/simple/requests/")
@@ -381,7 +384,8 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
                     "yanked": false,
                     "size": wheel.len(),
                     "upload-time": "2026-01-01T00:00:00.000000Z",
-                    "core-metadata": { "sha256": "irrelevant" },
+                    "core-metadata": { "sha256": sha256_hex(metadata) },
+                    "dist-info-metadata": { "sha256": sha256_hex(metadata) },
                 }],
             })
             .to_string(),
@@ -392,6 +396,13 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     let file_mock = upstream
         .mock("GET", format!("/packages/ab/cd/{filename}").as_str())
         .with_body(wheel.clone())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let metadata_mock = upstream
+        .mock("GET", format!("/packages/ab/cd/{filename}.metadata").as_str())
+        .with_body(metadata)
         .expect(1)
         .create_async()
         .await;
@@ -414,6 +425,8 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     assert_eq!(page["files"][0]["url"], format!("{PUBLIC_URL}/pypi/files/requests/{filename}"));
     assert_eq!(page["files"][0]["hashes"]["sha256"], sha256_hex(&wheel));
     assert_eq!(page["files"][0]["requires-python"], ">=3.8");
+    assert_eq!(page["files"][0]["core-metadata"]["sha256"], sha256_hex(metadata));
+    assert!(page["files"][0].get("dist-info-metadata").is_none());
 
     // The HTML form is rendered from the same cached page.
     let response = app
@@ -423,6 +436,25 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
         .unwrap();
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(html.contains(&format!("/pypi/files/requests/{filename}#sha256=")), "{html}");
+
+    assert!(
+        html.contains(&format!(r#"data-core-metadata="sha256={}""#, sha256_hex(metadata))),
+        "{html}",
+    );
+    assert!(
+        html.contains(&format!(r#"data-dist-info-metadata="sha256={}""#, sha256_hex(metadata))),
+        "{html}",
+    );
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(get(&format!("/pypi/files/requests/{filename}.metadata"), None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, metadata);
+    }
+    metadata_mock.assert_async().await;
 
     // The file is fetched from the page's URL, verified, and cached.
     for _ in 0..2 {
@@ -631,7 +663,12 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         .clone()
         .oneshot(upload_request(
             Some(&token),
-            wheel_upload("demo-pkg", "2.0.0", published, b"published wheel"),
+            wheel_upload(
+                "demo-pkg",
+                "2.0.0",
+                published,
+                &common::python_wheel("demo-pkg", "2.0.0"),
+            ),
         ))
         .await
         .unwrap();
@@ -647,5 +684,8 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, b"published wheel");
+    assert_eq!(body_bytes(response.into_body()).await, common::python_wheel("demo-pkg", "2.0.0"));
 }
+
+mod metadata;
+mod recovery;

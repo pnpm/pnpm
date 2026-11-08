@@ -15,6 +15,7 @@ pnpm-catalogs-config = { workspace = true }
 pnpm-catalogs-protocol-parser = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-matcher = { workspace = true }
+pnpm-process = { path = "../process" }
 pnpm-workspace = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 
@@ -32,7 +33,6 @@ pnpm-testing-utils = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

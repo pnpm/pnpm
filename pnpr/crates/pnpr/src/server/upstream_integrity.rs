@@ -64,10 +64,14 @@ impl PackumentIntegrityResolver<'_> {
     /// tarballs runs under it, so a published pin always describes the cached
     /// bytes.
     async fn complete_missing(&self, bytes: Vec<u8>) -> Result<Vec<u8>, RegistryError> {
-        let candidates = {
+        let name = self.name.clone();
+        let osv_index = self.state.inner.osv_index.clone();
+        let (bytes, candidates) = self.state.inner.packuments.workers.run(move || {
             let doc: Value = serde_json::from_slice(&bytes)?;
-            missing_integrity_tarballs(&doc, self.name, self.osv_index())
-        };
+            let candidates = missing_integrity_tarballs(&doc, &name, osv_index.as_ref());
+            Ok::<_, RegistryError>((bytes, candidates))
+        })
+        .await??;
         let pins = self.compute_integrities(candidates).await;
         if pins.is_empty() {
             return Ok(bytes);
@@ -99,7 +103,7 @@ impl PackumentIntegrityResolver<'_> {
         if publishable.is_empty() {
             return None;
         }
-        let persisted = match self.persist_packument(&doc).await {
+        let persisted = match self.persist_packument(doc).await {
             Ok(persisted) => persisted,
             Err(err) => {
                 tracing::warn!(?err, package = %self.name.as_str(), "pinned packument cache write failed");
@@ -139,17 +143,16 @@ impl PackumentIntegrityResolver<'_> {
         }
     }
 
-    fn osv_index(&self) -> Option<&std::sync::Arc<pnpr_osv::OsvIndex>> {
-        self.state.inner.osv_index.as_ref()
-    }
-
     /// Any cached copy, however old, since the downloads may outlast a short
     /// `maxage`. `None` means there is nothing to pin into: the package was
     /// purged meanwhile, or its cached body does not parse.
     async fn read_cached_packument(&self) -> Result<Option<Value>, RegistryError> {
         let cached =
             self.state.inner.storage.read_upstream_document_any(self.namespace, self.name).await?;
-        Ok(cached.and_then(|bytes| serde_json::from_slice(&bytes).ok()))
+        self.state.inner.packuments.workers.run(move || {
+            cached.and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        })
+        .await
     }
 
     async fn compute_integrities(
@@ -226,8 +229,9 @@ impl PackumentIntegrityResolver<'_> {
         })
     }
 
-    async fn persist_packument(&self, doc: &Value) -> Result<Vec<u8>, RegistryError> {
-        let bytes = serde_json::to_vec(doc)?;
+    async fn persist_packument(&self, doc: Value) -> Result<Vec<u8>, RegistryError> {
+        let bytes =
+            self.state.inner.packuments.workers.run(move || serde_json::to_vec(&doc)).await??;
         self.state.inner.storage.write_upstream_document(self.namespace, self.name, &bytes).await?;
         Ok(bytes)
     }

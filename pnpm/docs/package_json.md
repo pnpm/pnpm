@@ -43,7 +43,24 @@ the install fails.
 With [`engineStrict`](./settings/cli.md#enginestrict) enabled, an incompatible
 `engines.node` in the project or in a dependency fails the install. Optional
 dependencies are exempt. With it disabled, an incompatible `engines.node` in
-the project prints a warning.
+the project or a required dependency prints a warning.
+
+In a workspace, these checks apply to every workspace project, even when
+`pnpm add` or `pnpm remove` changes only one of them. `pnpm run -r` and
+`pnpm exec -r` run them too, before running anything. A project whose `os`,
+`cpu`, or `libc` excludes the current platform prints a warning.
+
+A project's `engines.node` is checked against the first of these that applies:
+
+1. The [`nodeVersion`](./settings/cli.md#nodeversion) setting, when it is set.
+1. The Node.js that pnpm downloads for the project through
+   [`devEngines.runtime`](#devenginesruntime), or through
+   [`engines.runtime`](#enginesruntime) when `devEngines.runtime` names no
+   Node.js version: the pinned version, or the lowest version of a pinned range.
+1. The root project's runtime pin.
+1. The system Node.js.
+
+`--no-runtime` skips the two runtime pins.
 
 ## engines.runtime
 

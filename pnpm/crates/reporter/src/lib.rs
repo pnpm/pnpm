@@ -144,6 +144,10 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:skipped-optional-dependency")]
     SkippedOptionalDependency(SkippedOptionalDependencyLog),
 
+    /// Package compatibility warning (`pnpm:install-check`).
+    #[serde(rename = "pnpm:install-check")]
+    InstallCheck(PnpmLog),
+
     /// Bracketing events for the configurational-dependency install
     /// (`pnpm:installing-config-deps`): a `started` before any
     /// fetch/link work, then a single `done` carrying the installed

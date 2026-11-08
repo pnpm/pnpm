@@ -22,9 +22,10 @@ use super::{
 };
 use crate::cli_args::{
     recursive::{
-        AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, print_no_projects_matched,
-        projects_to_verify, select_recursive_projects, write_recursive_summary,
+        AutoExcludeRoot, ExecutionStatus, Status, check_workspace_requirements, count_failures,
+        discover_workspace_projects, filtered_projects_dependencies, find_resume_root,
+        print_no_projects_matched, projects_to_verify, select_recursive_projects,
+        write_recursive_summary,
     },
     reporter::{ReporterType, reporter_emit, suppresses_info_output},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
@@ -318,6 +319,8 @@ impl RecursiveRun<'_, '_> {
         }
 
         self.validate_requested_scripts(&mut task_graph, &full_task_graph)?;
+        // Before the run journal replaces an interrupted run's.
+        self.check_workspace_requirements()?;
 
         let task_run_state = task_run_state_context.start(&initially_completed_tasks(
             &full_task_graph,
@@ -346,6 +349,15 @@ impl RecursiveRun<'_, '_> {
 
     /// Decided on the graph as built, before the run-only resume and
     /// sequencing, which do not apply to `exec`.
+    fn check_workspace_requirements(&self) -> miette::Result<()> {
+        check_workspace_requirements(
+            self.selection,
+            self.config,
+            self.workspace_root,
+            self.script.emit,
+        )
+    }
+
     fn falls_back_to_exec(&self, task_graph: &TaskGraph) -> bool {
         self.script.fallback_to_exec
             && !self.args.if_present

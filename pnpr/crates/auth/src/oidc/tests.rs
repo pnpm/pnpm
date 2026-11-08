@@ -53,7 +53,7 @@ fn config(issuer: &str) -> OidcProvider {
         workloads: vec![OidcWorkload {
             identity: OidcBinding {
                 subject: "repo:org/repo:ref:refs/heads/main".to_string(),
-                username: "ci".to_string(),
+                user_id: "ci".to_string(),
                 claims: BTreeMap::from([("repository_id".to_string(), "123".to_string())]),
             },
             registry: "private".to_string(),
@@ -235,7 +235,7 @@ async fn discovers_caches_and_enforces_workload_bindings() {
                 .unwrap()
                 .unwrap()
                 .identity
-                .username,
+                .user_id,
             "ci",
         );
     }
@@ -290,10 +290,10 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
         .session(&session.token)
         .unwrap()
         .unwrap();
-    assert_eq!(user.username, "ci");
+    assert_eq!(user.user_id, "ci");
     let teams: Vec<&str> = user.teams
         .iter()
-        .map(|grant| grant.team.as_str())
+        .map(|grant| grant.team_id.as_str())
         .collect();
     assert_eq!(teams, ["platform"]);
     assert!(session.expires <= Utc::now().timestamp() + 300);
@@ -319,7 +319,7 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
 #[test]
 fn revoking_a_user_drops_only_that_users_sessions() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
-    let user = |name: &str| SessionUser { username: name.to_string(), teams: Vec::new() };
+    let user = |name: &str| SessionUser { user_id: name.to_string(), teams: Vec::new() };
     let expires = Utc::now().timestamp() + 60;
     let alice = state
         .issue_session(user("alice"), expires, LoginReturn::Token)
@@ -339,7 +339,7 @@ fn revoking_a_user_drops_only_that_users_sessions() {
             .session(&bob.token)
             .unwrap()
             .unwrap()
-            .username,
+            .user_id,
         "bob",
     );
 }
@@ -347,7 +347,7 @@ fn revoking_a_user_drops_only_that_users_sessions() {
 #[test]
 fn sessions_expire_and_configuration_fails_closed() {
     let state = OidcState::new(&[], "http://localhost").unwrap();
-    let alice = || SessionUser { username: "alice".to_string(), teams: Vec::new() };
+    let alice = || SessionUser { user_id: "alice".to_string(), teams: Vec::new() };
     assert!(
         state
             .issue_session(alice(), 0, LoginReturn::Token)
@@ -380,7 +380,7 @@ async fn workloads_verify_against_issuers_without_an_authorization_endpoint() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(workload.identity.username, "ci");
+    assert_eq!(workload.identity.user_id, "ci");
     let mut login = config(&provider.issuer);
     login.login = Some(OidcLogin {
         client_secret: None,
@@ -429,7 +429,7 @@ async fn workloads_verify_after_the_signing_key_rotates() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(workload.identity.username, "ci");
+    assert_eq!(workload.identity.user_id, "ci");
     assert_eq!(*provider.key_requests.lock().unwrap(), 2);
     task.abort();
 }
@@ -667,7 +667,7 @@ fn groups(grants: &[(&str, &str)]) -> OidcGroups {
         .map(|(group, team)| OidcTeamGrant {
             group: (*group).to_string(),
             registry: "private".to_string(),
-            team: (*team).to_string(),
+            team_id: (*team).to_string(),
         })
         .collect();
     OidcGroups { claim: "groups".to_string(), teams }
@@ -683,7 +683,7 @@ fn a_groups_claim_grants_the_teams_of_the_groups_it_lists() {
     let teams = |payload: Value| -> Vec<String> {
         granted_teams(&login, &payload)
             .into_iter()
-            .map(|grant| grant.team)
+            .map(|grant| grant.team_id)
             .collect()
     };
     assert_eq!(teams(json!({"groups": ["eng"]})), ["platform", "release"]);
@@ -698,7 +698,7 @@ fn a_groups_claim_grants_the_teams_of_the_groups_it_lists() {
 #[test]
 fn a_handoff_code_redeems_its_session_once() {
     let state = OidcState::new(&[], "https://registry.example").unwrap();
-    let alice = SessionUser { username: "alice".to_string(), teams: Vec::new() };
+    let alice = SessionUser { user_id: "alice".to_string(), teams: Vec::new() };
     let session = state
         .issue_session(alice, Utc::now().timestamp() + 60, LoginReturn::Ui)
         .unwrap();
@@ -719,7 +719,7 @@ fn empty_client_secret_is_rejected() {
         client_secret: Some("   ".to_string()),
         users: vec![OidcBinding {
             subject: "user-1".to_string(),
-            username: "alice".to_string(),
+            user_id: "alice".to_string(),
             claims: BTreeMap::new(),
         }],
         groups: None,

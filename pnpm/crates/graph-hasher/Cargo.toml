@@ -15,6 +15,7 @@ base64 = { workspace = true }
 indexmap = { workspace = true }
 pnpm-detect-libc = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-process = { path = "../process" }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 
@@ -22,7 +23,6 @@ sha2 = { workspace = true }
 pretty_assertions = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

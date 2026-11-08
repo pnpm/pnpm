@@ -164,7 +164,11 @@ fn version_entries_from(key: &PackageKey, rows: Vec<Row>) -> Result<Vec<VersionE
                 renderer: RENDERER_VERSION,
                 annotation_generation: row.get::<Option<i64>>(2)?.map(to_generation),
             };
-            Ok(VersionEntry { version, published_at: row.get(1)?, fragment })
+            Ok(VersionEntry {
+                version,
+                published_at: row.get::<Option<i64>>(1)?.map(crate::publish::iso_from_unix_millis),
+                fragment,
+            })
         })
         .collect()
 }
@@ -241,7 +245,7 @@ fn fragment_query(key: &FragmentKey) -> Query<'_> {
     let (catalog, ecosystem, name) = key.package.params();
     if key.representation == Representation::Accepted {
         return query!(
-            "SELECT manifest, inputs, NULL, NULL, NULL FROM accepted_manifests
+            "SELECT manifest, inputs, NULL AS readme, NULL AS readme_filename, NULL AS deprecated FROM accepted_manifests
              WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
                AND revision_key = ?5 AND profile = ?6",
             catalog,

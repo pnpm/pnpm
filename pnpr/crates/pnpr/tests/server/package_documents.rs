@@ -2,8 +2,9 @@
 //! for `application/vnd.pnpr.install-v2+json` reads them.
 
 use super::{
-    AuthState, Body, Request, ServiceExt, StatusCode, TempDir, body_json, config_for,
-    foo_packument, header, json, router, router_with_auth, sha512_integrity,
+    AuthState, Body, PackageRules, Request, ServiceExt, StatusCode, TempDir, access_rule,
+    body_json, config_for, foo_packument, header, header_of, json, router, router_with_auth,
+    sha512_integrity,
 };
 use crate::tokens::issue_token;
 use axum::response::Response;
@@ -22,13 +23,6 @@ async fn get(app: &axum::Router, uri: &str, accept: Option<&str>, token: Option<
         .oneshot(request.body(Body::empty()).unwrap())
         .await
         .unwrap()
-}
-
-fn header_of(response: &Response, name: impl header::AsHeaderName) -> Option<&str> {
-    response
-        .headers()
-        .get(name)
-        .and_then(|value| value.to_str().ok())
 }
 
 async fn upstream_with_foo() -> mockito::ServerGuard {
@@ -133,7 +127,10 @@ async fn caller_gated_documents_and_records_stay_out_of_shared_caches() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
-    let app = router_with_auth(config_for(&upstream.url(), tmp.path().to_path_buf()), auth);
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").rules =
+        PackageRules::new(vec![access_rule("foo", "$authenticated")], None);
+    let app = router_with_auth(config, auth);
 
     for (uri, accept) in [("/npm/~npmjs/foo", Some(INSTALL_V2)), ("/npm/~npmjs/foo/1.0.0+r0", None)]
     {

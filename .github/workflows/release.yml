@@ -688,6 +688,12 @@ jobs:
             target: x86_64-unknown-freebsd
             code-target: freebsd-x64
 
+          # Built natively in a NetBSD VM, which needs KVM: see the VM build step.
+          - os: ubuntu-24.04
+            target: x86_64-unknown-netbsd
+            code-target: netbsd-x64
+            vm: netbsd
+
           - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-linux-android
             code-target: android-arm64
@@ -723,6 +729,7 @@ jobs:
           container-build: 'true'
 
       - name: Build with cross
+        if: matrix.vm != 'netbsd'
         # windows-msvc links VCRUNTIME140.dll dynamically by default, and a
         # clean Windows install does not ship it, so pnpm.exe would exit
         # 0xC0000135 before main. Only the CLI links the CRT statically: the
@@ -745,6 +752,24 @@ jobs:
             export "CARGO_TARGET_${target_var}_RUSTFLAGS=-C force-unwind-tables=no"
           fi
           .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
+
+      - name: Start the NetBSD VM
+        if: matrix.vm == 'netbsd'
+        uses: $/.github/actions/netbsd-vm
+
+      - name: Build and smoke-test in the NetBSD VM
+        if: matrix.vm == 'netbsd'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        # Run outside the checkout: the repository's packageManager pin would
+        # otherwise make the new binary hand off to the pinned pnpm.
+        run: |
+          .github/scripts/netbsd-vm/vm.sh build --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
+          actual=$(.github/scripts/netbsd-vm/vm.sh run "cd /tmp && /build/target/$TARGET/release/pnpm --version")
+          echo "$actual"
+          test "$actual" = "$VERSION"
 
       - name: Smoke-test Linux ppc64le startup
         if: matrix.target == 'powerpc64le-unknown-linux-gnu'

@@ -1,18 +1,18 @@
+pub(crate) use project_installability::{ProjectHost, host_requirements};
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
-use pnpm_package_is_installable::{Engine, InstallabilityError, WantedEngine, check_engine};
+use pnpm_package_is_installable::InstallabilityError;
 use pnpm_package_manager::{
     CommandLockfile, DedicatedProjectInstall, ResolvedPackages, SharedInstallCaches,
     WorkspaceDependenciesInstalled,
 };
-use pnpm_package_manifest::{
-    PackageManifest, PackageManifestError, node_version_from_engines_runtime,
-};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_reporter::LogEvent;
 use pnpm_tarball::MemCache;
 use std::{
     path::{Path, PathBuf},
@@ -292,85 +292,40 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
     manifest
 }
 
-/// Check the root project's `engines.node` and `engines.pnpm`. An
-/// unsatisfied `engines.pnpm` always fails. An unsatisfied `engines.node`
-/// fails under `engineStrict` and is a warning otherwise.
+/// Check what the root project requires of the host, per
+/// [`project_installability`].
 pub(crate) fn check_root_project_engine(
     manifest_path: &Path,
     config: &Config,
-    use_manifest_runtime: bool,
     emit: fn(&LogEvent),
 ) -> Result<(), InitStateError> {
-    let project_dir = config.workspace_dir
-        .as_deref()
-        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"));
+    let project_dir = root_project_dir(manifest_path, config);
     let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
         .map_err(InitStateError::ManifestRead)?
     else {
         return Ok(());
     };
-    let Some(engines) = manifest.value().get("engines") else {
-        return Ok(());
-    };
-    let wanted = WantedEngine {
-        node: engines
-            .get("node")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
-        pnpm: engines
-            .get("pnpm")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
-    };
-    if wanted.node.is_none() && wanted.pnpm.is_none() {
-        return Ok(());
-    }
-    check_root_engine_compatibility(
-        project_dir,
+    let Some(requirements) = pnpm_deps_restorer::project_host_requirements(
         manifest.value(),
-        config,
-        use_manifest_runtime,
-        &wanted,
-        emit,
-    )
+        config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ) else {
+        return Ok(());
+    };
+    let host = ProjectHost::new(config, project_dir);
+    host.check(project_dir, &requirements)?
+        .iter()
+        .for_each(emit);
+    Ok(())
 }
 
-fn check_root_engine_compatibility(
-    project_dir: &Path,
-    manifest: &serde_json::Value,
-    config: &Config,
-    use_manifest_runtime: bool,
-    wanted: &WantedEngine,
-    emit: fn(&LogEvent),
-) -> Result<(), InitStateError> {
-    let configured_node = config.node_version
-        .clone()
-        .or_else(|| {
-            use_manifest_runtime.then(|| node_version_from_engines_runtime(manifest)).flatten()
-        });
-    let host =
-        pnpm_deps_restorer::InstallabilityHost::detect_with(config.engine_strict, configured_node);
-    let current = Engine {
-        node: host.node_version,
-        pnpm: wanted.pnpm.as_ref().map(|_| PNPM_VERSION.to_string()),
-    };
-    match check_engine(&project_dir.to_string_lossy(), wanted, &current) {
-        Ok(None) => Ok(()),
-        Ok(Some(error)) if config.engine_strict || error.wanted.pnpm.is_some() => {
-            Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
-        }
-        Ok(Some(error)) => {
-            emit(&LogEvent::Global(GlobalLog {
-                level: LogLevel::Warn,
-                message: error.to_string(),
-            }));
-            Ok(())
-        }
-        Err(error) => Err(InitStateError::Installability(Box::new(
-            InstallabilityError::InvalidNodeVersion(error),
-        ))),
-    }
+/// The directory of the project [`check_root_project_engine`] checks.
+pub(crate) fn root_project_dir<'a>(manifest_path: &'a Path, config: &'a Config) -> &'a Path {
+    config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"))
 }
+
+mod project_installability;
 
 #[cfg(test)]
 mod tests;

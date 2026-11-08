@@ -162,6 +162,7 @@ async function teamCreate (
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
+      'npm-command': 'team',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify({ name: team }),
@@ -199,6 +200,7 @@ async function teamDestroy (
     authHeaderValue: authHeader,
     method: 'DELETE',
     headers: {
+      'npm-command': 'team',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
   })
@@ -236,6 +238,7 @@ async function teamAdd (
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
+      'npm-command': 'team',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify({ user: username }),
@@ -274,6 +277,7 @@ async function teamRm (
     method: 'DELETE',
     headers: {
       'content-type': 'application/json',
+      'npm-command': 'team',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify({ user: username }),

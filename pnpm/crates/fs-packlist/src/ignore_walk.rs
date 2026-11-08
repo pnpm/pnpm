@@ -197,10 +197,11 @@ enum Named {
 
 fn is_pruned(name: &str, depth: usize) -> bool {
     (depth == 0
-        && matches!(
-            name,
-            "node_modules" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "bun.lockb",
-        ))
+        && (crate::is_lockfile_staging_file(name)
+            || matches!(
+                name,
+                "node_modules" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "bun.lockb",
+            )))
         || ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&name)
 }
 
@@ -333,10 +334,16 @@ fn read_dir_rules(dir: &Path) -> io::Result<Vec<IgnoreRule>> {
     let content = fs::read(&ignore_file)?;
     Ok(String::from_utf8_lossy(&content)
         .lines()
-        .map(str::trim)
+        .map(trim_ignore_line)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .map(IgnoreRule::parse)
         .collect())
+}
+
+/// Trims a line the way ignore-walk's `String.prototype.trim` does: unlike
+/// [`str::trim`], that also strips U+FEFF.
+fn trim_ignore_line(line: &str) -> &str {
+    line.trim_matches(|ch: char| ch.is_whitespace() || ch == '\u{feff}')
 }
 
 fn inherited_rules(pkg_dir: &Path, workspace_dir: Option<&Path>) -> io::Result<Vec<IgnoreRule>> {

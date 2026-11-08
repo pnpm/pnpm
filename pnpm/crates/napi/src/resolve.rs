@@ -19,7 +19,9 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use napi_derive::napi;
-use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_standalone_chain};
+use pnpm_resolving_default_resolver::standalone::{
+    LocalTarballResolution, StandaloneChainOptions, build_standalone_chain,
+};
 use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
 
 use crate::{
@@ -114,6 +116,7 @@ fn run_resolve_blocking(
         // Matches pnpm's `createClient({ fullMetadata: true })` with no
         // `filterMetadata`, which is what this API replaces.
         filter_metadata: false,
+        local_tarball_resolution: LocalTarballResolution::ReadMetadata,
     })
     .map_err(|error| to_napi_error(&error))?;
 

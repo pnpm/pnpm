@@ -1,4 +1,4 @@
-export { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
+export { importerModulesDir, isStrictlyInside } from './importerModulesDir.js'
 export { loadWorkspaceState } from './loadWorkspaceState.js'
 export { type ReadLocalDependencies, recordedLockfileDigests } from './localDependencies.js'
 export { recordedRegistryKeySettings, recordedRegistryPrefixes, recordedRegistryRoutes, type RegistryKeySettings } from './registryPrefixes.js'

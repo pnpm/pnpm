@@ -39,6 +39,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "path-absolute": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:"
   },

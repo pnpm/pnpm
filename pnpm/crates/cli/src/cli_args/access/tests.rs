@@ -465,3 +465,34 @@ fn target_registry_for_action_honors_registry_override() {
         "https://override.example/npm/",
     );
 }
+
+#[tokio::test]
+async fn grant_names_the_access_command_and_sends_the_otp() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("PUT", "/-/team/myscope/myteam/package")
+        .match_header("npm-command", "access")
+        .match_header("npm-otp", "123456")
+        .match_body(mockito::Matcher::Json(serde_json::json!({
+            "package": "@myscope/pkg",
+            "permissions": "read-only",
+        })))
+        .with_status(201)
+        .create_async()
+        .await;
+
+    let output = AccessArgs {
+        registry: Some(format!("{}/", server.url())),
+        json: false,
+        otp: Some("123456".to_string()),
+        params: ["grant", "read-only", "@myscope:myteam", "@myscope/pkg"]
+            .map(String::from)
+            .to_vec(),
+    }
+    .run(&Config::default())
+    .await
+    .expect("grant succeeds");
+
+    assert_eq!(output.as_deref(), Some("+@myscope:myteam (read-only): @myscope/pkg"));
+    mock.assert_async().await;
+}

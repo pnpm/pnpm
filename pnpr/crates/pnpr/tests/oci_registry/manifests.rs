@@ -93,6 +93,14 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
         get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
         StatusCode::OK,
     );
+    let catalog: Value =
+        serde_json::from_slice(&body_bytes(get(&app, "/v2/_catalog").await.into_body()).await)
+            .unwrap();
+    assert_eq!(catalog["repositories"], json!(["acme/app"]));
+    let tags = get(&app, "/v2/acme/app/tags/list").await;
+    assert_eq!(tags.status(), StatusCode::OK);
+    let tags_payload: Value = serde_json::from_slice(&body_bytes(tags.into_body()).await).unwrap();
+    assert_eq!(tags_payload, json!({ "name": "acme/app", "tags": [] }));
 
     let request = Request::delete(format!("/v2/acme/app/manifests/{manifest_digest}"))
         .header(header::AUTHORIZATION, &auth)
@@ -109,6 +117,27 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
     assert_eq!(
         get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
         StatusCode::NOT_FOUND,
+    );
+    let catalog: Value =
+        serde_json::from_slice(&body_bytes(get(&app, "/v2/_catalog").await.into_body()).await)
+            .unwrap();
+    assert_eq!(catalog["repositories"], json!([]));
+    let tags = get(&app, "/v2/acme/app/tags/list").await;
+    assert_eq!(tags.status(), StatusCode::NOT_FOUND);
+    let tags_payload: Value = serde_json::from_slice(&body_bytes(tags.into_body()).await).unwrap();
+    assert_eq!(tags_payload["errors"][0]["code"], "NAME_UNKNOWN");
+
+    let layer_delete = Request::delete(format!("/v2/acme/app/blobs/{}", digest_of(b"layer")))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(layer_delete)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
     );
 }
 
@@ -473,6 +502,145 @@ async fn batch_publishes_an_oci_manifest_and_rolls_back_on_invalid_siblings() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     assert_eq!(get(&app, "/v2/acme/app/manifests/release").await.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn batch_publish_replay_tracks_oci_manifest_deletion_and_republish() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let tmp = TempDir::new().unwrap();
+    let app = app_allowing_deletes(&tmp);
+    let auth = basic(&token(&app).await);
+    push_blob(&app, &auth, "acme/app", b"config").await;
+    push_blob(&app, &auth, "acme/app", b"kept-config").await;
+    let manifest = image_manifest("config", &[]);
+    let digest = digest_of(&manifest);
+    let kept_manifest = image_manifest("kept-config", &[]);
+    let entry = json!({
+        "ecosystem": "oci",
+        "name": "acme/app",
+        "reference": "1.0",
+        "manifest": STANDARD.encode(&manifest),
+    });
+    let kept_entry = json!({
+        "ecosystem": "oci",
+        "name": "acme/app",
+        "reference": "kept",
+        "manifest": STANDARD.encode(&kept_manifest),
+    });
+    let named = json!({ "name": "oci-release-1", "packages": [entry.clone()] });
+    let kept = json!({ "name": "oci-release-kept", "packages": [kept_entry] });
+    let publish = |body: &Value, key: &str| {
+        let app = app.clone();
+        let auth = auth.clone();
+        let payload = body.to_string();
+        let key = key.to_string();
+        async move {
+            let response = app
+                .oneshot(
+                    Request::put("/-/pnpr/v0/publish")
+                        .header(header::AUTHORIZATION, &auth)
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .header("Idempotency-Key", &key)
+                        .body(Body::from(payload))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let status = response.status();
+            let bytes = body_bytes(response.into_body()).await;
+            let body = serde_json::from_slice(&bytes)
+                .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()));
+            (status, body)
+        }
+    };
+
+    let (status, first) = publish(&named, "k1").await;
+    assert_eq!((status, &first["publication"]), (StatusCode::CREATED, &json!(1)));
+    let (status, kept_first) = publish(&kept, "k-kept").await;
+    assert_eq!((status, &kept_first["publication"]), (StatusCode::CREATED, &json!(2)));
+
+    // Deleting only the tag keeps the manifest, so an identical retry still
+    // replays the recorded outcome without recreating the deleted tag.
+    let delete_tag = app
+        .clone()
+        .oneshot(
+            Request::delete("/v2/acme/app/manifests/1.0")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(delete_tag.status(), StatusCode::ACCEPTED);
+    let (status, replayed) = publish(&named, "k1").await;
+    assert_eq!((status, &replayed["publication"]), (StatusCode::CREATED, &json!(1)));
+    assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/manifests/{digest}")).await.status(),
+        StatusCode::OK,
+    );
+
+    // Deleting the manifest by digest invalidates only its recorded outcome:
+    // an identical retry of the named batch is evaluated again, fails on the
+    // taken publication name, and leaves the manifest deleted, while another
+    // manifest in the same repository still replays its outcome.
+    let delete_manifest = app
+        .clone()
+        .oneshot(
+            Request::delete(format!("/v2/acme/app/manifests/{digest}"))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(delete_manifest.status(), StatusCode::ACCEPTED);
+    let (status, conflict) = publish(&named, "k1").await;
+    assert_eq!(status, StatusCode::CONFLICT, "{conflict}");
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/manifests/{digest}")).await.status(),
+        StatusCode::NOT_FOUND,
+    );
+    let (status, kept_replayed) = publish(&kept, "k-kept").await;
+    assert_eq!((status, &kept_replayed["publication"]), (StatusCode::CREATED, &json!(2)));
+
+    // A later valid republish of the deleted manifest succeeds, records a new
+    // replayable outcome, and is invalidated again if the manifest is deleted
+    // by digest a second time.
+    let unnamed = json!({ "packages": [entry] });
+    let (status, republished) = publish(&unnamed, "k2").await;
+    assert_eq!(status, StatusCode::CREATED, "{republished}");
+    let second_publication = republished["publication"].as_u64().unwrap();
+    assert!(second_publication > 1);
+    assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::OK);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/manifests/{digest}")).await.status(),
+        StatusCode::OK,
+    );
+    let (status, replayed_second) = publish(&unnamed, "k2").await;
+    assert_eq!(
+        (status, replayed_second["publication"].as_u64()),
+        (StatusCode::CREATED, Some(second_publication)),
+    );
+
+    let delete_again = app
+        .clone()
+        .oneshot(
+            Request::delete(format!("/v2/acme/app/manifests/{digest}"))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(delete_again.status(), StatusCode::ACCEPTED);
+    let (status, republished_again) = publish(&unnamed, "k2").await;
+    assert_eq!(status, StatusCode::CREATED, "{republished_again}");
+    assert!(republished_again["publication"].as_u64().unwrap() > second_publication);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/manifests/{digest}")).await.status(),
+        StatusCode::OK,
+    );
 }
 
 #[tokio::test]

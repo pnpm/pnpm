@@ -25,8 +25,8 @@
 pub use chain::{LocalPathResolver, LocalResolver, LocalSchemeResolver};
 pub use local_resolver::{
     LocalCurrentPkg, LocalResolveResult, LocalResolverContext, LocalResolverOptions,
-    LocalResolverUpdate, LocalSpecError, ResolveLocalError, resolve_from_local_path,
-    resolve_from_local_scheme, resolve_latest_from_local,
+    LocalResolverUpdate, LocalSpecError, LocalTarballResolution, ResolveLocalError,
+    resolve_from_local_path, resolve_from_local_scheme, resolve_latest_from_local,
 };
 pub use parse_bare_specifier::{
     PathProtocolNotSupportedError, WantedLocalDependency, local_file_path, local_spec_path,

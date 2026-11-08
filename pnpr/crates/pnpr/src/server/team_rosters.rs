@@ -1,6 +1,6 @@
 use super::{
     AppState, RegistryError,
-    managed_state::{WRITE_ATTEMPTS, store_registry_record},
+    managed_state::{WRITE_ATTEMPTS, read_with_deadline, store_registry_record},
 };
 use pnpr_config::Teams;
 use pnpr_storage::RegistryRecord;
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Publish one registry's stored roster, or an empty one when it cannot be
 /// read. Reports whether the read succeeded.
 pub(super) async fn reload_roster(state: &AppState, registry: &str, seed: &Teams) -> bool {
-    let (teams, read) = match read_roster(state, registry, seed).await {
+    let (teams, read) = match read_with_deadline(read_roster(state, registry, seed)).await {
         Ok(teams) => (teams, true),
         Err(err) => {
             tracing::error!(registry, error = %err, "could not read a team roster; its teams admit nobody");
@@ -27,7 +27,7 @@ async fn read_roster(
 ) -> Result<Teams, RegistryError> {
     let canonical = super::managed_state::canonical_registry_key(state, registry);
     match state.inner.storage.read_registry_record(RegistryRecord::TeamRoster, &canonical).await? {
-        Some(bytes) => parse_roster(registry, &bytes),
+        Some(bytes) => parse_roster(registry, &bytes.bytes),
         None => Ok(seed.clone()),
     }
 }
@@ -53,11 +53,11 @@ where
         let stored =
             state.inner.storage.read_registry_record(RegistryRecord::TeamRoster, &canonical).await?;
         let mut teams = match &stored {
-            Some(bytes) => parse_roster(registry, bytes)?,
+            Some(bytes) => parse_roster(registry, &bytes.bytes)?,
             None => seed.clone(),
         };
         edit(&mut teams)?;
-        if store_roster(state, registry, stored.as_deref(), &teams).await? {
+        if store_roster(state, registry, stored.as_ref(), &teams).await? {
             publish_roster(state, registry, teams);
             return Ok(());
         }
@@ -70,7 +70,7 @@ where
 async fn store_roster(
     state: &AppState,
     registry: &str,
-    expected: Option<&[u8]>,
+    expected: Option<&pnpr_storage::MetadataRecord>,
     teams: &Teams,
 ) -> Result<bool, RegistryError> {
     let bytes = serde_json::to_vec(&RosterRecord::from(teams))?;
@@ -90,7 +90,9 @@ fn parse_roster(registry: &str, bytes: &[u8]) -> Result<Teams, RegistryError> {
         })?;
     Ok(record.teams
         .into_iter()
-        .map(|team| (team.name, team.members.into_iter().collect()))
+        .map(|team| {
+            (team.id, pnpr_policy::Team::new(team.name, team.members.into_iter().collect()))
+        })
         .collect())
 }
 
@@ -103,6 +105,7 @@ struct RosterRecord {
 
 #[derive(Serialize, Deserialize)]
 struct RosterTeam {
+    id: String,
     name: String,
     members: Vec<String>,
 }
@@ -111,9 +114,10 @@ impl From<&Teams> for RosterRecord {
     fn from(teams: &Teams) -> Self {
         let teams = teams
             .iter()
-            .map(|(name, members)| RosterTeam {
-                name: name.clone(),
-                members: members.iter().cloned().collect(),
+            .map(|(id, team)| RosterTeam {
+                id: id.clone(),
+                name: team.name.clone(),
+                members: team.members.iter().cloned().collect(),
             })
             .collect();
         Self { teams }

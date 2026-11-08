@@ -19,6 +19,7 @@ pnpm-ffi-signal = { workspace = true }
 pnpm-ffi-terminal = { workspace = true }
 pnpm-ffi-fs = { workspace = true }
 pnpm-ffi-process = { workspace = true }
+pnpm-process = { path = "../process" }
 pnpm-python-installer = { workspace = true }
 pnpm-rust-toolchain = { workspace = true }
 pnpm-package-name = { workspace = true }
@@ -188,7 +189,6 @@ tokio = { workspace = true, features = ["net", "process", "signal"] }
 pnpm-which = { workspace = true }
 pnpm-wasm-host = { path = "../wasm-host" }
 libc = { workspace = true }
-pnpm-process = { path = "../process" }
 pnpm-http = { workspace = true }
 
 [lints]

@@ -6,13 +6,18 @@ title: Storage backends (S3 / R2)
 pnpr keeps two kinds of data:
 
 - **Hosted**: the source of truth. It holds packages published to this server plus
-  anything served in static mode. Lives under `storage`. Packages awaiting
-  approval through [staged publishing](endpoints.md#staged-publishing-endpoints)
-  are held here too, under a reserved `.staged/` namespace.
+  anything served in static mode. Lives under `storage`. The bodies of packages
+  awaiting approval through [staged publishing](endpoints.md#staged-publishing-endpoints)
+  are held under `.staged/`. Their approval records live in the metadata database.
 - **Cache**: the disposable mirror of upstream registries plus the resolver
   cache, lockfile-verdict cache, local shared-artifact store, and S3 upload
   staging scratch. Lives under `cache` (defaults to
   `<storage>/.pnpr-cache`).
+
+Package metadata responses also use a bounded memory cache. Repeated requests
+reuse the response while the package content, tarball metadata, and registry
+URLs are unchanged. Large metadata requests leave the server available to
+handle unrelated requests.
 
 ## Layout
 
@@ -57,25 +62,31 @@ demand.
 ## Metadata in SQLite {#sqlite-metadata}
 
 pnpr keeps the metadata of every hosted package in an embedded SQLite
-database, by default `<storage>/.metadata/metadata.sqlite`. The `metadata`
+database, by default `<storage>/.metadata/metadata.sqlite`. The `database`
 block names another database by URL:
 
 ```yaml title="pnpr.yaml"
 storage: ./storage
-metadata:
+database:
   # Optional. A relative path is resolved against the config file's directory.
   url: sqlite:./metadata.sqlite
 ```
 
 Archives stay in the hosted store. The database holds every hosted package's
-metadata in every ecosystem. pnpr keeps metadata only in a database: an `s3:`
-block of a registry that hosts packages needs a [libSQL](#libsql-metadata)
-`url`, and pnpr refuses to start on a
-`metadata` block that still names a `backend`. Earlier releases could keep
+metadata in every ecosystem, former maintainers and unpublished versions, team
+rosters, rule overrides, SCIM users, and staged-publish approval records. An
+unpublish records former maintainers and removed versions in one transaction.
+Back up this database for package ownership and managed access settings,
+alongside the hosted store for archives and staged bodies. Transparency log
+tiles and checkpoints, and pipeline run streams also stay in the hosted store.
+
+pnpr keeps metadata only in a database: an `s3:`
+block of a registry that hosts packages needs a [shared database](auth-backends.md), and pnpr refuses to start on a
+`database` block that still names a `backend`. Earlier releases could keep
 each package's metadata as a document beside its archives. pnpr does not read
 those documents. A filesystem store from then starts with empty metadata. An
-`s3:` store from then is refused at startup until `metadata.url` names a
-libSQL database, and then starts with empty metadata. Either way, republish
+`s3:` store from then is refused at startup until `database.url` names a
+shared database, and then starts with empty metadata. Either way, republish
 its packages into a fresh storage directory or bucket prefix: a store in an
 earlier layout is refused.
 
@@ -89,8 +100,8 @@ With SQL metadata:
   under the interpretation profile it was accepted under and with the digests
   of the archive's `package.json` and `npm-shrinkwrap.json`.
 - The database keeps every unpublished version, including the versions of an
-  unpublished package, and refuses to accept one again with `403`, even when
-  the package's tombstone is gone.
+  unpublished package, and refuses to accept one again with `403`. Former
+  maintainers retain their claim to the package name in the same database.
 - A dist-tag change rewrites only that tag, and pnpr keeps the history of
   every move of a tag: when it moved, from which version to which, and who
   moved it. A publish, a document update, and a dist-tag change each record
@@ -114,24 +125,43 @@ connections, so a read never waits for a write. A `sqlite:` URL cannot be
 combined with an `s3:` block. Back the database file up together with the
 hosted store.
 
-### Schema changes {#metadata-schema-changes}
+The SQLite and libSQL metadata tables use rowid storage for package state,
+accepted manifests, READMEs, release records, and log entries. Large payloads
+stay out of the interior pages used to look up their keys.
 
-pnpr creates its tables in an empty database and marks the database with
-the version of their schema, in the `schema_version` table. pnpr does not
-migrate the metadata schema before 1.0. Until then the version is `0.x`, and
-a pnpr release that changes the schema bumps its minor part. That pnpr
-refuses a database that holds another version, before it changes anything in
-it. The error names the version pnpr expects and what the database holds:
-another version, the integer schema version an older pnpr stored, pnpr's
-metadata tables without a version, or pnpr's version without some of its
-tables, as a wipe that kept the `schema_version` table leaves it.
+Metadata timestamps use milliseconds since the Unix epoch and the server's
+application clock. Package publication times must use RFC 3339. Responses
+render them in UTC with millisecond precision.
 
-To start that pnpr, wipe pnpr's metadata tables by hand: drop the
-`schema_version` table and the metadata tables beside it. pnpr then creates
-them afresh. Leave the tables of the [auth backend](auth-backends.md) in
-place when it shares the database. A SQLite database that holds only the
-metadata, as the default `<storage>/.metadata/metadata.sqlite` does, can be
-deleted instead, with its `-wal` and `-shm` files.
+Release notes retain their current text and publish-time digest. Edits and
+deletions do not retain earlier text for restoration.
+
+### Schema migrations {#metadata-schema-changes}
+
+pnpr creates its metadata and auth tables in an empty database and records each
+applied migration step in the `schema_migrations` table, starting with step `1`
+for the 1.0 schema. When pnpr opens a database at an older numbered version, it
+takes the database write lock and runs each pending migration step in order.
+Steps run in one transaction on SQLite, libSQL, and PostgreSQL, and record
+their version in `schema_migrations` after completing on MySQL.
+
+pnpr refuses a database from a newer release. It refuses a database whose
+`schema_migrations` table cannot be read, or that records a version but lacks
+some of pnpr's tables. It also refuses a pre-1.0 database without
+`schema_migrations` (such as one holding `schema_version`,
+`auth_schema_migrations`, or unmarked tables) before changing anything in it.
+To replace a pre-1.0 database, drop its pnpr tables or delete the SQLite file
+and its `-wal` and `-shm` files so pnpr creates the 1.0 schema afresh.
+
+## PostgreSQL and MySQL metadata
+
+Set `database.url` to a `postgres://` or `mysql://` URL to store package
+metadata, accounts, and tokens in the same shared database. Both work with a
+filesystem hosted store or S3. See [Shared database](auth-backends.md) for
+connection settings and the MySQL key-size limit.
+
+Publication writes commit atomically. Concurrent writers retry transaction
+conflicts, and each metadata read sees a committed snapshot.
 
 ## Metadata in libSQL {#libsql-metadata}
 
@@ -143,7 +173,7 @@ works with an `s3:` block, so archives stay in the bucket:
 ```yaml title="pnpr.yaml"
 s3:
   bucket: my-pnpr-packages
-metadata:
+database:
   url: libsql://my-db.turso.io
   authToken: ${TURSO_AUTH_TOKEN}
   # Optional. Reads views from a local copy instead of the primary.
@@ -212,7 +242,7 @@ s3:
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 
-metadata:
+database:
   # Package metadata of a hosted registry on S3 lives in a libSQL database.
   url: libsql://<your-db>.turso.io
   authToken: ${PNPR_LIBSQL_TOKEN}
@@ -280,13 +310,13 @@ s3:
   region: auto
   endpoint: https://abc123def456.r2.cloudflarestorage.com
 
-metadata:
+database:
   url: libsql://my-pnpr.turso.io
   authToken: ${PNPR_LIBSQL_TOKEN}
 
 auth:
-  htpasswd:
-    file: ./htpasswd
+  users:
+    file: ./users.json
 
 registries:
   local:
@@ -343,6 +373,15 @@ When publishing packages to an S3 backend, pnpr:
 2. **Uploads the blobs**: pnpr uploads each blob whose bytes the namespace does not hold live yet under its next incarnation; bytes it holds are not uploaded again.
 3. **Commits the metadata**: pnpr commits every package of the publish to the metadata database in one transaction.
 
+Publishes of different packages can upload concurrently. Metadata commits share
+the database's write lock. If archive reclamation races an npm
+publish or a batch HTTP publish, pnpr retries the request up to four times. Each retry checks
+current permissions and package state again. Continued contention returns
+`409 Conflict`.
+
+Large publish requests also use the cache directory for retries. When too many
+are in progress, another large publish returns `429 Too Many Requests`.
+
 ### Interruptions
 
 - **Interrupted publishes**: A replica that stops between uploading the blobs and committing the metadata leaves blobs that no file maps, which are never served; [`pnpr gc`](cli.md#gc) removes them. A publish refused at its commit removes the incarnations it stored itself, unless another publish of the same bytes committed one of them in the meantime. It first records one a commit could still make live as gone, so that commit is refused rather than left pointing at nothing.
@@ -354,4 +393,3 @@ When publishing packages to an S3 backend, pnpr:
 - **Enable bucket versioning**: Enable S3 bucket versioning to protect against accidental object deletion or overwrite.
 - **Run periodic integrity audits**: Use `pnpr verify` to audit your hosted packages against stored S3 blobs, and `pnpr gc` to remove the archives no file maps. Both run while the registry serves.
 - **Backup procedures**: Follow the guidelines in [Backup and restore](backup-and-restore.md) for snapshotting and restoring S3 package data and revision history.
-

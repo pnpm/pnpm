@@ -27,7 +27,7 @@ fn libsql_config(storage: &Path, primary: SocketAddr) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage.to_path_buf());
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.metadata = MetadataBackend::Libsql(LibsqlSettings {
         url: format!("http://{primary}"),
         auth_token: None,
@@ -63,7 +63,7 @@ impl Registry {
         let storage = TempDir::new().unwrap();
         let (primary, address, server) = serve_primary(storage.path().join("primary.db")).await;
         let app = router(libsql_config(&storage.path().join("registry"), address));
-        let body = json!({ "name": "alice", "password": "secret", "type": "user", "roles": [] });
+        let body = json!({ "name": "alice", "password": "secret123", "type": "user", "roles": [] });
         let (status, bytes) =
             send_to(&app, request("PUT", "/-/user/org.couchdb.user:alice", "-", Some(&body))).await;
         assert_eq!(status, StatusCode::CREATED);
@@ -168,17 +168,19 @@ async fn npm_operations_make_few_round_trips_to_a_libsql_primary() {
     // cache lacks in one more, before its write: the round trip that takes
     // the write lock with every read the write compares with, and the one
     // that sends every change with the commit. The rows of the blobs a
-    // publish stores are read with its document. An unpublish removes the
+    // publish stores are read with its document. The early authorization
+    // and staging checks each read package ownership from the database;
+    // those reads replace the hosted-record reads. An unpublish removes the
     // package in its write's two round trips, then reclaims the archives
     // nothing maps any more: two round trips move them to `reclaiming`, and
     // one more records them gone once their keys are removed.
     let expected = vec![
-        ("the first publish", 4),
-        ("a publish of another version", 5),
+        ("the first publish", 7),
+        ("a publish of another version", 8),
         ("a dist-tag move", 2),
         ("a view read that renders a version", 2),
         ("a view read the cache answers", 1),
-        ("an unpublish", 6),
+        ("an unpublish", 5),
     ];
     assert_eq!(counts, expected, "\n{}", listing(&operations));
 }
@@ -213,4 +215,27 @@ async fn keyed(registry: &Registry, batch: &Value) -> StatusCode {
         .headers_mut()
         .insert("idempotency-key", header::HeaderValue::from_static("k1"));
     send_to(&registry.app, request).await.0
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_staged_page_reads_all_its_metadata_in_one_round_trip() {
+    let registry = Registry::start().await;
+    let document = publish_doc("example-package", "1.0.0", b"archive");
+    for _ in 0..3 {
+        let (status, _) =
+            registry.send("POST", "/npm/-/stage/package/example-package", Some(&document)).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+    registry.round_trips();
+    let (status, body) = send_to(
+        &registry.app,
+        request("GET", "/npm/-/stage?page=0&perPage=1", &registry.token, None),
+    )
+    .await;
+    let trips = registry.round_trips();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["total"], 3);
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
+    assert_eq!(trips.len(), 1, "{}", listing(&[("staged list", trips)]));
 }

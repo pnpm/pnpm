@@ -1726,6 +1726,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/pkg-manifest.reader':
         specifier: workspace:*
         version: link:../../pkg-manifest/reader
@@ -6787,6 +6790,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
+      '@pnpm/workspace.state':
+        specifier: workspace:*
+        version: link:../../workspace/state
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -11100,6 +11106,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/pkg-manifest.utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/utils
       '@pnpm/text.ordinal-comparator':
         specifier: workspace:*
         version: link:../../text/ordinal-comparator
@@ -11227,6 +11236,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       path-temp:
         specifier: 'catalog:'
         version: 3.0.0

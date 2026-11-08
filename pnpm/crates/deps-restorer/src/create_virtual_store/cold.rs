@@ -4,6 +4,7 @@ use super::{
     cache_keys::SlotReuse,
     cas_paths_key, requires_build_from_cas_paths, run_checked,
     slot_linking::{LinkSlotsParallel, link_cold_chunk},
+    snapshot_needs_build_marker,
 };
 use crate::{CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError};
 use futures_util::{StreamExt, stream::FuturesUnordered};
@@ -43,12 +44,19 @@ pub(super) struct ColdCapture<'a> {
 }
 pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<ColdCapture<'_>>) {
     map.reserve(cold_cas_paths.len());
-    for ColdCapture { snapshot_key, installed, .. } in cold_cas_paths {
+    for ColdCapture {
+        snapshot_key,
+        installed,
+        requires_build,
+        ..
+    } in cold_cas_paths
+    {
         map.entry(cas_paths_key(snapshot_key))
             .or_insert_with(|| crate::HoistedPackageFiles {
                 cas_paths: installed.cas_paths,
                 source_is_mutable: installed.source_is_mutable,
                 source_exists: installed.source_exists,
+                needs_build: snapshot_needs_build_marker(snapshot_key, requires_build),
             });
     }
 }

@@ -393,3 +393,15 @@ pub fn parse_name_version_from_key(key: &str) -> (String, String) {
         _ => (stripped.to_string(), String::new()),
     }
 }
+
+pub(crate) fn built_slot_is_complete(directory: &Path) -> Result<bool, BuildModulesError> {
+    let marker = directory.join(NEEDS_BUILD_MARKER);
+    let exists = |path: &Path| {
+        path.try_exists()
+            .map_err(|source| BuildModulesError::ReadBuildMarker {
+                path: path.to_path_buf(),
+                source,
+            })
+    };
+    Ok(exists(&marker.with_file_name("package.json"))? && !exists(&marker)?)
+}

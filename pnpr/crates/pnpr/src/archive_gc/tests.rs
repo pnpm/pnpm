@@ -8,6 +8,7 @@ use serde_json::json;
 use std::{collections::HashSet, time::Duration};
 use tempfile::TempDir;
 
+mod logging;
 mod uncommitted;
 
 const MANIFEST_LIMIT: usize = 4 * 1024 * 1024;

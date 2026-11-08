@@ -62,20 +62,12 @@ s3:
   endpoint: https://<account-id>.r2.cloudflarestorage.com
   # Credentials come from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
 
-metadata:
+database:
   url: ${PNPR_LIBSQL_URL}
   authToken: ${PNPR_LIBSQL_TOKEN}
   # Package views are read from a local replica, rebuilt on each start.
   replicaPath: /pnpr/cache/metadata-replica.db
   syncInterval: 10s
-
-backend:
-  libsql:
-    url: ${PNPR_LIBSQL_URL}
-    authToken: ${PNPR_LIBSQL_TOKEN}
-    # Token lookups read a local replica of the Turso database. The replica
-    # lives on the container's ephemeral disk and is rebuilt on each start.
-    replicaPath: /pnpr/cache/auth-replica.db
 
 secret: ${PNPR_SECRET}
 
@@ -84,7 +76,7 @@ trustedProxies: [10.0.0.0/8]
 trustedProxyHeader: x-real-ip
 
 auth:
-  htpasswd:
+  users:
     maxUsers: 3
 
 registries:
@@ -176,37 +168,54 @@ export class PnprContainer extends Container<Env> {
   // Wait longer than the library's default for a cold start, so the first
   // request after a sleep gets an answer instead of a 500.
   override async fetch(request: Request): Promise<Response> {
-    if (!this.ctx.container?.running) {
-      try {
+    try {
+      if (!this.ctx.container?.running) {
         await this.startAndWaitForPorts(7677, {
           instanceGetTimeoutMS: 120_000,
           portReadyTimeoutMS: 180_000,
           abort: request.signal,
         });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return new Response(`pnpr is starting, retry shortly (${message})\n`, { status: 503 });
       }
+      return await super.fetch(request);
+    } catch (error) {
+      return unavailable(error);
     }
-    return super.fetch(request);
   }
+}
+
+function unavailable(error: unknown): Response {
+  console.error("Registry request failed", error);
+  return new Response("Registry temporarily unavailable, retry shortly\n", {
+    status: 503,
+    headers: { "Retry-After": "5" },
+  });
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    try {
+      decodeURIComponent(new URL(request.url).pathname);
+    } catch (error) {
+      if (!(error instanceof URIError)) throw error;
+      return new Response("Malformed percent-encoded path\n", { status: 400 });
+    }
     const headers = new Headers(request.headers);
     headers.set("accept-encoding", "zstd, gzip");
     headers.delete("x-forwarded-for");
     headers.set("x-real-ip", request.headers.get("cf-connecting-ip") ?? "");
-    const response = await getContainer(env.PNPR, "pnpr").fetch(
-      new Request(request, { headers }),
-    );
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-      encodeBody: "manual",
-    });
+    try {
+      const response = await getContainer(env.PNPR, "pnpr").fetch(
+        new Request(request, { headers }),
+      );
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        encodeBody: "manual",
+      });
+    } catch (error) {
+      return unavailable(error);
+    }
   },
 };
 ```
@@ -230,6 +239,9 @@ The Worker copies it into `X-Real-IP`, and the
 
 `PNPR_PUBLIC_URL` works because pnpr reads every flag from an environment
 variable with the `PNPR_` prefix. This one is `--public-url`.
+
+Malformed percent-encoded paths receive HTTP `400` before the request reaches
+the container.
 
 Finally, install the two packages the Worker needs:
 
@@ -302,15 +314,54 @@ upstream cache.
 
 **The Worker caches nothing.** If you add a cache, store only `GET`
 responses without `private`, `no-store`, or `no-cache` in `Cache-Control`.
-A login answers with a new token and is marked only `no-cache`. Responses on
-a named base such as `/npm/~<name>/` are always `private, no-store`, so only
-the default base is cacheable. With [CORS](configuration.md#cors) on, pnpr's answer
-depends on the request's `Origin`, so keep requests with an `Origin` header
-out of a cache that does not key on it. A cache also outlives
+A login answers with a new token and is marked only `no-cache`. With
+[CORS](configuration.md#cors) on, pnpr's answer depends on the request's
+`Origin`, so keep requests with an `Origin` header out of a cache that does
+not key on it. A cache also outlives
 [rule changes](configuration.md#changing-rules-through-the-api).
 
+Metadata at one URL has several representations, selected by `Accept`. Keep
+full JSON and `application/vnd.npm.install-v1+json` in separate cache entries.
+Bypass caching when `Accept` offers `application/vnd.pnpr.install-v2+json`,
+including when it also offers install-v1. Before storing metadata, check that
+its response `Content-Type` matches the entry's representation. `Vary: Accept`
+on the response does not partition a cache that builds its own keys.
+
+Bypass both cache reads and writes for requests with a query string, including
+`?write=true`, or request `Cache-Control: no-cache` or `no-store`. Such reads
+must reach the registry. Bypass conditional requests too, so the registry can
+evaluate their validators. Put representation selectors in the cache key's path
+or query, never its fragment. When replacing a cache that mixed representations,
+use a new key namespace or purge its entries.
+
+A [revalidating metadata cache example](https://github.com/pnpm/pnpm/tree/main/pnpr/examples/cloudflare)
+checks freshness and access with the registry on every read. It reuses stored
+metadata bodies after a `304`, forwards client validators unchanged, and leaves
+tarballs uncached. This avoids regional purges and missed mutation routes. Each
+read still needs an origin round trip. When replacing a caching Worker, remove
+its old metadata and tarball lookup paths and purge any separate CDN cache rules.
+
 **Publishes go through the Worker**, so your plan's request body limit caps
-the size of a package you can publish.
+the size of a package you can publish. It also caps each OCI blob upload
+request. A layer larger than that limit fails with HTTP `413` when the client
+sends it in one `PATCH` or `PUT`, even if it fits `oci.maxBlobBytes`.
+
+For clients that honor the proposed `OCI-Chunk-Max-Length` header, configure
+[the upload hint](configuration.md#oci) below your plan's request body limit:
+
+```yaml title="pnpr.yaml"
+oci:
+  chunkMaxBytes: 50000000
+```
+
+This hint cannot force a client to split requests. Docker and Podman uploads
+may still send a whole layer in one request. For those clients, host pnpr
+outside Cloudflare Containers behind your own
+[TLS reverse proxy](tls-and-reverse-proxy.md), with a request body limit that
+accommodates the largest layer. The Container in this guide is
+[only reachable through its Worker](https://developers.cloudflare.com/containers/concepts/architecture/).
+Adding a custom domain to that Worker does not bypass its limit. Raising
+`oci.maxBlobBytes` alone cannot raise Cloudflare's limit.
 
 **Container logs are in the dashboard**, under the Worker's logs.
 `wrangler tail` shows only the Worker's own events.
@@ -318,3 +369,49 @@ the size of a package you can publish.
 **There is no spending cap.** `max_instances` and `sleepAfter` bound what a
 forgotten deployment can cost. A budget alert in the dashboard emails you when
 projected spend crosses a threshold, but it does not stop anything.
+
+## Non-browser clients blocked with error 1010
+
+Cloudflare's [Browser Integrity Check](https://developers.cloudflare.com/waf/tools/browser-integrity-check/)
+can reject the default Python `urllib` User-Agent with HTTP `403` and error
+`1010` before the request reaches your Worker. Changing headers inside the
+Worker cannot fix this.
+
+On a custom domain in your Cloudflare zone, create a WAF custom rule with a
+Skip action for Browser Integrity Check. Limit it to the registry hostname
+and paths, for example:
+
+```text
+http.host eq "registry.example.com" and
+(starts_with(http.request.uri.path, "/npm/") or http.request.uri.path eq "/npm")
+```
+
+Include other API prefixes your clients use. Skip only Browser Integrity
+Check, keeping authentication, rate limits, and other WAF protections active.
+Check Security Events if requests still fail, and adjust the specific blocking
+rule for those paths.
+
+On `workers.dev`, [Browser Integrity Check cannot be disabled](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1010/).
+Use a custom domain for clients that need their default User-Agent to work.
+Scripts using the trial hostname can send a descriptive User-Agent:
+
+```python
+import urllib.request
+
+request = urllib.request.Request(
+    "https://pnpr.<your-subdomain>.workers.dev/npm/example-package",
+    headers={"User-Agent": "registry-check/1.0"},
+)
+with urllib.request.urlopen(request) as response:
+    print(response.status)
+```
+
+Verify your deployment with both the script and a malformed path:
+
+```sh
+curl --path-as-is -i 'https://registry.example.com/npm/%E0%A4%A'
+```
+
+The malformed path should return HTTP `400`. On a custom domain with the
+exception, repeat the Python request without the `headers` argument to verify
+that the default User-Agent also reaches the registry.

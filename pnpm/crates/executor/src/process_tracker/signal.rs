@@ -1,7 +1,7 @@
 //! Signalling a Unix task, and finding the descendants a signal to its
 //! process group does not reach.
 
-use super::{RunningExecution, Stop, spawn};
+use super::{RunningExecution, Stop};
 use crate::process::Command;
 use std::{collections::HashMap, io::Read, process::Stdio, time::Duration};
 
@@ -180,7 +180,7 @@ fn process_listing() -> Option<String> {
     command
         .args(["-A", "-o", "pid=", "-o", "ppid="])
         .stdout(Stdio::piped());
-    let mut child = spawn(&mut command).ok()?;
+    let mut child = command.spawn().ok()?;
     let mut stdout = child.stdout.take()?;
     let output = std::thread::spawn(move || {
         let mut listing = String::new();

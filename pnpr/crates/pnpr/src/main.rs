@@ -135,7 +135,7 @@ fn apply_server_overrides(config: &mut Config, server: &ServerArgs) {
     }
 }
 
-/// The bundled config anchors auth state (htpasswd, tokens.db) next to the
+/// The bundled config anchors auth state (users.json, tokens.db) next to the
 /// config, which for the bundled default is the current directory. When a
 /// caller serves from an explicit `--storage` dir (tests, benchmarks), keep
 /// that state inside it so runs never write auth files into the working tree.
@@ -143,8 +143,8 @@ fn relocate_bundled_auth_state(config: &mut Config, storage: &Path, source: &Con
     if !matches!(source, ConfigSource::Bundled) {
         return;
     }
-    if config.identity.auth.htpasswd.file.is_some() {
-        config.identity.auth.htpasswd.file = Some(storage.join("htpasswd"));
+    if config.identity.auth.users.file.is_some() {
+        config.identity.auth.users.file = Some(storage.join("users.json"));
     }
     if config.identity.auth.tokens.file.is_some() {
         config.identity.auth.tokens.file = Some(storage.join("tokens.db"));

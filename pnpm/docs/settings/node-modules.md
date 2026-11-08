@@ -14,6 +14,11 @@ sidebar_label: "node_modules & hoisting"
 The directory in which dependencies will be installed (instead of
 `node_modules`).
 
+In a workspace, a relative path is used inside every project. An absolute path,
+or one that starts with `..`, is the root project's directory only. Every other
+project uses a directory named after its last part, such as `vendor` for
+`../vendor`.
+
 ### nodeLinker
 
 * Default: **isolated**
@@ -173,8 +178,8 @@ When set to `true`, pnpm populates the virtual store without creating importer s
 Controls the way packages are imported from the store (if you want to disable symlinks inside `node_modules`, then you need to change the [nodeLinker] setting, not this one).
 
 * **auto** - try the platform's cheap link tiers in order, falling back to
-copying when none of them is possible. On Linux it tries hardlinking before
-cloning; on macOS and Windows it tries cloning before hardlinking.
+copying when none of them is possible. On Linux and Windows it tries hardlinking
+before cloning; on macOS it tries cloning before hardlinking.
 * **hardlink** - hard link packages from the store
 * **clone-or-copy** - try to clone packages from the store. If cloning is not supported then fall back to copying
 * **copy** - copy packages from the store
@@ -184,7 +189,7 @@ A package that a lifecycle script or a patch will still write must not share fil
 
 Cloning, like copying, keeps `node_modules` separate from the store. You may edit files in your `node_modules` and they will not be modified in the central content-addressable store. Unlike a copy, a clone shares its data with the store file until one of them is written, so its contents take no extra disk space.
 
-Not all file systems support cloning. To clone on Linux, use a copy-on-write (CoW) file system, for instance btrfs instead of ext4, and set `packageImportMethod` to `clone`. On Linux, [`auto` tries hardlinking first](#what-auto-tries-first).
+Not all file systems support cloning. To clone on Linux, use a copy-on-write (CoW) file system, for instance btrfs instead of ext4, and set `packageImportMethod` to `clone`. On Linux and Windows, [`auto` tries hardlinking first](#what-auto-tries-first).
 
 #### What `auto` tries first
 
@@ -194,15 +199,17 @@ Not all file systems support cloning. To clone on Linux, use a copy-on-write (Co
 |---|---|
 | Linux | hardlink → clone → copy |
 | macOS | clone → hardlink → copy |
-| Windows | clone → hardlink → copy |
+| Windows | hardlink → clone → copy |
 
 A reflink materializes a new inode and copies extent bookkeeping inside the
 filesystem's metadata trees, where a hardlink is one directory entry. On btrfs
 that difference roughly halves the time an install spends materializing
 `node_modules` from a warm store, which is why pnpm reaches for the hardlink
 first there. ext4 is unaffected. It never supported cloning, so `auto` already
-hardlinked. macOS keeps clone-first, since APFS `clonefile` is that
-platform's cheap primitive.
+hardlinked. On a Windows Dev Drive (ReFS), a block clone takes several calls
+per file where a hardlink takes one, so Windows hardlinks first as well.
+macOS keeps clone-first, since APFS `clonefile` is that platform's cheap
+primitive.
 
 If you edit files inside `node_modules`, ask for `clone` explicitly. Under a
 hardlink, the file in `node_modules` *is* the file in the store, so editing it

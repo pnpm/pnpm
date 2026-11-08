@@ -12,12 +12,13 @@ use std::collections::BTreeMap;
 
 mod stand_ins;
 
-/// The manifest fields the repeat-install check reads: a top-level field
-/// whole, only one key of an object field, the dependency maps without URL
-/// specifiers, or each peer's `optional` flag. A record keeps these, so a
-/// manifest rebuilt from them answers the check the way the file does. Any
-/// other value stays out of the workspace state.
-const CHECKED_FIELDS: [(&str, Option<&str>); 10] = [
+/// The manifest fields the repeat-install check and the project
+/// installability check read: a top-level field whole, only one key of an
+/// object field, the dependency maps without URL specifiers, or each peer's
+/// `optional` flag. A record keeps these, so a manifest rebuilt from them
+/// answers both checks the way the file does. Any other value stays out of
+/// the workspace state. A change to the list bumps [`FIELDS_REVISION`].
+const CHECKED_FIELDS: [(&str, Option<&str>); 15] = [
     ("name", None),
     ("version", None),
     ("dependencies", None),
@@ -28,7 +29,24 @@ const CHECKED_FIELDS: [(&str, Option<&str>); 10] = [
     ("bin", None),
     ("directories", Some("bin")),
     ("publishConfig", Some("directory")),
+    ("engines", None),
+    ("devEngines", None),
+    ("os", None),
+    ("cpu", None),
+    ("libc", None),
 ];
+
+/// The revision of [`CHECKED_FIELDS`] a record is written with.
+const FIELDS_REVISION: u32 = 2;
+
+/// The fields `file` records, when it records the current [`CHECKED_FIELDS`].
+pub(super) fn current_fields(
+    file: &ManifestFile,
+) -> Option<&serde_json::Map<String, serde_json::Value>> {
+    file.fields
+        .as_ref()
+        .filter(|_| file.fields_revision == FIELDS_REVISION)
+}
 
 /// Whether a write would give a `vouched` project a record the next check can
 /// use, where `validation` holds none: its record is missing or has no
@@ -54,7 +72,7 @@ pub(crate) fn records_need_refresh(
             let usable = validation.manifest_files
                 .get(&importer_id)
                 .is_some_and(|file| {
-                    file.fields.is_some()
+                    current_fields(file).is_some()
                         && manifest.path().file_name()
                             == Some(std::ffi::OsStr::new(&file.file_name))
                         && stat.matches_stat(file.mtime_ns, file.ctime_ns, file.size)
@@ -142,7 +160,7 @@ fn carried_file(
         carried.manifests.get(importer_id) == validation.manifests.get(importer_id);
     let file = carried.manifest_files.get(importer_id)?;
     let trusted = stat_trusted(file.mtime_ns, file.ctime_ns, carried.recorded_at_ns);
-    (same_manifest && trusted).then(|| file.clone())
+    (same_manifest && trusted && current_fields(file).is_some()).then(|| file.clone())
 }
 
 fn stat_manifest(
@@ -175,7 +193,7 @@ fn reusable_file<'previous>(
     digest: &str,
 ) -> Option<&'previous ManifestFile> {
     let file = previous.manifest_files.get(importer_id)?;
-    let unchanged = file.fields.is_some()
+    let unchanged = current_fields(file).is_some()
         && file.file_name == file_name
         && stat.matches_stat(file.mtime_ns, file.ctime_ns, file.size)
         && stat_trusted(file.mtime_ns, file.ctime_ns, previous.recorded_at_ns)
@@ -185,7 +203,14 @@ fn reusable_file<'previous>(
 
 fn manifest_file(manifest: &PackageManifest, file_name: String, stat: FileStat) -> ManifestFile {
     let (mtime_ns, ctime_ns, size) = stat.parts();
-    ManifestFile { file_name, mtime_ns, ctime_ns, size, fields: recorded_fields(manifest.value()) }
+    ManifestFile {
+        file_name,
+        mtime_ns,
+        ctime_ns,
+        size,
+        fields: recorded_fields(manifest.value()),
+        fields_revision: FIELDS_REVISION,
+    }
 }
 
 /// The values of the [`CHECKED_FIELDS`] a record keeps. `None` when a
@@ -292,3 +317,6 @@ fn peer_optional_flags(meta: &serde_json::Value) -> serde_json::Value {
         .collect::<serde_json::Map<_, _>>()
         .into()
 }
+
+#[cfg(test)]
+mod tests;

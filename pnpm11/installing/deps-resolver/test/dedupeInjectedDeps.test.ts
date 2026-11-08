@@ -62,6 +62,7 @@ test('injected dependency dedupes to link: even when an unrelated shared depende
       directNodeIdsByAlias,
       hoistedPeerProviderNodeIds: new Set<NodeId>(),
       linkedDependencies: [],
+      rejectedOptionalPeers: new Set(),
     },
   }
 
@@ -133,6 +134,7 @@ test('injected dependency is NOT deduped when a shared dependency resolves to a 
       directNodeIdsByAlias,
       hoistedPeerProviderNodeIds: new Set<NodeId>(),
       linkedDependencies: [],
+      rejectedOptionalPeers: new Set(),
     },
   }
 
@@ -178,6 +180,7 @@ test.each([
       directNodeIdsByAlias,
       hoistedPeerProviderNodeIds: new Set<NodeId>(),
       linkedDependencies: [],
+      rejectedOptionalPeers: new Set(),
     },
   }
   const providerImporter = {

@@ -72,17 +72,15 @@ fn validate_unpublish_supported(
 fn compile_package_rule(
     registry: &str,
     ecosystem: Ecosystem,
-    key: &str,
+    pattern: &PackagePattern,
     rule: Option<&PackageAccess>,
     teams: &TeamDirectory,
 ) -> Result<PackageRule, RegistryError> {
-    let pattern = PackagePattern::parse(key, ecosystem)
-        .map_err(|err| RegistryError::InvalidConfig {
-            reason: format!("registry {registry:?}: {err}"),
-        })?;
+    let key = pattern.to_string();
+    let key = key.as_str();
     validate_unpublish_supported(registry, ecosystem, key, rule)?;
     Ok(PackageRule {
-        pattern,
+        pattern: pattern.clone(),
         access: compile_rule_access_list(
             registry,
             key,
@@ -110,13 +108,13 @@ fn compile_package_rule(
 pub(super) fn build_rules(
     registry: &str,
     ecosystem: Ecosystem,
-    packages: &IndexMap<String, Option<PackageAccess>>,
+    packages: &IndexMap<String, (PackagePattern, Option<PackageAccess>)>,
     default_access: Option<AccessList>,
     teams: &TeamDirectory,
 ) -> Result<PackageRules, RegistryError> {
     let mut rules = Vec::with_capacity(packages.len());
-    for (key, rule) in packages {
-        rules.push(compile_package_rule(registry, ecosystem, key, rule.as_ref(), teams)?);
+    for (pattern, rule) in packages.values() {
+        rules.push(compile_package_rule(registry, ecosystem, pattern, rule.as_ref(), teams)?);
     }
     Ok(PackageRules::new(rules, default_access))
 }

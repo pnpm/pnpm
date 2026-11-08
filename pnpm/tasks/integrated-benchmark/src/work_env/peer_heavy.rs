@@ -8,9 +8,8 @@
 //! carry the same archives, so every target resolves the same lockfile.
 
 use super::{
-    PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER, PEER_HEAVY_VERSION, PEER_HEAVY_WIDTH,
-    PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_USERNAME, WorkEnv, fixtures::peer_heavy_package_name,
-    mint_pnpr_token, serves_npm_under_base_path,
+    PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER, PEER_HEAVY_VERSION, PEER_HEAVY_WIDTH, WorkEnv,
+    fixtures::peer_heavy_package_name, mint_pnpr_token, serves_npm_under_base_path,
 };
 use crate::cli_args::BenchmarkScenario;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -177,24 +176,6 @@ fn archive_file(name: &str) -> String {
     format!("{basename}-{PEER_HEAVY_VERSION}.tgz")
 }
 
-/// Let the benchmark user publish to the revision mocks: every mock reads
-/// the users file beside its config.
-fn seed_mock_publisher() {
-    let htpasswd = pnpm_registry_mock::runtime_config_dir().join("htpasswd");
-    let users = std::fs::read_to_string(&htpasswd).unwrap_or_default();
-    if users
-        .lines()
-        .any(|line| line.starts_with(&format!("{PNPR_BENCHMARK_USERNAME}:")))
-    {
-        return;
-    }
-    std::fs::create_dir_all(pnpm_registry_mock::runtime_config_dir())
-        .expect("create the mock config dir");
-    let separator = if users.is_empty() || users.ends_with('\n') { "" } else { "\n" };
-    std::fs::write(&htpasswd, format!("{users}{separator}{PNPR_BENCHMARK_HTPASSWD}"))
-        .expect("seed the benchmark user into the mock's htpasswd");
-}
-
 /// Publish the peer-heavy packages through the revision mock on
 /// `mock_port`, so its own `pnpr` stores them in its own metadata database.
 fn publish_peer_heavy_to(mock_port: u16) {
@@ -211,14 +192,6 @@ fn publish_peer_heavy_to(mock_port: u16) {
 impl WorkEnv {
     fn uses_peer_heavy_fixture(&self) -> bool {
         self.options.selection.scenario.is_some_and(BenchmarkScenario::uses_peer_heavy_fixture)
-    }
-
-    /// Let the benchmark user publish the scenario's packages to a revision
-    /// mock, before the mock starts.
-    pub(super) fn allow_scenario_publisher(&self) {
-        if self.uses_peer_heavy_fixture() {
-            seed_mock_publisher();
-        }
     }
 
     /// Publish the scenario's packages through the revision mock on

@@ -1,0 +1,57 @@
+name: NetBSD VM build
+
+# The release builds NetBSD natively in a VM (see .github/scripts/netbsd-vm),
+# and only a release tag runs that job. This builds and runs the CLI the same
+# way, so a change that breaks the NetBSD build shows up before a release.
+on:
+  pull_request:
+    paths:
+      - .github/actions/install-crates/**
+      - .github/actions/netbsd-vm/**
+      - .github/scripts/netbsd-vm/**
+      - .github/workflows/netbsd-vm.yml
+      - rust-toolchain.toml
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build and run pnpm on NetBSD
+    # GitHub-hosted, for KVM.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+        with:
+          container-build: 'true'
+
+      - name: Start the NetBSD VM
+        uses: $/.github/actions/netbsd-vm
+
+      - name: Build and run pnpm
+        shell: bash
+        # Run outside the checkout: the repository's packageManager pin would
+        # otherwise make the new binary hand off to the pinned pnpm.
+        run: |
+          .github/scripts/netbsd-vm/vm.sh build --locked -p pnpm-cli --bin pnpm --release --target=x86_64-unknown-netbsd
+          .github/scripts/netbsd-vm/vm.sh run '
+            set -e
+            mkdir /tmp/smoke && cd /tmp/smoke
+            echo "{\"name\":\"smoke\",\"version\":\"1.0.0\"}" > package.json
+            /build/target/x86_64-unknown-netbsd/release/pnpm --version
+            /build/target/x86_64-unknown-netbsd/release/pnpm add is-positive@3
+            test -f node_modules/is-positive/package.json
+          '

@@ -27,7 +27,7 @@ fn sqlite_config(storage: &Path) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage.to_path_buf());
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.metadata = MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
     config
 }
@@ -81,7 +81,7 @@ async fn token(app: &Router) -> String {
 }
 
 async fn token_of(app: &Router, user: &str) -> String {
-    let body = json!({ "name": user, "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": user, "password": "secret123", "type": "user", "roles": [] });
     let path = format!("/-/user/org.couchdb.user:{user}");
     let answer = send(app, "PUT", &path, "-", Some(&body)).await;
     assert_eq!(answer.status, StatusCode::CREATED);
@@ -122,9 +122,87 @@ async fn a_retried_publish_gets_its_recorded_outcome() {
     assert_eq!(retagged.status, StatusCode::CONFLICT);
 }
 
+#[tokio::test]
+async fn an_identical_publish_after_unpublish_is_refused() {
+    for whole_package in [false, true] {
+        let tmp = TempDir::new().unwrap();
+        let app = router(sqlite_config(tmp.path()));
+        let token = token(&app).await;
+        let mut doc = publish_doc("retry-removed", "1.1.0-beta.0", b"bytes");
+        doc["dist-tags"] = json!({ "beta": "1.1.0-beta.0" });
+        assert_eq!(
+            send(&app, "PUT", "/npm/retry-removed", &token, Some(&doc)).await.status,
+            StatusCode::CREATED,
+        );
+        let other = publish_doc("retry-removed", "1.0.0", b"other");
+        assert_eq!(
+            send(&app, "PUT", "/npm/retry-removed", &token, Some(&other)).await.status,
+            StatusCode::CREATED,
+        );
+        let path = if whole_package {
+            "/npm/retry-removed/-rev/anything"
+        } else {
+            "/npm/retry-removed/-/retry-removed-1.1.0-beta.0.tgz/-rev/anything"
+        };
+        assert!(send(&app, "DELETE", path, &token, None).await.status.is_success());
+        let before = send(&app, "GET", "/npm/retry-removed", &token, None).await;
+        let retry = send(&app, "PUT", "/npm/retry-removed", &token, Some(&doc)).await;
+        assert_eq!(retry.status, StatusCode::FORBIDDEN, "{}", retry.text);
+        assert!(
+            retry.text.contains("Cannot republish previously unpublished version"),
+            "{}",
+            retry.text,
+        );
+        let version = send(&app, "GET", "/npm/retry-removed/1.1.0-beta.0", &token, None).await;
+        assert_eq!(version.status, StatusCode::NOT_FOUND);
+        if !whole_package {
+            let retained = send(&app, "PUT", "/npm/retry-removed", &token, Some(&other)).await;
+            assert_eq!(retained.status, StatusCode::CREATED, "{}", retained.text);
+            let metadata = send(&app, "GET", "/npm/retry-removed", &token, None).await;
+            assert_eq!(metadata.body["dist-tags"], before.body["dist-tags"]);
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_batch_retry_after_unpublishing_one_member_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let batch = json!({ "packages": [
+        publish_doc("batch-kept", "1.0.0", b"kept"),
+        publish_doc("batch-removed", "1.0.0", b"removed"),
+    ] });
+    let committed =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
+    assert_eq!(committed.status, StatusCode::CREATED);
+    assert!(
+        send(&app, "DELETE", "/npm/batch-removed/-rev/anything", &token, None)
+            .await
+            .status
+            .is_success(),
+    );
+    let retry =
+        send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
+    assert_eq!(retry.status, StatusCode::CONFLICT, "{}", retry.text);
+    assert!(
+        retry.text.contains("Cannot publish over the previously published version"),
+        "{}",
+        retry.text,
+    );
+    assert_eq!(
+        send(&app, "GET", "/npm/batch-removed", &token, None).await.status,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(
+        send(&app, "GET", "/npm/batch-kept/1.0.0", &token, None).await.status,
+        StatusCode::OK,
+    );
+}
+
 /// Leave `bob` alone allowed to publish.
-fn only_bob_publishes(rules: &PackageRules) {
-    let bob = AccessList::from_tokens(["bob"]);
+fn only_bob_publishes(rules: &PackageRules, bob_id: &str) {
+    let bob = AccessList::from_tokens([bob_id]);
     let lists = RuleOverride { publish: Some(bob.clone()), ..RuleOverride::default() };
     let table = rules.snapshot();
     let overrides = table
@@ -151,7 +229,8 @@ async fn a_retry_needs_current_publish_permission() {
         send_with_key(&app, "PUT", "/-/pnpr/v0/publish", &token, Some(&batch), Some("k1")).await;
     assert_eq!(committed.status, StatusCode::CREATED);
 
-    only_bob_publishes(&rules);
+    let bob = token_of(&app, "bob").await;
+    only_bob_publishes(&rules, &crate::tokens::account_id(&app, "bob", Some(&bob)).await.unwrap());
     let retry = send(&app, "PUT", "/npm/revoked", &token, Some(&doc)).await;
     assert_eq!((retry.status, retry.generation), (StatusCode::FORBIDDEN, None));
     assert_eq!(retry.body.get("publication"), None);
@@ -195,7 +274,10 @@ async fn a_batch_is_one_publication() {
     let publication = send(&app, "GET", "/-/publications/-/v2.0.0", &token, None).await;
     assert_eq!(publication.status, StatusCode::OK);
     assert_eq!(publication.body["id"], 1);
-    assert_eq!(publication.body["publisher"], "alice");
+    assert_eq!(
+        publication.body["publisher"].as_str(),
+        crate::tokens::account_id(&app, "alice", Some(&token)).await.as_deref(),
+    );
     let members: Vec<&str> = publication.body["members"]
         .as_array()
         .unwrap()
@@ -261,7 +343,11 @@ async fn a_member_lookup_hides_a_package_the_caller_cannot_read() {
     });
     let committed = send(&app, "PUT", "/-/pnpr/v0/publish", &bob, Some(&batch)).await;
     assert_eq!(committed.status, StatusCode::CREATED, "{}", committed.text);
-    only_bob_reads(&rules, "@private/*");
+    only_bob_reads(
+        &rules,
+        "@private/*",
+        &crate::tokens::account_id(&app, "bob", Some(&bob)).await.unwrap(),
+    );
 
     let hidden =
         send(&app, "GET", "/-/publications/-?member=npm:@private/hidden@1.0.0", &alice, None).await;
@@ -280,10 +366,10 @@ async fn a_member_lookup_hides_a_package_the_caller_cannot_read() {
 }
 
 /// Leave `bob` alone allowed to read the packages of `pattern`.
-fn only_bob_reads(rules: &PackageRules, pattern: &str) {
+fn only_bob_reads(rules: &PackageRules, pattern: &str, bob_id: &str) {
     let pattern = PackagePattern::parse(pattern, Ecosystem::Npm).unwrap();
     let lists =
-        RuleOverride { access: Some(AccessList::from_tokens(["bob"])), ..RuleOverride::default() };
+        RuleOverride { access: Some(AccessList::from_tokens([bob_id])), ..RuleOverride::default() };
     let changed = rules
         .snapshot()
         .with_overrides(None, vec![(pattern, lists)])

@@ -188,7 +188,7 @@ fn build_report(config: &Config, source_description: String) -> ConfigCheckRepor
 }
 
 fn format_auth_summary(config: &Config) -> String {
-    let ht = &config.identity.auth.htpasswd;
+    let ht = &config.identity.auth.users;
     let max = match ht.max_users {
         MaxUsers::Unlimited => "unlimited".to_string(),
         MaxUsers::Limited(n) => format!("max {n}"),
@@ -196,7 +196,7 @@ fn format_auth_summary(config: &Config) -> String {
     };
     let (backend, location) = match &config.identity.backend {
         BackendConfig::Local => (
-            "htpasswd",
+            "accounts",
             match &ht.file {
                 Some(path) => path.display().to_string(),
                 None => "in-memory".to_string(),

@@ -152,6 +152,7 @@ crates = [
   "pnpm-workspace-manifest-writer",
   "pnpr-auth",
   "pnpr-libsql",
+  "pnpr-sql",
   "pnpr-osv",
   "pnpr-pipeline-runs",
   "pnpr-route",
@@ -226,7 +227,6 @@ pnpm-workspace-projects-filter = 2
 pnpm-workspace-task-scheduler = 2
 pnpm-yaml-document-sync = 2
 pnpr = 3
-pnpr-auth = 2
 pnpr-config = 4
 pnpr-registry = 2
 pnpr-storage = 6
@@ -327,14 +327,14 @@ pnpm-workspace-projects-graph = 6
 pnpm-workspace-state = 2
 pnpm-workspace-task-scheduler = 2
 pnpr = 39
-pnpr-auth = 4
+pnpr-auth = 6
 pnpr-cargo = 2
 pnpr-config = 7
 pnpr-fixtures = 5
 pnpr-libsql = 3
 pnpr-oci = 1
 pnpr-osv = 3
-pnpr-package-name = 1
+pnpr-package-name = 2
 pnpr-pipeline-runs = 2
 pnpr-policy = 1
 pnpr-pypi = 2
@@ -342,6 +342,7 @@ pnpr-registry = 1
 pnpr-route = 4
 pnpr-search = 3
 pnpr-shared-artifacts = 3
+pnpr-sql = 3
 pnpr-storage = 10
 pnpr-upstream = 6
 

@@ -1,6 +1,8 @@
 use super::{
     ProjectManifestsByDir,
-    injected_manifest::{target_manifest, workspace_path_matches_target},
+    injected_manifest::{
+        publishing_project_manifest, target_manifest, workspace_path_matches_target,
+    },
 };
 use pnpm_resolving_deps_resolver::locked_child_admits;
 use pnpm_resolving_local_resolver::{local_spec_path, recorded_local_path};
@@ -252,12 +254,38 @@ pub(super) fn importer_link_satisfies(
         || target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str)
 }
 
+/// Whether a plain or `npm:` semver range that the lockfile links to a
+/// workspace project still accepts that project's version. Any other spec is
+/// left to [`importer_link_satisfies`].
+pub(super) fn importer_range_link_satisfies(
+    dirs: &SpecDirs<'_>,
+    project_dir: &Path,
+    dep_name: &str,
+    spec: &str,
+    link_target: &str,
+) -> bool {
+    if spec.starts_with("workspace:") {
+        return true;
+    }
+    let (target, range) = parse_npm_spec(spec);
+    if range.parse::<node_semver::Range>().is_err() {
+        return true;
+    }
+    let target_dir = project_dir.join(link_target);
+    is_missing_from_checkout(dirs, &target_dir)
+        || target_dir_satisfies(dirs, &target_dir, target.unwrap_or(dep_name), range)
+}
+
+/// An unbuilt `publishConfig.directory` is absent too, but its project is
+/// checked out, so it does not count as missing.
 fn is_missing_from_checkout(dirs: &SpecDirs<'_>, target_dir: &Path) -> bool {
-    !dirs.manifests_by_dir.contains_key(&pnpm_fs::lexical_normalize(target_dir))
+    let normalized = pnpm_fs::lexical_normalize(target_dir);
+    !dirs.manifests_by_dir.contains_key(&normalized)
         && matches!(
             std::fs::symlink_metadata(target_dir),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound,
         )
+        && publishing_project_manifest(dirs, &normalized).is_none()
 }
 
 fn linked_target_satisfies(

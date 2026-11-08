@@ -469,8 +469,7 @@ fn a_reinstall_replaces_a_shim_whose_helpers_have_no_path_fallback() {
     let outdated = generate_sh_shim(&target, &shim, None, &[], None)
         .replace("run_helper readlink", "command -p readlink")
         .replace("run_helper printf", "command -p printf")
-        .replace("run_helper sed", "command -p sed")
-        .replace("run_helper uname", "command -p uname");
+        .replace("run_helper sed", "command -p sed");
     write_file(&shim, &outdated).unwrap();
     assert!(
         is_shim_pointing_at(&outdated, &shim, &target),

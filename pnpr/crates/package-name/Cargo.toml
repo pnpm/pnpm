@@ -11,6 +11,7 @@ license-file = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
+pnpm-package-name = { workspace = true }
 pnpr-error = { workspace = true }
 derive_more = { workspace = true }
 pep508_rs = { workspace = true }

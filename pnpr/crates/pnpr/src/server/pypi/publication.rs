@@ -69,7 +69,7 @@ pub(in super::super) async fn validate_upload(
     upload: Upload,
 ) -> Result<PypiPublication, RegistryError> {
     let target = authorize_upload(state, identity, registry, &upload)?;
-    verify_upload(target, upload)
+    verify_upload(target, upload).await
 }
 
 /// Where an upload writes, once its fields are consistent and the caller is
@@ -125,7 +125,16 @@ pub(in super::super) fn authorize_upload(
 
 /// Check the file against the digest it was uploaded with, and build the
 /// entry that will record it.
-pub(in super::super) fn verify_upload(
+pub(in super::super) async fn verify_upload(
+    target: PypiTarget,
+    upload: Upload,
+) -> Result<PypiPublication, RegistryError> {
+    tokio::task::spawn_blocking(move || verify_distribution(target, upload))
+        .await
+        .map_err(RegistryError::JoinError)?
+}
+
+fn verify_distribution(
     target: PypiTarget,
     upload: Upload,
 ) -> Result<PypiPublication, RegistryError> {
@@ -137,6 +146,7 @@ pub(in super::super) fn verify_upload(
     {
         return Err(bad_request("sha256_digest does not match the uploaded file"));
     }
+    verify_distribution_metadata(&upload)?;
     let entry = ProjectFile {
         filename: upload.filename,
         url: None,
@@ -144,9 +154,48 @@ pub(in super::super) fn verify_upload(
         requires_python: upload.requires_python,
         yanked: Yanked::Flag(false),
         size: Some(upload.content.len() as u64),
+        core_metadata: None,
+        dist_info_metadata: None,
+        data_dist_info_metadata: None,
         upload_time: Some(now_iso()),
     };
     Ok(PypiPublication { key, org, entry, content: upload.content })
+}
+
+fn verify_distribution_metadata(upload: &Upload) -> Result<(), RegistryError> {
+    let metadata = if upload.filename.ends_with(".tar.gz") {
+        pnpr_pypi::archive::metadata_from_sdist(&upload.content, &upload.filename)
+    } else {
+        pnpr_pypi::archive::metadata_from_zip(
+            &upload.content,
+            &upload.filename,
+            parse_distribution_filename(&upload.filename).map_err(bad_request)?.kind,
+        )
+    }
+    .map_err(bad_request)?;
+    let metadata = std::str::from_utf8(&metadata).map_err(bad_request)?;
+    for field in ["Name", "Version"] {
+        let count = metadata
+            .lines()
+            .take_while(|line| !line.is_empty())
+            .filter(|line| !line.starts_with([' ', '\t']))
+            .filter_map(|line| line.split_once(':'))
+            .filter(|(name, _)| name.trim().eq_ignore_ascii_case(field))
+            .count();
+        if count != 1 {
+            return Err(bad_request(format!(
+                "distribution metadata must carry exactly one {field} field",
+            )));
+        }
+    }
+    pnpm_python_resolver::WheelMetadata::parse_for(
+        metadata,
+        &upload.name.parse().map_err(bad_request)?,
+        &upload.version.parse().map_err(bad_request)?,
+        &upload.filename,
+    )
+    .map_err(|err| bad_request(format!("{err:#}")))?;
+    Ok(())
 }
 
 impl PypiPublication {
@@ -169,9 +218,8 @@ impl PypiPublication {
             &self.content,
             refuse_existing_file(&self.entry.filename),
             ProjectDocument {
-                format_version: pnpr_pypi::PROJECT_DOCUMENT_FORMAT_VERSION,
-                name: self.key.as_str().to_string(),
                 files: vec![self.entry.clone()],
+                ..ProjectDocument::new(self.key.as_str())
             },
         )
         .await
@@ -191,25 +239,24 @@ impl PypiPublication {
             &self.content,
             &refuse_existing_file(&self.entry.filename),
             ProjectDocument {
-                format_version: pnpr_pypi::PROJECT_DOCUMENT_FORMAT_VERSION,
-                name: self.key.as_str().to_string(),
                 files: vec![self.entry.clone()],
+                ..ProjectDocument::new(self.key.as_str())
             },
         )
         .await
     }
 }
 
-/// A published distribution file is immutable, so a document that already
-/// carries `filename` is one this upload must not land on.
+/// Published and deleted filenames are immutable.
 pub(super) fn refuse_existing_file(
     filename: &str,
 ) -> impl Fn(&ProjectDocument) -> Result<(), RegistryError> {
     let filename = filename.to_string();
-    move |document: &ProjectDocument| match document.file(&filename) {
-        Some(_) => {
+    move |document: &ProjectDocument| {
+        if document.file(&filename).is_some() || document.deleted_files.contains(&filename) {
             Err(RegistryError::BadRequest { reason: format!("File already exists: {filename:?}") })
+        } else {
+            Ok(())
         }
-        None => Ok(()),
     }
 }

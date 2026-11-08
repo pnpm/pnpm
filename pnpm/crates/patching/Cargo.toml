@@ -21,17 +21,18 @@ diffy = { workspace = true }
 indexmap = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
+pnpm-process = { path = "../process" }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+pnpm-fs = { workspace = true, features = ["test"] }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }
 text-block-macros = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 tempfile = { workspace = true }
-pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

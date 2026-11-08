@@ -258,6 +258,7 @@ pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
             packument: None,
             blobs: base.blobs,
             references: artifact.references,
+            ..StagedBase::default()
         },
         slots: vec![slot],
         org: Some(org.to_string()),

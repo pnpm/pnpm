@@ -751,6 +751,76 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
 }
 
 #[tokio::test]
+async fn mem_cache_spends_one_retry_budget_on_a_failing_archive() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let path = "/test-pkg-1.0.0.tgz";
+    let retry_opts = fast_retry_opts();
+    let mock = server
+        .mock("GET", path)
+        .with_status(503)
+        .expect(usize::try_from(retry_opts.retries).unwrap() + 1)
+        .create_async()
+        .await;
+    let url = format!("{}{path}", server.url());
+    let expected = integrity(FASTIFY_ERROR_INTEGRITY);
+    let client = ThrottledClient::default();
+    let mem_cache = MemCache::default();
+    let auth_headers = AuthHeaders::default();
+    let verified_files_cache = SharedVerifiedFilesCache::default();
+    let download = || IngestTarballToStore {
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &auth_headers,
+            retry_opts,
+            offline: false,
+            tar_limits: crate::TarLimits::default(),
+        },
+        package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
+            integrity: Some(&expected),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: "test-pkg@1.0.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+            prefetched_cas_paths: None,
+        },
+
+        requester: "",
+
+        ignore_file_pattern: None,
+
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
+    };
+
+    let (first, second) = futures_util::future::join(
+        download().run_with_mem_cache::<SilentReporter>(&mem_cache),
+        download().run_with_mem_cache::<SilentReporter>(&mem_cache),
+    )
+    .await;
+    let later = download().run_with_mem_cache::<SilentReporter>(&mem_cache).await;
+
+    for result in [first, second, later] {
+        let error = result.expect_err("every consumer must fail");
+        assert!(
+            error.to_string().contains("HTTP 503"),
+            "the owner's error must be reported; got {error}",
+        );
+    }
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
 async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;

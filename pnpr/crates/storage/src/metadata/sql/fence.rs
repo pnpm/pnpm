@@ -4,7 +4,7 @@
 
 use super::{
     adapter::{Connection, Query, Row},
-    blobs::{NOW, ROWS, id_from, json_array, rows_from},
+    blobs::{ROWS, id_from, json_array, rows_from},
     to_column,
 };
 use crate::{
@@ -196,21 +196,21 @@ fn write_live(
     (catalog, ecosystem): (&str, Ecosystem),
     artifact: &ArtifactBlob,
 ) -> Result<()> {
-    let sql = format!(
+    let sql =
         "INSERT INTO blobs (catalog, ecosystem, integrity, incarnation, state, size, changed_at)
-         VALUES (?1, ?2, ?3, ?4, 'live', ?5, {NOW})
+         VALUES (?1, ?2, ?3, ?4, 'live', ?5, ?6)
          ON CONFLICT (catalog, ecosystem, integrity) DO UPDATE
          SET incarnation = excluded.incarnation, state = 'live', size = excluded.size,
-             changed_at = excluded.changed_at",
-    );
+             changed_at = excluded.changed_at";
     transaction.execute(
-        &sql,
+        sql,
         params![
             catalog,
             ecosystem.as_str(),
             artifact.blob.id.as_str(),
             to_column(artifact.blob.incarnation),
             to_column(artifact.size),
+            crate::publish::now_millis(),
         ],
     )
 }
@@ -223,16 +223,14 @@ fn write_mapping(
     catalog: &str,
     artifact: &ArtifactBlob,
 ) -> Result<()> {
-    let sql = format!(
-        "INSERT INTO artifact_blobs
+    let sql = "INSERT INTO artifact_blobs
              (catalog, ecosystem, name, artifact, version, integrity, mapped_at, mapping)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, {NOW}, ?7)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?8, ?7)
          ON CONFLICT (catalog, ecosystem, name, artifact) DO UPDATE
          SET mapped_at = excluded.mapped_at, mapping = excluded.mapping
-         WHERE artifact_blobs.integrity = excluded.integrity",
-    );
+         WHERE artifact_blobs.integrity = excluded.integrity";
     transaction.execute(
-        &sql,
+        sql,
         params![
             catalog,
             artifact.ecosystem.as_str(),
@@ -241,6 +239,7 @@ fn write_mapping(
             artifact.version,
             artifact.blob.id.as_str(),
             super::mappings::new_mapping_token(),
+            crate::publish::now_millis(),
         ],
     )
 }

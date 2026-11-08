@@ -1,0 +1,97 @@
+use super::{StoredAccount, UserStore, UserStoreState, Users, persist_users_to_disk};
+use crate::{RegistryError, Result};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+    sync::{Arc, Mutex},
+};
+
+/// How an import handles a login name with different credentials.
+#[derive(Debug, Clone, Copy)]
+pub enum PasswordCollisions {
+    Keep,
+    Overwrite,
+}
+
+/// Whether imported records are written or only checked.
+#[derive(Debug, Clone, Copy)]
+pub enum ImportMode {
+    DryRun,
+    Persist,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PasswordImport {
+    pub collisions: PasswordCollisions,
+    pub mode: ImportMode,
+}
+
+impl UserStore {
+    /// Import password hashes into native account records, preserving IDs on overwrite.
+    pub fn import_password_hashes(
+        path: &Path,
+        hashes: HashMap<String, String>,
+        options: PasswordImport,
+    ) -> Result<(usize, Vec<String>)> {
+        let _lock = match options.mode {
+            ImportMode::DryRun => None,
+            ImportMode::Persist => Some(crate::lock_htpasswd(path)?),
+        };
+        let state = Arc::new(Mutex::new(UserStoreState::default()));
+        let mut users = Self::load_users_for_update(Some(path), &state)?;
+        let result = merge_hashes(&mut users, hashes, options.collisions)?;
+        match options.mode {
+            ImportMode::DryRun => {}
+            ImportMode::Persist => {
+                persist_users_to_disk(Some(path), &users)?;
+            }
+        }
+        Ok(result)
+    }
+}
+
+fn merge_hashes(
+    users: &mut Users,
+    hashes: HashMap<String, String>,
+    policy: PasswordCollisions,
+) -> Result<(usize, Vec<String>)> {
+    let mut skeletons: HashSet<_> = users
+        .iter()
+        .filter(|(_, account)| account.password_hash != crate::DELETED_USER_HASH)
+        .map(|(name, _)| crate::validation::username_skeleton_hash(name))
+        .collect();
+    let mut merged = 0;
+    let mut collisions = Vec::new();
+    for (name, hash) in hashes {
+        validate_imported_credentials(&name, &hash)?;
+        let Some(account) = users.get_mut(&name) else {
+            if !skeletons.insert(crate::validation::username_skeleton_hash(&name)) {
+                return Err(crate::validation::confusable_username());
+            }
+            users.insert(name, StoredAccount::new(hash));
+            merged += 1;
+            continue;
+        };
+        if account.password_hash == hash {
+            continue;
+        }
+        match policy {
+            PasswordCollisions::Keep => collisions.push(name),
+            PasswordCollisions::Overwrite => {
+                account.password_hash = hash;
+                merged += 1;
+            }
+        }
+    }
+    Ok((merged, collisions))
+}
+
+fn validate_imported_credentials(name: &str, hash: &str) -> Result<()> {
+    crate::validation::validate_username(name)?;
+    if !crate::htpasswd::is_supported_hash(hash) {
+        return Err(RegistryError::BadRequest {
+            reason: format!("unsupported password hash for {name:?}"),
+        });
+    }
+    Ok(())
+}

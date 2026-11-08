@@ -407,6 +407,7 @@ impl ResolverChainInputs<'_> {
         let local_ctx = LocalResolverContext {
             preserve_absolute_paths: false,
             integrity_target: self.config.lockfile_integrity_target,
+            ..Default::default()
         };
         chain.extend([
             Box::new(Arc::clone(npm_resolver)) as Box<dyn Resolver>,

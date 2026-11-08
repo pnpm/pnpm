@@ -1,17 +1,11 @@
-#[cfg(target_family = "wasm")]
-pub(crate) use pnpm_process as process;
-#[cfg(target_family = "wasm")]
-pub(crate) use pnpm_process::asynchronous as async_process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use tokio::process as async_process;
-
 pub mod custom_fetcher_adapter;
 pub mod custom_resolver_adapter;
 pub mod finder;
 pub mod node_runtime;
 pub mod worker;
+
+pub(crate) use pnpm_process as process;
+pub(crate) use pnpm_process::asynchronous as async_process;
 pub use worker::LogFn;
 
 use async_trait::async_trait;

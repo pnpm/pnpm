@@ -1,3 +1,5 @@
+pub(super) mod npm_errors;
+
 pub(super) use super::{
     Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_PUBLISH_BODY_BYTES,
     MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, authenticate, authorize_package, batch,
@@ -109,7 +111,8 @@ fn finish_router(
         // Inside the trace layer below, so a rejection is still one record.
         .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
         .merge(main_listener_metrics_routes(&state));
-    let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout);
+    let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout)
+        .layer(axum::middleware::from_fn(npm_errors::render));
     if !cors_origins.is_empty() {
         router = router.layer(
             CorsLayer::new()
@@ -186,15 +189,23 @@ fn apply_request_timeout(
         move |request: axum::extract::Request, next: axum::middleware::Next| async move {
             match tokio::time::timeout(timeout_duration, next.run(request)).await {
                 Ok(response) => response,
-                Err(_) => (
-                    StatusCode::GATEWAY_TIMEOUT,
-                    [(header::CONTENT_TYPE, "application/json")],
-                    r#"{"error":"request timed out"}"#,
-                )
-                    .into_response(),
+                Err(_) => request_timeout_response(),
             }
         },
     ))
+}
+
+fn request_timeout_response() -> Response {
+    let mut response = (
+        StatusCode::GATEWAY_TIMEOUT,
+        [(header::CONTENT_TYPE, "application/json")],
+        r#"{"error":"request timed out"}"#,
+    )
+        .into_response();
+    response
+        .extensions_mut()
+        .insert(pnpr_error::PublicErrorMessage("request timed out".to_string()));
+    response
 }
 
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {

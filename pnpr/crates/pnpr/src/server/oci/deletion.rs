@@ -62,28 +62,6 @@ impl Request {
         );
     }
 
-    async fn ensure_blob_unreferenced(
-        &self,
-        storage: &pnpr_storage::Storage,
-        key: &CanonicalPackageName,
-        digest: &Digest,
-        document: &ImageDocument,
-    ) -> Result<(), RegistryError> {
-        let reachable = referenced_document_blobs(
-            storage,
-            key,
-            document,
-            self.state.inner.config.http.oci.max_manifest_bytes,
-        )
-        .await?;
-        if reachable.contains(&digest.blob_filename()) {
-            return Err(RegistryError::BadRequest {
-                reason: format!("{digest} is referenced by a retained manifest"),
-            });
-        }
-        Ok(())
-    }
-
     /// One attempt at deleting the blob: dropping the repository's mapping
     /// of it, which holds only while the repository's document is the one it
     /// was found unreferenced in, and reclaiming its bytes unless another
@@ -103,7 +81,19 @@ impl Request {
         if base.artifacts.is_empty() {
             return Ok(Some(error(ErrorCode::BlobUnknown, "no such blob")));
         }
-        self.ensure_blob_unreferenced(storage, key, digest, &document).await?;
+        let reachable = referenced_document_blobs(
+            storage,
+            key,
+            &document,
+            self.state.inner.config.http.oci.max_manifest_bytes,
+        )
+        .await?;
+        if reachable.contains(&filename) {
+            return Ok(Some(error(
+                ErrorCode::Denied,
+                format!("{digest} is referenced by a retained manifest"),
+            )));
+        }
         let expected = base.package_generation();
         match storage.unmap_hosted_artifacts(key, expected, vec![filename]).await? {
             Some(_) => Ok(Some(no_content(StatusCode::ACCEPTED))),

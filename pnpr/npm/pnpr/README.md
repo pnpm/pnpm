@@ -166,14 +166,14 @@ s3:
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 
-metadata:
+database:
   # Package metadata of a hosted registry on S3 lives in a libSQL database.
   url: libsql://<your-db>.turso.io
   authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
-A registry that hosts packages on S3 needs `metadata.url` to name a libSQL
-database. pnpr refuses to start without one.
+A registry that hosts packages on S3 needs `database.url` to name a libSQL,
+PostgreSQL, or MySQL database. pnpr refuses to start without one.
 
 | Key | Required | Description |
 | --- | --- | --- |
@@ -240,27 +240,25 @@ s3:
   secretAccessKey: minioadmin
 ```
 
-### Storing users and tokens in a shared SQL database
+### Sharing package metadata, users, and tokens
 
-Auth state — the registered users and their bearer tokens — is the other
-piece of per-instance disk state. By default users live in an
-htpasswd file and tokens in a local SQLite database (see `auth:` above),
-so two `pnpr` replicas don't see each other's accounts. Adding a
-`backend:` block moves both into one shared SQL database, so several
-stateless replicas share a consistent set of logins and tokens — the
-auth half of running `pnpr` horizontally scaled.
+A libSQL, PostgreSQL, or MySQL `database.url` selects the database for package
+metadata, users, and tokens.
+Before changing it on an existing registry, move or restore its package metadata
+into the target database. Changing the URL does not copy data. An empty database
+has no published packages.
 
-The same auth traits drive every backend, and the SQL schema sticks to
-common column types so records can be moved between supported drivers.
-Only one backend may be selected in a config file.
+Without a shared database, users live in an htpasswd file and tokens in a local
+SQLite database (see `auth:` above). Replicas using the same shared database see
+the same accounts, tokens, and package metadata.
 
 Database drivers are Cargo-feature gated:
 
 | Backend | Config key | Cargo feature |
 | --- | --- | --- |
-| libsql / Turso | `backend.libsql` | `backend-libsql` (enabled by default) |
-| PostgreSQL | `backend.postgres` | `backend-postgres` |
-| MySQL-compatible | `backend.mysql` | `backend-mysql` |
+| libsql / Turso | `database.url: libsql://…` | `backend-libsql` (enabled by default) |
+| PostgreSQL | `database.url: postgres://…` | `backend-postgres` |
+| MySQL-compatible | `database.url: mysql://…` | `backend-mysql` |
 
 Token lookups happen on the request hot path, so the database should be
 low-latency from the server.
@@ -268,14 +266,13 @@ low-latency from the server.
 ```yaml
 storage: ./storage
 
-backend:
-  libsql:
-    # libsql/Turso database URL. `libsql://…` for Turso, or
-    # `http://127.0.0.1:8080` for a local `sqld`.
-    url: ${PNPR_LIBSQL_URL}
-    # Bearer token for the database. Omit for an unauthenticated local
-    # `sqld`.
-    authToken: ${PNPR_LIBSQL_TOKEN}
+database:
+  # libsql/Turso database URL. `libsql://…` for Turso, or
+  # `http://127.0.0.1:8080` for a local `sqld`.
+  url: ${PNPR_LIBSQL_URL}
+  # Bearer token for the database. Omit for an unauthenticated local
+  # `sqld`.
+  authToken: ${PNPR_LIBSQL_TOKEN}
 ```
 
 | Key | Required | Description |
@@ -289,12 +286,11 @@ Token lookups happen on the request hot path, so for a remote primary
 (e.g. Turso) set `replicaPath` to serve reads from a local replica:
 
 ```yaml
-backend:
-  libsql:
-    url: ${PNPR_LIBSQL_URL}
-    authToken: ${PNPR_LIBSQL_TOKEN}
-    replicaPath: ./auth-replica.db
-    syncInterval: 60s
+database:
+  url: ${PNPR_LIBSQL_URL}
+  authToken: ${PNPR_LIBSQL_TOKEN}
+  replicaPath: ./auth-replica.db
+  syncInterval: 60s
 ```
 
 The trade-off is read freshness: an embedded replica reflects another
@@ -305,25 +301,23 @@ revocation lag. Omit `replicaPath` to always read the primary directly.
 PostgreSQL:
 
 ```yaml
-backend:
-  postgres:
-    url: ${PNPR_POSTGRES_URL}
-    maxConnections: 16
+database:
+  url: ${PNPR_POSTGRES_URL}
+  maxConnections: 16
 ```
 
 MySQL:
 
 ```yaml
-backend:
-  mysql:
-    url: ${PNPR_MYSQL_URL}
-    maxConnections: 16
+database:
+  url: ${PNPR_MYSQL_URL}
+  maxConnections: 16
 ```
 
 For PostgreSQL or MySQL support, build pnpr with the matching Cargo
 feature, for example `cargo build -p pnpr --features backend-postgres`.
 
-When the `backend:` block is absent, auth stays on local disk and the
+When the `database:` block is absent, auth stays on local disk and the
 `auth.htpasswd` / `auth.tokens` settings apply as before. The
 `auth.htpasswd.maxUsers` registration cap is honored either way.
 
@@ -331,7 +325,7 @@ When the `backend:` block is absent, auth stays on local disk and the
 
 Several `pnpr` processes can serve one registry behind a load balancer once
 they share their state. Give every replica the same `s3:` bucket for hosted
-packages and the same `backend:` database for users and tokens, and give each
+packages and the same `database:` database for users and tokens, and give each
 its own `storage` path for what stays local.
 
 Requests need no affinity. Every write into the shared bucket is conditional:
@@ -356,7 +350,7 @@ What stays local to each replica:
 - blob upload sessions of the image registry when hosted packages are on
   local disk, which is why `docker push` needs sticky sessions there; with
   `s3:` an upload continues on any replica
-- accounts and tokens, unless a `backend:` database is configured
+- accounts and tokens, unless a `database:` database is configured
 
 Pipeline run records are shared: a run submitted through one replica is listed
 and served by every other, and a run id stays append-only across all of them.

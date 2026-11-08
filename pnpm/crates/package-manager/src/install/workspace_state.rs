@@ -15,6 +15,7 @@ use super::{
     PathBuf, ProjectEntry, WorkspaceState, manifest_string_field,
 };
 use crate::install_state::last_validated_timestamp;
+use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_reporter::Reporter;
 use pnpm_workspace_state::update_workspace_state_in_modules;
 
@@ -277,7 +278,11 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     state.settings.default_registry = None;
     state.settings.registry_routes = None;
     if node_linker == NodeLinker::Hoisted {
-        record_hoisted_modules_dirs(&mut state.projects, project_manifests);
+        record_hoisted_modules_dirs(
+            &mut state.projects,
+            project_manifests,
+            &ImporterModulesDirs::from_config(config, workspace_root),
+        );
     }
     state
 }
@@ -313,11 +318,11 @@ pub(crate) fn recorded_auto_dedupe(config: &Config, established: Option<bool>) -
 fn record_hoisted_modules_dirs(
     projects: &mut BTreeMap<String, ProjectEntry>,
     project_manifests: &[(PathBuf, &PackageManifest)],
+    modules_dirs: &ImporterModulesDirs,
 ) {
     for (root_dir, _) in project_manifests {
         if let Some(entry) = projects.get_mut(&*root_dir.to_string_lossy()) {
-            entry.has_modules_dir =
-                crate::install_state::hoisted_project_modules_dir(root_dir).is_dir();
+            entry.has_modules_dir = modules_dirs.of(root_dir).is_dir();
         }
     }
 }

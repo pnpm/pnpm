@@ -51,6 +51,7 @@ fn deprecates_a_package_version_successfully() {
 
     let put_mock = server
         .mock("PUT", "/@scope%2ftest")
+        .match_header("npm-command", "deprecate")
         .match_header("content-type", "application/json")
         .match_body(Matcher::Json(serde_json::json!({
             "versions": {

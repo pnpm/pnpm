@@ -76,15 +76,19 @@ export async function createHeadlessDepGraph (ctx: HeadlessContext): Promise<Hea
 /**
  * Under `nodeLinker: hoisted` all projects share one node_modules, and the
  * install removes whatever the new hoisted tree leaves out. A selected install
- * therefore also keeps each project the previous install materialized a
- * package for. A project no install materialized stays out.
+ * therefore also keeps each project on disk that the previous install
+ * materialized a package for. A project no install materialized, or one that is
+ * missing from disk, stays out.
  */
 function pickInitialImporterIds (ctx: HeadlessContext): ProjectId[] {
   const wantedImporterIds = Object.keys(ctx.wantedLockfile.importers) as ProjectId[]
   if (ctx.opts.ignorePackageManifest === true) return wantedImporterIds
   const selectedIds = ctx.selectedProjects.map(({ id }) => id)
   if (ctx.opts.nodeLinker !== 'hoisted' || ctx.currentLockfile == null) return selectedIds
-  return Array.from(new Set([...selectedIds, ...pickMaterializedImporterIds(ctx.currentLockfile, wantedImporterIds)]))
+  const existingImporterIds = Object.values(ctx.opts.allProjects)
+    .map(({ id }) => id)
+    .filter((id) => id in ctx.wantedLockfile.importers)
+  return Array.from(new Set([...selectedIds, ...pickMaterializedImporterIds(ctx.currentLockfile, existingImporterIds)]))
 }
 
 function addLinkedDependenciesToLockfile (

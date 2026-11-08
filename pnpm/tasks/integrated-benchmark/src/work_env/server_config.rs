@@ -1,4 +1,4 @@
-use super::{PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_PASSWORD, PNPR_BENCHMARK_USERNAME};
+use super::{PNPR_BENCHMARK_PASSWORD, PNPR_BENCHMARK_USERNAME};
 use crate::latency_proxy::LatencyProxy;
 use serde::Serialize;
 use serde_json::Value;
@@ -76,18 +76,16 @@ pub(super) fn wait_for_pnpr_ready(port: u16) {
     }
     panic!("pnpr server on 127.0.0.1:{port} did not become ready");
 }
-pub(super) fn seed_pnpr_auth(pnpr_storage: &Path) {
-    fs::create_dir_all(pnpr_storage).expect("create pnpr storage before seeding auth");
-    fs::write(pnpr_storage.join("htpasswd"), PNPR_BENCHMARK_HTPASSWD)
-        .expect("seed pnpr benchmark htpasswd");
-}
 pub(super) fn write_pnpr_benchmark_config(
     bench_dir: &Path,
     pnpr_storage: &Path,
     public_route_registries: &[&str],
 ) -> PathBuf {
     let path = bench_dir.join("pnpr-config.yaml");
-    let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries);
+    let source = fs::read_to_string(bench_dir.join("pacquet/pnpr/.fixtures/config.yaml"))
+        .expect("read the revision account configuration");
+    let auth = super::revision_auth::seed_auth(&source, pnpr_storage);
+    let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries, auth);
     fs::write(&path, yaml).expect("write pnpr benchmark config");
     path
 }
@@ -170,19 +168,12 @@ pub(super) struct ColdMockLog {
 pub(super) fn pnpr_benchmark_config_yaml(
     pnpr_storage: &Path,
     public_route_registries: &[&str],
+    auth: Value,
 ) -> String {
     let config = PnprBenchmarkConfig {
         storage: pnpr_storage.display().to_string(),
         secret: "pnpr-integrated-benchmark-secret",
-        auth: PnprBenchmarkAuth {
-            htpasswd: PnprBenchmarkHtpasswd {
-                file: pnpr_storage
-                    .join("htpasswd")
-                    .display()
-                    .to_string(),
-                max_users: -1,
-            },
-        },
+        auth,
         routes: PnprBenchmarkRoutes {
             public: public_route_registries
                 .iter()
@@ -209,19 +200,9 @@ pub(super) fn distinct_public_route_registries<const REGISTRY_COUNT: usize>(
 pub(super) struct PnprBenchmarkConfig {
     storage: String,
     secret: &'static str,
-    auth: PnprBenchmarkAuth,
+    auth: Value,
     routes: PnprBenchmarkRoutes,
     log: PnprBenchmarkLog,
-}
-#[derive(Serialize)]
-pub(super) struct PnprBenchmarkAuth {
-    htpasswd: PnprBenchmarkHtpasswd,
-}
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct PnprBenchmarkHtpasswd {
-    file: String,
-    max_users: i64,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

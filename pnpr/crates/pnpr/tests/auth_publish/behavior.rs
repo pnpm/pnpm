@@ -27,7 +27,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -56,7 +56,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     // A present-but-non-string integrity must be rejected — otherwise it slips
     // past the string-only immutability check and breaks tarball serving.
     packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(null);
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+    let request = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
@@ -77,7 +77,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let first = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -110,6 +110,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
         Some(sri_sha512(&npm_tgz("mypkg", "1.0.0", b"original")).as_str()),
     );
     let body = json!({
+        "_rev": hosted["_rev"],
         "_id": "mypkg",
         "name": "mypkg",
         "dist-tags": { "latest": "1.0.0" },
@@ -159,7 +160,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let first = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -226,7 +227,7 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let first = Request::put("/npm/mypkg")
         .header("content-type", "application/json")
@@ -293,7 +294,7 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let hosted_bytes = &npm_tgz("pref-pkg", "1.0.0", b"hosted-bytes");
     let body = publish_doc("pref-pkg", "1.0.0", hosted_bytes);
@@ -387,7 +388,7 @@ async fn search_filters_protected_packages_for_anonymous_callers() {
     assert_eq!(body["total"], names.len(), "total must reflect post-filter count");
 
     // Authenticated: same query should return the package.
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
     let response = app
         .oneshot(
             Request::get("/npm/-/v1/search?text=needs-auth&size=20")
@@ -509,7 +510,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // First publish 1.0.0
     let body = publish_doc("tagpkg", "1.0.0", b"v1");
@@ -619,7 +620,7 @@ async fn dist_tag_mutations_refresh_time_modified() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("time-mod-pkg", "1.0.0", b"x");
     let request = Request::put("/npm/time-mod-pkg")
@@ -757,7 +758,7 @@ async fn preauthorize_publish_rejects_unauthorized_package_without_reading_body(
         "  'forbidden-pkg':\n    publish: bob\n    access: $all",
     );
     let app = router(config);
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let make_pending_body = || {
         let stream =

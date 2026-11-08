@@ -104,14 +104,6 @@ enum RuntimePolicy {
     Config(bool),
 }
 
-impl RuntimePolicy {
-    fn use_manifest(self, config: &Config) -> bool {
-        match self {
-            Self::Config(no_runtime) => !(config.skip_runtimes || no_runtime),
-        }
-    }
-}
-
 async fn prepare_root_config<Reporter>(
     (manifest_path, config, config_root): (&Path, &mut Config, &Path),
     (frozen_lockfile, runtime_policy): (bool, RuntimePolicy),
@@ -127,20 +119,10 @@ where
         .as_ref()
         .is_some_and(|dependencies| !dependencies.is_empty());
     if !may_update_config && !has_config_dependencies && config.engine_strict {
-        check_root_project_engine(
-            manifest_path,
-            config,
-            runtime_policy.use_manifest(config),
-            Reporter::emit,
-        )?;
+        check_root_project_engine(manifest_path, config, Reporter::emit)?;
     }
     config_deps::prepare::<Reporter>(config, config_root, frozen_lockfile).await?;
-    check_root_project_engine(
-        manifest_path,
-        config,
-        runtime_policy.use_manifest(config),
-        Reporter::emit,
-    )?;
+    check_root_project_engine(manifest_path, config, Reporter::emit)?;
     Ok(())
 }
 

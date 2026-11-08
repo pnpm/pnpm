@@ -15,6 +15,7 @@ use std::{
 };
 
 struct CanonicalBackend {
+    confusable_insert: bool,
     user: StoredUser,
 }
 
@@ -32,6 +33,13 @@ struct CappedBackend {
 
 #[async_trait]
 impl AuthSqlBackend for CanonicalBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(Some(self.user.clone()))
     }
@@ -50,6 +58,9 @@ impl AuthSqlBackend for CanonicalBackend {
         _bcrypt_hash: &str,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
+        if self.confusable_insert {
+            return Ok(InsertUser::Confusable);
+        }
         Ok(InsertUser::Existing(self.user.clone()))
     }
 
@@ -88,6 +99,13 @@ impl AuthSqlBackend for CanonicalBackend {
 
 #[async_trait]
 impl AuthSqlBackend for SlowLookupBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
     }
@@ -145,6 +163,13 @@ impl AuthSqlBackend for SlowLookupBackend {
 
 #[async_trait]
 impl AuthSqlBackend for SlowWriteBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
     }
@@ -163,7 +188,7 @@ impl AuthSqlBackend for SlowWriteBackend {
         _bcrypt_hash: &str,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
-        Ok(InsertUser::Created)
+        Ok(InsertUser::Created("account-id".to_string()))
     }
 
     async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
@@ -203,6 +228,13 @@ impl AuthSqlBackend for SlowWriteBackend {
 
 #[async_trait]
 impl AuthSqlBackend for CountingLookupBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         self.stored_user_calls.fetch_add(1, Ordering::SeqCst);
         Ok(None)
@@ -222,7 +254,7 @@ impl AuthSqlBackend for CountingLookupBackend {
         _bcrypt_hash: &str,
         _max_users: MaxUsers,
     ) -> Result<InsertUser> {
-        Ok(InsertUser::Created)
+        Ok(InsertUser::Created("account-id".to_string()))
     }
 
     async fn insert_token(&self, _token_hash: &str, _record: &TokenRecord) -> Result<()> {
@@ -260,6 +292,13 @@ impl AuthSqlBackend for CountingLookupBackend {
 
 #[async_trait]
 impl AuthSqlBackend for CappedBackend {
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        Ok(self.stored_user(id).await?.map(|account| account.username))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+
     async fn stored_user(&self, _username: &str) -> Result<Option<StoredUser>> {
         Ok(None)
     }
@@ -319,7 +358,9 @@ impl AuthSqlBackend for CappedBackend {
 async fn add_or_login_propagates_corrupt_hash_errors() {
     let auth = SqlAuth::new(
         CanonicalBackend {
+            confusable_insert: false,
             user: StoredUser {
+                id: "account-id".to_string(),
                 username: "Alice".to_string(),
                 bcrypt_hash: "not-a-bcrypt-hash".to_string(),
             },
@@ -328,24 +369,31 @@ async fn add_or_login_propagates_corrupt_hash_errors() {
         Duration::from_secs(30),
     );
 
-    let err = auth.add_or_login("alice", "secret").await.unwrap_err();
+    let err = auth.add_or_login("alice", "secret123").await.unwrap_err();
 
     assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
 }
 
 #[tokio::test]
-async fn add_or_login_returns_the_stored_username_for_existing_users() {
-    let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
+async fn add_or_login_returns_the_immutable_id_for_existing_users() {
+    let bcrypt_hash = bcrypt::hash("secret123", 4).unwrap();
     let auth = SqlAuth::new(
-        CanonicalBackend { user: StoredUser { username: "Alice".to_string(), bcrypt_hash } },
+        CanonicalBackend {
+            confusable_insert: false,
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "Alice".to_string(),
+                bcrypt_hash,
+            },
+        },
         MaxUsers::Unlimited,
         Duration::from_secs(30),
     );
 
-    let outcome = auth.add_or_login("alice", "secret").await.unwrap();
+    let outcome = auth.add_or_login("alice", "secret123").await.unwrap();
 
     assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
-    assert_eq!(outcome.1, "Alice");
+    assert_eq!(outcome.1, "account-id");
 }
 
 #[tokio::test]
@@ -359,14 +407,14 @@ async fn add_or_login_rejects_invalid_usernames_without_db_lookup() {
     let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
 
     for username in ["", " alice", "alice ", "#alice", "alice:admin", "alice\nadmin"] {
-        let err = auth.add_or_login(username, "secret").await.unwrap_err();
+        let err = auth.add_or_login(username, "secret123").await.unwrap_err();
         assert_eq!(
             err.status_code(),
             axum::http::StatusCode::BAD_REQUEST,
             "expected {username:?} to be rejected",
         );
     }
-    let err = auth.add_or_login(&overlong, "secret").await.unwrap_err();
+    let err = auth.add_or_login(&overlong, "secret123").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
 }
@@ -381,7 +429,7 @@ async fn add_or_login_rate_limits_capped_reconciliation() {
     );
 
     for username in ["alice", "bob", "carol"] {
-        let err = auth.add_or_login(username, "secret").await.unwrap_err();
+        let err = auth.add_or_login(username, "secret123").await.unwrap_err();
         assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }));
     }
 
@@ -404,4 +452,113 @@ async fn token_issue_waits_for_slow_backend_write() {
     let token = auth.issue("alice").await.unwrap();
 
     assert!(!token.is_empty());
+}
+
+#[tokio::test]
+async fn provisioning_confusable_names_returns_the_validation_error() {
+    let auth = SqlAuth::new(
+        CanonicalBackend {
+            confusable_insert: true,
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "modern".to_string(),
+                bcrypt_hash: crate::NO_PASSWORD_HASH.to_string(),
+            },
+        },
+        MaxUsers::Unlimited,
+        Duration::from_secs(30),
+    );
+    let error = auth.provision_user("rnodern").await.unwrap_err();
+    assert!(matches!(error, RegistryError::BadRequest { .. }));
+    assert_eq!(error.to_string(), crate::validation::confusable_username().to_string());
+}
+
+#[tokio::test]
+async fn password_policy_rejects_existing_short_credentials() {
+    let auth = SqlAuth::new(
+        CanonicalBackend {
+            confusable_insert: false,
+            user: StoredUser {
+                id: "account-id".to_string(),
+                username: "member".to_string(),
+                bcrypt_hash: bcrypt::hash("short", 4).unwrap(),
+            },
+        },
+        MaxUsers::Unlimited,
+        Duration::from_secs(30),
+    );
+    let error = auth.add_or_login("member", "short").await.unwrap_err();
+    assert!(matches!(error, RegistryError::BadRequest { .. }));
+}
+
+pub(super) fn saturated_pool_settings(variable: &str) -> pnpr_config::SqlBackendSettings {
+    pnpr_config::SqlBackendSettings {
+        url: std::env::var(variable).expect("database test URL"),
+        max_connections: Some(1),
+        timeout: Duration::from_millis(250),
+        startup_timeout: Duration::from_secs(5),
+    }
+}
+
+pub(super) async fn assert_saturated_auth_writes_timeout(database: impl AuthSqlBackend) {
+    let insert = tokio::time::timeout(
+        Duration::from_secs(2),
+        database.insert_user("example", "unused", MaxUsers::Unlimited),
+    )
+    .await
+    .expect("user write waited for the startup deadline")
+    .map(|_| ());
+    assert!(matches!(insert, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))), "{insert:?}");
+    let delete = tokio::time::timeout(Duration::from_secs(2), database.delete_token("missing"))
+        .await
+        .expect("token write waited for the startup deadline");
+    assert!(matches!(delete, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))), "{delete:?}");
+}
+
+pub(super) async fn assert_network_auth_roundtrip(auth: impl UserBackend + TokenBackend) {
+    let id = auth.provision_user("example").await.unwrap();
+    assert!(auth.provision_user("example").await.is_err());
+    auth.rename_user(&id, "renamed").await.unwrap();
+    assert_eq!(
+        auth.account_name(&id).await
+            .unwrap()
+            .as_deref(),
+        Some("renamed"),
+    );
+    assert_eq!(
+        auth.accounts_by_id(std::slice::from_ref(&id)).await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(auth.list_users().await.unwrap(), ["renamed"]);
+    assert_eq!(
+        auth.list_accounts().await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(auth.account_id("renamed").await.unwrap(), Some(id.clone()));
+    let token = auth.issue(&id).await.unwrap();
+    assert_eq!(auth.lookup(&token).await.unwrap(), Some(id.clone()));
+    auth.delete_user(&id).await.unwrap();
+    assert!(
+        auth.lookup(&token).await
+            .unwrap()
+            .is_none(),
+    );
+}
+
+pub(super) fn test_database_name(directory: &tempfile::TempDir) -> String {
+    format!(
+        "auth_{}",
+        directory
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace(['.', '-'], "")
+            .to_ascii_lowercase(),
+    )
 }

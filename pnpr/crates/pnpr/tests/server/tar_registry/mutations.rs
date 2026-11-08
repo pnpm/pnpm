@@ -92,7 +92,13 @@ async fn a_partial_unpublish_through_a_tar_registry_keeps_the_stored_dist_and_de
         .unwrap()
         .remove("1.0.1");
     packument["dist-tags"]["latest"] = serde_json::json!("1.0.0");
-    let response = put_json(&app, "/npm/~zstd/@acme%2Fwidget/-rev/1-0", &token, &packument).await;
+    let response = put_json(
+        &app,
+        &format!("/npm/~zstd/@acme%2Fwidget/-rev/{}", packument["_rev"].as_str().unwrap()),
+        &token,
+        &packument,
+    )
+    .await;
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let after = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
@@ -115,4 +121,60 @@ async fn a_partial_unpublish_through_a_tar_registry_keeps_the_stored_dist_and_de
         .await
         .unwrap();
     assert_eq!(client_delete.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn scoped_revisions_are_shared_across_tar_and_tgz_views_and_reject_stale_writes() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(acme_config(tmp.path().to_path_buf()), auth);
+    let tgz = gzip(&widget_tar());
+    let response = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/npm/~acme/@acme/widget",
+            "@acme/widget",
+            "1.0.0",
+            &tgz,
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let stale = body_json(get(&app, "/npm/~acme/@acme/widget", None).await.into_body()).await;
+    let mut changed =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fwidget", None).await.into_body()).await;
+    assert_eq!(stale["_rev"], changed["_rev"]);
+    changed["versions"]["1.0.0"]["deprecated"] = serde_json::json!("old");
+    assert_eq!(
+        put_json(&app, "/npm/~zstd/@acme%2Fwidget", &token, &changed).await.status(),
+        StatusCode::CREATED,
+    );
+    let mut removed = stale.clone();
+    removed["versions"] = serde_json::json!({});
+    let revision = stale["_rev"].as_str().unwrap();
+    for path in [
+        format!("/npm/~acme/@acme/widget/-rev/{revision}"),
+        format!("/npm/~zstd/@acme%2Fwidget/-rev/{revision}"),
+    ] {
+        assert_eq!(put_json(&app, &path, &token, &removed).await.status(), StatusCode::CONFLICT);
+    }
+    assert_eq!(
+        put_json(&app, "/npm/~acme/@acme/widget", &token, &stale).await.status(),
+        StatusCode::CONFLICT,
+    );
+    let after = body_json(get(&app, "/npm/~acme/@acme/widget", None).await.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["deprecated"], "old");
+    let mut restored = after.clone();
+    restored["versions"]["1.0.0"]
+        .as_object_mut()
+        .unwrap()
+        .remove("deprecated");
+    assert_eq!(
+        put_json(&app, "/npm/~acme/@acme/widget", &token, &restored).await.status(),
+        StatusCode::CREATED,
+    );
+    let after = body_json(get(&app, "/npm/~acme/@acme/widget", None).await.into_body()).await;
+    assert!(after["versions"]["1.0.0"].get("deprecated").is_none());
 }

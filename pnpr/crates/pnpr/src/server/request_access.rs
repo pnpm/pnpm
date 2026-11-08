@@ -136,15 +136,13 @@ pub(super) fn require_admin(
     }
 }
 
-pub(super) async fn caller_username(
+pub(super) async fn caller_user_id(
     state: &AppState,
     headers: &HeaderMap,
 ) -> Result<Option<String>, RegistryError> {
     let authorization = single_authorization_header(headers)?;
     let username = match authorization.and_then(authentication::bearer_credentials) {
-        Some(raw) if let Some(user) = state.inner.identity.oidc.session(raw)? => {
-            Some(user.username)
-        }
+        Some(raw) if let Some(user) = state.inner.identity.oidc.session(raw)? => Some(user.user_id),
         _ => identify(authorization, state.inner.identity.auth.tokens.as_ref()).await?,
     };
     if let Some(username) = &username
@@ -187,7 +185,7 @@ pub(super) async fn require_protocol_caller(
     next: Next,
     resource: &str,
 ) -> Response {
-    match caller_username(state, request.headers()).await {
+    match caller_user_id(state, request.headers()).await {
         Ok(Some(_username)) => next.run(request).await,
         Ok(None) => {
             RegistryError::Unauthenticated { resource: resource.to_string() }.into_response()

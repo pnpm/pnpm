@@ -118,3 +118,25 @@ fn refusals_preserve_registry_errors_for_batch_responses() {
     let restored = pnpr_error::RegistryError::from(super::Refusal::from(err));
     assert_eq!(restored.status_code(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
 }
+
+#[tokio::test]
+async fn open_circuit_response_preserves_retry_after_and_oci_json() {
+    use axum::http::{StatusCode, header};
+    let response =
+        super::response::registry_error(pnpr_error::RegistryError::UpstreamUnavailable {
+            upstream: "example-upstream".to_string(),
+            retry_after: std::time::Duration::from_secs(12),
+        });
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.headers()[header::RETRY_AFTER], "12");
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+    assert_eq!(response.headers()[super::API_VERSION_HEADER], "registry/2.0");
+    let bytes = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("example-upstream"),
+    );
+}

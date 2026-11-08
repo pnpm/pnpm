@@ -3,7 +3,7 @@ use super::{
     RevisionMockRegistry, WorkEnv, append_pnpr_auth_to_npmrc, cold_revision_mock_command,
     distinct_public_route_registries, mint_pnpr_token,
     mock_home::{COLD_ORIGIN, REVISION_MOCK, revision_mock_home},
-    seed_pnpr_auth, serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
 };
 use crate::{
     cli_args::{BenchmarkScenario, RegistryMode, TargetKind},
@@ -116,13 +116,11 @@ impl WorkEnv {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            let home = revision_mock_home(bench_dir, REVISION_MOCK);
-            self.allow_scenario_publisher();
-            let command = pnpm_registry_mock::pnpr_command_with_home(
+            let command = super::revision_auth::mock_command(
                 binary,
                 mock_port,
                 Some(public_url),
-                Some(home.as_path()),
+                &revision_mock_home(bench_dir, REVISION_MOCK),
             );
             (command, None)
         }
@@ -152,11 +150,11 @@ impl WorkEnv {
         let public_origin = latency_proxy
             .as_ref()
             .map(|proxy| format!("http://{}", proxy.addr));
-        let mut command = pnpm_registry_mock::pnpr_command_with_home(
+        let mut command = super::revision_auth::mock_command(
             binary,
             origin_port,
             public_origin.as_deref(),
-            Some(revision_mock_home(bench_dir, COLD_ORIGIN).as_path()),
+            &revision_mock_home(bench_dir, COLD_ORIGIN),
         );
         self.apply_serve_timing(&mut command);
         let process = command
@@ -225,7 +223,6 @@ impl WorkEnv {
             "pnpr binary not found at {binary:?} — the build step did not produce it",
         );
         let pnpr_storage = bench_dir.join("pnpr-storage");
-        seed_pnpr_auth(&pnpr_storage);
         let public_route_registries = if matches!(self.options.network.registry, RegistryMode::Npm)
         {
             Vec::new()

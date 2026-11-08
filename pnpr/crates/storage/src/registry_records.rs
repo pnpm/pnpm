@@ -1,7 +1,6 @@
-use super::{DocumentWrite, Result, Storage, validated_record_name};
+use super::{MetadataRecord, Result, Storage, validated_record_name};
 
-/// A kind of record the hosted store keeps per registry, one record per
-/// registry under a reserved namespace.
+/// An authoritative registry record in the metadata database.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegistryRecord {
     /// The team roster of a registry whose teams the admin API manages.
@@ -17,11 +16,11 @@ pub enum RegistryRecord {
 pub const SCIM_DIRECTORY: &str = "directory";
 
 impl RegistryRecord {
-    const fn namespace(self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
-            RegistryRecord::TeamRoster => ".team-rosters",
-            RegistryRecord::RuleOverrides => ".rule-overrides",
-            RegistryRecord::ScimUsers => ".scim-users",
+            RegistryRecord::TeamRoster => "team-roster",
+            RegistryRecord::RuleOverrides => "rule-overrides",
+            RegistryRecord::ScimUsers => "scim-users",
         }
     }
 }
@@ -31,8 +30,8 @@ impl Storage {
         &self,
         kind: RegistryRecord,
         registry: &str,
-    ) -> Result<Option<Vec<u8>>> {
-        self.root.read_record(kind.namespace(), &registry_record_key(registry)?).await
+    ) -> Result<Option<MetadataRecord>> {
+        self.database.read_record(record_key(kind, registry)?).await
     }
 
     /// Write the first record of `kind` for `registry`, reporting `false`
@@ -43,7 +42,11 @@ impl Storage {
         registry: &str,
         bytes: &[u8],
     ) -> Result<bool> {
-        self.root.create_record(kind.namespace(), &registry_record_key(registry)?, bytes).await
+        Ok(self.database
+            .write_record(record_key(kind, registry)?, None, bytes)
+            .await
+            .map_err(|failure| failure.error)?
+            .is_some())
     }
 
     /// Replace the record of `kind` for `registry` only while it still holds
@@ -52,16 +55,13 @@ impl Storage {
         &self,
         kind: RegistryRecord,
         registry: &str,
-        expected: &[u8],
+        expected: &MetadataRecord,
         bytes: &[u8],
-    ) -> Result<DocumentWrite> {
-        self.root.replace_record_if_current(
-            kind.namespace(),
-            &registry_record_key(registry)?,
-            expected,
-            bytes,
-        )
-        .await
+    ) -> Result<Option<MetadataRecord>> {
+        self.database
+            .write_record(record_key(kind, registry)?, Some(expected.generation), bytes)
+            .await
+            .map_err(|failure| failure.error)
     }
 
     pub async fn remove_registry_record(
@@ -69,7 +69,7 @@ impl Storage {
         kind: RegistryRecord,
         registry: &str,
     ) -> Result<bool> {
-        self.root.remove_record(kind.namespace(), &registry_record_key(registry)?).await
+        self.database.remove_record(record_key(kind, registry)?).await
     }
 }
 
@@ -80,5 +80,12 @@ fn registry_record_key(registry: &str) -> Result<String> {
         .split('/')
         .map(validated_record_name)
         .collect::<Result<Vec<_>>>()?;
-    Ok(format!("{}.json", segments.join("/")))
+    Ok(segments.join("/"))
+}
+
+fn record_key(kind: RegistryRecord, registry: &str) -> Result<crate::metadata::sql::RecordKey> {
+    Ok(crate::metadata::sql::RecordKey::Registry {
+        kind: kind.as_str().to_string(),
+        name: registry_record_key(registry)?,
+    })
 }

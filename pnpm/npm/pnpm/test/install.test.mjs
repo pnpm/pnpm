@@ -223,6 +223,13 @@ test('freebsd x64 resolves the native package', async (t) => {
   assert.deepEqual(candidates(), ['@pnpm/exe.freebsd-x64/pnpm'])
 })
 
+test('netbsd x64 resolves the native package', async (t) => {
+  fakeHost(t, 'netbsd', 'x64')
+  const { getBinCandidates: candidates } = await import('../native-binary.mjs?netbsd')
+
+  assert.deepEqual(candidates(), ['@pnpm/exe.netbsd-x64/pnpm'])
+})
+
 test('an architecture released for both libcs still offers the other as a fallback', async (t) => {
   const { setLibc } = fakeHost(t, 'linux', 'x64')
   const { getBinCandidates: candidates } = await import('../native-binary.mjs?x64')

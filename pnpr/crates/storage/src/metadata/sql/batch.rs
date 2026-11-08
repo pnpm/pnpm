@@ -1,6 +1,7 @@
 //! One write transaction of a hosted catalog, committed under the catalog's
 //! next generation.
 
+pub(super) use super::adapter::WriteTransaction;
 use super::{
     PackageKey,
     adapter::{Connection, Query, Row},
@@ -10,48 +11,7 @@ use super::{
 };
 use crate::metadata::ArtifactMember;
 use pnpr_error::{RegistryError, Result};
-use std::{cell::RefCell, ops::Deref};
-
-/// A write transaction, rolled back unless it is committed.
-pub(super) struct WriteTransaction<'conn> {
-    connection: &'conn dyn Connection,
-    open: bool,
-}
-
-impl<'conn> WriteTransaction<'conn> {
-    /// Begin the transaction, taking the database's write lock.
-    pub(super) fn begin(connection: &'conn dyn Connection) -> Result<Self> {
-        connection.begin_write()?;
-        Ok(Self { connection, open: true })
-    }
-
-    /// Commit the transaction. A failed `COMMIT` can leave it open, so it
-    /// stays marked open until the commit succeeds and is otherwise rolled
-    /// back on drop.
-    pub(super) fn commit(mut self) -> Result<()> {
-        self.connection.commit()?;
-        self.open = false;
-        Ok(())
-    }
-}
-
-impl<'conn> Deref for WriteTransaction<'conn> {
-    type Target = dyn Connection + 'conn;
-
-    fn deref(&self) -> &Self::Target {
-        self.connection
-    }
-}
-
-impl Drop for WriteTransaction<'_> {
-    fn drop(&mut self) {
-        if self.open {
-            // A failed rollback leaves the connection in its transaction; the
-            // adapter ends it before the connection's next use.
-            drop(self.connection.rollback());
-        }
-    }
-}
+use std::cell::RefCell;
 
 /// A write transaction that commits every package it changes under one new
 /// generation of its catalog, or nothing.

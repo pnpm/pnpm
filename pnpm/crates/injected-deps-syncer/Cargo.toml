@@ -28,6 +28,7 @@ tracing = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
+pnpm-fs = { workspace = true, features = ["test"] }
 pnpm-testing-utils = { workspace = true }
 
 pretty_assertions = { workspace = true }

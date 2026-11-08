@@ -29,6 +29,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 pipe-trait = { workspace = true }
+pretty_assertions = { workspace = true }
 sha2 = { workspace = true }
 
 [target.'cfg(any(unix, target_os = "wasi"))'.dependencies]

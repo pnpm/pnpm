@@ -143,26 +143,15 @@ fn walk_all_inner(
 fn walked_relative_path(entry: &fs::DirEntry, rel_prefix: &str) -> Option<String> {
     let file_name = entry.file_name();
     let file_name = file_name.to_str()?;
-    if file_name == "node_modules" || (rel_prefix.is_empty() && is_lockfile_temp_file(file_name)) {
+    if file_name == "node_modules"
+        || (rel_prefix.is_empty() && pnpm_fs_packlist::is_lockfile_staging_file(file_name))
+    {
         return None;
     }
     if rel_prefix.is_empty() {
         return Some(file_name.to_string());
     }
     Some(format!("{rel_prefix}/{file_name}"))
-}
-
-fn is_lockfile_temp_file(file_name: &str) -> bool {
-    let Some(suffix) = file_name.strip_prefix(".pnpm-lock.yaml.") else { return false };
-    let mut parts = suffix.split('.');
-    matches!(
-        (parts.next(), parts.next(), parts.next(), parts.next()),
-        (Some(pid), Some(counter), Some("tmp"), None)
-            if !pid.is_empty()
-                && pid.bytes().all(|byte| byte.is_ascii_digit())
-                && !counter.is_empty()
-                && counter.bytes().all(|byte| byte.is_ascii_digit()),
-    )
 }
 
 struct ResolvedEntry {
@@ -364,10 +353,7 @@ pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetche
         pnpm_fs_packlist::PacklistOptions::default(),
     )
     .map_err(DirectoryFetcherError::Packlist)?;
-    Ok(selected.files
-        .into_iter()
-        .filter(|(file_name, _)| !is_lockfile_temp_file(file_name))
-        .collect())
+    Ok(selected.files.into_iter().collect())
 }
 
 #[cfg(test)]

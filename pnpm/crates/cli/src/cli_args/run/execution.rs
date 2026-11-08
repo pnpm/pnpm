@@ -326,17 +326,17 @@ fn project_extra_env(ctx: &RunContext<'_>) -> HashMap<String, String> {
     ctx.config.prepend_project_node_path::<pnpm_config::Host>(
         &mut env,
         ctx.dir,
-        &project_modules_dir_name(ctx),
+        &project_modules_dir(ctx),
     );
     env
 }
 
-fn project_modules_dir_name<'a>(ctx: &RunContext<'a>) -> std::borrow::Cow<'a, std::ffi::OsStr> {
+fn project_modules_dir(ctx: &RunContext<'_>) -> std::path::PathBuf {
     let project_name = ctx.manifest
         .value()
         .get("name")
         .and_then(Value::as_str);
-    ctx.config.modules_dir_name_for(ctx.dir, project_name)
+    ctx.config.project_modules_dir(ctx.dir, project_name)
 }
 
 fn run_script_stages(
@@ -445,9 +445,7 @@ pub(in super::super) fn run_stage(
         return Ok(None);
     }
 
-    let modules_bin_dir = ctx.dir
-        .join(project_modules_dir_name(ctx))
-        .join(".bin");
+    let modules_bin_dir = project_modules_dir(ctx).join(".bin");
     let interrupts_before = interrupt_count();
     let status = run_script(&RunScript {
         environment: super::script_environment(ctx.config, ctx.init_cwd, ctx.extra_env),

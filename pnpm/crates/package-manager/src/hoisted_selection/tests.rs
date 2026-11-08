@@ -27,7 +27,7 @@ fn ids(importer_ids: &[&str]) -> HashSet<String> {
 fn a_layout_without_a_hoisted_prior_materializes_the_selection() {
     let wanted = lockfile(&[".", "packages/a", "packages/b"], &[]);
     assert_eq!(
-        selected_materialization_ids(&wanted, &ids(&["packages/a"]), None),
+        selected_materialization_ids(&wanted, &ids(&["packages/a"]), None, None),
         ids(&["packages/a"]),
     );
 }
@@ -37,7 +37,7 @@ fn a_hoisted_install_keeps_the_importers_the_previous_install_materialized() {
     let wanted = lockfile(&[".", "packages/a", "packages/b", "packages/c"], &[]);
     let prior = lockfile(&[".", "packages/b"], &[]);
     assert_eq!(
-        selected_materialization_ids(&wanted, &ids(&["packages/a"]), Some(&prior)),
+        selected_materialization_ids(&wanted, &ids(&["packages/a"]), None, Some(&prior)),
         ids(&[".", "packages/a", "packages/b"]),
     );
 }
@@ -47,7 +47,7 @@ fn a_hoisted_install_leaves_out_prior_importers_without_dependencies() {
     let wanted = lockfile(&[".", "packages/a", "packages/b"], &[]);
     let prior = lockfile(&[".", "packages/b"], &["packages/b"]);
     assert_eq!(
-        selected_materialization_ids(&wanted, &ids(&["packages/a"]), Some(&prior)),
+        selected_materialization_ids(&wanted, &ids(&["packages/a"]), None, Some(&prior)),
         ids(&[".", "packages/a"]),
     );
 }
@@ -57,9 +57,67 @@ fn a_hoisted_install_drops_prior_importers_the_wanted_lockfile_no_longer_has() {
     let wanted = lockfile(&[".", "packages/a"], &[]);
     let prior = lockfile(&[".", "packages/a", "packages/removed"], &[]);
     assert_eq!(
-        selected_materialization_ids(&wanted, &ids(&["packages/a"]), Some(&prior)),
+        selected_materialization_ids(&wanted, &ids(&["packages/a"]), None, Some(&prior)),
         ids(&[".", "packages/a"]),
     );
+}
+
+#[test]
+fn a_hoisted_install_drops_prior_importers_missing_from_disk() {
+    let wanted = lockfile(&[".", "packages/a", "packages/b", "packages/missing"], &[]);
+    let prior = lockfile(&[".", "packages/a", "packages/b", "packages/missing"], &[]);
+    let real = ids(&[".", "packages/a", "packages/b"]);
+    assert_eq!(
+        selected_materialization_ids(&wanted, &ids(&["packages/a"]), Some(&real), Some(&prior)),
+        ids(&[".", "packages/a", "packages/b"]),
+    );
+}
+
+#[test]
+fn a_filtered_hoisted_closure_drops_prior_importers_missing_from_disk() {
+    let wanted: Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/a:
+    dependencies:
+      a-prod:
+        specifier: 1.0.0
+        version: 1.0.0
+  packages/b:
+    dependencies:
+      b-prod:
+        specifier: 1.0.0
+        version: 1.0.0
+  packages/missing:
+    dependencies:
+      missing-prod:
+        specifier: 1.0.0
+        version: 1.0.0
+snapshots:
+  a-prod@1.0.0: {}
+  b-prod@1.0.0: {}
+  missing-prod@1.0.0: {}
+",
+    )
+    .expect("parse wanted lockfile");
+    let prior = wanted.clone();
+    let real = ids(&["packages/a", "packages/b"]);
+    let closure = super::selected_materialization_closure(
+        &wanted,
+        std::path::Path::new("/ws"),
+        &ids(&["packages/a"]),
+        Some(&real),
+        Some(&prior),
+        &crate::GroupSelection::all(),
+        &crate::SkippedSnapshots::new(),
+    );
+    assert_eq!(closure.importer_ids, ids(&["packages/a", "packages/b"]));
+    assert!(!closure.lockfile.importers.contains_key("packages/missing"));
+    let snapshots = closure.lockfile.snapshots.as_ref().expect("snapshots");
+    assert!(snapshots.contains_key(&"a-prod@1.0.0".parse().unwrap()));
+    assert!(snapshots.contains_key(&"b-prod@1.0.0".parse().unwrap()));
+    assert!(!snapshots.contains_key(&"missing-prod@1.0.0".parse().unwrap()));
 }
 
 #[test]
@@ -106,6 +164,7 @@ snapshots:
         &wanted,
         std::path::Path::new("/ws"),
         &ids(&["packages/a"]),
+        None,
         Some(&prior),
         &crate::GroupSelection::following_every_edge(pnpm_modules_yaml::IncludedDependencies {
             dependencies: true,
@@ -180,6 +239,7 @@ snapshots:
         &wanted,
         std::path::Path::new("/ws"),
         &ids(&["packages/a"]),
+        None,
         Some(&prior),
         &crate::GroupSelection::following_every_edge(pnpm_modules_yaml::IncludedDependencies {
             dependencies: false,
@@ -243,6 +303,7 @@ snapshots:
         &wanted,
         std::path::Path::new("/ws"),
         &ids(&["packages/a"]),
+        None,
         Some(&prior),
         &crate::GroupSelection::following_every_edge(pnpm_modules_yaml::IncludedDependencies {
             dependencies: true,

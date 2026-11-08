@@ -92,11 +92,6 @@ export function packageIsInstallable (
 
   if (warn == null) return true
 
-  installCheckLogger.warn({
-    message: warn.message,
-    prefix: options.lockfileDir,
-  })
-
   if (options.optional) {
     skippedOptionalDependencyLogger.debug({
       details: warn.toString(),
@@ -113,6 +108,11 @@ export function packageIsInstallable (
   }
 
   if (options.engineStrict) throw warn
+
+  installCheckLogger.warn({
+    message: warn.message,
+    prefix: options.lockfileDir,
+  })
 
   return null
 }

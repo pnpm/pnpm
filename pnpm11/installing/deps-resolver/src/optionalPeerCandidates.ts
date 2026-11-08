@@ -2,9 +2,12 @@ import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PackageSnapshot } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import type { PkgResolutionId, PreferredVersions } from '@pnpm/resolving.resolver-base'
+import type { PackageManifest } from '@pnpm/types'
 import * as semverUtils from '@yarnpkg/core/semverUtils'
+import semver from 'semver'
 
-import type { MissingPeerInfo, PkgAddressOrLink, ResolutionContext, ResolvedPackage, ResolvedPkgsById } from './resolutionTypes.js'
+import type { MissingPeerInfo, PeerDependencies, PkgAddressOrLink, ResolutionContext, ResolvedPackage, ResolvedPkgsById } from './resolutionTypes.js'
+import { getPeerSet } from './resolvedPackage.js'
 
 /** The version each direct dependency alias resolved to. */
 export function getDirectDepVersions (
@@ -84,10 +87,80 @@ function getLockfilePeers ({ peerDependencies, peerDependenciesMeta }: PackageSn
 }
 
 function getPeers (resolvedPackage: ResolvedPackage): CandidatePeers {
-  return Object.fromEntries(Object.entries(resolvedPackage.peers.taken).map(([peerName, { version: range, optional }]) => [
+  return toCandidatePeers(resolvedPackage.peers.taken)
+}
+
+/** The peers a package resolved from `manifest` takes. */
+export function getManifestPeers (manifest: PackageManifest): CandidatePeers {
+  return toCandidatePeers(getPeerSet(manifest).taken)
+}
+
+function toCandidatePeers (peers: PeerDependencies): CandidatePeers {
+  return Object.fromEntries(Object.entries(peers).map(([peerName, { version: range, optional }]) => [
     peerName,
     { range, optional: optional === true },
   ]))
+}
+
+/**
+ * The required peers of optional peer candidates that are resolved only to
+ * read their manifests, without adding them to the graph.
+ */
+export interface DetachedPeerResolutions {
+  /** The specifiers to resolve, keyed by the `name@spec` they were hoisted at. */
+  pending: Map<string, { name: string, spec: string }>
+  /** The peers of each resolved package, keyed by `name@version`. */
+  peers: Map<string, CandidatePeers>
+  /** The version each `name@spec` resolved to, `null` when it did not resolve. */
+  versions: Map<string, string | null>
+}
+
+export function createDetachedPeerResolutions (): DetachedPeerResolutions {
+  return { pending: new Map(), peers: new Map(), versions: new Map() }
+}
+
+/**
+ * The version a required peer hoisted at `spec` installs, or `null` when it
+ * does not resolve. A spec whose version or peers are unknown is added to
+ * `detached.pending`, and the pick is its exact version, if it has one.
+ */
+export function pickHoistedVersion (
+  detached: DetachedPeerResolutions,
+  { knowsPeers, name, spec }: {
+    knowsPeers: (name: string, version: string) => boolean
+    name: string
+    spec: string
+  }
+): string | null | undefined {
+  const exactVersion = semver.valid(spec.split(' || ')[0]) ?? undefined
+  if (exactVersion != null && knowsPeers(name, exactVersion)) return exactVersion
+  const key = `${name}@${spec}`
+  if (detached.versions.has(key)) return detached.versions.get(key)
+  detached.pending.set(key, { name, spec: exactVersion ?? spec })
+  return exactVersion
+}
+
+/**
+ * The versions `pickVersion` picks for the required peers in `merged`, the
+ * merge of `missingPeersOfWave`. `undefined` when a required peer would stay
+ * unmet, as the merge drops it or `pickVersion` finds it does not resolve.
+ */
+export function pickMergedPeerVersions ({ merged, missingPeersOfWave, pickVersion }: {
+  merged: CandidatePeers
+  missingPeersOfWave: CandidatePeers[]
+  pickVersion: (name: string, range: string) => string | null | undefined
+}): Map<string, string> | undefined {
+  const dropsAnyPeer = missingPeersOfWave.some((missingPeers) =>
+    Object.entries(missingPeers).some(([name, { optional }]) => !optional && merged[name] == null))
+  if (dropsAnyPeer) return undefined
+  const versions = new Map<string, string>()
+  for (const [name, { range, optional }] of Object.entries(merged)) {
+    if (optional) continue
+    const version = pickVersion(name, range)
+    if (version === null) return undefined
+    if (version != null) versions.set(name, version)
+  }
+  return versions
 }
 
 /**
@@ -95,7 +168,8 @@ function getPeers (resolvedPackage: ResolvedPackage): CandidatePeers {
  * peer it brings in satisfied. The candidate resolves its peers from
  * `providedVersions`. The required peers missing there are hoisted together,
  * one wave at a time, at the versions `pickRequiredPeerVersions` returns,
- * and resolve their own peers the same way.
+ * and resolve their own peers the same way. A wave that rejects a version
+ * already known stops the check before the next wave is picked.
  */
 export function acceptsOptionalPeerCandidate (
   { getCandidatePeers, pickRequiredPeerVersions, providedVersions }: {
@@ -112,6 +186,7 @@ export function acceptsOptionalPeerCandidate (
   let wave = [candidate]
   while (wave.length) {
     const peersOfWave = wave.map(({ name, version }) => getCandidatePeers(name, version)).filter((peers) => peers != null)
+    if (!peersOfWave.every((peers) => peersAcceptVersions(peers, versionOf))) return false
     peersOfHoisted.push(...peersOfWave)
     const picked = pickRequiredPeerVersions(peersOfWave.map((peers) => pickMissingPeers(peers, versionOf)))
     if (picked == null) return false
@@ -189,4 +264,16 @@ function listClosureVersions (
     }
   }
   return nameVersions
+}
+
+/** `accepts`, adding the name of every candidate it rejects to `rejected`. */
+export function recordingRejections (
+  accepts: (name: string, version: string) => boolean,
+  rejected: Set<string>
+): (name: string, version: string) => boolean {
+  return (name, version) => {
+    const accepted = accepts(name, version)
+    if (!accepted) rejected.add(name)
+    return accepted
+  }
 }

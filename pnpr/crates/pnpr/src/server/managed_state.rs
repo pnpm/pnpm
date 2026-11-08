@@ -7,16 +7,17 @@ use super::{
 use futures_util::future::join_all;
 use pnpr_config::{Management, Teams};
 use pnpr_policy::RuleTable;
-use pnpr_storage::{DocumentWrite, RegistryRecord};
+use pnpr_storage::RegistryRecord;
 use std::{
+    future::Future,
     sync::{Arc, Mutex, PoisonError},
-    time::{Duration, Instant},
+    time::Duration,
 };
-use tokio::sync::OwnedMutexGuard;
+use tokio::{sync::OwnedMutexGuard, time::Instant};
 
-/// How long a replica serves the managed state it last read before it reads
-/// it from the hosted store again. Bounds how long a change made on another
-/// replica takes to reach this one.
+const READ_DEADLINE: Duration = Duration::from_secs(5);
+
+/// Minimum interval between successful request-triggered background reloads.
 const STATE_TTL: Duration = Duration::from_secs(10);
 
 /// How soon a replica tries again after a record it could not read.
@@ -30,7 +31,7 @@ pub(super) const WRITE_ATTEMPTS: usize = 5;
 /// (`teamsManagedBy: api`), package rules (`rulesManagedBy: api`), and the
 /// SCIM directory (`auth.scim`).
 ///
-/// The hosted store holds each one as a [`RegistryRecord`], so every replica
+/// The metadata database holds each one as a [`RegistryRecord`], so every replica
 /// sees the same state. A registry with no stored record yet serves its YAML.
 pub(super) struct ManagedState {
     /// Each roster-managed registry's `teams:` map, keyed by registry name.
@@ -38,7 +39,7 @@ pub(super) struct ManagedState {
     /// Each rules-managed registry's rules as the YAML declares them, keyed
     /// by registry name. Stored changes apply on top of these.
     pub(super) rule_bases: IndexMap<String, Arc<RuleTable>>,
-    /// The usernames the SCIM directory marks inactive. `None` without
+    /// The account IDs the SCIM directory marks inactive. `None` without
     /// `auth.scim`.
     pub(super) scim: Option<ScimState>,
     /// When the state is next due for a reload. `None` before the first.
@@ -103,23 +104,41 @@ pub(super) async fn refresh_managed_state(state: &AppState) {
     }
 }
 
-/// Read every managed record concurrently, publishing each as soon as its own
-/// read finishes, so a slow registry does not hold back another's change.
-/// Rosters load before rules, because a rule can name a team.
+/// Reload SCIM alongside registry rosters and rules, publishing each record
+/// as its read finishes. Rosters load before rules, because a rule can name a team.
 async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     let managed = &state.inner.identity.managed;
+    let directory = async {
+        match &managed.scim {
+            Some(scim) => reload_directory(&state, scim).await,
+            None => true,
+        }
+    };
+    let registries = reload_registries(&state);
+    let (registries_read, scim_read) = tokio::join!(registries, directory);
+    let all_read = registries_read && scim_read;
+    managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
+}
+
+async fn reload_registries(state: &AppState) -> bool {
+    let managed = &state.inner.identity.managed;
     let rosters =
-        managed.roster_seeds.iter().map(|(registry, seed)| reload_roster(&state, registry, seed));
+        managed.roster_seeds.iter().map(|(registry, seed)| reload_roster(state, registry, seed));
     let rosters_read = join_all(rosters).await.into_iter().all(|read| read);
     let rules =
-        managed.rule_bases.iter().map(|(registry, base)| reload_rules(&state, registry, base));
+        managed.rule_bases.iter().map(|(registry, base)| reload_rules(state, registry, base));
     let rules_read = join_all(rules).await.into_iter().all(|read| read);
-    let scim_read = match &managed.scim {
-        Some(scim) => reload_directory(&state, scim).await,
-        None => true,
-    };
-    let all_read = rosters_read && rules_read && scim_read;
-    managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
+    rosters_read && rules_read
+}
+
+/// Bound refresh reads without cancelling writes whose commit outcome could be unknown.
+pub(super) async fn read_with_deadline<Output>(
+    read: impl Future<Output = Result<Output, RegistryError>>,
+) -> Result<Output, RegistryError> {
+    tokio::time::timeout(READ_DEADLINE, read).await
+        .map_err(|_| RegistryError::Internal {
+            reason: "the managed authorization record read exceeded its deadline".to_string(),
+        })?
 }
 
 /// Canonicalize a registry key as `<ecosystem>/<local_name>`, regardless of
@@ -137,7 +156,7 @@ pub(super) async fn store_registry_record(
     state: &AppState,
     kind: RegistryRecord,
     registry: &str,
-    expected: Option<&[u8]>,
+    expected: Option<&pnpr_storage::MetadataRecord>,
     bytes: &[u8],
 ) -> Result<bool, RegistryError> {
     let storage = &state.inner.storage;
@@ -153,7 +172,7 @@ pub(super) async fn store_registry_record(
             let written =
                 storage.replace_registry_record_if_current(kind, &canonical, expected, bytes)
                     .await?;
-            Ok(written == DocumentWrite::Written)
+            Ok(written.is_some())
         }
     }
 }
