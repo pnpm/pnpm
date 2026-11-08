@@ -151,37 +151,62 @@ fn complete_paths_completes_directories_and_files_by_kind() {
     std::fs::write(temp.path().join("gamma.txt"), "").expect("write gamma.txt");
     std::fs::write(temp.path().join(".env"), "").expect("write .env");
 
+    let home = TempDir::new().expect("home dir");
+    std::fs::create_dir_all(home.path().join("projects/demo")).expect("create projects/demo");
+
     assert_eq!(
-        complete_paths(temp.path(), "", PathCompletionKind::Directories),
+        complete_paths(temp.path(), Some(home.path()), "", PathCompletionKind::Directories),
         strings(&["alpha/", "beta/"]),
     );
     assert_eq!(
-        complete_paths(temp.path(), "./", PathCompletionKind::Directories),
+        complete_paths(temp.path(), Some(home.path()), "./", PathCompletionKind::Directories),
         strings(&["./alpha/", "./beta/"]),
     );
     assert_eq!(
-        complete_paths(temp.path(), "./al", PathCompletionKind::Directories),
+        complete_paths(temp.path(), Some(home.path()), "./al", PathCompletionKind::Directories),
         strings(&["./alpha/"]),
     );
     assert_eq!(
-        complete_paths(temp.path(), "alpha/", PathCompletionKind::Directories),
+        complete_paths(temp.path(), Some(home.path()), "alpha/", PathCompletionKind::Directories),
         strings(&["alpha/nested/"]),
     );
     assert_eq!(
-        complete_paths(temp.path(), ".", PathCompletionKind::Directories),
+        complete_paths(temp.path(), Some(home.path()), ".", PathCompletionKind::Directories),
         strings(&[".hidden-dir/"]),
     );
     assert_eq!(
-        complete_paths(temp.path(), "missing/", PathCompletionKind::Directories),
+        complete_paths(temp.path(), Some(home.path()), "~/pr", PathCompletionKind::Directories),
+        strings(&["~/projects/"]),
+    );
+    assert_eq!(
+        complete_paths(
+            temp.path(),
+            Some(home.path()),
+            "~/projects/",
+            PathCompletionKind::Directories,
+        ),
+        strings(&["~/projects/demo/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), None, "~/pr", PathCompletionKind::Directories),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "missing/", PathCompletionKind::Directories),
         Vec::<String>::new(),
     );
 
     assert_eq!(
-        complete_paths(temp.path(), "", PathCompletionKind::FilesAndDirectories),
+        complete_paths(temp.path(), Some(home.path()), "", PathCompletionKind::FilesAndDirectories),
         strings(&["alpha/", "beta/", "gamma.txt"]),
     );
     assert_eq!(
-        complete_paths(temp.path(), ".", PathCompletionKind::FilesAndDirectories),
+        complete_paths(
+            temp.path(),
+            Some(home.path()),
+            ".",
+            PathCompletionKind::FilesAndDirectories,
+        ),
         strings(&[".env", ".hidden-dir/"]),
     );
 }

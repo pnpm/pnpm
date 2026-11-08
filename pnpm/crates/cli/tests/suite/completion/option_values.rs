@@ -207,6 +207,9 @@ fn completion_server_completes_directory_option_values() {
         (vec!["pnpm", "-C./"], "-C./alpha/\n-C./beta/\n"),
         (vec!["pnpm", "-Cal"], "-Calpha/\n"),
         (vec!["pnpm", "-rC./"], "-rC./alpha/\n-rC./beta/\n"),
+        (vec!["pnpm", "-C", "alpha", "install", "--lockfile-dir", ""], "nested/\n"),
+        (vec!["pnpm", "--dir=alpha", "install", "--lockfile-dir="], "--lockfile-dir=nested/\n"),
+        (vec!["pnpm", "-C", "alpha", "--dir", ""], "alpha/\nbeta/\n"),
     ] {
         let output = pacquet()
             .current_dir(workspace.path())

@@ -1,4 +1,7 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum PathCompletionKind {
@@ -8,11 +11,14 @@ pub(super) enum PathCompletionKind {
 
 pub(super) fn complete_paths(
     cwd: &Path,
+    home_dir: Option<&Path>,
     value_prefix: &str,
     kind: PathCompletionKind,
 ) -> Vec<String> {
     let (dir_prefix, name_prefix) = split_path_prefix(value_prefix);
-    let search_dir = if dir_prefix.is_empty() { cwd.to_path_buf() } else { cwd.join(dir_prefix) };
+    let Some(search_dir) = resolve_search_dir(cwd, home_dir, dir_prefix) else {
+        return Vec::new();
+    };
     let Ok(entries) = fs::read_dir(search_dir) else {
         return Vec::new();
     };
@@ -23,6 +29,27 @@ pub(super) fn complete_paths(
     candidates.sort();
     candidates.dedup();
     candidates
+}
+
+fn resolve_search_dir(cwd: &Path, home_dir: Option<&Path>, dir_prefix: &str) -> Option<PathBuf> {
+    if dir_prefix.is_empty() {
+        return Some(cwd.to_path_buf());
+    }
+    if let Some(after_tilde) = strip_home_prefix(dir_prefix) {
+        let home = home_dir?;
+        return Some(if after_tilde.is_empty() {
+            home.to_path_buf()
+        } else {
+            home.join(after_tilde)
+        });
+    }
+    Some(cwd.join(dir_prefix))
+}
+
+fn strip_home_prefix(dir_prefix: &str) -> Option<&str> {
+    dir_prefix
+        .strip_prefix("~/")
+        .or_else(|| if cfg!(windows) { dir_prefix.strip_prefix(r"~\") } else { None })
 }
 
 fn split_path_prefix(value_prefix: &str) -> (&str, &str) {

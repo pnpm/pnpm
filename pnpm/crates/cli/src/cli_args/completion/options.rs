@@ -4,7 +4,7 @@ use super::{
 };
 use clap::{Arg, ArgAction, Command, ValueHint};
 use miette::IntoDiagnostic;
-use std::env;
+use std::{env, path::PathBuf};
 
 pub(super) fn visible_options(context: &CompletionContext<'_>) -> Vec<String> {
     let mut options = Vec::new();
@@ -94,12 +94,24 @@ pub(super) fn complete_argument_values(
     }
     match argument.get_value_hint() {
         ValueHint::DirPath => {
-            let cwd = env::current_dir().into_diagnostic()?;
-            Ok(paths::complete_paths(&cwd, value_prefix, PathCompletionKind::Directories))
+            let base_dir = path_base_directory(context, argument)?;
+            let home_dir = home::home_dir();
+            Ok(paths::complete_paths(
+                &base_dir,
+                home_dir.as_deref(),
+                value_prefix,
+                PathCompletionKind::Directories,
+            ))
         }
         ValueHint::FilePath | ValueHint::AnyPath => {
-            let cwd = env::current_dir().into_diagnostic()?;
-            Ok(paths::complete_paths(&cwd, value_prefix, PathCompletionKind::FilesAndDirectories))
+            let base_dir = path_base_directory(context, argument)?;
+            let home_dir = home::home_dir();
+            Ok(paths::complete_paths(
+                &base_dir,
+                home_dir.as_deref(),
+                value_prefix,
+                PathCompletionKind::FilesAndDirectories,
+            ))
         }
         _ => {
             let mut values = filter_by_prefix(visible_possible_values(argument), value_prefix);
@@ -108,6 +120,17 @@ pub(super) fn complete_argument_values(
             Ok(values)
         }
     }
+}
+
+fn path_base_directory(context: &CompletionContext<'_>, argument: &Arg) -> miette::Result<PathBuf> {
+    let cwd = env::current_dir().into_diagnostic()?;
+    if matches!(argument.get_id().as_str(), "dir" | "env_file") {
+        return Ok(cwd);
+    }
+    Ok(match context.directory {
+        Some(directory) => cwd.join(directory),
+        None => cwd,
+    })
 }
 
 fn visible_possible_values(argument: &Arg) -> Vec<String> {
