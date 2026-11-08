@@ -178,6 +178,24 @@ fn nested_install_slot_paths_preserve_non_utf8_bytes() {
     );
 }
 
+#[cfg(windows)]
+#[test]
+fn nested_install_slot_paths_preserve_unpaired_surrogates() {
+    use std::os::windows::ffi::OsStringExt;
+
+    let wide = "C:\\store\\é"
+        .encode_utf16()
+        .chain([0xD800])
+        .collect::<Vec<_>>();
+    let slot_paths = [PathBuf::from(std::ffi::OsString::from_wide(&wide))];
+    let encoded = super::encode_slot_lock_paths(&slot_paths).expect("encode slot paths");
+
+    assert_eq!(
+        super::path_codec::parse_slot_lock_paths(&encoded).expect("decode slot paths"),
+        slot_paths,
+    );
+}
+
 #[test]
 fn existing_slot_acquisition_rejects_the_empty_parent_left_by_prune() {
     let root = tempdir().expect("temporary slot root");
