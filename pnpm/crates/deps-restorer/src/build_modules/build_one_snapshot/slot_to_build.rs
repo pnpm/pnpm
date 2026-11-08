@@ -94,13 +94,10 @@ fn acquire_build_slot_locks(
                 .flatten()
                 .chain(snapshot.optional_dependencies.iter().flatten())
                 .filter_map(|(alias, dependency)| dependency.resolve(alias))
-                // A dependency this install skipped, such as another
-                // platform's variant, has no slot; locking it would create one.
-                .filter(|key| {
-                    context.directories.layout
-                        .hashed_slot_dir(key)
-                        .is_some_and(|slot| slot.is_dir())
-                }),
+                // This install does not link a dependency it skipped, such as
+                // another platform's variant, and locking it would create its slot.
+                .filter(|key| !context.graph.skipped.contains(key))
+                .filter(|key| context.directories.layout.hashed_slot_dir(key).is_some()),
         );
     }
     crate::GlobalVirtualStoreSlot::acquire_ordered(context.directories.layout, slot_keys)
@@ -135,12 +132,15 @@ fn mark_slot_build_started(
     marker: &Path,
 ) -> Result<bool, BuildModulesError> {
     let Some(slot) = slot else {
-        return is_started_build_marker(marker)
-            .map(|started| !started)
+        let started = is_started_build_marker(marker)
             .map_err(|source| BuildModulesError::ReadBuildMarker {
                 path: marker.to_path_buf(),
                 source,
-            });
+            })?;
+        if !started {
+            crate::build_modules::slots::record_started_build(marker, snapshot_key);
+        }
+        return Ok(!started);
     };
     let state = slot
         .state(&package_dir.join("package.json"), crate::BuildRequirement::Required)

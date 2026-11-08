@@ -96,6 +96,15 @@ new file mode 100644
         snapshot: SnapshotEntry,
         pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
     ) -> Result<crate::BuildModulesOutput, BuildModulesError> {
+        self.build_skipping(snapshot, pkg_roots_by_key, &SkippedSnapshots::default())
+    }
+
+    fn build_skipping(
+        &self,
+        snapshot: SnapshotEntry,
+        pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+        skipped: &SkippedSnapshots,
+    ) -> Result<crate::BuildModulesOutput, BuildModulesError> {
         let snapshots = HashMap::from([(self.pkg_key.clone(), snapshot)]);
         let requires_build = HashMap::from([(self.pkg_key.clone(), true)]);
         let importers = root_importers(&[("is-positive", "1.0.0")]);
@@ -157,7 +166,7 @@ new file mode 100644
             },
             allow_build_policy: &policy,
             child_concurrency: 1,
-            skipped: &SkippedSnapshots::default(),
+            skipped,
             rebuild: None,
         }
         .run::<SilentReporter>()
@@ -200,7 +209,10 @@ fn a_build_does_not_create_slots_for_skipped_optional_dependencies() {
     let skipped_slot =
         slot.layout.hashed_slot_dir(&skipped).expect("the skipped dependency has a slot path");
 
-    slot.build_snapshot(snapshot, None).expect("build modules must complete cleanly");
+    let skipped_snapshots = SkippedSnapshots::from_set(std::collections::HashSet::from([skipped]));
+
+    slot.build_skipping(snapshot, None, &skipped_snapshots)
+        .expect("build modules must complete cleanly");
 
     assert!(slot.pkg_dir.join("patched.txt").exists(), "the patch must still be applied");
     assert!(!skipped_slot.exists(), "a skipped optional dependency must not get a slot");
