@@ -224,6 +224,7 @@ impl LinkVirtualStoreBins<'_> {
         let shim_cache = ShimTargetCache::default();
         let context = SlotBinContext {
             layout: self.layout,
+            skipped: self.skipped,
             sets,
             package_manifests: self.package_manifests,
             package_bins: self.package_bins,
@@ -316,6 +317,7 @@ struct BinSlotSets<'a> {
 /// The inputs [`link_slot_bins`] shares across every slot of one pass.
 struct SlotBinContext<'a> {
     layout: &'a crate::VirtualStoreLayout,
+    skipped: &'a SkippedSnapshots,
     sets: BinSlotSets<'a>,
     package_manifests: &'a PackageManifests,
     package_bins: Option<&'a PackageBins>,
@@ -402,9 +404,14 @@ fn lock_bin_slots(
     with_bin: &[(&PkgName, PackageKey, PackageKey)],
     locked_slots: &[&crate::GlobalVirtualStoreSlot],
 ) -> Result<Vec<Option<crate::GlobalVirtualStoreSlot>>, LinkVirtualStoreBinsError> {
+    // A build holds the slots it links, which leave out the children this
+    // install skipped; locking one of those here would break the build's
+    // path order.
     let mut slot_keys: Vec<PackageKey> = with_bin
         .iter()
-        .map(|(_, child_key, _)| child_key.clone())
+        .map(|(_, child_key, _)| child_key)
+        .filter(|child_key| !context.skipped.contains(child_key))
+        .cloned()
         .collect();
     slot_keys.push(slot_key.clone());
     slot_keys.sort_by_key(|key| context.layout.slot_dir(key));

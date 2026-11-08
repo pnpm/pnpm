@@ -1143,3 +1143,82 @@ fn link_new_bins_from_locations_keeps_commands_with_any_windows_extension() {
         if cfg!(windows) { &["own"] } else { &["node", "other", "own", "shared"] };
     assert_eq!(linked, expected);
 }
+
+/// A build holds its package slot and the slots it links, which leave out the
+/// children this install skipped. Refreshing its bins must not lock a skipped
+/// child's slot out of path order, so it never waits on another install that
+/// holds that slot.
+#[test]
+fn bin_refresh_under_a_build_does_not_lock_a_skipped_child() {
+    let tmp = tempdir().expect("temporary store");
+    let parent: PackageKey = "parent@1.0.0".parse().expect("parent key");
+    let child: PackageKey = "child@1.0.0".parse().expect("child key");
+    let optional_dependencies = HashMap::from([(
+        "child".parse().expect("child name"),
+        "1.0.0".parse::<SnapshotDepRef>().expect("child reference"),
+    )]);
+    let snapshots = HashMap::from([
+        (
+            parent.clone(),
+            SnapshotEntry {
+                optional_dependencies: Some(optional_dependencies),
+                ..SnapshotEntry::default()
+            },
+        ),
+        (child.clone(), SnapshotEntry::default()),
+    ]);
+    let registry = || {
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: dummy_binary_resolution().integrity,
+            revision: None,
+        })
+    };
+    let packages = HashMap::from([
+        (parent.clone(), metadata_with_resolution(registry(), None)),
+        (child.clone(), metadata_with_resolution(registry(), Some(true))),
+    ]);
+    let mut config = pnpm_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.store_dir = tmp.path().join("store").into();
+    config.global_virtual_store_dir = tmp.path().join("store/links");
+    let layout =
+        VirtualStoreLayout::new(&config, None, Some(&snapshots), Some(&packages), None, None);
+    let parent_slot = crate::GlobalVirtualStoreSlot::acquire(&layout, &parent)
+        .expect("lock parent slot")
+        .expect("parent global slot");
+    create_dir_all(parent_slot.package_path()).expect("create parent package");
+    write_file(
+        parent_slot.package_path().join("package.json"),
+        r#"{"name":"parent","version":"1.0.0"}"#,
+    )
+    .unwrap();
+    let other_install = crate::GlobalVirtualStoreSlot::acquire(&layout, &child)
+        .expect("lock child slot")
+        .expect("child global slot");
+    let skipped = SkippedSnapshots::from_set(std::collections::HashSet::from([child]));
+
+    let finished = std::thread::scope(|scope| {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let (layout, snapshots, packages, skipped, parent_slot, parent) =
+            (&layout, &snapshots, &packages, &skipped, &parent_slot, &parent);
+        scope.spawn(move || {
+            let outcome = LinkVirtualStoreBins {
+                layout,
+                snapshots: Some(snapshots),
+                selected_snapshots: Some(std::slice::from_ref(parent)),
+                packages: Some(packages),
+                package_manifests: &HashMap::default(),
+                package_bins: None,
+                skipped,
+                link_options: &LinkBinsOptions::default(),
+            }
+            .run_with_slot_locks(&[parent_slot]);
+            sender.send(outcome.is_ok()).expect("report outcome");
+        });
+        let finished = receiver.recv_timeout(std::time::Duration::from_secs(10));
+        drop(other_install);
+        finished
+    });
+
+    assert_eq!(finished, Ok(true));
+}
