@@ -200,6 +200,8 @@ CREATE TABLE IF NOT EXISTS publication_outcomes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 CREATE INDEX publication_outcomes_by_key
     ON publication_outcomes (principal, idempotency_key);
+CREATE INDEX publication_outcomes_by_committed_at
+    ON publication_outcomes (committed_at);
 
 -- Release notes of a package version (`kind` = 'version', `subject` = the
 -- version) or of a publication (`kind` = 'publication', `ecosystem` and

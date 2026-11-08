@@ -125,8 +125,14 @@ impl GlobalVirtualStoreSlot {
                 ),
             });
         }
-        let lock = DirLock::acquire(path.join(SLOT_LOCK_DIR), Duration::ZERO, ABANDONED_AFTER)
-            .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?;
+        let lock = match DirLock::acquire(path.join(SLOT_LOCK_DIR), Duration::ZERO, ABANDONED_AFTER)
+        {
+            Ok(lock) => lock,
+            Err(error) if error.kind() == io::ErrorKind::NotFound && inherited.is_empty() => None,
+            Err(source) => {
+                return Err(GvsSlotLockError { dep_path: key.to_string(), source });
+            }
+        };
         if lock.is_none() && !inherited.is_empty() {
             return Err(GvsSlotLockError {
                 dep_path: key.to_string(),

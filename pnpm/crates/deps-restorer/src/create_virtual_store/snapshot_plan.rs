@@ -83,12 +83,12 @@ impl SnapshotPlan<'_> {
 /// warm batch starts rather than several seconds into it. Skipped
 /// snapshots get a lenient pass — they are not being installed, and
 /// swallowing a per-snapshot error there costs only a prefetch row.
-pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
+pub(super) async fn plan_snapshots<'a, Reporter: self::Reporter>(
     inputs: SnapshotPlanInputs<'a, '_>,
 ) -> Result<SnapshotPlan<'a>, CreateVirtualStoreError> {
     let probe = WarmSlotProbe::of(&inputs);
     let SnapshotPlanInputs { snapshots, cache_keys, .. } = inputs;
-    let batch_plan = plan_snapshot_batches::<Reporter>(snapshots, &probe, cache_keys)?;
+    let batch_plan = plan_snapshot_batches::<Reporter>(snapshots, &probe, cache_keys).await?;
     let skipped_entries =
         skipped_entries(snapshots, &batch_plan.survivors, probe.policy.skipped, cache_keys);
     Ok(SnapshotPlan {
@@ -99,7 +99,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
     })
 }
 
-fn plan_snapshot_batches<'a, Reporter: self::Reporter>(
+async fn plan_snapshot_batches<'a, Reporter: self::Reporter>(
     snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     probe: &WarmSlotProbe<'a, '_>,
     cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
@@ -110,7 +110,8 @@ fn plan_snapshot_batches<'a, Reporter: self::Reporter>(
     let mut marker_rebuilds = HashSet::new();
     let mut has_git_hosted_survivor = false;
     for batch in ordered_keys.chunks(SLOT_LOCK_BATCH_SIZE) {
-        let mut batch_plan = plan_snapshot_batch::<Reporter>(batch, snapshots, probe, cache_keys)?;
+        let mut batch_plan =
+            plan_snapshot_batch::<Reporter>(batch, snapshots, probe, cache_keys).await?;
         has_git_hosted_survivor |= batch_plan.has_git_hosted_survivor;
         marker_rebuilds.extend(batch_plan.marker_rebuilds);
         survivors.append(&mut batch_plan.survivors);
@@ -118,7 +119,7 @@ fn plan_snapshot_batches<'a, Reporter: self::Reporter>(
     Ok(SnapshotBatchPlan { survivors, marker_rebuilds, has_git_hosted_survivor })
 }
 
-fn plan_snapshot_batch<'a, Reporter: self::Reporter>(
+async fn plan_snapshot_batch<'a, Reporter: self::Reporter>(
     batch: &[&'a PackageKey],
     snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     probe: &WarmSlotProbe<'a, '_>,
@@ -145,7 +146,7 @@ fn plan_snapshot_batch<'a, Reporter: self::Reporter>(
             {
                 break Ok(slots);
             }
-            std::thread::sleep(Duration::from_millis(10));
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }
     .map_err(CreateVirtualStoreError::SlotLock)?;
