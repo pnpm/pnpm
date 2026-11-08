@@ -306,6 +306,22 @@ impl Lockfile {
         save_content_to_path(self.to_yaml_string()?, path, symlinked)
     }
 
+    /// [`Self::save_to_path`] in `format`, whatever this lockfile's
+    /// `lockfileVersion` says.
+    pub fn save_to_path_as(
+        &self,
+        format: crate::LockfileFormat,
+        path: &Path,
+        symlinked: SymlinkedLockfile<'_>,
+    ) -> Result<(), SaveLockfileError> {
+        if self.lockfile_version == format.version() {
+            return self.save_to_path(path, symlinked);
+        }
+        let mut reformatted = self.clone();
+        reformatted.lockfile_version = format.version();
+        reformatted.save_to_path(path, symlinked)
+    }
+
     /// Save lockfile to `pnpm-lock.yaml` in the current directory.
     pub fn save_to_current_dir(
         &self,

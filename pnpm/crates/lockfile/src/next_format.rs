@@ -12,6 +12,10 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
+pub use read::restore_sections;
+
+pub(crate) use parse::{Shape, declares_next_format, parse_sections_in_parallel};
+
 use crate::{
     Lockfile, LockfileSettings, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,
     SnapshotDepRef, SnapshotEntry,
@@ -27,10 +31,6 @@ mod read;
 mod tarjan;
 mod write;
 
-pub(crate) use parse::parse_sections_in_parallel;
-
-pub use read::restore_sections;
-
 /// The `lockfileVersion` major of the next format.
 pub const NEXT_LOCKFILE_MAJOR: u16 = 10;
 
@@ -41,7 +41,8 @@ pub enum LockfileFormat {
     /// Snapshot keys and references carry the peer suffix.
     #[default]
     V9,
-    /// See the [module documentation](self).
+    /// Snapshots keyed by name and version, with their peer bindings as
+    /// properties. Experimental, see pnpm/rfcs#72.
     Next,
 }
 
@@ -202,40 +203,25 @@ impl Lockfile {
     /// The lockfile a next-format document describes, with peer-suffixed keys.
     #[must_use]
     pub fn from_next(next: NextLockfile) -> Lockfile {
-        let crate::LockfileDocument {
-            lockfile_version,
-            settings,
-            catalogs,
-            overrides,
-            package_extensions_checksum,
-            pnpmfile_checksum,
-            ignored_optional_dependencies,
-            patched_dependencies,
-            importers,
-            packages,
-            snapshots,
-            time,
-            extra,
-        } = next;
-        let sections = NextSections { importers, snapshots };
+        let sections = NextSections { importers: next.importers, snapshots: next.snapshots };
         let restored = restore_sections(
             &sections,
-            RestoreContext { packages: packages.as_ref(), settings: settings.as_ref() },
+            RestoreContext { packages: next.packages.as_ref(), settings: next.settings.as_ref() },
         );
         Lockfile {
-            lockfile_version,
-            settings,
-            catalogs,
-            overrides,
-            package_extensions_checksum,
-            pnpmfile_checksum,
-            ignored_optional_dependencies,
-            patched_dependencies,
+            lockfile_version: next.lockfile_version,
+            settings: next.settings,
+            catalogs: next.catalogs,
+            overrides: next.overrides,
+            package_extensions_checksum: next.package_extensions_checksum,
+            pnpmfile_checksum: next.pnpmfile_checksum,
+            ignored_optional_dependencies: next.ignored_optional_dependencies,
+            patched_dependencies: next.patched_dependencies,
             importers: restored.importers,
-            packages,
+            packages: next.packages,
             snapshots: restored.snapshots,
-            time,
-            extra,
+            time: next.time,
+            extra: next.extra,
         }
     }
 

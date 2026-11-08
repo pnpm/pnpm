@@ -33,15 +33,9 @@ pub(super) fn regenerate_wanted_lockfile_if_missing(
     };
     let target = check.workspace_root.join(check.config.wanted_lockfile_name());
     let symlinked = check.config.symlinked_lockfile();
-    let format_version = check.config.lockfile_format.version();
-    let saved = if let Some(text) = current.regenerated_text(check.config.lockfile_format) {
-        pnpm_lockfile::save_text_to_path(text.to_string(), &target, symlinked)
-    } else if current_lockfile.lockfile_version == format_version {
-        current_lockfile.save_to_path(&target, symlinked)
-    } else {
-        let mut wanted = current_lockfile.clone();
-        wanted.lockfile_version = format_version;
-        wanted.save_to_path(&target, symlinked)
+    let saved = match current.regenerated_text(check.config.lockfile_format) {
+        Some(text) => pnpm_lockfile::save_text_to_path(text.to_string(), &target, symlinked),
+        None => current_lockfile.save_to_path_as(check.config.lockfile_format, &target, symlinked),
     };
     saved
         .map(|()| true)

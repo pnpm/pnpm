@@ -131,16 +131,9 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
         .await?;
     }
     if install.context.config.lockfile {
-        let configured_version = install.context.config.lockfile_format.version();
-        let reformatted = (lockfile.lockfile_version != configured_version).then(|| {
-            let mut reformatted = lockfile.clone();
-            reformatted.lockfile_version = configured_version;
-            reformatted
-        });
-        reformatted
-            .as_ref()
-            .unwrap_or(lockfile)
-            .save_to_path(
+        lockfile
+            .save_to_path_as(
+                install.context.config.lockfile_format,
                 &workspace.dirs.workspace_root.join(install.context.config.wanted_lockfile_name()),
                 install.context.config.symlinked_lockfile(),
             )

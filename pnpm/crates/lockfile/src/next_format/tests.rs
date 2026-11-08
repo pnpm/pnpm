@@ -304,28 +304,3 @@ fn compare_timings() {
         );
     }
 }
-
-/// Times what regenerating `pnpm-lock.yaml` from the current lockfile in
-/// `PNPM_NEXT_INSTALL_STATE_DIR` does: load it, then save it.
-#[test]
-#[ignore = "timing aid"]
-fn time_regeneration() {
-    let dir = std::env::var("PNPM_NEXT_INSTALL_STATE_DIR").expect("PNPM_NEXT_INSTALL_STATE_DIR");
-    let target = tempfile::tempdir().expect("temporary directory");
-    for round in 0..5 {
-        let started = std::time::Instant::now();
-        let current = Lockfile::load_current_from_install_state_dir(Path::new(&dir))
-            .expect("load")
-            .expect("content");
-        let loaded = started.elapsed();
-        let path = target
-            .path()
-            .join(format!("pnpm-lock-{round}.yaml"));
-        current.save_to_path(&path, crate::SymlinkedLockfile::Refuse).expect("save");
-        eprintln!(
-            "version {}: load {loaded:?}, load and save {:?}",
-            current.lockfile_version,
-            started.elapsed()
-        );
-    }
-}

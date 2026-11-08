@@ -13,6 +13,13 @@ use std::collections::{BTreeMap, HashMap};
 /// The serde attributes mirror those of [`crate::LockfileDocument`].
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm-lock.yaml format, as LockfileDocument's do."
+    )
+)]
 pub(super) struct NextDocument<'a> {
     lockfile_version: &'a LockfileVersion<9>,
     #[serde(skip_serializing_if = "is_none")]

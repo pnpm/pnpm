@@ -1,6 +1,6 @@
 use crate::{
-    ComVer, EnvLockfile, Lockfile, LockfileVersion, NextLockfile, ProjectSnapshot,
-    extract_env_document, extract_main_document,
+    ComVer, EnvLockfile, Lockfile, LockfileVersion, NextLockfile, ProjectSnapshot, Shape,
+    declares_next_format, extract_env_document, extract_main_document,
     git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
     load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
@@ -108,29 +108,6 @@ fn env_document_merges(content: &str, file_path: &Path) -> bool {
     }
     EnvLockfile::parse_conflicted_document(&env, file_path)
         .is_ok_and(|parsed| parsed.merged_conflict_files > 0)
-}
-
-/// Which shape a lockfile document's sections have.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Shape {
-    /// The shape its `lockfileVersion` names.
-    OfVersion,
-    /// Peer-suffixed, whatever its `lockfileVersion`: the current lockfile,
-    /// which records the wanted lockfile's version but is always written
-    /// suffixed, so that reading it needs no conversion.
-    Suffixed,
-}
-
-/// Whether the document's `lockfileVersion` is the next format's. pnpm writes
-/// the field on the document's first line, so this reads no further than the
-/// first line that sets it.
-fn declares_next_format(document: &str) -> bool {
-    document
-        .lines()
-        .find_map(|line| line.strip_prefix("lockfileVersion:"))
-        .map(|value| value.trim().trim_matches(['\'', '"']))
-        .and_then(|value| value.parse::<ComVer>().ok())
-        .is_some_and(|version| version.major == crate::NEXT_LOCKFILE_MAJOR)
 }
 
 impl Lockfile {

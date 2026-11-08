@@ -10,6 +10,42 @@ pub(super) struct Components {
     pub component_of: HashMap<usize, usize>,
 }
 
+/// Iterative Tarjan over the participating nodes of `0..count`. Edges to
+/// non-participating nodes are ignored.
+pub(super) fn components(
+    count: usize,
+    neighbors: impl Fn(usize) -> Vec<usize>,
+    participates: impl Fn(usize) -> bool,
+) -> Components {
+    let edges_of = |node: usize| -> Vec<usize> {
+        neighbors(node)
+            .into_iter()
+            .filter(|&next| participates(next))
+            .collect()
+    };
+    let mut tarjan = Tarjan {
+        index_of: vec![None; count],
+        low: vec![0; count],
+        on_stack: vec![false; count],
+        stack: Vec::new(),
+        frames: Vec::new(),
+        next_index: 0,
+        found: Components {
+            components: (0..count)
+                .filter(|&node| !participates(node))
+                .map(|node| vec![node])
+                .collect(),
+            component_of: HashMap::new(),
+        },
+    };
+    for root in (0..count).filter(|&node| participates(node)) {
+        if tarjan.index_of[root].is_none() {
+            tarjan.visit(root, &edges_of);
+        }
+    }
+    tarjan.found
+}
+
 struct Frame {
     node: usize,
     edges: Vec<usize>,
@@ -23,9 +59,29 @@ struct Tarjan {
     stack: Vec<usize>,
     frames: Vec<Frame>,
     next_index: usize,
+    found: Components,
 }
 
 impl Tarjan {
+    fn visit(&mut self, root: usize, edges_of: &impl Fn(usize) -> Vec<usize>) {
+        self.enter(root, edges_of(root));
+        while let Some(frame) = self.frames.last_mut() {
+            let Some(&next) = frame.edges.get(frame.position) else {
+                self.leave();
+                continue;
+            };
+            frame.position += 1;
+            let node = frame.node;
+            match self.index_of[next] {
+                None => self.enter(next, edges_of(next)),
+                Some(next_index) if self.on_stack[next] => {
+                    self.low[node] = self.low[node].min(next_index);
+                }
+                Some(_) => {}
+            }
+        }
+    }
+
     fn enter(&mut self, node: usize, edges: Vec<usize>) {
         self.index_of[node] = Some(self.next_index);
         self.low[node] = self.next_index;
@@ -34,70 +90,28 @@ impl Tarjan {
         self.on_stack[node] = true;
         self.frames.push(Frame { node, edges, position: 0 });
     }
-}
 
-/// Iterative Tarjan over the participating nodes of `0..count`. Edges to
-/// non-participating nodes are ignored.
-pub(super) fn components(
-    count: usize,
-    neighbors: impl Fn(usize) -> Vec<usize>,
-    participates: impl Fn(usize) -> bool,
-) -> Components {
-    let mut components: Vec<Vec<usize>> = (0..count)
-        .filter(|&node| !participates(node))
-        .map(|node| vec![node])
-        .collect();
-    let mut component_of = HashMap::new();
-    let edges_of = |node: usize| -> Vec<usize> {
-        neighbors(node)
-            .into_iter()
-            .filter(|&next| participates(next))
-            .collect()
-    };
-    let mut state = Tarjan {
-        index_of: vec![None; count],
-        low: vec![0; count],
-        on_stack: vec![false; count],
-        stack: Vec::new(),
-        frames: Vec::new(),
-        next_index: 0,
-    };
-    for root in (0..count).filter(|&node| participates(node)) {
-        if state.index_of[root].is_some() {
-            continue;
+    /// Finishes the node on top of the frames, emitting its component when it
+    /// is the component's root.
+    fn leave(&mut self) {
+        let Some(Frame { node, .. }) = self.frames.pop() else { return };
+        if let Some(parent) = self.frames.last() {
+            let parent = parent.node;
+            self.low[parent] = self.low[parent].min(self.low[node]);
         }
-        state.enter(root, edges_of(root));
-        while let Some(frame) = state.frames.last_mut() {
-            let node = frame.node;
-            if let Some(&next) = frame.edges.get(frame.position) {
-                frame.position += 1;
-                match state.index_of[next] {
-                    None => state.enter(next, edges_of(next)),
-                    Some(next_index) if state.on_stack[next] => {
-                        state.low[node] = state.low[node].min(next_index);
-                    }
-                    Some(_) => {}
-                }
-                continue;
-            }
-            state.frames.pop();
-            if let Some(parent) = state.frames.last() {
-                let parent = parent.node;
-                state.low[parent] = state.low[parent].min(state.low[node]);
-            }
-            if Some(state.low[node]) == state.index_of[node] {
-                let mut component = Vec::new();
-                while let Some(member) = state.stack.pop() {
-                    state.on_stack[member] = false;
-                    component_of.insert(member, components.len());
-                    component.push(member);
-                    if member == node {
-                        break;
-                    }
-                }
-                components.push(component);
+        if Some(self.low[node]) != self.index_of[node] {
+            return;
+        }
+        let index = self.found.components.len();
+        let mut component = Vec::new();
+        while let Some(member) = self.stack.pop() {
+            self.on_stack[member] = false;
+            self.found.component_of.insert(member, index);
+            component.push(member);
+            if member == node {
+                break;
             }
         }
+        self.found.components.push(component);
     }
-    Components { components, component_of }
 }
