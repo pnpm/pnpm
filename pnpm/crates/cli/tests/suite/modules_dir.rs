@@ -571,14 +571,35 @@ fn registry_bin_sets_node_path(project_dir: &Path) -> bool {
 
 #[test]
 fn frozen_offline_install_keeps_links_in_an_external_modules_dir() {
-    for cli_setting in [false, true] {
-        for explicit_virtual_store in [false, true] {
+    for cli_setting in [ModulesDirSource::Workspace, ModulesDirSource::Cli] {
+        for explicit_virtual_store in [VirtualStore::Default, VirtualStore::Explicit] {
             check_frozen_offline_modules_dir(cli_setting, explicit_virtual_store);
         }
     }
 }
 
-fn check_frozen_offline_modules_dir(cli_setting: bool, explicit_virtual_store: bool) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModulesDirSource {
+    Workspace,
+    Cli,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VirtualStore {
+    Default,
+    Explicit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InstallMode {
+    Initial,
+    FrozenOffline,
+}
+
+fn check_frozen_offline_modules_dir(
+    cli_setting: ModulesDirSource,
+    explicit_virtual_store: VirtualStore,
+) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -586,11 +607,11 @@ fn check_frozen_offline_modules_dir(cli_setting: bool, explicit_virtual_store: b
         .parent()
         .expect("workspace parent")
         .join("external/node_modules");
-    if !cli_setting {
+    if cli_setting == ModulesDirSource::Workspace {
         let modules_setting = modules.to_string_lossy().replace('\\', "/");
         append_workspace_yaml_key(&workspace, "modulesDir", &modules_setting);
     }
-    if explicit_virtual_store {
+    if explicit_virtual_store == VirtualStore::Explicit {
         let virtual_store = modules
             .join(".pnpm")
             .to_string_lossy()
@@ -604,34 +625,59 @@ fn check_frozen_offline_modules_dir(cli_setting: bool, explicit_virtual_store: b
             "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
         }),
     );
-    install_with_external_modules(&workspace, &modules, cli_setting, false);
+    install_with_external_modules(
+        &workspace,
+        &modules,
+        cli_setting,
+        explicit_virtual_store,
+        InstallMode::Initial,
+    );
     fs::remove_dir_all(&modules).expect("remove modules directory");
     let default_modules = workspace.join("node_modules");
     if default_modules.exists() {
         fs::remove_dir_all(default_modules).expect("remove default modules directory");
     }
-    install_with_external_modules(&workspace, &modules, cli_setting, true);
+    install_with_external_modules(
+        &workspace,
+        &modules,
+        cli_setting,
+        explicit_virtual_store,
+        InstallMode::FrozenOffline,
+    );
     drop((root, mock_instance));
 }
 
 fn install_with_external_modules(
     workspace: &Path,
     modules: &Path,
-    cli_setting: bool,
-    frozen: bool,
+    cli_setting: ModulesDirSource,
+    virtual_store: VirtualStore,
+    mode: InstallMode,
 ) {
     let mut command = pacquet_in(workspace);
     command.arg("install");
-    if cli_setting {
+    if cli_setting == ModulesDirSource::Cli {
         command.arg("--modules-dir").arg(modules);
     }
-    if frozen {
+    if mode == InstallMode::FrozenOffline {
         command.args(["--offline", "--frozen-lockfile"]);
     }
     command.assert().success();
-    assert!(modules.join("@pnpm.e2e/hello-world-js-bin/package.json").exists());
-    assert!(has_bin(modules, "hello-world-js-bin"));
-    assert!(!workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists());
+    let context =
+        format!("{cli_setting:?} {virtual_store:?} {mode:?}, modules: {}", modules.display());
+    assert!(modules.join("@pnpm.e2e/hello-world-js-bin/package.json").exists(), "{context}");
+    let bin_name = if cfg!(windows) { "hello-world-js-bin.cmd" } else { "hello-world-js-bin" };
+    let bin = modules.join(".bin").join(bin_name);
+    let output = Command::new(&bin)
+        .output()
+        .unwrap_or_else(|error| panic!("{context}: {}: {error}", bin.display()));
+    assert!(
+        output.status.success(),
+        "{context}: {}: {}",
+        bin.display(),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(!workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(), "{context}");
 }
 
 #[test]
