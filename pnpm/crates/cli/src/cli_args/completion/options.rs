@@ -1,8 +1,7 @@
 use super::{
-    CompletionContext, filter_by_prefix, packages,
+    CompletionContext, ValueForm, filter_by_prefix, packages,
     paths::{self, PathCompletionKind},
 };
-use crate::cli_args::cli_command::options::find_workspace_root_dir;
 use clap::{Arg, ArgAction, Command, ValueHint};
 use miette::IntoDiagnostic;
 use pnpm_workspace::find_workspace_dir;
@@ -52,7 +51,7 @@ pub(super) fn attached_option_values(
     else {
         return Ok(None);
     };
-    let values = complete_argument_values(context, argument, value_prefix, true)?
+    let values = complete_argument_values(context, argument, value_prefix, ValueForm::Attached)?
         .into_iter()
         .map(|value| format!("{option_prefix}{value}"))
         .collect();
@@ -93,7 +92,7 @@ pub(super) fn complete_argument_values(
     context: &CompletionContext<'_>,
     argument: &Arg,
     value_prefix: &str,
-    attached: bool,
+    form: ValueForm,
 ) -> miette::Result<Vec<String>> {
     if matches!(argument.get_id().as_str(), "filter" | "filter_prod") {
         return Ok(filter_by_prefix(packages::complete_packages(context)?, value_prefix));
@@ -108,7 +107,7 @@ pub(super) fn complete_argument_values(
         let base_dir = path_base_directory(context, argument, home_dir.as_deref())?;
         let value_home_dir = home_dir
             .as_deref()
-            .filter(|_| !attached || argument.get_id() == "store_dir");
+            .filter(|_| form == ValueForm::Separate || argument.get_id() == "store_dir");
         return Ok(paths::complete_paths(&base_dir, value_home_dir, value_prefix, kind));
     }
     let mut values = filter_by_prefix(visible_possible_values(argument), value_prefix);
@@ -130,7 +129,7 @@ fn path_base_directory(
     }
     let selected = context.resolve_selected_directory(&cwd, home_dir)?;
     let selected = if context.workspace_root {
-        find_workspace_root_dir(&selected).unwrap_or(selected)
+        find_workspace_dir(&selected)?.unwrap_or(selected)
     } else {
         selected
     };

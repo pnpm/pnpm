@@ -258,6 +258,20 @@ fn complete_paths_completes_directories_and_files_by_kind() {
             home.path().join("projects"),
         );
     }
+
+    let large = TempDir::new().expect("large dir");
+    for index in 0..super::paths::MAX_PATH_CANDIDATES + 10 {
+        std::fs::create_dir(
+            large
+                .path()
+                .join(format!("dir-{index:04}")),
+        )
+        .expect("create dir");
+    }
+    assert_eq!(
+        complete_paths(large.path(), None, "", PathCompletionKind::Directories).len(),
+        super::paths::MAX_PATH_CANDIDATES,
+    );
 }
 
 #[test]

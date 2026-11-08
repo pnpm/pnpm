@@ -9,6 +9,8 @@ pub(super) enum PathCompletionKind {
     FilesAndDirectories,
 }
 
+pub(super) const MAX_PATH_CANDIDATES: usize = 256;
+
 pub(super) fn complete_paths(
     cwd: &Path,
     home_dir: Option<&Path>,
@@ -23,6 +25,7 @@ pub(super) fn complete_paths(
     let mut candidates: Vec<_> = entries
         .flatten()
         .filter_map(|entry| completion_candidate(&entry, dir_prefix, name_prefix, kind))
+        .take(MAX_PATH_CANDIDATES)
         .collect();
     candidates.sort();
     candidates.dedup();

@@ -122,16 +122,22 @@ pub fn complete_words(words: &[String]) -> miette::Result<Vec<String>> {
     }
 
     if let Some(argument) = context.pending_option {
-        return complete_argument_values(&context, argument, current_word, false);
+        return complete_argument_values(&context, argument, current_word, ValueForm::Separate);
     }
 
     Ok(filter_by_prefix(context.positional_candidates()?, current_word))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ValueForm {
+    Attached,
+    Separate,
+}
+
 #[derive(Clone, Copy)]
 struct DirectoryArg<'a> {
     path: &'a str,
-    attached: bool,
+    form: ValueForm,
 }
 
 struct CompletionContext<'a> {
@@ -161,7 +167,7 @@ impl<'a> CompletionContext<'a> {
         match self.directory {
             Some(directory) => Ok(paths::resolve_directory_arg(
                 cwd,
-                home_dir.filter(|_| !directory.attached),
+                home_dir.filter(|_| directory.form == ValueForm::Separate),
                 directory.path,
             )),
             None => self.resolve_implicit_directory(cwd),
@@ -221,7 +227,8 @@ impl<'a> CompletionContext<'a> {
         let pending_option = separate_value_option(self, word, next);
         let width = if pending_option.is_some() { 2 } else { 1 };
         if let Some(path) = scripts::directory_option(word, next.filter(|_| width == 2)) {
-            self.directory = Some(DirectoryArg { path, attached: width == 1 });
+            let form = if width == 1 { ValueForm::Attached } else { ValueForm::Separate };
+            self.directory = Some(DirectoryArg { path, form });
         }
         (width, pending_option)
     }
@@ -239,9 +246,10 @@ impl<'a> CompletionContext<'a> {
             self.workspace_root |= argument.get_id() == "workspace_root";
             let accepts_next = option_value_is_allowed(argument, next);
             if argument.get_id() == "dir" {
-                let attached = !remaining.is_empty();
+                let form =
+                    if remaining.is_empty() { ValueForm::Separate } else { ValueForm::Attached };
                 self.directory = short_option_value(remaining, next, accepts_next)
-                    .map(|path| DirectoryArg { path, attached });
+                    .map(|path| DirectoryArg { path, form });
             }
             let takes_separate = argument_takes_separate_value(argument);
             pending_option = (takes_separate && accepts_next).then_some(argument);
