@@ -120,6 +120,29 @@ fn nested_install_recognizes_a_slot_held_by_its_parent_build() {
 }
 
 #[test]
+fn nested_install_does_not_wait_for_a_different_busy_slot() {
+    let root = tempdir().expect("temporary slot root");
+    let key = "dep@1.0.0".parse().expect("package key");
+    let parent_path = root.path().join("parent-slot");
+    let contested_path = root.path().join("contested-slot");
+    std::fs::create_dir_all(&parent_path).expect("create parent slot");
+    let contested_slot =
+        GlobalVirtualStoreSlot::acquire_path(contested_path.clone(), &key).expect("lock slot");
+
+    let result = GlobalVirtualStoreSlot::acquire_path_with_inherited(
+        contested_path,
+        &key,
+        std::slice::from_ref(&parent_path),
+    );
+    let Err(error) = result else {
+        panic!("nested installs must not wait on another install's slot");
+    };
+
+    assert_eq!(error.source.kind(), std::io::ErrorKind::WouldBlock);
+    drop(contested_slot);
+}
+
+#[test]
 fn missing_slot_paths_are_not_inherited() {
     let root = tempdir().expect("temporary slot root");
     let missing_slot = root.path().join("pruned-slot");

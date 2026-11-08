@@ -2,6 +2,7 @@
 
 pub use path_codec::GVS_LOCKED_SLOT_PATHS_ENV;
 pub(crate) use path_codec::{encode_slot_lock_paths, inherited_slot_locks};
+mod acquire;
 mod path_codec;
 use crate::VirtualStoreLayout;
 use derive_more::{Display, Error};
@@ -220,25 +221,6 @@ impl GlobalVirtualStoreSlot {
             return Ok(None);
         }
         Ok(Some(slot))
-    }
-
-    pub fn acquire_path(path: PathBuf, key: &PackageKey) -> Result<Self, GvsSlotLockError> {
-        let inherited = inherited_slot_locks()
-            .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?;
-        if slot_lock_is_inherited(&path, &inherited)
-            .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?
-        {
-            return Err(GvsSlotLockError {
-                dep_path: key.to_string(),
-                source: io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    "a nested install cannot wait on a slot held by its parent build",
-                ),
-            });
-        }
-        let lock = DirLock::acquire_waiting(&path.join(SLOT_LOCK_DIR), WAIT, ABANDONED_AFTER)
-            .map_err(|source| GvsSlotLockError { dep_path: key.to_string(), source })?;
-        Ok(Self::from_path(path, key, Some(lock)))
     }
 
     fn from_path(path: PathBuf, key: &PackageKey, lock: Option<DirLock>) -> Self {
