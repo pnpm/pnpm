@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.state",
-  "version": "1100.0.53",
+  "version": "1100.0.54",
   "description": "Track the list of actual paths of workspace packages in a cache",
   "keywords": [
     "pnpm",
@@ -39,6 +39,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "path-absolute": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:"
   },

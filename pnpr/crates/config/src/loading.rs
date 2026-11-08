@@ -2,9 +2,9 @@ use super::{
     Arc, Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, EnvVar, FeatureOverrides,
     HostedStoreConfig, Path, PathBuf, RegistryError, RemovedGroupsBlock, RemovedPackagesBlock,
     RemovedUplinksBlock, RemovedUpstreamsBlock, ResolvedFileRegistries, RoutesFile, SocketAddr,
-    SystemEnv, build_backend_config, build_cors_config, build_features, build_identity_config,
-    build_log_config, build_osv_config, build_route_policy, build_ui_config, config_file_in,
-    env_replace_lossy, resolve_file_registries, resolve_secrets, resolve_storage_paths,
+    SystemEnv, build_cors_config, build_features, build_identity_config, build_log_config,
+    build_osv_config, build_route_policy, build_ui_config, config_file_in, env_replace_lossy,
+    resolve_file_registries, resolve_secrets, resolve_storage_paths,
 };
 use crate::{
     config_file::{RegistryFile, RegistryGroupFile},
@@ -214,7 +214,7 @@ impl Config {
         let hosts_packages = declares_a_hosted_registry(&file) && !overrides.disable_registry;
         let storage = build_storage_config(&mut file, base_dir, hosts_packages)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
-        let backend = build_backend_config(file.backend, base_dir)?;
+        let backend = super::backend_config::build_backend_config(&storage.metadata);
         reject_removed_blocks(RemovedBlocks {
             packages: file.packages.as_ref(),
             groups: file.groups.as_ref(),
@@ -248,6 +248,7 @@ impl Config {
             features,
             routing,
             release_records: super::build_release_records_config(file.release_records.take())?,
+            gc: super::build_gc_config(file.gc.take())?,
         })
     }
 }
@@ -342,10 +343,15 @@ fn build_storage_config(
     base_dir: &Path,
     hosts_packages: bool,
 ) -> Result<super::StorageConfig, RegistryError> {
+    if file.backend.is_some() || file.metadata.is_some() {
+        return Err(RegistryError::InvalidConfig {
+            reason: "backend and metadata are no longer supported; use database.url for accounts, tokens, and package metadata".to_string(),
+        });
+    }
     let (hosted_dir, cache_dir, cache) = resolve_storage_paths(file, base_dir)?;
     let hosted_backend = file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3);
     let metadata = crate::storage_config::resolve_metadata_backend(
-        file.metadata.as_ref(),
+        file.database.as_ref(),
         &hosted_dir,
         base_dir,
         &hosted_backend,
@@ -366,8 +372,13 @@ pub(super) fn parse_config_file_with_env<Sys: EnvVar>(
     if !unresolved.is_empty() {
         tracing::warn!(?unresolved, "config references unset environment variables");
     }
-    let file: ConfigFile = serde_saphyr::from_str(&substituted)
+    let parsed: Option<ConfigFile> = serde_saphyr::from_str(&substituted)
         .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
+    let file = match parsed {
+        Some(file) => file,
+        None => serde_saphyr::from_str("{}")
+            .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?,
+    };
     if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
         return Err(RegistryError::InvalidConfig {
             reason: "oci size limits must be greater than zero".to_string(),

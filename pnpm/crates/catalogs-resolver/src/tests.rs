@@ -172,6 +172,19 @@ fn reanchors_a_link_entry_on_the_consuming_project() {
 }
 
 #[test]
+fn reanchors_a_workspace_path_entry_on_the_consuming_project() {
+    assert_eq!(
+        reanchored("workspace:./packages/bar", Some("apps/deep/foo")),
+        "workspace:../../../packages/bar",
+    );
+}
+
+#[test]
+fn keeps_a_workspace_path_entry_relative_for_a_consumer_outside_the_workspace() {
+    assert_eq!(reanchored("workspace:./packages/bar", None), "workspace:./packages/bar");
+}
+
+#[test]
 fn renders_a_local_entry_absolute_for_a_consumer_outside_the_workspace() {
     let expected = format!("file:{}/tarballs/bar-1.0.0.tgz", WORKSPACE_DIR.replace('\\', "/"));
     assert_eq!(reanchored("file:./tarballs/bar-1.0.0.tgz", None), expected);

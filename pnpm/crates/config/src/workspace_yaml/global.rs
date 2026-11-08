@@ -97,7 +97,7 @@ impl TrustedSettings {
     }
 }
 
-fn read_global<Settings: DeserializeOwned>(
+fn read_global<Settings: DeserializeOwned + Default>(
     text: &str,
     path: &Path,
     settings_read: SettingsRead,

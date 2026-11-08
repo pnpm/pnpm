@@ -1,8 +1,9 @@
 use super::{
     AsyncReadExt, AsyncWriteExt, CanonicalPackageName, Duration, FetchOutcome, HeaderMap,
-    TcpListener, Upstream, UpstreamConfig, assert_redirect_timeout, auth_and_custom_headers,
-    upstream,
+    TcpListener, Upstream, UpstreamConfig, assert_redirect_chain_shares_one_head_deadline,
+    auth_and_custom_headers, upstream,
 };
+use futures_util::StreamExt;
 
 #[tokio::test]
 async fn fetch_artifact_response_sends_headers_only_to_the_upstream_origin() {
@@ -120,13 +121,162 @@ async fn approved_artifact_redirects_rebuild_headers_for_each_origin() {
 }
 
 #[tokio::test]
-async fn redirect_chain_shares_one_timeout() {
-    assert_redirect_timeout(false).await;
+async fn redirect_chain_shares_one_head_deadline() {
+    assert_redirect_chain_shares_one_head_deadline().await;
+}
+
+/// An upstream that answers one request with `chunks` pieces of a body,
+/// `gap` apart, and then holds the connection open.
+async fn spawn_slow_body(chunks: usize, gap: Duration) -> (Upstream, tokio::task::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        let head = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", chunks * 5 + 5);
+        socket.write_all(head.as_bytes()).await.unwrap();
+        for _ in 0..chunks {
+            socket.write_all(b"chunk").await.unwrap();
+            tokio::time::sleep(gap).await;
+        }
+        tokio::time::sleep(Duration::from_mins(1)).await;
+    });
+    let mut config = UpstreamConfig::with_defaults(url, HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(300);
+    (Upstream::new("test", &config), server)
+}
+
+async fn read_tarball(upstream: &Upstream, expected_chunks: usize) -> std::io::Result<usize> {
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let FetchOutcome::Ok(response) =
+        upstream.fetch_tarball_response(&name, "foo.tgz").await.unwrap()
+    else {
+        panic!("expected a tarball response")
+    };
+    let mut stream = Box::pin(response.bytes_stream());
+    let mut received = 0;
+    while received < expected_chunks * 5 {
+        received += stream
+            .next()
+            .await
+            .expect("more of the body")?
+            .len();
+    }
+    Ok(received)
 }
 
 #[tokio::test]
-async fn redirected_artifact_body_uses_remaining_timeout() {
-    assert_redirect_timeout(true).await;
+async fn a_streamed_body_that_keeps_arriving_outlives_the_timeout() {
+    let (upstream, server) = spawn_slow_body(8, Duration::from_millis(100)).await;
+    let started = std::time::Instant::now();
+    let received = read_tarball(&upstream, 8).await.expect("a body that keeps arriving is read");
+    assert_eq!(received, 40);
+    assert!(started.elapsed() > Duration::from_millis(600), "the body outlived the 300ms timeout");
+    server.abort();
+}
+
+#[tokio::test]
+async fn tarball_head_deadline_starts_after_waiting_for_a_permit() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody").await.unwrap();
+    });
+    let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(250);
+    let mut upstream = Upstream::new("test", &config);
+    upstream.http.client = std::sync::Arc::new(
+        pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
+    );
+    let held = upstream.http.client.acquire_for_url(&url).await;
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let release_permit = async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        drop(held);
+    };
+    let fetch = upstream.fetch_tarball_response(&name, "foo.tgz");
+    let (result, ()) = tokio::join!(fetch, release_permit);
+    let FetchOutcome::Ok(response) = result.unwrap() else { panic!("expected a tarball response") };
+    let mut stream = Box::pin(response.bytes_stream());
+    assert_eq!(stream.next().await.unwrap().unwrap(), "body");
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn a_redirect_hops_permit_wait_does_not_count_toward_the_head_deadline() {
+    let target = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let target_url = format!("http://{}/final", target.local_addr().unwrap());
+    let origin = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin_url = format!("http://{}", origin.local_addr().unwrap());
+    let redirect = format!(
+        "HTTP/1.1 302 Found\r\nLocation: {target_url}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    );
+    let server = tokio::spawn(async move {
+        let mut request = [0u8; 4096];
+        let (mut first, _) = origin.accept().await.unwrap();
+        assert!(first.read(&mut request).await.unwrap() > 0);
+        first.write_all(redirect.as_bytes()).await.unwrap();
+        let (mut second, _) = target.accept().await.unwrap();
+        assert!(second.read(&mut request).await.unwrap() > 0);
+        second.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody").await.unwrap();
+    });
+    let mut config = UpstreamConfig::with_defaults(origin_url.clone(), HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(250);
+    let mut upstream = Upstream::new("test", &config);
+    upstream.http.client = std::sync::Arc::new(
+        pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
+    );
+    let held = upstream.http.client.acquire_for_url(&target_url).await;
+    let release_permit = async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        drop(held);
+    };
+    let fetch = upstream.fetch_artifact_response(&origin_url);
+    let (result, ()) = tokio::join!(fetch, release_permit);
+    let FetchOutcome::Ok(response) = result.unwrap() else {
+        panic!("expected an artifact response")
+    };
+    let mut stream = Box::pin(response.bytes_stream());
+    assert_eq!(stream.next().await.unwrap().unwrap(), "body");
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn a_stalled_error_body_is_bounded_by_the_timeout() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        let response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 100\r\n\r\nbroke";
+        socket.write_all(response.as_bytes()).await.unwrap();
+        tokio::time::sleep(Duration::from_mins(1)).await;
+    });
+    let mut config = UpstreamConfig::with_defaults(url, HeaderMap::new());
+    config.requests.timeout = Duration::from_millis(300);
+    let upstream = Upstream::new("test", &config);
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let started = std::time::Instant::now();
+    let result = upstream.fetch_tarball_response(&name, "foo.tgz").await;
+    assert!(
+        matches!(result, Err(pnpr_error::RegistryError::UpstreamStatus { status: 500, .. })),
+        "got {result:?}",
+    );
+    assert!(started.elapsed() < Duration::from_secs(5), "the error body read was not bounded");
+    server.abort();
+}
+
+#[tokio::test]
+async fn a_streamed_body_that_stalls_fails_after_the_timeout() {
+    let (upstream, server) = spawn_slow_body(1, Duration::from_mins(1)).await;
+    let error = read_tarball(&upstream, 2).await.expect_err("a stalled body times out");
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+    server.abort();
 }
 
 #[tokio::test]

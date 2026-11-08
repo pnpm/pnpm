@@ -19,7 +19,7 @@ pub(super) fn user_resource(username: &str, user: &ScimUser, location: &str) -> 
     let mut resource = user.attributes.clone();
     resource.insert("schemas".to_string(), json!([USER_SCHEMA]));
     resource.insert("id".to_string(), json!(username));
-    resource.insert("userName".to_string(), json!(username));
+    resource.insert("userName".to_string(), json!(user.username));
     resource.insert("active".to_string(), json!(user.active));
     resource.insert("meta".to_string(), json!({ "resourceType": "User", "location": location }));
     Value::Object(resource)
@@ -53,7 +53,10 @@ pub(super) fn parse_user(body: &Value) -> Result<(String, ScimUser), RegistryErr
         .filter(|(key, _)| !MANAGED_ATTRIBUTES.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
-    Ok((username.to_string(), ScimUser { active, attributes, ..ScimUser::default() }))
+    Ok((
+        username.to_string(),
+        ScimUser { username: username.to_string(), active, attributes, ..ScimUser::default() },
+    ))
 }
 
 /// Apply a `PatchOp` body to `user`. `active` and top-level or `name.*`
@@ -110,6 +113,14 @@ fn set(user: &mut ScimUser, path: &str, value: Option<&Value>) -> Result<(), Reg
         .map(|rest| rest.trim_start_matches(':'))
         .unwrap_or(path);
     if path.contains('[') {
+        return Ok(());
+    }
+    if path.eq_ignore_ascii_case("userName") {
+        let name = value
+            .and_then(Value::as_str)
+            .filter(|name| !name.is_empty())
+            .ok_or_else(|| invalid("userName must be a nonempty string"))?;
+        user.username = name.to_string();
         return Ok(());
     }
     if path.eq_ignore_ascii_case("active") {

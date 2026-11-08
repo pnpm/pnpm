@@ -1,4 +1,6 @@
 pub mod console;
+#[cfg(target_os = "linux")]
+pub mod inotify;
 pub mod terminal;
 
 pub use pnpm_testing_utils::bin::read_v11_bundle_path;
@@ -73,7 +75,11 @@ pub fn pacquet_in(workspace: &Path) -> Command {
 pub const CHILD_DEADLINE: Duration = Duration::from_secs(30);
 
 pub fn wait_for_child(child: &mut Child) -> ExitStatus {
-    let deadline = Instant::now() + CHILD_DEADLINE;
+    wait_for_child_with_deadline(child, CHILD_DEADLINE)
+}
+
+pub fn wait_for_child_with_deadline(child: &mut Child, timeout: Duration) -> ExitStatus {
+    let deadline = Instant::now() + timeout;
     loop {
         if let Some(status) = child.try_wait().expect("read child status") {
             return status;

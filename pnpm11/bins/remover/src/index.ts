@@ -1,6 +1,7 @@
-import { removeBin, removeBinsOfDependency } from './removeBins.js'
+import { removeBin, removeBinsOfDependency, safeReadDependencyManifest } from './removeBins.js'
 
 export {
   removeBin,
   removeBinsOfDependency,
+  safeReadDependencyManifest,
 }

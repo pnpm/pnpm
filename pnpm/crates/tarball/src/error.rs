@@ -4,7 +4,7 @@ use derive_more::{Display, Error, From};
 use miette::Diagnostic;
 use pnpm_network::{redact_url_for_display, walk_reqwest_chain};
 use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
-use std::{error::Error as StdError, io, path::PathBuf};
+use std::{error::Error as StdError, io, path::PathBuf, sync::Arc};
 use zune_inflate::errors::InflateDecodeErrors;
 
 /// Every URL below is rendered through [`redact_url_for_display`]: a
@@ -142,18 +142,12 @@ pub enum TarballError {
     #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
     TarballTooLarge { url: String, advertised_size: u64 },
 
-    /// A concurrent request for the same tarball URL went through
-    /// `run_with_mem_cache`, drove the network fetch, and failed.
-    /// This task was parked on the shared `Notify` waiting for the
-    /// download; on wake it sees [`crate::CacheValue::Failed`] and surfaces
-    /// this variant.
+    /// Another request for the same archive in the shared mem cache drove
+    /// the fetch and failed; see [`crate::CacheValue::Failed`]. `cause` is
+    /// that request's rendered error, whose URLs are already redacted.
     #[from(ignore)]
-    #[display(
-        "A concurrent fetch for {} failed; this request waited on the shared mem cache and inherits the failure",
-        redact_url_for_display(url)
-    )]
     #[diagnostic(code(ERR_PNPM_TARBALL_SIBLING_FETCH_FAILED))]
-    SiblingFetchFailed { url: String },
+    SiblingFetchFailed { cause: Arc<str> },
 
     /// Path-traversal rejection on a zip entry, carrying the
     /// `PATH_TRAVERSAL` error code: any entry whose path is absolute
@@ -210,7 +204,8 @@ pub enum TarballError {
     /// the message shape follows pnpm's `ERR_PNPM_NO_OFFLINE_META`.
     #[from(ignore)]
     #[display(
-        "Failed to fetch tarball for {package_id} from {url} in offline mode: snapshot not present in local store"
+        "Failed to fetch tarball for {package_id} from {} in offline mode: snapshot not present in local store",
+        redact_url_for_display(url)
     )]
     #[diagnostic(
         code(ERR_PNPM_NO_OFFLINE_TARBALL),

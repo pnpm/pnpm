@@ -6,7 +6,7 @@ use super::{
     InstallScope, RunExecution,
     settled::Settled,
 };
-use crate::{ProjectMutation, optimistic_repeat_install::current_settings_with_catalogs};
+use crate::{ProjectMutation, install_state::current_settings_with_catalogs};
 
 impl RunExecution<'_> {
     pub(super) fn wanted_lockfile_path(&self) -> PathBuf {

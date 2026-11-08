@@ -29,6 +29,7 @@ pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-semver-include-prerelease = { workspace = true }
+pnpm-workspace-spec = { workspace = true }
 
 async-recursion = { workspace = true }
 chrono = { workspace = true }

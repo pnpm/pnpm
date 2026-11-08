@@ -154,7 +154,7 @@ async fn write_version_note(
     text: Option<String>,
 ) -> Result<Response, RegistryError> {
     let principal = identity
-        .username()
+        .user_id()
         .unwrap_or("-")
         .to_string();
     let deleted = text.is_none();

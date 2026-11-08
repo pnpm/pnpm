@@ -1,10 +1,10 @@
 use super::{
-    HoistedLinkerError, HoistedLinkerInputs, Lockfile, Path, PathBuf, Reporter, SkippedSnapshots,
+    HoistedLinkerError, HoistedLinkerInputs, Lockfile, PathBuf, Reporter, SkippedSnapshots,
 };
 use crate::SymlinkDirectDependencies;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-const ALL_DEPENDENCY_GROUPS: [super::DependencyGroup; 3] =
+pub(super) const ALL_DEPENDENCY_GROUPS: [super::DependencyGroup; 3] =
     [super::DependencyGroup::Prod, super::DependencyGroup::Dev, super::DependencyGroup::Optional];
 
 // The hoisted walker skips workspace links, which still need symlinks in each importer.
@@ -13,7 +13,7 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     skipped: &SkippedSnapshots,
     link_options: &pnpm_cmd_shim::LinkBinsOptions,
-    claimed_commands: &mut HashMap<PathBuf, HashSet<String>>,
+    claimed_commands: &mut crate::ClaimedCommands,
 ) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
     let changed_dirs = workspace_linked_bin_dirs(inputs);
     // Workspace `link:` deps still need symlinks under each importer's
@@ -30,7 +30,7 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
         context: crate::ImporterLinkContext {
             config: inputs.config,
             layout: inputs.graph.layout,
-            workspace_root: inputs.projects.symlink_workspace_root,
+            workspace_root: inputs.projects.walker_lockfile_dir,
             link_options,
         },
         graph: crate::ImporterDependencyGraph {
@@ -53,85 +53,27 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
     }
     .run_claiming_bins::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
-    for (modules_dir, commands) in workspace_claimed {
-        claimed_commands
-            .entry(modules_dir)
-            .or_default()
-            .extend(commands);
-    }
+    claimed_commands.merge(workspace_claimed);
     Ok(changed_dirs)
 }
 
+/// Prunes the root's `.bin` and each selected project's.
 pub(super) fn prune_importer_hoisted_bins(
     inputs: &HoistedLinkerInputs<'_>,
-    claimed_commands: &HashMap<PathBuf, HashSet<String>>,
+    claimed_commands: &crate::ClaimedCommands,
 ) -> Result<(), HoistedLinkerError> {
-    let root_modules_dir = pnpm_fs::lexical_normalize(&inputs.config.modules_dir);
-    let mut prunes: HashMap<PathBuf, (PathBuf, HashSet<String>)> = HashMap::new();
-    record_hoisted_prune_dir(
-        &mut prunes,
-        claimed_commands,
-        &inputs.config.modules_dir,
-        &root_modules_dir,
-        std::slice::from_ref(&root_modules_dir),
-    );
-    for (project_dir, _) in inputs.projects.manifests {
-        record_project_hoisted_prune_dir(&mut prunes, inputs, claimed_commands, project_dir);
-    }
-    for (_, (modules_dir, claimed)) in prunes {
-        pnpm_cmd_shim::prune_stale_bins(&modules_dir.join(".bin"), &claimed)
-            .map_err(HoistedLinkerError::HoistLinkBins)?;
-    }
-    Ok(())
-}
-
-fn record_project_hoisted_prune_dir(
-    prunes: &mut HashMap<PathBuf, (PathBuf, HashSet<String>)>,
-    inputs: &HoistedLinkerInputs<'_>,
-    claimed_commands: &HashMap<PathBuf, HashSet<String>>,
-    project_dir: &Path,
-) {
-    let modules_dir_name = inputs.config.modules_dir_name();
-    let lexical_dir = pnpm_fs::lexical_normalize(&project_dir.join(modules_dir_name));
-    if pnpm_fs::lexical_normalize(project_dir)
-        == pnpm_fs::lexical_normalize(inputs.projects.walker_lockfile_dir)
-    {
-        let root_modules_dir = pnpm_fs::lexical_normalize(&inputs.config.modules_dir);
-        record_hoisted_prune_dir(
-            prunes,
-            claimed_commands,
-            &inputs.config.modules_dir,
-            &root_modules_dir,
-            &[root_modules_dir.clone(), lexical_dir],
-        );
-        return;
-    }
-    let real_dir = std::fs::canonicalize(project_dir)
-        .ok()
-        .map(|real_project| pnpm_fs::lexical_normalize(&real_project.join(modules_dir_name)));
-    let target_dir = real_dir.as_ref().unwrap_or(&lexical_dir);
-    let candidates: Vec<PathBuf> =
-        std::iter::once(lexical_dir.clone()).chain(real_dir.clone()).collect();
-    record_hoisted_prune_dir(prunes, claimed_commands, target_dir, target_dir, &candidates);
-}
-
-fn record_hoisted_prune_dir(
-    prunes: &mut HashMap<PathBuf, (PathBuf, HashSet<String>)>,
-    claimed_commands: &HashMap<PathBuf, HashSet<String>>,
-    physical_hint: &Path,
-    modules_dir: &Path,
-    candidate_keys: &[PathBuf],
-) {
-    let key = std::fs::canonicalize(physical_hint)
-        .unwrap_or_else(|_| pnpm_fs::lexical_normalize(physical_hint));
-    let (_, claimed) = prunes
-        .entry(key)
-        .or_insert_with(|| (modules_dir.to_path_buf(), HashSet::new()));
-    for candidate in candidate_keys {
-        if let Some(commands) = claimed_commands.get(candidate) {
-            claimed.extend(commands.iter().cloned());
-        }
-    }
+    let modules_dirs =
+        crate::ImporterModulesDirs::from_config(inputs.config, inputs.projects.walker_lockfile_dir);
+    let project_modules_dirs: Vec<PathBuf> = inputs.projects.manifests
+        .iter()
+        .map(|(project_dir, _)| modules_dirs.of(project_dir))
+        .collect();
+    claimed_commands
+        .prune_stale_bins(
+            std::iter::once(modules_dirs.root())
+                .chain(project_modules_dirs.iter().map(PathBuf::as_path)),
+        )
+        .map_err(HoistedLinkerError::HoistLinkBins)
 }
 
 /// Importer ids backed by the install's own declared projects, relative to
@@ -149,6 +91,8 @@ fn trusted_importer_ids(inputs: &HoistedLinkerInputs<'_>) -> HashSet<String> {
 }
 
 fn workspace_linked_bin_dirs(inputs: &HoistedLinkerInputs<'_>) -> HashSet<PathBuf> {
+    let modules_dirs =
+        crate::ImporterModulesDirs::from_config(inputs.config, inputs.projects.walker_lockfile_dir);
     inputs.projects.manifests
         .iter()
         .filter_map(|(project_dir, _)| {
@@ -163,15 +107,7 @@ fn workspace_linked_bin_dirs(inputs: &HoistedLinkerInputs<'_>) -> HashSet<PathBu
                     matches!(dependency.version, pnpm_lockfile::ImporterDepVersion::Link(_))
                 });
 
-            has_links.then(|| {
-                if pnpm_fs::lexical_normalize(project_dir)
-                    == pnpm_fs::lexical_normalize(inputs.projects.walker_lockfile_dir)
-                {
-                    inputs.config.modules_dir.clone()
-                } else {
-                    project_dir.join(inputs.config.modules_dir_name())
-                }
-            })
+            has_links.then(|| modules_dirs.of(project_dir))
         })
         .collect()
 }

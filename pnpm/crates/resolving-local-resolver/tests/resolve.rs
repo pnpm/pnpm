@@ -5,8 +5,8 @@ use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{LockfileResolution, TarballResolution};
 use pnpm_resolving_local_resolver::{
     LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
-    WantedLocalDependency, is_local_filesystem_specifier, resolve_from_local_path,
-    resolve_from_local_scheme,
+    WantedLocalDependency, is_local_filesystem_specifier, local_spec_path, recorded_local_path,
+    resolve_from_local_path, resolve_from_local_scheme,
 };
 use pnpm_resolving_resolver_base::PkgResolutionId;
 use std::{
@@ -912,4 +912,17 @@ fn recognizes_only_unambiguous_local_specifiers() {
     ] {
         assert!(!is_local_filesystem_specifier(specifier), "{specifier:?} is not a local path");
     }
+}
+
+#[test]
+fn a_rooted_spec_takes_the_drive_of_the_project() {
+    let tmp = TempDir::new().expect("tempdir");
+    let project = tmp.path();
+    let rooted = project
+        .ancestors()
+        .last()
+        .expect("the project has a root")
+        .join("vendor");
+    assert_eq!(local_spec_path("file:/vendor", project), rooted);
+    assert_eq!(local_spec_path("file:/vendor", project), recorded_local_path("/vendor", project));
 }

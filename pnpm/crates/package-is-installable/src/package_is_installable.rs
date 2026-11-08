@@ -82,8 +82,7 @@ impl InstallabilityError {
 ///   the install set.
 /// - [`InstallabilityVerdict::ProceedWithWarning`]: the package is
 ///   incompatible, not optional, and `engineStrict` is off; caller
-///   emits `pnpm:install-check` warn (or a tracing-level warning) and
-///   proceeds.
+///   emits `pnpm:install-check` warn and proceeds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallabilityVerdict {
     Installable,

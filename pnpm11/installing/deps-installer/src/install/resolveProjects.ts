@@ -15,7 +15,7 @@ import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectId, ReadPackageHook } from '@pnpm/types'
 import { equals, isEmpty, map as mapValues, pipeWith } from 'ramda'
 
-import { createInstallReadPackageHook } from './extendInstallOptions.js'
+import { createInstallReadPackageHook } from './createInstallReadPackageHook.js'
 import { forgetResolutionsOfAllPrevWantedDeps } from './forgetResolutions.js'
 import { omitPackagesNamed } from './getStaleOverrideTargets.js'
 import {

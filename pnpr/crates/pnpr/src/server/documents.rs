@@ -11,7 +11,7 @@
 
 use super::{
     AppState, hosted_read_namespace,
-    publishing::{StagedPublish, Verification, commit_publishes},
+    publishing::{StagedBase, StagedPublish, Verification, commit_publishes},
 };
 use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument};
 use pnpr_error::RegistryError;
@@ -20,6 +20,10 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
+use pnpr_storage::{
+    BlobId,
+    metadata::{ArtifactBlob, BlobLookup},
+};
 
 /// The per-project document a hosted registry keeps in its document slot: a
 /// crate's index entries, a Python project's file list. Read through
@@ -194,7 +198,36 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
     let storage = state.inner.storage.for_hosted(org, Document::ECOSYSTEM);
-    let stored = storage.read_hosted_document_for_update(key).await?;
+    let lookup = BlobLookup {
+        ids: vec![BlobId::of_bytes(Document::ECOSYSTEM, bytes)],
+        artifacts: Vec::new(),
+    };
+    let base = storage.read_hosted_document_for_publish(key, &lookup).await?;
+    let artifact = HostedArtifact { filename, bytes, references: Vec::new() };
+    stage_hosted_artifact_on(state, org, key, artifact, base, refuse, addition).await
+}
+
+/// The archive a hosted publish stages, and the files of the package already
+/// stored that it references.
+pub(super) struct HostedArtifact<'bytes> {
+    pub(super) filename: &'bytes str,
+    pub(super) bytes: &'bytes [u8],
+    pub(super) references: Vec<ArtifactBlob>,
+}
+
+/// [`stage_hosted_artifact`] on `base`, the document read for the publish
+/// before anything it references was checked.
+pub(super) async fn stage_hosted_artifact_on<Document: HostedDocument + Send>(
+    state: &AppState,
+    org: &str,
+    key: &CanonicalPackageName,
+    artifact: HostedArtifact<'_>,
+    base: pnpr_storage::metadata::PublishBase,
+    refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
+    addition: Document,
+) -> Result<StagedPublish, RegistryError> {
+    let storage = state.inner.storage.for_hosted(org, Document::ECOSYSTEM);
+    let stored = base.stored;
     let mut document = match &stored {
         Some(stored) => Document::parse(&stored.bytes).map_err(RegistryError::Json)?,
         None => Document::empty(key.as_str()),
@@ -209,8 +242,8 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     refuse(&document)?;
     document.merge(addition);
 
-    let slot = storage.reserve_hosted_blob(key, filename).await?;
-    if let Err(err) = tokio::fs::write(&slot.tmp_path, bytes).await {
+    let slot = storage.reserve_hosted_blob(key, artifact.filename).await?;
+    if let Err(err) = tokio::fs::write(&slot.tmp_path, artifact.bytes).await {
         // Nothing owns this slot yet: not a `StagedPublish` the caller could
         // clean up.
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
@@ -220,7 +253,13 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
         name: key.clone(),
         ecosystem: Document::ECOSYSTEM,
         document: document.to_bytes(),
-        base_version: stored.map(|stored| stored.version),
+        base: StagedBase {
+            version: stored.map(|stored| stored.version),
+            packument: None,
+            blobs: base.blobs,
+            references: artifact.references,
+            ..StagedBase::default()
+        },
         slots: vec![slot],
         org: Some(org.to_string()),
         // Only an npm document has dist-tags to record a publisher with.

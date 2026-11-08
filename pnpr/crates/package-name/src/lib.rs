@@ -119,8 +119,7 @@ pub struct CanonicalPackageName {
 
 impl CanonicalPackageName {
     /// Create a canonical name directly from an already-stored name without
-    /// re-parsing it against a specific ecosystem grammar. Used for offline
-    /// store migration and maintenance.
+    /// re-parsing it against a specific ecosystem grammar.
     #[must_use]
     pub fn from_stored(raw: &str, ecosystem: Ecosystem) -> Self {
         let basename = raw
@@ -179,6 +178,15 @@ impl CanonicalPackageName {
             raw.to_string()
         };
         Ok(Self { raw: raw.to_string(), basename, ecosystem })
+    }
+
+    /// Check the naming rules for publishing a new npm package. Reads retain
+    /// the legacy grammar used by [`Self::parse`].
+    pub fn validate_npm_publish(&self) -> Result<(), RegistryError> {
+        if !pnpm_package_name::is_valid_new_npm_package_name(&self.raw) {
+            return Err(RegistryError::InvalidPackageName { name: self.raw.clone() });
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -278,7 +286,7 @@ pub fn canonicalize_crate_name(name: &str) -> Result<String, CrateNameError> {
     if !chars.all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_')) {
         return Err(CrateNameError::InvalidCharacter { name: name.to_string() });
     }
-    Ok(name.to_ascii_lowercase())
+    Ok(name.to_ascii_lowercase().replace('_', "-"))
 }
 
 pub fn canonicalize_python_name(raw: &str) -> Result<String, PythonNameError> {

@@ -243,6 +243,7 @@ impl SeededStoreInstall {
                 skipped: &skipped,
                 include_optional: true,
                 supported_architectures: None,
+                platform_lockfile: None,
                 known_requires_build: None,
                 known_bins: None,
             },

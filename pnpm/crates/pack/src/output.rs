@@ -21,6 +21,8 @@ pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
         filename: result.tarball_path.clone(),
         tag: None,
         targets: None,
+        integrity: result.archive.as_ref().map(|archive| archive.integrity.clone()),
+        size: result.archive.as_ref().map(|archive| archive.size),
         files: result.contents
             .iter()
             .map(|path| PackFile { path: path.clone() })

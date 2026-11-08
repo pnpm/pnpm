@@ -46,13 +46,13 @@ fn publish_flags() -> PublishFlags {
                 no_release_notes: false,
                 publication_name: None,
             },
-            no_variants: false,
         },
         git: crate::cli_args::publish::PublishGitArgs {
             publish_branch: None,
             no_git_checks: false,
         },
         output: crate::cli_args::publish::PublishOutputArgs { json: false, report_summary: false },
+        variants: crate::cli_args::publish::PublishVariantArgs::default(),
     }
 }
 

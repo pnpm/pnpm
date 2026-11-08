@@ -16,20 +16,20 @@ impl PostgresDatabase {
         let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
         sqlx::query(
             "INSERT INTO tokens
-                (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
+                (token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         )
         .bind(token_hash)
-        .bind(&record.username)
+        .bind(&record.user_id)
         .bind(token_timestamp_to_sql(record.created_at))
         .bind(token_timestamp_to_sql(record.last_used_at))
-        .bind(i16::from(record.readonly))
+        .bind(i64::from(record.readonly))
         .bind(cidr_json)
         .bind(record.name.as_deref())
         .bind(record.expires_at.map(token_timestamp_to_sql))
         .bind(scopes_json)
         .bind(record.kind.as_deref())
-        .execute(&self.pool)
+        .execute(&mut *self.pool.acquire().await?)
         .await?;
         Ok(())
     }
@@ -38,18 +38,18 @@ impl PostgresDatabase {
         sqlx::query("UPDATE tokens SET last_used_at = $1 WHERE token_hash = $2")
             .bind(token_timestamp_to_sql(now))
             .bind(token_hash)
-            .execute(&self.pool)
+            .execute(&mut *self.pool.acquire().await?)
             .await?;
         Ok(())
     }
 
     pub(super) async fn find_token_impl(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
         let row = sqlx::query(
-            "SELECT username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
+            "SELECT user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
              FROM tokens WHERE token_hash = $1",
         )
         .bind(token_hash)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *self.pool.acquire().await?)
         .await?;
         row.map(|row| token_record_from_row(&row, token_hash)).transpose()
     }
@@ -59,25 +59,29 @@ impl PostgresDatabase {
         token_hash: &str,
     ) -> Result<Option<TokenRecord>> {
         let row = sqlx::query(
-            "SELECT t.username, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist, t.name, t.expires_at, t.scopes, t.kind
-             FROM tokens t JOIN users u ON u.username = t.username WHERE t.token_hash = $1",
+            "SELECT t.user_id, t.created_at, t.last_used_at, t.readonly, t.cidr_whitelist, t.name, t.expires_at, t.scopes, t.kind, u.username
+             FROM tokens t JOIN users u ON u.id = t.user_id AND u.bcrypt_hash <> '!' WHERE t.token_hash = $1",
         )
         .bind(token_hash)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *self.pool.acquire().await?)
         .await?;
-        row.map(|row| token_record_from_row(&row, token_hash)).transpose()
+        row.map(|row| {
+            Ok(token_record_from_row(&row, token_hash)?
+                .with_owner_name(row.try_get::<String, _>(9)?))
+        })
+        .transpose()
     }
 
     pub(super) async fn list_tokens_impl(
         &self,
-        username: &str,
+        user_id: &str,
     ) -> Result<Vec<(String, TokenRecord)>> {
         let rows = sqlx::query(
-            "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
-             FROM tokens WHERE username = $1",
+            "SELECT token_hash, user_id, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind
+             FROM tokens WHERE user_id = $1",
         )
-        .bind(username)
-        .fetch_all(&self.pool)
+        .bind(user_id)
+        .fetch_all(&mut *self.pool.acquire().await?)
         .await?;
         rows.into_iter()
             .map(|row| keyed_token_record_from_row(&row))
@@ -87,7 +91,7 @@ impl PostgresDatabase {
     pub(super) async fn delete_token_impl(&self, token_hash: &str) -> Result<()> {
         sqlx::query("DELETE FROM tokens WHERE token_hash = $1")
             .bind(token_hash)
-            .execute(&self.pool)
+            .execute(&mut *self.pool.acquire().await?)
             .await?;
         Ok(())
     }
@@ -113,14 +117,15 @@ fn token_record_from_offset(
         .map_err(|err| RegistryError::Internal {
             reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
         })?;
-    let readonly: i16 = row.try_get(offset + 3)?;
+    let readonly: i64 = row.try_get(offset + 3)?;
     let name: Option<String> = row.try_get(offset + 5)?;
     let expires_at: Option<i64> = row.try_get(offset + 6)?;
     let scopes_json: Option<String> = row.try_get(offset + 7)?;
     let kind: Option<String> = row.try_get(offset + 8)?;
     let scopes = token_scopes_from_sql(scopes_json.as_deref(), token_hash)?;
     Ok(TokenRecord {
-        username: row.try_get(offset)?,
+        owner_name: None,
+        user_id: row.try_get(offset)?,
         created_at: token_timestamp_from_sql(row.try_get(offset + 1)?),
         last_used_at: token_timestamp_from_sql(row.try_get(offset + 2)?),
         readonly: readonly != 0,

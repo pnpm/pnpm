@@ -5,6 +5,51 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use std::fs;
 
 #[test]
+fn required_engine_mismatch_warns_on_fresh_and_frozen_install() {
+    for reporter in ["--reporter=append-only", "--reporter=ndjson"] {
+        let fixture = CommandTempCwd::init().add_mocked_registry();
+        super::write_required_incompatible_engine_fixture(&fixture.workspace, false);
+        let mut command = fixture.pacquet;
+        command.args(["install", reporter]);
+        for frozen in [false, true] {
+            if frozen {
+                command.arg("--frozen-lockfile");
+            }
+            let output = command.assert().success();
+            let combined = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.get_output().stdout),
+                String::from_utf8_lossy(&output.get_output().stderr),
+            );
+            eprintln!("{reporter}, frozen={frozen}:\n{combined}");
+            assert!(combined.contains("Unsupported engine for"), "{combined}");
+            assert!(combined.contains("incompatible-engine"), "{combined}");
+            assert!(
+                fixture.workspace.join("node_modules/incompatible-engine/package.json").exists(),
+            );
+            if reporter != "--reporter=ndjson" {
+                assert!(combined.contains("[WARN]"), "{combined}");
+                continue;
+            }
+            let records = ndjson_records(output.get_output());
+            let warning = records
+                .iter()
+                .find(|record| record["name"] == "pnpm:install-check")
+                .expect("install-check warning");
+            assert_eq!(warning["level"], "warn");
+            let prefix = dunce::canonicalize(&fixture.workspace).unwrap();
+            assert_eq!(warning["prefix"], prefix.display().to_string());
+            assert!(
+                warning["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains(r#"{"node":"20.0.0"}"#),
+            );
+        }
+    }
+}
+
+#[test]
 fn ndjson_reports_fatal_resolution_errors_with_codes_and_prefix() {
     for (specifier, code) in [
         ("99.99.99", "ERR_PNPM_NO_MATCHING_VERSION"),

@@ -1,3 +1,4 @@
+use crate::registry_activity;
 use pnpr::{Config, Ecosystem};
 use pnpr_fixtures::{MockConfigPresets, RemovedVersionField};
 use std::{
@@ -222,7 +223,7 @@ impl TestRegistryInstance {
         config.http.public_url = server_url.trim_end_matches('/').to_string();
         // Registration is opt-in; tests that forward credentials create
         // accounts via adduser against this registry.
-        config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+        config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
         // A long TTL keeps the fixture packuments (whose `time` values are static)
         // from being treated as stale and refetched from the upstream.
         config.http.packument_ttl = std::time::Duration::from_hours(8760);
@@ -242,12 +243,17 @@ fn run_registry(config: Config, listener: TcpListener, requests: Option<RequestL
         .expect("create test registry runtime");
 
     runtime.block_on(async move {
+        let registry = config.http.public_url.clone();
         let listener = tokio::net::TcpListener::from_std(listener).expect("create tokio listener");
+        let tracked = |app: axum::Router| {
+            app.layer(axum::middleware::from_fn_with_state(registry, registry_activity::track))
+        };
         let Some(requests) = requests else {
-            pnpr::serve_listener(config, listener).await.expect("serve test registry");
+            pnpr::serve_listener_with(config, listener, tracked).await
+                .expect("serve test registry");
             return;
         };
-        let app = pnpr::router(config)
+        let app = tracked(pnpr::router(config))
             .layer(axum::middleware::from_fn_with_state(requests, record_request));
         axum::serve(listener, app).await.expect("serve test registry");
     });

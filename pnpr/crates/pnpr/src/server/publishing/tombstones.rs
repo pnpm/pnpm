@@ -49,7 +49,7 @@ fn check_may_reclaim(
     tombstone: &PackageTombstone,
     name: &CanonicalPackageName,
 ) -> Result<(), RegistryError> {
-    let username = identity.username();
+    let username = identity.user_id();
     let is_admin =
         username.is_some_and(|user| state.inner.config.identity.admins.contains(user));
     let is_former_maintainer = username.is_some_and(|user| {

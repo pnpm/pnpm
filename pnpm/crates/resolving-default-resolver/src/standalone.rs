@@ -19,6 +19,8 @@
 //! - Custom (pnpmfile) resolvers are omitted: loading a pnpmfile is an
 //!   install-time concern.
 
+pub use pnpm_resolving_local_resolver::LocalTarballResolution;
+
 use crate::DefaultResolver;
 use pnpm_config::{Config, Tool};
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
@@ -50,6 +52,9 @@ pub struct StandaloneChainOptions<'a> {
     /// [`Self::full_metadata`], and wrong for a caller that asked for the
     /// full document because it wants those fields.
     pub filter_metadata: bool,
+    /// Whether `file:` tarball resolution reads the archive on disk or defers
+    /// reading to the caller's fetcher.
+    pub local_tarball_resolution: LocalTarballResolution,
 }
 
 /// Build the chain a single resolve dispatches through.
@@ -71,7 +76,11 @@ pub fn build_standalone_chain(
     // `preserveAbsolutePaths` isn't exposed by pacquet's `Config` yet, so
     // the local-resolver context defaults to `false` here — same as the
     // install path.
-    let local_ctx = LocalResolverContext { preserve_absolute_paths: false, ..Default::default() };
+    let local_ctx = LocalResolverContext {
+        preserve_absolute_paths: false,
+        tarball_resolution: opts.local_tarball_resolution,
+        ..Default::default()
+    };
 
     Ok(DefaultResolver::new(vec![
         Box::new(Arc::clone(&npm_resolver)),

@@ -23,6 +23,7 @@ fn options(client: &Client, port: u16) -> MockInstanceOptions<'_> {
 
 fn processes() -> System {
     System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing()))
+        .expect("read the process table")
 }
 
 /// How long [`ChildCleanup::assert_reaped`] waits for the process table to

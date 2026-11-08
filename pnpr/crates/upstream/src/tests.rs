@@ -71,7 +71,7 @@ fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
     )
 }
 
-async fn assert_redirect_timeout(delay_body: bool) {
+async fn assert_redirect_chain_shares_one_head_deadline() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
@@ -83,34 +83,13 @@ async fn assert_redirect_timeout(delay_body: bool) {
         drop(first);
         let (mut second, _) = listener.accept().await.unwrap();
         assert!(second.read(&mut request).await.unwrap() > 0);
-        if delay_body {
-            second.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n").await.unwrap();
-        }
         tokio::time::sleep(Duration::from_millis(450)).await;
-        if !delay_body {
-            second.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n").await.unwrap();
-        }
-        second.write_all(b"body").await.unwrap();
+        second.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody").await.unwrap();
     });
     let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
     config.requests.timeout = Duration::from_millis(600);
     let upstream = Upstream::new("test", &config);
     let result = upstream.fetch_artifact_response(&url).await;
-    if delay_body {
-        let FetchOutcome::Ok(response) = result.unwrap() else {
-            panic!("expected artifact response")
-        };
-        assert!(
-            response
-                .bytes()
-                .await
-                .unwrap_err()
-                .is_timeout(),
-        );
-    } else {
-        assert!(
-            matches!(result, Err(RegistryError::Upstream { source, .. }) if source.is_timeout()),
-        );
-    }
+    assert!(matches!(result, Err(RegistryError::UpstreamTimeout { .. })));
     server.abort();
 }

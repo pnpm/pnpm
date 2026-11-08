@@ -18,9 +18,7 @@ use super::{
     BTreeMap, CarriedSettings, HoistedDependencies, InstallError, Lockfile, Materialized, Reporter,
     StateWrite, recorded_workspace_state, update_workspace_state_or_warn,
 };
-use crate::optimistic_repeat_install::{
-    ResolvedImporters, filesystem_now_ms_in_modules, validation::Vouched,
-};
+use crate::install_state::{ResolvedImporters, filesystem_now_ms_in_modules, validation::Vouched};
 use std::{collections::HashSet, path::PathBuf};
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
@@ -57,6 +55,7 @@ fn select_apply_state<'a>(inputs: &'a ApplyMaterializationInputs<'_, '_>) -> Mat
         },
         projects: inputs.projects.importers,
 
+        node_linker: inputs.projects.node_linker,
         workspace_root: &inputs.projects.workspace_root,
         groups: applied_groups(inputs),
         install_skipped: &inputs.materialized.install_skipped,
@@ -84,6 +83,7 @@ fn applied_groups(inputs: &ApplyMaterializationInputs<'_, '_>) -> crate::GroupSe
                 )
             },
         )
+        .linking_for(inputs.projects.supported_architectures.as_ref())
 }
 
 async fn link_apply_projects<Reporter: self::Reporter + 'static>(
@@ -350,14 +350,12 @@ fn applied_carried_settings<'a>(
     CarriedSettings {
         established_auto_dedupe: (config.auto_dedupe && resolved.is_some()).then_some(true),
         registry_keys_verified: crate::install::registry_keys_current(config, lockfile),
-        registry_routes: Some(
-            crate::optimistic_repeat_install::recorded_registry_routes_after_install(
-                config,
-                inputs.resolution.locked_registry_routes.as_ref(),
-                lockfile,
-                resolution,
-            ),
-        ),
+        registry_routes: Some(crate::install_state::recorded_registry_routes_after_install(
+            config,
+            inputs.resolution.locked_registry_routes.as_ref(),
+            lockfile,
+            resolution,
+        )),
         kept_settings: None,
     }
 }

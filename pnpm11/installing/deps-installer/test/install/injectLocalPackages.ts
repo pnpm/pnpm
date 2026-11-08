@@ -2488,3 +2488,54 @@ test('reinstalling after the publish directory is deleted does not wipe the inje
 
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
 })
+
+// https://github.com/pnpm/pnpm/issues/17781
+test('an injected package is not replaced by the workspace project when that would resolve an optional peer the consumer rejected', async () => {
+  const libManifest = {
+    name: 'lib',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/has-optional-y-v2-peer-user-carrier': '1.0.0',
+    },
+  }
+  const appManifest = {
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      lib: 'workspace:1.0.0',
+      '@pnpm/y': '1.0.0',
+    },
+    dependenciesMeta: {
+      lib: { injected: true },
+    },
+  }
+  const providerManifest = {
+    name: 'provider',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/y-v2-peer-user-carrier': '1.0.0',
+      '@pnpm.e2e/y-v2-peer-user': '1.0.0',
+      '@pnpm/y': '2.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'lib', package: libManifest },
+    { location: 'app', package: appManifest },
+    { location: 'provider', package: providerManifest },
+  ])
+  const allProjects: ProjectOptions[] = [
+    { buildIndex: 0, manifest: libManifest, rootDir: path.resolve('lib') as ProjectRootDir },
+    { buildIndex: 0, manifest: appManifest, rootDir: path.resolve('app') as ProjectRootDir },
+    { buildIndex: 0, manifest: providerManifest, rootDir: path.resolve('provider') as ProjectRootDir },
+  ]
+  await mutateModules(
+    allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })),
+    testDefaults({ autoInstallPeers: true, allProjects, dedupeInjectedDeps: true })
+  )
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.importers.lib.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user-carrier']?.version)
+    .toMatch(/^1\.0\.0\(@pnpm\.e2e\/y-v2-peer-user-carrier@1\.0\.0/)
+  expect(lockfile.importers.app.dependencies?.lib.version).toMatch(/^file:lib/)
+  expect(lockfile.snapshots['lib@file:lib'].dependencies).toEqual({ '@pnpm.e2e/has-optional-y-v2-peer-user-carrier': '1.0.0' })
+})

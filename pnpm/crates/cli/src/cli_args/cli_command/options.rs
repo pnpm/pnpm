@@ -326,7 +326,7 @@ pub(crate) fn find_workspace_root_dir(dir: &Path) -> Result<PathBuf, WorkspaceRo
 }
 
 fn resolve_real_dir(dir: &Path) -> PathBuf {
-    dunce::canonicalize(dir)
+    pnpm_fs::canonicalize_preserving_mapped_drive(dir)
         .or_else(|_| std::path::absolute(dir))
         .unwrap_or_else(|_| dir.to_path_buf())
         .pipe_deref(pnpm_fs::lexical_normalize)

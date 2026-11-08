@@ -1,10 +1,8 @@
 use super::{
-    super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-        settings::current_settings,
-    },
+    super::{Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install},
     backdate_validated_files, isolated_included, setup_fresh_install_with_config, write_state,
 };
+use crate::install_state::settings::current_settings;
 use indexmap::IndexMap;
 use pnpm_config::{Config, ProjectConfig};
 use pnpm_lockfile::MaybeLazyLockfile;
@@ -85,6 +83,81 @@ fn a_sibling_with_its_custom_modules_dir_is_installed() {
 fn a_sibling_with_only_node_modules_is_not_installed_under_a_custom_modules_dir() {
     assert!(matches!(
         sibling_decision("node_modules", |_| {}),
+        Decision::Skipped { reason } if reason.contains("no node_modules directory"),
+    ));
+}
+
+/// The hoisted install records which siblings got a modules directory for the
+/// dependencies it nested there. With a custom `modulesDir`, that directory is
+/// the one of the same name inside the sibling.
+fn hoisted_sibling_decision(sibling_modules_dir: &str) -> Decision {
+    let linker = pnpm_config::NodeLinker::Hoisted;
+    let (dir, config, root_manifest) =
+        setup_fresh_install_with_config(linker, "root", "1.0.0", "", |config| {
+            config.modules_dir = config.modules_dir.with_file_name("vendor");
+            config.install_state_dir = config.modules_dir.join(".pnpm");
+        });
+    let sibling_dir = dir.path().join("pkg-a");
+    fs::create_dir_all(sibling_dir.join(sibling_modules_dir)).unwrap();
+    let sibling_manifest_path = sibling_dir.join("package.json");
+    fs::write(
+        &sibling_manifest_path,
+        r#"{"name":"pkg-a","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_manifest_path).unwrap();
+
+    let settings = current_settings(config, linker, isolated_included(), None);
+    let projects = BTreeMap::from([
+        (
+            dir.path()
+                .to_string_lossy()
+                .into_owned(),
+            ProjectEntry {
+                name: Some("root".into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: true,
+            },
+        ),
+        (
+            sibling_dir.to_string_lossy().into_owned(),
+            ProjectEntry {
+                name: Some("pkg-a".into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: true,
+            },
+        ),
+    ]);
+    write_state(dir.path(), backdate_validated_files(dir.path()), settings, projects);
+
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: crate::DeclaredManifests::new(&[
+            (dir.path().to_path_buf(), &root_manifest),
+            (sibling_dir, &sibling_manifest),
+        ]),
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    })
+}
+
+#[test]
+fn a_hoisted_sibling_with_its_recorded_custom_modules_dir_is_installed() {
+    assert_eq!(hoisted_sibling_decision("vendor"), Decision::UpToDate);
+}
+
+#[test]
+fn a_hoisted_sibling_whose_recorded_custom_modules_dir_is_gone_is_not_installed() {
+    assert!(matches!(
+        hoisted_sibling_decision("node_modules"),
         Decision::Skipped { reason } if reason.contains("no node_modules directory"),
     ));
 }

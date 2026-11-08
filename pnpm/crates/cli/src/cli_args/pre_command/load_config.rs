@@ -121,7 +121,8 @@ fn apply_location_overrides(
 #[derive(Clone, Copy)]
 pub(super) struct ConfigLoad {
     settings_read: SettingsRead,
-    /// Place the store, which a switch or a sync uses.
+    /// Place the store, which a sync uses. A switch installs into the
+    /// engine store under the pnpm home instead.
     resolve_store: bool,
 }
 
@@ -133,7 +134,7 @@ impl ConfigLoad {
     /// What a switch reads: everything this pnpm can read, since the pnpm
     /// the project pins may read what this one cannot.
     pub(super) const SWITCH: Self =
-        Self { settings_read: SettingsRead::Readable, resolve_store: true };
+        Self { settings_read: SettingsRead::Readable, resolve_store: false };
 
     /// What recording the pin reads: the configuration the command runs
     /// with.

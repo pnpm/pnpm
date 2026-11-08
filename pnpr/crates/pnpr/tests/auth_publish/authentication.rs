@@ -4,13 +4,12 @@ use super::{
     static_config_with_packages,
 };
 use base64::Engine;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
 async fn adduser_creates_user_and_returns_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (_, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (_, token) = add_user_and_get_token(app, "alice", "secret123").await;
     assert!(!token.is_empty(), "token should be non-empty");
 }
 
@@ -18,8 +17,8 @@ async fn adduser_creates_user_and_returns_token() {
 async fn adduser_returns_token_on_repeat_login() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, first) = add_user_and_get_token(app, "alice", "secret").await;
-    let (_, second) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, first) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (_, second) = add_user_and_get_token(app, "alice", "secret123").await;
     assert!(!first.is_empty() && !second.is_empty());
     // We mint a fresh token each call. The important property is
     // that *both* tokens work, not that they're identical.
@@ -30,11 +29,11 @@ async fn adduser_returns_token_on_repeat_login() {
 async fn adduser_rejects_wrong_password_for_existing_user() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, _) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let path = "/-/user/org.couchdb.user:alice";
     let body = json!({
-        "name": "alice", "password": "wrong",
+        "name": "alice", "password": "incorrect",
         "email": "foo@bar.net", "type": "user", "roles": []
     });
     let response = app
@@ -48,7 +47,7 @@ async fn adduser_rejects_wrong_password_for_existing_user() {
 async fn bearer_token_grants_access_to_protected_package() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let response = app
         .oneshot(
@@ -66,12 +65,12 @@ async fn bearer_token_grants_access_to_protected_package() {
 async fn basic_auth_is_rejected_for_protected_package() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
-    let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, _) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // pnpr does not accept Basic credentials on requests: the header is
     // ignored (treated as anonymous), so a protected package is rejected.
     // Clients must authenticate with a bearer token.
-    let basic = BASE64.encode(b"alice:secret");
+    let basic = BASE64.encode(b"alice:secret123");
     let response = app
         .oneshot(
             Request::get("/npm/@pnpm.e2e/needs-auth")
@@ -89,7 +88,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = &npm_tgz("mypkg", "1.0.0", b"fake-tarball-bytes");
     let body = publish_doc("mypkg", "1.0.0", bytes);
@@ -118,14 +117,8 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     assert!(packument.get("_attachments").is_none(), "_attachments should not be persisted");
 
     // Tarball on disk
-    let on_disk_tarball = std::fs::read(local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "mypkg",
-        "mypkg-1.0.0.tgz",
-    ))
-    .expect("tarball written");
+    let on_disk_tarball =
+        crate::storage::hosted_file(&storage, "mypkg", "mypkg-1.0.0.tgz").expect("tarball written");
     assert_eq!(on_disk_tarball, *bytes);
 
     // Subsequent GET serves it back with the public URL rewritten.
@@ -168,8 +161,8 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
     unpublish: admin",
     );
     let app = router(config);
-    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret123").await;
 
     let body = publish_doc("unpub-policy", "1.0.0", b"contents");
     let request = Request::put("/npm/unpub-policy")
@@ -230,7 +223,13 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         StatusCode::CREATED,
     );
     assert!(
-        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "unpub-policy").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "unpub-policy"
+        )
+        .is_none(),
     );
 }
 
@@ -245,8 +244,8 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
     unpublish: admin",
     );
     let app = router(config);
-    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret123").await;
 
     let body = publish_doc("tarball-policy", "1.0.0", b"contents");
     let request = Request::put("/npm/tarball-policy")
@@ -263,14 +262,8 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         StatusCode::CREATED,
     );
     assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "tarball-policy",
-            "tarball-policy-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "tarball-policy", "tarball-policy-1.0.0.tgz")
+            .is_some(),
     );
 
     let request = Request::delete("/npm/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
@@ -286,14 +279,8 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         StatusCode::FORBIDDEN,
     );
     assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "tarball-policy",
-            "tarball-policy-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "tarball-policy", "tarball-policy-1.0.0.tgz")
+            .is_some(),
     );
 
     let request = Request::delete("/npm/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
@@ -309,13 +296,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         StatusCode::CREATED,
     );
     assert!(
-        !local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "tarball-policy",
-            "tarball-policy-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "tarball-policy", "tarball-policy-1.0.0.tgz")
+            .is_none(),
     );
 }

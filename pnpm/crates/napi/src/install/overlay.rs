@@ -127,6 +127,7 @@ fn build_dependencies_overlay(
         dedupe_peer_dependents: options.dedupe_peer_dependents,
         dedupe_peers: options.dedupe_peers,
         add_missing_peer_types: options.add_missing_peer_types,
+        project_scoped_optional_peers: options.project_scoped_optional_peers,
         dedupe_direct_deps: options.dedupe_direct_deps,
         dedupe_injected_deps: options.dedupe_injected_deps,
         resolve_peers_from_workspace_root: options.resolve_peers_from_workspace_root,

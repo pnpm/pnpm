@@ -153,6 +153,11 @@ pub struct ManifestFile {
     /// without them, which cannot stand in for the manifest.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fields: Option<serde_json::Map<String, serde_json::Value>>,
+    /// Which list of fields `fields` holds. A record of another revision
+    /// may lack a field the check reads, so it cannot stand in for the
+    /// manifest. `0` in a record written before revisions were recorded.
+    #[serde(default)]
+    pub fields_revision: u32,
 }
 
 /// The local dependencies one lockfile resolves, as absolute paths.
@@ -296,6 +301,10 @@ pub struct WorkspaceStateSettings {
     /// such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub add_missing_peer_types: Option<bool>,
+    /// `projectScopedOptionalPeers`, recorded only while it is on. pnpm v11
+    /// has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_scoped_optional_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -385,6 +394,14 @@ pub struct WorkspaceStateSettings {
     /// are re-evaluated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supported_architectures: Option<serde_json::Value>,
+    /// The platform the install linked packages with platform variants
+    /// for: its `os`, `cpu`, and C library, and the versions its floors and
+    /// ABI were matched against when the lockfile has a variant that states
+    /// one. A different value, such as from a `node_modules` mounted into a
+    /// musl container, must invalidate the repeat-install fast path so the
+    /// install links the variant the platform now selects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_platform: Option<String>,
     /// `trustLockfile`, recorded only while it is on. Turned off, the lockfile
     /// that no install verified has to be verified.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -123,7 +123,7 @@ pub(super) async fn warm_result_children<Chain>(
         return;
     }
     let opts = ctx.opts_for_depth(depth + 1);
-    let declaring_dir = declaring_manifest_dir(ctx, parent.result);
+    let declaring_dir = declaring_manifest_dir(&ctx.importer.lockfile_dir, parent.result);
     warmed
         .into_iter()
         .map(|(wanted, prior)| {

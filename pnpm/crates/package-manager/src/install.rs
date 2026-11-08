@@ -1,13 +1,17 @@
 pub(crate) mod state_options;
 
-pub use entry_points::apply_deploy_manifest_hook;
-pub(crate) use entry_points::apply_deploy_manifest_hook_to_arc;
+pub use deploy_manifest::apply_deploy_manifest_hook;
+pub(crate) use deploy_manifest::apply_deploy_manifest_hook_to_arc;
 pub use errors::{InstallError, defer_ignored_builds};
+pub(crate) use lifecycle::{
+    checked_projects_opts, load_checked_workspace_projects, load_workspace_projects,
+};
 pub(crate) use lockfile_freshness::{
-    CheckLockfileSettingsDriftOptions, DirectoryManifests, FreshnessCheckError, FreshnessScope,
-    ImporterSatisfactionCheck, OptionalDependencyExclusions, ProjectManifestsByDir,
-    WorkspaceProjects, check_importer_satisfies, check_lockfile_settings_drift,
-    dependency_manifests_by_dir, ignored_optional_matcher, is_declared_local_directory,
+    CheckLockfileSettingsDriftOptions, DependencyManifestSources, DirectoryManifests,
+    FreshnessCheckError, FreshnessScope, ImporterSatisfactionCheck, LockfileFreshnessInputs,
+    OptionalDependencyExclusions, ProjectManifestsByDir, WorkspaceProjects,
+    check_importer_satisfies, check_lockfile_settings_drift, dependency_manifests_by_dir,
+    hooked_importer_directory_manifests, ignored_optional_matcher, is_declared_local_directory,
     parse_config_overrides, project_manifests_by_dir, spec_target_and_range,
 };
 pub use lockfile_freshness::{
@@ -15,25 +19,26 @@ pub use lockfile_freshness::{
 };
 pub(crate) use modules_state::{
     frozen_tree_intact, hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
-    modules_layout_consistent_with, moved_tree_is_reusable, tree_may_move,
+    modules_layout_consistent_with, moved_tree_is_reusable, project_requires_lifecycle_scripts,
+    tree_may_move,
 };
-pub(crate) use run::hook_one_manifest;
 pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
-pub(crate) use workspace_state::{
-    CarriedSettings, StateProjects, StateWrite, configured_or_discovered_workspace_dir,
-    lockfile_root_dir, recorded_workspace_state, registry_keys_current, replace_project_manifest,
-    update_workspace_state_or_warn, workspace_packages_for_freshness,
+pub(crate) use run::{
+    check_strict_dep_builds_for_fast_path, gvs_build_markers_complete, hook_one_manifest,
+    register_workspace_in_store,
 };
-pub use workspace_state::{
-    UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
-    check_deps_status_before_run_at, deps_install_root, install_already_up_to_date,
-    install_already_up_to_date_from_records,
+pub use workspace_state::build_workspace_packages_map;
+pub(crate) use workspace_state::{
+    CarriedSettings, StateProjects, StateWrite, build_project_manifests_list,
+    configured_or_discovered_workspace_dir, lockfile_root_dir, lockfile_root_for,
+    recorded_workspace_state, registry_keys_current, replace_project_manifest,
+    update_workspace_state_or_warn, workspace_packages_for_freshness,
 };
 
 pub(crate) use verification_gate::IsReplaced;
 pub use verification_gate::LockfileVerificationGate;
 
-mod entry_points;
+mod deploy_manifest;
 
 mod errors;
 
@@ -45,8 +50,7 @@ use crate::{
     HoistedDependencies, InstallFrozenLockfile, InstallWithFreshLockfile,
     InstallWithFreshLockfileError, LockfileVerificationOverride, OptimisticRepeatInstallCheck,
     RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
-    emit_initial_package_manifest, link_project_bins,
-    optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
+    emit_initial_package_manifest, install_state::Decision as OptimisticRepeatInstallDecision,
     prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
 };
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
@@ -58,8 +62,8 @@ use pnpm_executor::{
     RunPostinstallHooks, run_project_lifecycle_stages,
 };
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck,
-    StalenessReason, VersionPart, satisfies_package_manifest,
+    Lockfile, LockfileEntries, MaybeLazyLockfile, PnpmfileChecksumCheck, StalenessReason,
+    VersionPart, satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
     VerifyLockfileResolutionsOptions, record_lockfile_verified, verify_lockfile_resolutions,
@@ -95,7 +99,7 @@ mod prepare_modules_state;
 mod time_machine;
 /// The dependency groups the install includes, as `.modules.yaml` records
 /// them and the dependency-graph walker observes them.
-pub(super) fn included_dependencies(dependency_groups: &[DependencyGroup]) -> IncludedDependencies {
+pub(crate) fn included_dependencies(dependency_groups: &[DependencyGroup]) -> IncludedDependencies {
     IncludedDependencies {
         dependencies: dependency_groups.contains(&DependencyGroup::Prod),
         dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
@@ -120,22 +124,21 @@ mod workspace_state;
 
 use apply_materialization::{ApplyMaterializationInputs, apply_materialization_result};
 use lifecycle::{
-    dev_preinstall_already_ran, load_workspace_projects, project_lifecycle_graph,
-    project_script_stages, root_preinstall_already_ran, run_pre_uninstall_scripts,
-    run_projects_lifecycle_scripts, run_root_hook,
+    dev_preinstall_already_ran, project_lifecycle_graph, project_script_stages,
+    root_preinstall_already_ran, run_pre_uninstall_scripts, run_projects_lifecycle_scripts,
+    run_root_hook,
 };
 use lockfile_freshness::{
-    FastUpdateLockfileOptions, LockfileFreshnessInputs, check_lockfile_freshness,
-    try_fast_update_lockfile,
+    FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
 };
 use materialize::{MaterializationInputs, Materialized, materialize};
 use modules_state::{
-    build_modules_manifest, current_contains_dep_path, drain_settled_projects,
+    build_modules_manifest, current_contains_ignored_build, drain_settled_projects,
     gvs_build_marker_present, gvs_build_markers_may_require_recovery,
     has_newly_allowed_ignored_builds, keep_recorded_layout, manifest_string_field,
     merge_filtered_modules_metadata, merge_pending_builds, modules_consistent_with,
-    project_requires_implicit_gyp_build, project_requires_lifecycle_scripts,
-    recorded_allow_builds_differ, refuse_drifted_modules_dir, unapproved_recorded_ignored_builds,
+    project_requires_implicit_gyp_build, recorded_allow_builds_differ, refuse_drifted_modules_dir,
+    unapproved_recorded_ignored_builds,
 };
 use prepare_modules_state::{
     PrepareModulesStateInputs, PreparedModulesState, prepare_modules_state,
@@ -143,9 +146,9 @@ use prepare_modules_state::{
 };
 use time_machine::TimeMachineExclusions;
 use workspace_state::{
-    ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, lockfile_root_for, mutated_project_dirs,
-    projects_running_own_scripts, selected_manifest_freshness_inputs,
+    ProjectScriptsInputs, build_root_importer_project_manifests_list,
+    build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
+    selected_manifest_freshness_inputs,
 };
 
 #[cfg(test)]
@@ -211,7 +214,10 @@ fn pnpmfile_checksum_check<'a>(
 /// manifest. The early host detection and the install paths must
 /// derive it identically or the pre-spawned host would disagree with
 /// the one the install would have detected.
-fn effective_node_version(config: &Config, manifest: &PackageManifest) -> Option<String> {
+pub(crate) fn effective_node_version(
+    config: &Config,
+    manifest: &PackageManifest,
+) -> Option<String> {
     config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()))
 }
 
@@ -515,81 +521,74 @@ pub struct InstallProjects<DependencyGroupList> {
     pub discovered_workspace: Option<DiscoveredWorkspace>,
 }
 
-struct InstallRunOptions<'install, 'selection> {
-    lockfile_verification_override: Option<LockfileVerificationOverride<'install>>,
-    rebuild: Option<RebuildOptions>,
-    selection: Option<WorkspaceInstallSelection<'selection>>,
-    root_manifest_as_workspace_root: bool,
-    save: InstallSaveOptions,
-    /// pnpm's `lockfileCheck`: the run hands the wanted lockfile to the sink
-    /// instead of writing it, and must leave nothing else on disk changed
-    /// either. Only `pacquet dedupe --check` sets it.
-    lockfile_check: Option<LockfileCheckSink>,
+pub(crate) struct InstallRunOptions<'install, 'selection> {
+    /// The repeat-install fast path the run consults before it sets up
+    /// anything.
+    pub(crate) repeat_install: crate::install_state::RepeatInstallCheck,
+    pub(crate) lockfile_verification_override: Option<LockfileVerificationOverride<'install>>,
+    pub(crate) rebuild: Option<RebuildOptions>,
+    pub(crate) selection: Option<WorkspaceInstallSelection<'selection>>,
+    pub(crate) root_manifest_as_workspace_root: bool,
+    pub(crate) save: InstallSaveOptions,
     /// Forces the interactive-prompt eligibility that is otherwise derived
     /// from the process environment, so tests can exercise both branches.
-    prompt_eligibility_override: Option<bool>,
-    manifests: InstallManifestOptions<'install>,
+    pub(crate) prompt_eligibility_override: Option<bool>,
+    pub(crate) manifests: InstallManifestOptions<'install>,
 }
 
 /// The workspace files the run may write besides the installed modules.
-#[derive(Clone, Copy)]
-struct InstallSaveOptions {
+pub(crate) struct InstallSaveOptions {
     /// pnpm's `saveLockfile`: whether the resolved graph may be written
     /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
     /// whose resolution belongs to a project other than the one that
     /// owns that lockfile, so the run must leave it untouched.
-    lockfile: bool,
+    pub(crate) lockfile: bool,
     /// Whether the run may record itself in
     /// `node_modules/.pnpm-workspace-state-v1.json`. `false` for an install
     /// whose importers are not the workspace's projects, so that state
     /// keeps describing the workspace's last install.
-    workspace_state: bool,
+    pub(crate) workspace_state: bool,
+    /// pnpm's `lockfileCheck`: the run hands the wanted lockfile to the sink
+    /// instead of writing it, and must leave nothing else on disk changed
+    /// either. Only `pacquet dedupe --check` sets it.
+    pub(crate) lockfile_check: Option<LockfileCheckSink>,
+}
+
+impl Default for InstallSaveOptions {
+    fn default() -> Self {
+        InstallSaveOptions { lockfile: true, workspace_state: true, lockfile_check: None }
+    }
+}
+
+impl InstallSaveOptions {
+    /// Whether the run writes the wanted lockfile to disk.
+    fn writes_lockfile(&self) -> bool {
+        self.lockfile && self.lockfile_check.is_none()
+    }
 }
 
 #[derive(Default)]
-struct InstallManifestOptions<'install> {
-    deploy_hook: bool,
+pub(crate) struct InstallManifestOptions<'install> {
+    pub(crate) deploy_hook: bool,
     /// pnpm's `pruneDirectDependencies`: scan each importer's `node_modules`
     /// and remove extraneous direct entries not recorded in the wanted
     /// lockfile or public hoist set. Only `pacquet prune` sets it.
-    prune_direct_dependencies: bool,
+    pub(crate) prune_direct_dependencies: bool,
     /// Project manifests used only as the source for lockfile importer
     /// specifiers. `pacquet update --no-save` resolves against an in-memory
     /// manifest rewrite but must serialize importer specifiers from the
     /// manifest the user kept on disk. Supplied already
     /// `readPackage`-transformed.
-    specifier_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
+    pub(crate) specifier_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
     /// Manifest paths `pacquet update --no-save` already ran `readPackage`
     /// over before preparing its in-memory resolution rewrite. The hook must
     /// observe each project manifest exactly once, so the install layer skips
     /// these and still hooks every project manifest outside the set — the
     /// workspace projects the non-selected update path never loads. Dependency
     /// manifests always flow through the resolver's hook path.
-    hooked_paths: HashSet<PathBuf>,
+    pub(crate) hooked_paths: HashSet<PathBuf>,
     /// See [`crate::ManifestSpecBumps`]. Only `pacquet update` sets it.
-    spec_bumps: Option<&'install crate::ManifestSpecBumps>,
+    pub(crate) spec_bumps: Option<&'install crate::ManifestSpecBumps>,
     /// Pre-seeded `requiresBuild` verdicts from a `pnpr` resolve stream.
-    known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
-}
-
-impl Default for InstallRunOptions<'_, '_> {
-    fn default() -> Self {
-        InstallRunOptions {
-            lockfile_verification_override: None,
-            rebuild: None,
-            selection: None,
-            root_manifest_as_workspace_root: false,
-            save: InstallSaveOptions { lockfile: true, workspace_state: true },
-            lockfile_check: None,
-            prompt_eligibility_override: None,
-            manifests: crate::install::InstallManifestOptions {
-                deploy_hook: false,
-                prune_direct_dependencies: false,
-                specifier_manifests: None,
-                hooked_paths: HashSet::new(),
-                spec_bumps: None,
-                known_requires_build: None,
-            },
-        }
-    }
+    pub(crate) known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
 }

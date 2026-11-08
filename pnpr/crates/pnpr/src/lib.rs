@@ -14,6 +14,7 @@
 // graph; proving it `Send` walks deeper than rustc's default limit.
 #![recursion_limit = "256"]
 
+pub mod archive_gc;
 pub mod cache_maintenance;
 pub mod cli_commands;
 pub mod config_check;
@@ -21,7 +22,6 @@ pub mod export;
 pub mod htpasswd_import;
 pub mod logging;
 pub mod migrate_storage;
-pub mod oci_maintenance;
 pub mod verify;
 
 pub use cli_commands::{
@@ -33,10 +33,10 @@ pub use pnpr_auth::{
 };
 pub use pnpr_config::{
     AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource, CorsConfig,
-    DEFAULT_CONFIG_YAML, FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig,
-    IpNetwork, LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess,
+    DEFAULT_CONFIG_YAML, FeatureOverrides, HostedConfig, HostedStoreConfig, IpNetwork,
+    LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess,
     PublicRoute, RegistryFeature, ResolverFeature, RoutePolicy, S3Settings, SqlBackendSettings,
-    StorageAccess, Teams, TokensConfig, UiConfig, UpstreamConfig, default_cache_dir,
+    StorageAccess, Teams, TokensConfig, UiConfig, UpstreamConfig, UsersConfig, default_cache_dir,
 };
 pub use pnpr_error::{RegistryError, Result};
 pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
@@ -44,8 +44,8 @@ pub use pnpr_registry::{
     ConcreteKind, Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
 pub use server::{
-    prepare_storage, router, router_with_auth, serve, serve_listener, try_router,
-    try_router_with_auth,
+    prepare_storage, router, router_with_auth, serve, serve_listener, serve_listener_with,
+    try_router, try_router_with_auth,
 };
 
 mod resolver;

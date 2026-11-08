@@ -8,7 +8,7 @@ use pnpr_config::{
 use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
 use reqwest::header::HeaderMap;
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 /// The namespace [`MockConfigPresets::proxy`] declares on its flat-root hosted org, so
 /// those names resolve locally rather than to the npm upstream: the
@@ -93,6 +93,13 @@ fn registry_mock_sources() -> Vec<String> {
     vec!["local".to_string(), "npmjs".to_string()]
 }
 
+/// The npm upstream's request timeout in [`MockConfigPresets::proxy`], which
+/// `pnpr/.fixtures/config.yaml` repeats. It covers the whole response, body
+/// included. Tests that switch to a pinned pnpm download its native binary,
+/// over 20 MB, through this upstream, and a slow npm link would cut it at the
+/// default on every retry.
+pub const REGISTRY_MOCK_UPSTREAM_TIMEOUT: Duration = Duration::from_mins(3);
+
 /// The registry key [`with_tar_registry`] adds.
 pub const TAR_REGISTRY: &str = "zstd";
 
@@ -131,10 +138,10 @@ impl MockConfigPresets for Config {
 #[must_use]
 pub fn proxy_config(listen: SocketAddr, storage: PathBuf) -> Config {
     let mut upstreams = IndexMap::new();
-    upstreams.insert(
-        "npmjs".to_string(),
-        UpstreamConfig::with_defaults("https://registry.npmjs.org".to_string(), HeaderMap::new()),
-    );
+    let mut npmjs =
+        UpstreamConfig::with_defaults("https://registry.npmjs.org".to_string(), HeaderMap::new());
+    npmjs.requests.timeout = REGISTRY_MOCK_UPSTREAM_TIMEOUT;
+    upstreams.insert("npmjs".to_string(), npmjs);
     let (hosted, registries) = registry_mock_graph();
     with_routing(
         listen,
@@ -229,5 +236,6 @@ fn with_routing(
         },
         routing,
         release_records: pnpr_config::ReleaseRecordsConfig::default(),
+        gc: pnpr_config::GcConfig::default(),
     }
 }

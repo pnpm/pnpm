@@ -1,12 +1,16 @@
 use crate::{
+    dependencies::Reach,
     diff,
     graph::{self, CrateGraph, DependencyKind, Edge},
-    layers::{Layers, Problem},
+    layers::Layers,
+    problem::{Metric, Mismatch, Problem},
+    ratchet,
     tree::Tree,
 };
 use pretty_assertions::assert_eq;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
+mod leaks;
 mod modules;
 
 struct MemoryTree(BTreeMap<&'static str, &'static str>);
@@ -197,5 +201,74 @@ fn diff_marks_added_upward_edges() {
     assert_eq!(
         diff::render(&base, &base, &layers, "main"),
         "## Crate graph changes against `main`\n\nNo workspace crate or dependency edge changed.\n",
+    );
+}
+
+fn chain() -> CrateGraph {
+    let mut graph = workspace("[package]\nname = \"top\"\n");
+    graph.crates.insert("mid".to_owned());
+    graph.edges.extend([
+        edge("top", "mid", DependencyKind::Normal),
+        edge("top", "mid", DependencyKind::Build),
+        edge("mid", "base", DependencyKind::Normal),
+        edge("base", "top", DependencyKind::Dev),
+    ]);
+    graph
+}
+
+#[test]
+fn counts_linked_dependencies_directly_and_transitively() {
+    let reach = Reach::new(&chain());
+    dbg!(&reach);
+    fn counts(sets: &BTreeMap<String, BTreeSet<String>>) -> Vec<(&str, usize)> {
+        sets.iter()
+            .map(|(name, set)| (name.as_str(), set.len()))
+            .collect()
+    }
+    assert_eq!(counts(&reach.direct), vec![("base", 0), ("mid", 1), ("top", 1)]);
+    assert_eq!(counts(&reach.transitive), vec![("base", 0), ("mid", 1), ("top", 2)]);
+}
+
+#[test]
+fn the_direct_dependency_baseline_only_goes_down() {
+    let counts = Reach::new(&chain()).direct_counts();
+    dbg!(&counts);
+    let check = |entries: &[(&str, usize)]| {
+        let baseline = entries
+            .iter()
+            .map(|(name, count)| ((*name).to_owned(), *count))
+            .collect();
+        ratchet::check(Metric::DirectDependencies, &counts, &baseline)
+    };
+    assert_eq!(check(&[("mid", 1), ("top", 1)]), vec![]);
+    let mismatch = |crate_name: &str, measured, baseline| {
+        let crate_name = crate_name.to_owned();
+        let metric = Metric::DirectDependencies;
+        Problem::Ratchet(Mismatch { metric, crate_name, measured, baseline })
+    };
+    assert_eq!(check(&[("mid", 1)]), vec![mismatch("top", 1, 0)]);
+    assert_eq!(check(&[("mid", 2), ("top", 1)]), vec![mismatch("mid", 1, 2)]);
+}
+
+#[test]
+fn a_layer_caps_its_crates_transitive_dependencies() {
+    let layers = |budget: usize| {
+        let text = LAYERS.replace(
+            r#"crates = ["top"]"#,
+            &format!("crates = [\"top\", \"mid\"]\nmax_transitive_dependencies = {budget}"),
+        );
+        Layers::parse(&text).unwrap()
+    };
+    let reach = Reach::new(&chain());
+    dbg!(&reach.transitive);
+    assert_eq!(reach.check_budgets(&layers(2)), vec![]);
+    assert_eq!(
+        reach.check_budgets(&layers(1)),
+        vec![Problem::OverTransitiveBudget {
+            crate_name: "top".to_owned(),
+            layer: "high".to_owned(),
+            count: 2,
+            budget: 1,
+        }],
     );
 }

@@ -105,7 +105,10 @@ fn override_specifier(
         .expect("manifest path always has a parent dir");
     let lockfile_root = crate::install::lockfile_root_dir(inputs.add.config, project_dir)
         .map_err(AddError::FindWorkspaceDir)?;
-    let overrider = crate::overrides::VersionsOverrider::new(&parsed, &lockfile_root);
+    let overrider = crate::overrides::VersionsOverrider::new(
+        &parsed,
+        inputs.add.config.root_project_manifest_dir(&lockfile_root),
+    );
     Ok(overridden_specifier(package_name, project_dir, &overrider, inputs, manifest))
 }
 

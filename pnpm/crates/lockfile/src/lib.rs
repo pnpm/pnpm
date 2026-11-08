@@ -86,6 +86,13 @@ pub const DEFAULT_PEERS_SUFFIX_MAX_LENGTH: u64 = 1000;
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the `settings` block of pnpm-lock.yaml."
+    )
+)]
 pub struct LockfileSettings {
     pub auto_install_peers: bool,
     /// Recorded as `Some(true)` when the install ran with
@@ -101,6 +108,10 @@ pub struct LockfileSettings {
     /// [`Self::dedupe_peers`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub add_missing_peer_types: Option<bool>,
+    /// Recorded as `Some(true)` while `projectScopedOptionalPeers` takes
+    /// effect, omitted otherwise, like [`Self::dedupe_peers`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_scoped_optional_peers: Option<bool>,
     /// `injectWorkspacePackages` recorded by the install that wrote
     /// this lockfile. `false` round-trips as a missing key — the key
     /// is stripped on save so historic v9 lockfiles (which never
@@ -402,7 +413,7 @@ impl Lockfile {
                     return None;
                 }
                 let VersionPart::File(path) = metadata_key.suffix.version() else { return None };
-                if is_local_tarball_path(path) {
+                if pnpm_local_spec::is_tarball_filename(path) {
                     return None;
                 }
                 let directory = path.clone();
@@ -432,21 +443,6 @@ impl Lockfile {
                 });
         }
     }
-}
-
-/// Whether `path` ends in a tarball extension (`.tgz`, `.tar.gz`, or
-/// `.tar`, case-insensitively) — the directory-vs-tarball boundary the
-/// resolver applies to a `file:` spec at resolve time. Public so
-/// consumers classifying a `file:` snapshot key (such as the hoister's
-/// identity function) draw the same line.
-#[must_use]
-pub fn is_local_tarball_path(path: &str) -> bool {
-    let lower = path.as_bytes();
-    let ends_with_ci = |suffix: &str| {
-        let bytes = suffix.as_bytes();
-        lower.len() >= bytes.len() && lower[lower.len() - bytes.len()..].eq_ignore_ascii_case(bytes)
-    };
-    ends_with_ci(".tgz") || ends_with_ci(".tar.gz") || ends_with_ci(".tar")
 }
 
 /// Accepts both shapes a lockfile can carry for a `patchedDependencies`

@@ -11,13 +11,13 @@ use crate::{
         RemoteSideEffectsQuarantineBySnapshot,
         cold::{ColdBatch, ColdBatchState, run_cold_batch, unlink_fetch_failed_children},
     },
-    install_package_by_snapshot::runtime_platform_selector,
+    platform_selection::VariantPlatforms,
     shared_side_effects::{
         PreparedSharedSideEffects, ResolvedSharedSideEffects, resolve_prepared_side_effects,
     },
 };
 use futures_util::FutureExt;
-use pnpm_lockfile::{PackageKey, PlatformSelector};
+use pnpm_lockfile::PackageKey;
 use pnpm_reporter::Reporter;
 use std::collections::HashSet;
 
@@ -76,6 +76,7 @@ impl<'a> CreateVirtualStore<'a> {
             allow_build_policy: self.ctx.allow_build_policy,
             store_index_writer: self.fetching.store_index_writer,
             importers: self.importers,
+            supported_architectures: self.selection.supported_architectures,
         }
     }
 
@@ -86,14 +87,13 @@ impl<'a> CreateVirtualStore<'a> {
         indexes: &mut CasIndexes,
         check: &mut Option<ConcurrentCheck<'_>>,
     ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
-        let runtime_platform_selector =
-            runtime_platform_selector(self.selection.supported_architectures);
+        let variant_platforms = VariantPlatforms::of(self.selection.supported_architectures);
         let mut fetch_failed = HashSet::new();
         let mut cold_cas_paths = Vec::new();
         run_cold_batch::<Reporter>(
             ColdBatch {
                 cold: &partition.cold,
-                installer: self.cold_installer(&inputs, &runtime_platform_selector),
+                installer: self.cold_installer(&inputs, &variant_platforms),
                 reuse: self.slot_reuse(inputs.wanted.packages),
                 marker_source: inputs.marker_source,
                 removed_aliases_by_key: &inputs.links.removed_aliases_by_key,
@@ -113,6 +113,11 @@ impl<'a> CreateVirtualStore<'a> {
         .await?;
         indexes.add_cold(cold_cas_paths);
         unlink_fetch_failed_children(self.ctx, inputs.wanted.snapshots, &fetch_failed)?;
+        // Every install passes here, warm or cold, so the archives kept for
+        // the other listed platforms are checked on each.
+        let stored =
+            self.store_platform_archives::<Reporter>(inputs.wanted.snapshots, &inputs.store);
+        run_checked(check, stored).await?;
         Ok(fetch_failed)
     }
 
@@ -120,7 +125,7 @@ impl<'a> CreateVirtualStore<'a> {
     fn cold_installer<'i>(
         &'i self,
         inputs: &'i ColdInputs<'_, 'a>,
-        runtime_platform_selector: &'i PlatformSelector,
+        variant_platforms: &'i VariantPlatforms,
     ) -> InstallPackageBySnapshot<'i> {
         InstallPackageBySnapshot {
             fetching: crate::SnapshotFetchContext {
@@ -137,7 +142,7 @@ impl<'a> CreateVirtualStore<'a> {
 
             skipped: self.selection.skipped,
             include_optional_dependencies: self.selection.include_optional,
-            runtime_platform_selector,
+            variant_platforms,
 
             // The slot link is deferred to the link thread of
             // `run_cold_batch` so it doesn't block this cooperative

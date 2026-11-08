@@ -83,7 +83,7 @@ fn assert_grandchild_reported_and_killed(message: &str) {
         .and_then(|pid| pid.parse().ok())
         .unwrap_or_else(|| panic!("the report must list the grandchild:\n{message}"));
     let deadline = Instant::now() + Duration::from_secs(10);
-    let mut system = System::new();
+    let mut system = System::new().expect("read the process table");
     loop {
         system.refresh_processes_specifics(
             ProcessesToUpdate::All,

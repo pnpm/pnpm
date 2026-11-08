@@ -5,11 +5,7 @@ use crate::validation::validate_username;
 // htpasswd I/O
 // ---------------------------------------------------------------
 
-/// Parse an Apache-shaped htpasswd file. Each non-empty, non-comment
-/// line is `username:hash`; we accept any bcrypt variant (`$2a$`,
-/// `$2b$`, `$2y$`) but reject everything else so a config file
-/// holding `crypt(3)` or plaintext entries can't masquerade as
-/// passing without the password actually being verifiable.
+/// Parse bcrypt and Apache `{SHA}` credentials for import.
 pub fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, String> {
     let mut out = HashMap::new();
     for (line_no, line) in raw.lines().enumerate() {
@@ -95,19 +91,21 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
     diff == 0
 }
 
-/// Serialize the user map back to htpasswd shape. Sorted output so
-/// the file is stable under `git diff` and easier to eyeball.
-pub(super) fn serialize_htpasswd(users: &HashMap<String, String>) -> String {
-    let mut entries: Vec<(&String, &String)> = users.iter().collect();
-    entries.sort_by(|left, right| left.0.cmp(right.0));
-    let mut out = String::new();
-    for (user, hash) in entries {
-        out.push_str(user);
-        out.push(':');
-        out.push_str(hash);
-        out.push('\n');
+/// Hold the shared edit lock before reading, merging, and writing an htpasswd file.
+pub fn lock_htpasswd(path: &Path) -> Result<std::fs::File> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
     }
-    out
+    let lock_file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path.with_extension("htpasswd.lock"))?;
+    lock_file.lock()?;
+    Ok(lock_file)
 }
 
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
@@ -204,7 +202,10 @@ pub async fn verify_returning_user(
     stored: String,
     bcrypt_cost: u32,
 ) -> Result<(UpsertOutcome, String)> {
-    let valid = if is_sha_hash(&stored) {
+    let valid = if stored == super::NO_PASSWORD_HASH || stored == super::DELETED_USER_HASH {
+        dummy_verify(password, bcrypt_cost).await;
+        false
+    } else if is_sha_hash(&stored) {
         let ok = verify_sha1(password, &stored);
         if !ok {
             dummy_verify(password, bcrypt_cost).await;

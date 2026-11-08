@@ -8,6 +8,7 @@ use super::{
 use crate::resolved_tree::PeerDep;
 use pnpm_catalogs_types::Catalogs;
 use rustc_hash::FxHashSet as HashSet;
+use std::path::Path;
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
@@ -224,8 +225,14 @@ fn only_taken_peers_are_dereferenced_from_catalogs() {
     )]);
     let peer = |version: &str| PeerDep { version: version.to_string(), optional: false };
 
-    let peer_set =
-        extract_peer_dependencies(&result, &HashSet::default(), Some(&catalogs)).unwrap();
+    let peer_set = extract_peer_dependencies(
+        &result,
+        &HashSet::default(),
+        Some(&catalogs),
+        None,
+        Path::new("."),
+    )
+    .unwrap();
 
     assert_eq!(
         peer_set

@@ -1,9 +1,6 @@
 use miette::IntoDiagnostic as _;
-use pnpr_auth::{is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
+use pnpr_auth::{is_bcrypt_hash, is_sha_hash, parse_htpasswd_line};
+use std::{collections::HashMap, path::PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct HtpasswdImportOptions {
@@ -38,17 +35,28 @@ pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<Htpass
         .into_diagnostic()
         .map_err(|err| miette::miette!("failed to read source file: {err}"))?;
 
-    let (source_users, bcrypt_count, sha_count) = parse_source_entries(&source_content)?;
-    let mut target_users = load_existing_target(&target_path)?;
-
-    let (merged, collisions) = merge_users(&mut target_users, source_users, options.overwrite);
-
-    if !options.dry_run {
-        save_target_users(&target_path, &target_users)?;
-    }
+    let (source_users, total_read, bcrypt_count, sha_count) =
+        parse_source_entries(&source_content)?;
+    let (merged, collisions) = pnpr_auth::UserStore::import_password_hashes(
+        &target_path,
+        source_users,
+        pnpr_auth::PasswordImport {
+            collisions: if options.overwrite {
+                pnpr_auth::PasswordCollisions::Overwrite
+            } else {
+                pnpr_auth::PasswordCollisions::Keep
+            },
+            mode: if options.dry_run {
+                pnpr_auth::ImportMode::DryRun
+            } else {
+                pnpr_auth::ImportMode::Persist
+            },
+        },
+    )
+    .into_diagnostic()?;
 
     Ok(HtpasswdImportReport {
-        total_read: bcrypt_count + sha_count,
+        total_read,
         bcrypt_count,
         sha_count,
         merged,
@@ -58,8 +66,11 @@ pub fn import_htpasswd(options: &HtpasswdImportOptions) -> miette::Result<Htpass
     })
 }
 
-fn parse_source_entries(raw: &str) -> miette::Result<(HashMap<String, String>, usize, usize)> {
+fn parse_source_entries(
+    raw: &str,
+) -> miette::Result<(HashMap<String, String>, usize, usize, usize)> {
     let mut users = HashMap::new();
+    let mut total_read = 0;
     let mut bcrypt_count = 0;
     let mut sha_count = 0;
 
@@ -71,6 +82,7 @@ fn parse_source_entries(raw: &str) -> miette::Result<(HashMap<String, String>, u
         let (user, hash) = parse_htpasswd_line(line)
             .map_err(|err| miette::miette!("line {}: {err}", line_no + 1))?;
 
+        total_read += 1;
         if is_bcrypt_hash(hash) {
             bcrypt_count += 1;
         } else if is_sha_hash(hash) {
@@ -79,67 +91,7 @@ fn parse_source_entries(raw: &str) -> miette::Result<(HashMap<String, String>, u
         users.insert(user.to_string(), hash.to_string());
     }
 
-    Ok((users, bcrypt_count, sha_count))
-}
-
-fn load_existing_target(target_path: &Path) -> miette::Result<HashMap<String, String>> {
-    if !target_path.exists() {
-        return Ok(HashMap::new());
-    }
-    let content = std::fs::read_to_string(target_path)
-        .into_diagnostic()
-        .map_err(|err| miette::miette!("failed to read target file: {err}"))?;
-    parse_htpasswd(&content).map_err(|err| miette::miette!("failed to parse target file: {err}"))
-}
-
-fn merge_users(
-    target: &mut HashMap<String, String>,
-    source: HashMap<String, String>,
-    overwrite: bool,
-) -> (usize, Vec<String>) {
-    let mut merged = 0;
-    let mut collisions = Vec::new();
-    for (user, source_hash) in source {
-        match target.get(&user) {
-            Some(existing) if existing == &source_hash => {}
-            Some(existing) if !overwrite => {
-                let d_kind = hash_kind(existing);
-                let s_kind = hash_kind(&source_hash);
-                collisions.push(format!("{user} (destination: {d_kind}, source: {s_kind})"));
-            }
-            _ => {
-                target.insert(user, source_hash);
-                merged += 1;
-            }
-        }
-    }
-    (merged, collisions)
-}
-
-fn hash_kind(hash: &str) -> &'static str {
-    if is_bcrypt_hash(hash) {
-        "bcrypt"
-    } else if is_sha_hash(hash) {
-        "{SHA}"
-    } else {
-        "unrecognized"
-    }
-}
-
-fn save_target_users(path: &Path, users: &HashMap<String, String>) -> miette::Result<()> {
-    let mut entries: Vec<(&String, &String)> = users.iter().collect();
-    entries.sort_by(|left, right| left.0.cmp(right.0));
-
-    let mut out = String::new();
-    for (user, hash) in entries {
-        out.push_str(user);
-        out.push(':');
-        out.push_str(hash);
-        out.push('\n');
-    }
-
-    pnpr_auth::write_atomic(path, out.as_bytes()).into_diagnostic()?;
-    Ok(())
+    Ok((users, total_read, bcrypt_count, sha_count))
 }
 
 #[must_use]
@@ -153,10 +105,7 @@ pub fn format_import_report(report: &HtpasswdImportReport) -> String {
     );
     if !report.collisions.is_empty() {
         let count = report.collisions.len();
-        let _ = writeln!(
-            out,
-            "  warning: {count} conflicting credentials not overwritten (pass --overwrite to replace):",
-        );
+        let _ = writeln!(out, "  warning: {count} conflicting credentials not overwritten:");
         for collision in &report.collisions {
             let _ = writeln!(out, "    - {collision}");
         }

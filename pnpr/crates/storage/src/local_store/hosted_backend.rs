@@ -1,11 +1,10 @@
 use futures_util::TryStreamExt as _;
 
 use super::{
-    Arc, AsyncReadExt, AsyncSeekExt, BLOBS_DIR, BlobFinalize, Body, BoxStream,
-    CanonicalPackageName, DOCUMENT_FILE, DocumentWrite, Ecosystem, ErrorKind, GetRange,
-    HostedBackend, HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, PACKAGES_DIR,
-    Path, PathBuf, RangedBlob, Result, SeekFrom, Store, StreamExt, async_trait,
-    decode_blob_segment, fs, package_dirs, read_dir_if_present, stream, streaming,
+    ARCHIVES_DIR, Arc, AsyncReadExt, AsyncSeekExt, Body, BoxStream, CanonicalPackageName,
+    DocumentWrite, Ecosystem, ErrorKind, GetRange, HostedBackend, HostedDocumentForUpdate,
+    HostedDocumentVersion, Path, PathBuf, RangedBlob, Result, SeekFrom, Store, StoredArchive,
+    StreamExt, async_trait, fs, read_dir_if_present, stream, streaming, unique_tmp_path,
 };
 
 /// The single-node filesystem backend. It owns its directory tree
@@ -46,22 +45,13 @@ impl HostedBackend for Store {
         Ok(DocumentWrite::Written)
     }
 
-    async fn open_blob(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<Option<(Body, Option<u64>)>> {
-        Ok(Store::open_blob(self, name, filename).await?
+    async fn open_archive(&self, key: &str) -> Result<Option<(Body, Option<u64>)>> {
+        Ok(open_file(&self.archive_path(key)).await?
             .map(|(file, len)| (streaming::stream_file(file), Some(len))))
     }
 
-    async fn open_blob_range(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-        range: &GetRange,
-    ) -> Result<Option<RangedBlob>> {
-        let Some((mut file, size)) = Store::open_blob(self, name, filename).await? else {
+    async fn open_archive_range(&self, key: &str, range: &GetRange) -> Result<Option<RangedBlob>> {
+        let Some((mut file, size)) = open_file(&self.archive_path(key)).await? else {
             return Ok(None);
         };
         let Ok(range) = range.as_range(size) else {
@@ -75,66 +65,47 @@ impl HostedBackend for Store {
         Ok(Some(RangedBlob::Read { body, range, size }))
     }
 
-    async fn reserve_blob_tmp(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<PathBuf> {
-        Store::reserve_blob_tmp(self, name, filename).await
+    async fn reserve_archive_tmp(&self) -> Result<PathBuf> {
+        let base = self.archive_tmp_base();
+        if let Some(dir) = base.parent() {
+            fs::create_dir_all(dir).await?;
+        }
+        Ok(unique_tmp_path(&base))
     }
 
-    async fn finalize_blob(
-        &self,
-        tmp_path: &Path,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<BlobFinalize> {
-        Store::finalize_blob(self, tmp_path, name, filename).await?;
-        Ok(BlobFinalize::Written)
+    fn archive_tmp_base(&self) -> PathBuf {
+        self.root.join(ARCHIVES_DIR).join("archive")
     }
 
-    async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
-        Store::remove_blob(self, name, filename).await
+    async fn put_archive(&self, tmp_path: &Path, key: &str) -> Result<()> {
+        let path = self.archive_path(key);
+        let stored = async {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).await?;
+            }
+            fs::rename(tmp_path, &path).await
+        }
+        .await;
+        if stored.is_err() {
+            let _ = fs::remove_file(tmp_path).await;
+        }
+        Ok(stored?)
     }
 
-    async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        Store::remove_package(self, name).await
+    async fn remove_archive(&self, key: &str) -> Result<bool> {
+        match fs::remove_file(self.archive_path(key)).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(err.into()),
+        }
     }
 
-    fn list_blob_files(&self) -> BoxStream<'_, Result<HostedBlobFile>> {
-        let packages = self.root.join(PACKAGES_DIR);
-        let ecosystem = self.ecosystem;
-        stream::once(async move { package_dirs(&packages, ecosystem).await })
-            .map_ok(|dirs| {
-                stream::iter(dirs)
-                    .then(|(name, dir)| package_files(name, dir))
-                    .map_ok(|files| stream::iter(files.into_iter().map(Ok)))
-            })
-            .try_flatten()
+    fn list_archives(&self) -> BoxStream<'_, Result<StoredArchive>> {
+        let dir = self.root.join(ARCHIVES_DIR);
+        stream::once(async move { list_archive_files(&dir).await })
+            .map_ok(|files| stream::iter(files.into_iter().map(Ok)))
             .try_flatten()
             .boxed()
-    }
-
-    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {
-        let blobs_dir = self.package_dir(name).join(BLOBS_DIR);
-        let Some(mut blobs) = read_dir_if_present(&blobs_dir).await? else {
-            return Ok(Vec::new());
-        };
-        let mut list = Vec::new();
-        while let Some(entry) = blobs.next_entry().await? {
-            let metadata = entry.metadata().await?;
-            if let Some(blob) = entry
-                .file_name()
-                .to_str()
-                .filter(|file| !crate::atomic_write::is_atomic_write_temp_name(file))
-                .and_then(|file| decode_blob_segment(name.as_str(), file))
-                && metadata.is_file()
-            {
-                list.push(blob);
-            }
-        }
-        list.sort();
-        Ok(list)
     }
 
     async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
@@ -198,47 +169,52 @@ impl HostedBackend for Store {
     }
 }
 
-/// The document and blobs of the package `name` in `dir`.
-async fn package_files(name: String, dir: PathBuf) -> Result<Vec<HostedBlobFile>> {
-    let mut files = Vec::new();
-    match fs::symlink_metadata(dir.join(DOCUMENT_FILE)).await {
-        Ok(metadata) if metadata.is_file() => files.push(blob_file(&name, None, &metadata)?),
-        Ok(_) => {}
-        Err(err) if err.kind() == ErrorKind::NotFound => {}
+/// The file at `path` and its length, `None` when there is none.
+async fn open_file(path: &Path) -> Result<Option<(fs::File, u64)>> {
+    let file = match fs::File::open(path).await {
+        Ok(file) => file,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(err.into()),
-    }
-    let blobs_dir = dir.join(BLOBS_DIR);
-    let Some(mut blobs) = read_dir_if_present(&blobs_dir).await? else {
+    };
+    let len = file.metadata().await?.len();
+    Ok(Some((file, len)))
+}
+
+/// Every file stored in a shard of `dir`, the namespace's archives
+/// directory. The staging files beside the shards are not stored archives.
+async fn list_archive_files(dir: &Path) -> Result<Vec<StoredArchive>> {
+    let mut files = Vec::new();
+    let Some(mut shards) = read_dir_if_present(dir).await? else {
         return Ok(files);
     };
-    if !super::is_real_dir(&blobs_dir).await? {
-        return Ok(files);
-    }
-    while let Some(entry) = blobs.next_entry().await? {
-        let metadata = entry.metadata().await?;
-        // A blob being staged sits beside its final name until it is promoted.
-        if let Some(blob) = entry
-            .file_name()
-            .to_str()
-            .filter(|file| !crate::atomic_write::is_atomic_write_temp_name(file))
-            .and_then(|file| decode_blob_segment(&name, file))
-            && metadata.is_file()
-        {
-            files.push(blob_file(&name, Some(blob), &metadata)?);
+    while let Some(shard) = shards.next_entry().await? {
+        if shard.file_type().await?.is_dir() {
+            let mut entries = fs::read_dir(shard.path()).await?;
+            while let Some(entry) = entries.next_entry().await? {
+                files.extend(stored_archive(&entry).await?);
+            }
         }
     }
     Ok(files)
 }
 
-fn blob_file(
-    package: &str,
-    blob: Option<String>,
-    metadata: &std::fs::Metadata,
-) -> Result<HostedBlobFile> {
-    Ok(HostedBlobFile {
-        package: package.to_string(),
-        blob,
+/// The archive `entry` holds, `None` for anything but a file, or for one a
+/// reclaim removed while it was listed.
+async fn stored_archive(entry: &fs::DirEntry) -> Result<Option<StoredArchive>> {
+    let metadata = match entry.metadata().await {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err.into()),
+    };
+    if !metadata.is_file() {
+        return Ok(None);
+    }
+    Ok(Some(StoredArchive {
+        name: entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned(),
         modified: metadata.modified()?,
         size: metadata.len(),
-    })
+    }))
 }

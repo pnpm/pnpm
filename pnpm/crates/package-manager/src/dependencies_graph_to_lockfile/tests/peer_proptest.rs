@@ -65,7 +65,7 @@ fn importer_opts(id: &str, settings: Settings) -> ResolveImporterOptions {
             auto_install_peers_from_highest_match: false,
             resolve_peers_from_workspace_root: false,
             dedupe_peers: false,
-            dedupe_peer_dependents: true,
+            dedupe_peer_dependents: pnpm_resolving_deps_resolver::PeerDependentsDedupe::On,
         },
         links: pnpm_resolving_deps_resolver::PeerLinkOptions {
             exclude_links_from_lockfile: false,
@@ -103,7 +103,7 @@ fn workspace_opts(settings: Settings, reuse: Reuse<'_>) -> WorkspaceResolveOptio
         peers: pnpm_resolving_deps_resolver::WorkspacePeerResolutionOptions {
             dedupe_peers: false,
             dedupe_injected_deps: false,
-            dedupe_peer_dependents: true,
+            dedupe_peer_dependents: pnpm_resolving_deps_resolver::PeerDependentsDedupe::On,
             resolve_peers_from_workspace_root: false,
             exclude_links_from_lockfile: false,
             lockfile_dir: std::path::PathBuf::from("/repo"),

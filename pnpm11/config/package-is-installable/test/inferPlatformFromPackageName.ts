@@ -100,6 +100,17 @@ test('a package without any declared platform field is not skipped when its name
   })).toBe(true)
 })
 
+test('a package without any declared platform field is not skipped when its name has only an operating system token', () => {
+  expect(packageIsInstallable('get-windows@9.3.0', {
+    name: 'get-windows',
+    version: '9.3.0',
+  }, {
+    optional: true,
+    lockfileDir: process.cwd(),
+    supportedArchitectures: { os: ['linux'], cpu: ['x64'] },
+  })).toBe(true)
+})
+
 test('the platform is not inferred from the name of a non-optional dependency', () => {
   expect(packageIsInstallable('@nx/nx-win32-arm64-msvc@1.0.0', {
     name: '@nx/nx-win32-arm64-msvc',

@@ -35,6 +35,7 @@ mod hoist_state;
 mod local_targets;
 mod locked_peers;
 mod missing_peers;
+mod optional_peer_candidates;
 mod options;
 
 use direct_seeds::DirectSeeds;
@@ -56,12 +57,12 @@ use crate::{
     },
     resolve_dependency_tree::{
         DependencySpec, TreeCtx, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
-        unwrap_package_name,
+        resolve_direct_dependency_detached, unwrap_package_name,
     },
     resolve_peers::{
-        CandidatePeerRanges, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
-        ResolvePeersOptions, apply_hoist_missing_scope, index_missing_names,
-        peers_accept_provided_versions, resolve_peers, resolved_name_and_version,
+        CandidatePeer, CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
+        ResolvePeersOptions, accepts_optional_peer_candidate, apply_hoist_missing_scope,
+        index_missing_names, resolve_peers, resolved_name_and_version,
     },
     resolved_tree::ResolvedTree,
 };
@@ -168,6 +169,14 @@ pub(crate) struct ImporterHoistState {
     progress: ImporterHoistProgress,
     dependencies: ImporterHoistDependencies,
     selection: ImporterHoistSelection,
+}
+
+/// An importer's share of the workspace peer pass.
+pub(crate) struct ImporterDirect {
+    pub(crate) direct: Vec<DirectDep>,
+    pub(crate) hoisted_peer_provider_node_ids: HashSet<crate::NodeId>,
+    /// See [`crate::ImporterPeerInput::rejected_optional_peers`].
+    pub(crate) rejected_optional_peers: HashSet<String>,
 }
 
 pub(crate) struct RequiredRound {
@@ -372,8 +381,12 @@ impl ImporterHoistState {
     /// pass would be discarded), together with the `NodeIds` of the peer
     /// providers among them (see
     /// [`crate::PeerResolutionScope::hoisted_peer_provider_node_ids`]).
-    pub(crate) fn into_direct(self) -> (Vec<DirectDep>, HashSet<crate::NodeId>) {
-        (self.dependencies.direct, self.dependencies.hoisted_peer_provider_node_ids)
+    pub(crate) fn into_direct(self) -> ImporterDirect {
+        ImporterDirect {
+            direct: self.dependencies.direct,
+            hoisted_peer_provider_node_ids: self.dependencies.hoisted_peer_provider_node_ids,
+            rejected_optional_peers: self.dependencies.rejected_optional_peers,
+        }
     }
 
     /// Run the final per-importer peer pass and emit the result. Used

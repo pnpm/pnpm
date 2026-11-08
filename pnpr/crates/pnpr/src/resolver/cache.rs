@@ -203,6 +203,7 @@ pub(super) fn resolution_cache_key(
         "dedupePeers": config.dedupe_peers,
         "excludeLinksFromLockfile": config.exclude_links_from_lockfile,
         "addMissingPeerTypes": config.add_missing_peer_types,
+        "projectScopedOptionalPeers": config.project_scoped_optional_peers,
         "projects": projects,
         "inputLockfileHash": request.lockfile.as_ref().map(hash_lockfile),
         "frozenLockfile": request.frozen_lockfile,

@@ -16,22 +16,7 @@ pub fn write_sigstore_bundle(
         filename: filename.to_string(),
         reason,
     };
-    let json_bytes = if let Ok(val) = serde_json::from_str::<Value>(data) {
-        if !val.is_object() {
-            return Err(invalid("sigstore bundle must be a JSON object".to_string()));
-        }
-        data.as_bytes().to_vec()
-    } else {
-        let decoded = BASE64
-            .decode(data.trim())
-            .map_err(|err| invalid(format!("invalid base64: {err}")))?;
-        let val: Value = serde_json::from_slice(&decoded)
-            .map_err(|err| invalid(format!("invalid JSON in base64: {err}")))?;
-        if !val.is_object() {
-            return Err(invalid("sigstore bundle must be a JSON object".to_string()));
-        }
-        decoded
-    };
+    let json_bytes = sigstore_bundle_bytes(data).map_err(invalid)?;
     if let Some(expected_len) = declared_length
         && json_bytes.len() as u64 != expected_len
     {
@@ -45,6 +30,25 @@ pub fn write_sigstore_bundle(
         return Err(RegistryError::Io(err));
     }
     Ok(json_bytes.len() as u64)
+}
+
+/// The bytes a sigstore bundle attachment's `data` stores: the JSON object
+/// as sent, or as decoded from base64.
+///
+/// # Errors
+///
+/// Why `data` is no JSON object, raw or base64-encoded.
+pub fn sigstore_bundle_bytes(data: &str) -> Result<Vec<u8>, String> {
+    let not_object = || "sigstore bundle must be a JSON object".to_string();
+    if let Ok(val) = serde_json::from_str::<Value>(data) {
+        return if val.is_object() { Ok(data.as_bytes().to_vec()) } else { Err(not_object()) };
+    }
+    let decoded = BASE64
+        .decode(data.trim())
+        .map_err(|err| format!("invalid base64: {err}"))?;
+    let val: Value =
+        serde_json::from_slice(&decoded).map_err(|err| format!("invalid JSON in base64: {err}"))?;
+    if val.is_object() { Ok(decoded) } else { Err(not_object()) }
 }
 
 /// Extract predicate type from sigstore bundle, defaulting to SLSA provenance v1.

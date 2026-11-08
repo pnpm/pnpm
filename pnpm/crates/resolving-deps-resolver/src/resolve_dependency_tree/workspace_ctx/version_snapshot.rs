@@ -1,8 +1,8 @@
 use super::{
-    Arc, ChildrenOwnerEntry, DirectDep, FirstWalkMissing, HashMap, MissingNames, MutexGuard,
-    OwnerMissingRecord, ResolvedTree, RunVersionsCache, WorkspaceTreeCtx, collect_newly_visited,
-    fold_version, fold_visited_versions, lock_recoverable, take_locked, take_write_locked,
-    walk_reachable_children, walk_reachable_nodes,
+    Arc, ChildrenOwnerEntry, DirectDep, FirstWalkMissing, HashMap, HashSet, MissingNames,
+    MutexGuard, OwnerMissingRecord, ResolvedTree, RunVersionsCache, WorkspaceTreeCtx,
+    collect_newly_visited, fold_version, fold_visited_versions, lock_recoverable, take_locked,
+    take_write_locked, walk_reachable_children, walk_reachable_nodes,
 };
 
 impl WorkspaceTreeCtx {
@@ -154,6 +154,62 @@ impl WorkspaceTreeCtx {
         cache.revision = revision;
         cache.children_rewrites = children_rewrites;
         cache
+    }
+
+    /// `name → versions` of `names` among the packages reachable from
+    /// `roots`, the pkg ids of one importer's direct dependencies.
+    pub(crate) fn versions_reachable_from<'id>(
+        &self,
+        roots: impl Iterator<Item = &'id str>,
+        names: &HashSet<&str>,
+    ) -> HashMap<String, HashSet<String>> {
+        let mut queue: Vec<String> = roots.map(str::to_owned).collect();
+        let reached = {
+            let children_by_id = lock_recoverable(&self.children.by_id);
+            collect_newly_visited(&children_by_id, &mut queue, &mut HashSet::default())
+        };
+        let mut versions: HashMap<String, HashSet<String>> = HashMap::default();
+        for (name, version) in self.names_and_versions_of(reached) {
+            if names.contains(name.as_str()) {
+                versions
+                    .entry(name)
+                    .or_default()
+                    .insert(version);
+            }
+        }
+        versions
+    }
+
+    /// The name and version of each of `pkg_ids`. A workspace package
+    /// without a `name_ver` is identified by its recorded manifest
+    /// identity.
+    fn names_and_versions_of(&self, pkg_ids: Vec<String>) -> Vec<(String, String)> {
+        let mut name_versions = Vec::new();
+        let mut unnamed = Vec::new();
+        {
+            let packages = lock_recoverable(&self.tree.packages);
+            for pkg_id in pkg_ids {
+                match packages
+                    .get(pkg_id.as_str())
+                    .and_then(|pkg| pkg.result().package.name_ver.as_ref())
+                {
+                    Some(name_ver) => {
+                        name_versions.push((
+                            name_ver.name.to_string(),
+                            name_ver.suffix.to_string(),
+                        ));
+                    }
+                    None => unnamed.push(pkg_id),
+                }
+            }
+        }
+        let identities = lock_recoverable(&self.versions.workspace_manifest_identities);
+        name_versions.extend(
+            unnamed
+                .iter()
+                .filter_map(|pkg_id| identities.get(pkg_id).cloned()),
+        );
+        name_versions
     }
 
     /// Fold the versions of the workspace packages whose manifest

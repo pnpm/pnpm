@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate pnpr_sql;
+
 pub mod layout;
 
 pub mod metadata;
@@ -11,6 +14,8 @@ pub mod transparency_log;
 
 pub mod upload;
 
+pub use bounded_cache::BoundedCache;
+
 pub use atomic_write::{
     remove_atomic_write_temps, unique_tmp_path, write_atomic, write_atomic_new,
 };
@@ -23,7 +28,10 @@ pub use object_store::GetRange;
 
 pub(crate) use self::backend::HostedBackend;
 
-pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
+pub use self::backend::{HostedDocumentForUpdate, HostedDocumentVersion};
+
+pub use archives::PromotedArchive;
+pub use blob_id::{BlobId, parse_blob_key};
 
 pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
@@ -34,7 +42,7 @@ pub use staged_archives::{
 
 pub use staged_records::PipelineRunKey;
 
-pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
+pub use tombstones::PackageTombstone;
 
 pub use layout_state::HostedLayout;
 
@@ -42,8 +50,12 @@ pub use pnpr_package_name::Ecosystem;
 
 pub use tar_integrities::DerivedTar;
 
+mod bounded_cache;
 mod tar_integrities;
 mod upstream_cache;
+
+mod archives;
+mod blob_id;
 
 mod layout_state;
 use layout_state::namespace;
@@ -94,13 +106,9 @@ use tokio::{
 };
 
 use layout::{
-    BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, blob_segment, decode_blob_segment,
-    decode_package_segments, package_segments,
+    ARCHIVES_DIR, BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, blob_segment, package_segments,
 };
 pub const DOCUMENT_WRITE_RETRIES: usize = 8;
-/// Retries a tombstone write allows: higher than the request-path budget
-/// because the write has to converge while every replica may be racing it.
-pub(crate) const COMMIT_DOCUMENT_WRITE_RETRIES: usize = 32;
 const DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 5;
 const MAX_DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 250;
 
@@ -167,13 +175,12 @@ pub enum RangedBlob {
     Unsatisfiable { size: u64 },
 }
 
-/// A file in the hosted namespace, for offline maintenance.
-#[derive(Debug)]
-pub struct HostedBlobFile {
-    /// The package or repository the file belongs to.
-    pub package: String,
-    /// The blob's file name, or `None` for the package's document.
-    pub blob: Option<String>,
+/// A name stored where a hosted namespace keeps its archives: the key of an
+/// archive pnpr stored (see [`parse_blob_key`]), or anything else found
+/// there.
+#[derive(Debug, Clone)]
+pub struct StoredArchive {
+    pub name: String,
     pub modified: SystemTime,
     pub size: u64,
 }
@@ -265,11 +272,11 @@ impl Storage {
         )
     }
 
-    /// Inventory all regular files, including repositories with no document
-    /// and repositories nested below another. Only for offline maintenance.
+    /// Every name stored where this namespace keeps its archives, for
+    /// maintenance that compares the store with its metadata.
     #[must_use]
-    pub fn hosted_blob_files(&self) -> BoxStream<'_, Result<HostedBlobFile>> {
-        self.hosted.list_blob_files()
+    pub fn hosted_archives(&self) -> BoxStream<'_, Result<StoredArchive>> {
+        self.hosted.list_archives()
     }
 
     /// Check that the hosted backend and the cache directory are reachable
@@ -288,13 +295,6 @@ impl Storage {
 
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.metadata.package_names().await
-    }
-
-    pub async fn hosted_package_blobs(
-        &self,
-        canonical: &CanonicalPackageName,
-    ) -> Result<Vec<String>> {
-        self.hosted.list_package_blobs(canonical).await
     }
 
     // --- Authoritative (hosted) store -----------------------------------
@@ -346,67 +346,6 @@ impl Storage {
         metadata::update_with_retry(&self.metadata, name, retries, principal, build).await
     }
 
-    /// Open a blob from the authoritative hosted store. Hosted
-    /// publish writes verify their SRI before finalization, and static
-    /// storage remains operator-controlled rather than an upstream cache.
-    pub async fn open_hosted_blob(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<Option<(Body, Option<u64>)>> {
-        self.hosted.open_blob(name, filename).await
-    }
-
-    /// Open only the requested bytes, without reading the preceding content.
-    pub async fn open_hosted_blob_range(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-        range: &GetRange,
-    ) -> Result<Option<RangedBlob>> {
-        self.hosted.open_blob_range(name, filename, range).await
-    }
-
-    /// Reserve a staging slot for a blob this server hosts. The
-    /// publish flow streams the decode + hash + write through
-    /// `std::fs` inside `spawn_blocking` and only needs the path;
-    /// finalize with [`Self::finalize_blob_slot`].
-    pub async fn reserve_hosted_blob(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<BlobSlot> {
-        let tmp_path = self.hosted.reserve_blob_tmp(name, filename).await?;
-        Ok(BlobSlot { tmp_path, name: name.clone(), filename: filename.to_string() })
-    }
-
-    /// Remove a hosted blob without changing any proxy-cache namespace.
-    pub async fn remove_hosted_blob(
-        &self,
-        name: &CanonicalPackageName,
-        filename: &str,
-    ) -> Result<bool> {
-        self.hosted.remove_blob(name, filename).await
-    }
-
-    /// Remove a single blob from the hosted store.
-    pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
-        self.remove_hosted_blob(name, filename).await
-    }
-
-    /// Remove the package's metadata and archives from the hosted store.
-    pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        let had_metadata = self.metadata.remove_package(name).await?;
-        let had_files = self.hosted.remove_package(name).await?;
-        Ok(had_metadata || had_files)
-    }
-
-    /// Promote a tmp blob written by the publish flow to its final
-    /// home: a rename on the fs backend, an upload on the S3 backend.
-    pub async fn finalize_blob_slot(&self, slot: BlobSlot) -> Result<BlobFinalize> {
-        self.hosted.finalize_blob(&slot.tmp_path, &slot.name, &slot.filename).await
-    }
-
     /// Where this namespace stages locally: the namespace's directory on the
     /// fs backend, the cache scratch on the S3 backend. In-progress blob
     /// uploads live here.
@@ -414,18 +353,6 @@ impl Storage {
     pub fn hosted_scratch_root(&self) -> &Path {
         self.hosted.local_scratch_root()
     }
-
-    // --- Staged publishes (`-/stage`) -------------------------------------
-    //
-    // A staged publish is a publish document held back until it is approved
-    // (`POST /-/stage/:id/approve`) or rejected (`DELETE /-/stage/:id`). Each
-    // record is two objects in the hosted backend, keyed by the stage id:
-    // a small metadata JSON (listed and served as-is) and the full original
-    // publish body (replayed through the regular publish flow on approval).
-    // Records live under the reserved `.staged/` namespace of the *root*
-    // hosted store — never a per-org view — because the stage id is the only
-    // thing a later `view`/`approve`/`reject` request carries; the record's
-    // metadata remembers which registry the stage was addressed through.
 
     // --- Pipeline runs (`/-/pnpr/v0/pipeline`) ----------------------------
     //
@@ -453,3 +380,10 @@ fn validated_record_name(name: &str) -> Result<&str> {
 
 #[cfg(test)]
 mod tests;
+
+/// An authoritative record and the generation a conditional write replaces.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetadataRecord {
+    pub bytes: Vec<u8>,
+    pub generation: i64,
+}

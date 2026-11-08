@@ -72,6 +72,11 @@ impl CircuitBreaker {
         true
     }
 
+    pub(super) fn retry_after(&self) -> Duration {
+        self.lock().last_failure
+            .map_or(Duration::ZERO, |at| self.fail_timeout.saturating_sub(at.elapsed()))
+    }
+
     pub(super) fn record_success(&self) {
         *self.lock() = BreakerState::default();
     }

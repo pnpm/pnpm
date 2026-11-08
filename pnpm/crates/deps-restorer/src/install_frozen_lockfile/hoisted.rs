@@ -8,12 +8,15 @@ pub use hoist_plan::{
 
 mod direct_links;
 mod hoist_plan;
+mod linker_options;
 mod package_root_links;
 mod replaced_locations;
 mod stale_links;
 mod workspace_links;
 
+use crate::create_virtual_store::linked_archives;
 use direct_links::link_selected_hoisted_direct_dependencies;
+use linker_options::{hoisted_dir_clone_cache, hoisted_walker_options, previous_package_dirs};
 use replaced_locations::forget_replaced_hoisted_locations;
 use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
 use workspace_links::{link_hoisted_workspace_dependencies, prune_importer_hoisted_bins};
@@ -139,9 +142,10 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let walked = walk_hoisted_graph(inputs, lockfile, skipped)?;
     forget_replaced_hoisted_locations(inputs, &walked)?;
     unlink_prior_workspace_hoists(inputs)?;
-    unlink_stale_direct_links(inputs)?;
+    unlink_stale_direct_links::<Reporter>(inputs, skipped)?;
     let (mut bins, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, lockfile, &walked, skipped)?;
+    record_hoisted_archives(inputs, &walked.graph);
     let changed_dirs = package_root_links::link_hoisted_package_root_links(
         lockfile,
         walked.graph.values(),
@@ -220,48 +224,16 @@ fn walk_hoisted_graph(
             }
         }
     }
+    linked_archives::import_other_hoisted_archives(
+        &mut walked.graph,
+        inputs.supported_architectures,
+    );
     for skipped_dep_path in walked.skipped.difference(&walker_skipped) {
         if let Ok(key) = skipped_dep_path.parse::<PackageKey>() {
             skipped.insert_installability(key);
         }
     }
     Ok(walked)
-}
-
-fn hoisted_walker_options<'a>(
-    inputs: &HoistedLinkerInputs<'a>,
-    lockfile: &Lockfile,
-    walker_skipped: BTreeSet<String>,
-) -> LockfileToHoistedDepGraphOptions<'a> {
-    let config = inputs.config;
-    LockfileToHoistedDepGraphOptions {
-        installability: crate::HoistedInstallability {
-            engine_strict: config.effective_engine_strict(),
-            current_node_version: inputs.host_node
-                .map(|host| host.version.clone())
-                .unwrap_or_default(),
-            current_os: pnpm_graph_hasher::host_platform().to_string(),
-            current_cpu: pnpm_graph_hasher::host_arch().to_string(),
-            current_libc: pnpm_graph_hasher::host_libc().to_string(),
-            supported_architectures: inputs.supported_architectures.cloned(),
-        },
-        placement: crate::HoistedPlacementOptions {
-            auto_install_peers: config.auto_install_peers,
-            hoist_workspace_packages: config.hoist_workspace_packages,
-            hoisting_limits: crate::get_hoisting_limits(
-                &lockfile.importers,
-                config.hoisting_limits,
-            ),
-            external_dependencies: config.external_dependencies.clone(),
-        },
-        lockfile_dir: inputs.projects.walker_lockfile_dir.to_path_buf(),
-        root_modules_dir: config.modules_dir.clone(),
-
-        skipped: walker_skipped,
-        force: config.force,
-        include_incompatible_packages: config.installs_incompatible_packages(),
-        current_hoisted_locations: inputs.prior.current_hoisted_locations,
-    }
 }
 
 fn link_hoisted<Reporter: self::Reporter>(
@@ -281,13 +253,7 @@ fn link_hoisted<Reporter: self::Reporter>(
         .as_ref()
         .expect("hoisted CreateVirtualStore populates cas_paths");
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
-    let dir_clone_cache = crate::link_hoisted_modules::HoistedDirCloneCache::new(
-        inputs.materialization.dir_clone_cache,
-        lockfile.packages.as_ref(),
-        inputs.prior.current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
-        inputs.materialization.requires_build_by_snapshot,
-        config.force,
-    );
+    let dir_clone_cache = hoisted_dir_clone_cache(inputs, lockfile);
     let mut bins = crate::link_hoisted_modules::link_hoisted_modules_with_sources::<Reporter>(
         &LinkHoistedModulesOpts {
             import: crate::PackageImportOptions::from_config(
@@ -297,11 +263,14 @@ fn link_hoisted<Reporter: self::Reporter>(
                 inputs.materialization.swap_lock,
             ),
             graph: &walked.graph,
-            prev_graph: walked.prev_graph.as_ref(),
+            previous_dirs: &previous_package_dirs(inputs, walked),
             hierarchy: &walked.hierarchy,
+            modules_dirs: &crate::ImporterModulesDirs::from_config(
+                config,
+                inputs.projects.walker_lockfile_dir,
+            )
+            .with_importers(lockfile.importers.keys().map(String::as_str)),
             cas_paths_by_pkg_id: cas_index,
-
-            confine_root: inputs.projects.walker_lockfile_dir,
             link_options: &link_options,
             dir_clone_cache: dir_clone_cache.as_ref(),
         },
@@ -368,7 +337,7 @@ fn link_hoisted_workspace_packages(
     inputs: &HoistedLinkerInputs<'_>,
     walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
     link_options: &pnpm_cmd_shim::LinkBinsOptions,
-    claimed_commands: &mut HashMap<PathBuf, std::collections::HashSet<String>>,
+    claimed_commands: &mut crate::ClaimedCommands,
 ) -> Result<(crate::HoistedDependencies, bool), HoistedLinkerError> {
     let config = inputs.config;
     if !config.hoist_workspace_packages {
@@ -426,7 +395,7 @@ fn link_workspace_hoists(
     inputs: &HoistedLinkerInputs<'_>,
     aliases: Vec<(String, pnpm_modules_yaml::HoistKind, PathBuf)>,
     link_options: &pnpm_cmd_shim::LinkBinsOptions,
-    claimed_commands: &mut HashMap<PathBuf, std::collections::HashSet<String>>,
+    claimed_commands: &mut crate::ClaimedCommands,
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir = &inputs.config.modules_dir;
     crate::symlink_hoisted_dependencies(
@@ -443,17 +412,15 @@ fn link_workspace_hoists(
         .into_iter()
         .map(|(_, _, project_dir)| project_dir)
         .collect();
-    let root_claimed = claimed_commands
-        .entry(pnpm_fs::lexical_normalize(modules_dir))
-        .or_default();
-    let linked = crate::link_bins_from_locations_excluding(
+    let root_claimed = claimed_commands.commands_mut(modules_dir);
+    let linked = crate::link_bins_dir(
         modules_dir,
-        &project_dirs,
-        root_claimed,
-        link_options,
+        crate::BinCandidates::Locations(&project_dirs),
+        crate::BinsDirPass::new(link_options)
+            .skipping(crate::SkippedCommands::Listed(root_claimed)),
     )
     .map_err(HoistedLinkerError::HoistLinkBins)?;
-    root_claimed.extend(linked);
+    root_claimed.extend(linked.linked_commands);
     Ok(())
 }
 
@@ -501,4 +468,9 @@ fn pkg_roots_by_key<'n>(
         }
     }
     roots
+}
+
+fn record_hoisted_archives(inputs: &HoistedLinkerInputs<'_>, graph: &crate::DependenciesGraph) {
+    let fetched = inputs.graph.cas_paths_by_pkg_id.as_ref();
+    linked_archives::record_hoisted_archives(graph, fetched, inputs.supported_architectures);
 }

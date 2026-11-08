@@ -1,4 +1,5 @@
 mod sources;
+mod stored_variants;
 
 use super::{
     InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
@@ -108,25 +109,16 @@ pub(super) async fn download_tarball<Reporter: self::Reporter>(
             .await
             .map(ExtractedPackageMetadata::from_cached_cas_paths);
     };
-    // `clone()` is cheap (refs + `Arc`s) and lets us retry through
-    // `run_cached_without_mem_cache` below if the shared download failed.
-    let result =
-        download.clone().run_cached_with_mem_cache::<Reporter>(mem_cache, revision_addressed).await;
-    match result {
-        Ok(cached) => Ok((
-            Arc::clone(&cached.files),
-            ExtractedPackageMetadata {
-                manifest: cached.manifest.clone().map(Arc::new),
-                requires_build: cached.requires_build,
-                bins: cached.bins.clone(),
-            },
-        )),
-        Err(TarballError::SiblingFetchFailed { .. }) if !revision_addressed => download
-            .run_cached_without_mem_cache::<Reporter>(false)
-            .await
-            .map(ExtractedPackageMetadata::from_cached_cas_paths),
-        Err(err) => Err(err),
-    }
+    let cached =
+        download.run_cached_with_mem_cache::<Reporter>(mem_cache, revision_addressed).await?;
+    Ok((
+        Arc::clone(&cached.files),
+        ExtractedPackageMetadata {
+            manifest: cached.manifest.clone().map(Arc::new),
+            requires_build: cached.requires_build,
+            bins: cached.bins.clone(),
+        },
+    ))
 }
 /// Returns the file map alongside whether the source directory existed to
 /// walk. See [`crate::SlotImportSource::source_exists`] for why the caller
@@ -300,9 +292,10 @@ impl InstallPackageBySnapshot<'_> {
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
     ) -> Result<(Arc<pnpm_fs::CasPaths>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
     {
-        let platform = super::variations_platform(variations, self.runtime_platform_selector);
-        let selected = variant_for_host(variations, fetch.package_key, &platform, self.ctx.config)?;
-        let (resolution, source) = match selected {
+        let platform = self.variant_platforms.for_variations(variations);
+        let (_, archive) =
+            variant_for_host(variations, fetch.package_key, platform, self.ctx.config)?;
+        let (resolution, source) = match archive {
             VariantFetch::Binary(binary) => {
                 return self
                     .fetch_binary::<Reporter>(binary, fetch.package_key)

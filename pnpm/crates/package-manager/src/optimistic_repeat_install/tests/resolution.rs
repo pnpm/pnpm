@@ -2,11 +2,11 @@ use super::{
     super::{
         Decision,
         manifest_agreement::{LinkedPackagesContext, linked_packages_are_up_to_date},
-        settings::current_settings,
     },
     backdate_validated_files, check, isolated_included, linked_sibling_decision,
     setup_fresh_install_with_config, write_state,
 };
+use crate::install_state::settings::current_settings;
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -298,4 +298,107 @@ importers:
         &root_manifest,
         lockfile.root_project().unwrap(),
     ));
+}
+#[test]
+fn a_link_to_a_directory_without_a_manifest_is_not_up_to_date() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::create_dir_all(workspace_root.join("pkg-a")).unwrap();
+    fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"pkg-a":"workspace:*"}}"#,
+    )
+    .unwrap();
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      pkg-a:
+        specifier: workspace:*
+        version: link:pkg-a
+",
+    )
+    .unwrap();
+    let config = Config::new();
+    let project_manifests = [(workspace_root.to_path_buf(), &root_manifest)];
+    let context = LinkedPackagesContext::new(&config, &project_manifests);
+
+    assert!(!linked_packages_are_up_to_date(
+        &context,
+        workspace_root,
+        &root_manifest,
+        lockfile.root_project().unwrap(),
+    ));
+}
+#[test]
+fn a_link_to_a_publish_directory_without_a_manifest_reads_the_project_manifest() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let app_dir = workspace_root.join("app");
+    let lib_dir = workspace_root.join("lib");
+    fs::create_dir_all(&app_dir).unwrap();
+    fs::create_dir_all(lib_dir.join("dist")).unwrap();
+    fs::write(
+        app_dir.join("package.json"),
+        r#"{"name":"app","version":"1.0.0","dependencies":{"lib":"workspace:^1.0.0"}}"#,
+    )
+    .unwrap();
+    fs::write(
+        lib_dir.join("package.json"),
+        r#"{"name":"lib","version":"1.2.0","publishConfig":{"directory":"dist"}}"#,
+    )
+    .unwrap();
+    let app_manifest = PackageManifest::from_path(app_dir.join("package.json")).unwrap();
+    let lib_manifest = PackageManifest::from_path(lib_dir.join("package.json")).unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+
+  app:
+    dependencies:
+      lib:
+        specifier: workspace:^1.0.0
+        version: link:../lib/dist
+
+  lib: {}
+",
+    )
+    .unwrap();
+    let config = Config::new();
+    let project_manifests = [(app_dir.clone(), &app_manifest), (lib_dir, &lib_manifest)];
+    let context = LinkedPackagesContext::new(&config, &project_manifests);
+
+    assert!(linked_packages_are_up_to_date(
+        &context,
+        &app_dir,
+        &app_manifest,
+        &lockfile.importers["app"],
+    ));
+}
+#[test]
+fn a_publish_directory_at_another_project_root_keeps_that_project_manifest() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let a_dir = workspace_root.join("a");
+    let b_dir = workspace_root.join("b");
+    fs::create_dir_all(&a_dir).unwrap();
+    fs::create_dir_all(&b_dir).unwrap();
+    fs::write(
+        a_dir.join("package.json"),
+        r#"{"name":"a","version":"1.0.0","publishConfig":{"directory":"../b"}}"#,
+    )
+    .unwrap();
+    fs::write(b_dir.join("package.json"), r#"{"name":"b","version":"2.0.0"}"#).unwrap();
+    let a_manifest = PackageManifest::from_path(a_dir.join("package.json")).unwrap();
+    let b_manifest = PackageManifest::from_path(b_dir.join("package.json")).unwrap();
+    let config = Config::new();
+    let project_manifests = [(b_dir.clone(), &b_manifest), (a_dir, &a_manifest)];
+    let context = LinkedPackagesContext::new(&config, &project_manifests);
+
+    assert_eq!(context.linked_version(&b_dir).as_deref(), Some("2.0.0"));
 }

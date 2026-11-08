@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/has-optional-peer-wave-a",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/peer-wave-a": "*"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/peer-wave-a": {
+      "optional": true
+    }
+  }
+}

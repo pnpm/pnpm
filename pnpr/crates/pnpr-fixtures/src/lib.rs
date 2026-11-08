@@ -1,11 +1,12 @@
 pub mod presets;
 pub use metadata::{
-    deprecate_version, read_hosted_document, read_packument, remove_version, set_dist_tag,
-    write_hosted_document, write_packuments, write_packuments_into,
+    deprecate_version, read_hosted_document, read_hosted_file, read_packument, remove_version,
+    set_dist_tag, tarball_path, write_hosted_document, write_hosted_file, write_packuments,
+    write_packuments_into,
 };
 pub use presets::{
-    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, TAR_REGISTRY, proxy_config,
-    registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
+    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, REGISTRY_MOCK_UPSTREAM_TIMEOUT, TAR_REGISTRY,
+    proxy_config, registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
 };
 
 mod metadata;
@@ -16,7 +17,11 @@ use base64::{Engine, engine::general_purpose};
 use flate2::{Compression, write::GzEncoder};
 use node_semver::{Range, Version};
 use pnpr_registry::Ecosystem;
-use pnpr_storage::layout::{local_blob_path, write_local_layout_marker};
+use pnpr_storage::{
+    BlobId,
+    layout::{local_archive_path, write_local_layout_marker},
+    metadata::{ArtifactBlob, BlobRef},
+};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256, Sha512};
 use std::{
@@ -114,13 +119,6 @@ pub fn build_storage_at_with_edits(
     remove_tree(out, "clear existing registry fixture storage");
     fs::create_dir_all(out).expect("create registry fixture storage dir");
     build_storage(packages, out, substitutions, removed_fields);
-}
-
-/// Where a built storage tree holds the tarball of `package@version`.
-#[must_use]
-pub fn tarball_path(storage: &Path, package: &str, version: &str) -> PathBuf {
-    let file = format!("{}-{version}.tgz", tarball_basename(package));
-    local_blob_path(storage, "", Ecosystem::Npm, package, &file)
 }
 
 fn workspace_root() -> PathBuf {
@@ -231,10 +229,11 @@ fn fixture_fingerprint(root: &Path) -> String {
     // A storage tree built in another layout, or with metadata in another
     // schema, must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
-    hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_VERSION.as_bytes());
+    hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_VERSION.to_le_bytes());
+    hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_TABLES.as_bytes());
     hasher.update([0]);
     hasher.update(
-        local_blob_path(Path::new(""), "", Ecosystem::Npm, "@scope/name", "name-1.0.0.tgz")
+        local_archive_path(Path::new(""), "", Ecosystem::Npm, "sha512-00.1")
             .to_string_lossy()
             .as_bytes(),
     );
@@ -266,17 +265,18 @@ fn build_storage(
     }
     assert!(!packages.is_empty(), "no registry package fixtures found under {fixtures_root:?}");
     let mut packuments = Vec::with_capacity(packages.len());
+    let mut archives = Vec::new();
     for package in packages.values_mut() {
         package.latest =
             latest_version(package.versions.keys()).expect("package has at least one version");
-        package.write_blobs(storage_root);
+        archives.extend(package.write_blobs(storage_root));
         packuments.push((package.name.clone(), package.packument()));
     }
     for removed in removed_fields {
         remove_version_field(&mut packuments, removed);
     }
     write_local_layout_marker(storage_root).expect("write registry fixture layout marker");
-    write_packuments(storage_root, packuments);
+    metadata::write_packuments_with_archives(storage_root, packuments, archives);
 }
 
 fn remove_version_field(packuments: &mut [(String, Value)], removed: &RemovedVersionField<'_>) {
@@ -305,23 +305,30 @@ impl Package {
         Self { name, latest: String::new(), versions: BTreeMap::new() }
     }
 
-    fn write_blobs(&self, storage_root: &Path) {
-        let blobs = local_blob_path(storage_root, "", Ecosystem::Npm, &self.name, "-");
-        fs::create_dir_all(blobs.parent().expect("blob has a directory"))
-            .expect("create test registry package storage dir");
+    /// Store every version's tarball as the first incarnation of its bytes,
+    /// and return the mapping of each to them, which the metadata commits.
+    fn write_blobs(&self, storage_root: &Path) -> Vec<ArtifactBlob> {
+        let mut archives = Vec::with_capacity(self.versions.len());
+        let name = pnpr_package_name::CanonicalPackageName::parse(&self.name, Ecosystem::Npm)
+            .unwrap_or_else(|error| panic!("package name {:?}: {error}", self.name));
         for version in self.versions.values() {
-            fs::write(
-                local_blob_path(
-                    storage_root,
-                    "",
-                    Ecosystem::Npm,
-                    &self.name,
-                    &version.tarball_name,
-                ),
-                &version.tarball,
-            )
-            .expect("write fixture tarball to test registry storage");
+            let blob =
+                BlobRef { id: BlobId::of_bytes(Ecosystem::Npm, &version.tarball), incarnation: 1 };
+            let path = local_archive_path(storage_root, "", Ecosystem::Npm, &blob.key());
+            fs::create_dir_all(path.parent().expect("an archive has a directory"))
+                .expect("create test registry archive dir");
+            fs::write(&path, &version.tarball)
+                .expect("write fixture tarball to test registry storage");
+            archives.push(ArtifactBlob {
+                ecosystem: Ecosystem::Npm,
+                name: name.as_str().to_string(),
+                version: version.version.clone(),
+                artifact: version.tarball_name.clone(),
+                blob,
+                size: version.tarball.len() as u64,
+            });
         }
+        archives
     }
 
     fn packument(&self) -> Value {

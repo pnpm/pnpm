@@ -177,6 +177,8 @@ fn an_unshadowed_own_dependency_declared_as_a_peer_remains_a_parent_edge() {
         lib_key.clone(),
         super::super::LinkedWorkspaceProject {
             project: crate::cli_args::deploy::ProjectInfo {
+                root_dir: std::path::PathBuf::from("/workspace/packages/lib"),
+                linked_publish_dir: None,
                 name: Some("lib".to_string()),
                 has_bin: false,
                 peer_dependencies: vec![peer.clone()],

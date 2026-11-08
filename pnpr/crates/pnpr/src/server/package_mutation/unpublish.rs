@@ -6,8 +6,6 @@ use axum::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::PackageTombstone;
-use serde_json::Value;
 
 use super::super::{
     Action, AppState, RegistrySource, WriteTarget, authorize_package, hosted_storage,
@@ -31,108 +29,14 @@ pub(crate) async fn delete_package(
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     let storage = hosted_storage(state, Some(&target.org));
 
-    let (maintainers, unpublished_versions) =
-        match collect_package_tombstone_metadata(&storage, &name).await {
-            Ok(metadata) => metadata,
-            Err(err) => return err.into_response(),
-        };
-
-    // The tombstone is durable before anything is removed, so a removal that
-    // fails partway never leaves the name claimable by someone else.
-    let tombstone = Tombstone { identity, name: &name, maintainers, unpublished_versions };
-    let recorded = !tombstone.is_empty();
-    if recorded && let Err(err) = tombstone.write(&storage).await {
-        return err.into_response();
-    }
-    let removed = match storage.remove_package(&name).await {
+    let removed = match storage.remove_package(&name, identity.user_id()).await {
         Ok(removed) => removed,
         Err(err) => return err.into_response(),
     };
-    // Archives with no document left nothing to collect; they still leave a
-    // tombstone behind.
-    if removed
-        && !recorded
-        && let Err(err) = tombstone.write(&storage).await
-    {
-        return err.into_response();
-    }
     if removed {
         log_package_deleted(identity, &name, &target.source);
     }
     ok_created_response()
-}
-
-async fn collect_package_tombstone_metadata(
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-) -> Result<(Vec<String>, Vec<String>), RegistryError> {
-    let mut maintainers = Vec::new();
-    let mut unpublished_versions = Vec::new();
-    if let Some(existing_tombstone) = storage.read_tombstone(name).await? {
-        maintainers = existing_tombstone.maintainers;
-        unpublished_versions.extend(existing_tombstone.unpublished_versions);
-    }
-    if let Some(doc) = storage.read_hosted_document(name).await?
-        && let Ok(val) = serde_json::from_slice::<Value>(&doc)
-    {
-        let mut live_maintainers = Vec::new();
-        collect_maintainers_from_value(&val, &mut live_maintainers);
-        if !live_maintainers.is_empty() {
-            maintainers = live_maintainers;
-        }
-        collect_versions_from_value(&val, &mut unpublished_versions);
-    }
-    Ok((maintainers, unpublished_versions))
-}
-
-fn collect_maintainers_from_value(val: &Value, maintainers: &mut Vec<String>) {
-    let Some(entries) = val.get("maintainers").and_then(Value::as_array) else { return };
-    for entry in entries {
-        let Some(user) = entry.get("name").and_then(Value::as_str) else { continue };
-        if !maintainers
-            .iter()
-            .any(|existing| existing == user)
-        {
-            maintainers.push(user.to_string());
-        }
-    }
-}
-
-fn collect_versions_from_value(val: &Value, versions: &mut Vec<String>) {
-    let Some(versions_obj) = val.get("versions").and_then(Value::as_object) else { return };
-    for version_key in versions_obj.keys() {
-        if !versions
-            .iter()
-            .any(|existing| existing == version_key)
-        {
-            versions.push(version_key.clone());
-        }
-    }
-}
-
-/// The tombstone a package deletion leaves.
-struct Tombstone<'a> {
-    identity: &'a Identity,
-    name: &'a CanonicalPackageName,
-    maintainers: Vec<String>,
-    unpublished_versions: Vec<String>,
-}
-
-impl Tombstone<'_> {
-    fn is_empty(&self) -> bool {
-        self.maintainers.is_empty() && self.unpublished_versions.is_empty()
-    }
-
-    async fn write(&self, storage: &pnpr_storage::Storage) -> Result<(), RegistryError> {
-        let tombstone = PackageTombstone {
-            package: self.name.as_str().to_string(),
-            unpublished_by: self.identity.username().map(ToString::to_string),
-            unpublished_at: chrono::Utc::now().to_rfc3339(),
-            maintainers: self.maintainers.clone(),
-            unpublished_versions: self.unpublished_versions.clone(),
-        };
-        storage.write_tombstone(&tombstone).await
-    }
 }
 
 pub(crate) async fn delete_tarball(
@@ -150,6 +54,12 @@ pub(crate) async fn delete_tarball(
         Ok(parsed) => parsed,
         Err(err) => return err.into_response(),
     };
+    if !super::super::publishing::is_valid_semver(&version) {
+        return RegistryError::BadRequest {
+            reason: format!("version {version:?} is not valid semver"),
+        }
+        .into_response();
+    }
     let target = match resolve_and_authorize_unpublish(state, identity, registry, &name).await {
         Ok(target) => target,
         Err(response) => return response,
@@ -161,22 +71,10 @@ pub(crate) async fn delete_tarball(
         Ok(false) => return RegistryError::NotFound.into_response(),
         Err(err) => return err.into_response(),
     }
-    // A hosted tar registry stores the version's tar in place of its `.tgz`.
-    let mut removed = false;
-    for blob in [canonical.clone(), name.tar_name_for_version(&version)] {
-        match storage.remove_blob(&name, &blob).await {
-            Ok(found) => removed |= found,
-            Err(err) => return err.into_response(),
-        }
-    }
-    let sigstore_name = name.sigstore_name_for_version(&version);
-    let _ = storage.remove_blob(&name, &sigstore_name).await;
-
-    if removed {
-        if let Err(err) = record_tarball_tombstone(&storage, identity, &name, &version).await {
-            return err.into_response();
-        }
-        log_tarball_deleted(identity, &name, &canonical, &version, &target.source);
+    match super::version_removal::remove_listed_version(&storage, identity, &name, &version).await {
+        Ok(true) => log_tarball_deleted(identity, &name, &canonical, &version, &target.source),
+        Ok(false) => {}
+        Err(err) => return err.into_response(),
     }
     ok_created_response()
 }
@@ -214,52 +112,6 @@ async fn package_exists(
         return Ok(true);
     }
     Ok(storage.read_tombstone(name).await?.is_some())
-}
-
-async fn record_tarball_tombstone(
-    storage: &pnpr_storage::Storage,
-    identity: &Identity,
-    name: &CanonicalPackageName,
-    version: &str,
-) -> Result<(), RegistryError> {
-    let maintainers = read_maintainers_from_storage(storage, name).await;
-    let user = identity.username().map(ToString::to_string);
-    let version = version.to_string();
-    let name_str = name.as_str().to_string();
-    storage.update_tombstone(name, move |existing| {
-        let mut tombstone = match existing {
-            Some(existing) => existing,
-            None => PackageTombstone {
-                package: name_str.clone(),
-                unpublished_by: user.clone(),
-                unpublished_at: chrono::Utc::now().to_rfc3339(),
-                maintainers: maintainers.clone(),
-                unpublished_versions: Vec::new(),
-            },
-        };
-        if !tombstone.unpublished_versions
-            .iter()
-            .any(|existing| existing == &version)
-        {
-            tombstone.unpublished_versions.push(version.clone());
-        }
-        tombstone
-    })
-    .await?;
-    Ok(())
-}
-
-async fn read_maintainers_from_storage(
-    storage: &pnpr_storage::Storage,
-    name: &CanonicalPackageName,
-) -> Vec<String> {
-    let mut maintainers = Vec::new();
-    if let Ok(Some(bytes)) = storage.read_hosted_document(name).await
-        && let Ok(val) = serde_json::from_slice::<Value>(&bytes)
-    {
-        collect_maintainers_from_value(&val, &mut maintainers);
-    }
-    maintainers
 }
 
 fn log_package_deleted(identity: &Identity, name: &CanonicalPackageName, source: &str) {

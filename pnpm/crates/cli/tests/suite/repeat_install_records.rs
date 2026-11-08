@@ -15,7 +15,7 @@ use std::{fs, path::Path};
 mod opens;
 
 /// The debug event the fast path logs when the records decided.
-const DECIDED_FROM_RECORDS: &str = "the recorded manifests decided the install";
+pub(crate) const DECIDED_FROM_RECORDS: &str = "the recorded manifests decided the install";
 
 /// The span that reads the project manifests.
 const READ_PROJECTS_SPAN: &str = "discover_workspace_projects";
@@ -67,7 +67,7 @@ fn wait_past_whole_second_rounding(workspace: &Path) {
 /// whole seconds. The first install can record the lockfile in the tick it
 /// wrote it, and the next install then rehashes it and writes the state. This
 /// one takes that write, so the state is settled and its records trusted.
-fn trust_recorded_stats(workspace: &Path, registry: &str) {
+pub(crate) fn trust_recorded_stats(workspace: &Path, registry: &str) {
     wait_past_whole_second_rounding(workspace);
     pacquet_in(workspace)
         .with_env("PNPM_CONFIG_REGISTRY", registry)
@@ -77,7 +77,7 @@ fn trust_recorded_stats(workspace: &Path, registry: &str) {
 }
 
 /// `pnpm install` with the fast path's trace, returning its output.
-fn traced_install(workspace: &Path, registry: &str) -> String {
+pub(crate) fn traced_install(workspace: &Path, registry: &str) -> String {
     let output = pacquet_in(workspace)
         .with_env("PNPM_CONFIG_REGISTRY", registry)
         .with_env("TRACE", "pacquet::install=debug")
@@ -770,5 +770,285 @@ fn a_trust_lockfile_flag_that_overrides_the_setting_runs_the_install() {
     assert!(text.contains("a flag overrides trustLockfile"), "{text}");
     assert!(!text.contains(TAKEN_AFTER_CONFIG), "{text}");
     assert!(text.contains("phase complete"), "the install ran its phases: {text}");
+    drop((root, mock_instance));
+}
+
+/// The debug event of a fast path taken before the config setup.
+const TAKEN_BEFORE_SETUP: &str = "repeat-install fast path taken before the install setup";
+
+/// [`write_workspace`] with a lockfile per project.
+fn write_workspace_with_project_lockfiles(workspace: &Path) {
+    write_workspace(workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("sharedWorkspaceLockfile: false\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+}
+
+#[test]
+fn a_workspace_with_project_lockfiles_is_up_to_date_from_the_records() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(output.contains(TAKEN_BEFORE_SETUP), "{output}");
+    assert_eq!(output.matches("Already up to date").count(), 1, "{output}");
+    drop((root, mock_instance));
+}
+
+/// An edit the records cannot stand in for leaves the workspace to the
+/// install's run per project.
+#[test]
+fn a_workspace_with_project_lockfiles_reads_an_edited_manifest() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({ "name": "a", "version": "1.0.0" }).to_string(),
+    )
+    .expect("edit packages/a/package.json");
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(!output.contains(TAKEN_BEFORE_SETUP), "{output}");
+    assert!(!workspace.join("packages/a/node_modules/b").exists(), "{output}");
+    drop((root, mock_instance));
+}
+
+/// An injected copy follows its source in a workspace with a lockfile per
+/// project, the up-to-date check sends the install to the projects whose
+/// injected source may have changed.
+#[test]
+fn a_workspace_with_project_lockfiles_refreshes_an_injected_copy() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    fs::write(
+        workspace.join("packages/a/package.json"),
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "b": "workspace:*" },
+            "dependenciesMeta": { "b": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write packages/a/package.json");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    let injected = workspace.join("packages/a/node_modules/b/cli.js");
+    assert_eq!(
+        fs::read_to_string(&injected).expect("read the injected copy"),
+        "#!/usr/bin/env node\n",
+    );
+    fs::write(workspace.join("packages/b/cli.js"), "edited\n").expect("edit packages/b/cli.js");
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(!output.contains(TAKEN_BEFORE_SETUP), "{output}");
+    assert_eq!(
+        fs::read_to_string(&injected).expect("read the injected copy"),
+        "edited\n",
+        "{output}",
+    );
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_workspace_with_project_lockfiles_installs_a_new_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::write(
+        workspace.join("packages/no-project/package.json"),
+        serde_json::json!({ "name": "c", "version": "1.0.0", "dependencies": { "b": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("write packages/no-project/package.json");
+
+    let output = traced_install(&workspace, mock_instance.url());
+
+    assert!(!output.contains(TAKEN_BEFORE_SETUP), "{output}");
+    assert!(workspace.join("packages/no-project/node_modules/b").exists(), "{output}");
+    drop((root, mock_instance));
+}
+
+/// The install verifies the patches against every project lockfile, so a
+/// patch only a removed project used still fails the install.
+#[test]
+fn a_workspace_with_project_lockfiles_verifies_patches_after_a_project_is_removed() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_project_lockfiles(&workspace);
+    fs::create_dir_all(workspace.join("patches")).expect("create patches");
+    fs::write(
+        workspace.join("patches/is-positive@1.0.0.patch"),
+        crate::repeat_install::IS_POSITIVE_PATCH,
+    )
+    .expect("write the patch");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::create_dir_all(workspace.join("packages/patched")).expect("create packages/patched");
+    fs::write(
+        workspace.join("packages/patched/package.json"),
+        serde_json::json!({ "name": "patched", "version": "1.0.0", "dependencies": { "is-positive": "1.0.0" } })
+            .to_string(),
+    )
+    .expect("write packages/patched/package.json");
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::remove_dir_all(workspace.join("packages/patched")).expect("remove packages/patched");
+
+    let output = pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .output()
+        .expect("run pnpm install");
+
+    let text = combined_output(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains("ERR_PNPM_UNUSED_PATCH"), "{text}");
+    drop((root, mock_instance));
+}
+
+/// [`write_workspace_with_project_lockfiles`] with a gate that fails a
+/// command on outdated dependencies, and a project `c` that also links `b`.
+fn write_gated_workspace_with_project_lockfiles(workspace: &Path) {
+    write_workspace_with_project_lockfiles(workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("verifyDepsBeforeRun: error\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::create_dir_all(workspace.join("packages/c")).expect("create packages/c");
+    fs::write(
+        workspace.join("packages/c/package.json"),
+        serde_json::json!({ "name": "c", "version": "1.0.0", "dependencies": { "b": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("write packages/c/package.json");
+}
+
+fn recursive_exec(workspace: &Path, registry: &str) -> std::process::Output {
+    pacquet_in(workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", registry)
+        .with_args(["-r", "exec", "node", "-e", "0"])
+        .output()
+        .expect("run pnpm -r exec")
+}
+
+#[test]
+fn a_recursive_exec_gate_with_project_lockfiles_passes_an_up_to_date_workspace() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+
+    let output = recursive_exec(&workspace, mock_instance.url());
+
+    assert!(output.status.success(), "{}", combined_output(&output));
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_recursive_exec_gate_with_project_lockfiles_reports_an_outdated_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_gated_workspace_with_project_lockfiles(&workspace);
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .assert()
+        .success();
+    trust_recorded_stats(&workspace, mock_instance.url());
+    fs::write(
+        workspace.join("packages/c/package.json"),
+        serde_json::json!({ "name": "c", "version": "1.0.0", "dependencies": { "a": "workspace:*" } })
+            .to_string(),
+    )
+    .expect("edit packages/c/package.json");
+
+    let output = recursive_exec(&workspace, mock_instance.url());
+
+    let text = combined_output(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"), "{text}");
     drop((root, mock_instance));
 }

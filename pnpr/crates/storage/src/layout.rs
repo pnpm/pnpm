@@ -7,26 +7,34 @@
 //!   orgs/<org>/<ecosystem>/        one namespace per (org, ecosystem)
 //!   .<record namespace>/           records every namespace shares
 //! <namespace>/
+//!   archives/<shard>/<identity>.<incarnation>
+//!   .<record namespace>/           records of this namespace
+//! <cache root>/<upstream>/
 //!   packages/<segments...>/document.json
 //!   packages/<segments...>/blobs/<file>
-//!   .<record namespace>/           records of this namespace
 //! ```
 //!
-//! A package is the segments of [`package_segments`] and a blob the one
-//! segment of [`blob_segment`], so a name can never sit where an org, a
-//! namespace, a blob, or another name's child does, and an object key is byte
-//! for byte the local path.
+//! A hosted archive is stored by the identity of its bytes (see
+//! [`crate::BlobId`]), under the two first hex digits of its digest, so the
+//! bytes several files share are stored once and a public file name never
+//! reaches a key. The proxy cache keeps an upstream's files by name: a
+//! package is the segments of [`package_segments`] and a blob the one segment
+//! of [`blob_segment`], so a name can never sit where an org, a namespace, a
+//! blob, or another name's child does, and an object key is byte for byte the
+//! local path.
 
 use pnpr_package_name::Ecosystem;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// The layout this build reads and writes.
-pub const LAYOUT_VERSION: u32 = 1;
+pub const LAYOUT_VERSION: u32 = 2;
 pub const LAYOUT_FILE: &str = "layout.json";
 pub(crate) const PACKAGES_DIR: &str = "packages";
 pub(crate) const DOCUMENT_FILE: &str = "document.json";
 pub(crate) const BLOBS_DIR: &str = "blobs";
+/// Where a hosted namespace keeps its archives, by key.
+pub(crate) const ARCHIVES_DIR: &str = "archives";
 const DEFAULT_NAMESPACE: &str = "default";
 const ORGS_DIR: &str = "orgs";
 /// Opens every non-leaf segment of [`package_segments`], and the segment of a
@@ -74,18 +82,24 @@ pub fn local_document_path(root: &Path, org: &str, ecosystem: Ecosystem, name: &
     local_package_dir(root, org, ecosystem, name).join(DOCUMENT_FILE)
 }
 
-/// Where [`local_package_dir`]'s blob `file` is.
+/// Where the archive stored under `key` is, below its namespace:
+/// `archives/<shard>/<key>`, the shard being the first two hex digits of the
+/// key's digest.
 #[must_use]
-pub fn local_blob_path(
-    root: &Path,
-    org: &str,
-    ecosystem: Ecosystem,
-    name: &str,
-    file: &str,
-) -> PathBuf {
-    local_package_dir(root, org, ecosystem, name)
-        .join(BLOBS_DIR)
-        .join(blob_segment(name, file))
+pub fn archive_object_path(key: &str) -> String {
+    let digest = key.split_once('-').map_or(key, |(_, digest)| digest);
+    let shard = digest.get(..2).unwrap_or("00");
+    format!("{ARCHIVES_DIR}/{shard}/{key}")
+}
+
+/// Where the archive stored under `key` in `(org, ecosystem)`'s namespace of
+/// the local hosted store at `root` is.
+#[must_use]
+pub fn local_archive_path(root: &Path, org: &str, ecosystem: Ecosystem, key: &str) -> PathBuf {
+    let mut path = root.to_path_buf();
+    path.extend(namespace_segments(org, ecosystem));
+    path.extend(archive_object_path(key).split('/'));
+    path
 }
 
 /// Mark the local hosted store at `root` as being in [`LAYOUT_VERSION`].
@@ -136,44 +150,6 @@ pub fn package_segments(ecosystem: Ecosystem, name: &str) -> Vec<String> {
     }
 }
 
-/// The inverse of [`package_segments`], or `None` for segments it cannot have
-/// produced.
-#[must_use]
-pub fn decode_package_segments(ecosystem: Ecosystem, segments: &[&str]) -> Option<String> {
-    let name = match (ecosystem, segments) {
-        (Ecosystem::Npm, [scope, rest]) => decode_npm_package_segments(scope, rest)?,
-        (Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci, [scope, rest]) if *scope == "@" => {
-            decode_segment(rest)?
-        }
-        (Ecosystem::Oci, [prefixes @ .., leaf]) if !prefixes.is_empty() => {
-            decode_oci_package_segments(prefixes, leaf)?
-        }
-        _ => return None,
-    };
-    (!name.is_empty() && package_segments(ecosystem, &name) == segments).then_some(name)
-}
-
-fn decode_npm_package_segments(scope: &str, rest: &str) -> Option<String> {
-    let decoded = decode_segment(rest)?;
-    match scope.strip_prefix(MARKER)? {
-        "" => Some(decoded),
-        encoded => Some(format!("{MARKER}{}/{decoded}", decode_segment(encoded)?)),
-    }
-}
-
-fn decode_oci_package_segments(prefixes: &[&str], leaf: &str) -> Option<String> {
-    let mut components = Vec::with_capacity(prefixes.len() + 1);
-    for prefix in prefixes {
-        let encoded = prefix.strip_prefix(MARKER)?;
-        if encoded.is_empty() {
-            return None;
-        }
-        components.push(decode_segment(encoded)?);
-    }
-    components.push(decode_segment(leaf)?);
-    Some(components.join("/"))
-}
-
 /// The segment of package `name`'s blob `file` below `blobs/`. A `.tgz`,
 /// `.sigstore` or `.crate` file drops the `<basename>-` it starts with, so a
 /// tarball's segment is its version and extension, or keeps all of its name
@@ -188,31 +164,6 @@ pub fn blob_segment(name: &str, file: &str) -> String {
         Some(rest) => encode_segment(rest),
         None => format!("{MARKER}{}", encode_segment(file)),
     }
-}
-
-/// The most bytes most file systems allow in one file name.
-const MAX_FILE_NAME_BYTES: usize = 255;
-
-/// Whether the blob `file` of the package `name` can be stored on a local
-/// file system: its encoded segment, with the suffix of the temporary file it
-/// is written to first, fits one file name.
-#[must_use]
-pub fn blob_segment_fits(name: &str, file: &str) -> bool {
-    blob_segment(name, file).len() + crate::tmp_suffix::MAX_TMP_SUFFIX_BYTES <= MAX_FILE_NAME_BYTES
-}
-
-/// The inverse of [`blob_segment`], or `None` for a segment it cannot have
-/// produced.
-#[must_use]
-pub fn decode_blob_segment(name: &str, segment: &str) -> Option<String> {
-    let file = match segment.strip_prefix(MARKER) {
-        Some(file) => decode_segment(file)?,
-        None if is_versioned(segment) => {
-            format!("{}-{}", basename(name), decode_segment(segment)?)
-        }
-        None => decode_segment(segment)?,
-    };
-    (blob_segment(name, &file) == segment).then_some(file)
 }
 
 /// The part of `file` after `name`'s `<basename>-`, unless it is empty or

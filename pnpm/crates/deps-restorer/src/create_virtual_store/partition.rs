@@ -17,6 +17,8 @@ use pnpm_store_dir::StoreIndexWriter;
 use pnpm_tarball::PrefetchResult;
 use std::collections::{HashMap, HashSet};
 
+mod empty_builds;
+
 /// One warm entry: the snapshot, its prefetched CAS paths, the cache key
 /// that found them, and whether its slot needs a build marker.
 pub(super) type WarmEntry<'a> =
@@ -47,6 +49,8 @@ pub(super) struct PartitionSideEffectsContext<'a> {
     pub allow_build_policy: &'a AllowBuildPolicy,
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
+    /// The platforms the install links, with the CLI's overrides.
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
 impl PartitionSideEffects {
@@ -70,9 +74,9 @@ impl PartitionSideEffects {
         // Peer-variants of the same package share the same store-index
         // row → the same `Arc<_>`. Cheap to share.
         if !rebuilds.requires(snapshot_key)
-            && let Some(maps) = prefetch.side_effects_maps.get(cache_key)
+            && let Some(maps) = empty_builds::restorable_overlays(cache_key, prefetch, rebuilds)
         {
-            self.maps.insert(snapshot_key.clone(), std::sync::Arc::clone(maps));
+            self.maps.insert(snapshot_key.clone(), maps);
         }
         if let Some(diffs) = prefetch.side_effects.get(cache_key) {
             self.diffs.insert(snapshot_key.clone(), std::sync::Arc::clone(diffs));
@@ -102,12 +106,12 @@ impl Partition<'_> {
                 store_index_keys_by_snapshot: &self.side_effects.store_index_keys,
             },
             config: ctx.config,
-            snapshots: ctx.wanted.snapshots,
-            packages: ctx.wanted.packages,
+            wanted: (ctx.wanted.snapshots, ctx.wanted.packages),
             requires_build_by_snapshot: &self.requires_build_by_snapshot,
             allow_build_policy: ctx.allow_build_policy,
             side_effects_maps_by_snapshot: &mut self.side_effects.maps,
             store_index_writer: ctx.store_index_writer,
+            supported_architectures: ctx.supported_architectures,
         };
         crate::shared_side_effects::prepare_shared_side_effects(&mut options, ctx.importers).await
     }
@@ -127,12 +131,12 @@ impl Partition<'_> {
                     store_index_keys_by_snapshot: &self.side_effects.store_index_keys,
                 },
                 config: ctx.config,
-                snapshots: ctx.wanted.snapshots,
-                packages: ctx.wanted.packages,
+                wanted: (ctx.wanted.snapshots, ctx.wanted.packages),
                 requires_build_by_snapshot: &self.requires_build_by_snapshot,
                 allow_build_policy: ctx.allow_build_policy,
                 side_effects_maps_by_snapshot: &mut self.side_effects.maps,
                 store_index_writer: ctx.store_index_writer,
+                supported_architectures: ctx.supported_architectures,
             },
             ctx.importers,
         )
@@ -229,6 +233,20 @@ pub(super) struct Rebuilds<'a> {
     pub known_requires_build: Option<&'a RequiresBuildBySnapshot>,
     /// Precalculated bin commands and shebang runtimes from resolution metadata.
     pub known_bins: Option<&'a PackageBins>,
+    pub empty_builds: EmptyBuilds,
+}
+
+/// What to do with a side-effects cache row whose build changed no files in
+/// its package.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EmptyBuilds {
+    /// Run the build again, so a script whose effect lands outside its
+    /// package runs in every project (pnpm/pnpm#14717).
+    Rerun,
+    /// Restore the package from its own files without running the build.
+    /// The loaded linker uses this and leaves scripts with outside effects
+    /// to `sideEffectsCache.exclude`.
+    Restore,
 }
 
 impl Rebuilds<'_> {

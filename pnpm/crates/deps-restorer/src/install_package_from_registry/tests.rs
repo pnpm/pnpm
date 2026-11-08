@@ -152,6 +152,7 @@ fn create_config(
         prefer_workspace_packages: false,
         external_dependencies: Default::default(),
         dedupe_peer_dependents: false,
+        project_scoped_optional_peers: false,
         dedupe_peers: false,
         auto_dedupe: false,
         dedupe_direct_deps: true,

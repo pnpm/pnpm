@@ -234,6 +234,13 @@ fn warm_slot_is_current<Reporter: self::Reporter>(
     )? {
         return Ok(false);
     }
+    if super::linked_archives::slot_holds_other_variant(
+        probe.layout,
+        (snapshot_key, probe.packages),
+        probe.policy.supported_architectures,
+    ) {
+        return Ok(false);
+    }
     let needs_rebuild =
         gvs_slot_needs_rebuild(probe.layout, probe.allow_build_policy, snapshot_key);
     markers.keys.insert(snapshot_key.clone());
@@ -369,4 +376,7 @@ pub(crate) struct SnapshotReusePolicy<'b> {
     pub force: bool,
     pub is_hoisted: bool,
     pub include_optional: bool,
+    /// What a package with platform variants links, so a slot holding
+    /// another of its archives is not current.
+    pub supported_architectures: Option<&'b pnpm_package_is_installable::SupportedArchitectures>,
 }

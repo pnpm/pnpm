@@ -59,6 +59,9 @@ fn version_constraint_preserves_pinning_style() {
     assert_eq!(update_version_constraint(Some("1.0.0"), "2.0.0"), "2.0.0");
     // A complex multi-comparator range falls back to a caret range.
     assert_eq!(update_version_constraint(Some(">=1.0.0 <2.0.0"), "3.0.0"), "^3.0.0");
+    // A prerelease is checked against the range as is, not as its release.
+    assert_eq!(update_version_constraint(Some(">=1.0.0"), "2.0.0-rc.1"), ">=1.0.0");
+    assert_eq!(update_version_constraint(Some(">=2.0.0 <3.0.0"), "2.0.0-rc.1"), "^2.0.0-rc.1");
 }
 
 fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {

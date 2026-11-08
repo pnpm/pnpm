@@ -5,9 +5,7 @@
 pub(crate) mod paths;
 
 use self::paths::{ScalarPath, changed_scalar_paths, scalar_paths};
-use serde_saphyr::granit_parser::{
-    Event, Parser, ScalarStyle, Scanner, Span, StrInput, Token, TokenType,
-};
+use serde_saphyr::granit_parser::{Event, Parser, ScalarStyle, Scanner, Span, StrInput, TokenType};
 use std::{collections::HashMap, ops::Range};
 use yamlpath::{Document, Route};
 
@@ -118,9 +116,13 @@ fn invalid(message: String) -> yamlpatch::Error {
 
 fn anchor_tokens(text: &str) -> Vec<(String, Range<usize>)> {
     Scanner::new(StrInput::new(text))
-        .filter_map(|Token(span, token)| match token {
-            TokenType::Anchor(name) => Some((name.into_owned(), byte_range(span))),
-            _ => None,
+        .map_while(Result::ok)
+        .filter_map(|token| {
+            let (span, token) = token.into_parts();
+            match token {
+                TokenType::Anchor(name) => Some((name.into_owned(), byte_range(span))),
+                _ => None,
+            }
         })
         .collect()
 }
@@ -387,7 +389,9 @@ fn scalar_replacement(
 
 fn tag_tokens(text: &str) -> HashMap<usize, Range<usize>> {
     Scanner::new(StrInput::new(text))
-        .filter_map(|Token(span, token)| {
+        .map_while(Result::ok)
+        .filter_map(|token| {
+            let (span, token) = token.into_parts();
             matches!(token, TokenType::Tag(..)).then(|| (byte_range(span).start, byte_range(span)))
         })
         .collect()

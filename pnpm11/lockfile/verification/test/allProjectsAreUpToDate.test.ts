@@ -209,6 +209,142 @@ test('allProjectsAreUpToDate(): works with aliased workspace: dependencies', asy
   })).toBeTruthy()
 })
 
+test('allProjectsAreUpToDate(): a workspace: range matches a version that is not semver, as the resolver does', async () => {
+  const fooManifest = { name: 'foo', version: '1' }
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          foo: 'workspace:1',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+    {
+      id: 'foo' as ProjectId,
+      manifest: fooManifest,
+      rootDir: 'foo' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['bar' as ProjectId]: {
+          dependencies: {
+            foo: 'link:../foo',
+          },
+          specifiers: {
+            foo: 'workspace:1',
+          },
+        },
+        ['foo' as ProjectId]: {
+          specifiers: {},
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map([
+      ['foo', new Map([
+        ['1', {
+          id: 'foo' as ProjectId,
+          manifest: fooManifest,
+          rootDir: 'foo' as ProjectRootDir,
+        }],
+      ])],
+    ]),
+    lockfileDir: '',
+  })).toBeTruthy()
+})
+
+test('allProjectsAreUpToDate(): returns false if a workspace: dependency is linked to a directory without a manifest', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          foo: 'workspace:',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['bar' as ProjectId]: {
+          dependencies: {
+            foo: 'link:../foo',
+          },
+          specifiers: {
+            foo: 'workspace:',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map(),
+    lockfileDir: '',
+  })).toBeFalsy()
+})
+
+test('allProjectsAreUpToDate(): a workspace: link to a publish directory without a manifest reads the project manifest', async () => {
+  const libManifest = { name: 'lib', version: '1.2.0', publishConfig: { directory: 'dist' } }
+  expect(await allProjectsAreUpToDate([
+    {
+      id: 'app' as ProjectId,
+      manifest: {
+        dependencies: {
+          lib: 'workspace:^1.0.0',
+        },
+      },
+      rootDir: 'app' as ProjectRootDir,
+    },
+    {
+      id: 'lib' as ProjectId,
+      manifest: libManifest,
+      rootDir: 'lib' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['app' as ProjectId]: {
+          dependencies: {
+            lib: 'link:../lib/dist',
+          },
+          specifiers: {
+            lib: 'workspace:^1.0.0',
+          },
+        },
+        ['lib' as ProjectId]: {
+          publishDirectory: 'dist',
+          specifiers: {},
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages: new Map([
+      ['lib', new Map([
+        ['1.2.0', {
+          rootDir: 'lib' as ProjectRootDir,
+          manifest: libManifest,
+        }],
+      ])],
+    ]),
+    lockfileDir: '',
+  })).toBeTruthy()
+})
+
 test('allProjectsAreUpToDate(): returns false if aliased workspace: dependency version is out of date', async () => {
   expect(await allProjectsAreUpToDate([
     {
@@ -965,7 +1101,11 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           },
           lockfileVersion: LOCKFILE_VERSION,
         },
-        workspacePackages,
+        workspacePackages: new Map([
+          ...workspacePackages,
+          ['foo2', new Map([['1.0.0', { rootDir: 'foo2' as ProjectRootDir, manifest: { name: 'foo2', version: '1.0.0' } }]])],
+          ['foo3', new Map([['1.0.0', { rootDir: 'foo3' as ProjectRootDir, manifest: { name: 'foo3', version: '1.0.0' } }]])],
+        ]),
         lockfileDir: '',
       }
     )
@@ -1272,21 +1412,21 @@ describe('local file dependency', () => {
     })).toBeTruthy()
   })
 
-  test('allProjectsAreUpToDate(): resolves a catalog dependency of local file from the catalogs', async () => {
+  test('allProjectsAreUpToDate(): leaves a catalog dependency of local file unresolved, as the resolver does', async () => {
     await writeLocalDirManifest({ dependencies: { 'is-positive': 'catalog:' } })
-    const wantedLockfile = { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } } }
-    expect(await allProjectsAreUpToDate(projects, {
-      ...options,
+    const check = async (frozenLockfile: boolean) => (await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
       lockfileDir: process.cwd(),
-      catalogs: { default: { 'is-positive': '2.0.0' } },
-      wantedLockfile,
-    })).toBeTruthy()
-    expect(await allProjectsAreUpToDate(projects, {
-      ...options,
-      lockfileDir: process.cwd(),
-      catalogs: { default: { 'is-positive': '3.0.0' } },
-      wantedLockfile: { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '3.0.0', version: '3.0.0' } } } },
-    })).toBeFalsy()
+      resolution: { catalogs: { default: { 'is-positive': '2.0.0' } }, frozenLockfile },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate
+    expect(await check(false)).toBe(false)
+    expect(await check(true)).toBe(false)
   })
 
   test('checkLinkedPackagesAreUpToDate(): reports a dependency of local file that became optional on a frozen install', async () => {
@@ -1456,6 +1596,41 @@ describe('local file dependency', () => {
     expect(await check('other@file:other-dir')).toBeTruthy()
     expect(await check('other@file:local-dir')).toBeFalsy()
   })
+
+  test('allProjectsAreUpToDate(): reads a file dependency of local file the way the resolver does', async () => {
+    await mkdir('other-dir')
+    await writeFile('./other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    expect(await checkFileDependencyOfLocalFile('file:..\\other-dir', 'file:other-dir')).toBeTruthy()
+    expect(await checkFileDependencyOfLocalFile('file:/../other-dir', 'file:other-dir')).toBeTruthy()
+    expect(await checkFileDependencyOfLocalFile('file:/other-dir', 'file:other-dir')).toBeFalsy()
+  })
+
+  // Windows forbids a colon in a directory name.
+  const testOnUnix = process.platform === 'win32' ? test.skip : test
+  testOnUnix('allProjectsAreUpToDate(): reads the locked path of a file dependency of local file as a path', async () => {
+    await mkdir('file:other-dir')
+    await writeFile('./file:other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    expect(await checkFileDependencyOfLocalFile('file:../file:other-dir', 'file:file:other-dir')).toBeTruthy()
+    await mkdir('a:other-dir')
+    await writeFile('./a:other-dir/package.json', JSON.stringify({ name: 'other', version: '1.0.0' }))
+    expect(await checkFileDependencyOfLocalFile('file:../a:other-dir', 'file:a:other-dir')).toBeTruthy()
+  })
+
+  async function checkFileDependencyOfLocalFile (spec: string, ref: string): Promise<boolean> {
+    await writeLocalDirManifest({ dependencies: { other: spec } })
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    return allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      wantedLockfile: {
+        ...options.wantedLockfile,
+        packages: {
+          'local@file:./local-dir': { ...localDirSnapshot, dependencies: { other: ref } },
+          [`other@${ref}`]: { resolution: { directory: ref.slice(5), type: 'directory' } },
+        } as LockfileObject['packages'],
+      },
+    })
+  }
 
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
     await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
@@ -2735,5 +2910,33 @@ describe('local directory dependency beneath a registry package', () => {
   test('checkLinkedPackagesAreUpToDate(): leaves a directory beneath a registry package to the projects that reach it', async () => {
     await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: '2.0.0' } }))
     expect((await checkLinkedPackagesAreUpToDate(ctx(), projectDependingOn('other'))).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): judges a catalog dependency of a directory beneath a registry package through the catalogs', async () => {
+    await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: 'catalog:' } }))
+    const check = async (leaf: string, frozenLockfile: boolean) =>
+      (await checkLinkedPackagesAreUpToDate({ ...ctx(), resolution: { catalogs: { default: { leaf } }, frozenLockfile } }, projectDependingOn('reg'))).upToDate
+    expect(await check('1.0.0', false)).toBe(true)
+    expect(await check('1.0.0', true)).toBe(true)
+    expect(await check('2.0.0', false)).toBe(false)
+  })
+  test('checkLinkedPackagesAreUpToDate(): reports a catalog dependency of a directory that a file: spec also declares beneath a registry package', async () => {
+    await mkdir('a')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { lib: 'file:../lib' } }))
+    await writeFile('./lib/package.json', JSON.stringify({ name: 'lib', version: '1.0.0', dependencies: { leaf: 'catalog:' } }))
+    const packages = {
+      ...lockfilePackages,
+      'reg2@1.0.0': { resolution: { integrity: 'sha512-reg2' }, version: '1.0.0', dependencies: { a: 'a@file:a' } },
+      'a@file:a': { resolution: { directory: 'a', type: 'directory' }, version: '1.0.0', dependencies: { lib: 'lib@file:lib' } },
+    } as LockfileObject['packages']
+    const project = {
+      dir: path.resolve('app'),
+      manifest: { dependencies: { reg: '1.0.0', reg2: '1.0.0' } },
+      snapshot: {
+        dependencies: { reg: '1.0.0', reg2: '1.0.0' },
+        specifiers: { reg: '1.0.0', reg2: '1.0.0' },
+      } as ProjectSnapshot,
+    }
+    const resolution = { catalogs: { default: { leaf: '1.0.0' } }, frozenLockfile: true }
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution }, project)).upToDate).toBe(false)
   })
 })

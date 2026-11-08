@@ -148,7 +148,7 @@ impl CratePublication {
             &self.key,
             &self.filename,
             &self.archive,
-            refuse_published_version(&self.entry.vers),
+            refuse_invalid_publication(&self.entry),
             self.document(),
         )
         .await
@@ -166,24 +166,33 @@ impl CratePublication {
             &self.key,
             &self.filename,
             &self.archive,
-            &refuse_published_version(&self.entry.vers),
+            &refuse_invalid_publication(&self.entry),
             self.document(),
         )
         .await
     }
 }
 
-/// A published crate version is immutable, so a document that already carries
-/// `vers` is one this publish must not land on.
-pub(super) fn refuse_published_version(
-    vers: &str,
+/// A crate retains its first published name and each version is immutable.
+pub(super) fn refuse_invalid_publication(
+    entry: &IndexEntry,
 ) -> impl Fn(&CrateDocument) -> Result<(), RegistryError> {
-    let vers = vers.to_string();
-    move |document: &CrateDocument| match document.version(&vers) {
-        Some(_) => Err(RegistryError::BadRequest {
-            reason: format!("crate version `{vers}` is already uploaded"),
-        }),
-        None => Ok(()),
+    let (name, vers) = (entry.name.clone(), entry.vers.clone());
+    move |document: &CrateDocument| {
+        if !document.versions.is_empty() && document.name != name {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "crate `{name}` was first published as `{}`; use that spelling for new versions",
+                    document.name,
+                ),
+            });
+        }
+        match document.version(&vers) {
+            Some(_) => Err(RegistryError::BadRequest {
+                reason: format!("crate version `{vers}` is already uploaded"),
+            }),
+            None => Ok(()),
+        }
     }
 }
 

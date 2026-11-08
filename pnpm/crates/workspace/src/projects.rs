@@ -72,6 +72,41 @@ pub struct FindWorkspaceProjectsOpts {
     pub ignored_directories: Vec<PathBuf>,
 }
 
+impl FindWorkspaceProjectsOpts {
+    /// What decides which projects [`find_workspace_projects`] finds under
+    /// `workspace_root` with these options. Ignored directories the walk
+    /// skips by name anyway are left out, unless an include pattern names
+    /// such a directory itself.
+    #[must_use]
+    pub fn discovery_key(&self, workspace_root: &Path) -> DiscoveryKey {
+        let ignored_directories = if self.patterns_name_skipped_directories() {
+            resolve_ignored_directories(workspace_root, &self.ignored_directories)
+        } else {
+            ignored_directories_beyond_the_walk(workspace_root, &self.ignored_directories)
+        };
+        DiscoveryKey { patterns: self.patterns.clone(), ignored_directories }
+    }
+
+    fn patterns_name_skipped_directories(&self) -> bool {
+        self.patterns
+            .iter()
+            .flatten()
+            .filter(|pattern| !pattern.starts_with('!'))
+            .any(|pattern| {
+                let pattern = pattern.to_ascii_lowercase();
+                pattern.contains("node_modules") || pattern.contains("bower_components")
+            })
+    }
+}
+
+/// Equal for two sets of options with which [`find_workspace_projects`]
+/// finds the same projects. See [`FindWorkspaceProjectsOpts::discovery_key`].
+#[derive(Debug, PartialEq, Eq)]
+pub struct DiscoveryKey {
+    patterns: Option<Vec<String>>,
+    ignored_directories: Vec<PathBuf>,
+}
+
 /// Error type of the public entry points.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -383,7 +418,7 @@ struct WorkspacePattern<'source> {
 }
 
 mod managed;
-use managed::resolve_ignored_directories;
+use managed::{ignored_directories_beyond_the_walk, resolve_ignored_directories};
 
 mod membership;
 mod negations;

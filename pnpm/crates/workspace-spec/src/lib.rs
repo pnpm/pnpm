@@ -63,11 +63,20 @@ impl fmt::Display for WorkspaceSpec {
     }
 }
 
+/// Whether a `workspace:` specifier names a directory, such as
+/// `workspace:../foo`, which the local resolver reads. Every other
+/// `workspace:` specifier names a workspace project and a range.
+#[must_use]
+pub fn is_workspace_path_specifier(bare_specifier: &str) -> bool {
+    bare_specifier.starts_with("workspace:.")
+}
+
 /// Split the post-`workspace:` portion into `(alias?, version)` per the
 /// `[^._/][^@]*@` shape: the alias must start with a character that is
 /// **not** `.`, `_`, or `/`, be at least one character long, and be
-/// followed by a literal `@`.
-fn split_alias_version(suffix: &str) -> (Option<&str>, &str) {
+/// followed by a literal `@`. The borrowed form of [`WorkspaceSpec::parse`].
+#[must_use]
+pub fn split_alias_version(suffix: &str) -> (Option<&str>, &str) {
     let mut chars = suffix.char_indices();
     let Some((_, first)) = chars.next() else {
         return (None, suffix);

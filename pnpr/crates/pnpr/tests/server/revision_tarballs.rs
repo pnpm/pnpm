@@ -22,7 +22,7 @@ async fn revision_upstream_app(upstream: &mockito::Server, storage: &TempDir) ->
             .collect(),
         Some("npmjs".to_string()),
     );
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     (router_with_auth(config, auth), format!("Bearer {token}"))
 }
@@ -331,7 +331,7 @@ async fn upstream_revision_tarball_does_not_follow_redirects() {
 
     let tmp = TempDir::new().unwrap();
     let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     let response = app
@@ -442,7 +442,7 @@ async fn hosted_original_is_served_at_revision_zero_after_restart_and_through_a_
     ];
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let (tar, tarball) = package_tar_and_tgz(r#"{"name":"@acme/widget","version":"1.0.0"}"#);
 
@@ -536,7 +536,7 @@ async fn hosted_revision_route_rechecks_package_access() {
         vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let alice = issue_token(&auth, "alice").await;
     let bob = issue_token(&auth, "bob").await;
     let (tar, tarball) = package_tar_and_tgz(r#"{"name":"secret","version":"1.0.0"}"#);

@@ -56,8 +56,10 @@ pub struct UpstreamConfig {
 }
 #[derive(Debug, Clone)]
 pub struct UpstreamRequestPolicy {
-    /// Per-request deadline for every fetch to this upstream (verdaccio's
-    /// `timeout`). Defaults to [`UpstreamConfig::DEFAULT_TIMEOUT`].
+    /// How long a fetch from this upstream may wait for a response, and for
+    /// each chunk of a body pnpr streams (verdaccio's `timeout`). A body
+    /// pnpr buffers must arrive whole within it. Defaults to
+    /// [`UpstreamConfig::DEFAULT_TIMEOUT`].
     pub timeout: Duration,
     /// Consecutive failures before the upstream is treated as down
     /// (verdaccio's `max_fails`). Defaults to [`UpstreamConfig::DEFAULT_MAX_FAILS`].

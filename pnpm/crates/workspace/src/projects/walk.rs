@@ -213,7 +213,7 @@ pub(super) fn has_always_ignored_component(path: &Path) -> bool {
         })
 }
 
-fn is_always_ignored_name(name: &OsStr) -> bool {
+pub(super) fn is_always_ignored_name(name: &OsStr) -> bool {
     name == "node_modules" || name == "bower_components"
 }
 

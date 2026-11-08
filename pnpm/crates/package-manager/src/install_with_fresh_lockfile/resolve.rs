@@ -17,7 +17,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
-    DependencyOverrider, ResolveImporterError, ResolveImporterOptions,
+    DependencyOverrider, PeerDependentsDedupe, ResolveImporterError, ResolveImporterOptions,
 };
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
@@ -208,7 +208,7 @@ impl ImporterInputs<'_> {
                     .auto_install_peers_from_highest_match,
                 resolve_peers_from_workspace_root: self.config.resolve_peers_from_workspace_root,
                 dedupe_peers: self.config.dedupe_peers,
-                dedupe_peer_dependents: self.config.dedupe_peer_dependents,
+                dedupe_peer_dependents: peer_dependents_dedupe(self.config),
             },
             links: pnpm_resolving_deps_resolver::PeerLinkOptions {
                 modules_dir,
@@ -252,7 +252,7 @@ impl WorkspaceWalk {
             peers: pnpm_resolving_deps_resolver::WorkspacePeerResolutionOptions {
                 dedupe_peers: config.dedupe_peers,
                 dedupe_injected_deps: config.dedupe_injected_deps,
-                dedupe_peer_dependents: config.dedupe_peer_dependents,
+                dedupe_peer_dependents: peer_dependents_dedupe(config),
                 resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,
                 lockfile_dir: shared.lockfile_dir.to_path_buf(),
@@ -322,5 +322,16 @@ pub(super) fn resolve_error(err: ResolveImporterError) -> InstallWithFreshLockfi
         ResolveImporterError::RootDepManifest(err) => {
             InstallWithFreshLockfileError::RootDepManifest(err)
         }
+    }
+}
+
+/// The resolver's view of `dedupePeerDependents` and
+/// `projectScopedOptionalPeers`. With deduplication off, optional peers
+/// are project-scoped regardless of the second setting.
+fn peer_dependents_dedupe(config: &Config) -> PeerDependentsDedupe {
+    match (config.dedupe_peer_dependents, config.project_scoped_optional_peers) {
+        (false, _) => PeerDependentsDedupe::Off,
+        (true, false) => PeerDependentsDedupe::On,
+        (true, true) => PeerDependentsDedupe::OnWithProjectScopedOptionalPeers,
     }
 }

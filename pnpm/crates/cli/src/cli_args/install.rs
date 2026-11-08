@@ -34,8 +34,8 @@ use pnpm_package_manager::{
     InstallFrozenLockfileError, LockfileVerificationOverride, PolicyExcludes, SkippedSnapshots,
     TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WantedLockfileSatisfactionCheck,
     WorkspaceInstallSelection, build_resolution_verifiers, install_already_up_to_date,
-    install_already_up_to_date_from_records, materialization_closure,
-    merge_filtered_wanted_lockfile, report_merged_lockfile_conflicts,
+    install_already_up_to_date_from_records, install_already_up_to_date_per_project,
+    materialization_closure, merge_filtered_wanted_lockfile, report_merged_lockfile_conflicts,
     wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
@@ -224,7 +224,7 @@ impl InstallArgs {
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
-        mut state: State,
+        state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
@@ -239,12 +239,6 @@ impl InstallArgs {
                 .await?;
         } else {
             self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
-        }
-        if !self.materialization.dry_run
-            && state.config.workspace_dir.is_none()
-            && !state.manifest.path().exists()
-        {
-            state.manifest.save().wrap_err("saving initialized package.json")?;
         }
         // Resolution watch senders must close inline; only inert manifest and lockfile data
         // may outlive the command through background destruction.

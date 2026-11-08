@@ -1,7 +1,7 @@
 [package]
 name = "pnpr"
 description = "pnpm-compatible npm registry server"
-version = "0.1.0-alpha.17"
+version = "0.1.0-alpha.18"
 publish = false
 authors = ["pnpm contributors"]
 edition.workspace = true
@@ -29,8 +29,20 @@ path = "tests/suite.rs"
 [features]
 default = ["backend-libsql"]
 backend-libsql = ["dep:libsql", "pnpr-error/backend-libsql", "pnpr-auth/backend-libsql", "pnpr-storage/backend-libsql"]
-backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql", "pnpr-auth/backend-mysql"]
-backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", "pnpr-auth/backend-postgres"]
+backend-mysql = [
+  "dep:sqlx",
+  "sqlx/mysql",
+  "pnpr-error/backend-mysql",
+  "pnpr-auth/backend-mysql",
+  "pnpr-storage/backend-mysql",
+]
+backend-postgres = [
+  "dep:sqlx",
+  "sqlx/postgres",
+  "pnpr-error/backend-postgres",
+  "pnpr-auth/backend-postgres",
+  "pnpr-storage/backend-postgres",
+]
 
 [dependencies]
 pnpr-auth = { workspace = true }
@@ -97,6 +109,7 @@ object_store = { workspace = true }
 percent-encoding = { workspace = true }
 reqwest = { workspace = true }
 rusqlite = { workspace = true }
+semver = { workspace = true }
 serde = { workspace = true }
 serde-saphyr = { workspace = true }
 serde_json = { workspace = true }
@@ -124,7 +137,7 @@ pnpm-testing-utils = { workspace = true }
 pnpr-fixtures = { workspace = true }
 pnpr-libsql = { workspace = true, features = ["testing"] }
 tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
 tower = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

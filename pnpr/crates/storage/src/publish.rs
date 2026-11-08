@@ -11,7 +11,8 @@
 
 pub mod sigstore;
 pub use attachment::{AttachmentPayload, PendingAttachment, extract_attachments};
-pub use sigstore::{extract_predicate_type, write_sigstore_bundle};
+pub use sigstore::{extract_predicate_type, sigstore_bundle_bytes, write_sigstore_bundle};
+pub(crate) use time::now_millis;
 pub use time::{iso_from_unix_millis, now_iso};
 
 mod time;

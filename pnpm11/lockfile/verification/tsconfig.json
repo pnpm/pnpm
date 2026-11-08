@@ -58,6 +58,9 @@
       "path": "../../resolving/git-resolver"
     },
     {
+      "path": "../../resolving/local-resolver"
+    },
+    {
       "path": "../../resolving/npm-resolver"
     },
     {
@@ -65,6 +68,9 @@
     },
     {
       "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/range-resolver"
     },
     {
       "path": "../types"

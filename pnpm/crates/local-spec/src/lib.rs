@@ -100,8 +100,7 @@ impl LocalSpec {
     /// resolver reads as a path rather than as a version range.
     #[must_use]
     pub fn parse_workspace_path(specifier: &str, base_dir: &Path) -> Option<Self> {
-        specifier
-            .starts_with("workspace:.")
+        pnpm_workspace_spec::is_workspace_path_specifier(specifier)
             .then(|| {
                 Self::anchor(
                     Some(LocalSpecProtocol::Workspace),
@@ -230,8 +229,12 @@ pub fn is_filespec(spec: &str) -> bool {
 /// the directory form becomes a `link:` entry in the lockfile.
 #[must_use]
 pub fn is_tarball_filename(bare: &str) -> bool {
-    let lower = bare.to_ascii_lowercase();
-    lower.ends_with(".tgz") || lower.ends_with(".tar.gz") || lower.ends_with(".tar")
+    let bytes = bare.as_bytes();
+    let ends_with = |suffix: &str| {
+        bytes.len() >= suffix.len()
+            && bytes[bytes.len() - suffix.len()..].eq_ignore_ascii_case(suffix.as_bytes())
+    };
+    ends_with(".tgz") || ends_with(".tar.gz") || ends_with(".tar")
 }
 
 /// Render a path that carries no protocol, keeping it unambiguously

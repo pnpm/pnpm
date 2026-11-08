@@ -18,12 +18,16 @@ mod execution_args;
 mod importer_selection;
 mod unmatched;
 
-use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
+use crate::{
+    cli_args::catalogs::{configured_catalogs, workspace_catalogs},
+    state::{ProjectHost, host_requirements},
+};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_reporter::LogEvent;
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
     importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
@@ -118,6 +122,30 @@ pub fn discover_workspace_projects(
     )
     .wrap_err("finding workspace projects")?;
     Ok((projects, patterns))
+}
+
+/// Check what every project of `selection`'s workspace, the root project
+/// included, requires of the host, per [`ProjectHost`], before a recursive
+/// command runs code in them. No install-family root check runs before
+/// these commands, so the root project is not skipped.
+pub(crate) fn check_workspace_requirements(
+    selection: &RecursiveSelection<'_>,
+    config: &Config,
+    workspace_root: &Path,
+    emit: fn(&LogEvent),
+) -> miette::Result<()> {
+    let projects = selection
+        .full_graph()
+        .values()
+        .map(|node| node.package.project);
+    let host = ProjectHost::new(config, workspace_root);
+    for warning in host.check_every_project(&host_requirements(
+        projects,
+        config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ))? {
+        emit(&warning);
+    }
+    Ok(())
 }
 
 /// The `--filter`-selected workspace projects plus the graphs the sort
@@ -452,6 +480,18 @@ pub(crate) fn keeps_workspace_root(config: &Config, workspace_patterns: Option<&
 /// Whether the workspace enumerates the root project only.
 fn is_root_only_patterns(patterns: &[String]) -> bool {
     patterns.len() == 1 && patterns[0] == "."
+}
+
+/// The current lockfile install records for `project` when it has a dedicated
+/// lockfile.
+pub(crate) fn load_project_current_lockfile(
+    config: &Config,
+    project: &pnpm_workspace::Project,
+) -> Result<Option<pnpm_lockfile::Lockfile>, pnpm_lockfile::LoadLockfileError> {
+    let mut project_config = config.clone();
+    let project_name = super::pipelines::project_manifest_name(project);
+    project_config.anchor_dedicated_project(&project.root_dir, project_name);
+    pnpm_lockfile::Lockfile::load_current_from_install_state_dir(&project_config.install_state_dir)
 }
 
 #[cfg(test)]

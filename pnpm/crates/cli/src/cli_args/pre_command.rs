@@ -232,7 +232,7 @@ fn pins_nothing_to_check(invocation: &Invocation, dir: &Path) -> bool {
 }
 
 fn canonicalize_dir(path: &Path) -> miette::Result<PathBuf> {
-    dunce::canonicalize(path)
+    pnpm_fs::canonicalize_preserving_mapped_drive(path)
         .into_diagnostic()
         .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", path.display()))
 }

@@ -52,6 +52,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
             dedupe_peers: None,
             exclude_links_from_lockfile: false,
             add_missing_peer_types: None,
+            project_scoped_optional_peers: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
             integrity_target: None,

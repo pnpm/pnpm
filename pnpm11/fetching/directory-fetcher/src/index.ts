@@ -8,7 +8,7 @@ import type {
   DirectoryFetcherOptions,
   LocalDirPackageImportMethod,
 } from '@pnpm/fetching.fetcher-base'
-import { packlist } from '@pnpm/fs.packlist'
+import { isLockfileStagingFile, packlist } from '@pnpm/fs.packlist'
 import { logger } from '@pnpm/logger'
 import type { FilesMap } from '@pnpm/store.cafs-types'
 import type { DependencyManifest } from '@pnpm/types'
@@ -174,7 +174,7 @@ async function _fetchAllFilesFromDir (
   const filesStats: Record<string, Stats | null> = {}
   const files = await fs.readdir(dir)
   await Promise.all(files
-    .filter((file) => file !== 'node_modules')
+    .filter((file) => file !== 'node_modules' && (relativeDir !== '' || !isLockfileStagingFile(file)))
     .map((file) => handleDirEntry(readFileStat, { dir, file, relativeDir, ancestors }, filesMap, filesStats))
   )
   return { filesMap, filesStats }

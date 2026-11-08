@@ -47,7 +47,7 @@ export function mergeIntoCurrentLockfile (
 }
 
 function computeMergedCurrentLockfile (
-  { currentLockfile, wantedLockfile }: HeadlessContext,
+  { currentLockfile, opts, wantedLockfile }: HeadlessContext,
   { filteredLockfile, importerIds }: HeadlessDepGraph
 ): LockfileObject {
   if (Object.keys(wantedLockfile.importers).every((id) => importerIds.includes(id as ProjectId))) {
@@ -61,6 +61,17 @@ function computeMergedCurrentLockfile (
       ...filteredLockfile,
       importers: {
         ...emptyImporters,
+        ...pick(importerIds, filteredLockfile.importers),
+      },
+    }
+  }
+  if (opts.nodeLinker === 'hoisted') {
+    const existingProjectIds = Object.values(opts.allProjects).map(({ id }) => id)
+    return {
+      ...filteredLockfile,
+      importers: {
+        ...emptyImporters,
+        ...pick(existingProjectIds, currentLockfile.importers),
         ...pick(importerIds, filteredLockfile.importers),
       },
     }

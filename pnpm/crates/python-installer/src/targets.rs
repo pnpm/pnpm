@@ -6,7 +6,7 @@ use super::host::Interpreter;
 use miette::{IntoDiagnostic, Result, bail};
 use pep508_rs::MarkerTree;
 use pnpm_config::Config;
-use pnpm_package_is_installable::{Libc, LibcFamily, NamedPlatform, Os, SupportedArchitectures};
+use pnpm_package_is_installable::{NamedPlatform, Os, SupportedArchitectures};
 use pnpm_python_resolver::{Target, environment_marker};
 use std::collections::BTreeSet;
 
@@ -30,7 +30,7 @@ pub(super) fn probe_request(config: &Config) -> serde_json::Value {
         "targets": declarations(&platforms, &python_versions)
             .into_iter()
             .map(|(platform, version)| serde_json::json!({
-                "platform": platform.map(interpreter_platform),
+                "platform": platform.and_then(interpreter_platform),
                 "python": version,
             }))
             .collect::<Vec<_>>(),
@@ -145,13 +145,25 @@ pub(super) fn declares_platforms(config: &Config) -> bool {
 }
 
 /// The values `supportedArchitectures` names that pnpm cannot resolve
-/// Python for, as the interpreter running the install reads them.
-pub(super) fn platform_values_without_python(supported: &SupportedArchitectures) -> Vec<&str> {
-    supported.unnamed_platform_values(
+/// Python for, as the interpreter running the install reads them: values
+/// no platform stands for, and platforms whose Python wheels pnpm does not
+/// know, such as `freebsd-x64`.
+pub(super) fn platform_values_without_python(supported: &SupportedArchitectures) -> Vec<String> {
+    let unnamed = supported.unnamed_platform_values(
         pnpm_detect_libc::host_platform(),
         pnpm_detect_libc::host_target_arch(),
         pnpm_detect_libc::detect().map_or("unknown", |libc| libc.as_str()),
-    )
+    );
+    let without_wheels = supported
+        .host_platforms()
+        .into_iter()
+        .filter(|platform| platform.machine().is_none())
+        .map(|platform| platform.to_string());
+    unnamed
+        .into_iter()
+        .map(str::to_string)
+        .chain(without_wheels)
+        .collect()
 }
 
 /// The platforms and Python versions the project declares, each named
@@ -164,7 +176,10 @@ fn named(config: &Config) -> (Vec<NamedPlatform>, Vec<String>) {
     let platforms = config.supported_architectures
         .as_ref()
         .map(SupportedArchitectures::host_platforms)
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|platform| platform.machine().is_some())
+        .collect();
     let mut seen = BTreeSet::new();
     let python_versions = config.python.versions
         .iter()
@@ -182,21 +197,20 @@ fn or_running<Value>(values: Vec<Option<Value>>) -> Vec<Option<Value>> {
 
 /// How the interpreter is asked about a platform: the Rust target triple
 /// of the machine, or the `manylinux` or `musllinux` baseline when the
-/// platform names one, since that is what a wheel tag carries.
-fn interpreter_platform(platform: &NamedPlatform) -> String {
-    let architecture = platform.architecture.wheel();
-    match (platform.os, &platform.libc) {
+/// platform names one, since that is what a wheel tag carries. `None` for a
+/// platform whose wheels pnpm does not know, which is never declared.
+fn interpreter_platform(platform: &NamedPlatform) -> Option<String> {
+    let (os, architecture) = platform.machine()?;
+    let architecture = architecture.wheel();
+    Some(match (os, platform.wheel_baseline()) {
         (Os::Darwin, _) => format!("{architecture}-apple-darwin"),
         (Os::Windows, _) => format!("{architecture}-pc-windows-msvc"),
-        (Os::Linux, Some(Libc { baseline: Some(baseline), .. })) => {
-            format!("{architecture}-{baseline}")
-        }
-        (Os::Linux, libc) => {
-            let family = libc.as_ref().map_or(LibcFamily::Glibc, |libc| libc.family);
-            let abi = if family == LibcFamily::Musl { "musl" } else { "gnu" };
+        (Os::Linux, Some(baseline)) => format!("{architecture}-{baseline}"),
+        (Os::Linux, None) => {
+            let abi = if platform.libc() == Some("musl") { "musl" } else { "gnu" };
             format!("{architecture}-unknown-linux-{abi}")
         }
-    }
+    })
 }
 
 /// A declared Python version is locked for as the release it names: a

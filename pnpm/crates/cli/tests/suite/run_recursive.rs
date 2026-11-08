@@ -5,7 +5,8 @@
 //! process-group tests stay Unix-only, and they say so where they sit.
 
 use crate::_utils::{
-    CHILD_DEADLINE, append_line_script, wait_for_child, wait_for_marker_script, write_marker_script,
+    CHILD_DEADLINE, append_line_script, wait_for_child_with_deadline, wait_for_marker_script,
+    write_marker_script,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -39,6 +40,49 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
         fs::create_dir_all(&dir).expect("create project dir");
         fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
     }
+}
+
+#[test]
+fn recursive_run_checks_node_engines_against_each_projects_runtime() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                json!({
+                    "name": "project-1",
+                    "engines": { "node": "22.20.0" },
+                    "devEngines": { "runtime": { "name": "node", "version": "22.20.0", "onFail": "download" } },
+                    "scripts": { "test": r#"node -e "require('fs').writeFileSync('runtime.txt', process.version)""# },
+                }),
+            ),
+            (
+                "project-2",
+                json!({
+                    "name": "project-2",
+                    "engines": { "node": "24.0.0" },
+                    "devEngines": { "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" } },
+                    "scripts": { "test": r#"node -e "require('fs').writeFileSync('runtime.txt', process.version)""# },
+                }),
+            ),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - project-1\n  - project-2\nengineStrict: true\n",
+    )
+    .expect("write workspace settings");
+
+    let output = pacquet
+        .with_args(["run", "-r", "test"])
+        .output()
+        .expect("run recursive script");
+
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(fs::read_to_string(workspace.join("project-1/runtime.txt")).unwrap(), "v22.20.0");
+    assert_eq!(fs::read_to_string(workspace.join("project-2/runtime.txt")).unwrap(), "v24.0.0");
+    drop(root);
 }
 
 /// Place a runnable `name` in `bin_dir` whose program is the Node source
@@ -605,7 +649,8 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
     let manifest = |name: &str, body: &str| json!({ "name": name, "version": "1.0.0", "scripts": { "build": body } });
     // The run ending is the proof: these scripts stop only when cancelled,
     // and pnpm waits for the scripts it started.
-    let hold_ms = (CHILD_DEADLINE * 2).as_millis();
+    let cancellation_deadline = CHILD_DEADLINE * 2;
+    let hold_ms = (cancellation_deadline * 2).as_millis();
     let hold_until_cancelled = r#"node -e "const fs = require('fs'); fs.writeFileSync('ran.txt', ''); setTimeout(() => process.exit(0), Number(process.env.HOLD_MS))""#;
     write_workspace(
         &workspace,
@@ -645,7 +690,7 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
         .stderr(fs::File::create(&stderr_path).expect("create the run output"))
         .spawn()
         .expect("spawn pacquet");
-    let status = wait_for_child(&mut run);
+    let status = wait_for_child_with_deadline(&mut run, cancellation_deadline);
     let stderr = fs::read_to_string(&stderr_path).expect("read the run output");
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!status.success(), "the failing project should fail the run");

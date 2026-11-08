@@ -50,6 +50,7 @@ export function createDepsStatusReadPackageHook (
   return createReadPackageHook({
     ignoreCompatibilityDb: config.ignoreCompatibilityDb,
     lockfileDir: wantedLockfileDir,
+    overridesRootDir: config.lockfileDir ?? config.workspaceDir ?? wantedLockfileDir,
     overrides: parsedOverrides,
     packageExtensions: config.packageExtensions,
     readPackageHook: config.hooks?.readPackage,

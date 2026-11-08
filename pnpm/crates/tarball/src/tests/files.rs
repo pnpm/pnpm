@@ -259,6 +259,16 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
 
 #[tokio::test]
 async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
+    assert_eq!(legacy_row_requires_build(ManifestInIndex::Bundled).await, Some(true));
+    assert_eq!(legacy_row_requires_build(ManifestInIndex::NotBundled).await, Some(true));
+}
+
+enum ManifestInIndex {
+    Bundled,
+    NotBundled,
+}
+
+async fn legacy_row_requires_build(manifest_in_index: ManifestInIndex) -> Option<bool> {
     let (store_dir, store_path) = tempdir_with_leaked_path();
 
     let manifest_bytes = br#"{"name":"fake","scripts":{"postinstall":"node build.js"}}"#;
@@ -285,7 +295,10 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
         },
     );
     let entry = PackageFilesIndex {
-        manifest: Some(serde_json::from_slice(manifest_bytes).unwrap()),
+        manifest: match manifest_in_index {
+            ManifestInIndex::Bundled => Some(serde_json::from_slice(manifest_bytes).unwrap()),
+            ManifestInIndex::NotBundled => None,
+        },
         requires_build: None,
         requires_prepare: None,
         algo: "sha512".to_string(),
@@ -309,8 +322,8 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
 
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
     assert_eq!(map.get("package.json").map(|file| &file.path), Some(&pkg_json_path.path));
-    assert_eq!(prefetched.requires_build.get(&index_key), Some(&true));
     drop(store_dir);
+    prefetched.requires_build.get(&index_key).copied()
 }
 
 /// Rows written before [pnpm/pnpm#17224](https://github.com/pnpm/pnpm/issues/17224)

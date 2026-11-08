@@ -1,3 +1,4 @@
+use derive_more::{Display, Error};
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -38,6 +39,40 @@ pub(super) fn create_with_contents(
     contents: &Path,
     link: &Path,
 ) -> io::Result<()> {
+    create_link(original, contents, link)
+        .map_err(|error| explain_network_share_refusal(link, error))
+}
+
+/// A link on a network share that could not be created. Many SMB servers,
+/// Windows ones included, deny both the symlink and the junction, and
+/// pnpm 11 fails there in the same way. The share's permissions can deny
+/// it too, so the message doesn't claim to know which. The hoisted linker
+/// still links `link:` and `workspace:` dependencies, so the advice
+/// doesn't promise it avoids every link. The refusal stays reachable as
+/// the source.
+#[derive(Debug, Display, Error)]
+#[display(
+    "Could not create a link on a network share. Windows file shares often refuse junctions \
+     and symlinks. If this one does, move the project to a local drive, or set `nodeLinker: \
+     hoisted` in pnpm-workspace.yaml, which copies registry dependencies into node_modules \
+     instead of linking them. Workspace packages are linked even with the hoisted linker."
+)]
+pub(super) struct NetworkShareLinkError {
+    source: io::Error,
+}
+
+/// Keep the kind of a refused link, but say what to do about it when the
+/// link is on a network share.
+pub(super) fn explain_network_share_refusal(link: &Path, error: io::Error) -> io::Error {
+    let refused =
+        matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::Unsupported);
+    if !refused || !crate::mapped_drive_path::is_on_network_drive(link) {
+        return error;
+    }
+    io::Error::new(error.kind(), NetworkShareLinkError { source: error })
+}
+
+fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
     match MODE.load(Ordering::Relaxed) {
         USE_SYMLINK => match std::os::windows::fs::symlink_dir(contents, link) {
             Err(error) if should_fallback_to_junction(&error) => {
@@ -102,8 +137,25 @@ fn stage_junction(original: &Path, link: &Path) -> io::Result<PathBuf> {
         match junction::create(original, &candidate) {
             Ok(()) => return Ok(candidate),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(error) => return Err(error),
+            Err(error) => return Err(discard_failed_staging(&candidate, error)),
         }
+    }
+}
+
+/// `junction::create` makes the directory before it sets the reparse
+/// point, and leaves it behind when that later step fails. Remove it so a
+/// failed link doesn't leave a `.pnpm-junction-*` directory next to it.
+/// `remove_dir` only removes an empty directory, and `NotFound` means the
+/// directory was never created. The error keeps its kind either way,
+/// because callers branch on it.
+fn discard_failed_staging(candidate: &Path, error: io::Error) -> io::Error {
+    match fs::remove_dir(candidate) {
+        Ok(()) => error,
+        Err(cleanup) if cleanup.kind() == io::ErrorKind::NotFound => error,
+        Err(cleanup) => io::Error::new(
+            error.kind(),
+            format!("{error}; staged junction cleanup failed at {candidate:?}: {cleanup}"),
+        ),
     }
 }
 

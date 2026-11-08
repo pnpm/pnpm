@@ -18,7 +18,7 @@ mod installation;
 
 mod reporting;
 
-use super::{InstallPackageBySnapshotError, host_platform_selector};
+use super::InstallPackageBySnapshotError;
 use pnpm_config::Config;
 use pnpm_lockfile::{LockfileResolution, PackageKey};
 
@@ -157,7 +157,7 @@ async fn run_snapshot_install_with_session(
 
         skipped: &skipped,
         include_optional_dependencies: true,
-        runtime_platform_selector: &host_platform_selector(),
+        variant_platforms: &crate::platform_selection::VariantPlatforms::host(),
 
         defer_link: false,
         link_concurrency_probe: None,

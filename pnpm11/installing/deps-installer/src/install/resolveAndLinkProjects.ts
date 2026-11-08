@@ -10,6 +10,7 @@ import { clone } from 'ramda'
 import { isCheckOnlyInstall } from './installPredicates.js'
 import { linkResolvedProjects, toUpdatedProjects } from './linkResolvedProjects.js'
 import type { ImporterToUpdate, InstallFunctionResult, InstallInContextOptions } from './mutationTypes.js'
+import { keepImportersOfProjectsMissingFromDisk } from './projectsMissingFromDisk.js'
 import { removeDepsFromManifests } from './removeDepsFromManifests.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { type GraphResolution, resolveProjects } from './resolveProjects.js'
@@ -37,8 +38,10 @@ export async function resolveAndLinkProjects (
     ? clone(ctx.wantedLockfile)
     : null
 
+  const previousPackages = ctx.wantedLockfile.packages
   await prepareProjectsForResolution(projects, ctx, opts)
   const resolution = await resolveProjects(projects, ctx, opts)
+  resolution.newLockfile = keepImportersOfProjectsMissingFromDisk(resolution.newLockfile, { projects, previousPackages })
 
   const depsStateCache: DepsStateCache = {}
   const shouldWritePackageMap = opts.nodeExperimentalPackageMap && opts.enableModulesDir !== false && opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly
@@ -98,7 +101,7 @@ async function prepareProjectsForResolution (
   // and `createReadPackageHook` runs the overrides hook after `packageExtensions` and the
   // `readPackage` hooks, so the manifest that hook saw is the rewritten one. Asking the same
   // manifest keeps this answer and the override that was actually applied in agreement.
-  const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
+  const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.overridesRootDir)
   if (overriddenDependencyMatcherFor != null) {
     for (const project of projects) {
       if (!project.updatePackageManifest) continue

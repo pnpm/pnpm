@@ -4,7 +4,7 @@ pub(crate) use integrity::{
 
 pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_require_recovery};
 pub(super) use merge_metadata::{
-    current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
+    current_contains_ignored_build, merge_filtered_modules_metadata, merge_pending_builds,
 };
 pub(super) use settings_diff::{refuse_drifted_modules_dir, same_path};
 
@@ -494,7 +494,7 @@ where
 /// Whether the project defines any of `stages`, counting the executor's
 /// implicit `node-gyp rebuild` fallback for `install` (which is skipped
 /// when the project opts out with `gypfile: false`).
-pub(super) fn project_requires_lifecycle_scripts(
+pub(crate) fn project_requires_lifecycle_scripts(
     project_dir: &Path,
     manifest: &PackageManifest,
     stages: &[&str],

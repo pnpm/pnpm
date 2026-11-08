@@ -1,6 +1,6 @@
 use super::{
-    AuthHeaders, Client, ClientSet, Instant, MAX_REDIRECT_HOPS, RetryOpts, SecureAuthResponse,
-    ThrottledClient, ThrottledClientGuard, UNPRIORITIZED, is_redirect_status,
+    AuthHeaders, Client, ClientSet, Duration, Instant, MAX_REDIRECT_HOPS, RetryOpts,
+    SecureAuthResponse, ThrottledClient, ThrottledClientGuard, UNPRIORITIZED, is_redirect_status,
     is_url_secure_for_credentials, read_limited_body, retry,
 };
 
@@ -122,7 +122,23 @@ impl ThrottledClient {
         url: &str,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
-        self.response_with_scoped_headers(reqwest::Method::GET, url, configure).await
+        self.response_with_scoped_headers(reqwest::Method::GET, url, None, configure)
+            .await
+            .map_err(HeadError::into_request_error)
+    }
+
+    /// Like [`Self::get_response_with_scoped_headers`], failing with
+    /// [`HeadError::TimedOut`] when the response head has not arrived within
+    /// `timeout`. Only the time each hop spends after taking its permits
+    /// counts, so queueing for them does not, and redirects share the rest of
+    /// `timeout`. The response body has no deadline here.
+    pub async fn get_response_head_within(
+        &self,
+        url: &str,
+        timeout: Duration,
+        configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), HeadError> {
+        self.response_with_scoped_headers(reqwest::Method::GET, url, Some(timeout), configure).await
     }
 
     /// Apply the per-redirect header configuration and request-budget guarantees
@@ -132,25 +148,35 @@ impl ThrottledClient {
         url: &str,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
-        self.response_with_scoped_headers(reqwest::Method::HEAD, url, configure).await
+        self.response_with_scoped_headers(reqwest::Method::HEAD, url, None, configure)
+            .await
+            .map_err(HeadError::into_request_error)
     }
 
     async fn response_with_scoped_headers(
         &self,
         method: reqwest::Method,
         url: &str,
+        head_timeout: Option<Duration>,
         configure: impl Fn(reqwest::RequestBuilder, &str) -> reqwest::RequestBuilder,
-    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), reqwest::Error> {
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>), HeadError> {
         let mut current_url = url.to_string();
+        let mut head_budget = head_timeout;
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
             let client =
                 self.acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
                     .await;
+            let hop_started = client.acquired_at();
+            let deadline = head_budget.map(|budget| hop_started + budget);
             let request = configure(client.request(method.clone(), &current_url), &current_url);
-            let response = request
-                .send()
-                .await
-                .inspect_err(|error| self.downscale_on_timeout(&current_url, error))?;
+            // A head timeout lowers the origin's cap the way a request timeout
+            // does, while this hop still holds its permit.
+            let response = within(deadline, request.send()).await
+                .inspect_err(|_| {
+                    self.downscale_while_peers_active(&current_url);
+                })?
+                .inspect_err(|error| self.downscale_on_timeout(&current_url, error))
+                .map_err(HeadError::Request)?;
             let target = response
                 .headers()
                 .get(reqwest::header::LOCATION)
@@ -160,6 +186,8 @@ impl ThrottledClient {
                 && redirect_count < MAX_REDIRECT_HOPS
                 && let Some(target) = target
             {
+                head_budget =
+                    head_budget.map(|budget| budget.saturating_sub(hop_started.elapsed()));
                 current_url = target.to_string();
                 continue;
             }
@@ -224,4 +252,32 @@ pub(super) fn authorize_without_downgrade<'auth>(
         }
         auth_headers.for_url(url)
     }
+}
+
+/// Why [`ThrottledClient::get_response_head_within`] returned no response.
+#[derive(Debug, derive_more::Display, derive_more::Error)]
+pub enum HeadError {
+    Request(reqwest::Error),
+    /// The response head did not arrive in time.
+    #[display("the response head did not arrive in time")]
+    TimedOut,
+}
+
+impl HeadError {
+    /// The request error of a call that set no head deadline.
+    fn into_request_error(self) -> reqwest::Error {
+        match self {
+            Self::Request(error) => error,
+            Self::TimedOut => unreachable!("a request without a head deadline cannot time out"),
+        }
+    }
+}
+
+/// Await `future`, failing with [`HeadError::TimedOut`] at `deadline`.
+async fn within<Output>(
+    deadline: Option<Instant>,
+    future: impl Future<Output = Output>,
+) -> Result<Output, HeadError> {
+    let Some(deadline) = deadline else { return Ok(future.await) };
+    tokio::time::timeout_at(deadline.into(), future).await.map_err(|_| HeadError::TimedOut)
 }

@@ -6,7 +6,8 @@ pub use update_scope::{UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine
 
 pub use reuse::real_package_name_of;
 
-pub use tree_ctx::TreeCtx;
+pub use tree_ctx::{TreeCtx, directory_package_dir};
+pub(crate) use tree_ctx::{declaring_manifest_dir, resolves_from_declaring_manifest};
 
 pub use workspace_ctx::WorkspaceTreeCtx;
 
@@ -15,7 +16,8 @@ pub(crate) use catalogs::resolve_catalog_specifiers;
 pub(crate) use importer::importer_direct_wanted_specs;
 
 pub(crate) use reuse::{
-    preseed_changed_direct_versions, record_changed_direct_deps, unwrap_package_name,
+    preseed_changed_direct_versions, record_changed_direct_deps,
+    resolve_direct_dependency_detached, unwrap_package_name,
 };
 
 pub(crate) use workspace_ctx::SyncCursor;
@@ -26,7 +28,7 @@ use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
 use pipe_trait::Pipe;
-use pnpm_catalogs_resolver::{CatalogAnchor, CatalogResolutionError};
+use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
@@ -471,7 +473,9 @@ where
         .collect()
 }
 
-fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
+/// Whether `manifest`'s `dependenciesMeta` injects the dependency `name`.
+#[must_use]
+pub fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
     manifest
         .get("dependenciesMeta")
         .and_then(Value::as_object)
@@ -479,7 +483,9 @@ fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
         .is_some_and(dependency_meta_is_injected)
 }
 
-fn dependency_meta_is_injected(meta: &Value) -> bool {
+/// Whether a `dependenciesMeta` entry sets `injected`.
+#[must_use]
+pub fn dependency_meta_is_injected(meta: &Value) -> bool {
     meta.get("injected")
         .and_then(Value::as_bool)
         .unwrap_or(false)

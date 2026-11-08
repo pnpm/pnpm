@@ -168,10 +168,16 @@ pub(super) fn frozen_project_anchor_ids(
 pub(in crate::install) fn initial_materialization_ids(
     lockfile: &Lockfile,
     requested_importer_ids: Option<&HashSet<String>>,
+    real_importer_ids: Option<&HashSet<String>>,
     hoisted_prior: Option<&Lockfile>,
 ) -> HashSet<String> {
     match requested_importer_ids {
-        Some(selected) => crate::selected_materialization_ids(lockfile, selected, hoisted_prior),
+        Some(selected) => crate::selected_materialization_ids(
+            lockfile,
+            selected,
+            real_importer_ids,
+            hoisted_prior,
+        ),
         _ => lockfile.importers
             .keys()
             .cloned()

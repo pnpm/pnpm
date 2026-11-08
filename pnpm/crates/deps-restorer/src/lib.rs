@@ -1,11 +1,7 @@
-#[cfg(target_family = "wasm")]
-pub(crate) use pnpm_process as process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
-
 pub mod build_graph;
 pub mod build_modules;
 pub mod cas;
+pub mod claimed_commands;
 pub mod create_symlink_layout;
 pub mod create_virtual_dir_by_snapshot;
 pub mod create_virtual_store;
@@ -16,6 +12,7 @@ pub mod hoist;
 pub mod hoisted_dep_graph;
 pub mod hoisting_limits;
 pub mod import_indexed_dir;
+pub mod importer_modules_dirs;
 pub mod install_context;
 pub mod install_frozen_lockfile;
 pub mod install_package_by_snapshot;
@@ -28,6 +25,7 @@ pub mod link_root_component_members;
 pub mod linking;
 pub mod materialization_plan;
 pub mod package_map;
+pub mod platform_selection;
 pub mod pnp;
 pub mod prune_direct_deps;
 pub mod prune_stale_modules;
@@ -41,12 +39,17 @@ pub mod symlink_package;
 pub mod validate_lockfile_paths;
 pub mod version_policy;
 pub mod virtual_store_layout;
+
+pub(crate) use pnpm_process as process;
+
 pub use build_graph::*;
 pub use build_modules::*;
 pub use build_options::{
-    BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
-    BuildSnapshotInputs, CachedSideEffects, PatchedEngineCheck, ScriptPath,
+    BuildCacheContext, BuildCacheStore, BuildGraphInputs, BuildLayout, BuildProgress,
+    BuildScriptOptions, BuildSnapshotInputs, BuiltSideEffects, CachedSideEffects,
+    CapturedBuildSideEffects, PatchedEngineCheck, ScriptPath,
 };
+pub use claimed_commands::ClaimedCommands;
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
 pub use create_virtual_store::*;
@@ -62,11 +65,12 @@ pub use hoist::*;
 pub use hoisted_dep_graph::*;
 pub use hoisting_limits::*;
 pub use import_indexed_dir::*;
+pub use importer_modules_dirs::ImporterModulesDirs;
 pub use install_context::*;
 pub use install_frozen_lockfile::*;
 pub use install_options::{
-    DirectLinkPolicy, ImporterDependencyGraph, ImporterLinkContext, SkipSetClosure,
-    SnapshotSelection, VirtualStoreFetchInputs,
+    DirectLinkPolicy, ImporterDependencyGraph, ImporterLinkContext, PlatformLockfile,
+    SkipSetClosure, SnapshotSelection, VirtualStoreFetchInputs,
 };
 pub use install_package_by_snapshot::*;
 pub use install_package_from_registry::*;

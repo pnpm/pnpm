@@ -22,14 +22,11 @@ fn auth_block_resolves_htpasswd_relative_to_config_dir() {
     let yaml = "\
 storage: ./s
 auth:
-  htpasswd:
+  users:
     file: ./htpasswd
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(
-        config.identity.auth.htpasswd.file.as_deref(),
-        Some(Path::new("/etc/pnpr/./htpasswd")),
-    );
+    assert_eq!(config.identity.auth.users.file.as_deref(), Some(Path::new("/etc/pnpr/./htpasswd")));
     // Tokens default to the htpasswd sibling.
     assert_eq!(config.identity.auth.tokens.file.as_deref(), Some(Path::new("/etc/pnpr/tokens.db")));
 }
@@ -38,10 +35,10 @@ auth:
 fn auth_block_absent_disables_registration_by_default() {
     let yaml = "storage: ./s\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(config.identity.auth.htpasswd.file.is_none());
+    assert!(config.identity.auth.users.file.is_none());
     assert!(config.identity.auth.tokens.file.is_none());
     // Registration is opt-in: an omitted cap denies new sign-ups.
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
 }
 
 #[test]
@@ -49,11 +46,11 @@ fn auth_max_users_absent_disables_registration() {
     let yaml = "\
 storage: ./s
 auth:
-  htpasswd:
+  users:
     file: ./htpasswd
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
 }
 
 #[test]
@@ -61,7 +58,7 @@ fn auth_tokens_file_explicit_override_wins_over_sibling_default() {
     let yaml = "\
 storage: ./s
 auth:
-  htpasswd:
+  users:
     file: ./htpasswd
   tokens:
     file: /var/lib/pnpr/tokens.sqlite
@@ -78,12 +75,12 @@ fn auth_max_users_negative_one_means_disabled() {
     let yaml = "\
 storage: ./s
 auth:
-  htpasswd:
+  users:
     file: ./htpasswd
     maxUsers: -1
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
 }
 
 #[test]
@@ -91,12 +88,12 @@ fn auth_max_users_positive_is_a_hard_cap() {
     let yaml = "\
 storage: ./s
 auth:
-  htpasswd:
+  users:
     file: ./htpasswd
     maxUsers: 5
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Limited(5));
+    assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Limited(5));
 }
 
 #[test]
@@ -165,7 +162,7 @@ registries:
   local:
     type: hosted
     teams:
-      platform: [alice]
+      platform: { name: platform, members: [alice] }
     packages:
       '@team/*':
         access: team:platform
@@ -198,7 +195,7 @@ registries:
   local:
     type: hosted
     teams:
-      platform: [alice]
+      platform: { name: platform, members: [alice] }
     packages:
       '@team/*':
         access: platform
@@ -217,8 +214,8 @@ registries:
   local:
     type: hosted
     teams:
-      platform: [alice]
-      release: [carol]
+      platform: { name: platform, members: [alice] }
+      release: { name: release, members: [carol] }
     packages:
       '@team/*':
         access: team:platfrm
@@ -289,18 +286,19 @@ registries:
 fn team_declarations_are_validated() {
     // A team member list is one username per entry — never a
     // space-separated string.
-    let split_members = "    teams:\n      platform: alice bob\n";
+    let split_members = "    teams:\n      platform: { name: platform, members: alice bob }\n";
     // A team name is spliced into `team:<name>` tokens, so a name the
     // grammar cannot express is rejected at declaration.
-    let sigil_name = "    teams:\n      $all: [alice]\n";
-    let colon_name = "    teams:\n      'a:b': [alice]\n";
+    let sigil_name = "    teams:\n      $all: { name: platform, members: [alice] }\n";
+    let colon_name = "    teams:\n      'a:b': { name: platform, members: [alice] }\n";
     // A member is a plain username: a built-in group — in any spelling —
     // would silently become a user nobody is named after, and a `team:`
     // reference would be an unsupported nested team.
-    let builtin_member = "    teams:\n      platform: [$all]\n";
-    let alias_member = "    teams:\n      platform: [authenticated]\n";
-    let at_alias_member = "    teams:\n      platform: ['@all']\n";
-    let nested_team_member = "    teams:\n      platform: ['team:release']\n";
+    let builtin_member = "    teams:\n      platform: { name: platform, members: [$all] }\n";
+    let alias_member = "    teams:\n      platform: { name: platform, members: [authenticated] }\n";
+    let at_alias_member = "    teams:\n      platform: { name: platform, members: ['@all'] }\n";
+    let nested_team_member =
+        "    teams:\n      platform: { name: platform, members: ['team:release'] }\n";
     for (teams, needle) in [
         (split_members, r#""alice bob""#),
         (sigil_name, "cannot contain `:` or start with `$`"),
@@ -349,11 +347,11 @@ auth:
       login:
         users:
           - subject: sub-123
-            username: oidc_bob
+            userId: oidc_bob
       workloads:
         - identity:
             subject: repo:pnpm/pnpm
-            username: workload_carol
+            userId: workload_carol
           registry: local
           packages: ['@pnpm/*']
 registries:
@@ -361,10 +359,14 @@ registries:
     type: hosted
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(config.identity.is_reserved_name("admin_alice"));
-    assert!(config.identity.is_reserved_name("oidc_bob"));
-    assert!(config.identity.is_reserved_name("workload_carol"));
-    assert!(!config.identity.is_reserved_name("dan"));
+    assert!(config.identity.is_admin(&pnpr_policy::Identity::account(
+        "admin_alice",
+        "renamed-admin"
+    )));
+    assert!(!config.identity.is_admin(&pnpr_policy::Identity::account(
+        "different-id",
+        "admin_alice"
+    )));
 }
 
 #[test]

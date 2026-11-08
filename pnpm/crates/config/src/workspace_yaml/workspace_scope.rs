@@ -129,6 +129,7 @@ impl WorkspaceSettings {
         self.ignore_compatibility_db = None;
         self.add_missing_peer_types = None;
         self.resolve_peers_from_workspace_root = None;
+        self.project_scoped_optional_peers = None;
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
         self.external_dependencies = None;

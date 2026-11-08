@@ -1,4 +1,4 @@
-use super::WorkspaceSpec;
+use super::{WorkspaceSpec, is_workspace_path_specifier};
 
 fn ws(version: &str, alias: Option<&str>) -> WorkspaceSpec {
     WorkspaceSpec { alias: alias.map(str::to_string), version: version.to_string() }
@@ -74,4 +74,13 @@ fn alias_first_char_class_excludes_dot_underscore_slash() {
     assert_eq!(WorkspaceSpec::parse("workspace:../foo"), Some(ws("../foo", None)));
     assert_eq!(WorkspaceSpec::parse("workspace:_foo@1.0.0"), Some(ws("_foo@1.0.0", None)));
     assert_eq!(WorkspaceSpec::parse("workspace:/abs/path"), Some(ws("/abs/path", None)));
+}
+
+#[test]
+fn only_a_dot_prefixed_workspace_spec_names_a_directory() {
+    assert!(is_workspace_path_specifier("workspace:../foo"));
+    assert!(is_workspace_path_specifier("workspace:./foo"));
+    assert!(!is_workspace_path_specifier("workspace:~/foo"));
+    assert!(!is_workspace_path_specifier("workspace:/abs/foo"));
+    assert!(!is_workspace_path_specifier("workspace:@scope/pkg@^1.0.0"));
 }

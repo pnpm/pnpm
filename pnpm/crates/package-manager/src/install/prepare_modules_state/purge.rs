@@ -171,13 +171,15 @@ pub(super) fn prune_excluded_direct_deps(
         .map_err(InstallError::PruneDirectDeps)?;
     }
     crate::prune_manifest_link_deps(&crate::PruneManifestLinkDeps {
-        workspace_root: context.workspace_root,
+        modules_dirs: &pnpm_deps_restorer::ImporterModulesDirs::from_config(
+            context.config,
+            context.workspace_root,
+        ),
         project_manifests: context.manifest_links.manifests,
         importers: context.current_lockfile.map(|current| &current.importers),
         workspace_links: context.manifest_links.workspace_links,
         previously_included,
         new_included: context.included,
-        modules_dir_name: context.config.modules_dir_name(),
         prunable_importer_ids: selected_prune_importer_ids.as_ref(),
     })
     .map_err(InstallError::PruneDirectDeps)

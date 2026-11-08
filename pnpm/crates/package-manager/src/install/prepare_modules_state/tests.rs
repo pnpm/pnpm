@@ -95,6 +95,15 @@ const TWO_SLOTS: &str =
 const HOISTED_OUTSIDE: &str = "hoistedLocations:\n  a@1.0.0:\n    - ../outside\n";
 const UNREADABLE_RECORD: &str = "hoistedLocations: [";
 
+/// A workspace state that records only the host as the linked platform, as
+/// an install without `supportedArchitectures` writes.
+fn host_linked_state() -> WorkspaceState {
+    let mut state = WorkspaceState::default();
+    state.settings.linked_platform =
+        Some(pnpm_deps_restorer::platform_selection::linked_platform_record(None));
+    state
+}
+
 fn parse_lockfile(yaml: &str) -> Lockfile {
     serde_saphyr::from_str(yaml).expect("parse lockfile")
 }
@@ -230,7 +239,7 @@ fn short_circuits_over_allow_builds(
         (&project_root, config, NodeLinker::Isolated),
         &modules,
         RecordedWorkspace {
-            state: Some(&WorkspaceState::default()),
+            state: Some(&host_linked_state()),
             moved: false,
             projects: &projects,
             bin_projects: &projects,
@@ -287,7 +296,7 @@ fn a_moved_tree_with_an_absolute_bin_is_refused() {
                 true,
                 bin_dir,
                 ABSOLUTE_TARGET,
-                Some(&WorkspaceState::default()),
+                Some(&host_linked_state()),
             ),
             "{node_linker:?} {bin_dir}",
         );
@@ -302,7 +311,7 @@ fn frozen_short_circuit_unchanged_in_place() {
         false,
         ROOT_BIN,
         ABSOLUTE_TARGET,
-        Some(&WorkspaceState::default()),
+        Some(&host_linked_state()),
     ));
 }
 
@@ -328,7 +337,7 @@ fn a_moved_tree_with_relative_bins_is_reused() {
                 true,
                 ROOT_BIN,
                 RELATIVE_TARGET,
-                Some(&WorkspaceState::default()),
+                Some(&host_linked_state()),
             ),
             "{node_linker:?}",
         );

@@ -35,7 +35,7 @@ impl RunAnchors {
     /// becomes `config.dir` (used as the install `lockfileDir`, threaded
     /// into every event's `prefix`).
     pub(super) fn resolve(args: &CliArgs) -> miette::Result<Self> {
-        let dir = dunce::canonicalize(&args.paths.dir)
+        let dir = pnpm_fs::canonicalize_preserving_mapped_drive(&args.paths.dir)
             .into_diagnostic()
             .wrap_err_with(|| {
                 format!("canonicalizing the `--dir` argument: {}", args.paths.dir.display())
@@ -43,7 +43,9 @@ impl RunAnchors {
         let cli_dir = if args.paths.dir_from_command_line {
             dir.clone()
         } else {
-            std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
+            std::env::current_dir()
+                .and_then(|cwd| pnpm_fs::canonicalize_preserving_mapped_drive(&cwd))
+                .unwrap_or_else(|_| dir.clone())
         };
         let manifest_path = pnpm_workspace::project_manifest_path(&dir);
         let global_config = default_pnpm_home_dir::<Host>().unwrap_or_else(|| dir.clone());

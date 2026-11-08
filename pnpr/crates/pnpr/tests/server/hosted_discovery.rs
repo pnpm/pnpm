@@ -5,7 +5,6 @@ use super::{
     sha512_integrity, to_bytes,
 };
 use crate::tokens::issue_token;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 #[tokio::test]
 async fn search_paginates_across_hosted_and_upstream_sources() {
@@ -209,7 +208,10 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(
+        &config,
+        &[("alice", "password"), ("bob", "password"), ("ci", "password")],
+    );
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     let authed = |request: axum::http::request::Builder| {
@@ -346,28 +348,40 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     );
 
     assert!(
-        local_blob_path(
+        pnpr_fixtures::read_hosted_file(
             tmp.path(),
-            "acme",
-            pnpr_storage::Ecosystem::Npm,
+            ("acme", pnpr_storage::Ecosystem::Npm),
             "@acme/widget",
             "widget-1.0.0.tgz"
         )
-        .exists(),
+        .is_some(),
     );
 
     // The unpublish flow: PUT back a packument without the version, delete
     // its tarball (the unencoded scoped 7-segment form), then delete the
     // package — all through the registry.
+    let current = app
+        .clone()
+        .oneshot(
+            authed(Request::get("/npm/~acme/@acme%2Fwidget"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let current = body_json(current.into_body()).await;
     let put_back = app
         .clone()
         .oneshot(
-            authed(Request::put("/npm/~acme/@acme%2Fwidget/-rev/1"))
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    json!({ "name": "@acme/widget", "versions": {}, "dist-tags": {} }).to_string(),
-                ))
-                .unwrap(),
+            authed(Request::put(format!(
+                "/npm/~acme/@acme%2Fwidget/-rev/{}",
+                current["_rev"].as_str().unwrap(),
+            )))
+            .header("content-type", "application/json")
+            .body(Body::from(
+                json!({ "name": "@acme/widget", "versions": {}, "dist-tags": {} }).to_string(),
+            ))
+            .unwrap(),
         )
         .await
         .unwrap();
@@ -383,14 +397,13 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .unwrap();
     assert_eq!(delete_tar.status(), StatusCode::CREATED);
     assert!(
-        !local_blob_path(
+        pnpr_fixtures::read_hosted_file(
             tmp.path(),
-            "acme",
-            pnpr_storage::Ecosystem::Npm,
+            ("acme", pnpr_storage::Ecosystem::Npm),
             "@acme/widget",
             "widget-1.0.0.tgz"
         )
-        .exists(),
+        .is_none(),
     );
     let delete_pkg = app
         .clone()
@@ -403,8 +416,13 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .unwrap();
     assert_eq!(delete_pkg.status(), StatusCode::CREATED);
     assert!(
-        !local_package_dir(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@acme/widget")
-            .exists(),
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/widget"
+        )
+        .is_none(),
     );
 }
 
@@ -423,7 +441,10 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(
+        &config,
+        &[("alice", "password"), ("bob", "password"), ("ci", "password")],
+    );
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -514,7 +535,10 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         .expect("hosted acme")
         .rules
         .push_rule(access_rule("@acme/widget", "$authenticated"));
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(
+        &config,
+        &[("alice", "password"), ("bob", "password"), ("ci", "password")],
+    );
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -669,7 +693,10 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         Some("main".to_string()),
     )
     .with_ecosystem("crates", Ecosystem::Cargo);
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(
+        &config,
+        &[("alice", "password"), ("bob", "password"), ("ci", "password")],
+    );
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     for authenticated in [false, true] {

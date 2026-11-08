@@ -1,5 +1,8 @@
 use super::{gvs_layout_cache, gvs_version_segment, local_directory_scope};
-use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major};
+use crate::{
+    AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major,
+    platform_selection::VariantPlatforms,
+};
 use indexmap::IndexMap;
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_graph_hasher::{
@@ -7,8 +10,7 @@ use pnpm_graph_hasher::{
     format_global_virtual_store_path,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PlatformSelector,
-    SnapshotEntry,
+    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, SnapshotEntry,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -38,7 +40,7 @@ pub(super) fn lockfile_to_dep_graph(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
     lockfile_dir: Option<&Path>,
-    platform: &PlatformSelector,
+    platform: &VariantPlatforms,
 ) -> HashMap<String, DepsGraphNode<String>> {
     let mut graph = HashMap::with_capacity(snapshots.len());
     let mut link_target_nodes = HashSet::new();
@@ -88,7 +90,7 @@ pub(super) fn child_graph_key(
 pub(super) fn full_pkg_id_of(
     snapshot_key: &PackageKey,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    platform: &PlatformSelector,
+    platform: &VariantPlatforms,
 ) -> String {
     let pkg_id_with_patch_hash =
         PkgIdWithPatchHash::from(get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string());
@@ -136,7 +138,7 @@ impl<'h> GvsHasher<'h> {
         engine: Option<&'h str>,
         allow_build_policy: Option<&AllowBuildPolicy>,
         lockfile_dir: Option<&'h Path>,
-        platform: &PlatformSelector,
+        platform: &VariantPlatforms,
     ) -> Self {
         let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir, platform);
         let build_required_dep_paths =
@@ -332,11 +334,11 @@ pub(super) fn engine_gating_dep_paths(
 pub(super) fn create_full_pkg_id(
     pkg_id_with_patch_hash: &PkgIdWithPatchHash,
     resolution: Option<&LockfileResolution>,
-    platform: &PlatformSelector,
+    platform: &VariantPlatforms,
 ) -> String {
     let resolution = match resolution {
         Some(LockfileResolution::Variations(variations)) => variations
-            .select(&crate::install_package_by_snapshot::variations_platform(variations, platform))
+            .select(platform.for_variations(variations))
             .ok()
             .flatten()
             .map(|variant| &variant.resolution)

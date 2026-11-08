@@ -2,7 +2,7 @@ mod registry;
 #[cfg(test)]
 mod tests;
 
-use super::{package_spec::PackageSpec, sanitize};
+use super::{package_spec::PackageSpec, registry_client::OtpHost, sanitize};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -12,13 +12,13 @@ use pnpm_network::{
     RetryOpts, ThrottledClient, encode_uri_component, read_limited_body, redact_url_credentials,
     retry_async, send_with_retry,
 };
+use pnpm_network_web_auth::Host as WebAuthHost;
 use pnpm_reporter::Reporter;
 use registry::{
     DeleteDistTagRequest, SetDistTagRequest, auth_header_for_registry, delete_dist_tag,
     fetch_dist_tags, package_name_for_url, registry_for_package, set_dist_tag,
 };
 use reqwest::{RequestBuilder, Response, StatusCode};
-use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
 
 const DIST_TAGS_BODY_LIMIT: usize = 1024 * 1024;
@@ -109,19 +109,6 @@ pub enum DistTagError {
         body: String,
     },
 
-    #[display(
-        "This registry requires web-based OTP to {action} packages. Open {auth_url}, wait for {done_url} to finish, then rerun with --otp <token>."
-    )]
-    #[diagnostic(code(ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED))]
-    WebOtpRequired {
-        #[error(not(source))]
-        action: String,
-        #[error(not(source))]
-        auth_url: String,
-        #[error(not(source))]
-        done_url: String,
-    },
-
     #[display("Failed to {action} package: {status} {status_text}. {body}")]
     #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
     RegistryWriteFailed {
@@ -180,13 +167,25 @@ impl DistTagArgs {
         self,
         config: &Config,
     ) -> miette::Result<Option<String>> {
+        self.execute::<WebAuthHost, Reporter>(config).await
+    }
+
+    /// Generic over the web-auth host `Sys` so tests can script the OTP flow.
+    async fn execute<Sys: OtpHost, Reporter: self::Reporter>(
+        &self,
+        config: &Config,
+    ) -> miette::Result<Option<String>> {
         let context = self.context(config)?;
         let Some(subcommand) = self.params.first().map(String::as_str) else {
             return dist_tag_ls::<Reporter>(&context, &[]).await.map(Some);
         };
         match subcommand {
-            "add" => dist_tag_add::<Reporter>(&context, &self.params[1..]).await.map(Some),
-            "rm" => dist_tag_rm::<Reporter>(&context, &self.params[1..]).await.map(Some),
+            "add" => {
+                dist_tag_add::<Sys, Reporter>(&context, &self.params[1..]).await.map(Some)
+            }
+            "rm" => {
+                dist_tag_rm::<Sys, Reporter>(&context, &self.params[1..]).await.map(Some)
+            }
             "ls" | "list" => {
                 dist_tag_ls::<Reporter>(&context, &self.params[1..]).await.map(Some)
             }
@@ -231,7 +230,7 @@ async fn dist_tag_ls<Reporter: self::Reporter>(
     Ok(lines.join("\n"))
 }
 
-async fn dist_tag_add<Reporter: self::Reporter>(
+async fn dist_tag_add<Sys: OtpHost, Reporter: self::Reporter>(
     context: &DistTagContext<'_>,
     params: &[String],
 ) -> miette::Result<String> {
@@ -245,8 +244,7 @@ async fn dist_tag_add<Reporter: self::Reporter>(
     let registry_url = registry_for_package(context, &package_name);
     let auth_header =
         auth_header_for_registry::<Reporter>(context, &registry_url, &package_name).await?;
-    let auth_type = if context.otp.is_some() { AuthType::Legacy } else { AuthType::Web };
-    set_dist_tag(
+    set_dist_tag::<Sys, Reporter>(
         context,
         SetDistTagRequest {
             package_name: &package_name,
@@ -254,15 +252,13 @@ async fn dist_tag_add<Reporter: self::Reporter>(
             tag,
             registry_url: &registry_url,
             auth_header: auth_header.as_deref(),
-            auth_type,
-            otp: context.otp.as_deref(),
         },
     )
     .await?;
     Ok(format!("+{tag}: {package_name}@{version}"))
 }
 
-async fn dist_tag_rm<Reporter: self::Reporter>(
+async fn dist_tag_rm<Sys: OtpHost, Reporter: self::Reporter>(
     context: &DistTagContext<'_>,
     params: &[String],
 ) -> miette::Result<String> {
@@ -285,16 +281,13 @@ async fn dist_tag_rm<Reporter: self::Reporter>(
             tag: tag.clone(),
             package_name: package_name.clone(),
         })?;
-    let auth_type = if context.otp.is_some() { AuthType::Legacy } else { AuthType::Web };
-    delete_dist_tag(
+    delete_dist_tag::<Sys, Reporter>(
         context,
         DeleteDistTagRequest {
             package_name: &package_name,
             tag,
             registry_url: &registry_url,
             auth_header: auth_header.as_deref(),
-            auth_type,
-            otp: context.otp.as_deref(),
         },
     )
     .await?;

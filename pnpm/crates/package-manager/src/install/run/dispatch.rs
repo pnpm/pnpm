@@ -342,7 +342,7 @@ async fn frozen_path<Reporter: self::Reporter>(
 fn no_project_has_dependencies(manifests: &[(String, &PackageManifest)]) -> bool {
     manifests
         .iter()
-        .all(|(_, manifest)| !crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest))
+        .all(|(_, manifest)| !crate::install_state::manifest_has_runtime_deps(manifest))
 }
 fn report_unresolved_optional_dependencies<Reporter: self::Reporter>(
     skipped: &[UnresolvedOptionalDependency],

@@ -5,6 +5,7 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { IgnoredBuilds } from '@pnpm/types'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { isCI } from 'ci-info'
 
 export interface HandleIgnoredBuildsOpts {
@@ -44,11 +45,15 @@ async function writeIgnoredBuildsToAllowBuilds (
     }
   }
   if (Object.keys(newEntries).length && opts.rootProjectManifestDir) {
+    const workspaceDir = opts.workspaceDir ?? opts.rootProjectManifestDir
+    // Merged into the file's own entries: `opts.allowBuilds` also holds
+    // entries from other config sources and approvals made for this run only.
+    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
     await writeSettings({
       rootProjectManifestDir: opts.rootProjectManifestDir,
-      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+      workspaceDir,
       updatedSettings: {
-        allowBuilds: { ...opts.allowBuilds, ...newEntries },
+        allowBuilds: { ...workspaceManifest?.allowBuilds, ...newEntries },
       },
     })
   }

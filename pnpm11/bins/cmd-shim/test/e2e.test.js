@@ -477,17 +477,9 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     runWithDecoys(tempDir, 'sh', ['tsc-link'], binDir)
   })
 
-  // The bash 3.2 that macOS ships as sh answers command -p -v from PATH, so a
-  // caller's PATH without the helpers must still leave them to the default
-  // path. No test host runs that bash, so the shim's command -p -v is rewritten
-  // to the command -v it amounts to there.
-  test('keeps the default path helpers when command -p -v searches PATH', async () => {
+  test('keeps the default path helpers when PATH lacks them', async () => {
     const tempDir = temporaryDirectory()
     const binDir = await makeShimmedTool(tempDir)
-    const shim = path.join(binDir, 'tsc')
-    const body = fs.readFileSync(shim, 'utf8')
-    assert.ok(body.includes('command -p -v '), 'precondition: the shim probes the default path')
-    writeExecutable(shim, body.replaceAll('command -p -v ', 'command -v '))
     const nodeDir = path.join(tempDir, 'node-only')
     fs.mkdirSync(nodeDir)
     fs.symlinkSync(process.execPath, path.join(nodeDir, 'node'))
@@ -501,13 +493,18 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
   })
 
   // The default path command -p searches can lack the helpers, as inside a Nix
-  // build sandbox. No test host is set up that way, so each command -p in the
-  // shim is rewritten to a command that searches a directory that does not exist.
+  // build sandbox on Linux, or deny access to them, as inside one on macOS. No
+  // test host is set up that way, so the shim's checks of /usr/bin and /bin and
+  // each command -p are rewritten to search a directory that does not exist.
   test('skips node_modules and relative PATH entries when the default path lacks the helpers', async () => {
     const tempDir = temporaryDirectory()
     const binDir = await makeShimmedTool(tempDir)
     const shim = path.join(binDir, 'tsc')
-    writeExecutable(shim, fs.readFileSync(shim, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
+    const body = fs.readFileSync(shim, 'utf8')
+    // The bash 3.2 that macOS ships as sh answers command -p -v from PATH, so
+    // that probe cannot detect a sandboxed default path.
+    assert.ok(!body.includes('command -p -v '), 'the shim must not trust command -p -v')
+    writeExecutable(shim, body.replaceAll('[ -x "/usr/bin/', '[ -x "/nonexistent/').replaceAll('[ -x "/bin/', '[ -x "/nonexistent/').replaceAll('command -p ', 'PATH=/nonexistent command '))
     const decoyDir = plantHijackTreeAndDecoys(tempDir)
     const callersPath = [path.dirname(process.execPath), process.env.PATH].join(path.delimiter)
     const run = (PATH, cwd) => spawnSync(path.join(binDir, 'tsc-link'), [], {

@@ -270,6 +270,86 @@ fn a_bare_local_path_entry_resolves_from_the_workspace_directory() {
     drop((root, npmrc_info));
 }
 
+#[test]
+fn root_catalog_paths_resolve_from_the_workspace_directory_for_dependencies_and_peers() {
+    for shared_lockfile in [true, false] {
+        for specifier in ["file:./packages/b", "workspace:./packages/b"] {
+            assert_root_catalog_path_resolves(specifier, shared_lockfile);
+        }
+    }
+}
+
+fn assert_root_catalog_path_resolves(specifier: &str, shared_lockfile: bool) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - 'apps/**'\n  - 'packages/*'\nsharedWorkspaceLockfile: {shared_lockfile}\ninjectWorkspacePackages: true\nignoreScripts: true\ncatalogs:\n  locals:\n    b: {specifier}\n",
+        ),
+    )
+    .expect("write workspace manifest");
+    write_manifest(&workspace, &serde_json::json!({ "name": "root", "private": true }));
+    let consumer = workspace.join("apps/deep/dependency-consumer");
+    fs::create_dir_all(&consumer).expect("create dependency consumer");
+    write_manifest(
+        &consumer,
+        &serde_json::json!({
+            "name": "dependency-consumer",
+            "version": "1.0.0",
+            "dependencies": { "b": "catalog:locals" }
+        }),
+    );
+    let peer_consumer = workspace.join("apps/deep/peer-consumer");
+    fs::create_dir_all(&peer_consumer).expect("create peer consumer");
+    write_manifest(
+        &peer_consumer,
+        &serde_json::json!({
+            "name": "peer-consumer",
+            "version": "1.0.0",
+            "dependencies": { "a": "workspace:../../../packages/a" }
+        }),
+    );
+    let package_a = workspace.join("packages/a");
+    fs::create_dir_all(&package_a).expect("create package a");
+    write_manifest(
+        &package_a,
+        &serde_json::json!({ "name": "a", "version": "1.0.0", "peerDependencies": { "b": "catalog:locals" } }),
+    );
+    fs::write(package_a.join("index.js"), "module.exports = require('b');\n")
+        .expect("write package a entry point");
+    let package_b = workspace.join("packages/b");
+    fs::create_dir_all(&package_b).expect("create package b");
+    write_manifest(&package_b, &serde_json::json!({ "name": "b", "version": "1.0.0" }));
+    fs::write(package_b.join("index.js"), "module.exports = 'correct-b';\n")
+        .expect("write package b entry point");
+
+    pacquet
+        .with_args(["install", "--offline", "--ignore-scripts", "--no-frozen-lockfile"])
+        .with_arg("--store-dir")
+        .with_arg(root.path().join("store"))
+        .assert()
+        .success();
+    Command::new("node")
+        .with_current_dir(&consumer)
+        .with_args(["-p", "require('b')"])
+        .assert()
+        .success()
+        .stdout("correct-b\n");
+    Command::new("node")
+        .with_current_dir(&peer_consumer)
+        .with_args(["-p", "require('a')"])
+        .assert()
+        .success()
+        .stdout("correct-b\n");
+    drop((root, npmrc_info));
+}
+
 fn read_packed_manifest(tarball: &Path) -> serde_json::Value {
     use std::io::Read as _;
 

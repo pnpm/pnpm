@@ -70,6 +70,7 @@ function getResolutionSettings (opts: ResolveDependenciesOptions): ResolutionSet
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     currentLockfile: opts.currentLockfile,
+    dedupePeerDependents: opts.dedupePeerDependents === true,
     defaultTag: opts.tag,
     dryRun: opts.dryRun,
     force: opts.force,

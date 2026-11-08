@@ -172,6 +172,12 @@ impl LazyLockfile {
         Ok(self.fix_cell.get_or_init(|| loaded))
     }
 
+    /// The wanted lockfile when it is already parsed, without loading it.
+    #[must_use]
+    pub fn loaded(&self) -> Option<&Lockfile> {
+        self.cell.get().and_then(|loaded| loaded.lockfile.as_deref())
+    }
+
     /// Whether a wanted lockfile is known to be available: the parsed
     /// document when already loaded, otherwise
     /// [`Lockfile::wanted_exists`]'s semantic-presence probe —
@@ -241,6 +247,16 @@ impl<'a> MaybeLazyLockfile<'a> {
     pub fn prefetch(self) {
         if let MaybeLazyLockfile::Lazy(lazy) = self {
             lazy.prefetch();
+        }
+    }
+
+    /// The wanted lockfile when it is already parsed, without forcing a
+    /// parse in the lazy case.
+    #[must_use]
+    pub fn loaded(self) -> Option<&'a Lockfile> {
+        match self {
+            MaybeLazyLockfile::Loaded(lockfile) => lockfile,
+            MaybeLazyLockfile::Lazy(lazy) | MaybeLazyLockfile::Repair(lazy) => lazy.loaded(),
         }
     }
 

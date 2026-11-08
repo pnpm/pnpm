@@ -8,9 +8,7 @@
 use crate::{
     SkippedSnapshots,
     safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
-    symlink_direct_dependencies::{
-        direct_dep_names_for_importer, importer_root_dir, validate_importer_id,
-    },
+    symlink_direct_dependencies::{direct_dep_names_for_importer, validate_importer_id},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -22,7 +20,6 @@ use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, parse_manifest_bytes};
 use std::{
     collections::HashSet,
-    ffi::OsStr,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -127,10 +124,7 @@ pub fn prune_direct_deps_excluded_by_groups(
     // removal, a name that was skipped last install has no on-disk
     // entry, so removing it is a no-op — no skip set needed.
     let skipped = SkippedSnapshots::new();
-    // Same per-importer `modulesDir` suffix peeling as
-    // [`crate::SymlinkDirectDependencies`], so removal targets exactly
-    // where the linker writes.
-    let modules_dir_name: &OsStr = config.modules_dir_name();
+    let modules_dirs = crate::ImporterModulesDirs::from_config(config, workspace_root);
 
     for (importer_id, snapshot) in &current_lockfile.importers {
         // A malformed importer key is rejected with a typed error by
@@ -140,12 +134,10 @@ pub fn prune_direct_deps_excluded_by_groups(
         {
             continue;
         }
-        // Same canonical containment check as the purge: delete only
-        // through a modules dir that resolves inside the workspace
-        // root, and operate on the canonicalized path so a symlink
-        // swap can't redirect the removals after the check.
-        let modules_dir = importer_root_dir(workspace_root, importer_id).join(modules_dir_name);
-        let Some(modules_dir) = confined_modules_dir(&modules_dir, workspace_root) else {
+        // Operate on the canonicalized path so a symlink swap can't
+        // redirect the removals after the check.
+        let modules_dir = modules_dirs.of_importer_id(importer_id);
+        let Some(modules_dir) = modules_dirs.confined(&modules_dir) else {
             continue;
         };
         prune_importer_links(&modules_dir, snapshot, &old_groups, &new_groups, &skipped)?;
@@ -221,7 +213,19 @@ pub fn selected_groups(included: IncludedDependencies) -> Vec<DependencyGroup> {
     groups
 }
 
-pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), PruneDirectDepsError> {
+/// A direct-dependency link [`remove_direct_dep_link`] removed.
+#[derive(Debug)]
+pub struct UnlinkedDependency {
+    /// The linked package's manifest version, when it has a readable one.
+    pub version: Option<String>,
+}
+
+/// Removes the `<modules_dir>/<name>` link and the bin shims of its
+/// package. Returns `None` when there was no link to remove.
+pub fn remove_direct_dep_link(
+    modules_dir: &Path,
+    name: &str,
+) -> Result<Option<UnlinkedDependency>, PruneDirectDepsError> {
     let link =
         safe_join_modules_dir(modules_dir, name).map_err(PruneDirectDepsError::InvalidAlias)?;
     // For a scoped alias the join passes through `@scope/`; refuse to
@@ -230,18 +234,18 @@ pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), Prun
         && parent != modules_dir
         && !is_real_dir(parent)
     {
-        return Ok(());
+        return Ok(None);
     }
     // Only a symlink (junction on Windows) can be a direct-dep entry the
     // isolated linker wrote; anything else stays untouched. The probe
     // also covers "not there at all" — nothing to remove.
     if read_symlink_dir(&link).is_err() {
-        return Ok(());
+        return Ok(None);
     }
-    remove_dep_bins(modules_dir, &link)?;
+    let version = remove_dep_bins_with_version(modules_dir, &link)?;
     match remove_symlink_dir(&link) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Ok(()) => Ok(Some(UnlinkedDependency { version })),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(PruneDirectDepsError::RemoveLink { path: link, error }),
     }
 }

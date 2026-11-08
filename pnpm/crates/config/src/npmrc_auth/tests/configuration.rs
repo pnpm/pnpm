@@ -13,42 +13,21 @@ fn scope_is_ignored_in_npmrc() {
     assert_eq!(config.scope, None);
 }
 
+/// <https://github.com/pnpm/pnpm/issues/17762>
 #[test]
-fn project_ini_ignores_env_placeholders_in_registry_urls() {
+fn project_ini_records_env_placeholders_in_registry_urls() {
     static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
 
-    let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
-        "registry=https://registry.example.com/${SECRET}/\n",
-        Path::new(""),
-    );
+    for key in ["registry", "@scope:registry"] {
+        let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
+            &format!("{key}=https://registry.example.com/${{SECRET}}/\n"),
+            Path::new(""),
+        );
 
-    assert_eq!(auth.routes.default, None);
-    assert!(
-        auth.warnings
-            .iter()
-            .any(|warning| warning.contains("registry")),
-    );
-
-    let mut config = Config::new();
-    auth.apply_to::<EnvWithSecret>(&mut config);
-    assert!(!config.registry.contains("leaked"));
-}
-
-#[test]
-fn project_ini_ignores_env_placeholders_in_scoped_registry_urls() {
-    static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
-
-    let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(
-        "@scope:registry=https://registry.example.com/${SECRET}/\n",
-        Path::new(""),
-    );
-
-    assert!(auth.routes.scoped.is_empty());
-    assert!(
-        auth.warnings
-            .iter()
-            .any(|warning| warning.contains("@scope:registry")),
-    );
+        assert_eq!(auth.routes.default, None);
+        assert!(auth.routes.scoped.is_empty());
+        assert_eq!(auth.unexpanded_registry.as_deref(), Some(key));
+    }
 }
 
 #[test]

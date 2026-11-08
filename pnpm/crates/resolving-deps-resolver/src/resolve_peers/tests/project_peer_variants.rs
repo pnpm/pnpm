@@ -7,6 +7,9 @@ use super::{
     package_with_peer_dependencies, tree_node,
 };
 
+use crate::PeerDependentsDedupe;
+use rustc_hash::FxHashSet as HashSet;
+
 type ProjectDependencies<'a> = &'a [(&'a str, &'a str)];
 type PackageShape<'a> = (&'a str, &'a [(&'a str, &'a str, bool)], ProjectDependencies<'a>);
 
@@ -52,6 +55,7 @@ fn build_projects(
                 direct,
                 root_dir: format!("/repo/{index}").into(),
                 modules_dir: None,
+                rejected_optional_peers: HashSet::default(),
             }
         })
         .collect();
@@ -61,7 +65,7 @@ fn build_projects(
 fn resolve_projects(
     projects: &[ProjectDependencies<'_>],
     packages: &[PackageShape<'_>],
-    dedupe: bool,
+    dedupe: PeerDependentsDedupe,
 ) -> WorkspaceResolvePeersResult {
     let (mut tree, importers) = build_projects(projects, packages);
     resolve_with_cache_oracle(
@@ -110,7 +114,7 @@ fn project_peer_provider_keeps_its_nested_peer_variant() {
             ),
         );
     }
-    for dedupe in [false, true] {
+    for dedupe in [PeerDependentsDedupe::Off, PeerDependentsDedupe::On] {
         for shift in 0..3 {
             let mut tree = tree.clone();
             let mut importers = importers.clone();
@@ -146,7 +150,7 @@ fn unbound_optional_peer_dedupes_consistently_across_dependency_paths() {
             ("middle", &[], &[("inner", "inner@1.0.0")]),
             ("outer", &[], &[("middle", "middle@1.0.0")]),
         ],
-        true,
+        PeerDependentsDedupe::On,
     );
     let direct = &result.direct_dependencies_by_importer["0"];
     assert_eq!(result.graph[&direct["outer"]].edges.children["middle"], direct["middle"]);
@@ -165,7 +169,7 @@ fn unbound_optional_peer_dedupes_consistently_with_different_parent_variants() {
             ("middle", &[], &[("inner", "inner@1.0.0")]),
             ("outer", &[], &[("middle", "middle@1.0.0")]),
         ],
-        true,
+        PeerDependentsDedupe::On,
     );
     let direct = &result.direct_dependencies_by_importer["0"];
     assert_eq!(result.graph[&direct["outer"]].edges.children["middle"], direct["middle"]);
@@ -212,7 +216,7 @@ fn locked_optional_peers_do_not_split_an_unbound_project() {
             );
         }
     }
-    for dedupe in [false, true] {
+    for dedupe in [PeerDependentsDedupe::Off, PeerDependentsDedupe::On] {
         let mut tree = tree.clone();
         let result = resolve_with_cache_oracle(
             &mut tree,
@@ -229,8 +233,11 @@ fn locked_optional_peers_do_not_split_an_unbound_project() {
         );
         let direct = &result.direct_dependencies_by_importer["0"];
         assert_eq!(result.graph[&direct["outer"]].edges.children["middle"], direct["middle"]);
-        if !dedupe {
-            assert_eq!(direct["middle"], DepPath::from("middle@1.0.0"));
+        match dedupe {
+            PeerDependentsDedupe::Off => {
+                assert_eq!(direct["middle"], DepPath::from("middle@1.0.0"));
+            }
+            PeerDependentsDedupe::On | PeerDependentsDedupe::OnWithProjectScopedOptionalPeers => {}
         }
         assert_eq!(
             result.direct_dependencies_by_importer["1"]["middle"],

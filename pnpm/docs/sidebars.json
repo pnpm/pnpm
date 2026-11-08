@@ -58,6 +58,7 @@
             "cli/outdated",
             "cli/why",
             "cli/licenses",
+            "cli/fund",
             "cli/peers",
             "cli/view",
             "cli/search",

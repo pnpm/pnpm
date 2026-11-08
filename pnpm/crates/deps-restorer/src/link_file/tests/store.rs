@@ -1,8 +1,12 @@
 #[cfg(unix)]
 use super::{
-    super::{Host, LINK_STATE_COPY, LINK_STATE_HARDLINK, auto_link, clone_or_copy_link},
-    write_source,
+    super::{
+        Host, LINK_STATE_CLONE, LINK_STATE_COPY, LINK_STATE_HARDLINK, auto_link, clone_or_copy_link,
+    },
+    ModeDroppingClone, STORE_ENTRY, write_source,
 };
+#[cfg(unix)]
+use pnpm_fs::StoreFile;
 #[cfg(unix)]
 use pnpm_reporter::SilentReporter;
 #[cfg(unix)]
@@ -85,4 +89,37 @@ fn clone_or_copy_respects_cached_copy_state() {
         "state=COPY must not hardlink",
     );
     assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY, "state must not drift");
+}
+
+/// The clone tier aligns a reflinked target only when this install has not
+/// already read the source's mode as the desired one: a reflink copies the
+/// source's mode, so the alignment's `open` would change nothing.
+#[test]
+#[cfg(unix)]
+fn clone_tier_aligns_only_when_the_source_mode_is_unknown_or_undesired() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n").path;
+    fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
+    let target_mode = |source: StoreFile, name: &str| {
+        let dst = tmp.path().join(name);
+        auto_link::<SilentReporter, ModeDroppingClone>(
+            &AtomicU8::new(0),
+            &AtomicU8::new(LINK_STATE_CLONE),
+            &source,
+            &dst,
+        )
+        .expect("reflink should succeed");
+        fs::metadata(&dst)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777
+    };
+
+    assert_eq!(target_mode(StoreFile::with_mode(src.clone(), Some(desired)), "known"), 0o400);
+    assert_eq!(target_mode(StoreFile::new(src.clone()), "unknown"), desired);
+    assert_eq!(target_mode(StoreFile::with_mode(src, Some(desired ^ 0o004)), "stale"), desired);
 }

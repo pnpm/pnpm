@@ -7,7 +7,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use pnpr::{AuthState, Config, router_with_auth};
+use pnpr::{Config, router_with_auth};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -19,7 +19,7 @@ use tower::ServiceExt;
 const CONFIG: &str = "\
 auth:
   admins: [root]
-  htpasswd:
+  users:
     maxUsers: 100
 registries:
   local:
@@ -27,7 +27,7 @@ registries:
     org: \"\"
     rulesManagedBy: api
     teams:
-      devs: [carol]
+      devs: { name: devs, members: [carol] }
     packages:
       '@acme/app':
         access: [root]
@@ -37,7 +37,7 @@ registries:
     type: hosted
     org: fixed
     teams:
-      devs: [carol]
+      devs: { name: devs, members: [carol] }
     packages:
       '@fixed/*': {}
   main:
@@ -59,8 +59,8 @@ fn load_config(dir: &Path) -> Config {
 }
 
 async fn app_router(config: Config) -> axum::Router {
-    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
-    auth.users.create_user("root", "secret").await.unwrap();
+    let auth =
+        crate::tokens::seeded_auth(&config, &[("root", "secret123"), ("carol", "secret123")]);
     router_with_auth(config, auth)
 }
 
@@ -90,7 +90,7 @@ async fn send(
 }
 
 async fn add_user(app: &axum::Router, username: &str) -> String {
-    let body = json!({ "name": username, "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": username, "password": "secret123", "type": "user", "roles": [] });
     let path = format!("/-/user/org.couchdb.user:{username}");
     let (status, payload) = send(app, "PUT", &path, None, Some(body)).await;
     assert_eq!(status, StatusCode::CREATED);
@@ -154,8 +154,13 @@ async fn a_grant_stores_only_the_lists_it_changes() {
     let grant = json!({ "package": "@acme/app", "permissions": "read-only" });
     assert_eq!(send(&app, "PUT", PACKAGES, Some(&root), Some(grant)).await.0, StatusCode::CREATED);
 
-    let record = dir.path().join("storage/.rule-overrides/npm/local.json");
-    let stored: Value = serde_json::from_slice(&std::fs::read(record).unwrap()).unwrap();
+    let storage = pnpr_storage::Storage::from_config(&load_config(dir.path()).storage).unwrap();
+    let record = storage
+        .read_registry_record(pnpr_storage::RegistryRecord::RuleOverrides, "npm/local")
+        .await
+        .unwrap()
+        .unwrap();
+    let stored: Value = serde_json::from_slice(&record.bytes).unwrap();
     assert_eq!(stored, json!({ "packages": { "@acme/app": { "access": ["root", "team:devs"] } } }));
 }
 

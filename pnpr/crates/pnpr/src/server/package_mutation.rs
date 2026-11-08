@@ -1,3 +1,5 @@
+pub(super) mod revisions;
+
 pub(super) use dist_tags::{get_dist_tags, remove_dist_tag, set_dist_tag};
 pub(super) use unpublish::{delete_package, delete_tarball};
 
@@ -5,13 +7,13 @@ mod dist_tags;
 mod immutability;
 mod maintainers;
 mod unpublish;
+mod version_removal;
 
 use axum::{
     body::Body,
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use futures_util::StreamExt as _;
 use serde_json::Value;
 
 use immutability::{enforce_published_version_immutability, submitted_packument};
@@ -19,30 +21,18 @@ use maintainers::update_package_maintainers;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DocumentWrite, PackageTombstone};
+use pnpr_storage::{DocumentWrite, metadata::validate_document_dist_tags};
 
 use super::{
     Action, AppState, RegistrySource, authorize_package, hosted_storage, resolve_write_target,
 };
 
-/// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
-/// overwrite the on-disk packument with the client-supplied body. pnpm uses
-/// this in the partial-unpublish flow: it fetches the packument, removes the
-/// unpublished version from `versions` / `dist-tags`, then PUTs the result
-/// back. We strip any `_attachments` so we don't persist base64 payloads
-/// alongside the manifest, and run
-/// [`enforce_published_version_immutability`] so the body can't tamper with
-/// a published version's `dist` or smuggle in a new one — everything else in
-/// the body is trusted verbatim, the same trust verdaccio extends.
-///
-/// If the request body contains `maintainers` without `versions`, this is an
-/// `npm owner` mutation. Maintainer updates require maintainer/admin privileges
-/// and validate that maintainers cannot be emptied.
+/// Apply a partial unpublish based on its revision, or an owner update.
 pub(super) async fn update_packument(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
-    raw_name: &str,
+    (raw_name, revision): (&str, &str),
     body: &[u8],
 ) -> Response {
     let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
@@ -83,7 +73,7 @@ pub(super) async fn update_packument(
     if let Err(err) = authorize_rewrite(state, identity, &source, name.as_str(), Some(&org)).await {
         return err.into_response();
     }
-    let mut packument = match submitted_packument(body, &name) {
+    let mut packument = match submitted_packument(incoming_val, (&name, revision)) {
         Ok(packument) => packument,
         Err(err) => return err.into_response(),
     };
@@ -106,7 +96,7 @@ fn prepare_packument_rewrite(
     tar_integrities: &std::collections::BTreeMap<String, pnpr_storage::DerivedTar>,
     name: &CanonicalPackageName,
     packument: &mut Value,
-) -> Result<(Value, Vec<String>), Response> {
+) -> Result<Vec<String>, Response> {
     let mut hosted: Value = serde_json::from_slice(hosted_bytes)
         .map_err(|err| RegistryError::Json(err).into_response())?;
     if let Some(format_version) = hosted.get("formatVersion").and_then(Value::as_u64)
@@ -119,6 +109,12 @@ fn prepare_packument_rewrite(
         }
         .into_response());
     }
+    revisions::check(name, &hosted, packument.get("_rev").and_then(Value::as_str))
+        .map_err(IntoResponse::into_response)?;
+    packument
+        .as_object_mut()
+        .expect("submitted packument is an object")
+        .remove("_rev");
     super::tar_registry::overlay_verified_tar_stats(&mut hosted, tar_integrities);
     super::restore_tgz_integrities(&hosted, tar_integrities, packument);
     if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
@@ -132,8 +128,8 @@ fn prepare_packument_rewrite(
             serde_json::json!(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION),
         );
     }
-    let removed = detect_removed_versions(&hosted, packument);
-    Ok((hosted, removed))
+    validate_document_dist_tags(&hosted, packument).map_err(IntoResponse::into_response)?;
+    Ok(detect_removed_versions(&hosted, packument))
 }
 
 /// Serialize against other same-package writers so the rewrite cannot
@@ -152,29 +148,22 @@ async fn rewrite_packument(
         Err(response) => return response,
     };
     let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
-    let (hosted, removed) =
+    let removed =
         match prepare_packument_rewrite(&hosted_packument.bytes, &tar_integrities, name, packument)
         {
-            Ok(pair) => pair,
+            Ok(removed) => removed,
             Err(response) => return response,
         };
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    // The tombstone names the removed versions before the rewrite removes
-    // them: the metadata store may refuse a removed version for good, so a
-    // rewrite could not be undone if recording them failed after it.
-    if let Err(err) =
-        record_removed_versions_in_tombstone(storage, identity, name, &hosted, &removed).await
-    {
-        return err.into_response();
-    }
+    let unpublished = unpublished_blobs(storage, name, &removed).await;
     let version = Some(&hosted_packument.version);
-    match storage.write_hosted_document_if_current(name, &bytes, version, identity.username()).await
+    match storage.write_hosted_document_if_current(name, &bytes, version, identity.user_id()).await
     {
         Ok(DocumentWrite::Written) => {
-            remove_unpublished_blobs(storage, name, &removed).await;
+            reclaim_unpublished_blobs(storage, name, unpublished).await;
             log_packument_update(identity, name, source);
             ok_created()
         }
@@ -207,84 +196,35 @@ fn detect_removed_versions(hosted: &Value, packument: &Value) -> Vec<String> {
         .collect()
 }
 
-async fn record_removed_versions_in_tombstone(
+/// The blobs the files of `removed_versions` are mapped to, read before the
+/// rewrite drops the versions and their mappings. A failure only warns: the
+/// blobs are then left for `pnpr gc`.
+async fn unpublished_blobs(
     storage: &pnpr_storage::Storage,
-    identity: &Identity,
     name: &CanonicalPackageName,
-    hosted: &Value,
     removed_versions: &[String],
-) -> Result<(), RegistryError> {
-    if removed_versions.is_empty() {
-        return Ok(());
-    }
-    let fallback = new_tombstone_from_hosted(identity, name, hosted);
-    let removed = removed_versions.to_vec();
-    storage.update_tombstone(name, move |existing| {
-        let mut tombstone = existing.unwrap_or_else(|| fallback.clone());
-        for version in &removed {
-            if !tombstone.unpublished_versions
-                .iter()
-                .any(|existing| existing == version)
-            {
-                tombstone.unpublished_versions.push(version.clone());
-            }
+) -> Vec<pnpr_storage::BlobId> {
+    match storage.version_blobs(name, removed_versions).await {
+        Ok(ids) => ids,
+        Err(err) => {
+            tracing::warn!(package = %name.as_str(), %err, "unpublished archives left for `pnpr gc`");
+            Vec::new()
         }
-        tombstone
-    })
-    .await?;
-    Ok(())
+    }
 }
 
-/// Blob deletions one packument rewrite runs at once, while it holds the
-/// package lock.
-const BLOB_REMOVALS_IN_FLIGHT: usize = 16;
-
-/// A rewrite that drops versions deletes their tarballs too: a client that
+/// A rewrite that drops versions reclaims their archives too: a client that
 /// read the packument from a tar registry has no `dist.tarball` to send the
-/// follow-up tarball DELETE for. The versions are already unpublished, so a
-/// blob that fails to go is logged and left for `pnpr verify --prune-orphans`.
-async fn remove_unpublished_blobs(
+/// follow-up tarball DELETE for. Bytes another file still maps stay. The
+/// versions are already unpublished, so an archive that fails to go is
+/// logged and left for `pnpr gc`.
+async fn reclaim_unpublished_blobs(
     storage: &pnpr_storage::Storage,
     name: &CanonicalPackageName,
-    removed_versions: &[String],
+    ids: Vec<pnpr_storage::BlobId>,
 ) {
-    let blobs = removed_versions
-        .iter()
-        .flat_map(|version| {
-            [
-                name.tarball_name_for_version(version),
-                name.tar_name_for_version(version),
-                name.sigstore_name_for_version(version),
-            ]
-        });
-    futures_util::stream::iter(blobs)
-        .for_each_concurrent(BLOB_REMOVALS_IN_FLIGHT, |blob| async move {
-            if let Err(err) = storage.remove_blob(name, &blob).await {
-                tracing::warn!(package = %name.as_str(), %blob, %err, "unpublished blob not removed");
-            }
-        })
-        .await;
-}
-
-fn new_tombstone_from_hosted(
-    identity: &Identity,
-    name: &CanonicalPackageName,
-    hosted: &Value,
-) -> PackageTombstone {
-    let mut maintainers = Vec::new();
-    if let Some(entries) = hosted.get("maintainers").and_then(Value::as_array) {
-        for entry in entries {
-            if let Some(user) = entry.get("name").and_then(Value::as_str) {
-                maintainers.push(user.to_string());
-            }
-        }
-    }
-    PackageTombstone {
-        package: name.as_str().to_string(),
-        unpublished_by: identity.username().map(ToString::to_string),
-        unpublished_at: chrono::Utc::now().to_rfc3339(),
-        maintainers,
-        unpublished_versions: Vec::new(),
+    if let Err(err) = storage.reclaim_blobs(ids).await {
+        tracing::warn!(package = %name.as_str(), %err, "unpublished archives left for `pnpr gc`");
     }
 }
 

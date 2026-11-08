@@ -9,7 +9,7 @@ import { pathTemp } from 'path-temp'
 
 import { createWorkspaceState } from './createWorkspaceState.js'
 import { getFilePath } from './filePath.js'
-import { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
+import { importerModulesDir } from './importerModulesDir.js'
 import { loadWorkspaceState } from './loadWorkspaceState.js'
 import { type ReadLocalDependencies, recordLocalDependencies } from './localDependencies.js'
 import { resolveStoreLocationSettings } from './storeLocation.js'
@@ -22,6 +22,8 @@ export interface UpdateWorkspaceStateOptions {
   workspaceDir: string
   /** The directory a relative `storeDir` resolves against. Defaults to `workspaceDir`. */
   storeBaseDir?: string
+  /** The configured `modulesDir`, which places each project's modules directory. */
+  modulesDir?: string
   pnpmfiles: string[]
   filteredInstall: boolean
   configDependencies?: ConfigDependencies
@@ -79,7 +81,7 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
     preserveCarriedSettings(workspaceState.settings, previous?.settings, opts.ignoredWorkspaceStateSettings)
     if (opts.validation != null && !(await recordValidationToWrite(workspaceState, opts, opts.validation, previous))) return
     if (opts.settings.nodeLinker === 'hoisted') {
-      await recordHoistedModulesDirs(workspaceState, opts.allProjects)
+      await recordHoistedModulesDirs(workspaceState, opts.allProjects, { lockfileDir: opts.workspaceDir, modulesDir: opts.modulesDir })
     }
     await fs.promises.mkdir(cacheDir, { recursive: true })
     await fs.promises.writeFile(tempFile, JSON.stringify(workspaceState, undefined, 2) + '\n')
@@ -172,9 +174,13 @@ function recordStateValidation (
   }
 }
 
-async function recordHoistedModulesDirs (workspaceState: WorkspaceState, allProjects: ProjectsList): Promise<void> {
+async function recordHoistedModulesDirs (
+  workspaceState: WorkspaceState,
+  allProjects: ProjectsList,
+  opts: { lockfileDir: string, modulesDir?: string }
+): Promise<void> {
   await Promise.all(allProjects.map(async (project) => {
-    if (await isDirectory(getHoistedProjectModulesDir(project.rootDir))) {
+    if (await isDirectory(importerModulesDir(project.rootDir, opts))) {
       workspaceState.projects[project.rootDir].hasModulesDir = true
     }
   }))

@@ -4,7 +4,6 @@ use super::{
     router_with_auth, sha256_hex,
 };
 use crate::tokens::issue_token;
-use pnpr_storage::layout::local_blob_path;
 
 #[tokio::test]
 async fn publish_then_resolve_and_download_a_hosted_crate() {
@@ -71,15 +70,14 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     assert_eq!(body_bytes(response.into_body()).await, archive);
 
     // Storage layout: the hosted org namespace, keyed by the lowercase name.
-    assert!(
-        local_blob_path(
+    assert_eq!(
+        pnpr_fixtures::read_hosted_file(
             tmp.path(),
-            "crates",
-            pnpr_storage::Ecosystem::Cargo,
+            ("crates", pnpr_storage::Ecosystem::Cargo),
             "demo",
-            "demo-0.1.0.crate"
-        )
-        .is_file(),
+            "demo-0.1.0.crate",
+        ),
+        Some(archive.clone()),
     );
     assert!(
         pnpr_fixtures::read_hosted_document(
@@ -104,7 +102,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{wrong}");
     }
-    // The same crate through the named registry, caller-scoped.
+    // The same public crate through the named registry stays cacheable.
     let response = app
         .clone()
         .oneshot(
@@ -115,7 +113,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    assert!(!response.headers().contains_key(header::CACHE_CONTROL));
     // npm-shaped paths mean nothing on the Cargo surface.
     let response = app
         .clone()
@@ -192,14 +190,13 @@ async fn publish_requires_a_token_and_refuses_duplicates_and_bad_archives() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert!(
-        !local_blob_path(
+        pnpr_fixtures::read_hosted_file(
             tmp.path(),
-            "crates",
-            pnpr_storage::Ecosystem::Cargo,
+            ("crates", pnpr_storage::Ecosystem::Cargo),
             "demo",
             "demo-0.2.0.crate"
         )
-        .exists(),
+        .is_none(),
     );
 
     // A name the hosted registry does not claim routes to the upstream, where

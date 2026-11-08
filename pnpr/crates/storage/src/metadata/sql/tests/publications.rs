@@ -1,13 +1,21 @@
 //! Atomic publications, their recorded outcomes, and publication lookups.
 
-use super::{Db, npm, packument, read, storage, write};
-use crate::metadata::{
-    BatchDocument, PublicationCommit, PublicationRequest, PublishNotes, ReleaseRecords, SqlMetadata,
+use super::{Db, npm, packument, read, schema::execute, storage, write};
+use crate::{
+    metadata::{
+        ArtifactMember, BatchDocument, PublicationCommit, PublicationRequest, PublishNotes,
+        ReleaseRecords, SqlMetadata,
+        sql::{adapter::ReadSource, schema},
+    },
+    publish::now_millis,
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::Ecosystem;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 fn document(name: &str, document: &Value) -> BatchDocument {
     BatchDocument {
@@ -103,6 +111,378 @@ async fn a_retried_request_gets_its_recorded_outcome(db: Db) {
     reused.idempotency_key = "request:digest".to_string();
     let err = commit(database, vec![document("core", &doc)], reused).await.unwrap_err();
     assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
+}
+
+async fn outcome_keys(db: &Db) -> Vec<String> {
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        let mut keys = Vec::new();
+        adapter
+            .read(ReadSource::Primary, &mut |connection| {
+                keys = connection
+                    .query(
+                        "SELECT idempotency_key FROM publication_outcomes ORDER BY idempotency_key",
+                        params![],
+                    )?
+                    .into_iter()
+                    .map(|mut row| row.get::<String>(0))
+                    .collect::<pnpr_error::Result<Vec<_>>>()?;
+                Ok(())
+            })
+            .unwrap();
+        keys
+    })
+    .await
+    .unwrap()
+}
+
+async fn sweep_query_plan(db: &Db) -> Vec<String> {
+    let sql = db
+        .sql(
+            "EXPLAIN QUERY PLAN DELETE FROM publication_outcomes WHERE committed_at < ?1",
+            "EXPLAIN (COSTS OFF) DELETE FROM publication_outcomes WHERE committed_at < ?1",
+            "EXPLAIN FORMAT=JSON DELETE FROM publication_outcomes WHERE committed_at < ?1",
+        )
+        .to_string();
+    let disable_seqscan = db.sql("", "SET LOCAL enable_seqscan = off", "");
+    let column =
+        if disable_seqscan.is_empty() && sql.starts_with("EXPLAIN QUERY PLAN") { 3 } else { 0 };
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        let mut details = Vec::new();
+        adapter
+            .read(ReadSource::Replica, &mut |connection| {
+                if !disable_seqscan.is_empty() {
+                    connection.begin_read()?;
+                    connection.execute(disable_seqscan, params![])?;
+                }
+                details = connection
+                    .query(&sql, params![0_i64])?
+                    .into_iter()
+                    .map(|mut row| row.get::<String>(column))
+                    .collect::<pnpr_error::Result<Vec<_>>>()?;
+                if !disable_seqscan.is_empty() {
+                    connection.commit()?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        details
+    })
+    .await
+    .unwrap()
+}
+
+async fn the_outcome_sweep_uses_the_committed_at_index(db: Db) {
+    let storage = storage(&db);
+    commit(
+        storage.sql_metadata(),
+        vec![document("core", &packument("core", &["1.0.0"]))],
+        request("one", None),
+    )
+    .await
+    .unwrap();
+    let plan = sweep_query_plan(&db).await;
+    assert!(
+        plan.iter()
+            .any(|detail| detail.contains("publication_outcomes_by_committed_at")),
+        "{plan:?}",
+    );
+    assert!(
+        !plan
+            .iter()
+            .any(|detail| detail.contains("SCAN publication_outcomes")),
+        "{plan:?}",
+    );
+}
+
+async fn expired_outcomes_are_swept(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    commit(
+        database,
+        vec![document("core", &packument("core", &["1.0.0"]))],
+        request("stale", None),
+    )
+    .await
+    .unwrap();
+    commit(
+        database,
+        vec![document("widgets", &packument("widgets", &["1.0.0"]))],
+        request("retained", None),
+    )
+    .await
+    .unwrap();
+
+    execute(
+        &db,
+        &["UPDATE publication_outcomes SET committed_at = 0 WHERE idempotency_key = 'request:stale'"],
+    )
+    .await;
+    assert!(
+        database
+            .recorded_outcome("acme", &request("stale", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(outcome_keys(&db).await, ["request:retained", "request:stale"]);
+
+    commit(
+        database,
+        vec![document("extra", &packument("extra", &["1.0.0"]))],
+        request("fresh", None),
+    )
+    .await
+    .unwrap();
+    assert_eq!(outcome_keys(&db).await, ["request:fresh", "request:retained"]);
+}
+
+async fn an_unpublished_member_invalidates_the_recorded_outcome(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    let org = storage.for_hosted("acme", Ecosystem::Npm);
+    let core = packument("core", &["1.0.0"]);
+    let widgets = packument("widgets", &["1.0.0"]);
+    commit(
+        database,
+        vec![document("core", &core), document("widgets", &widgets)],
+        request("one", None),
+    )
+    .await
+    .unwrap();
+    assert!(
+        org.remove_package(&npm("widgets"), None).await
+            .unwrap(),
+    );
+    assert!(
+        database
+            .recorded_outcome("acme", &request("one", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+
+    let mut retained = document("core", &core);
+    retained.expected = Some(crate::HostedDocumentVersion::Unversioned);
+    let err = commit(database, vec![retained, document("widgets", &widgets)], request("one", None))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, RegistryError::CannotRepublishUnpublishedVersion { .. }), "{err:?}");
+    assert_eq!(database.catalog_generation("acme").await.unwrap(), 2);
+    assert_eq!(read(&org, "core").await, core);
+    let mut reused = request("different", None);
+    reused.idempotency_key = "request:one".to_string();
+    let err = commit(database, vec![document("core", &core)], reused).await.unwrap_err();
+    assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
+}
+
+fn oci_document(name: &str, digests: &[&str], tags: &[(&str, &str)]) -> Value {
+    let manifests: Vec<Value> = digests
+        .iter()
+        .map(|digest| {
+            json!({
+                "digest": digest,
+                "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                "size": 128,
+            })
+        })
+        .collect();
+    let tags: Vec<Value> = tags
+        .iter()
+        .map(|(tag, digest)| json!({ "tag": tag, "digest": digest, "updated": 1 }))
+        .collect();
+    json!({
+        "formatVersion": 2,
+        "name": name,
+        "manifests": manifests,
+        "tags": tags,
+    })
+}
+
+async fn a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republish(db: Db) {
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    let oci_org = storage.for_hosted("acme", Ecosystem::Oci);
+    let key = CanonicalPackageName::parse("acme/app", Ecosystem::Oci).unwrap();
+    let digest = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+    let artifact = "sha256-1111111111111111111111111111111111111111111111111111111111111111";
+    let kept_digest = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+    let kept_artifact = "sha256-2222222222222222222222222222222222222222222222222222222222222222";
+    let member = ArtifactMember {
+        ecosystem: Ecosystem::Oci,
+        name: "acme/app".to_string(),
+        version: String::new(),
+        artifact: artifact.to_string(),
+    };
+    let kept_member = ArtifactMember {
+        ecosystem: Ecosystem::Oci,
+        name: "acme/app".to_string(),
+        version: String::new(),
+        artifact: kept_artifact.to_string(),
+    };
+    let doc = |digests: &[&str], tags: &[(&str, &str)], expected| BatchDocument {
+        ecosystem: Ecosystem::Oci,
+        name: "acme/app".to_string(),
+        bytes: serde_json::to_vec(&oci_document("acme/app", digests, tags)).unwrap(),
+        expected,
+        principal: Some("alice".to_string()),
+        records: ReleaseRecords::new(),
+    };
+    let first = database
+        .commit_publication(
+            "acme",
+            vec![doc(&[digest], &[("1.0", digest)], None)],
+            vec![member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-one", Some("oci-v1"))),
+        )
+        .await
+        .unwrap();
+    assert_eq!((first.generation.value, first.publication), (1, Some(1)));
+    let kept = database
+        .commit_publication(
+            "acme",
+            vec![doc(
+                &[digest, kept_digest],
+                &[("1.0", digest), ("kept", kept_digest)],
+                Some(crate::HostedDocumentVersion::Unversioned),
+            )],
+            vec![kept_member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-kept", Some("oci-kept-v1"))),
+        )
+        .await
+        .unwrap();
+    assert_eq!((kept.generation.value, kept.publication), (2, Some(2)));
+
+    // Deleting only a tag leaves both manifests in the document, so the batch
+    // outcome stays replayable.
+    oci_org
+        .update_hosted_document_with_retry(&key, 1, None, |_| {
+            Ok(Some(
+                serde_json::to_vec(&oci_document(
+                    "acme/app",
+                    &[digest, kept_digest],
+                    &[("kept", kept_digest)],
+                ))
+                .unwrap(),
+            ))
+        })
+        .await
+        .unwrap();
+    let replayed = database
+        .commit_publication(
+            "acme",
+            vec![doc(&[digest], &[("1.0", digest)], None)],
+            vec![member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-one", Some("oci-v1"))),
+        )
+        .await
+        .unwrap();
+    assert!(replayed.replayed);
+    assert_eq!((replayed.generation.value, replayed.publication), (1, Some(1)));
+
+    // Deleting one manifest from the document invalidates only its recorded
+    // outcome, while another manifest in the same repository stays replayable.
+    oci_org
+        .update_hosted_document_with_retry(&key, 1, None, |_| {
+            Ok(Some(
+                serde_json::to_vec(&oci_document(
+                    "acme/app",
+                    &[kept_digest],
+                    &[("kept", kept_digest)],
+                ))
+                .unwrap(),
+            ))
+        })
+        .await
+        .unwrap();
+    assert!(
+        database
+            .recorded_outcome("acme", &request("oci-one", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let kept_replayed = database
+        .commit_publication(
+            "acme",
+            vec![doc(&[digest, kept_digest], &[("1.0", digest), ("kept", kept_digest)], None)],
+            vec![kept_member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-kept", Some("oci-kept-v1"))),
+        )
+        .await
+        .unwrap();
+    assert!(kept_replayed.replayed);
+    assert_eq!((kept_replayed.generation.value, kept_replayed.publication), (2, Some(2)));
+    let mut reused = request("different", None);
+    reused.idempotency_key = "request:oci-one".to_string();
+    let err = commit(database, Vec::new(), reused).await.unwrap_err();
+    assert!(matches!(err, RegistryError::AdminConflict { .. }), "{err:?}");
+
+    // Republishing the deleted OCI manifest in a later publication succeeds,
+    // records its membership in the new publication while keeping the earlier
+    // outcome invalidated, and invalidates again if the package is removed.
+    let second = database
+        .commit_publication(
+            "acme",
+            vec![doc(
+                &[kept_digest, digest],
+                &[("kept", kept_digest), ("2.0", digest)],
+                Some(crate::HostedDocumentVersion::Unversioned),
+            )],
+            vec![member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-two", Some("oci-v2"))),
+        )
+        .await
+        .unwrap();
+    assert!(!second.replayed);
+    assert_eq!(second.publication, Some(second.generation.value));
+    assert_eq!(
+        database
+            .publication("acme", "oci-v1")
+            .await
+            .unwrap()
+            .unwrap()
+            .members,
+        vec![member.clone()],
+    );
+    assert_eq!(
+        database
+            .publication("acme", "oci-v2")
+            .await
+            .unwrap()
+            .unwrap()
+            .members,
+        vec![member],
+    );
+    assert!(
+        database
+            .recorded_outcome("acme", &request("oci-one", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        database
+            .recorded_outcome("acme", &request("oci-two", None))
+            .await
+            .unwrap()
+            .map(|outcome| outcome.generation),
+        Some(second.generation.value),
+    );
+    assert!(oci_org.remove_package(&key, None).await.unwrap());
+    assert!(
+        database
+            .recorded_outcome("acme", &request("oci-two", None))
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 async fn publications_are_found_by_id_name_and_member(db: Db) {
@@ -205,7 +585,7 @@ async fn a_publication_cannot_bring_back_a_removed_version(db: Db) {
     let batch = vec![document("core", &packument("core", &["1.0.0"]))];
     commit(database, batch, request("one", None)).await.unwrap();
     let removed = org
-        .remove_package(&npm("core"))
+        .remove_package(&npm("core"), None)
         .await
         .unwrap();
     assert!(removed);
@@ -335,9 +715,128 @@ conformance! {
     a_release_record_must_describe_its_version,
     a_batch_commits_every_package_under_one_generation_or_none,
     a_retried_request_gets_its_recorded_outcome,
+    expired_outcomes_are_swept,
+    an_unpublished_member_invalidates_the_recorded_outcome,
+    a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republish,
     publications_are_found_by_id_name_and_member,
     a_version_written_outside_a_publish_request_gets_a_publication,
     a_publication_without_a_request_records_its_publisher,
     a_publication_cannot_bring_back_a_removed_version,
     competing_publications_of_one_version_commit_once,
+}
+
+/// `EXPLAIN QUERY PLAN` is `SQLite` syntax.
+mod embedded_query_plan {
+    use super::the_outcome_sweep_uses_the_committed_at_index;
+    embedded_conformance!(the_outcome_sweep_uses_the_committed_at_index);
+}
+
+#[derive(Debug, Clone, Copy)]
+enum OutcomeIndex {
+    WithoutIndex,
+    WithIndex,
+}
+
+async fn seed_outcomes(db: &Db, prefix: &str, count: usize, base_millis: i64) {
+    if count == 0 {
+        return;
+    }
+    let sql = format!(
+        "WITH RECURSIVE series(i) AS (
+             SELECT 1
+             UNION ALL
+             SELECT i + 1 FROM series WHERE i < {count}
+         )
+         INSERT INTO publication_outcomes (
+             catalog, principal, idempotency_key, request_digest,
+             generation, publication, committed_at
+         )
+         SELECT
+             'acme',
+             'principal-' || (i % 64),
+             '{prefix}-' || printf('%06d', i),
+             'digest-' || printf('%056d', i),
+             i,
+             i,
+             {base_millis} + i
+         FROM series",
+    );
+    execute(db, &[&sql]).await;
+}
+
+async fn measure_outcome_sweep(
+    db: Db,
+    layout: OutcomeIndex,
+    retained: usize,
+    expired_per_publish: usize,
+) {
+    let mut tables = schema::TABLES.to_string();
+    if matches!(layout, OutcomeIndex::WithoutIndex) {
+        tables = tables.replace(
+            "CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at\n    ON publication_outcomes (committed_at);\n",
+            "",
+        );
+        assert!(!tables.contains("publication_outcomes_by_committed_at"));
+    }
+    let mut statements: Vec<_> = schema::statements(&tables).collect();
+    statements.push(schema::MARKER_TABLE.to_string());
+    statements.push(format!(
+        "INSERT INTO {} (version) VALUES ({})",
+        schema::MARKER,
+        schema::SCHEMA_VERSION,
+    ));
+    let refs: Vec<_> = statements
+        .iter()
+        .map(String::as_str)
+        .collect();
+    execute(&db, &refs).await;
+    seed_outcomes(&db, "retained", retained, now_millis()).await;
+
+    let storage = storage(&db);
+    let database = storage.sql_metadata();
+    let mut times = Vec::new();
+    for sample in 0..16 {
+        let prefix = format!("expired-{sample}");
+        seed_outcomes(&db, &prefix, expired_per_publish, 1).await;
+        let name = format!("pkg-{sample}");
+        let batch = vec![document(&name, &packument(&name, &["1.0.0"]))];
+        let req = request(&name, None);
+        let started = Instant::now();
+        commit(database, batch, req).await.unwrap();
+        let elapsed = started.elapsed();
+        if sample > 0 {
+            times.push(elapsed);
+        }
+    }
+    assert_eq!(outcome_keys(&db).await.len(), retained + 16);
+    times.sort();
+    let milliseconds = |duration: Duration| duration.as_secs_f64() * 1000.0;
+    eprintln!(
+        "{layout:?} (retained={retained}, expired_per_publish={expired_per_publish}): median {:.2} ms, min {:.2} ms, max {:.2} ms ({} publishes)",
+        milliseconds(times[times.len() / 2]),
+        milliseconds(times[0]),
+        milliseconds(times[times.len() - 1]),
+        times.len(),
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "manual outcome-retention sweep benchmark"]
+async fn outcome_retention_sweep_on_sqlite() {
+    for (retained, expired) in [(10_000, 0), (10_000, 100), (50_000, 0), (50_000, 500)] {
+        for layout in [OutcomeIndex::WithoutIndex, OutcomeIndex::WithIndex] {
+            measure_outcome_sweep(Db::sqlite(), layout, retained, expired).await;
+        }
+    }
+}
+
+#[cfg(feature = "backend-libsql")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "manual outcome-retention sweep benchmark"]
+async fn outcome_retention_sweep_on_libsql_primary() {
+    for (retained, expired) in [(10_000, 0), (10_000, 100), (50_000, 0), (50_000, 500)] {
+        for layout in [OutcomeIndex::WithoutIndex, OutcomeIndex::WithIndex] {
+            measure_outcome_sweep(Db::libsql(false).await, layout, retained, expired).await;
+        }
+    }
 }

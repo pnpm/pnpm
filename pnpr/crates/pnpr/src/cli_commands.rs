@@ -13,15 +13,19 @@ use std::{path::PathBuf, time::Duration};
 pub enum Command {
     /// Run the registry server (default when no subcommand is specified).
     Serve(ServerArgs),
-    /// Collect old, unreferenced image blobs. Stop all registry writers first.
-    OciGc {
-        /// Concrete hosted OCI registry from the config.
+    /// Remove archives no hosted package references. Safe while the
+    /// registry serves and other replicas publish.
+    Gc {
+        /// Hosted registry from the config to collect in; repeat for more.
+        /// Every hosted registry when omitted.
         #[arg(long)]
-        registry: String,
-        /// Report reclaimable blobs without deleting them.
+        registry: Vec<String>,
+        /// Report reclaimable archives without removing them.
         #[arg(long)]
         dry_run: bool,
-        /// Minimum blob age to reclaim (e.g. "1d", "86400s", or bare seconds).
+        /// How long ago an archive must have been stored, or an image blob
+        /// uploaded, before an unfinished publish or push of it is fenced off
+        /// and it is reclaimed (e.g. "1d", "86400s", or bare seconds).
         #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
         min_age: Duration,
     },
@@ -45,24 +49,19 @@ pub enum Command {
         #[command(subcommand)]
         action: ConfigSubcommand,
     },
-    /// Verify every document against its blobs (tarballs, attestations).
+    /// Verify every document against its blobs (tarballs, attestations), and
+    /// report orphaned blobs. `pnpr gc` removes them.
     Verify {
         /// Skip cryptographic hash verification (SHA-512 / SHA-1) of stored blobs against packument integrity.
         #[arg(long)]
         skip_hashes: bool,
-        /// Remove orphaned blobs from storage.
-        #[arg(long)]
-        prune_orphans: bool,
-        /// Minimum age before an unreferenced blob is considered for pruning (e.g. "1d", "86400s", or bare seconds).
-        #[arg(long, default_value = "1d", value_parser = parse_cli_interval)]
-        min_age: Duration,
     },
     /// Export hosted packages and blobs to a directory.
     Export {
         /// Target directory to export packages into.
         #[arg(long)]
         out: PathBuf,
-        /// Include auth files (htpasswd, tokens.db) in export.
+        /// Include auth files (users.json, tokens.db) in export.
         #[arg(long)]
         include_auth: bool,
     },
@@ -95,7 +94,7 @@ pub enum Command {
         /// Path to source htpasswd file.
         #[arg(long)]
         source: PathBuf,
-        /// Path to target htpasswd file. Defaults to config htpasswd file.
+        /// Path to the target JSON account file. Defaults to the configured account file.
         #[arg(long)]
         target: Option<PathBuf>,
         /// Report what would be imported without writing to target file.
@@ -105,8 +104,7 @@ pub enum Command {
         #[arg(long)]
         overwrite: bool,
     },
-    /// Add or update a user account in the configured auth backend. With an
-    /// htpasswd file, run it while the server is stopped.
+    /// Add or update an account and print its immutable ID.
     AddUser {
         /// Username of the account to create or update.
         username: String,
@@ -126,7 +124,7 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
         Command::Serve(..) => Err(miette::miette!(
             "`serve` is not a maintenance command; start the server with `pnpr::serve`"
         )),
-        Command::OciGc { .. } => run_oci_gc_command(config, command).await,
+        Command::Gc { .. } => run_gc_command(config, command).await,
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
         Command::Config { .. } => run_config_check(),
         Command::Verify { .. } => run_verify_command(config, command).await,
@@ -139,11 +137,12 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
     }
 }
 
-async fn run_oci_gc_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::OciGc { registry, dry_run, min_age } = command else {
+async fn run_gc_command(config: &Config, command: Command) -> miette::Result<()> {
+    let Command::Gc { registry, dry_run, min_age } = command else {
         return Ok(());
     };
-    run_oci_gc(config, registry, dry_run, min_age.as_secs()).await
+    let options = crate::archive_gc::GcOptions { registries: registry, min_age, dry_run };
+    run_gc(config, &options).await
 }
 
 async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -162,10 +161,10 @@ async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Resu
 }
 
 async fn run_verify_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Verify { skip_hashes, prune_orphans, min_age } = command else {
+    let Command::Verify { skip_hashes } = command else {
         return Ok(());
     };
-    run_verify(config, !skip_hashes, prune_orphans, min_age.as_secs()).await
+    run_verify(config, !skip_hashes).await
 }
 
 async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -222,13 +221,8 @@ async fn run_migrate_storage(
     Ok(())
 }
 
-async fn run_verify(
-    config: &Config,
-    check_hashes: bool,
-    prune_orphans: bool,
-    min_age_secs: u64,
-) -> miette::Result<()> {
-    let options = crate::verify::VerifyOptions { check_hashes, prune_orphans, min_age_secs };
+async fn run_verify(config: &Config, check_hashes: bool) -> miette::Result<()> {
+    let options = crate::verify::VerifyOptions { check_hashes };
     let report = crate::verify::verify_storage(config, &options).await?;
     print!("{}", crate::verify::format_verify_report(&report));
     if !report.missing_blobs.is_empty() || !report.corrupted_blobs.is_empty() {
@@ -254,10 +248,10 @@ fn run_import_htpasswd(
     dry_run: bool,
     overwrite: bool,
 ) -> miette::Result<()> {
-    let target = target.or_else(|| config.identity.auth.htpasswd.file.clone());
+    let target = target.or_else(|| config.identity.auth.users.file.clone());
     let Some(target) = target else {
         return Err(miette::miette!(
-            "no target htpasswd file specified and none configured in identity.auth.htpasswd.file; pass --target <path>"
+            "no target account file specified and none configured in identity.auth.users.file; pass --target <path>"
         ));
     };
     let options = crate::htpasswd_import::HtpasswdImportOptions {
@@ -271,22 +265,12 @@ fn run_import_htpasswd(
     Ok(())
 }
 
-async fn run_oci_gc(
-    config: &Config,
-    registry: String,
-    dry_run: bool,
-    min_age_secs: u64,
-) -> miette::Result<()> {
+async fn run_gc(config: &Config, options: &crate::archive_gc::GcOptions) -> miette::Result<()> {
     crate::prepare_storage(config).await.map_err(|err| redacted_report(&err))?;
-    let (blobs, bytes) = crate::oci_maintenance::collect_oci_blobs(
-        config,
-        &registry,
-        Duration::from_secs(min_age_secs),
-        dry_run,
-    )
-    .await
-    .map_err(|err| redacted_report(&err))?;
-    tracing::info!(blobs, bytes, dry_run, "OCI collection completed");
+    let report = crate::archive_gc::collect_archives(config, options).await
+        .map_err(|err| redacted_report(&err))?;
+    let verb = if options.dry_run { "would remove" } else { "removed" };
+    println!("Archive collection {verb} {} archives ({} bytes).", report.archives, report.bytes);
     Ok(())
 }
 
@@ -357,25 +341,17 @@ async fn run_add_user_command(
     password: Option<String>,
 ) -> miette::Result<()> {
     if matches!(config.identity.backend, pnpr_config::BackendConfig::Local)
-        && config.identity.auth.htpasswd.file.is_none()
+        && config.identity.auth.users.file.is_none()
     {
         return Err(miette::miette!(
-            "standalone add-user requires a persistent auth backend (configure auth.htpasswd.file or a database backend)"
+            "standalone add-user requires a persistent auth backend (configure auth.users.file or a database backend)"
         ));
     }
     let password = match password {
         Some(password) => password,
         None => read_password()?,
     };
-    if password.is_empty() {
-        return Err(miette::miette!("password cannot be empty"));
-    }
-    if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
-        return Err(miette::miette!(
-            "password cannot exceed {} bytes",
-            pnpr_auth::MAX_PASSWORD_BYTES,
-        ));
-    }
+    validate_password(&password)?;
     let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .map_err(|err| miette::miette!("could not connect to auth backend: {err}"))?;
@@ -389,6 +365,25 @@ async fn run_add_user_command(
             println!("Password for user '{username}' updated successfully.");
         }
         None => return Err(miette::miette!("failed to create or update user '{username}'")),
+    }
+    let id = auth.users
+        .account_id(&username)
+        .await
+        .map_err(|err| miette::miette!("{err}"))?
+        .ok_or_else(|| miette::miette!("account disappeared after update"))?;
+    println!("Account ID: {id}");
+    Ok(())
+}
+
+fn validate_password(password: &str) -> miette::Result<()> {
+    if password.is_empty() {
+        return Err(miette::miette!("password cannot be empty"));
+    }
+    if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
+        return Err(miette::miette!(
+            "password cannot exceed {} bytes",
+            pnpr_auth::MAX_PASSWORD_BYTES,
+        ));
     }
     Ok(())
 }

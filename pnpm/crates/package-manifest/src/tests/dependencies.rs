@@ -1,8 +1,8 @@
 use super::{
     DependencyGroup, HashMap, NamedTempFile, PackageManifest, PackageManifestError, Write,
     apply_runtime_on_fail_override, assert_eq, convert_dependencies_to_engines_runtime,
-    convert_engines_runtime_to_dependencies, json, manifest_from_json,
-    node_version_from_engines_runtime, read_to_string, tempdir,
+    convert_engines_runtime_to_dependencies, downloaded_node_version_from_engines_runtime, json,
+    manifest_from_json, node_version_from_engines_runtime, read_to_string, tempdir,
 };
 
 #[test]
@@ -325,6 +325,50 @@ fn node_version_keeps_the_lower_bound_of_a_range_pnpm_downloads() {
             },
         })),
         Some("22.12.0".to_string()),
+    );
+}
+
+#[test]
+fn downloaded_node_version_ignores_a_runtime_pnpm_does_not_download() {
+    for runtime in [
+        json!({ "name": "node", "version": "24.6.0" }),
+        json!({ "name": "node", "version": "24.6.0", "onFail": "warn" }),
+    ] {
+        let manifest = json!({ "devEngines": { "runtime": runtime } });
+        assert_eq!(downloaded_node_version_from_engines_runtime(&manifest, None), None);
+    }
+}
+
+#[test]
+fn downloaded_node_version_follows_the_runtime_on_fail_override() {
+    let manifest = json!({
+        "devEngines": { "runtime": { "name": "node", "version": "^24.2.0", "onFail": "warn" } },
+    });
+    assert_eq!(
+        downloaded_node_version_from_engines_runtime(&manifest, Some("download")),
+        Some("24.2.0".to_string()),
+    );
+    let manifest = json!({
+        "devEngines": { "runtime": { "name": "node", "version": "24.2.0", "onFail": "download" } },
+    });
+    assert_eq!(downloaded_node_version_from_engines_runtime(&manifest, Some("error")), None);
+}
+
+#[test]
+fn downloaded_node_version_skips_runtime_entries_without_a_version() {
+    assert_eq!(
+        downloaded_node_version_from_engines_runtime(
+            &json!({
+                "engines": {
+                    "runtime": { "name": "node", "version": "24.0.0", "onFail": "download" },
+                },
+                "devEngines": {
+                    "runtime": { "name": "node", "onFail": "download" },
+                },
+            }),
+            None,
+        ),
+        Some("24.0.0".to_string()),
     );
 }
 

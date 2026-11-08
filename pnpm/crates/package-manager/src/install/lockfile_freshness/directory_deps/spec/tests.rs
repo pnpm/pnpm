@@ -1,4 +1,4 @@
-use super::{ProjectManifestsByDir, SpecDirs, is_workspace_path};
+use super::{ProjectManifestsByDir, SpecDirs};
 use std::path::{Path, PathBuf};
 
 /// No project manifest is loaded, so every target is read from disk.
@@ -12,46 +12,6 @@ fn dirs<'a>(workspace_root: &'a Path, lockfile_dir: &'a Path) -> SpecDirs<'a> {
         canonical_paths: Box::leak(Box::default()),
         registries: Box::leak(Box::default()),
     }
-}
-
-#[test]
-fn home_relative_workspace_spec_satisfies_link_target() {
-    let home = pnpm_config::home_dir().unwrap_or_default();
-    let workspace_root = PathBuf::from("/workspace");
-    let lockfile_dir = workspace_root.clone();
-    let local_dep_dir = workspace_root.join("packages/foo");
-    let home_pkg = home.join("pkg");
-    let rel_to_lockfile = pathdiff::diff_paths(&home_pkg, &lockfile_dir)
-        .unwrap_or(home_pkg)
-        .display()
-        .to_string()
-        .replace('\\', "/");
-    let lockfile_dep = pnpm_lockfile::SnapshotDepRef::Link(rel_to_lockfile);
-
-    assert!(local_spec_satisfies(
-        &dirs(&workspace_root, &lockfile_dir),
-        &local_dep_dir,
-        "pkg",
-        "workspace:~/pkg",
-        &lockfile_dep,
-    ));
-    assert!(local_spec_satisfies(
-        &dirs(&workspace_root, &lockfile_dir),
-        &local_dep_dir,
-        "pkg",
-        r"workspace:~\pkg",
-        &lockfile_dep,
-    ));
-}
-
-#[test]
-fn recognizes_windows_and_unc_workspace_paths() {
-    assert!(is_workspace_path(r"\\server\share\@scope\pkg"));
-    assert!(is_workspace_path(r"\root\@scope\pkg"));
-    assert!(is_workspace_path(r"~\@scope\pkg"));
-    assert!(is_workspace_path("~/pkg"));
-    assert!(is_workspace_path(r"c:\@scope\pkg"));
-    assert!(!is_workspace_path("@scope/pkg@^1.0.0"));
 }
 
 #[test]
@@ -391,4 +351,32 @@ fn local_spec_satisfies(
 ) -> bool {
     super::spec_satisfies_snapshot_dep(dirs, local_dep_dir, dep_name, spec, lockfile_dep)
         .expect("a local spec is judged")
+}
+
+#[test]
+fn a_recorded_local_path_is_not_read_as_a_specifier() {
+    let workspace_root = PathBuf::from("/workspace");
+    let dirs = dirs(&workspace_root, &workspace_root);
+    let lib = workspace_root.join("lib");
+    let satisfies = |spec: &str, recorded: &str| {
+        let lockfile_dep: pnpm_lockfile::SnapshotDepRef = recorded.parse().unwrap();
+        local_spec_satisfies(&dirs, &lib, "vendored", spec, &lockfile_dep)
+    };
+    assert!(satisfies("file:../file:vendor", "file:file:vendor"));
+    assert!(!satisfies("file:../vendor", "file:file:vendor"));
+    assert!(!satisfies("link:../vendor", "link:file:vendor"));
+}
+
+#[test]
+#[cfg_attr(windows, ignore = "Windows reads `a:` as a drive and forbids it in a directory name")]
+fn a_recorded_local_path_is_not_read_as_a_drive() {
+    let workspace_root = PathBuf::from("/workspace");
+    let lockfile_dep: pnpm_lockfile::SnapshotDepRef = "file:a:vendor".parse().unwrap();
+    assert!(local_spec_satisfies(
+        &dirs(&workspace_root, &workspace_root),
+        &workspace_root.join("lib"),
+        "vendored",
+        "file:../a:vendor",
+        &lockfile_dep,
+    ));
 }

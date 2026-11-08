@@ -178,11 +178,11 @@ fn local_tarball_imports_updated_content_despite_an_existing_canonical() {
     let opts = LinkHoistedModulesOpts {
         dir_clone_cache: Some(&cache),
         graph: &BTreeMap::new(),
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &BTreeMap::new(),
         cas_paths_by_pkg_id: &cas_index,
         import: import(&logged),
-        confine_root: temp.path(),
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(temp.path()),
         link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
     };
     assert!(import_node::<SilentReporter>(&node, &opts).expect("fallback import"));
@@ -296,11 +296,11 @@ fn occupied_hoisted_parent_falls_back_without_losing_nested_dependencies() {
     let opts = LinkHoistedModulesOpts {
         dir_clone_cache: Some(&cache),
         graph: &BTreeMap::new(),
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &BTreeMap::new(),
         cas_paths_by_pkg_id: &cas_index,
         import: import(&logged),
-        confine_root: temp.path(),
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(temp.path()),
         link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
     };
     assert!(import_node::<SilentReporter>(&node, &opts).expect("fallback import"));

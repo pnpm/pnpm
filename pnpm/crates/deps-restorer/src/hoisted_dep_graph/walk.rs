@@ -89,7 +89,7 @@ impl WalkState<'_> {
         // after the hoisted linker runs.
         for importer_id in self.per_importer_direct_deps.keys() {
             let Some(importer) = self.lockfile.importers.get(importer_id) else { continue };
-            let modules_dir = self.lockfile_dir.join(importer_id).join("node_modules");
+            let modules_dir = self.opts.modules_dirs.of_importer_id(importer_id);
             direct_dependencies_by_importer_id.insert(
                 importer_id.clone(),
                 importer_direct_deps(
@@ -106,7 +106,7 @@ impl WalkState<'_> {
         // `<lockfile_dir>/<importer_id>` — the linker walks each
         // importer's subtree under its own root.
         let mut hierarchy = BTreeMap::new();
-        hierarchy.insert(self.opts.lockfile_dir.clone(), root_hierarchy);
+        hierarchy.insert(self.opts.modules_dirs.lockfile_dir().to_path_buf(), root_hierarchy);
         hierarchy.extend(self.per_importer_hierarchies);
 
         Ok(LockfileToDepGraphResult {
@@ -225,14 +225,13 @@ pub(super) fn fill_children(
     Ok(())
 }
 /// Mutable scratch space the recursive walker threads through
-/// every level. Borrowing the lockfile + `lockfile_dir` + opts up
+/// every level. Borrowing the lockfile + opts up
 /// front avoids passing four separate arguments. `skipped` is
 /// owned (cloned from `opts.skipped`) because the walker mutates
 /// it — every dep that fails the installability check gets added.
 pub(super) struct WalkState<'a> {
     pub result: LockfileToDepGraphResult,
     pub(super) lockfile: &'a Lockfile,
-    pub(super) lockfile_dir: &'a Path,
     pub(super) opts: &'a LockfileToHoistedDepGraphOptions<'a>,
     /// The graph the current lockfile produces, when there is one. Only
     /// [`walk_dep`]'s presence check reads it, to see whether the
@@ -313,7 +312,7 @@ pub(super) fn walk_dep(
     }
 
     let dir = safe_join_modules_dir(modules, &dep.0.name)?;
-    let dep_location = path_relative_to_lockfile_dir(&dir, state.lockfile_dir);
+    let dep_location = path_relative_to_lockfile_dir(&dir, state.opts.modules_dirs.lockfile_dir());
     let present = package_is_reusable(state, &resolved, &reference, &dep_location, modules, &dir);
 
     // Insert *before* recursing (insert + push to `pkg_locations`, then
@@ -386,7 +385,7 @@ pub(super) fn package_is_reusable(
 }
 /// Workspace-kind hoister children are non-root workspace importers.
 /// Recurse into their (post-hoist, often-empty) dependencies under
-/// `<lockfile_dir>/<importer_id>/node_modules` to capture any deps the
+/// the importer's modules directory to capture any deps the
 /// hoister couldn't move up — those become nested entries in the
 /// per-importer hierarchy. The workspace node itself is *not* added to
 /// the graph or to the parent's hierarchy: it has no package contents
@@ -399,9 +398,9 @@ pub(super) fn walk_workspace_importer(
     dep: &RcByPtr<HoisterResult>,
     importer_id: &str,
 ) -> Result<(), HoistedDepGraphError> {
-    let importer_root = state.lockfile_dir.join(importer_id);
-    let importer_hierarchy =
-        walk_deps(state, &importer_root.join("node_modules"), &dep.0.dependencies.borrow())?;
+    let importer_root = state.opts.modules_dirs.lockfile_dir().join(importer_id);
+    let modules_dir = state.opts.modules_dirs.of(&importer_root);
+    let importer_hierarchy = walk_deps(state, &modules_dir, &dep.0.dependencies.borrow())?;
     let has_deps = state.lockfile.importers
         .get(importer_id)
         .is_some_and(|importer| {

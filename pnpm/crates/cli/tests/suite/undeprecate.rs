@@ -51,6 +51,7 @@ fn undeprecates_a_package_version_successfully() {
 
     let put_mock = server
         .mock("PUT", "/test")
+        .match_header("npm-command", "undeprecate")
         .match_header("content-type", "application/json")
         .match_body(Matcher::Json(serde_json::json!({
             "versions": {

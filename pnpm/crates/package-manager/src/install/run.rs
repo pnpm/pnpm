@@ -1,4 +1,4 @@
-pub(super) use fast_path::{
+pub(crate) use fast_path::{
     check_strict_dep_builds_for_fast_path, gvs_build_markers_complete, register_workspace_in_store,
 };
 pub(crate) use manifests::hook_one_manifest;
@@ -70,7 +70,7 @@ where
     /// Both live out here because every success path of
     /// [`Self::run_inner_impl`] — including the short-circuits that do
     /// nothing but rewrite the lockfile — has to run them.
-    pub(super) async fn run_inner<Reporter: self::Reporter + 'static>(
+    pub(crate) async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
@@ -83,8 +83,7 @@ where
         // resolutions no file is left holding.
         let merge_will_be_saved = self.context.config.merge_git_branch_lockfiles
             && self.context.config.lockfile
-            && options.save.lockfile
-            && options.lockfile_check.is_none()
+            && options.save.writes_lockfile()
             && !self.execution.dry_run;
         let branch_lockfiles_to_clean = merge_will_be_saved
             .then(|| {
@@ -144,8 +143,7 @@ where
         self.lockfile_policy.excludes == PolicyExcludes::Persist
             && matches!(self.execution.mutation, ProjectMutation::InstallWorkspace)
             && self.context.config.lockfile
-            && options.save.lockfile
-            && options.lockfile_check.is_none()
+            && options.save.writes_lockfile()
             && !self.execution.dry_run
             && (self.context.config.minimum_release_age_exclude_prune
                 || self.context.config.trust_policy_exclude_prune)
@@ -256,8 +254,7 @@ pub(super) struct InstallView<'a> {
 impl InstallView<'_> {
     fn should_prune_catalogs(&self, options: &InstallRunOptions<'_, '_>) -> bool {
         self.context.config.catalog_prune
-            && options.save.lockfile
-            && options.lockfile_check.is_none()
+            && options.save.writes_lockfile()
             && !self.execution.dry_run
             && self.execution.mutation.is_full_install()
     }

@@ -133,6 +133,23 @@ where
         .await
 }
 
+/// [`try_resolve_edge_cached`] for an edge resolved only to read its
+/// manifest. It shares the cache entry of the same edge resolved for the
+/// tree, but a failure drops it as [`SkippedOptionalReport::Detached`].
+pub(in super::super) async fn try_resolve_edge_detached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, SkippedOptionalReport::Detached)
+        .await
+}
+
 async fn resolve_edge_inner<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -417,6 +434,8 @@ pub(super) fn register_seeded_package(
             result,
             peer_shadowed,
             catalogs_for_children(ctx, resolves_children_through_catalogs),
+            ctx.catalogs_dir.as_deref(),
+            &ctx.importer.lockfile_dir,
         )?,
     };
     register_peer_dep_names(ctx, peer_set.taken());
@@ -449,7 +468,8 @@ pub(super) fn record_workspace_manifest_identity(
     let names_a_workspace_project = wanted.bare_specifier
         .as_deref()
         .is_some_and(|specifier| {
-            specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
+            specifier.starts_with("workspace:")
+                && !pnpm_workspace_spec::is_workspace_path_specifier(specifier)
         });
     if !names_a_workspace_project {
         return;

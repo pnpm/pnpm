@@ -95,7 +95,7 @@ jobs:
 
     - name: Install Bencher CLI
       if: steps.bench.outputs.bench_dir != ''
-      uses: bencherdev/bencher@58a33f76185c1187f3df355817d2ac7285ac77f0 # v0.6.14
+      uses: bencherdev/bencher@7de3c69a85380826613050826b4bce062be2f07d # v0.6.16
 
     - name: Upload results to Bencher
       if: steps.bench.outputs.bench_dir != ''

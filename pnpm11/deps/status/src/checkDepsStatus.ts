@@ -11,7 +11,7 @@ import { equals } from 'ramda'
 
 import { checkRootProjectDepsStatus } from './checkRootProjectDepsStatus.js'
 import { checkWorkspaceDepsStatus } from './checkWorkspaceDepsStatus.js'
-import { findLocalFileDepsIssue, findRecordedLocalDependencyIssue } from './findLocalFileDepsIssue.js'
+import { findLocalFileDepsIssue, findRecordedLocalDependencyIssue, workspaceProjectDirs } from './findLocalFileDepsIssue.js'
 import { outdatedResult } from './outdatedResult.js'
 import { storeBaseDir } from './storeBaseDir.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
@@ -100,12 +100,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   // Both means that `pnpm run` would fail, so checking lockfiles here is pointless.
   globalWarn('Skipping check.')
   return { upToDate: undefined, workspaceState }
-}
-
-function workspaceProjectDirs ({ allProjects, rootProjectManifestDir }: CheckDepsStatusOptions): Set<string> {
-  const dirs = new Set((allProjects ?? []).map(({ rootDir }) => path.resolve(rootDir)))
-  if (rootProjectManifestDir != null) dirs.add(path.resolve(rootProjectManifestDir))
-  return dirs
 }
 
 /**

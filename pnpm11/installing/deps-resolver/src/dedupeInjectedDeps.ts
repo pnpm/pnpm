@@ -5,7 +5,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, PkgResolutionId } from '@pnpm/types'
 import normalize from 'normalize-path'
 
-import { isCompatibleAndHasMoreDeps } from './depPathCompatibility.js'
+import { type CompatibilityGraph, isCompatibleAndHasMoreDeps, type UnboundOptionalPeers } from './depPathCompatibility.js'
 import type { NodeId } from './nextNodeId.js'
 import type { LinkedDependency } from './resolveDependencies.js'
 import type { ResolvedDirectDependency, ResolvedImporters } from './resolveDependencyTree.js'
@@ -23,6 +23,7 @@ export interface DedupeInjectedDepsOptions<Pkg extends PartialResolvedPackage> {
   pathsByNodeId: Map<NodeId, DepPath>
   projects: ProjectToResolve[]
   resolvedImporters: ResolvedImporters
+  unboundOptionalPeers?: UnboundOptionalPeers
   wantedLockfile?: Pick<LockfileObject, 'importers'>
   workspaceProjectIds: Set<string>
 }
@@ -68,7 +69,7 @@ function getInjectedWorkspaceDepsOfProject<Pkg extends PartialResolvedPackage> (
 
 type DedupeMap = Map<string, Map<string, string>>
 
-type DedupeMapOptions<Pkg extends PartialResolvedPackage> = Pick<DedupeInjectedDepsOptions<Pkg>, 'depGraph' | 'dependenciesByProjectId' | 'wantedLockfile'>
+type DedupeMapOptions<Pkg extends PartialResolvedPackage> = Pick<DedupeInjectedDepsOptions<Pkg>, 'depGraph' | 'dependenciesByProjectId' | 'unboundOptionalPeers' | 'wantedLockfile'>
 
 function getDedupeMap<Pkg extends PartialResolvedPackage> (
   injectedDepsByProjects: InjectedDepsByProjects,
@@ -110,7 +111,7 @@ function canDedupeInjectedDep<Pkg extends PartialResolvedPackage> (
   // Check for subgroup not equal.
   // The injected project in the workspace may have dev deps
   return Object.entries(node.children)
-    .every(([alias, depPath]) => isChildProvidedByTargetProject(opts.depGraph, targetProjectDeps.get(alias), depPath))
+    .every(([alias, depPath]) => isChildProvidedByTargetProject(opts, targetProjectDeps.get(alias), depPath))
 }
 
 /**
@@ -141,7 +142,7 @@ function lockedDepPaths (importer: LockfileObject['importers'][keyof LockfileObj
 }
 
 function isChildProvidedByTargetProject<Pkg extends PartialResolvedPackage> (
-  depGraph: DedupeMapOptions<Pkg>['depGraph'],
+  { depGraph, unboundOptionalPeers }: CompatibilityGraph<Pkg>,
   targetDepPath: DepPath | undefined,
   depPath: DepPath
 ): boolean {
@@ -156,7 +157,7 @@ function isChildProvidedByTargetProject<Pkg extends PartialResolvedPackage> (
   const injectedChildNode = depGraph[depPath]
   if (targetNode == null || injectedChildNode == null) return false
   if (targetNode.pkgIdWithPatchHash !== injectedChildNode.pkgIdWithPatchHash) return false
-  return isCompatibleAndHasMoreDeps(depGraph, targetDepPath, depPath)
+  return isCompatibleAndHasMoreDeps({ depGraph, unboundOptionalPeers }, targetDepPath, depPath)
 }
 
 function applyDedupeMap<Pkg extends PartialResolvedPackage> (

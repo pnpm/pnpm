@@ -1,7 +1,7 @@
 use super::{Body, ObjectStore, S3Store};
 use crate::DocumentWrite;
 use futures_util::TryStreamExt;
-use object_store::{PutPayload, memory::InMemory};
+use object_store::{ObjectStoreExt as _, PutPayload, memory::InMemory};
 use pnpr_config::S3Settings;
 use pnpr_package_name::CanonicalPackageName;
 use std::sync::Arc;
@@ -36,14 +36,19 @@ async fn collect(body: Body) -> Vec<u8> {
     axum::body::to_bytes(body, usize::MAX).await.expect("read body").to_vec()
 }
 
-/// Stage a blob through the same path the publish flow uses: write
-/// the decoded bytes to the reserved local tmp file, then upload.
-/// (Cleaning up the staging file belongs to the `HostedBackend` impl, not
-/// to `upload_blob`, so it stays behind here.)
-async fn upload(store: &S3Store, name: &CanonicalPackageName, filename: &str, bytes: &[u8]) {
-    let tmp = store.staging_tmp_path(name, filename).await.expect("reserve staging path");
+/// Stage an archive through the same path the publish flow uses: write
+/// the decoded bytes to the reserved local tmp file, then upload it under
+/// `key`. (Cleaning up the staging file belongs to the `HostedBackend` impl,
+/// not to `upload_archive`, so it stays behind here.)
+async fn upload(store: &S3Store, key: &str, bytes: &[u8]) {
+    let tmp = store.staging_tmp_path().await.expect("reserve staging path");
     tokio::fs::write(&tmp, bytes).await.expect("write staging file");
-    store.upload_blob(&tmp, name, filename).await.expect("upload");
+    store.upload_archive(&tmp, key).await.expect("upload");
+}
+
+/// A key of the bytes `bytes`, at incarnation 1.
+fn key_of(bytes: &[u8]) -> String {
+    crate::BlobId::of_bytes(pnpr_package_name::Ecosystem::Npm, bytes).key(1)
 }
 
 async fn write_document(store: &S3Store, name: &CanonicalPackageName, bytes: &[u8]) {
@@ -113,84 +118,20 @@ async fn stale_document_update_is_rejected() {
 }
 
 #[tokio::test]
-async fn deleted_document_update_is_rejected() {
+async fn archive_uploads_stream_and_report_length() {
     let (store, _staging) = store_with_prefix("");
-    let name = pkg("removed-racer");
-    write_document(&store, &name, br#"{"name":"removed-racer"}"#).await;
-
-    let read = store
-        .read_document_for_update(&name)
-        .await
-        .unwrap()
-        .unwrap();
-    store.remove_package(&name).await.unwrap();
-
-    let written = store
-        .write_document_if_current(
-            &name,
-            br#"{"name":"removed-racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#,
-            Some(&read.version),
-        )
-        .await
-        .unwrap();
-    assert!(!written);
-    assert!(
-        store
-            .read_document(&name)
-            .await
-            .unwrap()
-            .is_none(),
-    );
-}
-
-#[tokio::test]
-async fn concurrent_blob_finalize_does_not_overwrite() {
-    use crate::BlobFinalize;
-    let (store, _staging) = store_with_prefix("");
-    let name = pkg("racer");
-    let file = "racer-1.0.0.tgz";
-
-    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
-    tokio::fs::write(&tmp, b"tarball A").await.unwrap();
-    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::Written);
-
-    // Re-promoting byte-identical content is a tolerated no-op, so a retried
-    // publish and concurrent identical publishes don't conflict.
-    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
-    tokio::fs::write(&tmp, b"tarball A").await.unwrap();
-    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::AlreadyIdentical);
-
-    // Different bytes for the same version's key are rejected without
-    // overwriting the first writer's blob.
-    let tmp = store.staging_tmp_path(&name, file).await.unwrap();
-    tokio::fs::write(&tmp, b"tarball B").await.unwrap();
-    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::Conflict);
-
-    let (body, _len) = store
-        .open_blob(&name, file)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(collect(body).await, b"tarball A");
-}
-
-#[tokio::test]
-async fn blob_uploads_streams_and_reports_length() {
-    let (store, _staging) = store_with_prefix("");
-    let name = pkg("is-positive");
-    assert!(
-        store
-            .open_blob(&name, "is-positive-1.0.0.tgz")
-            .await
-            .unwrap()
-            .is_none(),
-    );
-
     let payload = b"a fake tarball payload";
-    upload(&store, &name, "is-positive-1.0.0.tgz", payload).await;
-
+    let key = key_of(payload);
+    assert!(
+        store
+            .open_archive(&key)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    upload(&store, &key, payload).await;
     let (body, len) = store
-        .open_blob(&name, "is-positive-1.0.0.tgz")
+        .open_archive(&key)
         .await
         .unwrap()
         .unwrap();
@@ -198,51 +139,47 @@ async fn blob_uploads_streams_and_reports_length() {
     assert_eq!(collect(body).await, payload);
 }
 
+/// Two writers of one key write the bytes its identity names, so the
+/// second write leaves the same archive in place.
 #[tokio::test]
-async fn scoped_keys_and_prefix_are_honored() {
-    let (store, _staging) = store_with_prefix("packages");
-    let name = pkg("@scope/thing");
-    write_document(&store, &name, br#"{"name":"@scope/thing"}"#).await;
-    upload(&store, &name, "thing-1.0.0.tgz", b"scoped tarball").await;
-
-    let (body, _len) = store
-        .open_blob(&name, "thing-1.0.0.tgz")
+async fn writing_a_key_again_keeps_its_archive() {
+    let (store, _staging) = store_with_prefix("");
+    let key = key_of(b"tarball A");
+    upload(&store, &key, b"tarball A").await;
+    upload(&store, &key, b"tarball A").await;
+    let (body, _) = store
+        .open_archive(&key)
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(collect(body).await, b"scoped tarball");
-    assert!(
-        store
-            .read_document(&name)
-            .await
-            .unwrap()
-            .is_some(),
-    );
+    assert_eq!(collect(body).await, b"tarball A");
 }
 
 #[tokio::test]
-async fn remove_blob_then_package() {
-    let (store, _staging) = store_with_prefix("");
-    let name = pkg("is-positive");
-    write_document(&store, &name, b"{}").await;
-    upload(&store, &name, "is-positive-1.0.0.tgz", b"payload").await;
+async fn archive_keys_are_sharded_below_the_prefix() {
+    let (store, _staging) = store_with_prefix("packages");
+    let key = key_of(b"scoped tarball");
+    upload(&store, &key, b"scoped tarball").await;
+    let path = format!("packages/{}", crate::layout::archive_object_path(&key));
+    let stored = store.store
+        .get(&object_store::path::Path::from(path))
+        .await
+        .unwrap();
+    assert_eq!(stored.bytes().await.unwrap().as_ref(), b"scoped tarball");
+}
 
-    assert!(store.remove_blob(&name, "is-positive-1.0.0.tgz").await.unwrap());
+#[tokio::test]
+async fn removing_an_archive_is_idempotent() {
+    let (store, _staging) = store_with_prefix("");
+    let key = key_of(b"payload");
+    upload(&store, &key, b"payload").await;
+    assert!(store.remove_archive(&key).await.unwrap());
     // S3 (and the in-memory store) deletes are idempotent and don't
     // report whether the key existed, so a second delete still succeeds.
-    store.remove_blob(&name, "is-positive-1.0.0.tgz").await.unwrap();
+    store.remove_archive(&key).await.unwrap();
     assert!(
         store
-            .open_blob(&name, "is-positive-1.0.0.tgz")
-            .await
-            .unwrap()
-            .is_none(),
-    );
-
-    store.remove_package(&name).await.unwrap();
-    assert!(
-        store
-            .read_document(&name)
+            .open_archive(&key)
             .await
             .unwrap()
             .is_none(),
@@ -333,49 +270,28 @@ async fn multipart_streams_large_files_in_bounded_parts_and_aborts_failures() {
 }
 
 #[tokio::test]
-async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
+async fn an_archive_listing_holds_its_namespace_only() {
     let (store, _staging) = store_with_prefix("images");
-    let store = store.with_ecosystem(pnpr_package_name::Ecosystem::Oci);
-    let parent =
-        CanonicalPackageName::parse("acme/app", pnpr_package_name::Ecosystem::Oci).unwrap();
-    let child =
-        CanonicalPackageName::parse("acme/app/tool", pnpr_package_name::Ecosystem::Oci).unwrap();
-    let blobs_repo =
-        CanonicalPackageName::parse("acme/blobs", pnpr_package_name::Ecosystem::Oci).unwrap();
-    upload(&store, &parent, "sha256-parent", b"parent").await;
-    upload(&store, &child, "sha256-child", b"child").await;
-    upload(&store, &blobs_repo, "sha256-blobs-repo", b"blobs-repo").await;
-    write_document(&store, &parent, b"{}").await;
-    write_document(&store, &blobs_repo, b"{}").await;
-    let files =
-        crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
-    assert_eq!(files.len(), 5);
-    assert!(
-        files
-            .iter()
-            .any(|file| file.package == "acme/app/tool"
-                && file.blob.as_deref() == Some("sha256-child")),
-    );
-    assert!(
-        files
-            .iter()
-            .any(|file| file.package == "acme/blobs"
-                && file.blob.as_deref() == Some("sha256-blobs-repo")),
-    );
-
-    let (store, _staging) = store_with_prefix("npm~internal");
-    let pkg_name = pkg("@scope/thing");
-    upload(&store, &pkg_name, "thing-1.0.0.tgz", b"tarball").await;
-    write_document(&store, &pkg_name, b"{}").await;
-    let files =
-        crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
-    assert_eq!(files.len(), 2);
-    assert!(
-        files
-            .iter()
-            .any(|file| file.package == "@scope/thing"
-                && file.blob.as_deref() == Some("thing-1.0.0.tgz")),
-    );
+    let keys = [key_of(b"parent"), key_of(b"child")];
+    for (key, bytes) in keys
+        .iter()
+        .zip([&b"parent"[..], b"child"])
+    {
+        upload(&store, key, bytes).await;
+    }
+    let other = store.namespaced("org");
+    upload(&other, &key_of(b"elsewhere"), b"elsewhere").await;
+    let mut listed: Vec<String> = crate::HostedBackend::list_archives(&store)
+        .map_ok(|stored| stored.name)
+        .try_collect()
+        .await
+        .unwrap();
+    listed.sort();
+    let mut expected = keys.to_vec();
+    expected.sort();
+    // The other namespace's key sits below this one's prefix, but not where
+    // this namespace keeps its archives.
+    assert_eq!(listed, expected);
 }
 
 /// A staged record is claimed by rewriting it. Two replicas that read the same

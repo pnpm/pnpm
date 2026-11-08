@@ -35,8 +35,8 @@ mod settings_classification;
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
     deps_status::{RunDepsStatus, check_deps_status_before_run},
-    settings::current_settings,
 };
+use crate::install_state::settings::current_settings;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -427,9 +427,7 @@ fn record_test_workspace_state(
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: config.auto_dedupe.then_some(true),
             registry_keys_verified: true,
-            registry_routes: Some(
-                crate::optimistic_repeat_install::settings::recorded_registry_routes(config),
-            ),
+            registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
             kept_settings: None,
         },
         vouched: &super::validation::Vouched::All,
@@ -584,8 +582,10 @@ fn date_lockfile_after(workspace_root: &std::path::Path, recorded: i64) {
 /// that records a file records a stat the next check trusts.
 fn wait_for_the_next_filesystem_tick(workspace_root: &std::path::Path) {
     let now = || {
-        super::timestamps::filesystem_now_ns_in_modules(&workspace_root.join("node_modules"))
-            .unwrap()
+        crate::install_state::timestamps::filesystem_now_ns_in_modules(&workspace_root.join(
+            "node_modules",
+        ))
+        .unwrap()
     };
     let written = now();
     while now() <= written {

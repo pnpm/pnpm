@@ -164,6 +164,26 @@ test('frozen-lockfile: installation skips a workspace package recorded in the lo
   expect(Object.keys(readLockfile().importers)).toStrictEqual(['project-1', 'project-2'])
 })
 
+test('frozen-lockfile: installation skips a workspace package recorded in the lockfile whose directory is empty', async () => {
+  const { install, readLockfile } = prepareWorkspace()
+  const survivors: WorkspaceProject[] = [
+    { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } },
+  ]
+  await install([
+    ...survivors,
+    { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+  ])
+  fs.rmSync('project-1/node_modules', { recursive: true })
+  fs.rmSync('project-2', { recursive: true })
+  fs.mkdirSync('project-2')
+
+  await install(survivors, { frozenLockfile: true })
+
+  expect(fs.existsSync('project-1/node_modules/is-positive')).toBe(true)
+  expect(fs.readdirSync('project-2')).toStrictEqual([])
+  expect(Object.keys(readLockfile().importers)).toStrictEqual(['project-1', 'project-2'])
+})
+
 test('dropping a workspace package a survivor links to falls back to the resolver', async () => {
   const { install } = prepareWorkspace()
   await install([

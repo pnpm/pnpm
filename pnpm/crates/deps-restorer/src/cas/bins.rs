@@ -17,6 +17,7 @@ pub(crate) struct BinInstall<'a> {
 pub(super) fn write_bins(inputs: &BinInstall<'_>, manifest: &StoreManifest) -> io::Result<()> {
     validate_importers(inputs)?;
     let mut cached = HashMap::new();
+    let modules_dirs = crate::ImporterModulesDirs::from_config(inputs.config, inputs.root);
     for importer in inputs.importers.keys() {
         let Some(project) = manifest.packages.get(importer) else { continue };
         let mut sources = Vec::new();
@@ -28,10 +29,7 @@ pub(super) fn write_bins(inputs: &BinInstall<'_>, manifest: &StoreManifest) -> i
                 sources.push(source.clone());
             }
         }
-        let directory = inputs.root
-            .join(importer)
-            .join(inputs.config.modules_dir_name())
-            .join(".bin");
+        let directory = modules_dirs.of_importer_id(importer).join(".bin");
         link_bins_of_packages::<Host>(
             &sources,
             &directory,

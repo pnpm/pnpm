@@ -5,7 +5,7 @@ pub(crate) use directory_deps::{
     NestedDirectoryPackage, ProjectManifestsByDir, dependency_manifests_by_dir,
     is_declared_local_directory, project_manifests_by_dir, spec_target_and_range,
 };
-pub(crate) use directory_manifests::DirectoryManifests;
+pub(crate) use directory_manifests::{DirectoryManifests, hooked_importer_directory_manifests};
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
@@ -118,7 +118,10 @@ async fn workspace_manifests_satisfy(
             manifests: &manifest_freshness_inputs,
             workspace_packages: workspace_packages.as_ref(),
             // Projects read from disk carry no dependency manifests.
-            dependency_manifests: None,
+            dependency_manifests: DependencyManifestSources {
+                declared: &project_manifests,
+                injected: None,
+            },
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: None,
@@ -163,18 +166,23 @@ fn workspace_packages_for_freshness(
     .flatten()
 }
 
-pub(super) struct LockfileFreshnessInputs<'a, 'manifest> {
-    pub(super) lockfile_dir: &'a Path,
-    pub(super) manifests: &'a [(String, &'manifest PackageManifest)],
-    pub(super) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
-    /// The manifests projects expose as injected dependencies where they
-    /// differ from their importer manifests; see
-    /// [`dependency_manifests_by_dir`].
-    pub(super) dependency_manifests: Option<&'a ProjectManifestsByDir<'manifest>>,
-    pub(super) config: &'a Config,
-    pub(super) catalogs: &'a Catalogs,
-    pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub(super) scope: FreshnessScope<'a>,
+#[derive(Clone, Copy)]
+pub(crate) struct DependencyManifestSources<'a, 'manifest> {
+    /// Project manifests before importer hooks, for the resolver's dependency hook chain.
+    pub(crate) declared: &'a [(PathBuf, &'manifest PackageManifest)],
+    /// Dependency views supplied by callers, indexed by [`dependency_manifests_by_dir`].
+    pub(crate) injected: Option<&'a ProjectManifestsByDir<'manifest>>,
+}
+
+pub(crate) struct LockfileFreshnessInputs<'a, 'manifest> {
+    pub(crate) lockfile_dir: &'a Path,
+    pub(crate) manifests: &'a [(String, &'manifest PackageManifest)],
+    pub(crate) workspace_packages: Option<&'a pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(crate) dependency_manifests: DependencyManifestSources<'a, 'manifest>,
+    pub(crate) config: &'a Config,
+    pub(crate) catalogs: &'a Catalogs,
+    pub(crate) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    pub(crate) scope: FreshnessScope<'a>,
 }
 
 impl LockfileFreshnessInputs<'_, '_> {
@@ -304,8 +312,8 @@ fn unclaimed_importer_id<'a>(
 /// Fail on an importer no project claims whose directory exists but holds no
 /// project manifest, since that project cannot be installed. A frozen install
 /// skips a project left out of the workspace patterns, which keeps its
-/// manifest, and one whose whole directory is absent, as in a Docker build
-/// context that excludes it.
+/// manifest, and one whose directory is absent or empty, as in a Docker build
+/// context that excludes it or an uninitialized git submodule.
 pub(super) fn check_importer_manifests_exist(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
@@ -315,10 +323,14 @@ pub(super) fn check_importer_manifests_exist(
     }
     let missing = unclaimed_importer_id(lockfile, inputs.manifests, |importer_id| {
         let project_dir = inputs.lockfile_dir.join(importer_id);
-        project_dir.exists()
-            && !pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
-                .iter()
-                .any(|basename| project_dir.join(basename).exists())
+        let has_manifest = pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES
+            .iter()
+            .any(|basename| project_dir.join(basename).exists());
+        !has_manifest
+            && match project_dir.read_dir() {
+                Ok(mut entries) => entries.next().is_some(),
+                Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+            }
     });
     match missing {
         Some(importer_id) => {
@@ -388,15 +400,8 @@ pub(super) async fn check_lockfile_freshness(
         }));
     }
 
-    let edges = directory_deps::GraphEdges::installed(inputs.config.optional);
-    let nested = directory_deps::nested_directory_packages(lockfile, edges);
-    let checked: std::collections::HashSet<&str> = inputs.manifests
-        .iter()
-        .map(|(id, _)| id.as_str())
-        .collect();
-    let nested = directory_deps::NestedByImporter::assign(&nested, |importer_id| {
-        checked.contains(importer_id)
-    });
+    let nested_packages = directory_manifests::nested_directory_packages(lockfile, inputs);
+    let nested = directory_manifests::checked_nested(&nested_packages, inputs);
     let directory_manifests = directory_manifests::hooked_directory_manifests(
         lockfile,
         inputs,
@@ -424,7 +429,7 @@ fn check_importer_freshness(
     let ignored_optional_matcher = ignored_optional_matcher(inputs.config);
     let mut project_manifests = project_manifests_by_dir(
         inputs.manifests.iter().map(|(_, manifest)| *manifest),
-        inputs.dependency_manifests,
+        inputs.dependency_manifests.injected,
     );
     project_manifests.extend(directory_manifests::injected_project_manifests(
         lockfile,

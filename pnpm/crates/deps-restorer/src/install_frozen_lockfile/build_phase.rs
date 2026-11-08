@@ -2,12 +2,14 @@
 
 use super::{
     BuildModules, BuildModulesError, Config, Diagnostic, Display, Error, ExtendedPatchInfo,
-    HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, OsStr, PackageKey,
+    HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, PackageKey,
     PackageMetadata, PatchKeyConflictError, Reporter, ResolvePatchedDependenciesError,
     SkippedSnapshots, SnapshotEntry, direct_dep_names_for_importer, get_patch_info,
     importer_root_dir,
 };
+use crate::platform_selection::VariantPlatforms;
 
+mod loaded;
 mod post_build_bins;
 
 #[cfg(test)]
@@ -114,6 +116,8 @@ pub struct BuildPhaseInputs<'a> {
     pub extra_env: &'a HashMap<String, String>,
     pub skipped: &'a SkippedSnapshots,
     pub pending_bins: Option<&'a crate::linking::PendingBinLinks>,
+    /// The platforms the install links, with the CLI's overrides.
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -179,7 +183,7 @@ fn finish_bin_links(
     }
 
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
-        finish_cas_bin_links(inputs, build_output, bin_state)?;
+        loaded::finish_cas_bin_links(inputs, build_output, bin_state)?;
         return Ok(());
     }
     finish_dependency_bin_links(inputs, build_output, bin_state)?;
@@ -188,30 +192,6 @@ fn finish_bin_links(
         build_output.mutated_slots,
         &bin_state.refreshed_hoisted_bins,
     )
-}
-
-fn finish_cas_bin_links(
-    inputs: &BuildPhaseInputs<'_>,
-    build_output: &crate::BuildModulesOutput,
-    bin_state: &crate::build_options::BuildBinState,
-) -> Result<(), BuildPhaseError> {
-    let config = inputs.policy.config;
-    let selected = inputs.graph.loaded_snapshots.expect("loaded linker selection");
-    let native_inputs = BuildPhaseInputs {
-        graph: crate::BuildPhaseGraph { snapshots: Some(selected), ..inputs.graph },
-        ..*inputs
-    };
-    finish_dependency_bin_links(&native_inputs, build_output, bin_state)?;
-    if build_output.mutated_slots {
-        crate::cas::refresh_bins(&crate::cas::BinInstall {
-            config,
-            root: inputs.directories.workspace_root,
-            importers: inputs.graph.importers,
-            trusted_importer_ids: inputs.graph.trusted_importer_ids,
-        })
-        .map_err(BuildPhaseError::CasBins)?;
-    }
-    Ok(())
 }
 
 fn finish_dependency_bin_links(
@@ -273,7 +253,8 @@ fn build_or_defer<Reporter: self::Reporter>(
     {
         crate::BuildModulesOutput::default()
     } else {
-        build_modules(inputs, patches, shared_side_effects_publisher)
+        let variant_platforms = VariantPlatforms::of(inputs.supported_architectures);
+        build_modules(inputs, patches, (shared_side_effects_publisher, &variant_platforms))
             .run_with_bin_state::<Reporter>(bin_state)
             .map_err(BuildPhaseError::BuildModules)?
     };
@@ -293,26 +274,38 @@ fn seed_hoisted_bins(
     );
 }
 
+/// The lockfile graph `inputs` builds over, with the patches it applies and
+/// the platforms its cache keys select each archive for.
+fn build_graph_inputs<'a>(
+    inputs: &'a BuildPhaseInputs<'a>,
+    patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
+    variant_platforms: &'a VariantPlatforms,
+) -> crate::BuildGraphInputs<'a> {
+    crate::BuildGraphInputs {
+        snapshots: inputs.graph.snapshots,
+        packages: inputs.graph.packages,
+        patches,
+        requires_build_by_snapshot: Some(inputs.cache.requires_build_by_snapshot),
+        importers: inputs.graph.importers,
+        dependency_groups: (!inputs.directories.is_hoisted).then_some(
+            inputs.graph.dependency_groups,
+        ),
+        build_scope: inputs.graph.build_scope,
+        variant_platforms: Some(variant_platforms),
+    }
+}
+
 fn build_modules<'a>(
     inputs: &'a BuildPhaseInputs<'a>,
     patches: Option<&'a HashMap<PackageKey, ExtendedPatchInfo>>,
-    shared_side_effects_publisher: Option<
-        &'a crate::shared_side_effects::SharedSideEffectsPublisher,
-    >,
+    (shared_side_effects_publisher, variant_platforms): (
+        Option<&'a crate::shared_side_effects::SharedSideEffectsPublisher>,
+        &'a VariantPlatforms,
+    ),
 ) -> BuildModules<'a> {
     let config = inputs.policy.config;
     BuildModules {
-        cache: crate::BuildCacheContext {
-            side_effects: inputs.cache.side_effects(),
-            engine_name: inputs.cache.engine_name,
-            read: config.side_effects_cache_read()
-                || config.remote_side_effects_cache.is_some(),
-            write: config.side_effects_cache_write(),
-            publisher: shared_side_effects_publisher,
-            store_dir: Some(&config.store_dir),
-            store_index_writer: Some(inputs.cache.store_index_writer),
-            frozen_store: config.frozen_store,
-        },
+        cache: build_cache(inputs, shared_side_effects_publisher),
         directories: crate::BuildLayout {
             link_options: inputs.directories.link_options,
             layout: inputs.directories.layout,
@@ -323,17 +316,7 @@ fn build_modules<'a>(
             import_method: config.package_import_method,
             logged_methods: inputs.directories.logged_methods,
         },
-        graph: crate::BuildGraphInputs {
-            snapshots: inputs.graph.snapshots,
-            packages: inputs.graph.packages,
-            patches,
-            requires_build_by_snapshot: Some(inputs.cache.requires_build_by_snapshot),
-            importers: inputs.graph.importers,
-            dependency_groups: (!inputs.directories.is_hoisted).then_some(
-                inputs.graph.dependency_groups,
-            ),
-            build_scope: inputs.graph.build_scope,
-        },
+        graph: build_graph_inputs(inputs, patches, variant_platforms),
         scripts: crate::BuildScriptOptions::from_config(config, inputs.extra_env),
 
         allow_build_policy: inputs.policy.allow_build_policy,
@@ -352,10 +335,10 @@ fn link_held_back_bins(inputs: &BuildPhaseInputs<'_>) -> Result<(), BuildPhaseEr
         return Ok(());
     };
     for held_back in &pending.held_back_bins_dirs {
-        crate::link_direct_dep_bins(
+        crate::link_bins_dir(
             &held_back.modules_dir,
-            &held_back.dep_names,
-            inputs.directories.link_options,
+            crate::BinCandidates::Aliases(&held_back.dep_names),
+            crate::BinsDirPass::new(inputs.directories.link_options),
         )
         .map_err(BuildPhaseError::TopLevelBinLink)?;
     }
@@ -366,14 +349,11 @@ fn link_held_back_bins(inputs: &BuildPhaseInputs<'_>) -> Result<(), BuildPhaseEr
 fn link_importer_top_level_bins(
     inputs: &BuildPhaseInputs<'_>,
     mutated_slots: bool,
-    modules_dir_name: &OsStr,
+    modules_dirs: &crate::ImporterModulesDirs,
     importer_id: &str,
     importer_snapshot: &pnpm_lockfile::ProjectSnapshot,
     plans: &crate::build_options::HoistedBinPlans,
-) -> Result<
-    Option<(std::path::PathBuf, std::path::PathBuf, std::collections::HashSet<String>)>,
-    BuildPhaseError,
-> {
+) -> Result<Option<(std::path::PathBuf, std::collections::HashSet<String>)>, BuildPhaseError> {
     // Public-hoist promotes transitives into the workspace root's
     // `<root>/node_modules/<alias>`, so only the root importer's `.bin`
     // sees `BinOrigin::Hoisted` candidates.
@@ -398,8 +378,8 @@ fn link_importer_top_level_bins(
     if !relink_direct && peer_locations.is_empty() {
         return Ok(None);
     }
-    let project_dir = importer_root_dir(inputs.directories.top_level_bin_root, importer_id);
-    let modules_dir = project_dir.join(modules_dir_name);
+    let project_dir = importer_root_dir(inputs.directories.workspace_root, importer_id);
+    let modules_dir = modules_dirs.of(&project_dir);
     // Same filter the symlink phase used so the post-build pass sees the
     // same candidate set (skipping installability-skipped deps avoids
     // dangling shims at a slot that was never extracted).
@@ -411,16 +391,19 @@ fn link_importer_top_level_bins(
     );
     let cached =
         post_build_bins::importer_sources(plans, &modules_dir, &direct_names, hoisted_names);
-    let linked = crate::link_bins::link_top_level_bins_cached(
+    let link_options =
+        post_build_bins::link_options(inputs.directories.link_options, mutated_slots);
+    let linked = crate::link_bins_dir(
         &modules_dir,
-        &direct_names,
-        hoisted_names,
-        &peer_locations,
-        &post_build_bins::link_options(inputs.directories.link_options, mutated_slots),
-        cached.as_ref(),
+        crate::BinCandidates::TopLevel(crate::TopLevelCandidates {
+            direct: &direct_names,
+            hoisted: hoisted_names,
+            peers: &peer_locations,
+        }),
+        crate::BinsDirPass::new(&link_options).with_prepared(cached.as_ref()),
     )
     .map_err(BuildPhaseError::TopLevelBinLink)?;
-    Ok(Some((project_dir, modules_dir, linked)))
+    Ok(Some((modules_dir, linked.linked_commands)))
 }
 
 /// In hoisted mode, each importer snapshot already carries its retained groups.
@@ -490,4 +473,27 @@ fn resolved_auto_installed_peers<'a>(
                 })
                 .and_then(|reference| reference.resolve(&alias))
         })
+}
+
+fn build_cache<'a>(
+    inputs: &'a BuildPhaseInputs<'a>,
+    shared_side_effects_publisher: Option<
+        &'a crate::shared_side_effects::SharedSideEffectsPublisher,
+    >,
+) -> crate::BuildCacheContext<'a> {
+    let config = inputs.policy.config;
+    crate::BuildCacheContext {
+        captured: None,
+        side_effects: inputs.cache.side_effects(),
+        engine_name: inputs.cache.engine_name,
+        read: config.side_effects_cache_read()
+            || config.remote_side_effects_cache.is_some(),
+        write: config.side_effects_cache_write(),
+        publisher: shared_side_effects_publisher,
+        store: Some(crate::BuildCacheStore {
+            directory: &config.store_dir,
+            writer: inputs.cache.store_index_writer,
+        }),
+        frozen_store: config.frozen_store,
+    }
 }

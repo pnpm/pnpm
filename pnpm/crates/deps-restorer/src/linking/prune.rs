@@ -15,7 +15,7 @@ pub(super) fn prune_importer_tree<Reporter: self::Reporter>(
     let wanted_hoisted = hoist.plan.as_ref().map(|plan| &plan.result.hoisted_dependencies);
     let removed_count = crate::PruneStaleModules {
         config,
-        workspace_root: inputs.projects.symlink_root,
+        workspace_root: inputs.ctx.workspace_root,
         wanted_lockfile: inputs.graph.lockfile,
         current_lockfile,
         prior_hoisted_dependencies: inputs.prior.hoisted_dependencies,
@@ -31,7 +31,7 @@ pub(super) fn prune_importer_tree<Reporter: self::Reporter>(
     if inputs.prior.prune.direct_dependencies {
         crate::prune_extraneous_deps::PruneExtraneousDirectDeps {
             config,
-            workspace_root: inputs.projects.symlink_root,
+            workspace_root: inputs.ctx.workspace_root,
             wanted_lockfile: inputs.graph.lockfile,
             wanted_hoisted_dependencies: wanted_hoisted,
             public_hoist_targets: hoist.public_targets.as_ref(),

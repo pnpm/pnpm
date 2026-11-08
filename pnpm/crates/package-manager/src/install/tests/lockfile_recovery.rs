@@ -1,12 +1,10 @@
 use super::{
-    super::{
-        Install, InstallError, ProjectMutation, UpToDateFastPathCheck, install_already_up_to_date,
-    },
+    super::{Install, InstallError, ProjectMutation},
     InstallDirs, PARTIAL_INSTALL_LOCKFILE, assert_package_absent, assert_package_present,
     fresh_lockfile_only_with_overrides, install_then_go_offline, install_with_pnpmfile,
     touch_manifest,
 };
-use crate::PolicyExcludes;
+use crate::{PolicyExcludes, UpToDateFastPathCheck, install_already_up_to_date};
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
@@ -198,7 +196,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             filtered_install: false,
             config_dependencies: None,
             validation: None,
-            settings: crate::optimistic_repeat_install::settings::current_settings(
+            settings: crate::install_state::settings::current_settings(
                 config,
                 pnpm_config::NodeLinker::Isolated,
                 included,
@@ -330,7 +328,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
             has_modules_dir: false,
         },
     );
-    let settings = crate::optimistic_repeat_install::settings::current_settings(
+    let settings = crate::install_state::settings::current_settings(
         config,
         pnpm_config::NodeLinker::Isolated,
         included,

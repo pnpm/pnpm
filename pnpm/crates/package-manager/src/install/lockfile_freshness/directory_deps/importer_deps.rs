@@ -2,13 +2,16 @@
 //! one, and the lockfile entry each resolves to.
 
 use super::{
-    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_local_directory,
-    is_deploy_file_url_key, local_dependency_outdated,
+    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_by_path,
+    is_declared_local_directory, is_deploy_file_url_key, local_dependency_outdated,
     package::check_single_directory_dep_freshness,
     scope::{Visited, importer_aliases},
     spec, spec_dirs,
 };
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_resolving_deps_resolver::{
+    dependency_is_injected, dependency_meta_is_injected, directory_package_dir,
+};
 
 pub(crate) fn check_directory_dependencies_freshness(
     check: &ImporterSatisfactionCheck<'_>,
@@ -31,7 +34,9 @@ pub(crate) fn check_directory_dependencies_freshness(
     Ok(())
 }
 
-fn dependency_is_injected(
+/// Whether the config, the lockfile, or the manifest injects the dependency.
+/// The lockfile's settings count too: the resolver injected under them.
+fn may_be_injected(
     check: &ImporterSatisfactionCheck<'_>,
     importer: &pnpm_lockfile::ProjectSnapshot,
     dep_name: &str,
@@ -42,23 +47,11 @@ fn dependency_is_injected(
     if check.lockfile.settings.as_ref().is_some_and(|s| s.inject_workspace_packages) {
         return true;
     }
-    if let Some(meta) = importer.dependencies_meta.as_ref()
-        && meta
-            .get(dep_name)
-            .and_then(|e| e.get("injected"))
-            .and_then(serde_json::Value::as_bool)
-            == Some(true)
-    {
-        return true;
-    }
-    check.manifest
-        .value()
-        .get("dependenciesMeta")
-        .and_then(serde_json::Value::as_object)
+    importer.dependencies_meta
+        .as_ref()
         .and_then(|meta| meta.get(dep_name))
-        .and_then(|entry| entry.get("injected"))
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false)
+        .is_some_and(dependency_meta_is_injected)
+        || dependency_is_injected(check.manifest.value(), dep_name)
 }
 
 fn check_importer_link_freshness(
@@ -72,7 +65,17 @@ fn check_importer_link_freshness(
         .parent()
         .unwrap_or(check.lockfile_dir);
     let dirs = spec_dirs(check);
-    if !spec::importer_link_satisfies(&dirs, project_dir, dep_name, specifier, link_target) {
+    let satisfied =
+        spec::importer_link_satisfies(&dirs, project_dir, dep_name, specifier, link_target)
+            && (!check.config.link_workspace_packages.enabled_at_depth(0)
+                || spec::importer_range_link_satisfies(
+                    &dirs,
+                    project_dir,
+                    dep_name,
+                    specifier,
+                    link_target,
+                ));
+    if !satisfied {
         return Err(local_dependency_outdated(dep_name, link_target));
     }
     Ok(())
@@ -86,8 +89,7 @@ fn should_check_directory_dep(
 ) -> bool {
     check.lockfile.packages.is_some()
         && check.lockfile.snapshots.is_some()
-        && (dependency_is_injected(check, importer, dep_name)
-            || is_declared_local_directory(specifier))
+        && (may_be_injected(check, importer, dep_name) || is_declared_local_directory(specifier))
 }
 
 fn check_single_dep_spec_directory_freshness(
@@ -142,10 +144,11 @@ fn check_directory_resolution(
             .map(|_| ())
             .ok_or_else(|| local_dependency_outdated(dep_str, rel_path));
     }
-    let local_dep_dir = check.lockfile_dir.join(rel_path);
+    let local_dep_dir = directory_package_dir(check.lockfile_dir, rel_path);
     let dep = LocalDepContext {
         name: dep_str,
-        declared_as_file: is_declared_local_directory(&dep_spec.specifier),
+        declared_by_path: is_declared_by_path(&dep_spec.specifier),
+        declaration_assumed: false,
         rel_path,
         dir: &local_dep_dir,
         dirs: spec_dirs(check),

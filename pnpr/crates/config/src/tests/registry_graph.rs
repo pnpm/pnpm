@@ -292,7 +292,7 @@ registries:
     assert_eq!(registries.ecosystem("local"), Some(Ecosystem::Npm));
     // Exact-name keys are canonicalized the way each ecosystem compares names.
     assert!(matches!(
-        registries.resolve("cargo", Ecosystem::Cargo, "demo_crate"),
+        registries.resolve("cargo", Ecosystem::Cargo, "demo-crate"),
         pnpr_registry::Resolved::Concrete { registry: "crates", .. }
     ));
     assert!(matches!(
@@ -538,4 +538,19 @@ registries:
 ";
     let error = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
     assert!(error.to_string().contains("tarballs"), "{error}");
+}
+
+#[test]
+fn cargo_claims_reject_separator_alias_duplicates() {
+    let yaml = "
+registries:
+  crates:
+    type: hosted
+    ecosystem: cargo
+    packages:
+      demo-crate: {}
+      Demo_Crate: {}
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("duplicates normalized key"), "{err}");
 }

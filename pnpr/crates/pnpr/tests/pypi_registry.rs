@@ -1,7 +1,7 @@
 //! The Python package index surface: the legacy upload API, the Simple API
 //! in both renderings, file downloads, and proxying an upstream index.
 
-use crate::{ecosystem as common, storage::object_key, tokens::issue_token};
+use crate::{ecosystem as common, tokens::issue_token};
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
@@ -9,9 +9,9 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use common::{HostedSource, PUBLIC_URL, body_bytes, find_file, mixed_router_config, sha256_hex};
 use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
-use pnpr_storage::layout::{blob_segment, local_blob_path, write_local_layout_marker};
+use pnpr_storage::layout::{blob_segment, write_local_layout_marker};
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -100,7 +100,7 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
-    let wheel = b"PK\x03\x04 pretend wheel".to_vec();
+    let wheel = common::python_wheel("demo-pkg", "1.0.0");
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
 
     let response = app
@@ -110,8 +110,13 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
-        local_blob_path(tmp.path(), "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", filename)
-            .is_file(),
+        pnpr_fixtures::read_hosted_file(
+            tmp.path(),
+            ("python", pnpr_storage::Ecosystem::Pypi),
+            "demo-pkg",
+            filename,
+        )
+        .is_some(),
     );
 
     // PEP 691 JSON, with the file URL pointing back at this registry.
@@ -206,14 +211,16 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, wheel);
 
-    // The named form is caller-scoped and points file URLs at itself.
+    // The named form of a public project stays cacheable and points file
+    // URLs at itself.
     let response = app
         .clone()
         .oneshot(get("/pypi/~internal/simple/demo-pkg/", Some(JSON)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    assert!(!response.headers().contains_key(header::CACHE_CONTROL));
+    assert_eq!(response.headers()[header::VARY], "Accept");
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         page["files"][0]["url"],
@@ -239,7 +246,7 @@ async fn upload_is_authenticated_and_validated() {
     let token = issue_token(&auth, "alice").await;
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
-    let wheel = b"wheel bytes".to_vec();
+    let wheel = common::python_wheel("demo-pkg", "1.0.0");
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
     let good = wheel_upload("demo-pkg", "1.0.0", filename, &wheel);
 
@@ -354,6 +361,7 @@ async fn upload_is_authenticated_and_validated() {
 async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     let mut upstream = mockito::Server::new_async().await;
     let wheel = b"requests wheel bytes".to_vec();
+    let metadata = b"Metadata-Version: 2.1\nName: sample-pkg\nVersion: 2.32.0\n";
     let filename = "requests-2.32.0-py3-none-any.whl";
     let page_mock = upstream
         .mock("GET", "/simple/requests/")
@@ -376,7 +384,8 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
                     "yanked": false,
                     "size": wheel.len(),
                     "upload-time": "2026-01-01T00:00:00.000000Z",
-                    "core-metadata": { "sha256": "irrelevant" },
+                    "core-metadata": { "sha256": sha256_hex(metadata) },
+                    "dist-info-metadata": { "sha256": sha256_hex(metadata) },
                 }],
             })
             .to_string(),
@@ -387,6 +396,13 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     let file_mock = upstream
         .mock("GET", format!("/packages/ab/cd/{filename}").as_str())
         .with_body(wheel.clone())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let metadata_mock = upstream
+        .mock("GET", format!("/packages/ab/cd/{filename}.metadata").as_str())
+        .with_body(metadata)
         .expect(1)
         .create_async()
         .await;
@@ -409,6 +425,8 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     assert_eq!(page["files"][0]["url"], format!("{PUBLIC_URL}/pypi/files/requests/{filename}"));
     assert_eq!(page["files"][0]["hashes"]["sha256"], sha256_hex(&wheel));
     assert_eq!(page["files"][0]["requires-python"], ">=3.8");
+    assert_eq!(page["files"][0]["core-metadata"]["sha256"], sha256_hex(metadata));
+    assert!(page["files"][0].get("dist-info-metadata").is_none());
 
     // The HTML form is rendered from the same cached page.
     let response = app
@@ -418,6 +436,25 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
         .unwrap();
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(html.contains(&format!("/pypi/files/requests/{filename}#sha256=")), "{html}");
+
+    assert!(
+        html.contains(&format!(r#"data-core-metadata="sha256={}""#, sha256_hex(metadata))),
+        "{html}",
+    );
+    assert!(
+        html.contains(&format!(r#"data-dist-info-metadata="sha256={}""#, sha256_hex(metadata))),
+        "{html}",
+    );
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(get(&format!("/pypi/files/requests/{filename}.metadata"), None))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, metadata);
+    }
+    metadata_mock.assert_async().await;
 
     // The file is fetched from the page's URL, verified, and cached.
     for _ in 0..2 {
@@ -538,79 +575,6 @@ async fn anonymous_uploads_are_rejected_before_reading_the_body() {
 }
 
 #[tokio::test]
-async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_staged_bytes() {
-    use object_store::{ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
-    use pnpr::HostedStoreConfig;
-    use std::sync::Arc;
-
-    let tmp = TempDir::new().unwrap();
-    let store = Arc::new(InMemory::new());
-    let filename = "demo_pkg-1.0.0-py3-none-any.whl";
-    let object = ObjectPath::from(object_key(&local_blob_path(
-        Path::new(""),
-        "python",
-        pnpr_storage::Ecosystem::Pypi,
-        "demo-pkg",
-        filename,
-    )));
-    store
-        .put(&object, axum::body::Bytes::from_static(b"winning artifact").into())
-        .await
-        .unwrap();
-    let mut config = pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/");
-    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
-        store: Arc::<InMemory>::clone(&store),
-        prefix: String::new(),
-    };
-    let auth = AuthState::in_memory();
-    let token = issue_token(&auth, "alice").await;
-    let app = router_with_auth(config, auth);
-    let response = app
-        .clone()
-        .oneshot(upload_request(
-            Some(&token),
-            wheel_upload("demo-pkg", "1.0.0", filename, b"losing artifact"),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::CONFLICT);
-    assert_eq!(
-        store
-            .get(&object)
-            .await
-            .unwrap()
-            .bytes()
-            .await
-            .unwrap(),
-        "winning artifact",
-    );
-    assert_eq!(
-        app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await
-            .unwrap()
-            .status(),
-        StatusCode::NOT_FOUND,
-    );
-    fn staged_files(path: &Path) -> Vec<PathBuf> {
-        let mut staged = Vec::new();
-        for entry in std::fs::read_dir(path).unwrap() {
-            let path = entry.unwrap().path();
-            if path.is_dir() {
-                staged.extend(staged_files(&path));
-            } else if path
-                .file_name()
-                .is_some_and(|name| name.to_string_lossy().contains(".tmp."))
-            {
-                staged.push(path);
-            }
-        }
-        staged
-    }
-    // SQL metadata commits nothing of a publish whose archive lost its slot,
-    // so the losing bytes go on every platform.
-    assert_eq!(staged_files(tmp.path()), Vec::<PathBuf>::new());
-}
-
-#[tokio::test]
 async fn upstream_file_hosts_must_be_approved_by_the_operator() {
     use pnpr::PublicRoute;
     let mut upstream = mockito::Server::new_async().await;
@@ -674,10 +638,14 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
     let tmp = TempDir::new().unwrap();
     write_local_layout_marker(tmp.path()).unwrap();
     let orphan = "demo_pkg-1.0.0-py3-none-any.whl";
-    let orphan_blob =
-        local_blob_path(tmp.path(), "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", orphan);
-    tokio::fs::create_dir_all(orphan_blob.parent().unwrap()).await.unwrap();
-    tokio::fs::write(&orphan_blob, b"unpublished wheel").await.unwrap();
+    // Stored and mapped, but absent from the project's document.
+    pnpr_fixtures::write_hosted_file(
+        tmp.path(),
+        ("python", pnpr_storage::Ecosystem::Pypi),
+        ("demo-pkg", ""),
+        orphan,
+        b"unpublished wheel",
+    );
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
     let app =
@@ -695,7 +663,12 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         .clone()
         .oneshot(upload_request(
             Some(&token),
-            wheel_upload("demo-pkg", "2.0.0", published, b"published wheel"),
+            wheel_upload(
+                "demo-pkg",
+                "2.0.0",
+                published,
+                &common::python_wheel("demo-pkg", "2.0.0"),
+            ),
         ))
         .await
         .unwrap();
@@ -711,5 +684,8 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, b"published wheel");
+    assert_eq!(body_bytes(response.into_body()).await, common::python_wheel("demo-pkg", "2.0.0"));
 }
+
+mod metadata;
+mod recovery;

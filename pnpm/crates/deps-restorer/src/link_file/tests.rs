@@ -6,11 +6,11 @@ mod links;
 
 mod installation;
 
-#[cfg(unix)]
-use super::Host;
-use super::{FsHardLink, FsReflink};
-use pnpm_fs::StoreFile;
-use std::{fs, io, path::Path};
+mod fallback;
+
+use super::{FsCopyContents, FsHardLink, FsReflink, Host};
+use pnpm_fs::{LinkFailure, StoreFile};
+use std::{cell::Cell, fs, io, path::Path};
 
 fn write_source(dir: &Path, name: &str, contents: &[u8]) -> StoreFile {
     let path = dir.join(name);
@@ -25,85 +25,6 @@ const STORE_ENTRY: &str = "files/1b/59d9e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8";
 /// An executable store entry, relative to the store directory.
 #[cfg(unix)]
 const STORE_EXEC_ENTRY: &str = "files/1b/59d9e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8-exec";
-
-/// A filesystem that refuses `link(2)` with `EPERM`: what a FUSE
-/// filesystem without hardlinks (`EdenFS`) answers for every link inside
-/// its mount. pnpm's store-to-checkout links usually fail `EXDEV` first
-/// and retire the tier before the ladder reaches such a link, so this
-/// is met when source and target both sit inside the mount, as the
-/// `file:` packages a repeat install re-imports do. Reflink and copy
-/// behave as the real filesystem does.
-#[cfg(unix)]
-struct EpermHardLink;
-
-#[cfg(unix)]
-impl FsHardLink for EpermHardLink {
-    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::from_raw_os_error(libc::EPERM))
-    }
-}
-
-#[cfg(unix)]
-impl FsReflink for EpermHardLink {
-    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
-        Host::reflink(source, target)
-    }
-}
-
-/// The user-namespace containers of pnpm/pnpm#14722, where `FICLONE`
-/// is refused with `EPERM`. Hardlinks work there.
-#[cfg(unix)]
-struct EpermReflink;
-
-#[cfg(unix)]
-impl FsHardLink for EpermReflink {
-    fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
-        Host::hard_link(source, target)
-    }
-}
-
-#[cfg(unix)]
-impl FsReflink for EpermReflink {
-    fn reflink(_source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::from_raw_os_error(libc::EPERM))
-    }
-}
-
-/// A filesystem that refuses both links with `EPERM`, so the `Auto`
-/// ladder has only the copy tier left.
-#[cfg(unix)]
-struct EpermLinks;
-
-#[cfg(unix)]
-impl FsHardLink for EpermLinks {
-    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::from_raw_os_error(libc::EPERM))
-    }
-}
-
-#[cfg(unix)]
-impl FsReflink for EpermLinks {
-    fn reflink(_source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::from_raw_os_error(libc::EPERM))
-    }
-}
-
-#[cfg(unix)]
-struct EaccesHardLink;
-
-#[cfg(unix)]
-impl FsHardLink for EaccesHardLink {
-    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::from_raw_os_error(libc::EACCES))
-    }
-}
-
-#[cfg(unix)]
-impl FsReflink for EaccesHardLink {
-    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
-        Host::reflink(source, target)
-    }
-}
 
 /// A reflink onto a fresh inode that carries the source's mode, which is
 /// what a real one does: `clonefile` copies the source's attributes, and
@@ -127,42 +48,94 @@ impl FsReflink for FreshClone {
 }
 
 #[cfg(unix)]
+impl FsCopyContents for FreshClone {
+    fn copy_contents(_source: &mut fs::File, _target: &mut fs::File) -> io::Result<u64> {
+        unreachable!("the clone tier materializes the file, so no copy tier follows it")
+    }
+}
+
+/// A reflink whose target does not carry the source's mode. No real
+/// reflink does this. It makes visible whether the clone tier aligned the
+/// target afterwards.
+#[cfg(unix)]
+struct ModeDroppingClone;
+
+#[cfg(unix)]
+impl FsHardLink for ModeDroppingClone {
+    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
+        unreachable!("the clone tier materializes the file, so no hardlink tier follows it")
+    }
+}
+
+#[cfg(unix)]
+impl FsReflink for ModeDroppingClone {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+        fs::write(target, fs::read(source)?)?;
+        fs::set_permissions(target, fs::Permissions::from_mode(0o400))
+    }
+}
+
+#[cfg(unix)]
+impl FsCopyContents for ModeDroppingClone {
+    fn copy_contents(_source: &mut fs::File, _target: &mut fs::File) -> io::Result<u64> {
+        unreachable!("the clone tier materializes the file, so no copy tier follows it")
+    }
+}
+
+#[cfg(unix)]
 fn inode(path: &Path) -> u64 {
     use std::os::unix::fs::MetadataExt;
     fs::metadata(path).unwrap().ino()
 }
 
-#[cfg(unix)]
-struct EaccesLinks;
+/// The failures the [`Faulty`] import calls on this thread answer with.
+#[derive(Debug, Default, Clone, Copy)]
+struct Faults {
+    hard_link: Option<LinkFailure>,
+    reflink: Option<LinkFailure>,
+    copy: Option<io::ErrorKind>,
+}
 
-#[cfg(unix)]
-impl FsHardLink for EaccesLinks {
+thread_local! {
+    static FAULTS: Cell<Faults> = const { Cell::new(Faults { hard_link: None, reflink: None, copy: None }) };
+}
+
+/// Import calls that fail as [`Faults`] says and otherwise succeed on any
+/// test filesystem: the hardlink is a real one, the reflink a byte copy
+/// that carries the source's mode as a real reflink does. A copy fails
+/// after the target was created, as a full disk fails one.
+struct Faulty;
+
+impl Faulty {
+    fn set(faults: Faults) {
+        FAULTS.with(|cell| cell.set(faults));
+    }
+}
+
+impl FsHardLink for Faulty {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
-        EaccesHardLink::hard_link(source, target)
+        match FAULTS.with(Cell::get).hard_link {
+            Some(failure) => Err(failure.sample_error()),
+            None => fs::hard_link(source, target),
+        }
     }
 }
 
-#[cfg(unix)]
-impl FsReflink for EaccesLinks {
-    fn reflink(_source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::from_raw_os_error(libc::EACCES))
+impl FsReflink for Faulty {
+    fn reflink(source: &Path, target: &Path) -> io::Result<()> {
+        match FAULTS.with(Cell::get).reflink {
+            Some(failure) => Err(failure.sample_error()),
+            None => fs::copy(source, target).map(|_| ()),
+        }
     }
 }
 
-/// A source that has run out of names: `EMLINK` on Unix,
-/// `ERROR_TOO_MANY_LINKS` on Windows, one [`io::ErrorKind`] either way.
-/// A store file linked into enough projects reaches NTFS's cap of 1024
-/// names long before ext4's 65000.
-struct OutOfLinks;
-
-impl FsHardLink for OutOfLinks {
-    fn hard_link(_source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::from(io::ErrorKind::TooManyLinks))
-    }
-}
-
-impl FsReflink for OutOfLinks {
-    fn reflink(_source: &Path, _target: &Path) -> io::Result<()> {
-        unreachable!("the hardlink tier materializes the file itself, so no tier follows it")
+impl FsCopyContents for Faulty {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
+        match FAULTS.with(Cell::get).copy {
+            Some(kind) => Err(io::Error::from(kind)),
+            None => Host::copy_contents(source, target),
+        }
     }
 }

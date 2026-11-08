@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.pick-registry-for-package",
-  "version": "1101.0.4",
+  "version": "1101.0.5",
   "description": "Picks the right registry for the package from a registries config",
   "keywords": [
     "pnpm",

@@ -37,28 +37,26 @@ storage: ./storage
 #  forcePathStyle: true   # the default unless AWS_VIRTUAL_HOSTED_STYLE_REQUEST=true; false selects virtual-hosted addressing
 #  allowHttp: false
 
-# Shared database backend for auth records (users and tokens).
-# Defaults to local htpasswd + tokens.db files.
-#backend:
-#  libsql:
-#    url: ${PNPR_LIBSQL_URL}
-#    authToken: ${PNPR_LIBSQL_TOKEN}
-#    replicaPath: ./auth-replica.db
-#    syncInterval: 60s
-#  postgres:
-#    url: ${PNPR_POSTGRES_URL}
-#    maxConnections: 16
-#  mysql:
-#    url: ${PNPR_MYSQL_URL}
-#    maxConnections: 16
+# Shared database for accounts, tokens, and package metadata.
+# PostgreSQL and MySQL use the same database.url setting with their connection URL.
+#database:
+#  url: ${PNPR_LIBSQL_URL}
+#  authToken: ${PNPR_LIBSQL_TOKEN}
+#  replicaPath: ./metadata-replica.db
+#  syncInterval: 60s
+#  maxConnections: 16
 
 # Secret key for resolution cache HMAC and OCI token signing.
 # If omitted or commented out, a secure 32-byte CSPRNG random secret is generated on startup.
 #secret: ${PNPR_SECRET}
 
+# Archive garbage collection (`pnpr gc`).
+#gc:
+#  lease: 1h   # how long an interrupted reclaim is left before another run takes it over
+
 auth:
-  htpasswd:
-    file: ./htpasswd
+  users:
+    file: ./users.json
     # Maximum amount of users allowed to register. The safe default is -1
     # (registration disabled); set a non-negative cap to allow registration.
     maxUsers: -1

@@ -102,7 +102,10 @@ pub(super) fn parse_macos_product_version(value: &str) -> Option<(u32, u32)> {
 }
 #[cfg(windows)]
 pub(super) fn windows_kernel_version() -> Option<(u32, u32, u32)> {
-    let build = System::kernel_version()?.parse().ok()?;
+    let build = System::kernel_version()
+        .ok()?
+        .parse()
+        .ok()?;
     // Windows 10 and 11 both use NT kernel version 10.0; sysinfo provides the build number.
     validate_windows_kernel_version(10, 0, build)
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1104.2.8",
+  "version": "1104.2.9",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -82,6 +82,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",

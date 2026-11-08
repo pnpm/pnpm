@@ -32,7 +32,9 @@ fn profile_get_unauthorized_when_no_token() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let auth_file = empty_auth_file(root.path());
 
+    // Keeps the developer's own `auth.ini` from logging the command in.
     let output = pacquet_at(&workspace)
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
         .with_arg("--npmrc-auth-file")
         .with_arg(auth_file)
         .with_arg("profile")
@@ -189,6 +191,7 @@ fn profile_set_property() {
         .create();
     let mock = server
         .mock("POST", "/-/npm/v1/user")
+        .match_header("npm-command", "profile")
         .match_header("authorization", "Bearer secret-token")
         .match_header("content-type", "application/json")
         .match_body(Matcher::Json(json!({

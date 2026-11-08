@@ -8,6 +8,7 @@ import type {
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -24,7 +25,6 @@ import {
   isSubdirectory,
   isWorkspacePath,
   isWorkspaceRangeSpec,
-  resolveSpecPath,
   versionSatisfies,
 } from './dependencySpec.js'
 import {
@@ -118,11 +118,13 @@ async function checkNestedDirectoryPackages (
       !isDeployDirectoryRef(ref, snapshot) &&
       reached.some((direct) => direct === depPath || ancestors.has(direct))
     )
-    .map(async ({ depPath, snapshot, ancestorAliases }) =>
-      await localDirectoryDepIsUpToDate(snapshot, { ...ancestorAliases, ...projectAliases })
+    .map(async ({ depPath, snapshot, ancestorAliases }) => {
+      const parentPkgAliases = { ...ancestorAliases, ...projectAliases }
+      return await localDirectoryDepIsUpToDate(snapshot, parentPkgAliases, { declaredByPath: false, declarationAssumed: true }) &&
+        await localDirectoryDepIsUpToDate(snapshot, parentPkgAliases, { declaredByPath: true, declarationAssumed: true })
         ? UP_TO_DATE
         : outdated(`The dependencies of local directory dependency "${depPath}" do not match the lockfile`)
-    ))
+    }))
   return results.find((result) => !result.upToDate) ?? UP_TO_DATE
 }
 
@@ -142,11 +144,8 @@ async function checkDependency (
   if (refIsLocalDirectory(project.snapshot.specifiers[dep.depName]) || isLocalDirectoryRef(dep.lockfileRef)) {
     return checkLocalDirectoryDependency(ctx, { project, dep, localDirectoryDepIsUpToDate })
   }
-  if (dep.lockfileRef.startsWith('link:')) {
-    const specPath = getLinkSpecPath(dep.currentSpec)
-    if (specPath != null) {
-      return checkLinkTarget(project.dir, dep, specPath)
-    }
+  if (dep.lockfileRef.startsWith('link:') && namesLocalPath(dep.currentSpec)) {
+    return checkLinkTarget(project.dir, dep)
   }
   return checkWorkspaceLink(ctx, project, dep)
 }
@@ -171,7 +170,7 @@ async function checkLocalDirectoryDependency (
   if (
     !ctx.skipLocalDirectoryDependencies &&
     !isDeployDirectoryRef(lockfileRef, pkgSnapshot) &&
-    !await localDirectoryDepIsUpToDate(pkgSnapshot, dependencyAliases(project.manifest))
+    !await localDirectoryDepIsUpToDate(pkgSnapshot, dependencyAliases(project.manifest), { declaredByPath: isLocalFilesystemSpecifier(currentSpec) })
   ) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }
@@ -181,25 +180,18 @@ async function checkLocalDirectoryDependency (
 }
 
 /**
- * The path a `link:`, `file:`, or `workspace:<path>` specifier points to.
+ * Whether the specifier is a `link:`, `file:`, or `workspace:<path>` one.
  */
-function getLinkSpecPath (currentSpec: string): string | undefined {
-  if (currentSpec.startsWith('link:') || currentSpec.startsWith('file:')) {
-    return currentSpec.slice(5)
-  }
-  if (currentSpec.startsWith('workspace:')) {
-    const target = currentSpec.slice(10)
-    if (isWorkspacePath(target)) return target
-  }
-  return undefined
+function namesLocalPath (currentSpec: string): boolean {
+  if (currentSpec.startsWith('link:') || currentSpec.startsWith('file:')) return true
+  return currentSpec.startsWith('workspace:') && isWorkspacePath(currentSpec.slice(10))
 }
 
 function checkLinkTarget (
   projectDir: string,
-  { depName, currentSpec, lockfileRef }: DependencyToCheck,
-  specPath: string
+  { depName, currentSpec, lockfileRef }: DependencyToCheck
 ): CheckLinkedPackagesResult {
-  return resolveSpecPath(projectDir, specPath) === resolveSpecPath(projectDir, lockfileRef.slice(5))
+  return localSpecPath(currentSpec, projectDir) === recordedLocalPath(lockfileRef.slice(5), projectDir)
     ? UP_TO_DATE
     : outdated(`Dependency "${depName}" is linked to "${lockfileRef}", which does not match "${currentSpec}"`)
 }
@@ -271,7 +263,7 @@ async function checkLinkedPackageVersion (
   { isLinked, linkedDir, availableRange }: { isLinked: boolean, linkedDir: string, availableRange: string }
 ): Promise<CheckLinkedPackagesResult> {
   const linkedPkg = ctx.manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
-  const localPackageSatisfiesRange = versionSatisfies(linkedPkg?.version, availableRange)
+  const localPackageSatisfiesRange = linkedPkg != null && versionSatisfies(linkedPkg.version, availableRange)
   if (isLinked === localPackageSatisfiesRange) return UP_TO_DATE
   return outdated(isLinked
     ? `Linked workspace package "${depName}" (${linkedPkg?.version ?? 'unknown'}) does not satisfy range "${currentSpec}"`

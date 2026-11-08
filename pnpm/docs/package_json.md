@@ -37,14 +37,30 @@ You can specify the version of Node and pnpm that your software works on:
 }
 ```
 
-During local development, pnpm will always fail with an error message
-if its version does not match the one specified in the `engines` field.
+If the project's `engines.pnpm` does not accept the running pnpm version,
+the install fails.
 
-Unless the user has set the `engineStrict` config flag (see [settings]), this
-field is advisory only and will only produce warnings when your package is
-installed as a dependency.
+With [`engineStrict`](./settings/cli.md#enginestrict) enabled, an incompatible
+`engines.node` in the project or in a dependency fails the install. Optional
+dependencies are exempt. With it disabled, an incompatible `engines.node` in
+the project or a required dependency prints a warning.
 
-[settings]: ./settings/cli.md#enginestrict
+In a workspace, these checks apply to every workspace project, even when
+`pnpm add` or `pnpm remove` changes only one of them. `pnpm run -r` and
+`pnpm exec -r` run them too, before running anything. A project whose `os`,
+`cpu`, or `libc` excludes the current platform prints a warning.
+
+A project's `engines.node` is checked against the first of these that applies:
+
+1. The [`nodeVersion`](./settings/cli.md#nodeversion) setting, when it is set.
+1. The Node.js that pnpm downloads for the project through
+   [`devEngines.runtime`](#devenginesruntime), or through
+   [`engines.runtime`](#enginesruntime) when `devEngines.runtime` names no
+   Node.js version: the pinned version, or the lowest version of a pinned range.
+1. The root project's runtime pin.
+1. The system Node.js.
+
+`--no-runtime` skips the two runtime pins.
 
 ## engines.runtime
 

@@ -21,12 +21,13 @@ const MAX_PACKUMENT_BINS_BYTES: usize = 64 * 1024;
 /// How a served document describes each version's tarball.
 #[derive(Clone, Copy)]
 pub(super) struct DistView<'a> {
+    pub(super) hosted: bool,
     /// The upstream whose revision tarballs may be linked. Every
     /// other version is described by its canonical resource.
     pub(super) revision_registry: Option<&'a str>,
     /// Derived tar metadata of each version's `.tgz` (see
     /// [`pnpr_storage::Storage::read_tar_integrities`]).
-    pub(super) tar_integrities: Option<&'a BTreeMap<String, DerivedTar>>,
+    pub(super) tar_integrities: Option<&'a Arc<BTreeMap<String, DerivedTar>>>,
     /// Whether the addressed registry declares `tarballs: tar`.
     pub(super) tar_registry: bool,
 }
@@ -50,13 +51,18 @@ pub(super) fn dist_view<'a>(
     state: &'a AppState,
     registry: &str,
     source: &RegistrySource,
-    tar_integrities: Option<&'a BTreeMap<String, DerivedTar>>,
+    tar_integrities: Option<&'a Arc<BTreeMap<String, DerivedTar>>>,
 ) -> DistView<'a> {
     let revision_registry = match source {
         RegistrySource::Upstream(source) => revision_source_registry(state, source),
         RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     };
-    DistView { revision_registry, tar_integrities, tar_registry: is_tar_registry(state, registry) }
+    DistView {
+        hosted: matches!(source, RegistrySource::Hosted(_)),
+        revision_registry,
+        tar_integrities,
+        tar_registry: is_tar_registry(state, registry),
+    }
 }
 
 /// Whether the registry `key` declares `tarballs: tar`.

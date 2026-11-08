@@ -166,7 +166,7 @@ pub(super) fn check_projects_content(
         .map_err(|_| "pnpm.overrides cannot be parsed")?;
     check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref())?;
     let transforms = ManifestTransforms::new(check, parsed_overrides.as_deref())?;
-    let manifests = transforms.resolver_view(check, to_check)?;
+    let manifests = transforms.resolver_view(to_check)?;
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests.as_slice());
     let workspace_packages = crate::install::workspace_packages_for_freshness(
@@ -175,6 +175,8 @@ pub(super) fn check_projects_content(
         check.project_manifests.as_slice(),
         check.manifests.dependency_manifests,
     );
+    let directory_manifests =
+        transforms.directory_manifests(check, (wanted, to_check), workspace_packages.as_ref())?;
     let ignored_optional_matcher = crate::install::ignored_optional_matcher(check.config);
     let project_manifests = crate::install::project_manifests_by_dir(
         check.project_manifests.iter().map(|(_, manifest)| *manifest),
@@ -188,8 +190,7 @@ pub(super) fn check_projects_content(
         workspace: crate::install::WorkspaceProjects {
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
-            // Directory packages are read from disk, without the resolver's hooks.
-            directory_manifests: crate::install::DirectoryManifests::none(),
+            directory_manifests: &directory_manifests,
             catalogs: check.catalogs,
             canonical_paths: &pnpm_fs::CanonicalPaths::default(),
             registries: &check.config.registry_context(),
@@ -287,7 +288,11 @@ fn is_outdated_linked_package(
 /// per content check.
 pub(crate) struct LinkedPackagesContext<'a> {
     pub(crate) link_workspace_packages: bool,
-    pub(crate) manifests_by_dir: std::collections::HashMap<&'a Path, &'a PackageManifest>,
+    /// Each project's manifest under its root and, when the resolver links
+    /// its `publishConfig.directory` instead, under that directory too,
+    /// unless that directory is another project's root.
+    pub(crate) manifests_by_dir:
+        std::collections::HashMap<std::borrow::Cow<'a, Path>, &'a PackageManifest>,
     /// `name → version → root_dir` over the workspace's projects.
     pub(crate) workspace_packages:
         std::collections::HashMap<String, std::collections::HashMap<String, &'a Path>>,
@@ -296,10 +301,7 @@ pub(crate) struct LinkedPackagesContext<'a> {
 /// Verify that linked packages are up to date: every importer
 /// dependency that resolved to a workspace link must still link under
 /// today's manifest spec, and every one that resolved to the registry
-/// must not have become linkable. The local-file-dependency freshness
-/// branch (a `file:` directory specifier) is not handled here — those
-/// entries conservatively report "not up to date" so the full install
-/// path re-evaluates them.
+/// must not have become linkable.
 pub(crate) fn linked_packages_are_up_to_date(
     ctx: &LinkedPackagesContext<'_>,
     project_dir: &Path,
@@ -354,17 +356,18 @@ fn linked_dep_is_up_to_date(
     dep: &pnpm_lockfile::ResolvedDependencySpec,
     current_spec: &str,
 ) -> bool {
+    if matches!(dep.version, ImporterDepVersion::File(_)) {
+        // A `file:` directory dependency or an injected workspace project: a
+        // copy, not a link. Its own dependencies were compared with its
+        // snapshot by the directory freshness check `check_importer_satisfies`
+        // ran before this one.
+        return true;
+    }
     if crate::install::is_declared_local_directory(&dep.specifier) {
         // A `file:` specifier that resolved to `link:` (e.g. an
         // injected self-reference) is a local link with no
         // `packages:` entry — up to date by construction.
         return matches!(dep.version, ImporterDepVersion::Link(_));
-    }
-    if matches!(dep.version, ImporterDepVersion::File(_)) {
-        // An injected workspace project: a `file:` copy, not a link. Its own
-        // dependencies were compared with its snapshot by the directory
-        // freshness check `check_importer_satisfies` ran before this one.
-        return true;
     }
     let link_target = dep.version.as_link_target();
     let is_linked = link_target.is_some();
@@ -381,10 +384,9 @@ fn linked_dep_is_up_to_date(
         // A linkable dir exists, but nothing requests linking it.
         return true;
     }
-    let local_package_satisfies_range = matches!(available_range, "*" | "^" | "~")
-        || ctx
-            .linked_version(&linked_dir)
-            .is_some_and(|version| semver_satisfies_loosely(&version, available_range));
+    let local_package_satisfies_range = ctx
+        .linked_version(&linked_dir)
+        .is_some_and(|version| workspace_version_satisfies(version, available_range));
     is_linked == local_package_satisfies_range
 }
 
@@ -393,7 +395,7 @@ fn linked_dep_is_up_to_date(
 fn linked_spec_needs_no_resolution(current_spec: &str) -> bool {
     current_spec.starts_with("link:")
         || current_spec.starts_with("file:")
-        || current_spec.starts_with("workspace:.")
+        || pnpm_workspace_spec::is_workspace_path_specifier(current_spec)
         || spec_is_distribution_tag(current_spec)
 }
 
@@ -429,10 +431,9 @@ pub(crate) fn spec_is_distribution_tag(spec: &str) -> bool {
             .all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
 }
 
-/// `semver.satisfies(version, range, { loose: true })` — a version or
-/// range that doesn't parse fails the match.
-pub(crate) fn semver_satisfies_loosely(version: &str, range: &str) -> bool {
-    let Ok(version) = version.parse::<node_semver::Version>() else { return false };
-    let Ok(range) = range.parse::<node_semver::Range>() else { return false };
-    range.satisfies(&version)
+/// Whether the resolver picks a workspace project at `version` for `range`.
+/// A project without a version, passed as the empty string, matches only the
+/// pick-the-highest tokens.
+fn workspace_version_satisfies(version: String, range: &str) -> bool {
+    pnpm_workspace_range_resolver::resolve_workspace_range(range, &[version]).is_some()
 }

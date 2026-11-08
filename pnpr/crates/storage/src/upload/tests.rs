@@ -1,4 +1,4 @@
-use crate::{BlobFinalize, Storage, upload::is_upload_id};
+use crate::{BlobId, Storage, upload::is_upload_id};
 use pnpr_config::HostedStoreConfig;
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::time::Duration;
@@ -17,6 +17,12 @@ fn storage_in(tmp: &TempDir) -> Storage {
 
 fn image(name: &str) -> CanonicalPackageName {
     CanonicalPackageName::parse(name, Ecosystem::Oci).unwrap()
+}
+
+/// The file name an image blob of `bytes` is stored as, and its identity.
+fn layer(bytes: &[u8]) -> (String, BlobId) {
+    let id = BlobId::of_bytes(Ecosystem::Oci, bytes);
+    (id.as_str().to_string(), id)
 }
 
 #[tokio::test]
@@ -83,11 +89,14 @@ async fn a_finished_upload_becomes_a_hosted_blob() {
     writer.finish().await.unwrap();
 
     let name = image("acme/app");
-    let slot = storage.stage_uploaded_blob(upload, &name, "sha256-abc").await.unwrap();
-    assert_eq!(storage.finalize_blob_slot(slot).await.unwrap(), BlobFinalize::Written);
+    let (file, id) = layer(b"layer bytes");
+    storage
+        .finalize_uploaded_blob(upload, &name, (&file, id))
+        .await
+        .unwrap();
 
     let (_, size) = storage
-        .open_hosted_blob(&name, "sha256-abc")
+        .open_hosted_blob(&name, &file)
         .await
         .unwrap()
         .unwrap();
@@ -162,19 +171,6 @@ async fn a_package_nested_under_another_is_listed() {
 }
 
 #[tokio::test]
-async fn files_inside_a_package_directory_are_not_mistaken_for_packages() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let name = image("alpine");
-    storage.write_hosted_document_if_current(&name, b"{}", None, None).await.unwrap();
-    let slot = storage.reserve_hosted_blob(&name, "sha256-abc").await.unwrap();
-    tokio::fs::write(&slot.tmp_path, b"layer").await.unwrap();
-    storage.finalize_blob_slot(slot).await.unwrap();
-
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["alpine"]);
-}
-
-#[tokio::test]
 async fn the_sweep_reclaims_only_uploads_that_have_gone_quiet() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
@@ -221,49 +217,6 @@ async fn the_sweep_reclaims_only_uploads_that_have_gone_quiet() {
     );
 
     assert_eq!(storage.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 0);
-}
-
-#[tokio::test]
-async fn a_blob_finalized_before_any_document_does_not_break_the_listing() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
-    // An image push finalizes blobs before the manifest that records them, so
-    // a repository directory can hold files and no document. Walking into one
-    // of those files would fail the whole listing rather than skip it.
-    let name = image("acme/half-pushed");
-    let slot = storage.reserve_hosted_blob(&name, "sha256-abc").await.unwrap();
-    tokio::fs::write(&slot.tmp_path, b"layer").await.unwrap();
-    storage.finalize_blob_slot(slot).await.unwrap();
-
-    storage
-        .write_hosted_document_if_current(&image("acme/complete"), b"{}", None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/complete"]);
-}
-
-#[tokio::test]
-async fn an_unmanifested_package_does_not_have_its_blobs_walked() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-
-    // An image push finalizes blobs before the manifest that records them,
-    // so this is an ordinary state, not a crafted one. Walking into it would
-    // enumerate every blob on a path an anonymous listing reaches.
-    let half_pushed = image("acme/half-pushed");
-    for blob in ["sha256-aa", "sha256-bb", "sha256-cc"] {
-        let slot = storage.reserve_hosted_blob(&half_pushed, blob).await.unwrap();
-        tokio::fs::write(&slot.tmp_path, b"layer").await.unwrap();
-        storage.finalize_blob_slot(slot).await.unwrap();
-    }
-    storage
-        .write_hosted_document_if_current(&image("acme/complete"), b"{}", None, None)
-        .await
-        .unwrap();
-
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/complete"]);
 }
 
 #[tokio::test]
@@ -409,9 +362,10 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
     let second = TempDir::new().unwrap();
     let objects: std::sync::Arc<dyn object_store::ObjectStore> =
         std::sync::Arc::new(object_store::memory::InMemory::new());
-    // Replicas share the bucket and the metadata database.
+    // Replicas share the bucket and the metadata database, which outlives
+    // the first replica's disk.
     let database = crate::metadata::open(&pnpr_config::MetadataBackend::Sqlite(
-        first.path().join("metadata.sqlite"),
+        second.path().join("metadata.sqlite"),
     ))
     .unwrap();
     let storage = |temp: &TempDir| {
@@ -450,10 +404,14 @@ async fn s3_upload_resumes_on_another_replica_and_survives_loss_of_scratch() {
     assert_eq!(writer.finish().await.unwrap(), 11);
     resumed.materialize().await.unwrap();
     assert_eq!(tokio::fs::read(resumed.path()).await.unwrap(), b"hello world");
-    second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
+    let (file, layer_id) = layer(b"hello world");
+    second
+        .finalize_uploaded_blob(resumed, &repository, (&file, layer_id))
+        .await
+        .unwrap();
     assert_eq!(
         second
-            .open_hosted_blob(&repository, "sha256-test")
+            .open_hosted_blob(&repository, &file)
             .await
             .unwrap()
             .unwrap()
@@ -485,10 +443,16 @@ async fn s3_concurrent_append_and_stale_completion_cannot_overwrite_accepted_byt
     loser.write_all(b"loser").await.unwrap();
     winner.finish().await.unwrap();
     assert!(loser.finish().await.is_err());
-    assert!(second.finalize_uploaded_blob(stale, &repository, "sha256-stale").await.is_err());
+    let (file, id) = layer(b"loser");
     assert!(
         second
-            .open_hosted_blob(&repository, "sha256-stale")
+            .finalize_uploaded_blob(stale, &repository, (&file, id))
+            .await
+            .is_err(),
+    );
+    assert!(
+        second
+            .open_hosted_blob(&repository, &file)
             .await
             .unwrap()
             .is_none(),
@@ -548,35 +512,44 @@ async fn failed_promotion_keeps_shared_chunks_available_for_retry() {
     let (first, second, _first_disk, _second_disk) = replicas();
     let repository = image("app");
     let upload = first.begin_blob_upload(&repository).await.unwrap();
-    let id = upload.id().to_string();
+    let upload_id = upload.id().to_string();
     let mut writer = upload.append().await.unwrap();
     writer.write_all(b"accepted").await.unwrap();
     writer.finish().await.unwrap();
+    let (file, id) = layer(b"accepted");
     upload.remote
         .as_ref()
         .unwrap()
-        .prepare_completion("sha256-test")
+        .prepare_completion(&file)
         .await
         .unwrap();
-    let slot = first.stage_uploaded_blob(upload, &repository, "sha256-test").await.unwrap();
+    let slot = first.stage_uploaded_blob(upload, &repository, &file).await.unwrap();
     tokio::fs::remove_file(&slot.tmp_path).await.unwrap();
-    assert!(first.finalize_blob_slot(slot).await.is_err());
+    assert!(
+        first
+            .promote_blob_slot(slot, (id.clone(), 8), None)
+            .await
+            .is_err(),
+    );
     let resumed = second
-        .open_blob_upload(&repository, &id)
+        .open_blob_upload(&repository, &upload_id)
         .await
         .unwrap()
         .unwrap();
     assert_eq!(resumed.offset().await.unwrap(), 8);
-    second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
+    second
+        .finalize_uploaded_blob(resumed, &repository, (&file, id))
+        .await
+        .unwrap();
     assert!(
         first
-            .open_blob_upload(&repository, &id)
+            .open_blob_upload(&repository, &upload_id)
             .await
             .unwrap()
             .is_none(),
     );
     let (body, _) = first
-        .open_hosted_blob(&repository, "sha256-test")
+        .open_hosted_blob(&repository, &file)
         .await
         .unwrap()
         .unwrap();
@@ -604,32 +577,6 @@ async fn empty_shared_chunks_reject_a_concurrently_changed_session() {
 }
 
 #[tokio::test]
-async fn conflicting_blob_promotion_does_not_consume_the_shared_upload() {
-    let (first, second, _first_disk, _second_disk) = replicas();
-    let repository = image("app");
-    let slot = first.reserve_hosted_blob(&repository, "sha256-test").await.unwrap();
-    tokio::fs::write(&slot.tmp_path, b"conflicting").await.unwrap();
-    first.finalize_blob_slot(slot).await.unwrap();
-    let upload = first.begin_blob_upload(&repository).await.unwrap();
-    let id = upload.id().to_string();
-    let mut writer = upload.append().await.unwrap();
-    writer.write_all(b"accepted").await.unwrap();
-    writer.finish().await.unwrap();
-    assert_eq!(
-        first.finalize_uploaded_blob(upload, &repository, "sha256-test").await.unwrap(),
-        BlobFinalize::Conflict,
-    );
-    let resumed = second
-        .open_blob_upload(&repository, &id)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(resumed.offset().await.unwrap(), 8);
-    first.remove_blob(&repository, "sha256-test").await.unwrap();
-    second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
-}
-
-#[tokio::test]
 async fn prepared_completion_freezes_chunks_and_survives_replica_loss() {
     let (first, second, first_disk, _second_disk) = replicas();
     let repository = image("app");
@@ -648,7 +595,7 @@ async fn prepared_completion_freezes_chunks_and_survives_replica_loss() {
     upload.remote
         .as_ref()
         .unwrap()
-        .prepare_completion("sha256-test")
+        .prepare_completion(&layer(b"accepted").0)
         .await
         .unwrap();
     assert!(stale_writer.finish().await.is_err());
@@ -673,10 +620,16 @@ async fn prepared_completion_freezes_chunks_and_survives_replica_loss() {
             .unwrap(),
         8,
     );
-    assert!(second.finalize_uploaded_blob(resumed, &repository, "sha256-other").await.is_err());
+    let (other, other_id) = layer(b"other");
     assert!(
         second
-            .open_hosted_blob(&repository, "sha256-other")
+            .finalize_uploaded_blob(resumed, &repository, (&other, other_id))
+            .await
+            .is_err(),
+    );
+    assert!(
+        second
+            .open_hosted_blob(&repository, &other)
             .await
             .unwrap()
             .is_none(),
@@ -686,9 +639,13 @@ async fn prepared_completion_freezes_chunks_and_survives_replica_loss() {
         .await
         .unwrap()
         .unwrap();
-    second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
+    let (file, layer_id) = layer(b"accepted");
+    second
+        .finalize_uploaded_blob(resumed, &repository, (&file, layer_id))
+        .await
+        .unwrap();
     let (body, _) = second
-        .open_hosted_blob(&repository, "sha256-test")
+        .open_hosted_blob(&repository, &file)
         .await
         .unwrap()
         .unwrap();

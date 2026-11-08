@@ -65,7 +65,7 @@ fn a_binary_variant_is_fetched_as_a_runtime_archive() {
     });
     let variations = variations(binary, None, None);
 
-    let selected = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected");
+    let selected = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected").1;
 
     assert!(matches!(selected, VariantFetch::Binary(_)));
 }
@@ -81,7 +81,7 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_any_variant_as_an_archiv
     let variations = variations(registry(), Some(registry()), None);
 
     let VariantFetch::Tarball { resolution, source } =
-        variant_for_host(&variations, &key, &linux_x64(), config).expect("selected")
+        variant_for_host(&variations, &key, &linux_x64(), config).expect("selected").1
     else {
         panic!("a registry variant is a tarball");
     };
@@ -98,7 +98,7 @@ fn a_registry_variant_is_fetched_from_its_route_and_the_any_variant_as_an_archiv
         floors: None,
     };
     let VariantFetch::Tarball { resolution, source } =
-        variant_for_host(&variations, &key, &darwin, config).expect("selected")
+        variant_for_host(&variations, &key, &darwin, config).expect("selected").1
     else {
         panic!("the variant that targets any is a tarball");
     };
@@ -136,7 +136,7 @@ fn a_revision_aware_variant_is_fetched_from_its_revision_route() {
     let VariantFetch::Tarball {
         resolution: LockfileResolution::Tarball(tarball),
         ..
-    } = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected")
+    } = variant_for_host(&variations, &key, &linux_x64(), config).expect("selected").1
     else {
         panic!("a registry variant is a tarball");
     };

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-restorer",
-  "version": "1103.2.8",
+  "version": "1103.2.9",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -71,6 +71,7 @@
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.state": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "p-limit": "catalog:",
     "path-absolute": "catalog:",

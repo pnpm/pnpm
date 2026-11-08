@@ -67,7 +67,10 @@ export async function selectWorkspaceProjects (
     filter: config.filter,
     filterProd: config.filterProd,
   })
-  const filterResults = await filterProjectsFromDir(wsDir, filters, createProjectsFilterOptions(config, wsDir))
+  const filterResults = await filterProjectsFromDir(wsDir, filters, createProjectsFilterOptions(config, context, {
+    wsDir,
+    skipRuntimes: invocation.cliOptions['runtime'] === false,
+  }))
 
   if (filterResults.allProjects.length === 0) {
     if (printLogs) {
@@ -123,17 +126,20 @@ function buildWorkspaceFilters (
   return filters
 }
 
-function createProjectsFilterOptions (config: Config, wsDir: string): Parameters<typeof filterProjectsFromDir>[2] {
+function createProjectsFilterOptions (config: Config, context: ConfigContext, options: { wsDir: string, skipRuntimes: boolean }): Parameters<typeof filterProjectsFromDir>[2] {
   return {
     catalogs: config.catalogs,
     engineStrict: config.engineStrict,
     nodeVersion: config.nodeVersion,
+    nodeVersionFromEnginesRuntime: context.nodeVersionFromEnginesRuntime,
+    runtimeOnFail: config.runtimeOnFail,
+    skipRuntimes: options.skipRuntimes,
     patterns: config.workspacePackagePatterns,
     modulesDir: config.modulesDir,
     modulesDirsByProjectName: config.modulesDirsByProjectName,
     linkWorkspacePackages: !!config.linkWorkspacePackages,
     prefix: process.cwd(),
-    workspaceDir: wsDir,
+    workspaceDir: options.wsDir,
     testPattern: config.testPattern,
     changedFilesIgnorePattern: config.changedFilesIgnorePattern,
     useGlobDirFiltering: !config.legacyDirFiltering,

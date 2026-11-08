@@ -126,6 +126,76 @@ fn config_set_writes_to_the_file_that_owns_the_setting() {
 }
 
 #[test]
+fn config_dependency_engine_strict_is_applied_before_the_root_engine_check() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let policy_dir = root.path().join("policy");
+    write(
+        &policy_dir,
+        "package.json",
+        &serde_json::json!({
+            "name": "@acme/pnpm-policy",
+            "version": "1.0.0",
+            "pnpm": { "config": "./config.yaml" },
+            "files": ["index.js"],
+        })
+        .to_string(),
+    );
+    write(&policy_dir, "index.js", "");
+    write(&policy_dir, "config.yaml", "engineStrict: true\n");
+
+    pnpm_at(&policy_dir)
+        .with_arg("pack")
+        .assert()
+        .success();
+
+    let tarball_bytes = fs::read(policy_dir.join("acme-pnpm-policy-1.0.0.tgz"))
+        .expect("read packed config dependency tarball");
+    let integrity = ssri::Integrity::from(tarball_bytes.as_slice());
+    let mut server = mockito::Server::new();
+    let tarball_path = "/@acme/pnpm-policy/-/pnpm-policy-1.0.0.tgz";
+    let mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(tarball_bytes)
+        .expect(1)
+        .create();
+    write(&workspace, ".npmrc", &format!("registry={}/\n", server.url()));
+    write(
+        &workspace,
+        "package.json",
+        &serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    );
+    write(
+        &workspace,
+        "pnpm-workspace.yaml",
+        &format!(
+            "storeDir: {}\ncacheDir: {}\nnodeVersion: 20.0.0\nconfigDependencies:\n  '@acme/pnpm-policy':\n    integrity: 1.0.0+{integrity}\n    tarball: {}{tarball_path}\ninclude:\n  '@acme/pnpm-policy': [engineStrict]\n",
+            root.path().join("store").display(),
+            root.path().join("cache").display(),
+            server.url(),
+        ),
+    );
+
+    let output = pnpm_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .output()
+        .expect("run install");
+    assert!(!output.status.success());
+    assert_diagnostic_contains(
+        &String::from_utf8_lossy(&output.stderr),
+        "ERR_PNPM_UNSUPPORTED_ENGINE",
+    );
+
+    mock.assert();
+    drop((root, server));
+}
+
+#[test]
 fn a_setting_owned_by_a_config_dependency_is_read_only_before_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

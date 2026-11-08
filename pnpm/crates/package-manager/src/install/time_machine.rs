@@ -2,6 +2,8 @@
 use pnpm_config::Config;
 #[cfg(any(target_os = "macos", test))]
 use pnpm_network::redact_and_sanitize;
+#[cfg(any(target_os = "macos", test))]
+use pnpm_process::Command;
 use pnpm_reporter::Reporter;
 #[cfg(target_os = "macos")]
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
@@ -10,7 +12,7 @@ use std::{
     collections::HashSet,
     io,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::Output,
     time::Duration,
 };
 #[cfg(any(target_os = "macos", all(test, unix)))]
@@ -210,18 +212,10 @@ fn new_directories_to_exclude(
     let mut seen = HashSet::with_capacity(project_dirs.len() + 3);
     if config.macos_backup.exclude_modules_dir {
         push_missing(&mut paths, &mut seen, config.modules_dir.clone());
-        let modules_dir_name = config.modules_dir_name();
+        let modules_dirs =
+            pnpm_deps_restorer::ImporterModulesDirs::from_config(config, workspace_root);
         for project_dir in project_dirs {
-            push_missing(&mut paths, &mut seen, project_dir.join(modules_dir_name));
-            if let (Some(symlink_root), Ok(importer_dir)) =
-                (config.modules_dir_anchor(), project_dir.strip_prefix(workspace_root))
-            {
-                push_missing(
-                    &mut paths,
-                    &mut seen,
-                    symlink_root.join(importer_dir).join(modules_dir_name),
-                );
-            }
+            push_missing(&mut paths, &mut seen, modules_dirs.of(project_dir));
         }
         let virtual_store_dir = pnpm_fs::lexical_normalize(config.virtual_store_dir());
         let covered_by_new_modules_dir = paths

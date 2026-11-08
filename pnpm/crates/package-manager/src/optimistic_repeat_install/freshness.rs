@@ -9,7 +9,7 @@ use missing_lockfile::settle_missing_wanted_lockfile;
 use registry_keys::state_unverified_by_changed_lockfile;
 
 use super::{
-    LockfileConflictCheckFailure, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
+    LockfileConflictCheckFailure, OptimisticRepeatInstallCheck, PathBuf, Scope, WorkspaceState,
     catalogs_cache_matches,
     current_lockfile::CurrentLockfile,
     current_lockfile_file_has_content,
@@ -81,24 +81,6 @@ pub(super) enum RecordedGroups {
     Kept,
 }
 
-/// The projects a gate holds to being installed. Whatever the gate reports
-/// must be something the install it leads to can fix: a filtered install
-/// leaves every project outside its selection as it is.
-#[derive(Clone, Copy)]
-pub(crate) enum Scope<'a> {
-    /// Every project, for an unfiltered install.
-    Workspace,
-    /// The selected projects and the workspace projects they depend on, for a
-    /// filtered install or a filtered command.
-    Selected(&'a [&'a Path]),
-    /// An unfiltered command run from the selected projects. Its install
-    /// covers the whole workspace, so a project whose recorded install went
-    /// stale is held anywhere. A project never installed is held only where
-    /// the selection depends on it, so an install filtered to other projects
-    /// does not make every command install again.
-    Command(&'a [&'a Path]),
-}
-
 /// Why [`check_freshness`] cannot report the tree current. Each gate words it
 /// for its own audience.
 pub(crate) enum Stale {
@@ -156,8 +138,8 @@ pub(super) fn check_freshness(
 ) -> Result<(), Stale> {
     check_static_freshness(check, state, policy, scope)?;
     let drift = InputDrift::compute(check, state);
-    let held = drift.held(check, scope);
-    if !super::validation::held_workspace_bins_match(check, state, &held) {
+    let held = drift.held(check, scope, proven_projects(check, state, policy));
+    if !drift::held_workspace_bins_match(check, state, &held) {
         return Err(Stale::Content("workspace package bins changed since the last install"));
     }
     stand_in_writes::refuse(check, moved || !held.is_empty() || drift.patches_modified)?;
@@ -192,6 +174,22 @@ pub(super) fn check_freshness(
         record_state_at(check, state, &vouched, policy, filesystem_now);
     }
     Ok(())
+}
+
+/// A gate that lets local file dependencies through still has to see a
+/// local directory dependency's manifest change, which changes what the
+/// lockfile records for it. No validation records that manifest, so the
+/// content check reads it for every project.
+fn proven_projects(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    policy: &GatePolicy<'_>,
+) -> drift::ProvenProjects {
+    if !policy.check_local_file_deps && super::records_local_directory(check, state) {
+        drift::ProvenProjects::Rechecked
+    } else {
+        drift::ProvenProjects::Trusted
+    }
 }
 
 /// The static drift checks that run before [`InputDrift::compute`] stats any
@@ -250,6 +248,9 @@ fn check_settings_and_workspace_freshness(
         policy.ignored_settings,
     ) {
         return Err(Stale::SettingChanged(setting));
+    }
+    if crate::install_state::linked_platform_missing(state, check.lockfile.loaded()) {
+        return Err(Stale::SettingChanged("linkedPlatform"));
     }
     if config_dependencies_drifted(config, state) {
         return Err(Stale::ConfigDependencies);
@@ -498,7 +499,7 @@ fn refreshed_state(
     filesystem_now: Option<i64>,
     policy: &GatePolicy<'_>,
 ) -> WorkspaceState {
-    crate::install::recorded_workspace_state(&crate::install::StateWrite {
+    let mut refreshed = crate::install::recorded_workspace_state(&crate::install::StateWrite {
         workspace_root: check.workspace_root,
         config: check.config,
         layout: check.layout,
@@ -522,5 +523,8 @@ fn refreshed_state(
             ),
         },
         vouched: &Vouched::Projects { dirs: vouched, previous: Some(state) },
-    })
+    });
+    // The check passed, so the recorded platform is the one this run links.
+    refreshed.settings.linked_platform.clone_from(&state.settings.linked_platform);
+    refreshed
 }

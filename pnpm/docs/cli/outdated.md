@@ -15,6 +15,10 @@ for Cargo crates and `pypi:<name>` for Python packages. Patterns support `*`
 wildcards, and a leading `!` excludes matching names.
 
 `pnpm outdated` exits with code 1 when any dependency is outdated.
+Without a lockfile, the `Current` column shows the version installed in
+`node_modules`. If the dependency is not installed, it shows the lowest version
+allowed by the declared range. Cargo and Python checks still require their
+ecosystem lockfiles.
 
 Examples:
 ```sh

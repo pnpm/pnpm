@@ -50,13 +50,13 @@ fn rebuild_selection_runs_only_selected_scripts() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: false,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -80,6 +80,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

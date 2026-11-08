@@ -183,7 +183,8 @@ fn a_failed_commit_is_rolled_back() {
             // A deferred foreign key fails the `COMMIT` itself, which leaves
             // the transaction open.
             connection.execute_batch(
-                "CREATE TEMP TABLE parent (id INTEGER PRIMARY KEY);
+                "PRAGMA foreign_keys = ON;
+                 CREATE TEMP TABLE parent (id INTEGER PRIMARY KEY);
                  CREATE TEMP TABLE child (
                      parent INTEGER REFERENCES parent (id) DEFERRABLE INITIALLY DEFERRED
                  );",
@@ -233,7 +234,47 @@ fn a_read_left_in_its_transaction_is_not_reused() {
         .unwrap();
 }
 
+async fn a_panicked_write_does_not_leak_a_transaction(db: Db) {
+    let storage = storage(&db);
+    write(&storage, "pkg", &packument("pkg", &["1.0.0"])).await;
+    let before = storage
+        .sql_metadata()
+        .catalog_generation("")
+        .await
+        .unwrap();
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            adapter
+                .write(&mut |connection| {
+                    connection.begin_write()?;
+                    connection.execute("UPDATE catalogs SET generation = 999", &[])?;
+                    panic!("interrupted operation");
+                })
+                .unwrap();
+        }));
+        assert!(result.is_err());
+        adapter
+            .write(&mut |connection| {
+                connection.begin_write()?;
+                connection.rollback()
+            })
+            .unwrap();
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        storage
+            .sql_metadata()
+            .catalog_generation("")
+            .await
+            .unwrap(),
+        before,
+    );
+}
+
 conformance! {
+    a_panicked_write_does_not_leak_a_transaction,
     a_read_completes_while_a_write_transaction_is_open,
     a_first_write_waits_out_another_instances_write,
     concurrent_publishers_of_one_version_cannot_both_commit,

@@ -308,13 +308,10 @@ async fn install_writes_workspace_state() {
         "lastValidatedTimestamp should be populated, got {}",
         state.last_validated_timestamp,
     );
-    let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
-        .expect("manifest should have an mtime");
+    let manifest_mtime =
+        crate::install_state::file_mtime(manifest.path()).expect("manifest should have an mtime");
     assert!(
-        !crate::optimistic_repeat_install::modified_at_or_after(
-            manifest_mtime,
-            state.last_validated_timestamp,
-        ),
+        !crate::install_state::modified_at_or_after(manifest_mtime, state.last_validated_timestamp,),
         "fresh install state should cover the validated manifest mtime",
     );
 
@@ -376,6 +373,8 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         )
     };
     let retained = "retained@1.0.0";
+    let retained_peer = "peered@1.0.0(peer@1.0.0)";
+    let removed_peer = "peered@1.0.0(peer@2.0.0)";
     let selected = "selected@2.0.0";
     let shared = "shared@1.0.0";
     let stale_selected = "selected@1.0.0";
@@ -383,8 +382,13 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
     let selected_file = package_key("selected-file", "file:packages/selected-source");
     let shared_file = package_key("shared-file", "file:packages/shared-source");
     let current = Lockfile {
+        packages: Some(std::collections::HashMap::from([(
+            package_key("peered", "1.0.0"),
+            serde_saphyr::from_str("{resolution: {integrity: sha512-AA==}}").unwrap(),
+        )])),
         snapshots: Some(std::collections::HashMap::from([
             (package_key("retained", "1.0.0"), Default::default()),
+            (package_key("peered", "1.0.0(peer@1.0.0)"), Default::default()),
             (package_key("selected", "2.0.0"), Default::default()),
             (package_key("shared", "1.0.0"), Default::default()),
             (retained_file, Default::default()),
@@ -428,6 +432,8 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ]),
         hoisted_locations: Some(std::collections::BTreeMap::from([
             (retained.to_string(), vec!["retained/location".to_string()]),
+            (retained_peer.to_string(), vec!["retained/peer/location".to_string()]),
+            (removed_peer.to_string(), vec!["removed/peer/location".to_string()]),
             (shared.to_string(), vec!["stale/shared/location".to_string()]),
         ])),
         pending_builds: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
@@ -484,6 +490,7 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         next.hoisted_locations.as_ref().unwrap(),
         &std::collections::BTreeMap::from([
             (retained.to_string(), vec!["retained/location".to_string()]),
+            (retained_peer.to_string(), vec!["retained/peer/location".to_string()]),
             (selected.to_string(), vec!["selected/location".to_string()]),
         ]),
     );

@@ -205,6 +205,23 @@ pub(super) fn team_registry<'a>(
     Ok((name, hosted))
 }
 
+pub(super) fn readable_team_registry<'a>(
+    state: &'a AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+) -> Result<(&'a str, &'a HostedConfig), RegistryError> {
+    let (name, hosted) = team_registry(state, identity, registry, scope)?;
+    super::require_caller(identity, "team listing")?;
+    if state.inner.config.identity.is_admin(identity) {
+        return Ok((name, hosted));
+    }
+    if !identity.belongs_to_directory(&hosted.teams) {
+        return Err(RegistryError::NotFound);
+    }
+    Ok((name, hosted))
+}
+
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
 /// — list the teams of the hosted registry that claims `@{scope}`, in the
 /// shape the pnpm team command consumes: an array of `{"name": ...}`.
@@ -214,14 +231,14 @@ pub(super) fn get_org_teams(
     registry: Option<&str>,
     scope: &str,
 ) -> Response {
-    let hosted = match team_registry(state, identity, registry, scope) {
+    let hosted = match readable_team_registry(state, identity, registry, scope) {
         Ok((_, hosted)) => hosted,
         Err(err) => return err.into_response(),
     };
     let teams: Vec<Value> = hosted.teams
         .snapshot()
-        .keys()
-        .map(|name| json!({ "name": name }))
+        .iter()
+        .map(|(id, team)| json!({ "id": id, "name": team.name }))
         .collect();
     (StatusCode::OK, axum::Json(Value::Array(teams))).into_response()
 }
@@ -229,24 +246,61 @@ pub(super) fn get_org_teams(
 /// `GET /-/team/{scope}/{team}/user` (path-less) or
 /// `GET /~<name>/-/team/{scope}/{team}/user` — list a team's members, in
 /// the shape the pnpm team command consumes: an array of `{"name": ...}`.
-pub(super) fn get_team_members(
+pub(super) async fn get_team_members(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
     team: &str,
 ) -> Response {
-    let hosted = match team_registry(state, identity, registry, scope) {
+    let hosted = match readable_team_registry(state, identity, registry, scope) {
         Ok((_, hosted)) => hosted,
         Err(err) => return err.into_response(),
     };
     let roster = hosted.teams.snapshot();
-    let Some(members) = roster.get(team) else {
+    let Some((_, record)) = roster
+        .iter()
+        .find(|(_, record)| record.name == team)
+    else {
         return not_found();
     };
-    let members: Vec<Value> = members
-        .iter()
-        .map(|name| json!({ "name": name }))
-        .collect();
+    let accounts = match state.inner.identity.auth.users.accounts_by_id(
+        &record.members
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+    .await
+    {
+        Ok(accounts) => accounts,
+        Err(err) => return err.into_response(),
+    };
+    let members = build_team_member_list(&record.members, accounts);
     (StatusCode::OK, axum::Json(Value::Array(members))).into_response()
+}
+
+fn build_team_member_list(
+    ids: &std::collections::BTreeSet<String>,
+    accounts: Vec<pnpr_auth::UserAccount>,
+) -> Vec<Value> {
+    let names: std::collections::HashMap<_, _> = accounts
+        .into_iter()
+        .map(|account| (account.id, account.username))
+        .collect();
+    let mut members: Vec<_> = ids
+        .iter()
+        .map(|id| {
+            let name = names
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| format!("deleted:{id}"));
+            json!({ "id": id, "name": name })
+        })
+        .collect();
+    members.sort_by(|left, right| {
+        left["name"]
+            .as_str()
+            .cmp(&right["name"].as_str())
+    });
+    members
 }

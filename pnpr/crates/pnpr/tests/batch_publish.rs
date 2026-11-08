@@ -12,7 +12,6 @@ use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use npm::{npm_tgz, publish_doc, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -25,7 +24,7 @@ fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -79,7 +78,7 @@ async fn batch_publish_writes_every_package_in_one_request() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let bytes_a = &npm_tgz("batch-a", "1.0.0", b"tarball-a");
     let bytes_b = &npm_tgz("batch-b", "2.0.0", b"tarball-b");
@@ -112,14 +111,9 @@ async fn batch_publish_writes_every_package_in_one_request() {
         assert_eq!(packument["dist-tags"]["latest"], version);
         assert!(packument.get("_attachments").is_none(), "_attachments should not be persisted");
 
-        let on_disk_tarball = std::fs::read(local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            name,
-            &format!("{name}-{version}.tgz"),
-        ))
-        .expect("tarball written");
+        let on_disk_tarball =
+            crate::storage::hosted_file(&storage, name, &format!("{name}-{version}.tgz"))
+                .expect("tarball written");
         assert_eq!(on_disk_tarball, bytes);
 
         let served = app
@@ -136,11 +130,37 @@ async fn batch_publish_writes_every_package_in_one_request() {
 }
 
 #[tokio::test]
+async fn batch_publish_rejects_invalid_semver_versions_before_storing_them() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
+    let archive = npm_tgz("invalid-batch", "banana", b"invalid");
+    let body = json!({ "packages": [publish_doc("invalid-batch", "banana", &archive)] });
+
+    let response = app
+        .oneshot(put_json_with_token("/npm/-/pnpr/v0/publish", &body, &token))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "invalid-batch",
+        )
+        .is_none(),
+    );
+}
+
+#[tokio::test]
 async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_names() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let bytes = &npm_tgz("@scope/wire-form", "1.0.0", b"scoped-batch-bytes");
     // `pnpm publish --batch` names attachments by the full scoped name
@@ -179,15 +199,9 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    // On disk: canonical `<basename>-<version>.tgz` under the scope dir.
-    let on_disk = local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "@scope/wire-form",
-        "wire-form-1.0.0.tgz",
-    );
-    assert_eq!(std::fs::read(&on_disk).unwrap(), *bytes);
+    // Mapped as the canonical `<basename>-<version>.tgz` of the package.
+    let stored = crate::storage::hosted_file(&storage, "@scope/wire-form", "wire-form-1.0.0.tgz");
+    assert_eq!(stored.unwrap(), *bytes);
 
     // The served packument canonicalizes `dist.tarball` to the
     // routable 4-segment form, regardless of the scoped filename the
@@ -232,7 +246,16 @@ async fn anonymous_batch_publish_is_rejected() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    assert!(!local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "anon-batch").exists());
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "anon-batch"
+        )
+        .is_none(),
+    );
+    assert!(crate::storage::namespace_files(&storage, "", pnpr_storage::Ecosystem::Npm).is_empty());
 }
 
 /// The batch is all-or-nothing: when one package's tarball fails the
@@ -243,7 +266,7 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let good = publish_doc("rollback-good", "1.0.0", b"good-bytes");
     let mut bad = publish_doc("rollback-bad", "1.0.0", b"actual-bytes");
@@ -258,23 +281,12 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(body_text.contains("EINTEGRITY"), "error should carry EINTEGRITY: {body_text}");
 
+    let npm = pnpr_storage::Ecosystem::Npm;
     for name in ["rollback-good", "rollback-bad"] {
-        let files: Vec<_> = walkdir::WalkDir::new(local_package_dir(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            name,
-        ))
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file())
-        .map(|entry| entry.path().to_path_buf())
-        .collect();
-        assert!(
-            files.is_empty(),
-            "expected no artifacts for {name} after rejected batch, found: {files:?}",
-        );
+        assert!(pnpr_fixtures::read_hosted_document(&storage, "", npm, name).is_none(), "{name}");
     }
+    let files = crate::storage::namespace_files(&storage, "", npm);
+    assert!(files.is_empty(), "expected no artifacts after rejected batch, found: {files:?}");
 }
 
 #[tokio::test]
@@ -282,7 +294,7 @@ async fn batch_publish_rejects_duplicate_package_names() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let body = json!({
         "packages": [
@@ -297,14 +309,17 @@ async fn batch_publish_rejects_duplicate_package_names() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(body_text.contains("duplicate npm package"), "got: {body_text}");
-    assert!(!local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "dupe-pkg").exists());
+    assert!(
+        pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "dupe-pkg")
+            .is_none(),
+    );
 }
 
 #[tokio::test]
 async fn batch_publish_rejects_bodies_without_a_packages_array() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     for body in [json!({}), json!({ "packages": [] }), json!({ "packages": "nope" }), json!([])] {
         let response = app
@@ -320,7 +335,7 @@ async fn batch_publish_rejects_bodies_without_a_packages_array() {
 async fn batch_publish_rejects_entries_without_a_name() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let body = json!({ "packages": [{ "versions": {} }] });
     let response = app
@@ -337,7 +352,7 @@ async fn batch_publish_merges_with_previously_published_versions() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let first = json!({ "packages": [publish_doc("merge-pkg", "1.0.0", b"v1")] });
     let response = app

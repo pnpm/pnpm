@@ -197,9 +197,12 @@ fn declares_settings(path: &Path, text: &str) -> miette::Result<bool> {
     if text.trim().is_empty() {
         return Ok(false);
     }
-    let document: Value = serde_saphyr::from_str(text)
+    let Some(document) = serde_saphyr::from_str::<Option<Value>>(text)
         .into_diagnostic()
-        .wrap_err_with(|| format!("parse {}", path.display()))?;
+        .wrap_err_with(|| format!("parse {}", path.display()))?
+    else {
+        return Ok(false);
+    };
     Ok(document
         .as_object()
         .is_some_and(|keys| keys.keys().any(|key| key != "packages")))

@@ -65,7 +65,7 @@ fn injected_sibling_decision(
     fs::create_dir_all(sibling_dir.join("node_modules")).unwrap();
     let config = config.leak();
 
-    let settings = super::super::settings::current_settings(
+    let settings = crate::install_state::settings::current_settings(
         config,
         pnpm_config::NodeLinker::Isolated,
         isolated_included(),

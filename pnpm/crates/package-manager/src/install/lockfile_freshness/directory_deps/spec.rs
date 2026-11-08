@@ -1,9 +1,13 @@
 use super::{
     ProjectManifestsByDir,
-    injected_manifest::{target_manifest, workspace_path_matches_target},
+    injected_manifest::{
+        publishing_project_manifest, target_manifest, workspace_path_matches_target,
+    },
 };
 use pnpm_resolving_deps_resolver::locked_child_admits;
-use std::path::{Path, PathBuf};
+use pnpm_resolving_local_resolver::{local_spec_path, recorded_local_path};
+use pnpm_workspace_spec::is_workspace_path_specifier;
+use std::path::Path;
 
 /// Where the specs of a local directory dependency resolve.
 #[derive(Clone, Copy)]
@@ -85,39 +89,25 @@ fn is_full_commit(committish: &str) -> bool {
     committish.len() == 40 && committish.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
-fn resolve_local_spec_path(base_dir: &Path, raw_path: &str) -> PathBuf {
-    let clean = raw_path.strip_prefix("./").unwrap_or(raw_path);
-    if let Some(rest) = clean
-        .strip_prefix("~/")
-        .or_else(|| clean.strip_prefix(r"~\"))
-    {
-        let home = pnpm_config::home_dir().unwrap_or_default();
-        pnpm_fs::lexical_normalize(&home.join(rest))
-    } else {
-        pnpm_fs::lexical_normalize(&base_dir.join(clean))
-    }
-}
-
 fn file_or_link_spec_satisfies(
     lockfile_dir: &Path,
     local_dep_dir: &Path,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
-    if let Some(target) = spec.strip_prefix("link:") {
+    if spec.starts_with("link:") {
         let Some(lockfile_target) = lockfile_dep.as_link_target() else {
             return Some(false);
         };
         return Some(
-            resolve_local_spec_path(local_dep_dir, target)
-                == resolve_local_spec_path(lockfile_dir, lockfile_target),
+            local_spec_path(spec, local_dep_dir)
+                == recorded_local_path(lockfile_target, lockfile_dir),
         );
     }
     let path = spec.strip_prefix("file:")?;
     if let Some(target) = lockfile_dep.as_link_target() {
         return Some(
-            resolve_local_spec_path(local_dep_dir, path)
-                == resolve_local_spec_path(lockfile_dir, target),
+            local_spec_path(spec, local_dep_dir) == recorded_local_path(target, lockfile_dir),
         );
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
@@ -125,8 +115,7 @@ fn file_or_link_spec_satisfies(
     };
     match ver_peer.version() {
         pnpm_lockfile::VersionPart::File(recorded) => Some(
-            resolve_local_spec_path(local_dep_dir, path)
-                == resolve_local_spec_path(lockfile_dir, recorded),
+            local_spec_path(spec, local_dep_dir) == recorded_local_path(recorded, lockfile_dir),
         ),
         pnpm_lockfile::VersionPart::NonSemver(raw) => Some(raw == spec || raw == path),
         _ => Some(false),
@@ -140,12 +129,12 @@ fn workspace_path_spec_satisfies(
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    let resolved_spec = resolve_local_spec_path(local_dep_dir, workspace_spec);
+    let resolved_spec = local_spec_path(spec, local_dep_dir);
     if let Some(target) = lockfile_dep.as_link_target() {
         return workspace_path_matches_target(
             dirs,
             &resolved_spec,
-            &resolve_local_spec_path(dirs.lockfile_dir, target),
+            &recorded_local_path(target, dirs.lockfile_dir),
         );
     }
     let Some(ver_peer) = lockfile_dep.ver_peer() else {
@@ -155,15 +144,11 @@ fn workspace_path_spec_satisfies(
         pnpm_lockfile::VersionPart::File(recorded) => workspace_path_matches_target(
             dirs,
             &resolved_spec,
-            &resolve_local_spec_path(dirs.lockfile_dir, recorded),
+            &recorded_local_path(recorded, dirs.lockfile_dir),
         ),
         pnpm_lockfile::VersionPart::NonSemver(raw) => raw == spec || raw == workspace_spec,
         _ => false,
     }
-}
-
-fn is_workspace_path(workspace_spec: &str) -> bool {
-    pnpm_local_spec::is_filespec(workspace_spec)
 }
 
 fn workspace_spec_satisfies(
@@ -174,7 +159,7 @@ fn workspace_spec_satisfies(
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    if is_workspace_path(workspace_spec) {
+    if is_workspace_path_specifier(spec) {
         workspace_path_spec_satisfies(dirs, local_dep_dir, spec, workspace_spec, lockfile_dep)
     } else {
         workspace_range_spec_satisfies(dirs, dep_name, workspace_spec, lockfile_dep)
@@ -187,13 +172,10 @@ fn workspace_range_spec_satisfies(
     workspace_spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> bool {
-    let (target, parsed_range_str) = parse_workspace_range(workspace_spec);
+    let (target, range) = parse_workspace_range(workspace_spec);
     let expected_name = target.unwrap_or(dep_name);
-    let Ok(range) = parsed_range_str.parse::<node_semver::Range>() else {
-        return false;
-    };
     if let Some(link) = lockfile_dep.as_link_target() {
-        return linked_target_satisfies(dirs, link, expected_name, parsed_range_str, &range);
+        return linked_target_satisfies(dirs, link, expected_name, range);
     }
     if !snapshot_dep_name_matches(lockfile_dep, dep_name, expected_name) {
         return false;
@@ -207,14 +189,14 @@ fn workspace_range_spec_satisfies(
     else {
         return false;
     };
-    linked_target_satisfies(dirs, recorded, expected_name, parsed_range_str, &range)
+    linked_target_satisfies(dirs, recorded, expected_name, range)
 }
 
+/// The aliased package name and the version range of the post-`workspace:`
+/// part of a specifier, with every pick-the-highest token (`*`, `^`, `~`, or
+/// nothing) as `*`.
 fn parse_workspace_range(workspace_spec: &str) -> (Option<&str>, &str) {
-    let (target, range_str) = match workspace_spec.rfind('@') {
-        Some(idx) if idx > 0 => (Some(&workspace_spec[..idx]), &workspace_spec[idx + 1..]),
-        _ => (None, workspace_spec),
-    };
+    let (target, range_str) = pnpm_workspace_spec::split_alias_version(workspace_spec);
     let parsed_range_str = match range_str {
         "*" | "^" | "~" | "" => "*",
         other => other,
@@ -244,18 +226,17 @@ pub(super) fn importer_link_satisfies(
     if super::is_declared_local_directory(spec) {
         return true;
     }
-    if let Some(target) = spec.strip_prefix("link:") {
-        return resolve_local_spec_path(project_dir, target)
-            == resolve_local_spec_path(project_dir, link_target);
+    if spec.starts_with("link:") {
+        return local_spec_path(spec, project_dir) == recorded_local_path(link_target, project_dir);
     }
     let Some(workspace_spec) = spec.strip_prefix("workspace:") else {
         return true;
     };
-    if is_workspace_path(workspace_spec) {
+    if is_workspace_path_specifier(spec) {
         return workspace_path_matches_target(
             dirs,
-            &resolve_local_spec_path(project_dir, workspace_spec),
-            &resolve_local_spec_path(project_dir, link_target),
+            &local_spec_path(spec, project_dir),
+            &recorded_local_path(link_target, project_dir),
         );
     }
     let (target, parsed_range_str) = parse_workspace_range(workspace_spec);
@@ -264,46 +245,67 @@ pub(super) fn importer_link_satisfies(
     }
 
     let expected_name = target.unwrap_or(dep_name);
-    let Ok(range) = parsed_range_str.parse::<node_semver::Range>() else {
-        return false;
-    };
     let link_path = Path::new(link_target);
     if link_path.is_absolute() {
         return false;
     }
     let target_dir = project_dir.join(link_path);
     is_missing_from_checkout(dirs, &target_dir)
-        || target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str, &range)
+        || target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str)
 }
 
+/// Whether a plain or `npm:` semver range that the lockfile links to a
+/// workspace project still accepts that project's version. Any other spec is
+/// left to [`importer_link_satisfies`].
+pub(super) fn importer_range_link_satisfies(
+    dirs: &SpecDirs<'_>,
+    project_dir: &Path,
+    dep_name: &str,
+    spec: &str,
+    link_target: &str,
+) -> bool {
+    if spec.starts_with("workspace:") {
+        return true;
+    }
+    let (target, range) = parse_npm_spec(spec);
+    if range.parse::<node_semver::Range>().is_err() {
+        return true;
+    }
+    let target_dir = project_dir.join(link_target);
+    is_missing_from_checkout(dirs, &target_dir)
+        || target_dir_satisfies(dirs, &target_dir, target.unwrap_or(dep_name), range)
+}
+
+/// An unbuilt `publishConfig.directory` is absent too, but its project is
+/// checked out, so it does not count as missing.
 fn is_missing_from_checkout(dirs: &SpecDirs<'_>, target_dir: &Path) -> bool {
-    !dirs.manifests_by_dir.contains_key(&pnpm_fs::lexical_normalize(target_dir))
+    let normalized = pnpm_fs::lexical_normalize(target_dir);
+    !dirs.manifests_by_dir.contains_key(&normalized)
         && matches!(
             std::fs::symlink_metadata(target_dir),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound,
         )
+        && publishing_project_manifest(dirs, &normalized).is_none()
 }
 
 fn linked_target_satisfies(
     dirs: &SpecDirs<'_>,
     link: &str,
     expected_name: &str,
-    range_str: &str,
-    range: &node_semver::Range,
+    range: &str,
 ) -> bool {
     let link_path = Path::new(link);
     if link_path.is_absolute() {
         return false;
     }
-    target_dir_satisfies(dirs, &dirs.lockfile_dir.join(link_path), expected_name, range_str, range)
+    target_dir_satisfies(dirs, &dirs.lockfile_dir.join(link_path), expected_name, range)
 }
 
 fn target_dir_satisfies(
     dirs: &SpecDirs<'_>,
     target_dir: &Path,
     expected_name: &str,
-    range_str: &str,
-    range: &node_semver::Range,
+    range: &str,
 ) -> bool {
     let Some(pkg_json) = target_manifest(dirs, target_dir) else {
         return false;
@@ -311,17 +313,11 @@ fn target_dir_satisfies(
     if pkg_json.get("name").and_then(serde_json::Value::as_str) != Some(expected_name) {
         return false;
     }
-    if matches!(range_str, "*" | "^" | "~" | "") {
-        return true;
-    }
-    let Some(version) = pkg_json
+    let version = pkg_json
         .get("version")
         .and_then(serde_json::Value::as_str)
-        .and_then(|raw_version| raw_version.parse::<node_semver::Version>().ok())
-    else {
-        return false;
-    };
-    range.satisfies(&version)
+        .unwrap_or_default();
+    pnpm_workspace_range_resolver::resolve_workspace_range(range, &[version.to_string()]).is_some()
 }
 
 /// The resolver's reuse gate decides a semver range or a named-registry

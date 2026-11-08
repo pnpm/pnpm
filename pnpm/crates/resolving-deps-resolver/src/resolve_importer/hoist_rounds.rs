@@ -1,10 +1,9 @@
 use super::{
-    Arc, BTreeMap, CandidatePeerRanges, DependencySpec, DirectDep, HashMap, HashSet,
-    HoistMissingScope, HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases,
-    PeerDiscoveryResult, PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver,
-    WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
-    get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
-    partition_missing_peers, peers_accept_provided_versions,
+    Arc, BTreeMap, DependencySpec, DirectDep, HashMap, HashSet, HoistMissingScope,
+    HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult,
+    PeerHoistDiscovery, PreferredVersions, RequiredRound, ResolveImporterError, Resolver,
+    WorkspaceRootDep, apply_hoist_missing_scope, extend_tree, hoist_peers, index_missing_names,
+    partition_missing_peers,
 };
 use crate::peer_provider::optional_peer_specifier;
 
@@ -192,14 +191,7 @@ impl ImporterHoistState {
             self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
         let resolved_versions = self.ctx.run_resolved_versions(names());
         let hoisted = hoist_peers(
-            &HoistPeersOptions {
-                auto_install_peers: self.policy.peers.auto_install_peers,
-                all_preferred_versions: &hoist_preferred,
-                workspace_root_deps: self.hoist_root_deps(),
-                override_bare_specifier: self.selection.override_bare_specifier.as_deref(),
-                project_dir: &self.project_dir,
-                resolved_versions: &resolved_versions,
-            },
+            &self.hoist_peers_options(&hoist_preferred, &resolved_versions),
             &missing_as_pairs,
         );
         if hoisted.is_empty() {
@@ -225,6 +217,21 @@ impl ImporterHoistState {
         .await?;
         self.dependencies.direct.extend(new_direct);
         Ok(true)
+    }
+
+    pub(super) fn hoist_peers_options<'a>(
+        &'a self,
+        all_preferred_versions: &'a PreferredVersions,
+        resolved_versions: &'a HashMap<String, HashSet<String>>,
+    ) -> HoistPeersOptions<'a> {
+        HoistPeersOptions {
+            auto_install_peers: self.policy.peers.auto_install_peers,
+            all_preferred_versions,
+            workspace_root_deps: self.hoist_root_deps(),
+            override_bare_specifier: self.selection.override_bare_specifier.as_deref(),
+            project_dir: &self.project_dir,
+            resolved_versions,
+        }
     }
 
     /// The workspace root's own dependencies, when peers resolve from there.
@@ -320,48 +327,6 @@ impl ImporterHoistState {
             self.dependencies.all_missing_optional_peers.remove(alias);
         }
     }
-
-    /// `alias → version` a package hoisted to the importer resolves its own
-    /// peers from: the importer's direct dependencies first, then the
-    /// workspace root's.
-    fn hoisted_provider_peer_versions(&self) -> HashMap<String, String> {
-        let mut versions = if self.policy.peers.resolve_peers_from_workspace_root {
-            (*self.dependencies.workspace_root_dep_versions).clone()
-        } else {
-            HashMap::default()
-        };
-        versions.extend(self.direct_dep_versions());
-        versions
-    }
-
-    /// `peer_name → version` for each missing optional peer a version in
-    /// the graph can supply. A candidate is skipped when the importer
-    /// provides one of its own peers at a version its range rejects.
-    fn hoistable_optional_peers(&self) -> BTreeMap<String, String> {
-        let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
-        let hoist_preferred =
-            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
-        let preferred_tiers =
-            self.ctx.optional_peer_version_tiers(&self.selection.locked_versions, names());
-        let provided_peer_versions = self.hoisted_provider_peer_versions();
-        let workspace = self.ctx.workspace();
-        let peer_ranges = CandidatePeerRanges::new(workspace);
-        let accepts_candidate = |name: &str, version: &str| {
-            peer_ranges
-                .get(name, version)
-                .is_none_or(|ranges| {
-                    peers_accept_provided_versions(&ranges, &provided_peer_versions)
-                })
-        };
-        get_hoistable_optional_peers_with_preferred_versions(
-            &self.dependencies.all_missing_optional_peers,
-            &hoist_preferred,
-            self.hoist_root_deps(),
-            &preferred_tiers,
-            &accepts_candidate,
-        )
-    }
-
     /// Hoist this round's missing optional peers; `true` when any were
     /// installed (the workspace runs another round). No-op when nothing
     /// may be hoisted (see [`super::hoist_state::ImporterHoistPolicy::should_hoist_peers`]).
@@ -377,7 +342,11 @@ impl ImporterHoistState {
         {
             return Ok(false);
         }
-        let hoisted_optional = self.hoistable_optional_peers();
+        let hoistable = self.hoistable_optional_peers(resolver).await?;
+        let hoisted_optional = hoistable.versions;
+        let rejected = &mut self.dependencies.rejected_optional_peers;
+        rejected.retain(|name| !hoisted_optional.contains_key(name));
+        rejected.extend(hoistable.rejected);
         if hoisted_optional.is_empty() {
             return Ok(false);
         }
@@ -414,6 +383,6 @@ impl ImporterHoistState {
 
 /// A hoisted peer as a direct dependency of the importer, left
 /// non-optional even when the peer it satisfies was declared optional.
-fn hoisted_dependency(alias: String, bare_specifier: String) -> DependencySpec {
+pub(super) fn hoisted_dependency(alias: String, bare_specifier: String) -> DependencySpec {
     DependencySpec { alias, bare_specifier, optional: false, injected: false }
 }

@@ -18,6 +18,7 @@ pub use platform::{
     InstallabilityHost, any_installability_constraint, any_optional_installability_constraint,
     check_installability, manifest_with_inferred_platform, platform_manifest_from_resolve_result,
 };
+pub use project::{ProjectHostRequirements, project_host_requirements};
 pub use skipped_snapshots::SkippedSnapshots;
 
 mod reachability;
@@ -26,6 +27,8 @@ use reachability::{LockfileEdgeReach, walk_lockfile_edges};
 
 mod patched;
 mod platform;
+mod project;
+mod variants;
 use patched::without_published_engines;
 use platform::manifest_from_metadata;
 
@@ -38,7 +41,7 @@ use pnpm_lockfile::{
 use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions, SkipReason};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent, LogLevel, PnpmLog, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 
@@ -54,9 +57,8 @@ use pnpm_reporter::{
 /// - An incompatible snapshot with at least one non-optional inbound
 ///   edge from an installed (non-skipped) importer or snapshot is the
 ///   install error when `engine_strict` is set, and otherwise emits
-///   `tracing::warn!` and proceeds — even when the snapshot is also
-///   optionally reachable. (The warn should emit `pnpm:install-check`,
-///   which pacquet's reporter does not expose.)
+///   `pnpm:install-check` and proceeds, even when the snapshot is also
+///   optionally reachable.
 /// - A snapshot the walk cannot reach from any importer applies the
 ///   same dispatch to its lockfile-propagated
 ///   [`SnapshotEntry::optional`] flag instead.
@@ -134,7 +136,7 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
         base_options,
         check_cache,
         reach,
-        seen_emit: HashSet::new(),
+        reported: ReportedPackages::default(),
         skipped: seed,
     };
 
@@ -154,10 +156,16 @@ struct SkipScan<'a, 'lock> {
     base_options: InstallabilityOptions<'a>,
     check_cache: CheckCache,
     reach: LockfileEdgeReach<'lock>,
-    /// Metadata keys already reported, so peer variants of one package
-    /// emit a single skip log.
-    seen_emit: HashSet<PackageKey>,
+    reported: ReportedPackages,
     skipped: SkippedSnapshots,
+}
+
+/// Metadata keys already reported, so peer variants of one package emit
+/// a single log of each kind.
+#[derive(Default)]
+struct ReportedPackages {
+    skips: HashSet<PackageKey>,
+    warnings: HashSet<PackageKey>,
 }
 
 impl SkipScan<'_, '_> {
@@ -200,7 +208,7 @@ impl SkipScan<'_, '_> {
             self.record_skip::<Reporter>(snapshot_key, &metadata_key, &warn);
             return Ok(());
         }
-        self.report_incompatible_required(
+        self.report_incompatible_required::<Reporter>(
             &metadata_key,
             metadata,
             warn,
@@ -229,7 +237,7 @@ impl SkipScan<'_, '_> {
         warn: &InstallabilityError,
     ) {
         self.skipped.insert_installability(snapshot_key.clone());
-        if self.seen_emit.insert(metadata_key.clone()) {
+        if self.reported.skips.insert(metadata_key.clone()) {
             emit_skipped::<Reporter>(
                 &metadata_key.to_string(),
                 warn.skip_reason(),
@@ -242,7 +250,7 @@ impl SkipScan<'_, '_> {
     /// A package that an installed non-optional edge reaches cannot be
     /// skipped: under `engine-strict` it fails the install, otherwise
     /// it warns.
-    fn report_incompatible_required(
+    fn report_incompatible_required<Reporter: self::Reporter>(
         &mut self,
         metadata_key: &PackageKey,
         metadata: &PackageMetadata,
@@ -266,17 +274,13 @@ impl SkipScan<'_, '_> {
             return Err(Box::new(warn));
         }
 
-        // Required, non-strict: this should emit a
-        // `pnpm:install-check` warn (TODO: add channel to the
-        // reporter). For now the tracing-level warning is the
-        // user-visible signal that an incompatible required dep slipped
-        // through.
-        tracing::warn!(
-            target: "pacquet::install",
-            package = %metadata_key,
-            "{}",
-            warn,
-        );
+        if self.reported.warnings.insert(metadata_key.clone()) {
+            Reporter::emit(&LogEvent::InstallCheck(PnpmLog {
+                level: LogLevel::Warn,
+                message: warn.to_string(),
+                prefix: self.prefix.to_string(),
+            }));
+        }
         Ok(())
     }
 }
@@ -402,7 +406,8 @@ fn cached_check(
     let manifest = manifest_from_metadata(metadata_key, metadata);
     let pkg_id = metadata_key.to_string();
     let options = InstallabilityOptions { optional, ..*base_options };
-    let verdict = check_installability(&pkg_id, &manifest, &options)?;
+    let verdict = check_installability(&pkg_id, &manifest, &options)?
+        .or_else(|| variants::variants_installability(&pkg_id, metadata, &options));
     check_cache.insert(cache_key, verdict.clone());
     Ok(verdict)
 }
@@ -428,7 +433,9 @@ pub fn package_metadata_is_installable(
         current_libc: host.libc,
         supported_architectures: host.supported_architectures.as_ref(),
     };
-    Ok(check_installability(&metadata_key.to_string(), &manifest, &options)?.is_none())
+    let package_id = metadata_key.to_string();
+    Ok(check_installability(&package_id, &manifest, &options)?.is_none()
+        && variants::variants_installability(&package_id, metadata, &options).is_none())
 }
 
 fn emit_skipped<Reporter: self::Reporter>(

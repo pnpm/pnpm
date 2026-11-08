@@ -146,12 +146,12 @@ fn import_pass_creates_package_directory() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
@@ -209,12 +209,12 @@ fn isolated_mutable_source_is_not_hard_linked() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
     let installed_link = dir.join("link.js");
@@ -222,6 +222,48 @@ fn isolated_mutable_source_is_not_hard_linked() {
     fs::write(&source, b"2").expect("edit the source in place");
 
     assert_eq!(fs::read(dir.join("index.js")).unwrap(), b"1");
+}
+
+/// A build writes to the files it imports, so a registry package that
+/// needs one gets private copies even under `hardlink`.
+#[test]
+fn package_requiring_build_is_not_hard_linked_to_store() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let (graph, hierarchy, mut cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[("a", "a@1.0.0", "a@1.0.0", &[("index.js", b"1")])],
+    );
+    let files = cas_paths
+        .get_mut(&PkgIdWithPatchHash::from("a@1.0.0"))
+        .expect("files");
+    files.needs_build = true;
+    let store_file = files.cas_paths["index.js"].clone();
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged,
+            swap_lock: None,
+            requester: lockfile_dir.to_str().expect("requester"),
+            isolate_mutable_sources: false,
+        },
+        dir_clone_cache: None,
+        graph: &graph,
+        previous_dirs: &std::collections::BTreeSet::new(),
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+
+        link_options: &LinkBinsOptions::default(),
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
+    };
+    link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+    fs::write(lockfile_dir.join("node_modules/a/index.js"), b"2").expect("build writes a file");
+
+    assert_eq!(fs::read(&store_file).unwrap(), b"1");
 }
 
 #[test]
@@ -260,12 +302,12 @@ fn orphan_directory_is_removed() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: Some(&prev_graph),
+        previous_dirs: &prev_graph.keys().cloned().collect(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
@@ -328,12 +370,12 @@ fn nested_hierarchy_materializes_inner_node_modules() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
@@ -381,12 +423,12 @@ fn missing_cas_for_required_dep_errors() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     let err = link_hoisted_modules::<SilentReporter>(&opts).expect_err("required dep needs CAS");
     match err {
@@ -427,12 +469,12 @@ fn missing_cas_for_optional_dep_skips_silently() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("optional skips silently");
 
@@ -482,11 +524,11 @@ fn unplanned_directory_in_importer_modules_is_quarantined() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
@@ -555,11 +597,11 @@ fn entries_that_are_not_packages_are_preserved() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
@@ -603,11 +645,11 @@ fn quarantine_does_not_follow_a_symlinked_ignored_dir() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
@@ -654,15 +696,68 @@ fn orphan_scan_does_not_delete_through_a_symlinked_scope() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
 
     assert!(outside_pkg.exists(), "package outside the install root at {outside_pkg:?}");
+}
+
+/// A recorded package below a symlinked scope container is lexically inside
+/// the removal bound while its target is not, in a modules directory inside
+/// the workspace and in one configured outside it.
+#[test]
+fn orphan_removal_does_not_delete_through_a_symlinked_scope() {
+    for external in [false, true] {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let cas_root = tmp.path().join("cas");
+        let lockfile_dir = tmp.path().join("repo");
+        let modules =
+            if external { tmp.path().join("vendor") } else { lockfile_dir.join("node_modules") };
+        let modules_dirs = crate::ImporterModulesDirs::new(
+            &lockfile_dir,
+            &modules,
+            std::ffi::OsStr::new("node_modules"),
+        );
+
+        let outside = tmp.path().join("outside");
+        let outside_pkg = outside.join("child");
+        fs::create_dir_all(&outside_pkg).expect("create outside package");
+        fs::create_dir_all(&modules).expect("create modules dir");
+        pnpm_fs::symlink_dir(&outside, &modules.join("@scope")).expect("create scope symlink");
+
+        let (graph, hierarchy, cas_paths) = flat_layout(
+            &lockfile_dir,
+            &cas_root,
+            &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"hi")])],
+        );
+        let previous_dirs = std::collections::BTreeSet::from([modules.join("@scope/child")]);
+
+        let logged = AtomicU8::new(0);
+        let opts = LinkHoistedModulesOpts {
+            import: crate::PackageImportOptions {
+                method: PackageImportMethod::Auto,
+                logged_methods: &logged,
+                swap_lock: None,
+                requester: lockfile_dir.to_str().expect("requester"),
+                isolate_mutable_sources: false,
+            },
+            dir_clone_cache: None,
+            graph: &graph,
+            previous_dirs: &previous_dirs,
+            hierarchy: &hierarchy,
+            cas_paths_by_pkg_id: &cas_paths,
+            link_options: &LinkBinsOptions::default(),
+            modules_dirs: &modules_dirs,
+        };
+        link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
+
+        assert!(outside_pkg.exists(), "external={external}: {outside_pkg:?} was deleted");
+    }
 }
 
 #[test]
@@ -688,12 +783,12 @@ fn no_prev_graph_still_installs() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds without prev_graph");
 
@@ -743,12 +838,12 @@ fn orphan_already_removed_is_tolerated() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: Some(&prev_graph),
+        previous_dirs: &prev_graph.keys().cloned().collect(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("phantom orphan tolerated");
 }
@@ -781,12 +876,12 @@ fn hierarchy_entry_missing_from_graph_errors() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     let err = link_hoisted_modules::<SilentReporter>(&opts).expect_err("inconsistency surfaces");
     match err {
@@ -837,12 +932,12 @@ fn import_pass_emits_one_imported_event_per_node() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
 
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     };
     EVENTS.lock().unwrap().clear();
     link_hoisted_modules::<RecordingReporter>(&opts).expect("linker succeeds");
@@ -935,11 +1030,11 @@ fn bundled_bin_with_missing_target_is_held_back() {
         },
         dir_clone_cache: None,
         graph: &graph,
-        prev_graph: None,
+        previous_dirs: &std::collections::BTreeSet::new(),
         hierarchy: &hierarchy,
         cas_paths_by_pkg_id: &cas_paths,
         link_options: &LinkBinsOptions::default(),
-        confine_root: &lockfile_dir,
+        modules_dirs: &crate::ImporterModulesDirs::node_modules(&lockfile_dir),
     })
     .expect("linker succeeds");
 
@@ -990,11 +1085,11 @@ fn build_plan_reuses_initial_hoisted_manifests_before_refreshing_completed_provi
             },
             dir_clone_cache: None,
             graph: &graph,
-            prev_graph: None,
+            previous_dirs: &std::collections::BTreeSet::new(),
             hierarchy: &hierarchy,
             cas_paths_by_pkg_id: &cas_paths,
             link_options: &options,
-            confine_root: &project,
+            modules_dirs: &crate::ImporterModulesDirs::node_modules(&project),
         })
         .unwrap();
     let modules = project.join("node_modules");

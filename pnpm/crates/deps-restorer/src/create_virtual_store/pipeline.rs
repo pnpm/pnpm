@@ -13,12 +13,16 @@ use super::{
 };
 
 mod downloads;
+mod platform_archives;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache};
 use pnpm_tarball::PrefetchResult;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 impl<'a> CreateVirtualStore<'a> {
     /// Execute the subroutine. Returns the set of bundled manifests
@@ -48,7 +52,7 @@ impl<'a> CreateVirtualStore<'a> {
         let retained_keys =
             retained.map(|snapshots| retained_cache_keys(&prefetch.cache_keys, snapshots));
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
-        let planned = plan.survivors.len();
+        let imported = plan.materialized_keys();
         let prefetched = run_checked(
             check,
             self.settle_prefetch(
@@ -71,7 +75,7 @@ impl<'a> CreateVirtualStore<'a> {
             check,
         )
         .await?;
-        self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
+        self.settle_materialized::<Reporter>(wanted, &imported, &output.fetch_failed);
         let handoff = retained_keys.map(|cache_keys| {
             retained_handoff(
                 (prefetch.store_index, prefetch.verified_files_cache),
@@ -81,6 +85,25 @@ impl<'a> CreateVirtualStore<'a> {
             )
         });
         Ok((output, handoff))
+    }
+
+    /// Record the archive each slot this pass imported holds, and report how
+    /// many snapshots it added.
+    fn settle_materialized<Reporter: self::Reporter>(
+        &self,
+        wanted: WantedEntries<'a>,
+        imported: &[PackageKey],
+        fetch_failed: &HashSet<PackageKey>,
+    ) {
+        if !self.is_hoisted() {
+            super::linked_archives::record_linked_archives(
+                self.ctx.linker.layout,
+                (imported, wanted.packages),
+                self.selection.supported_architectures,
+                fetch_failed,
+            );
+        }
+        self.report_added::<Reporter>(imported.len().saturating_sub(fetch_failed.len()));
     }
 
     async fn prefetch_and_prepare_store(
@@ -132,6 +155,11 @@ impl<'a> CreateVirtualStore<'a> {
             allow_build_policy: self.ctx.allow_build_policy,
             known_requires_build: self.selection.known_requires_build,
             known_bins: self.selection.known_bins,
+            empty_builds: if self.ctx.config.node_linker == NodeLinker::Loaded {
+                partition::EmptyBuilds::Restore
+            } else {
+                partition::EmptyBuilds::Rerun
+            },
         }
     }
 
@@ -192,12 +220,12 @@ impl<'a> CreateVirtualStore<'a> {
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
             package_bins: partition.package_bins,
-            side_effects_maps_by_snapshot: partition.side_effects.maps,
-            side_effects_by_snapshot: partition.side_effects.diffs,
+            side_effects: partition.side_effects.into(),
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
-            materialized_snapshots: plan.materialized_keys(),
+            snapshot_placement: super::SnapshotPlacement::materialized(plan.materialized_keys()),
             fetch_failed,
             cas_paths_by_pkg_id: indexes.by_pkg_id,
+            cas_paths_by_snapshot: None,
         })
     }
 
@@ -210,6 +238,8 @@ impl<'a> CreateVirtualStore<'a> {
             packages,
             current_packages: self.current_entries.packages,
             force: self.ctx.config.force,
+            layout: self.ctx.linker.layout,
+            supported_architectures: self.selection.supported_architectures,
         }
     }
 
@@ -273,6 +303,7 @@ impl<'a> CreateVirtualStore<'a> {
                 force: config.force,
                 is_hoisted: self.is_hoisted(),
                 include_optional: self.selection.include_optional,
+                supported_architectures: self.selection.supported_architectures,
             },
             snapshots: wanted.snapshots,
             packages: wanted.packages,

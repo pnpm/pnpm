@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { packageIsInstallable } from '@pnpm/cli.utils'
 import { logger } from '@pnpm/logger'
+import { getDownloadedNodeVersionFromEnginesRuntime } from '@pnpm/pkg-manifest.utils'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { Project, ProjectManifest, SupportedArchitectures } from '@pnpm/types'
 import { convertPathToPattern } from 'tinyglobby'
@@ -34,6 +35,9 @@ export interface FindWorkspaceProjectsOpts {
 
   engineStrict?: boolean
   nodeVersion?: string
+  nodeVersionFromEnginesRuntime?: boolean
+  runtimeOnFail?: 'download' | 'error' | 'warn' | 'ignore'
+  skipRuntimes?: boolean
   sharedWorkspaceLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
 }
@@ -46,6 +50,7 @@ export async function findWorkspaceProjects (
   for (const project of projects) {
     packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
+      nodeVersion: getProjectNodeVersion(project.manifest, opts),
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
@@ -69,6 +74,7 @@ export function findWorkspaceProjectsSync (
   for (const project of projects) {
     packageIsInstallable(project.rootDir, project.manifest, {
       ...opts,
+      nodeVersion: getProjectNodeVersion(project.manifest, opts),
       supportedArchitectures: opts?.supportedArchitectures ?? {
         os: ['current'],
         cpu: ['current'],
@@ -81,6 +87,17 @@ export function findWorkspaceProjectsSync (
   }
 
   return projects
+}
+
+function getProjectNodeVersion (
+  manifest: ProjectManifest,
+  opts?: Pick<FindWorkspaceProjectsOpts, 'nodeVersion' | 'nodeVersionFromEnginesRuntime' | 'runtimeOnFail' | 'skipRuntimes'>
+): string | undefined {
+  if (opts?.skipRuntimes) {
+    return opts.nodeVersionFromEnginesRuntime ? undefined : opts.nodeVersion
+  }
+  if (opts?.nodeVersion != null && !opts.nodeVersionFromEnginesRuntime) return opts.nodeVersion
+  return getDownloadedNodeVersionFromEnginesRuntime(manifest, opts?.runtimeOnFail) ?? opts?.nodeVersion
 }
 
 type FindWorkspaceProjectsNoCheckOpts = Pick<FindWorkspaceProjectsOpts, 'patterns' | 'modulesDir' | 'modulesDirsByProjectName'>

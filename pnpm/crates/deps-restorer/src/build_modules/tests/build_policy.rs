@@ -123,13 +123,13 @@ fn build_modules_collects_ignored_builds() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -153,6 +153,7 @@ fn build_modules_collects_ignored_builds() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -204,13 +205,13 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
 
     let output = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -234,6 +235,7 @@ fn mutated_slots_is_false_when_every_build_is_ignored() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -285,13 +287,13 @@ fn mutated_slots_is_true_when_a_script_runs() {
 
     let output = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -315,6 +317,7 @@ fn mutated_slots_is_true_when_a_script_runs() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -365,13 +368,13 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -395,6 +398,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -441,13 +445,13 @@ fn cached_requires_build_false_skips_package_dir_probe() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -471,6 +475,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -532,13 +537,13 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -562,6 +567,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -620,13 +626,13 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -650,6 +656,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -797,6 +804,7 @@ fn using_side_effects_cache_skips_rebuild() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects {
                 overlays: Some(&side_effects_maps),
                 rows: None,
@@ -805,8 +813,7 @@ fn using_side_effects_cache_skips_rebuild() {
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -830,6 +837,7 @@ fn using_side_effects_cache_skips_rebuild() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -956,6 +964,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects {
                 overlays: Some(&side_effects_maps),
                 rows: None,
@@ -964,8 +973,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -989,6 +997,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

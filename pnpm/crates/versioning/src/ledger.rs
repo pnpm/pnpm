@@ -121,7 +121,9 @@ pub fn read_ledger(workspace_dir: &Path) -> Result<Ledger, VersioningError> {
     if content.trim().is_empty() {
         return Ok(Ledger::new());
     }
-    serde_saphyr::from_str(&content).map_err(|_| VersioningError::InvalidLedger { ledger_path })
+    serde_saphyr::from_str::<Option<Ledger>>(&content)
+        .map_err(|_| VersioningError::InvalidLedger { ledger_path })
+        .map(Option::unwrap_or_default)
 }
 
 pub fn append_to_ledger(

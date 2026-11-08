@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.commands",
-  "version": "1101.2.12",
+  "version": "1101.2.13",
   "description": "Commands for deploy, pack, and publish",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@inquirer/prompts": "catalog:",
     "@pnpm/bins.resolver": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",

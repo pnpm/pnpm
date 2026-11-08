@@ -18,39 +18,6 @@ impl AuthSources {
     }
 }
 
-/// The project `.npmrc`, parsed as untrusted unless the user-level auth
-/// file explicitly points at it.
-fn project_auth_source<Sys>(
-    project_npmrc_dir: &Path,
-    user_npmrc_path: Option<&Path>,
-) -> Option<NpmrcAuth>
-where
-    Sys: EnvVar + GetCurrentDir,
-{
-    let project_npmrc_path = project_npmrc_dir.join(".npmrc");
-    // When npmrcAuthFile explicitly points at the project .npmrc, the user has
-    // opted in to trusting it — allow auth env expansion and suppress the warning.
-    // A relative value (e.g. `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`) is anchored
-    // at the cwd — where the user-level read actually reads it from, and
-    // how pnpm's `path.resolve` anchors it.
-    let project_is_trusted_auth_file = user_npmrc_path.is_some_and(|user| {
-        if user.is_absolute() {
-            user == project_npmrc_path
-        } else {
-            Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
-        }
-    });
-    npmrc_source::<Host>(&project_npmrc_path, |text| {
-        let mut auth = if project_is_trusted_auth_file {
-            NpmrcAuth::from_ini::<Sys>(text, project_npmrc_dir)
-        } else {
-            NpmrcAuth::from_project_ini::<Sys>(text, project_npmrc_dir)
-        };
-        auth.rescope_unscoped(&project_npmrc_path.display().to_string());
-        auth
-    })
-}
-
 fn auth_ini_source<Sys: EnvVar>(global_config_dir: Option<&Path>) -> Option<NpmrcAuth> {
     global_config_dir.and_then(|dir| {
         let path = dir.join("auth.ini");
@@ -164,6 +131,51 @@ pub(super) fn note_declared_registries(
 }
 
 impl Config {
+    /// The project `.npmrc`, parsed as untrusted unless the user-level auth
+    /// file explicitly points at it. A registry URL it may not expand fails the
+    /// load, unless [`Config::settings_read`] leaves out what this pnpm refuses.
+    fn project_auth_source<Sys>(
+        &self,
+        project_npmrc_dir: &Path,
+        user_npmrc_path: Option<&Path>,
+    ) -> Result<Option<NpmrcAuth>, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + GetCurrentDir,
+    {
+        let project_npmrc_path = project_npmrc_dir.join(".npmrc");
+        // When npmrcAuthFile explicitly points at the project .npmrc, the user has
+        // opted in to trusting it — allow auth env expansion and suppress the warning.
+        // A relative value (e.g. `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`) is anchored
+        // at the cwd — where the user-level read actually reads it from, and
+        // how pnpm's `path.resolve` anchors it.
+        let project_is_trusted_auth_file = user_npmrc_path.is_some_and(|user| {
+            if user.is_absolute() {
+                user == project_npmrc_path
+            } else {
+                Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
+            }
+        });
+        let mut source = npmrc_source::<Host>(&project_npmrc_path, |text| {
+            let mut auth = if project_is_trusted_auth_file {
+                NpmrcAuth::from_ini::<Sys>(text, project_npmrc_dir)
+            } else {
+                NpmrcAuth::from_project_ini::<Sys>(text, project_npmrc_dir)
+            };
+            auth.rescope_unscoped(&project_npmrc_path.display().to_string());
+            auth
+        });
+        if let Some(key) =
+            source.as_mut().and_then(|auth| auth.unexpanded_registry.take())
+            && !self.settings_read.skips_unreadable()
+        {
+            return Err(LoadWorkspaceYamlError::RegistryEnvNotExpanded {
+                setting: key,
+                file: project_npmrc_path.display().to_string(),
+            });
+        }
+        Ok(source)
+    }
+
     /// [`Self::collect_auth_sources`], or none for a load that reads only
     /// the [`crate::PIN_DECISION_SETTINGS`].
     pub(super) fn read_auth_sources<Sys>(
@@ -210,7 +222,7 @@ impl Config {
         let project_npmrc_dir =
             workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
         let mut project_source =
-            project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref());
+            self.project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref())?;
         let mut auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
         let mut user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
         let mut env_scoped_source = env_scoped_auth_source::<Sys>();

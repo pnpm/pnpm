@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-package-name = { workspace = true }
+pnpm-release-record = { workspace = true }
 pnpm-diagnostics = { workspace = true }
 pnpm-executor = { workspace = true }
 pnpm-git-utils = { workspace = true }
@@ -37,7 +38,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 ssri = { workspace = true }
 tar = { workspace = true }
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["sync", "time"] }
 tracing = { workspace = true }
 url = { workspace = true }
 

@@ -115,8 +115,9 @@ fn load_workspace_catalogs(
         |err: &dyn std::fmt::Display| FilterError::FilterChanged { stderr: err.to_string() };
     let text = pnpm_workspace::merge_local_includes(text, base_dir, read)
         .map_err(|err| to_filter_error(&err))?;
-    let manifest: WorkspaceManifest =
-        serde_saphyr::from_str(&text).map_err(|err| to_filter_error(&err))?;
+    let manifest: WorkspaceManifest = serde_saphyr::from_str::<Option<WorkspaceManifest>>(&text)
+        .map_err(|err| to_filter_error(&err))?
+        .unwrap_or_default();
     get_catalogs_from_workspace_manifest(Some(&manifest)).map_err(|err| to_filter_error(&err))
 }
 

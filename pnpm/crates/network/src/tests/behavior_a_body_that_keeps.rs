@@ -364,7 +364,7 @@ async fn zero_max_sockets_leaves_proxied_origins_uncapped() {
 }
 
 #[tokio::test]
-async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
+async fn stalled_consumers_release_permits_on_timeout_or_cancellation() {
     use futures_util::StreamExt;
 
     let mut server = mockito::Server::new_async().await;
@@ -393,7 +393,7 @@ async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
         } else {
             let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
                 .await
-                .expect("deadline releases a stalled stream's permits");
+                .expect("the timeout releases a stalled stream's permits");
             drop(guard);
             drain_until_timed_out(&mut stream).await;
         }

@@ -32,9 +32,14 @@ fn an_unrecognized_workspace_setting_warns_without_a_pin() {
 
 #[test]
 fn an_unrecognized_workspace_setting_fails_when_the_running_pnpm_is_the_pinned_version() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: _registry,
+        ..
+    } = init_with_running_pin();
     write_workspace_yaml(&workspace, "minimumReleaseAg: 100\npackages:\n  - .\n");
-    write_package_manager_pin(&workspace);
 
     let output =
         run(pacquet, root.path(), &["install", "--lockfile-only", "--config.pm-on-fail=error"]);
@@ -51,12 +56,17 @@ fn an_unrecognized_workspace_setting_fails_when_the_running_pnpm_is_the_pinned_v
 #[test]
 fn scripts_prepend_node_path_is_ignored_under_a_satisfied_pin() {
     for value in ["true", "false", "warn-only", "nonsense"] {
-        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info: _registry,
+            ..
+        } = init_with_running_pin();
         write_workspace_yaml(
             &workspace,
             &format!("scriptsPrependNodePath: {value}\npackages:\n  - .\n"),
         );
-        write_package_manager_pin(&workspace);
 
         let output = run_with_switch_disabled(
             pacquet,
@@ -221,12 +231,17 @@ fn a_setting_outside_the_pin_decision_does_not_drop_pm_on_fail() {
 
 #[test]
 fn an_unrecognized_task_setting_fails_when_the_running_pnpm_is_the_pinned_version() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: _registry,
+        ..
+    } = init_with_running_pin();
     write_workspace_yaml(
         &workspace,
         "packages:\n  - .\ntasks:\n  build:\n    dependson: ['^build']\n",
     );
-    write_package_manager_pin(&workspace);
 
     let output =
         run(pacquet, root.path(), &["install", "--lockfile-only", "--config.pm-on-fail=error"]);
@@ -245,12 +260,17 @@ fn an_unrecognized_task_setting_fails_when_the_running_pnpm_is_the_pinned_versio
 /// be seen until then.
 #[test]
 fn a_task_setting_is_reported_when_an_unrecognized_key_takes_the_error() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: _registry,
+        ..
+    } = init_with_running_pin();
     write_workspace_yaml(
         &workspace,
         "minimumReleaseAg: 100\npackages:\n  - .\ntasks:\n  build:\n    laterSetting: 1\n",
     );
-    write_package_manager_pin(&workspace);
 
     let output =
         run(pacquet, root.path(), &["install", "--lockfile-only", "--config.pm-on-fail=error"]);
@@ -350,9 +370,14 @@ fn configured_shared_workspace_lockfile_stays_quiet_outside_a_workspace() {
 /// Single-key reads are consumed by scripts, so nothing may join the value.
 #[test]
 fn config_get_of_one_key_stays_quiet_and_succeeds() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: _registry,
+        ..
+    } = init_with_running_pin();
     write_workspace_yaml(&workspace, "minimumReleaseAg: 100\nnodeLinker: hoisted\n");
-    write_package_manager_pin(&workspace);
 
     let output = run_with_switch_disabled(pacquet, root.path(), &["config", "get", "node-linker"]);
 
@@ -366,9 +391,14 @@ fn config_get_of_one_key_stays_quiet_and_succeeds() {
 /// A broken config file must stay inspectable and repairable.
 #[test]
 fn config_list_warns_but_succeeds_under_a_satisfied_pin() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: _registry,
+        ..
+    } = init_with_running_pin();
     write_workspace_yaml(&workspace, "minimumReleaseAg: 100\n");
-    write_package_manager_pin(&workspace);
 
     let output = run_with_switch_disabled(pacquet, root.path(), &["config", "list"]);
 
@@ -383,9 +413,14 @@ fn config_list_warns_but_succeeds_under_a_satisfied_pin() {
 /// does not harden the report into an error.
 #[test]
 fn a_global_command_warns_under_a_satisfied_pin() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: _registry,
+        ..
+    } = init_with_running_pin();
     write_workspace_yaml(&workspace, "minimumReleaseAg: 100\n");
-    write_package_manager_pin(&workspace);
 
     let global_bin = root.path().join("pnpm-home");
     fs::create_dir_all(&global_bin).expect("create the global bin dir");
@@ -440,9 +475,14 @@ fn a_pin_the_lockfile_does_not_record_is_kept_in_the_machines_global_dir() {
 /// pin the running pnpm satisfies.
 #[test]
 fn the_version_prints_past_an_unreadable_setting_under_a_satisfied_pin() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: _registry,
+        ..
+    } = init_with_running_pin();
     write_workspace_yaml(&workspace, "nodeLinker: [hoisted]\n");
-    write_package_manager_pin(&workspace);
 
     let output = run(pacquet, root.path(), &["--version"]);
 
@@ -489,8 +529,21 @@ fn write_workspace_yaml(workspace: &Path, contents: &str) {
     fs::write(workspace.join("pnpm-workspace.yaml"), contents).expect("write pnpm-workspace.yaml");
 }
 
-/// Pin the running pnpm version itself, with `pm-on-fail` left to each test:
+/// A project that pins the running pnpm, with `pm-on-fail` left to each test:
 /// the check must pass while the strictness decision sees a satisfied pin.
+///
+/// Recording the pin asks the registry for the running version, so the mock
+/// registry publishes it. The test then passes whether or not npm has that
+/// version yet.
+fn init_with_running_pin() -> CommandTempCwd<AddMockedRegistry> {
+    let mut fixture =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let registry = fixture.npmrc_info.mock_instance.url().to_string();
+    fixture.pacquet.env("PNPM_CONFIG_REGISTRY", registry);
+    write_package_manager_pin(&fixture.workspace);
+    fixture
+}
+
 fn write_package_manager_pin(workspace: &Path) {
     fs::write(
         workspace.join("package.json"),
@@ -516,9 +569,8 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
         .expect("run pacquet")
 }
 
-/// A pinned project would otherwise resolve the pin's env-lockfile entry,
-/// which needs a registry; turning version management off keeps the test
-/// hermetic while the pin stays visible to the strictness decision.
+/// Turn off version switching. The pin still reaches the strictness
+/// decision, and is still recorded through the registry.
 fn run_with_switch_disabled(mut command: Command, root: &Path, args: &[&str]) -> Output {
     command.env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false");
     run(command, root, args)

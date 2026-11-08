@@ -51,7 +51,7 @@ impl Upstream {
         let body = read_limited_body(response, UPSTREAM_DISCOVERY_BODY_LIMIT)
             .await
             .map_err(|err| {
-                self.breaker.record_failure();
+                self.record_body_failure(&err);
                 RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
             })?;
         if body.truncated {

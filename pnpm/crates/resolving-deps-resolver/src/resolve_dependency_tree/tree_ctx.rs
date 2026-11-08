@@ -63,8 +63,8 @@ pub(super) fn project_relative_cache_scope(
 /// (the local resolver). Nothing asks for a linked node's directory:
 /// a linked project resolves its own dependencies as a separate
 /// importer, so the walk never descends into one.
-pub(super) fn declaring_manifest_dir(
-    ctx: &TreeCtx,
+pub(crate) fn declaring_manifest_dir(
+    lockfile_dir: &Path,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<Arc<Path>> {
     let pnpm_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
@@ -73,18 +73,26 @@ pub(super) fn declaring_manifest_dir(
     if !result.id.as_str().starts_with("file:") {
         return None;
     }
-    let directory = Path::new(&resolution.directory);
-    let absolute = if directory.is_absolute() {
-        pnpm_fs::lexical_normalize(directory)
-    } else {
-        pnpm_fs::lexical_normalize(&ctx.importer.lockfile_dir.join(directory))
-    };
-    Some(Arc::from(absolute))
+    Some(Arc::from(directory_package_dir(lockfile_dir, &resolution.directory)))
 }
 
-/// Point a `file:` or `workspace:` path specifier at the directory of
-/// the manifest that declares it ([`declaring_manifest_dir`]) instead
-/// of the consuming importer's. Every other specifier keeps the
+/// The directory a `file:`-shaped directory resolution records, as an
+/// absolute path: `directory` is relative to `lockfile_dir`, or absolute
+/// under `preserveAbsolutePaths`.
+#[must_use]
+pub fn directory_package_dir(lockfile_dir: &Path, directory: &str) -> PathBuf {
+    pnpm_fs::lexical_normalize(&lockfile_dir.join(directory))
+}
+
+/// Whether `spec` is a `file:` or `workspace:` path, which resolves
+/// from the directory of the manifest that declares it
+/// ([`declaring_manifest_dir`]) instead of the consuming importer's.
+pub(crate) fn resolves_from_declaring_manifest(spec: &str) -> bool {
+    spec.starts_with("file:") || pnpm_workspace_spec::is_workspace_path_specifier(spec)
+}
+
+/// Point a specifier matching [`resolves_from_declaring_manifest`] at
+/// its declaring manifest's directory. Every other specifier keeps the
 /// caller's options.
 pub(super) fn opts_relative_to_declaring_manifest<'a>(
     opts: &'a ResolveOptions,
@@ -93,11 +101,7 @@ pub(super) fn opts_relative_to_declaring_manifest<'a>(
 ) -> Cow<'a, ResolveOptions> {
     match parent_dir {
         Some(parent_dir)
-            if wanted.bare_specifier
-                .as_deref()
-                .is_some_and(|spec| {
-                    spec.starts_with("file:") || spec.starts_with("workspace:.")
-                }) =>
+            if wanted.bare_specifier.as_deref().is_some_and(resolves_from_declaring_manifest) =>
         {
             Cow::Owned(ResolveOptions {
                 project: pnpm_resolving_resolver_base::ResolverProjectOptions {

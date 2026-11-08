@@ -1,7 +1,7 @@
 import { computeStronglyConnectedComponents } from '@pnpm/deps.graph-sequencer'
 import type { DepPath } from '@pnpm/types'
 
-import { isCompatibleAndHasMoreDeps, nodeDepsCount } from './depPathCompatibility.js'
+import { type CompatibilityGraph, isCompatibleAndHasMoreDeps, nodeDepsCount } from './depPathCompatibility.js'
 import type {
   GenericDependenciesGraphWithResolvedChildren,
   PartialResolvedPackage,
@@ -10,16 +10,18 @@ import type {
 type DepPathSorter = (depPath1: DepPath, depPath2: DepPath) => number
 
 export function deduplicateAll<Pkg extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  graph: CompatibilityGraph<Pkg>,
   duplicates: Array<Set<DepPath>>
 ): Record<DepPath, DepPath> {
+  const { depGraph } = graph
   const incoming = incomingEdges(depGraph)
   let remaining = duplicates
   const merged: Record<DepPath, DepPath> = {}
   while (true) {
-    const { depPathsMap, remainingDuplicates } = deduplicateRound(remaining, depGraph)
+    const { depPathsMap, remainingDuplicates } = deduplicateRound(remaining, graph)
     if (Object.keys(depPathsMap).length === 0) return merged
     rewriteChildren(depGraph, depPathsMap, incoming)
+    transferUnboundOptionalPeers(graph, depPathsMap)
     for (const [collapsed, target] of Object.entries<DepPath>(merged)) {
       merged[collapsed as DepPath] = depPathsMap[target] ?? target
     }
@@ -30,11 +32,11 @@ export function deduplicateAll<Pkg extends PartialResolvedPackage> (
 
 function deduplicateRound<Pkg extends PartialResolvedPackage> (
   duplicates: Array<Set<DepPath>>,
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>
+  graph: CompatibilityGraph<Pkg>
 ): DeduplicateDepPathsResult {
-  const result = deduplicateDepPaths(duplicates, depGraph)
+  const result = deduplicateDepPaths(duplicates, graph)
   if (Object.keys(result.depPathsMap).length > 0) return result
-  const depPathsMap = collapseCycles(depGraph, duplicates)
+  const depPathsMap = collapseCycles(graph, duplicates)
   return {
     depPathsMap,
     remainingDuplicates: result.remainingDuplicates.map(group => new Set([...group].filter(path => !depPathsMap[path]))),
@@ -50,10 +52,10 @@ interface CycleComponent {
 // Break one pair per independent cycle, deferring parents of changed components
 // until their children have settled in the next ordinary round.
 function collapseCycles<Pkg extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  graph: CompatibilityGraph<Pkg>,
   duplicates: Array<Set<DepPath>>
 ): Record<DepPath, DepPath> {
-  const components = cycleComponents(depGraph, duplicates)
+  const components = cycleComponents(graph.depGraph, duplicates)
   const changed = components.map(() => false)
   const replacements: Record<DepPath, DepPath> = {}
   for (const [index, component] of components.entries()) {
@@ -62,7 +64,7 @@ function collapseCycles<Pkg extends PartialResolvedPackage> (
       continue
     }
     if (!component.cyclic) continue
-    const pair = compatibleComponentPair(depGraph, component)
+    const pair = compatibleComponentPair(graph, component)
     if (pair) {
       replacements[pair[0]] = pair[1]
       changed[index] = true
@@ -72,24 +74,24 @@ function collapseCycles<Pkg extends PartialResolvedPackage> (
 }
 
 function compatibleComponentPair<Pkg extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  graph: CompatibilityGraph<Pkg>,
   component: CycleComponent
 ): [DepPath, DepPath] | undefined {
   for (const group of component.groups) {
-    const pair = compatiblePair(depGraph, group)
+    const pair = compatiblePair(graph, group)
     if (pair) return pair
   }
   return undefined
 }
 
 function compatiblePair<Pkg extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  graph: CompatibilityGraph<Pkg>,
   group: Set<DepPath>
 ): [DepPath, DepPath] | undefined {
-  const paths = [...group].sort(createDepCountSorter(depGraph))
+  const paths = [...group].sort(createDepCountSorter(graph.depGraph))
   while (paths.length) {
     const largest = paths.pop()!
-    const candidate = [...paths].reverse().find(path => isCompatibleAndHasMoreDeps(depGraph, largest, path))
+    const candidate = [...paths].reverse().find(path => isCompatibleAndHasMoreDeps(graph, largest, path))
     if (candidate) return [candidate, largest]
   }
   return undefined
@@ -144,6 +146,20 @@ function groupDependencies<Pkg extends PartialResolvedPackage> (
   return [...dependencies].sort((left, right) => left - right)
 }
 
+// A variant that absorbed a protected one inherits its protection, so a later
+// round cannot collapse it into a variant that resolves the protected peer.
+function transferUnboundOptionalPeers<Pkg extends PartialResolvedPackage> (
+  { unboundOptionalPeers }: CompatibilityGraph<Pkg>,
+  depPathsMap: Record<DepPath, DepPath>
+): void {
+  if (!unboundOptionalPeers?.size) return
+  for (const [collapsed, target] of Object.entries<DepPath>(depPathsMap)) {
+    const names = unboundOptionalPeers.get(collapsed as DepPath)
+    if (names == null) continue
+    unboundOptionalPeers.set(target, new Set([...unboundOptionalPeers.get(target) ?? [], ...names]))
+  }
+}
+
 type IncomingEdges = Map<DepPath, Array<[DepPath, string]>>
 
 function incomingEdges<Pkg extends PartialResolvedPackage> (
@@ -185,14 +201,14 @@ interface DeduplicateDepPathsResult {
 
 function deduplicateDepPaths<Pkg extends PartialResolvedPackage> (
   duplicates: Array<Set<DepPath>>,
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>
+  graph: CompatibilityGraph<Pkg>
 ): DeduplicateDepPathsResult {
-  const depCountSorter = createDepCountSorter(depGraph)
+  const depCountSorter = createDepCountSorter(graph.depGraph)
   const depPathsMap: Record<DepPath, DepPath> = {}
   const remainingDuplicates: Array<Set<DepPath>> = []
 
   for (const depPaths of duplicates) {
-    const survivingDepPaths = collapseCompatibleDepPaths(depGraph, { depPaths, depPathsMap, depCountSorter })
+    const survivingDepPaths = collapseCompatibleDepPaths(graph, { depPaths, depPathsMap, depCountSorter })
     if (survivingDepPaths.size > 1) {
       remainingDuplicates.push(survivingDepPaths)
     }
@@ -224,13 +240,14 @@ function createDepCountSorter<Pkg extends PartialResolvedPackage> (
  * that survive the round.
  */
 function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
-  depGraph: GenericDependenciesGraphWithResolvedChildren<Pkg>,
+  graph: CompatibilityGraph<Pkg>,
   opts: {
     depPaths: Set<DepPath>
     depPathsMap: Record<DepPath, DepPath>
     depCountSorter: DepPathSorter
   }
 ): Set<DepPath> {
+  const { depGraph } = graph
   const survivingDepPaths = new Set(opts.depPaths.values())
   let currentDepPaths = [...opts.depPaths].sort(opts.depCountSorter)
 
@@ -243,7 +260,7 @@ function collapseCompatibleDepPaths<Pkg extends PartialResolvedPackage> (
       const sameChildren = Object.entries(depGraph[depPath2].children).every(
         ([alias, child]) => depGraph[depPath1].children[alias] === child
       )
-      if (sameChildren && isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2)) {
+      if (sameChildren && isCompatibleAndHasMoreDeps(graph, depPath1, depPath2)) {
         opts.depPathsMap[depPath2] = depPath1
         survivingDepPaths.delete(depPath2)
       } else {

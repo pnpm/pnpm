@@ -1,4 +1,6 @@
-use super::{AddFilesFromDirError, add_files_from_dir};
+use super::{
+    AddFilesFromDirError, BundledPackageDirs, add_files_from_dir, add_files_from_dir_with_bundled,
+};
 #[cfg(unix)]
 use crate::SYMLINK_MODE;
 use crate::StoreDir;
@@ -90,6 +92,47 @@ fn top_level_node_modules_is_skipped() {
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
     let keys: Vec<_> = added.files.keys().cloned().collect();
     assert_eq!(keys, vec!["index.js".to_string()]);
+}
+
+#[test]
+fn bundled_package_directories_are_walked_without_other_top_level_node_modules() {
+    let (_tmp, store_dir) = make_store();
+    let pkg_dir = tempdir().expect("create pkg dir");
+    for path in [
+        "node_modules/abbrev/package.json",
+        "node_modules/abbrev/lib/new.js",
+        "node_modules/@scope/bundled/index.js",
+        "node_modules/@scope/other/index.js",
+        "node_modules/other/index.js",
+        "node_modules/.bin/abbrev",
+        "index.js",
+    ] {
+        write(&pkg_dir.path().join(path), "content\n");
+    }
+    let bundled = BundledPackageDirs::from_files([
+        "index.js",
+        "node_modules/abbrev/package.json",
+        "node_modules/@scope/bundled/index.js",
+    ]);
+
+    let added = add_files_from_dir_with_bundled(&store_dir, pkg_dir.path(), bundled).expect("walk");
+
+    let mut keys: Vec<_> = added.files.into_keys().collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        vec![
+            "index.js",
+            "node_modules/@scope/bundled/index.js",
+            "node_modules/abbrev/lib/new.js",
+            "node_modules/abbrev/package.json",
+        ],
+    );
+}
+
+#[test]
+fn files_outside_node_modules_name_no_bundled_package() {
+    assert!(BundledPackageDirs::from_files(["index.js", "lib/node_modules/x/a.js"]).is_none());
 }
 
 #[test]

@@ -1,3 +1,4 @@
+use super::null_default::deserialize_null_default;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -8,7 +9,7 @@ pub struct OidcProvider {
     pub issuer: String,
     pub audience: String,
     pub login: Option<OidcLogin>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub workloads: Vec<OidcWorkload>,
 }
 
@@ -42,7 +43,7 @@ pub struct OidcGroups {
 pub struct OidcTeamGrant {
     pub group: String,
     pub registry: String,
-    pub team: String,
+    pub team_id: String,
 }
 
 fn default_groups_claim() -> String {
@@ -63,8 +64,8 @@ impl std::fmt::Debug for OidcLogin {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OidcBinding {
     pub subject: String,
-    pub username: String,
-    #[serde(default)]
+    pub user_id: String,
+    #[serde(default, deserialize_with = "deserialize_null_default")]
     pub claims: BTreeMap<String, String>,
 }
 

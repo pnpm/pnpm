@@ -303,6 +303,11 @@ pub(super) fn create_file_url_key(
         .to_string();
     let name = projects_by_path
         .get(&ProjectPathKey::new(&normalized))
+        .or_else(|| {
+            projects_by_path
+                .values()
+                .find(|project| project.linked_publish_dir.as_deref() == Some(&*normalized))
+        })
         .and_then(|project| project.name.as_deref())
         .map(str::to_string)
         .or_else(|| package_name.map(PkgName::to_string))

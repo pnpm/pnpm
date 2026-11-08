@@ -479,8 +479,12 @@ fn install_resolves_env_var_in_user_npmrc_registry() {
     drop((root, mock_instance));
 }
 
+/// The project `.npmrc` comes with the repository, so pnpm does not expand
+/// `${VAR}` in its registry URL. Ignoring the URL would resolve every package
+/// from another registry, so the install fails instead, even though the user
+/// `.npmrc` names a registry. <https://github.com/pnpm/pnpm/issues/17762>
 #[test]
-fn install_ignores_env_var_in_project_npmrc_registry() {
+fn install_fails_on_env_var_in_project_npmrc_registry() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -514,17 +518,18 @@ fn install_ignores_env_var_in_project_npmrc_registry() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     eprintln!("Executing command with PACQUET_TEST_REGISTRY set...");
-    pacquet
+    let assert = pacquet
         .with_env("PACQUET_TEST_REGISTRY", "http://127.0.0.1:9/leaked/")
         .with_arg("--npmrc-auth-file")
         .with_arg(user_npmrc_path)
         .with_arg("install")
         .assert()
-        .success();
-
-    let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
-    let installed = is_symlink_or_junction(&symlink_path).unwrap();
-    assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(stderr.contains("ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED"), "got:\n{stderr}");
+    assert!(!stderr.contains("leaked"), "got:\n{stderr}");
+    assert!(!workspace.join("node_modules").exists());
 
     drop((root, mock_instance));
 }

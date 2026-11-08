@@ -238,21 +238,13 @@ fn merge_workspace_current_lockfiles(
     mut merged: Option<Lockfile>,
 ) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
     for project in projects {
-        if let Some(project_lockfile) = load_project_current_lockfile(config, project)? {
+        if let Some(project_lockfile) =
+            super::recursive::load_project_current_lockfile(config, project)?
+        {
             merge_lockfile_packages_and_snapshots(&mut merged, project_lockfile);
         }
     }
     Ok(merged)
-}
-
-fn load_project_current_lockfile(
-    config: &pnpm_config::Config,
-    project: &pnpm_workspace::Project,
-) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
-    let mut project_config = config.clone();
-    let project_name = super::pipelines::project_manifest_name(project);
-    project_config.anchor_dedicated_project(&project.root_dir, project_name);
-    Lockfile::load_current_from_install_state_dir(&project_config.install_state_dir)
 }
 
 fn merge_lockfile_packages_and_snapshots(merged: &mut Option<Lockfile>, other: Lockfile) {

@@ -13,9 +13,11 @@ repository.workspace = true
 [dependencies]
 assert_cmd = { workspace = true }
 axum = { workspace = true }
+bytes = { workspace = true }
 command-extra = { workspace = true }
 dunce = { workspace = true }
 flate2 = { workspace = true }
+futures-util = { workspace = true }
 pipe-trait = { workspace = true }
 pnpr = { workspace = true }
 rustls = { workspace = true }

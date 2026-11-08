@@ -465,3 +465,26 @@ fn replaced_update_targets_are_none_when_a_locked_version_may_survive() {
 
     assert_eq!(replaces(&UpdateSeedPolicy::KeepAll, &lockfile, "foo"), None);
 }
+
+#[test]
+fn deps_requiring_build_include_loaded_builds() {
+    let key = |name: &str| format!("{name}@1.0.0").parse::<pnpm_lockfile::PackageKey>().unwrap();
+    let output = crate::CreateVirtualStoreOutput {
+        package_manifests: std::collections::HashMap::default(),
+        package_bins: std::collections::HashMap::default(),
+        side_effects: pnpm_deps_restorer::SideEffectsOutput::default(),
+        requires_build_by_snapshot: [(key("materialized"), true), (key("plain"), false)].into(),
+        snapshot_placement: pnpm_deps_restorer::SnapshotPlacement {
+            materialized: vec![key("materialized"), key("plain")],
+            loaded: Some(Vec::new()),
+            loaded_builds: vec![key("loaded")],
+        },
+        fetch_failed: std::collections::HashSet::default(),
+        cas_paths_by_pkg_id: None,
+        cas_paths_by_snapshot: None,
+    };
+    let sink = crate::DepsRequiringBuildSink::default();
+    super::on_disk::publish_deps_requiring_build(Some(&sink), &output);
+    let published = sink.lock().unwrap().clone().unwrap();
+    assert_eq!(published.into_iter().collect::<Vec<_>>(), ["loaded@1.0.0", "materialized@1.0.0"]);
+}

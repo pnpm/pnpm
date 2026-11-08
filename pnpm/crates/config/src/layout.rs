@@ -94,6 +94,14 @@ impl Config {
         self.lockfile_dir.is_some() || self.shared_workspace_lockfile
     }
 
+    /// Whether [`Self::project_scoped_optional_peers`] changes a resolution.
+    /// It has no effect while [`Self::dedupe_peer_dependents`] is off,
+    /// because optional peers are then project-scoped already.
+    #[must_use]
+    pub fn project_scoped_optional_peers_take_effect(&self) -> bool {
+        self.dedupe_peer_dependents && self.project_scoped_optional_peers
+    }
+
     /// How a walk that leaves out a dependency group classifies the lockfile's
     /// optional-peer edges.
     #[must_use]
@@ -254,17 +262,26 @@ impl Config {
     }
 
     /// The modules directory an install gives the project at
-    /// `project_dir`: the `packageConfigs` entry naming it, else the
-    /// configured `modulesDir`, resolved against `project_dir` and
-    /// lexically normalized. Unlike [`Self::modules_dir_name_for`] it
-    /// keeps a multi-component or absolute setting whole, as pnpm's
-    /// `pathAbsolute` does.
+    /// `project_dir`, lexically normalized:
+    ///
+    /// - a project that shares a lockfile with others but is not in the
+    ///   lockfile directory gets [`Self::modules_dir_name`] inside it;
+    /// - any other project gets the `packageConfigs` entry naming it, else
+    ///   the configured `modulesDir`, resolved against `project_dir` whole,
+    ///   as pnpm's `pathAbsolute` does.
     #[must_use]
     pub fn project_modules_dir(
         &self,
         project_dir: &Path,
         project_name: Option<&str>,
     ) -> std::path::PathBuf {
+        let project_dir = pnpm_fs::lexical_normalize(project_dir);
+        if self.shares_one_lockfile()
+            && pnpm_fs::lexical_normalize(self.lockfile_dir_for(&project_dir)) != project_dir
+        {
+            return pnpm_fs::lexical_normalize(&project_dir.join(self.modules_dir_name()));
+        }
+        let project_dir = project_dir.as_path();
         let modules_dir = self
             .applies_package_configs()
             .then(|| {
@@ -284,26 +301,24 @@ impl Config {
         pnpm_fs::lexical_normalize(&modules_dir)
     }
 
-    /// Put `<project_dir>/<modules_dir_name>` first on the `NODE_PATH` of
-    /// `env`, the environment of that project's scripts and commands, when
-    /// it is a custom modules directory and the project's executables are
+    /// Put `modules_dir`, the modules directory of the project at
+    /// `project_dir`, first on the `NODE_PATH` of `env`, the environment of
+    /// that project's scripts and commands, when it is not
+    /// `<project_dir>/node_modules` and the project's executables are
     /// symlinks, which have no shim to carry the entry. The rest of
     /// `NODE_PATH` is the one `env` sets, or else the inherited one.
     pub fn prepend_project_node_path<Sys: EnvVar>(
         &self,
         env: &mut HashMap<String, String>,
         project_dir: &Path,
-        modules_dir_name: &std::ffi::OsStr,
+        modules_dir: &Path,
     ) {
         let symlinked =
             cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true);
-        if !symlinked || !self.extend_node_path || modules_dir_name == "node_modules" {
+        if !symlinked || !self.extend_node_path || modules_dir == project_dir.join("node_modules") {
             return;
         }
-        let project_node_path = project_dir
-            .join(modules_dir_name)
-            .display()
-            .to_string();
+        let project_node_path = modules_dir.display().to_string();
         if project_node_path.contains(':') {
             return;
         }

@@ -4,6 +4,7 @@ import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import type { PnpmContext } from '@pnpm/installing.context'
 import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import type { LockfileObject, ProjectSnapshot } from '@pnpm/lockfile.fs'
@@ -122,8 +123,8 @@ async function throwOnImporterWithoutProjectManifest (ctx: PnpmContext, opts: St
  * A project whose directory exists without a manifest cannot be installed, so
  * the lockfile no longer describes the workspace. A frozen install skips a
  * project removed from the workspace patterns, which keeps its manifest, and
- * one whose whole directory is absent, as in a Docker build context that
- * excludes it.
+ * one whose directory is absent or empty, as in a Docker build context that
+ * excludes it or an uninitialized git submodule.
  */
 async function findImporterWithoutProjectManifest (
   lockfile: LockfileObject,
@@ -133,15 +134,14 @@ async function findImporterWithoutProjectManifest (
   for (const importerId of Object.keys(lockfile.importers)) {
     if (projectIds.has(importerId)) continue
     // eslint-disable-next-line no-await-in-loop -- the search stops at the first importer without a manifest
-    if (await isDirectoryWithoutManifest(path.join(opts.lockfileDir, importerId))) return importerId
+    if (await isNonEmptyDirWithoutManifest(path.join(opts.lockfileDir, importerId))) return importerId
   }
   return undefined
 }
 
-async function isDirectoryWithoutManifest (projectDir: string): Promise<boolean> {
-  if (!await pathExists(projectDir)) return false
+async function isNonEmptyDirWithoutManifest (projectDir: string): Promise<boolean> {
   const manifestExists = await Promise.all(MANIFEST_BASE_NAMES.map(async (basename) => pathExists(path.join(projectDir, basename))))
-  return !manifestExists.some(Boolean)
+  return !manifestExists.some(Boolean) && !isEmptyDirOrNothing(projectDir)
 }
 
 async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, frozenLockfile: boolean): Promise<ProjectCheck[]> {

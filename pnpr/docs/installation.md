@@ -37,7 +37,7 @@ docker run -p 127.0.0.1:7677:7677 -v pnpr-storage:/pnpr/storage ghcr.io/pnpm/pnp
 - `/pnpr/storage` and `/pnpr/cache` are volumes. Only `/pnpr/storage` holds
   data that must survive.
 - The default command passes `--storage /pnpr/storage`, so the bundled config
-  keeps `htpasswd` and `tokens.db` in that volume. Pass the same flag when you
+  keeps `users.json` and `tokens.db` in that volume. Pass the same flag when you
   replace the command, for example to create an account:
 
   ```sh

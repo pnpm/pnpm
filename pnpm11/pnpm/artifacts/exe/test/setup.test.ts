@@ -500,7 +500,7 @@ describe('alias bins', () => {
     aliasTest(`${name} resolves a symlink with a readlink from PATH when the default path lacks one`, () => {
       const sandbox = buildAliasSandbox()
       const alias = path.join(sandbox, name)
-      fs.writeFileSync(alias, fs.readFileSync(alias, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
+      fs.writeFileSync(alias, fs.readFileSync(alias, 'utf8').replaceAll('[ -x "/usr/bin/', '[ -x "/nonexistent/').replaceAll('[ -x "/bin/', '[ -x "/nonexistent/').replaceAll('command -p ', 'PATH=/nonexistent command '))
       const binDir = path.join(sandbox, 'global-bin')
       writeStub(path.join(binDir, 'pnpm'), 'decoy')
       fs.symlinkSync(alias, path.join(binDir, name))

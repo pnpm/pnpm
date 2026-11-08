@@ -6,6 +6,7 @@
 
 use indexmap::IndexMap;
 use serde::Deserialize;
+use serde_saphyr::granit_parser::{Scanner, StrInput, TokenType};
 use std::collections::HashSet;
 
 /// The `catalog:` / `catalogs:` slice of a `pnpm-workspace.yaml`, decoded
@@ -153,7 +154,8 @@ enum OverrideValue {
 impl Manifest {
     /// Parse `original` (the file's contents, or `None` when the file is
     /// absent). An empty or whitespace/comment-only document decodes to an
-    /// empty manifest, matching pnpm treating a nil parse as `{}`.
+    /// empty manifest. An explicit null root is rejected because the edits
+    /// require a mapping.
     pub(crate) fn parse(original: Option<&str>) -> Result<Self, Box<serde_saphyr::Error>> {
         let text = original.unwrap_or_default().to_string();
 
@@ -164,14 +166,12 @@ impl Manifest {
             });
         }
 
-        let top: Option<IndexMap<String, serde::de::IgnoredAny>> =
-            serde_saphyr::from_str(&text).map_err(Box::new)?;
-        let top_level_keys: Vec<String> = top
-            .map(|map| map.into_keys().collect())
-            .unwrap_or_default();
+        let top_level_keys = parse_top_level_keys(&text)?;
         let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
 
-        let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
+        let data: CatalogData = serde_saphyr::from_str::<Option<CatalogData>>(&text)
+            .map_err(Box::new)?
+            .unwrap_or_default();
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
         let (text, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
             .map_err(|error| Box::new(<serde_saphyr::Error as serde::de::Error>::custom(error)))?;
@@ -197,6 +197,24 @@ impl Manifest {
             },
         })
     }
+}
+
+fn parse_top_level_keys(text: &str) -> Result<Vec<String>, Box<serde_saphyr::Error>> {
+    let top: Option<IndexMap<String, serde::de::IgnoredAny>> =
+        serde_saphyr::from_str(text).map_err(Box::new)?;
+    if let Some(map) = top {
+        return Ok(map.into_keys().collect());
+    }
+    for token in Scanner::new(StrInput::new(text)) {
+        let token =
+            token.map_err(<serde_saphyr::Error as serde::de::Error>::custom)?.into_parts().1;
+        if matches!(token, TokenType::Scalar(..) | TokenType::Tag(..) | TokenType::Anchor(..)) {
+            return Err(Box::new(<serde_saphyr::Error as serde::de::Error>::custom(
+                "expected a mapping, found a null root",
+            )));
+        }
+    }
+    Ok(Vec::new())
 }
 
 fn clean_config_dependencies(

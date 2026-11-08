@@ -1,17 +1,18 @@
+pub(crate) use project_installability::{ProjectHost, host_requirements};
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
 use pnpm_network::{ForInstallsError, ThrottledClient};
-use pnpm_package_is_installable::{Engine, InstallabilityError, WantedEngine, check_engine};
+use pnpm_package_is_installable::InstallabilityError;
 use pnpm_package_manager::{
     CommandLockfile, DedicatedProjectInstall, ResolvedPackages, SharedInstallCaches,
     WorkspaceDependenciesInstalled,
 };
-use pnpm_package_manifest::{
-    PackageManifest, PackageManifestError, node_version_from_engines_runtime,
-};
+use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_reporter::LogEvent;
 use pnpm_tarball::MemCache;
 use std::{
     path::{Path, PathBuf},
@@ -252,7 +253,7 @@ impl State {
 /// A missing manifest is never written here: command initialization
 /// precedes argument validation and serves read-only commands, so the
 /// scaffold stays in memory until a command that writes the manifest
-/// (`install`, `add`, `link`) saves it.
+/// (`add`, `link`) saves it.
 ///
 /// Inside a workspace, a missing root manifest is tolerated rather
 /// than scaffolded: pnpm installs such a workspace with no root
@@ -291,50 +292,40 @@ fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> Pack
     manifest
 }
 
+/// Check what the root project requires of the host, per
+/// [`project_installability`].
 pub(crate) fn check_root_project_engine(
     manifest_path: &Path,
     config: &Config,
-    use_manifest_runtime: bool,
+    emit: fn(&LogEvent),
 ) -> Result<(), InitStateError> {
-    if !config.engine_strict {
-        return Ok(());
-    }
-    let project_dir = config.workspace_dir
-        .as_deref()
-        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"));
+    let project_dir = root_project_dir(manifest_path, config);
     let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
         .map_err(InitStateError::ManifestRead)?
     else {
         return Ok(());
     };
-    let Some(wanted_node) = manifest
-        .value()
-        .get("engines")
-        .and_then(|engines| engines.get("node"))
-        .and_then(serde_json::Value::as_str)
-    else {
+    let Some(requirements) = pnpm_deps_restorer::project_host_requirements(
+        manifest.value(),
+        config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ) else {
         return Ok(());
     };
-    let configured_node = config.node_version
-        .clone()
-        .or_else(|| {
-            use_manifest_runtime
-                .then(|| node_version_from_engines_runtime(manifest.value()))
-                .flatten()
-        });
-    let host = pnpm_deps_restorer::InstallabilityHost::detect_with(true, configured_node);
-    let wanted = WantedEngine { node: Some(wanted_node.to_string()), pnpm: None };
-    let current = Engine { node: host.node_version, pnpm: None };
-    match check_engine(&project_dir.to_string_lossy(), &wanted, &current) {
-        Ok(None) => Ok(()),
-        Ok(Some(error)) => {
-            Err(InitStateError::Installability(Box::new(InstallabilityError::Engine(error))))
-        }
-        Err(error) => Err(InitStateError::Installability(Box::new(
-            InstallabilityError::InvalidNodeVersion(error),
-        ))),
-    }
+    let host = ProjectHost::new(config, project_dir);
+    host.check(project_dir, &requirements)?
+        .iter()
+        .for_each(emit);
+    Ok(())
 }
+
+/// The directory of the project [`check_root_project_engine`] checks.
+pub(crate) fn root_project_dir<'a>(manifest_path: &'a Path, config: &'a Config) -> &'a Path {
+    config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"))
+}
+
+mod project_installability;
 
 #[cfg(test)]
 mod tests;

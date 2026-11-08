@@ -282,7 +282,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: garnet-org/action@96e9f81ec0f59f2322e8c67b43c4d4017d932ad3 # v2.4.1
+      - uses: garnet-org/action@673a06d87748bec49e4d8df22d371b2a3420aba4 # v2.5.2
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Initialize Rust before dependency installation
@@ -444,7 +444,7 @@ jobs:
             echo "::error::Tag v${VERSION} points at ${tag_commit}, but this run would release commit ${GITHUB_SHA}. Rerun the release workflow from the v${VERSION} tag."
             exit 1
           fi
-      - uses: garnet-org/action@96e9f81ec0f59f2322e8c67b43c4d4017d932ad3 # v2.4.1
+      - uses: garnet-org/action@673a06d87748bec49e4d8df22d371b2a3420aba4 # v2.5.2
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Initialize Rust before dependency installation
@@ -688,6 +688,12 @@ jobs:
             target: x86_64-unknown-freebsd
             code-target: freebsd-x64
 
+          # Built natively in a NetBSD VM, which needs KVM: see the VM build step.
+          - os: ubuntu-24.04
+            target: x86_64-unknown-netbsd
+            code-target: netbsd-x64
+            vm: netbsd
+
           - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-linux-android
             code-target: android-arm64
@@ -723,6 +729,7 @@ jobs:
           container-build: 'true'
 
       - name: Build with cross
+        if: matrix.vm != 'netbsd'
         # windows-msvc links VCRUNTIME140.dll dynamically by default, and a
         # clean Windows install does not ship it, so pnpm.exe would exit
         # 0xC0000135 before main. Only the CLI links the CRT statically: the
@@ -745,6 +752,24 @@ jobs:
             export "CARGO_TARGET_${target_var}_RUSTFLAGS=-C force-unwind-tables=no"
           fi
           .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
+
+      - name: Start the NetBSD VM
+        if: matrix.vm == 'netbsd'
+        uses: $/.github/actions/netbsd-vm
+
+      - name: Build and smoke-test in the NetBSD VM
+        if: matrix.vm == 'netbsd'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ needs.plan.outputs.rust_version }}
+        # Run outside the checkout: the repository's packageManager pin would
+        # otherwise make the new binary hand off to the pinned pnpm.
+        run: |
+          .github/scripts/netbsd-vm/vm.sh build --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
+          actual=$(.github/scripts/netbsd-vm/vm.sh run "cd /tmp && /build/target/$TARGET/release/pnpm --version")
+          echo "$actual"
+          test "$actual" = "$VERSION"
 
       - name: Smoke-test Linux ppc64le startup
         if: matrix.target == 'powerpc64le-unknown-linux-gnu'
@@ -1354,7 +1379,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cross
 

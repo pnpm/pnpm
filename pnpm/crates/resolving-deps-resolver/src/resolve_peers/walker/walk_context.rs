@@ -27,6 +27,8 @@ pub(in super::super) struct NodeOutput {
 #[derive(Debug, Clone)]
 pub(in super::super) struct MissingPeerInfo {
     pub(in super::super) range: String,
+    /// Preserves the source of relative ranges through subtree cache reuse.
+    pub(in super::super) declaring_pkg_id: Arc<str>,
     pub(in super::super) optional: bool,
 }
 

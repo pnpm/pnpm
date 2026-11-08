@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { createAllowBuildFunction, unapprovedIgnoredBuilds } from '@pnpm/building.policy'
 import type { CommandHandler } from '@pnpm/cli.command'
+import { readProjectManifestOnly } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { checkDepsStatus, findDanglingDirectDependencyLink } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
@@ -239,6 +240,10 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
     })
   }
   await assertRecordedBuildsAreApproved(opts)
+  // A workspace checks its projects while reading them, before this point.
+  if (!opts.workspaceDir) {
+    await readProjectManifestOnly(opts.dir, opts)
+  }
   globalInfo('Already up to date')
   return true
 }
@@ -308,7 +313,11 @@ function findDeclaredPacquetConfigDepName (configDependencies: InstallDepsOption
 async function readAllProjects (opts: InstallDepsOptions): Promise<Project[]> {
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
-      ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      ? await findWorkspaceProjects(opts.workspaceDir, {
+        ...opts,
+        patterns: opts.workspacePackagePatterns,
+        skipRuntimes: opts.runtime === false,
+      })
       : []
   )
   if (opts.runtimeOnFail) {

@@ -27,6 +27,7 @@ tempfile = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+pretty_assertions = { workspace = true }
 sha2 = { workspace = true }
 text-block-macros = { workspace = true }
 
@@ -37,9 +38,11 @@ libc = { workspace = true }
 junction = { workspace = true }
 same-file = { workspace = true }
 windows-sys = { workspace = true, features = [
+  "Win32_Globalization",
   "Win32_Storage_FileSystem",
   "Win32_System_Com",
   "Win32_System_Console",
+  "Win32_NetworkManagement_WNet",
   "Win32_UI_Shell",
 ] }
 

@@ -133,6 +133,9 @@ default namespace). Two hosted registries of the same ecosystem cannot share an
 
 A Cargo registry serves a sparse index at `/cargo/index/` and the crates API at
 `/cargo/api/v1/crates/`, or under `/cargo/~<name>/...` for a named registry.
+Hosted and proxied crate index files send a strong `ETag`. Requests with a
+matching `If-None-Match` receive `304 Not Modified` with no body.
+
 Point `cargo` at it:
 
 ```toml title=".cargo/config.toml"
@@ -150,8 +153,11 @@ Use a pnpr token as the registry token. `cargo` sends it as a bare
 that is not anonymously readable advertises `auth-required`, so `cargo` sends
 the token on index and download requests too.
 
-Crate names are compared case-insensitively, and an exact `packages:` key must
-be a valid crate name.
+Crate names are compared case-insensitively, with `_` and `-` treated as
+equivalent. An exact `packages:` claim covers both spellings, including when
+the crate has not been published yet. Keys must be valid crate names.
+Use the first published spelling in Cargo dependency declarations and when
+publishing new versions.
 
 `cargo search` works against a pnpr registry, matching on crate name over the
 crates it hosts. Each result reports the crate's newest release that is not
@@ -175,8 +181,29 @@ convention.
 Project names are compared PEP 503 normalized, so `My_Package`, `my.package`,
 and `my-package` are one project, and exact `packages:` keys are normalized the
 same way. Proxied files are fetched from the URL the upstream page lists,
-verified against its `sha256`, and cached. The project list at `/pypi/simple/`
-enumerates hosted projects only.
+verified against its `sha256`, and cached. Upstream core-metadata declarations
+(PEP 658/714) are preserved in JSON and HTML pages. Clients can download
+`<filename>.metadata` through the proxy without downloading the distribution.
+Metadata is cached and checked against a published SHA-256, SHA-384, or
+SHA-512 digest when available. Hash declarations without a supported digest
+are not advertised. Legacy metadata declarations are accepted,
+and JSON pages expose them using `core-metadata` for compatibility with pip.
+The project list at `/pypi/simple/` enumerates hosted projects only.
+
+Uploads must be valid wheel, `.tar.gz`, or `.zip` archives. The root
+`METADATA` in a wheel's `.dist-info` directory or the root `PKG-INFO` in a
+source distribution must name the same project and version as the filename
+and upload form.
+
+Publishers can yank a file with `PUT /pypi/files/<project>/<filename>/yank`
+and a JSON body such as `{"reason":"Broken release"}`. A JSON body is required. An empty object yanks
+without a reason. Reasons may contain up to 1024 UTF-8 bytes. `DELETE` on the same URL unyanks it. Yanked files remain
+downloadable, and the Simple API reports their yank status to installers.
+
+Administrators listed in `auth.admins` can remove a file with
+`DELETE /pypi/files/<project>/<filename>`. This removes its Simple API entry
+and makes downloads return 404. Stored archive bytes are retained. These routes
+also work under a named registry's base URL. Deleted filenames cannot be uploaded again.
 
 ## Proxying crates.io and PyPI
 
@@ -236,7 +263,12 @@ read sees the whole release or none of it:
   and overwriting them would be the worse outcome. Republishing the batch after
   bumping the conflicting version completes the release.
 - Every entry must belong to the same org. A batch that spans orgs is refused.
-- A retry gets the original response back. A client sends an
+- A retry gets the original response back while none of its published npm versions
+  have been unpublished and none of its published OCI manifests have been deleted
+  by digest. Retrying cannot restore an unpublished npm version. After deletion
+  by digest, a retry is evaluated again. An unnamed batch can republish the OCI
+  manifest, but a named batch can return `409` because its publication name is
+  taken. A client sends an
   `Idempotency-Key` header, or the digest of the whole request serves as the
   key. Reusing a key for a different request answers `409`. pnpr keeps the
   outcome for 7 days. A retry needs current publish permission like any
@@ -289,6 +321,13 @@ account holds at most 256 archives and 2 GiB that no publish has claimed. An
 upload reserves its size before its bytes arrive, so uploads running in
 parallel count against those limits together, and an upload that stopped
 gives its reservation back after an hour.
+
+The bytes stay in the hosted store and their records in the
+[metadata database](storage.md#sqlite-metadata). A sweep records an expired
+archive as taken, in a transaction that holds only while no upload renewed it
+since, before it removes the bytes. An upload of the same bytes afterwards
+stores them anew under another key, so a renewal that races the sweep keeps
+its archive on every storage backend.
 
 An npm publish document, in a batch or on its own, references a staged archive
 by putting its `integrity` in the attachment in place of `data`:

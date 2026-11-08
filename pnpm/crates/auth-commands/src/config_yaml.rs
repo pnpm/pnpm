@@ -90,8 +90,8 @@ fn parse_document(document: Option<&str>) -> Result<Map<String, Value>, ParseCon
     let Some(text) = document.filter(|text| !text.trim().is_empty()) else {
         return Ok(Map::new());
     };
-    match serde_saphyr::from_str::<Value>(text) {
-        Ok(Value::Object(root)) => Ok(root),
+    match serde_saphyr::from_str::<Option<Value>>(text) {
+        Ok(Some(Value::Object(root))) => Ok(root),
         // A document that is valid YAML but not a mapping holds no settings
         // to preserve, so the fields replace it wholesale.
         Ok(_) => Ok(Map::new()),

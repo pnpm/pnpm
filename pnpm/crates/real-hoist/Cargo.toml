@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-lockfile = { workspace = true }
+pnpm-local-spec = { workspace = true }
 
 derive_more = { workspace = true }
 indexmap = { workspace = true }

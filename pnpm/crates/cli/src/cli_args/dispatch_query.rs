@@ -25,6 +25,7 @@ use super::{
     docs::DocsArgs,
     doctor::{DoctorArgs, DoctorOutcome},
     find_hash::FindHashArgs,
+    fund::FundArgs,
     ignored_builds::IgnoredBuildsArgs,
     lane::LaneArgs,
     licenses::LicensesArgs,
@@ -152,6 +153,16 @@ pub(super) fn licenses<'a>(
     Ok(Box::pin(async move {
         apply_update_config(config, dir).await?;
         args.run(config, dir, recursive).await
+    }))
+}
+
+pub(super) fn fund<'a>(ctx: &RunCtx<'a>, args: FundArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir).await?;
+        args.run::<pnpm_network_web_auth::Host>(config, dir, recursive)
     }))
 }
 

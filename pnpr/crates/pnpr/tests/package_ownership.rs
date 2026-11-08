@@ -6,10 +6,6 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::Config;
-use pnpr_storage::{
-    TOMBSTONES_NAMESPACE,
-    layout::{namespace_segments, package_segments},
-};
 use serde_json::{Value, json};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use tempfile::TempDir;
@@ -43,7 +39,7 @@ fn config_with_packages(packages_block: &str, admins: &[&str]) -> (TempDir, Conf
     };
     let catch_all = if packages_block.contains("'**'") { "" } else { "      '**': {}\n" };
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    maxUsers: 100\n{admin_line}registries:\n  \
+        "storage: {}\nauth:\n  users:\n    maxUsers: 100\n{admin_line}registries:\n  \
          local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n{catch_all}  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",
@@ -135,10 +131,11 @@ fn authed_get(path: &str, token: &str) -> Request<Body> {
 }
 
 async fn app_router(config: Config, admins: &[&str]) -> axum::Router {
-    let auth = pnpr::AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
-    for admin in admins {
-        auth.users.create_user(admin, "secret123").await.unwrap();
-    }
+    let accounts: Vec<_> = admins
+        .iter()
+        .map(|name| (*name, "secret123"))
+        .collect();
+    let auth = crate::tokens::seeded_auth(&config, &accounts);
     pnpr::router_with_auth(config, auth)
 }
 
@@ -149,13 +146,14 @@ async fn get_couchdb_user_endpoint() {
         &["admin_alice", "unprovisioned_admin"],
     );
     let app = app_router(config, &["admin_alice"]).await;
-    let (app, _) = add_user_and_get_token(app, "normal_bob", "secret123").await;
+    let (app, token) = add_user_and_get_token(app, "normal_bob", "secret123").await;
 
     // Check unprovisioned admin user returns NOT_FOUND
     let response = app
         .clone()
         .oneshot(
             Request::get("/-/user/org.couchdb.user:unprovisioned_admin")
+                .header("authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -168,6 +166,7 @@ async fn get_couchdb_user_endpoint() {
         .clone()
         .oneshot(
             Request::get("/-/user/org.couchdb.user:admin_alice")
+                .header("authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -185,6 +184,7 @@ async fn get_couchdb_user_endpoint() {
             .clone()
             .oneshot(
                 Request::get(path)
+                    .header("authorization", format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -201,6 +201,7 @@ async fn get_couchdb_user_endpoint() {
         .clone()
         .oneshot(
             Request::get("/-/user/org.couchdb.user:nobody")
+                .header("authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -208,7 +209,8 @@ async fn get_couchdb_user_endpoint() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let err = body_json(response.into_body()).await;
-    assert_eq!(err["error"], "not_found");
+    assert_eq!(err["error"], "User not found");
+    assert_eq!(err["error"], err["reason"]);
 }
 
 #[tokio::test]
@@ -403,6 +405,7 @@ async fn anonymous_caller_cannot_change_maintainers() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
+    let (app, _) = add_user_and_get_token(app, "-", "secret123").await;
     // `-` is the name the audit log gives a caller without a username.
     let dash_maintainer = json!({ "_id": "open-pkg", "maintainers": [{ "name": "-" }] });
     let res = app
@@ -675,7 +678,7 @@ async fn staged_publish_under_owners_rule_can_be_approved_by_maintainer() {
 }
 
 #[tokio::test]
-async fn a_packument_rewrite_whose_tombstone_fails_leaves_the_packument_unchanged() {
+async fn a_packument_rewrite_whose_removal_record_fails_leaves_the_packument_unchanged() {
     let (dir, config) = config_with_packages(
         "packages:\n  'fail-pkg':\n    access: $all\n    publish: $owners\n    unpublish: $owners\n",
         &[],
@@ -719,15 +722,9 @@ async fn a_packument_rewrite_whose_tombstone_fails_leaves_the_packument_unchange
         dist_tags.insert("latest".to_string(), json!("1.0.0"));
     }
 
-    // Block tombstone recording by creating a directory where the tombstone file belongs
-    let mut tombstone_file = dir.path().join("storage");
-    tombstone_file.extend(namespace_segments("", pnpr_storage::Ecosystem::Npm));
-    tombstone_file.push(TOMBSTONES_NAMESPACE);
-    tombstone_file.push(format!(
-        "{}.json",
-        package_segments(pnpr_storage::Ecosystem::Npm, "fail-pkg").join("/"),
-    ));
-    std::fs::create_dir_all(&tombstone_file).unwrap();
+    let connection =
+        rusqlite::Connection::open(dir.path().join("storage/.metadata/metadata.sqlite")).unwrap();
+    connection.execute_batch("CREATE TRIGGER refuse_removal BEFORE INSERT ON removed_packages BEGIN SELECT RAISE(ABORT, 'injected removal failure'); END;").unwrap();
 
     // Alice attempts to rewrite the packument to remove 1.1.0
     let res = app
@@ -741,8 +738,7 @@ async fn a_packument_rewrite_whose_tombstone_fails_leaves_the_packument_unchange
         res.status(),
     );
 
-    // The tombstone is written first, so the rewrite never ran and 1.1.0 is
-    // still present
+    // The transaction rolled back the package rewrite.
     let res = app
         .clone()
         .oneshot(authed_get("/npm/fail-pkg", &alice_token))

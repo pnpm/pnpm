@@ -11,7 +11,8 @@ use pnpm_registry::PnprVariant;
 /// Wrap the version's archive `resolution` in a `variations` resolution when
 /// pnpr's document lists platform variants for the version. The version's
 /// archive becomes the variant that targets `any`, which a host no other
-/// variant matches installs; it comes first, then the platform variants in
+/// variant matches installs, unless the version was published with variants
+/// only; it comes first, then the platform variants in
 /// the byte order of their tags. The installer ranks them for the host, so
 /// their order chooses nothing and only has to be the same everywhere.
 /// Variants are read only from pnpr's document: npm's documents describe
@@ -37,14 +38,31 @@ pub(super) fn with_platform_variants(
             ));
         }
     }
-    if selectable.is_empty() {
+    // pnpr's document names no archive for a version published with
+    // variants only, so its own resolution has no integrity, and it gets no
+    // variant that targets `any`: a host none of its variants fits has
+    // nothing to install.
+    let has_any_archive = archive_integrity(&resolution).is_some();
+    if selectable.is_empty() && has_any_archive {
         return Ok(resolution);
     }
     selectable.sort_by_cached_key(|(_, platforms)| variant_tag(platforms).unwrap_or_default());
-    let variants = std::iter::once(PlatformAssetResolution::any(resolution))
+    let variants = has_any_archive
+        .then(|| PlatformAssetResolution::any(resolution))
+        .into_iter()
         .chain(selectable.into_iter().map(|(variant, _)| variant))
         .collect();
     Ok(LockfileResolution::Variations(VariationsResolution { variants, revision }))
+}
+
+/// The integrity of the version's own archive, which a version published
+/// with variants only does not have.
+fn archive_integrity(resolution: &LockfileResolution) -> Option<&ssri::Integrity> {
+    match resolution {
+        LockfileResolution::Tarball(tarball) => tarball.integrity.as_ref(),
+        LockfileResolution::Registry(registry) => Some(&registry.integrity),
+        _ => None,
+    }
 }
 
 /// The variant's platforms, or `None` when one has a field this client does

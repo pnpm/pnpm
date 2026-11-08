@@ -1,5 +1,5 @@
 use super::{
-    CacheHitCheck, DiskFirst, MirrorShortcuts, RouteInputs, RouteRequest,
+    CacheHitCheck, DiskFirst, MirrorShortcuts, PackumentSource, RouteInputs, RouteRequest,
     UNVALIDATED_MIRROR_MAX_AGE, fetch_failure_falls_back, unvalidated_mirror_is_fresh,
 };
 use crate::{
@@ -26,6 +26,8 @@ fn headers(etag: Option<&str>, uncacheable: bool) -> MetaHeaders {
 fn cutoff() -> DateTime<Utc> {
     DateTime::parse_from_rfc3339("2026-10-01T00:00:00Z").unwrap().into()
 }
+
+const UNDATED_MIRROR: PackumentSource = PackumentSource::Mirror { written_at: None };
 
 fn release_age_policy() -> PackagePickPolicy<'static> {
     PackagePickPolicy { published_by: Some(cutoff()), ..NO_POLICY }
@@ -204,12 +206,22 @@ fn the_release_age_cutoff_is_offered_where_the_policy_applies() {
 }
 
 #[test]
-fn an_uncacheable_mirror_offers_no_shortcut_online() {
+fn an_uncacheable_mirror_offers_only_the_shortcuts_that_ignore_newer_versions_online() {
+    let untagged = headers(None, false);
     let uncacheable = headers(None, true);
     let release_age = release_age_policy();
     let version = version_pick(&release_age, Some(&uncacheable));
-    assert_eq!(MirrorShortcuts::decide(&range_pick(&NO_POLICY, Some(&uncacheable))), None);
-    assert_eq!(MirrorShortcuts::decide(&version), None);
+    assert_eq!(
+        MirrorShortcuts::decide(&range_pick(&NO_POLICY, Some(&untagged))),
+        Some(MirrorShortcuts { unvalidated_mirror: true, ..RANGE_SHORTCUTS }),
+    );
+    assert_eq!(
+        MirrorShortcuts::decide(&range_pick(&NO_POLICY, Some(&uncacheable))),
+        Some(RANGE_SHORTCUTS),
+    );
+    let shortcuts = MirrorShortcuts::decide(&version).expect("the mirror may answer");
+    assert!(shortcuts.exact_version);
+    assert_eq!(version.written_after(), Some(cutoff()));
 
     let offline = RouteInputs { network: NetworkPolicy::Offline, ..version };
     let shortcuts = MirrorShortcuts::decide(&offline).expect("offline reads the mirror");
@@ -313,8 +325,11 @@ fn a_verified_or_offline_cache_hit_is_served_as_picked() {
     let online = range_pick(&NO_POLICY, None);
     let offline = RouteInputs { network: NetworkPolicy::Offline, ..online };
     for picked in [true, false] {
-        assert_eq!(CacheHitCheck::decide(&online, true, picked), CacheHitCheck::Serve);
-        assert_eq!(CacheHitCheck::decide(&offline, false, picked), CacheHitCheck::Serve);
+        assert_eq!(
+            CacheHitCheck::decide(&online, PackumentSource::Registry, picked),
+            CacheHitCheck::Serve,
+        );
+        assert_eq!(CacheHitCheck::decide(&offline, UNDATED_MIRROR, picked), CacheHitCheck::Serve);
     }
 }
 
@@ -330,7 +345,7 @@ fn an_unverified_cache_hit_without_a_pick_revalidates() {
     ];
     for (name, inputs) in cases {
         assert_eq!(
-            CacheHitCheck::decide(&inputs, false, false),
+            CacheHitCheck::decide(&inputs, UNDATED_MIRROR, false),
             CacheHitCheck::Revalidate,
             "{name}",
         );
@@ -343,15 +358,27 @@ fn an_unverified_cache_hit_serves_only_a_pick_a_stale_mirror_cannot_change() {
     let no_downgrade =
         PackagePickPolicy { trust_policy: Some(TrustPolicy::NoDowngrade), ..NO_POLICY };
     let base = range_pick(&NO_POLICY, None);
+    let uncacheable = headers(None, true);
+    let lowest = with_request(base, |request| request.pick_lowest_version = true);
     let cases = [
         (
             "prefer-offline",
             RouteInputs { network: NetworkPolicy::PreferCache, ..base },
             CacheHitCheck::Serve,
         ),
+        ("pick lowest", lowest, CacheHitCheck::Serve),
         (
-            "pick lowest",
-            with_request(base, |request| request.pick_lowest_version = true),
+            "pick lowest from an uncacheable mirror",
+            RouteInputs { mirror: Some(&uncacheable), ..lowest },
+            CacheHitCheck::Revalidate,
+        ),
+        (
+            "pick lowest from an uncacheable mirror, preferring offline",
+            RouteInputs {
+                network: NetworkPolicy::PreferCache,
+                mirror: Some(&uncacheable),
+                ..lowest
+            },
             CacheHitCheck::Serve,
         ),
         ("version", version_pick(&release_age, None), CacheHitCheck::Serve),
@@ -392,6 +419,41 @@ fn an_unverified_cache_hit_serves_only_a_pick_a_stale_mirror_cannot_change() {
         ),
     ];
     for (name, inputs, check) in cases {
-        assert_eq!(CacheHitCheck::decide(&inputs, false, true), check, "{name}");
+        assert_eq!(CacheHitCheck::decide(&inputs, UNDATED_MIRROR, true), check, "{name}");
+    }
+}
+
+#[test]
+fn a_mirror_cache_hit_written_after_the_cutoff_serves_only_a_pick() {
+    let release_age = release_age_policy();
+    let excluded = create_package_version_policy([PKG_NAME]).unwrap();
+    let excluded = PackagePickPolicy { published_by_exclude: Some(&excluded), ..release_age };
+    let written_at =
+        |offset: TimeDelta| PackumentSource::Mirror { written_at: Some(cutoff() + offset) };
+    let at_cutoff = written_at(TimeDelta::zero());
+    let before_cutoff = written_at(-TimeDelta::seconds(1));
+    let base = range_pick(&release_age, None);
+    let cases = [
+        ("at the cutoff", base, at_cutoff, true, CacheHitCheck::Serve),
+        ("after the cutoff", base, written_at(TimeDelta::days(1)), true, CacheHitCheck::Serve),
+        ("no pick", base, at_cutoff, false, CacheHitCheck::Revalidate),
+        ("before the cutoff", base, before_cutoff, true, CacheHitCheck::Revalidate),
+        (
+            "no release age",
+            range_pick(&NO_POLICY, None),
+            at_cutoff,
+            true,
+            CacheHitCheck::StableRangePick,
+        ),
+        (
+            "excluded package",
+            range_pick(&excluded, None),
+            at_cutoff,
+            true,
+            CacheHitCheck::StableRangePick,
+        ),
+    ];
+    for (name, inputs, source, picked, check) in cases {
+        assert_eq!(CacheHitCheck::decide(&inputs, source, picked), check, "{name}");
     }
 }

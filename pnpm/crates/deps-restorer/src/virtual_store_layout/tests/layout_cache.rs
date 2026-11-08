@@ -34,7 +34,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
             engine,
             policy,
             dir,
-            &crate::host_platform_selector(),
+            &crate::platform_selection::VariantPlatforms::host(),
         )
         .fingerprint(snapshots)
     };

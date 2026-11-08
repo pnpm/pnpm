@@ -45,10 +45,12 @@
 use crate::{
     AllowBuildPolicy, VirtualStoreLayout,
     import_indexed_dir::{ImportIndexedDirOpts, marker_present},
+    platform_selection::VariantPlatforms,
     safe_join_modules_dir::safe_join_modules_dir,
 };
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-use pnpm_lockfile::{PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry};
+use pnpm_fs::{LinkFailure, LinkFallback, LinkFallbackPolicy};
+use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashMap,
@@ -291,18 +293,7 @@ impl<'install> DirCloneCache<'install> {
             );
             return true;
         };
-        // `NotFound` (a concurrent prune removed the canonical slot),
-        // `AlreadyExists` (a concurrent importer claimed the target),
-        // and `PermissionDenied` are per-call conditions; everything
-        // else — `EXDEV`, `ENOTSUP`, and the grab-bag of "this volume
-        // can't do that" codes — condemns every later clone too, the
-        // same deny-list reasoning as `link_file::is_call_error`.
-        if !matches!(
-            error.kind(),
-            io::ErrorKind::NotFound
-                | io::ErrorKind::PermissionDenied
-                | io::ErrorKind::AlreadyExists,
-        ) {
+        if retires_dir_clone(&error) {
             self.disabled.store(true, Ordering::Relaxed);
         }
         tracing::debug!(
@@ -313,6 +304,20 @@ impl<'install> DirCloneCache<'install> {
         );
         false
     }
+}
+
+/// Whether a failed directory clone condemns every later one. A failure
+/// that retires an import tier ([`LinkFallback::NextMethod`]) retires the
+/// cache; a canonical slot a concurrent prune removed, a target a
+/// concurrent importer claimed, or a source out of names only sends this
+/// package through the per-file import. So does a permission refusal:
+/// [`dir_clone_supported`] proved the volume clones before any slot was
+/// populated, so a refusal after it is one package's, and retiring the
+/// cache on it would cost every later package the fast path.
+fn retires_dir_clone(error: &io::Error) -> bool {
+    let failure = LinkFailure::of(error);
+    failure != LinkFailure::Denied
+        && failure.fallback(LinkFallbackPolicy::NextMethod) == LinkFallback::NextMethod
 }
 
 /// Whether a directory `clonefile` from under `links_root` can land in
@@ -367,7 +372,7 @@ struct CanonicalLayoutInputs<'install> {
     packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
     allow_build_policy: Option<&'install AllowBuildPolicy>,
     lockfile_dir: Option<&'install Path>,
-    platform: PlatformSelector,
+    platform: VariantPlatforms,
 }
 
 impl CanonicalLayoutInputs<'_> {

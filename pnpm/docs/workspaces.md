@@ -243,6 +243,8 @@ Even if this setting is enabled, pnpm will prefer to deduplicate injected depend
 
 :::
 
+Relative `workspace:` and `file:` dependencies and auto-installed peers of an injected package resolve from the directory containing that package's `package.json`.
+
 ### dedupeInjectedDeps
 
 * Default: **true**

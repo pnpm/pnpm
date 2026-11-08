@@ -43,7 +43,9 @@ impl Upstream {
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let (base, mut url) = self.oci_object_url(repository, endpoint)?;
-        let started = Instant::now();
+        // Hops and token negotiation share one budget. Waiting for a hop's
+        // permits is pnpr's own queue, so it does not count.
+        let mut budget = self.http.timeout;
         let mut bearer = self.cached_oci_token(repository);
         let mut negotiated = false;
         for _ in 0..8 {
@@ -53,12 +55,13 @@ impl Upstream {
                 UNPRIORITIZED,
             )
             .await;
-            let request = guard
-                .request(method.clone(), url.clone())
-                .timeout(self.http.timeout.saturating_sub(started.elapsed()))
-                .header(header::ACCEPT, accept);
+            let hop_started = guard.acquired_at();
+            let request = guard.request(method.clone(), url.clone()).header(header::ACCEPT, accept);
             let request = self.with_oci_credentials(request, &url, &base, bearer.as_deref());
-            let response = self.run(request, url.as_str()).await?;
+            let deadline = hop_started + budget;
+            let response =
+                self.within_head_deadline(url.as_str(), deadline, self.run(request, url.as_str()))
+                    .await?;
             if response.status() == StatusCode::UNAUTHORIZED
                 && !negotiated
                 && url.origin() == base.origin()
@@ -66,15 +69,18 @@ impl Upstream {
                 let challenge = self.oci_challenge(&response)?;
                 drop(response);
                 drop(guard);
-                bearer = Some(self.oci_token(&base, repository, challenge).await?);
+                budget = budget.saturating_sub(hop_started.elapsed());
+                let token = self.oci_token(&base, repository, challenge, &mut budget).await?;
+                bearer = Some(token);
                 negotiated = true;
                 continue;
             }
             if response.status().is_redirection() {
                 url = self.oci_redirect_target(&response, &url, &base)?;
+                budget = budget.saturating_sub(hop_started.elapsed());
                 continue;
             }
-            return self.finish_oci_fetch(response, guard, &url, started).await;
+            return self.finish_oci_fetch(response, guard, &url).await;
         }
         Err(self.oci_error("too many OCI redirects"))
     }
@@ -84,7 +90,6 @@ impl Upstream {
         response: reqwest::Response,
         guard: pnpm_network::ThrottledClientGuard<'_>,
         url: &Url,
-        started: Instant,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -92,10 +97,7 @@ impl Upstream {
         }
         let response = self.checked(response, url.as_str()).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(guard.retain_for_body(
-            response,
-            self.http.timeout.saturating_sub(started.elapsed()),
-        )))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(response, self.http.timeout)))
     }
 
     fn oci_object_url(&self, repository: &str, endpoint: &str) -> Result<(Url, Url)> {
@@ -163,11 +165,14 @@ impl Upstream {
         Ok(target)
     }
 
+    /// Fetch a pull token, bounded by what is left of `budget`, and spend the
+    /// time it took after taking its permit.
     async fn oci_token(
         &self,
         base: &Url,
         repository: &str,
         challenge: Challenge,
+        budget: &mut Duration,
     ) -> Result<String> {
         let mut realm =
             Url::parse(&challenge.realm).map_err(|_| self.oci_error("invalid OCI token realm"))?;
@@ -184,25 +189,37 @@ impl Upstream {
             UNPRIORITIZED,
         )
         .await;
+        let started = guard.acquired_at();
         let headers = self.oci_token_headers(base, &realm);
         let response = guard
             .get(realm.clone())
-            .timeout(self.http.timeout)
+            .timeout(*budget)
             .headers(headers)
             .send()
             .await
-            .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;
+            .map_err(|source| self.token_request_failed(source))?;
         if !response.status().is_success() {
             return Err(self.oci_error("OCI token service refused authentication"));
         }
         let body = read_limited_body(response, 64 * 1024).await
-            .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;
+            .map_err(|source| {
+                self.record_body_failure(&source);
+                RegistryError::Upstream { url: self.base.clone(), source }
+            })?;
+        *budget = budget.saturating_sub(started.elapsed());
         if body.truncated {
             return Err(self.oci_error("OCI token response is too large"));
         }
         let token: TokenResponse = serde_json::from_slice(&body.bytes)
             .map_err(|_| self.oci_error("invalid OCI token response"))?;
         self.cache_oci_token(repository, token)
+    }
+
+    /// A token request that failed in transport, such as running out of the
+    /// budget, counts against the breaker like any other upstream request.
+    fn token_request_failed(&self, source: reqwest::Error) -> RegistryError {
+        self.breaker.record_failure();
+        RegistryError::Upstream { url: self.base.clone(), source }
     }
 
     fn oci_token_headers(&self, base: &Url, realm: &Url) -> header::HeaderMap {

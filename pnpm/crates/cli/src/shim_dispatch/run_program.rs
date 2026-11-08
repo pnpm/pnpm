@@ -5,6 +5,7 @@
 use super::{
     ShimInvocation, ShimTarget,
     rust_toolchain::{RUST_SHIM_PACKAGE, run_next_on_path},
+    unmark_preparation,
 };
 use crate::process::Command;
 use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
@@ -163,6 +164,7 @@ fn program_command(
 ) -> Result<Command, i32> {
     let mut command = Command::new(program);
     command.args(args);
+    unmark_preparation(&mut command);
     if bin_dirs.is_empty() {
         return Ok(command);
     }
@@ -182,7 +184,6 @@ fn program_command(
 
 #[cfg(unix)]
 fn exec_command(program: &Path, mut command: Command) -> i32 {
-    use std::os::unix::process::CommandExt as _;
     let error = command.exec();
     pnpm_diagnostics::eprintln!("pnpm: failed to exec {}: {error}", program.display());
     if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }

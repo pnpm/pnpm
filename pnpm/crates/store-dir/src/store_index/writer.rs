@@ -61,6 +61,13 @@ enum WriteMsg {
         current_files: HashMap<String, CafsFileInfo>,
         response: Option<std::sync::mpsc::SyncSender<Option<SideEffectsDiff>>>,
     },
+    /// Send the paths in the `files` of the row at `key`, as the
+    /// messages queued before this one leave it, or `None` when there is
+    /// no such row.
+    ReadFilePaths {
+        key: String,
+        response: std::sync::mpsc::SyncSender<Option<Vec<String>>>,
+    },
     RemoteSideEffects {
         key: String,
         cache_key: String,
@@ -286,6 +293,13 @@ fn apply_write_msg(
                 let _ = response.send(diff);
             }
         }
+        WriteMsg::ReadFilePaths { key, response } => {
+            let paths = match pending.get(&key) {
+                Some(row) => Some(row.files.keys().cloned().collect()),
+                None => load_index_row(index, &key).map(|row| row.files.into_keys().collect()),
+            };
+            let _ = response.send(paths);
+        }
         WriteMsg::RemoteSideEffects { key, cache_key, diff } => {
             if let Some(row) = load_pending_row(index, pending, &key) {
                 row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff);
@@ -468,6 +482,15 @@ impl StoreIndexWriter {
             current_files,
             response: Some(response),
         });
+        result.recv().ok().flatten()
+    }
+
+    /// The paths in the `files` of the row at `key`, including a row that is
+    /// queued but not yet committed. `None` when there is no such row or the
+    /// writer is not running.
+    pub(crate) fn read_file_paths(&self, key: String) -> Option<Vec<String>> {
+        let (response, result) = std::sync::mpsc::sync_channel(1);
+        self.send_msg(WriteMsg::ReadFilePaths { key, response });
         result.recv().ok().flatten()
     }
 

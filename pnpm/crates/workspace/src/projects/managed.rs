@@ -2,8 +2,8 @@
 //! discovery never reports projects from. See
 //! [`FindWorkspaceProjectsOpts::ignored_directories`](super::FindWorkspaceProjectsOpts::ignored_directories).
 
-use super::{Path, PathBuf};
-use std::path::Component;
+use super::{Path, PathBuf, walk::is_always_ignored_name};
+use std::{ffi::OsStr, fs, path::Component};
 
 /// Whether `path` sits under one of the directories returned by
 /// [`resolve_ignored_directories`]. `path` is normalized lexically first:
@@ -63,4 +63,43 @@ pub(super) fn resolve_ignored_directories(
         .map(|dir| pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
         .filter(|dir| !starts_with_directory(&workspace_root, dir))
         .collect()
+}
+
+/// [`resolve_ignored_directories`] without the directories the walk skips
+/// by name anyway. The walk still receives them all.
+pub(super) fn ignored_directories_beyond_the_walk(
+    workspace_root: &Path,
+    ignored_directories: &[PathBuf],
+) -> Vec<PathBuf> {
+    let root = pnpm_fs::lexical_normalize(workspace_root);
+    resolve_ignored_directories(workspace_root, ignored_directories)
+        .into_iter()
+        .filter(|dir| !walk_skips_by_name(&root, dir))
+        .collect()
+}
+
+/// Whether `dir` sits under a `node_modules` or `bower_components` that the
+/// walk's name check recognizes: one spelled that way on disk, or one that
+/// does not exist. On a case-insensitive filesystem the configured spelling
+/// can name a directory spelled otherwise, which only the exclusion skips.
+fn walk_skips_by_name(root: &Path, dir: &Path) -> bool {
+    let Ok(relative) = dir.strip_prefix(root) else { return false };
+    let mut parent = root.to_path_buf();
+    for component in relative.components() {
+        let Component::Normal(name) = component else { return false };
+        if is_always_ignored_name(name) {
+            return !parent.join(name).exists() || has_entry_spelled(&parent, name);
+        }
+        parent.push(name);
+    }
+    false
+}
+
+fn has_entry_spelled(dir: &Path, name: &OsStr) -> bool {
+    fs::read_dir(dir)
+        .is_ok_and(|entries| {
+            entries
+                .flatten()
+                .any(|entry| entry.file_name() == name)
+        })
 }

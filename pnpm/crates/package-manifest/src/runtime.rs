@@ -182,6 +182,31 @@ fn drop_runtime_dependencies(manifest: &mut Value, deps_field: &str, managed: &[
 /// system, so it names a version only when the entry asks pnpm to download it.
 #[must_use]
 pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
+    declared_node_runtime(manifest, None).map(|runtime| runtime.version)
+}
+
+/// [`node_version_from_engines_runtime`] when pnpm downloads that Node.js,
+/// with `on_fail_override` (the `runtimeOnFail` setting) replacing the
+/// entry's `onFail`. `None` when the project runs on the system Node.js.
+#[must_use]
+pub fn downloaded_node_version_from_engines_runtime(
+    manifest: &Value,
+    on_fail_override: Option<&str>,
+) -> Option<String> {
+    declared_node_runtime(manifest, on_fail_override)
+        .filter(|runtime| runtime.downloaded)
+        .map(|runtime| runtime.version)
+}
+
+struct DeclaredNodeRuntime {
+    version: String,
+    downloaded: bool,
+}
+
+fn declared_node_runtime(
+    manifest: &Value,
+    on_fail_override: Option<&str>,
+) -> Option<DeclaredNodeRuntime> {
     for engines_field in ["devEngines", "engines"] {
         let Some(runtime_entry) = manifest
             .get(engines_field)
@@ -209,11 +234,13 @@ pub fn node_version_from_engines_runtime(manifest: &Value) -> Option<String> {
         let Ok(range) = Range::parse(version) else {
             continue;
         };
-        if runtime.get("onFail").and_then(Value::as_str) != Some("download") {
-            return Version::parse(version).ok().map(|version| version.to_string());
+        let on_fail = on_fail_override.or_else(|| runtime.get("onFail").and_then(Value::as_str));
+        if on_fail != Some("download") {
+            let version = Version::parse(version).ok()?.to_string();
+            return Some(DeclaredNodeRuntime { version, downloaded: false });
         }
         if let Some(version) = range.min_version() {
-            return Some(version.to_string());
+            return Some(DeclaredNodeRuntime { version: version.to_string(), downloaded: true });
         }
     }
     None

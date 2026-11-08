@@ -4,7 +4,6 @@ use super::{
     static_config_with_packages,
 };
 use base64::Engine;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 
 /// `libnpmpublish` (the library `pnpm publish` / `npm publish` use under
 /// the hood) names the `_attachments` key by the full package name —
@@ -18,7 +17,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = &npm_tgz("@pnpmtest/lib-pub-form", "1.0.0", b"libnpmpublish-form");
     let pkg = "@pnpmtest/lib-pub-form";
@@ -62,15 +61,9 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
 
     // On disk: canonical `<basename>-<version>.tgz` path, NOT the
     // scoped form. That's where serve_tarball looks.
-    let on_disk = local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "@pnpmtest/lib-pub-form",
-        "lib-pub-form-1.0.0.tgz",
-    );
-    assert!(on_disk.exists(), "tarball should be persisted at canonical path");
-    assert_eq!(std::fs::read(&on_disk).unwrap(), *bytes);
+    let on_disk =
+        crate::storage::hosted_file(&storage, "@pnpmtest/lib-pub-form", "lib-pub-form-1.0.0.tgz");
+    assert_eq!(on_disk.expect("tarball should be mapped at its canonical name"), *bytes);
 
     // And it serves back via the spec URL form.
     let served = app
@@ -91,7 +84,7 @@ async fn unpublish_partial_writes_modified_packument() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Publish two versions, then PUT a modified packument with the
     // older one removed — simulating the partial-unpublish flow.
@@ -135,11 +128,12 @@ async fn unpublish_partial_writes_modified_packument() {
         .as_object_mut()
         .unwrap()
         .remove("integrity");
-    let request = Request::put("/npm/unpub-partial/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&modified).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/unpub-partial/-rev/{}", modified["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&modified).unwrap()))
+            .unwrap();
     let response = app
         .clone()
         .oneshot(request)
@@ -188,24 +182,10 @@ async fn unpublish_partial_writes_modified_packument() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     assert!(
-        !local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "unpub-partial",
-            "unpub-partial-1.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "unpub-partial", "unpub-partial-1.0.0.tgz").is_none(),
     );
     assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "unpub-partial",
-            "unpub-partial-2.0.0.tgz"
-        )
-        .exists(),
+        crate::storage::hosted_file(&storage, "unpub-partial", "unpub-partial-2.0.0.tgz").is_some(),
     );
 
     // Second DELETE of the same tarball is a no-op — verdaccio
@@ -226,7 +206,7 @@ async fn unpublish_tarball_preserves_cache_subsystems_and_cached_entries() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("blend-pkg", "1.0.0", b"hosted-bytes");
     let request = Request::put("/npm/blend-pkg")
@@ -264,16 +244,7 @@ async fn unpublish_tarball_preserves_cache_subsystems_and_cached_entries() {
         StatusCode::CREATED,
     );
 
-    assert!(
-        !local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "blend-pkg",
-            "blend-pkg-1.0.0.tgz"
-        )
-        .exists(),
-    );
+    assert!(crate::storage::hosted_file(&storage, "blend-pkg", "blend-pkg-1.0.0.tgz").is_none());
     assert!(
         cached_package_dir.join("cached.tgz").exists(),
         "cached package directory must remain intact",
@@ -299,7 +270,7 @@ async fn unpublish_force_removes_entire_package() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("unpub-force", "1.0.0", b"contents");
     let request = Request::put("/npm/unpub-force")
@@ -331,7 +302,15 @@ async fn unpublish_force_removes_entire_package() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
-    assert!(!local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "unpub-force").exists());
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "unpub-force"
+        )
+        .is_none(),
+    );
 
     // Re-fetch returns 404 (static mode + no on-disk packument).
     let response = app
@@ -350,7 +329,7 @@ async fn unpublish_package_without_rev_suffix() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     for (pkg, path) in
         [("unpub-clean", "/npm/unpub-clean"), ("@scope/unpub-clean", "/npm/@scope/unpub-clean")]
@@ -386,7 +365,10 @@ async fn unpublish_package_without_rev_suffix() {
                 .status(),
             StatusCode::CREATED,
         );
-        assert!(!local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, pkg).exists());
+        assert!(
+            pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, pkg)
+                .is_none(),
+        );
     }
 }
 
@@ -395,7 +377,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("@scope/unpub", "1.0.0", b"bytes");
     let request = Request::put("/npm/@scope/unpub")
@@ -407,16 +389,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
         .oneshot(request)
         .await
         .unwrap();
-    assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "@scope/unpub",
-            "unpub-1.0.0.tgz"
-        )
-        .exists(),
-    );
+    assert!(crate::storage::hosted_file(&storage, "@scope/unpub", "unpub-1.0.0.tgz").is_some());
 
     // pnpm reconstructs the DELETE URL from the rewritten tarball URL
     // in the packument, which uses literal `/` for the scope segment
@@ -427,16 +400,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
         .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
-    assert!(
-        !local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "@scope/unpub",
-            "unpub-1.0.0.tgz"
-        )
-        .exists(),
-    );
+    assert!(crate::storage::hosted_file(&storage, "@scope/unpub", "unpub-1.0.0.tgz").is_none());
 }
 
 #[tokio::test]
@@ -444,7 +408,7 @@ async fn unpublish_tarball_via_version_route_url() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     for (pkg, put_path, delete_path, blob_name) in [
         (
@@ -496,9 +460,7 @@ async fn unpublish_tarball_via_version_route_url() {
             .await
             .unwrap();
         assert_eq!(publish.status(), StatusCode::CREATED);
-        assert!(
-            local_blob_path(&storage, "", pnpr_storage::Ecosystem::Npm, pkg, blob_name).exists(),
-        );
+        assert!(crate::storage::hosted_file(&storage, pkg, blob_name).is_some());
 
         let request = Request::delete(delete_path)
             .header("Authorization", format!("Bearer {token}"))
@@ -510,9 +472,7 @@ async fn unpublish_tarball_via_version_route_url() {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::CREATED);
-        assert!(
-            !local_blob_path(&storage, "", pnpr_storage::Ecosystem::Npm, pkg, blob_name).exists(),
-        );
+        assert!(crate::storage::hosted_file(&storage, pkg, blob_name).is_none());
     }
 
     // A version cannot be published with the reserved `+r<digits>` build
@@ -536,16 +496,8 @@ async fn unpublish_tarball_via_version_route_url() {
             "{version}",
         );
     }
-    let hosted_blob = || {
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "unpub-rev",
-            "unpub-rev-1.0.0.tgz",
-        )
-    };
-    assert!(hosted_blob().exists());
+    let hosted_blob = || crate::storage::hosted_file(&storage, "unpub-rev", "unpub-rev-1.0.0.tgz");
+    assert!(hosted_blob().is_some());
 
     let request = Request::delete("/npm/unpub-rev@1.0.0+r0/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
@@ -553,7 +505,7 @@ async fn unpublish_tarball_via_version_route_url() {
         .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    assert!(hosted_blob().exists());
+    assert!(hosted_blob().is_some());
 }
 
 #[tokio::test]
@@ -566,7 +518,7 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
     publish: alice",
     );
     let app = router(config);
-    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("missing-unpublish", "1.0.0", b"contents");
     let request = Request::put("/npm/missing-unpublish")
@@ -617,8 +569,8 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     unpublish: admin",
     );
     let app = router(config);
-    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret123").await;
 
     let body = publish_doc("replace-policy", "1.0.0", b"contents");
     let request = Request::put("/npm/replace-policy")
@@ -645,13 +597,24 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .unwrap(),
     )
     .unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/replace-policy")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    replacement["_rev"] = body_json(response.into_body()).await["_rev"].clone();
     replacement["owner"] = json!("admin");
 
-    let request = Request::put("/npm/replace-policy/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {alice}"))
-        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/replace-policy/-rev/{}", replacement["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {alice}"))
+            .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+            .unwrap();
     assert_eq!(
         app.clone()
             .oneshot(request)
@@ -672,11 +635,12 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     .unwrap();
     assert!(on_disk.get("owner").is_none());
 
-    let request = Request::put("/npm/replace-policy/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {admin}"))
-        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/replace-policy/-rev/{}", replacement["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {admin}"))
+            .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+            .unwrap();
     assert_eq!(
         app.clone()
             .oneshot(request)
@@ -709,7 +673,7 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = |version: &'static str| {
         let app = app.clone();

@@ -29,6 +29,15 @@ endpoints, the `/-/pnpr/v0/` protocol endpoints, and the image `/v2/` API sit
 on the server root. Cargo, Python, and image endpoints are documented on their
 own pages.
 
+## npm error responses
+
+Errors on npm registry and account endpoints use `application/json` with matching
+`error` and `reason` fields containing the server's explanation. Server faults
+hide internal details. A `401` includes a `WWW-Authenticate: Bearer` challenge.
+When a supplied token is invalid, the explanation is "Invalid authentication
+token" and the challenge includes `error="invalid_token"`. Missing credentials
+produce an "Authentication required" explanation.
+
 ## Always available
 
 | Method | Path | Description |
@@ -54,6 +63,12 @@ endpoints all work under a registry prefix. The `~` prefix keeps registry
 names out of the package-name namespace (a package name can never begin with
 `~`).
 
+npm publishes require a lowercase, URL-safe package name of at most 214
+characters. The package part cannot contain `~'!()*`. Unscoped names cannot
+start with `.`, `_`, or `-`, and Node.js built-in module names, `node_modules`,
+and `favicon.ico` are reserved. Existing upstream names retain their legacy
+read behavior.
+
 The npm base (`/npm/`) aliases the registry named by `defaultRegistry`. With
 no `defaultRegistry` configured, it serves no registry and only the
 `/npm/~<name>/` bases answer.
@@ -78,6 +93,7 @@ Every request routes through the registry graph:
   as `<registry>/<name>@<version>` and stay canonical for the base the client
   addressed (`/npm/` or `/npm/~<name>/`), so lockfiles don't bake in a
   registry name.
+- Full package metadata omits `access` when its value is `null`.
 
 ## pnpr protocol endpoints
 
@@ -244,8 +260,10 @@ returns npm's abbreviated install-v1 packument shape. If it sends
 [its own package document](#pnprs-package-document). Package documents carry a
 `pnpr-registry` response header.
 
-Packument responses emit strong `ETag` and `Vary: Accept` headers. Public
-packuments set `Cache-Control: public, max-age=<ttl>` based on upstream or
+Packument responses emit strong `ETag` and `Vary: Accept` headers at the origin.
+A reverse proxy that changes the content coding may weaken the ETag.
+[Cloudflare documents this behavior](https://developers.cloudflare.com/cache/reference/etag-headers/).
+Public packuments set `Cache-Control: public, max-age=<ttl>` based on upstream or
 global packument TTL configuration, while private or caller-scoped responses
 set `Cache-Control: private, no-store` and `Vary: Accept, Authorization`.
 Conditional requests sending `If-None-Match` or `If-Modified-Since` receive
@@ -446,15 +464,35 @@ a hosted registry.
 | `PUT` | `/{name}` | Publish an unscoped package. Body is the npm publish document with `_attachments`. Requires `publish`. |
 | `PUT` | `/@scope/{name}` | Publish a scoped package. Body is the npm publish document with `_attachments`. Requires `publish`. |
 | `PUT` | `/-/pnpr/v0/publish` | pnpm batch publish (also mounted on the server root). Body is `{"packages":[<publish document>, ...]}`. The batch is all-or-nothing and each package requires `publish`. See [One publish for a workspace that spans ecosystems](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems). |
-| `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires both `publish` and `unpublish`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
+| `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires the current [revision](#packument-revisions) and both `publish` and `unpublish`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `DELETE` | `/{name}` | Remove an entire unscoped package, used by force unpublish. Requires `unpublish`. Legacy `/{package}/-rev/{rev}` is also accepted. |
 | `DELETE` | `/@scope/{name}` | Remove an entire scoped package, used by force unpublish. Requires `unpublish`. Legacy `/@scope/{name}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/{name}@{version}` | Remove an unscoped version's tarball. Requires `unpublish`. Legacy `/{name}@{version}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/@scope/{name}@{version}` | Remove a scoped version's tarball. Requires `unpublish`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/{name}/-/{filename}` | Remove an unscoped tarball. Requires `unpublish`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
-| `DELETE` | `/@scope/{name}/-/{filename}` | Remove a scoped tarball. Requires `unpublish`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
-| `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string version, for example `"1.0.0"`. Requires `publish`. |
-| `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Requires `publish`. |
+| `DELETE` | `/{name}@{version}` | Unpublish an unscoped version, and reclaim its archives that no other file shares. A version the package no longer lists is left as it is. Requires `unpublish`. Legacy `/{name}@{version}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}@{version}` | Unpublish a scoped version, as above. Requires `unpublish`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/{name}/-/{filename}` | Unpublish the unscoped version the tarball belongs to, as above. Requires `unpublish`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}/-/{filename}` | Unpublish the scoped version the tarball belongs to, as above. Requires `unpublish`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
+| `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string naming a published version, for example `"1.0.0"`. Names that parse as semver ranges and targets that are missing or unpublished return `400`. Requires `publish`. |
+| `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Removing `latest` while published versions exist returns `400`. Requires `publish`. |
+
+`dist-tags` in publish requests and package-document updates follows the same
+name and target rules. A package-document update cannot remove `latest` while
+published versions remain.
+
+Every key under `versions` and its manifest's `version` must be valid SemVer.
+pnpr rejects an invalid version with `400`, including versions in DELETE requests.
+Publish version keys with build metadata, such as `1.0.0+build.5`, return `400`
+with a message explaining that build metadata cannot be published.
+
+### Packument revisions
+
+A hosted package's full metadata document includes `_rev`. A partial unpublish
+PUT must use that value in `/{package}/-rev/{rev}`. If the body also includes
+`_rev`, it must match the path. A stale revision returns `409` without removing
+versions. Read the package metadata again before retrying.
+
+A deprecation PUT to `/{package}` must include the current `_rev`. It changes
+only the versions' `deprecated` fields. Dist-tags and other package metadata
+stay unchanged. A missing or stale `_rev` returns `409`.
 
 ### Platform variants
 
@@ -523,7 +561,7 @@ partial unpublish computed from a packument that another replica has since
 changed is rejected with a `409`; a dist-tag write instead replays its mutation
 against the fresh packument, and reports `409` only if it keeps losing. Either
 way no writer's update is silently discarded. See
-[Storage backends](storage.md#concurrent-writers).
+[Packument revisions](#packument-revisions) and [Storage backends](storage.md#concurrent-writers).
 
 ### Publish-time manifest verification {#publish-time-manifest-verification}
 
@@ -603,9 +641,9 @@ one-time-password challenge of its own at either point. The `--otp` flag on
 `pnpm stage approve` is for registries that do.
 
 A stage id is a v4 UUID drawn from the OS CSPRNG, so the id itself acts as an
-unguessable handle. Held records live under a reserved `.staged/` namespace in
-the hosted store (both the filesystem and S3 backends), and a record is only
-visible through the same base it was created with. One staged through
+unguessable handle. Held publish bodies live under a reserved `.staged/` namespace in
+the hosted store (both the filesystem and S3 backends). Approval records live
+in the metadata database. A record is only visible through the same base it was created with. One staged through
 `/npm/~<name>/` is not addressable on the npm base, and vice versa.
 
 | Method | Path | Description |
@@ -636,12 +674,12 @@ consumes. Teams are [registry-scoped](configuration.md#teams).
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Returns a JSON array of `{"name": ...}`. The scope may be written with or without a leading `@`. |
-| `GET` | `/-/team/{scope}/{team}/user` | Members of one team, as a JSON array of `{"name": ...}`. |
+| `GET` | `/-/org/{scope}/team` | Teams of the registry that serves `@{scope}`. Requires membership in one of its teams or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. The scope may be written with or without a leading `@`. |
+| `GET` | `/-/team/{scope}/{team}/user` | Members of one team. Requires membership in one of the registry's teams or administrator access. Returns a JSON array of `{"id": ..., "name": ...}`. |
 | `PUT` | `/-/org/{scope}/team` | Create a team. The body is `{"name": "<team>"}`. Returns `201`. |
 | `DELETE` | `/-/team/{scope}/{team}` | Destroy a team. Returns `200`. |
 | `PUT` | `/-/team/{scope}/{team}/user` | Add a member. The body is `{"user": "<username>"}`. Returns `201`. |
-| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member. The body is `{"user": "<username>"}`. Returns `204`, also when the user was not a member. |
+| `DELETE` | `/-/team/{scope}/{team}/user` | Remove a member by `{"user": "<username>"}` or `{"userId": "<account-id>"}`. Account IDs also remove deleted members. Returns `204`, also when the user was not a member. A username with no account returns `404`. |
 
 Changes are accepted only on a registry with
 [`teamsManagedBy: api`](configuration.md#managing-teams-through-the-api):
@@ -665,11 +703,14 @@ that declares no teams returns an empty array.
 <scope:team>` edit and read the `packages:` rules of a registry with
 [`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api).
 
+The `{team}` path segment is a team name. The stored `team:<id>` token uses
+the immutable team ID returned by the team endpoints.
+
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/team/{scope}/{team}/package` | The `packages:` keys whose `access` list names `team:<team>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
-| `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. Both add `team:<team>` to the package's `access` list. `read-write` adds it to `publish` too, and `read-only` removes it from `publish`. Returns `201`. |
-| `DELETE` | `/-/team/{scope}/{team}/package` | Revoke access. The body is `{"package": "<name>"}`. Removes `team:<team>` from the package's `access`, `publish`, and `unpublish` lists. Returns `204`. |
+| `GET` | `/-/team/{scope}/{team}/package` | Requires registry team membership or administrator access. The `packages:` keys whose `access` list names `team:<id>` and admits the caller, as `{"<key>": "read-only" \| "read-write"}`. `read-write` means the key's `publish` list names the team too. |
+| `PUT` | `/-/team/{scope}/{team}/package` | Grant access. The body is `{"package": "<name>", "permissions": "read-only" \| "read-write"}`. Both add `team:<id>` to the package's `access` list. `read-write` adds it to `publish` too, and `read-only` removes it from `publish`. Returns `201`. |
+| `DELETE` | `/-/team/{scope}/{team}/package` | Revoke access. The body is `{"package": "<name>"}`. Removes `team:<id>` from the package's `access`, `publish`, and `unpublish` lists. Returns `204`. |
 
 - The package must be a `packages:` key of its own, such as `'@acme/app'`.
   A package that only a pattern such as `'@acme/*'` covers returns `400`,
@@ -694,8 +735,8 @@ resolver-only server that exposes no registry surface.
 | `POST` | `/-/v1/login` | Initiates npm/pnpm browser SSO login. Returns `202 Accepted` with `loginUrl` and `doneUrl` when OIDC login is configured, or `404` to fall back to basic auth. |
 | `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Validates the session and redirects to the configured OIDC provider or renders a provider picker. |
 | `GET` | `/-/v1/login/poll/{session}` | CLI polling endpoint (`doneUrl`). Returns `202 Accepted` with `Retry-After: 1` while pending, or `200 OK` with the bearer token once authenticated. |
-| `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.htpasswd.maxUsers` allows registration; existing users can log in with the correct password. Returns a bearer token. |
-| `GET` | `/-/user/{name}` | User lookup endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
+| `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.users.maxUsers` allows registration. Passwords must contain at least 8 characters and at most 71 bytes. Returns a bearer token. |
+| `GET` | `/-/user/{name}` | Requires authentication. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. The server records a token's last use at most once a minute. |
@@ -710,11 +751,12 @@ anonymous and `403` when signed in.
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/-/pnpr/v0/admin/users` | Every account, as `{"users": [{"name": ...}]}`, sorted by name. |
+| `GET` | `/-/pnpr/v0/admin/users` | Every active account, as `{"users": [{"id": ..., "name": ...}]}`, sorted by name. |
 | `PUT` | `/-/pnpr/v0/admin/users/{name}` | Create the account (`201`) or replace its password (`200`). The body is `{"password": "..."}`. Creating ignores `maxUsers`. |
-| `DELETE` | `/-/pnpr/v0/admin/users/{name}` | Remove the account and revoke every token it holds. Returns `204`. The account's tokens stop working as soon as the account is gone, even before they are revoked. If the request fails, repeat it to revoke what is left. |
-| `GET` | `/-/pnpr/v0/admin/users/{name}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
-| `DELETE` | `/-/pnpr/v0/admin/users/{name}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
+| `PATCH` | `/-/pnpr/v0/admin/users/{id}` | Rename an account with `{"name": "..."}`. Its ID, tokens, and grants stay with it. |
+| `DELETE` | `/-/pnpr/v0/admin/users/{id}` | Delete the account and revoke its credentials. The login name becomes available; a replacement account receives a fresh ID. Returns `204`. |
+| `GET` | `/-/pnpr/v0/admin/users/{id}/tokens` | The account's tokens, in the shape of `GET /-/npm/v1/tokens`. |
+| `DELETE` | `/-/pnpr/v0/admin/users/{id}/tokens/{key}` | Revoke one of the account's tokens. Returns `204`, or `404` when the account does not hold that key. |
 | `GET` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | The hosted registry's current rules: `access`, and the `access`, `publish`, and `unpublish` lists of each `packages:` key (`null` where the key falls back to the registry's default). `rulesManagedBy` says whether they can be changed, and `version` (also the `ETag`) names the stored changes. |
 | `PUT` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Replace the stored rule changes with the body, and return the rules that result. Only on a registry with [`rulesManagedBy: api`](configuration.md#changing-rules-through-the-api); elsewhere `403` with `rules_config_managed`. |
 | `DELETE` | `/-/pnpr/v0/admin/rules/{ecosystem}/{name}` | Drop the stored rule changes, so the config's rules apply again. Returns `204`. |
@@ -733,7 +775,7 @@ the same place:
 {
   "access": ["$authenticated"],
   "packages": {
-    "@corp/*": { "access": ["team:platform"], "publish": ["alice"] }
+    "@corp/*": { "access": ["team:<team-id>"], "publish": ["<account-id>"] }
   }
 }
 ```
@@ -744,6 +786,6 @@ A key the registry's `packages:` map does not declare, a malformed token, or a
 [registry directory](discovery.md#the-registry-directory) lists, for example
 `npm/private`.
 
-With the default htpasswd store, each replica keeps its own accounts, so an
+With the default account file store, each replica keeps its own accounts, so an
 account change reaches only the replica that served it. Use a
 [shared auth backend](auth-backends.md) to run several replicas.

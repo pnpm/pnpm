@@ -12,10 +12,6 @@ use axum::{
 use pnpr::{Config, MaxUsers, router};
 use pnpr_config::MetadataBackend;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::{
-    TOMBSTONES_NAMESPACE,
-    layout::{local_blob_path, namespace_segments, package_segments},
-};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -28,7 +24,7 @@ fn sqlite_config(storage: &Path) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage.to_path_buf());
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config.storage.metadata = MetadataBackend::Sqlite(storage.join("metadata.sqlite"));
     config
 }
@@ -64,7 +60,7 @@ async fn token(app: &Router) -> String {
 }
 
 async fn token_of(app: &Router, user: &str) -> String {
-    let body = json!({ "name": user, "password": "secret", "type": "user", "roles": [] });
+    let body = json!({ "name": user, "password": "secret123", "type": "user", "roles": [] });
     let path = format!("/-/user/org.couchdb.user:{user}");
     let (status, _, bytes) = send(app, request("PUT", &path, "-", Some(&body))).await;
     assert_eq!(status, StatusCode::CREATED);
@@ -93,15 +89,15 @@ async fn npm_metadata_round_trips_through_sqlite() {
     let (generation, document) = packument(&app, &token).await;
     assert_eq!(generation.as_deref(), Some(":2"));
     assert_eq!(document["dist-tags"]["latest"], "1.1.0");
-    let blob = local_blob_path(
-        tmp.path(),
-        "",
-        pnpr_storage::Ecosystem::Npm,
+    let blob = crate::storage::served_file(
+        &sqlite_config(tmp.path()),
+        ("", pnpr_storage::Ecosystem::Npm),
         "sql-pkg",
         "sql-pkg-1.0.0.tgz",
-    );
+    )
+    .await;
     let archive = npm_tgz("sql-pkg", "1.0.0", b"1.0.0");
-    assert_eq!(std::fs::read(blob).unwrap(), archive);
+    assert_eq!(blob.unwrap(), archive);
     // The version is served as its archive was accepted, under the profile
     // the accepted manifest records.
     let accepted = &document["versions"]["1.0.0"];
@@ -122,8 +118,16 @@ async fn npm_metadata_round_trips_through_sqlite() {
     assert_eq!(document["dist-tags"]["stable"], "1.0.0");
 
     document["versions"]["1.0.0"]["deprecated"] = json!("use 1.1.0");
-    let (status, ..) =
-        send(&app, request("PUT", "/npm/sql-pkg/-rev/1", &token, Some(&document))).await;
+    let (status, ..) = send(
+        &app,
+        request(
+            "PUT",
+            &format!("/npm/sql-pkg/-rev/{}", document["_rev"].as_str().unwrap()),
+            &token,
+            Some(&document),
+        ),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let (_, document) = packument(&app, &token).await;
     assert_eq!(document["versions"]["1.0.0"]["deprecated"], "use 1.1.0");
@@ -160,21 +164,11 @@ async fn publish(app: &Router, token: &str, version: &str) -> StatusCode {
     send(app, request("PUT", "/npm/sql-pkg", token, Some(&doc))).await.0
 }
 
-fn tombstone_path(storage: &Path) -> std::path::PathBuf {
-    let mut path = storage.to_path_buf();
-    path.extend(namespace_segments("", pnpr_storage::Ecosystem::Npm));
-    path.push(TOMBSTONES_NAMESPACE);
-    path.push(format!(
-        "{}.json",
-        package_segments(pnpr_storage::Ecosystem::Npm, "sql-pkg").join("/"),
-    ));
-    path
-}
-
 #[tokio::test]
-async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
+async fn unpublished_versions_and_ownership_survive_restart() {
     let tmp = TempDir::new().unwrap();
-    let app = router(sqlite_config(tmp.path()));
+    let auth = pnpr::AuthState::in_memory();
+    let app = pnpr::router_with_auth(sqlite_config(tmp.path()), auth.clone());
     let token = token(&app).await;
     for version in ["1.0.0", "1.1.0"] {
         assert_eq!(publish(&app, &token, version).await, StatusCode::CREATED);
@@ -184,13 +178,19 @@ async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
         .as_object_mut()
         .unwrap()
         .remove("1.0.0");
-    let (status, ..) =
-        send(&app, request("PUT", "/npm/sql-pkg/-rev/1", &token, Some(&document))).await;
+    let (status, ..) = send(
+        &app,
+        request(
+            "PUT",
+            &format!("/npm/sql-pkg/-rev/{}", document["_rev"].as_str().unwrap()),
+            &token,
+            Some(&document),
+        ),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    // The metadata store keeps the removed version itself, so losing the
-    // server's tombstone does not let it back in.
-    std::fs::remove_file(tombstone_path(tmp.path())).unwrap();
+    let app = pnpr::router_with_auth(sqlite_config(tmp.path()), auth.clone());
     let (status, _, body) = send(
         &app,
         request("PUT", "/npm/sql-pkg", &token, Some(&publish_doc("sql-pkg", "1.0.0", b"other"))),
@@ -203,18 +203,21 @@ async fn an_unpublished_version_is_refused_even_without_its_tombstone() {
     // Unpublishing the whole package keeps every version it had.
     let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg/-rev/1", &token, None)).await;
     assert_eq!(status, StatusCode::CREATED);
-    std::fs::remove_file(tombstone_path(tmp.path())).unwrap();
+    let app = pnpr::router_with_auth(sqlite_config(tmp.path()), auth.clone());
     // Other bytes than the first publish of 1.1.0, so the request is not a
     // replay of that one.
     let republished = publish_doc("sql-pkg", "1.1.0", b"other");
     let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&republished))).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
+    let other = token_of(&app, "other").await;
+    assert_eq!(publish(&app, &other, "2.0.0").await, StatusCode::FORBIDDEN);
     assert_eq!(publish(&app, &token, "2.0.0").await, StatusCode::CREATED);
 }
 
 #[cfg(unix)]
 #[tokio::test]
-async fn an_unpublish_whose_archive_removal_fails_leaves_the_name_tombstoned() {
+async fn an_unpublish_whose_archive_removal_fails_leaves_the_archive_to_gc_and_the_name_tombstoned()
+{
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = TempDir::new().unwrap();
@@ -222,25 +225,29 @@ async fn an_unpublish_whose_archive_removal_fails_leaves_the_name_tombstoned() {
     let alice = token(&app).await;
     assert_eq!(publish(&app, &alice, "1.0.0").await, StatusCode::CREATED);
 
-    // A read-only archive directory, so removing its archives fails after the
-    // package's metadata is gone.
-    let archive = local_blob_path(
-        tmp.path(),
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "sql-pkg",
-        "sql-pkg-1.0.0.tgz",
-    );
+    // A read-only archive directory, so removing the package's archive fails
+    // after its metadata is gone. The unpublish stands, and the archive stays
+    // `reclaiming` for `pnpr gc`.
+    let npm = pnpr_storage::Ecosystem::Npm;
+    let [key] = crate::storage::stored_archives(tmp.path(), "", npm).try_into().unwrap();
+    let archive = pnpr_storage::layout::local_archive_path(tmp.path(), "", npm, &key);
     let archives = archive.parent().unwrap();
     std::fs::set_permissions(archives, std::fs::Permissions::from_mode(0o555)).unwrap();
     let (status, ..) = send(&app, request("DELETE", "/npm/sql-pkg/-rev/1", &alice, None)).await;
     std::fs::set_permissions(archives, std::fs::Permissions::from_mode(0o755)).unwrap();
-    assert!(status.is_server_error(), "the removal fails: {status}");
+    assert_eq!(status, StatusCode::CREATED);
     assert!(archive.is_file());
+    assert!(
+        crate::storage::served_file(
+            &sqlite_config(tmp.path()),
+            ("", pnpr_storage::Ecosystem::Npm),
+            "sql-pkg",
+            "sql-pkg-1.0.0.tgz"
+        )
+        .await
+        .is_none(),
+    );
 
-    // The tombstone was written first, so the name is not free for anyone
-    // but its former maintainer.
-    assert!(tombstone_path(tmp.path()).is_file());
     let bob = token_of(&app, "bob").await;
     assert_eq!(publish(&app, &bob, "2.0.0").await, StatusCode::FORBIDDEN);
 }
@@ -464,11 +471,238 @@ async fn pnprs_package_document_and_release_records_render_from_sqlite() {
     // A deprecation changes the next document and leaves the record alone.
     let (_, mut packument) = packument(&app, &token).await;
     packument["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
-    let (status, ..) =
-        send(&app, request("PUT", "/npm/sql-pkg/-rev/1", &token, Some(&packument))).await;
+    let (status, ..) = send(
+        &app,
+        request(
+            "PUT",
+            &format!("/npm/sql-pkg/-rev/{}", packument["_rev"].as_str().unwrap()),
+            &token,
+            Some(&packument),
+        ),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let (_, _, document) = get_json(&app, "/npm/sql-pkg", INSTALL_V2, &token).await;
     assert_eq!(document["versions"]["1.0.0"]["deprecated"], "use 2.0.0");
     let (_, _, unchanged) = get_json(&app, record_path, "application/json", &token).await;
     assert_eq!(unchanged, record);
+}
+
+#[tokio::test]
+async fn stale_packuments_cannot_remove_new_versions_or_roll_back_tags() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let first = publish_doc("sql-pkg", "1.0.0", b"first");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&first))).await.0,
+        StatusCode::CREATED,
+    );
+    let (_, stale) = packument(&app, &token).await;
+    let revision = stale["_rev"].as_str().unwrap();
+    let next = publish_doc("sql-pkg", "1.1.0", b"next");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&next))).await.0,
+        StatusCode::CREATED,
+    );
+    let (_, current) = packument(&app, &token).await;
+    assert_ne!(current["_rev"], stale["_rev"]);
+
+    let mut deprecated = stale.clone();
+    deprecated["versions"]["1.0.0"]["deprecated"] = json!("old");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&deprecated)))
+            .await
+            .0,
+        StatusCode::CONFLICT,
+    );
+    let mut removed = stale.clone();
+    removed["versions"] = json!({});
+    removed["dist-tags"] = json!({});
+    let path = format!("/npm/sql-pkg/-rev/{revision}");
+    assert_eq!(
+        send(&app, request("PUT", &path, &token, Some(&removed))).await.0,
+        StatusCode::CONFLICT,
+    );
+    removed
+        .as_object_mut()
+        .unwrap()
+        .remove("_rev");
+    assert_eq!(
+        send(&app, request("PUT", &path, &token, Some(&removed))).await.0,
+        StatusCode::CONFLICT,
+    );
+    assert_eq!(packument(&app, &token).await.1, current);
+    let republish = publish_doc("sql-pkg", "1.1.0", b"different archive");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&republish)))
+            .await
+            .0,
+        StatusCode::CONFLICT,
+        "the newer version must not be tombstoned",
+    );
+
+    let mut missing = current.clone();
+    missing
+        .as_object_mut()
+        .unwrap()
+        .remove("_rev");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&missing))).await.0,
+        StatusCode::CONFLICT,
+    );
+    let mut deprecated = current.clone();
+    deprecated["versions"]["1.0.0"]["deprecated"] = json!("old");
+    deprecated["dist-tags"]["latest"] = json!("1.0.0");
+    deprecated["readme"] = json!("untrusted replacement");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&deprecated)))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    let (_, after) = packument(&app, &token).await;
+    assert_eq!(after["dist-tags"], current["dist-tags"]);
+    assert_eq!(after.get("readme"), current.get("readme"));
+    assert_eq!(after["versions"]["1.0.0"]["deprecated"], "old");
+    assert_eq!(after["versions"]["1.1.0"], current["versions"]["1.1.0"]);
+    assert_ne!(after["_rev"], current["_rev"]);
+
+    let mut removed = after.clone();
+    removed["versions"]
+        .as_object_mut()
+        .unwrap()
+        .remove("1.0.0");
+    let path = format!("/npm/sql-pkg/-rev/{}", after["_rev"].as_str().unwrap());
+    assert_eq!(
+        send(&app, request("PUT", &path, &token, Some(&removed))).await.0,
+        StatusCode::CREATED,
+    );
+    let (_, after) = packument(&app, &token).await;
+    assert!(after["versions"].get("1.0.0").is_none());
+    assert!(after["versions"].get("1.1.0").is_some());
+    assert_eq!(after["dist-tags"]["latest"], "1.1.0");
+}
+
+#[tokio::test]
+async fn invalid_dist_tag_requests_do_not_change_the_package() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let document = publish_doc("sql-pkg", "1.0.0", b"bytes");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let before = packument(&app, &token).await;
+    for (method, tag, target) in [
+        ("PUT", "ghost", Some(json!("9.9.9"))),
+        ("PUT", "junk", Some(json!("not a version"))),
+        ("PUT", "numeric", Some(json!(123))),
+        ("PUT", "1.x", Some(json!("1.0.0"))),
+        ("PUT", "1.0.0", Some(json!("1.0.0"))),
+        ("PUT", "v1", Some(json!("1.0.0"))),
+        ("PUT", "latest", Some(json!("9.9.9"))),
+        ("DELETE", "latest", None),
+    ] {
+        let path = format!("/npm/-/package/sql-pkg/dist-tags/{tag}");
+        let (status, _, body) = send(&app, request(method, &path, &token, target.as_ref())).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{method} {tag}: {body:?}");
+        assert_eq!(packument(&app, &token).await, before);
+    }
+    for tag in ["next", "beta", "release-1"] {
+        let path = format!("/npm/-/package/sql-pkg/dist-tags/{tag}");
+        let (status, ..) = send(&app, request("PUT", &path, &token, Some(&json!("1.0.0")))).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let (status, ..) = send(&app, request("DELETE", &path, &token, None)).await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+}
+
+#[tokio::test]
+async fn package_document_writes_validate_dist_tags() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(sqlite_config(tmp.path()));
+    let token = token(&app).await;
+    let mut document = publish_doc("sql-pkg", "1.0.0", b"bytes");
+    document["dist-tags"]["latest"] = json!("9.9.9");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, ..) = send(&app, request("GET", "/npm/sql-pkg", &token, None)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    document["dist-tags"]["latest"] = json!("1.0.0");
+    let (status, ..) = send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let before = packument(&app, &token).await;
+    let path = format!("/npm/sql-pkg/-rev/{}", before.1["_rev"].as_str().unwrap());
+    for tags in
+        [json!({ "latest": "9.9.9" }), json!({ "latest": "1.0.0", "1.x": "1.0.0" }), json!({})]
+    {
+        let mut document = before.1.clone();
+        document["dist-tags"] = tags;
+        let (status, ..) = send(&app, request("PUT", &path, &token, Some(&document))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(packument(&app, &token).await, before);
+    }
+}
+
+#[tokio::test]
+async fn rejected_tag_rewrites_do_not_mark_versions_unpublished() {
+    let tmp = TempDir::new().unwrap();
+    let config = sqlite_config(tmp.path());
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let app = router(config);
+    let token = token(&app).await;
+    for version in ["1.0.0", "2.0.0"] {
+        let document = publish_doc("sql-pkg", version, version.as_bytes());
+        assert_eq!(
+            send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&document)))
+                .await
+                .0,
+            StatusCode::CREATED,
+        );
+    }
+    let name = pnpr_package_name::CanonicalPackageName::parse(
+        "sql-pkg",
+        pnpr_package_name::Ecosystem::Npm,
+    )
+    .unwrap();
+    assert!(
+        storage
+            .read_tombstone(&name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let before = packument(&app, &token).await;
+    let path = format!("/npm/sql-pkg/-rev/{}", before.1["_rev"].as_str().unwrap());
+    for tags in [
+        json!({ "latest": "2.0.0", "ghost": "9.9.9" }),
+        json!({ "latest": "2.0.0", "1.x": "2.0.0" }),
+        json!({ "next": "2.0.0" }),
+        json!({ "latest": 123 }),
+        json!(null),
+        json!([]),
+    ] {
+        let mut document = before.1.clone();
+        document["versions"]
+            .as_object_mut()
+            .unwrap()
+            .remove("1.0.0");
+        document["dist-tags"] = tags;
+        let (status, ..) = send(&app, request("PUT", &path, &token, Some(&document))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(packument(&app, &token).await, before);
+        assert!(
+            storage
+                .read_tombstone(&name)
+                .await
+                .unwrap()
+                .is_none(),
+        );
+    }
+    let mut document = before.1.clone();
+    document["versions"]["1.0.0"]["deprecated"] = json!("use 2.0.0");
+    let (status, ..) = send(&app, request("PUT", &path, &token, Some(&document))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(packument(&app, &token).await.1["versions"]["1.0.0"]["deprecated"], "use 2.0.0");
 }

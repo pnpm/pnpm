@@ -170,7 +170,7 @@ pub(super) fn linked_target_may_declare_peers(
         .or_else(|| {
             bare_specifier
                 .strip_prefix("file:")
-                .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
+                .filter(|_| !pnpm_local_spec::is_tarball_filename(bare_specifier))
         })
     else {
         return false;

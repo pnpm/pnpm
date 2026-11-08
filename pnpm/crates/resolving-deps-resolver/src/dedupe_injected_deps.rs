@@ -28,7 +28,9 @@ use std::{
 use pnpm_deps_path::{DepPath, get_pkg_id_with_patch_hash};
 
 use crate::{
-    dep_path_compatibility::is_compatible_and_has_more_deps, dependencies_graph::DependenciesGraph,
+    dep_path_compatibility::is_compatible_and_has_more_deps,
+    dependencies_graph::DependenciesGraph,
+    peer_dependents_dedupe::{CollapseGuard, OptionalPeerScope, UnboundOptionalPeers},
 };
 
 /// Per-importer direct deps map keyed by lockfile importer id (`"."`
@@ -41,18 +43,25 @@ pub type DirectByImporter = BTreeMap<String, BTreeMap<String, DepPath>>;
 ///
 /// `importer_root_dirs` maps each importer id (`"."` for the root,
 /// POSIX-relative for siblings) to its absolute project dir; the
-/// caller already has this from the resolve loop.
-pub fn dedupe_injected_deps(
+/// caller already has this from the resolve loop. A child listed in
+/// `unbound_optional_peers` is not provided by a target child that
+/// resolves a listed peer.
+pub(crate) fn dedupe_injected_deps(
     graph: &mut DependenciesGraph,
     direct_by_importer: &mut DirectByImporter,
     importer_root_dirs: &BTreeMap<String, PathBuf>,
     lockfile_dir: &Path,
+    unbound_optional_peers: &UnboundOptionalPeers,
 ) {
     let workspace_project_ids: HashSet<String> = importer_root_dirs
         .keys()
         .cloned()
         .collect();
-    let dedupe_map = build_dedupe_map(graph, direct_by_importer, &workspace_project_ids);
+    let guard = CollapseGuard {
+        optional_peers: OptionalPeerScope::Workspace,
+        unbound_optional_peers: Some(unbound_optional_peers),
+    };
+    let dedupe_map = build_dedupe_map(graph, direct_by_importer, &workspace_project_ids, guard);
     if dedupe_map.is_empty() {
         return;
     }
@@ -69,6 +78,7 @@ fn build_dedupe_map(
     graph: &DependenciesGraph,
     direct_by_importer: &DirectByImporter,
     workspace_project_ids: &HashSet<String>,
+    guard: CollapseGuard<'_>,
 ) -> DedupeMap {
     let mut dedupe_map: DedupeMap = BTreeMap::new();
     for (importer_id, direct) in direct_by_importer {
@@ -83,7 +93,7 @@ fn build_dedupe_map(
             let children_match = node.edges.children
                 .iter()
                 .all(|(child_alias, child_dep_path)| {
-                    child_matches_target(graph, target_direct, child_alias, child_dep_path)
+                    child_matches_target(graph, target_direct, (child_alias, child_dep_path), guard)
                 });
             if !children_match {
                 continue;
@@ -108,8 +118,8 @@ fn build_dedupe_map(
 fn child_matches_target(
     graph: &DependenciesGraph,
     target_direct: Option<&BTreeMap<String, DepPath>>,
-    child_alias: &str,
-    child_dep_path: &DepPath,
+    (child_alias, child_dep_path): (&str, &DepPath),
+    guard: CollapseGuard<'_>,
 ) -> bool {
     let Some(target_dep_path) = target_direct.and_then(|map| map.get(child_alias)) else {
         return false;
@@ -125,7 +135,9 @@ fn child_matches_target(
     {
         return false;
     }
-    is_compatible_and_has_more_deps(graph, target_dep_path, child_dep_path)
+    // The child collapses into the target project's own dependency, so it
+    // gains only peers that project already resolves.
+    is_compatible_and_has_more_deps(graph, target_dep_path, child_dep_path, guard)
 }
 
 /// Return the workspace project id (lockfile importer key) this node

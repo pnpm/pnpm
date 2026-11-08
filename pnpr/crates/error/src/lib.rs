@@ -3,6 +3,8 @@ pub use redact_url::redact_url_credentials;
 mod redact_url;
 #[cfg(feature = "server")]
 mod response;
+#[cfg(feature = "server")]
+pub use response::PublicErrorMessage;
 
 use derive_more::{Display, Error, From};
 
@@ -15,6 +17,14 @@ pub enum RegistryError {
         url: String,
         #[error(source)]
         source: reqwest::Error,
+    },
+
+    /// The upstream sent no response head within its `timeout`.
+    #[display("Upstream request to {url} timed out before the response arrived")]
+    #[from(skip)]
+    UpstreamTimeout {
+        #[error(not(source))]
+        url: String,
     },
 
     #[display("Upstream response body from {url} failed: {source}")]
@@ -50,6 +60,7 @@ pub enum RegistryError {
     UpstreamUnavailable {
         #[error(not(source))]
         upstream: String,
+        retry_after: std::time::Duration,
     },
 
     #[display("Storage is temporarily unavailable: {reason}")]
@@ -212,15 +223,19 @@ pub enum RegistryError {
         entry: String,
     },
 
-    /// A publish transaction committed, but another writer already owned
-    /// what one of its packages tried to publish, so that package's entry
-    /// was left out of the document rather than pointed at bytes that are
-    /// not the ones it uploaded.
-    #[display("Publish transaction could not record: {packages}")]
+    /// A publish depended on an incarnation of an archive's bytes that a
+    /// reclaim is removing or removed, or that another incarnation replaced,
+    /// so the bytes it stored or found may be gone. A retry stores them
+    /// afresh.
+    #[display(
+        "Archive {artifact:?} of {package} was reclaimed while the publish was in flight; publish again"
+    )]
     #[from(skip)]
-    PublishNotRecorded {
+    ArchiveReclaimed {
         #[error(not(source))]
-        packages: String,
+        package: String,
+        #[error(not(source))]
+        artifact: String,
     },
 
     #[display("Upload {id:?} changed; query its offset before retrying")]
@@ -272,29 +287,20 @@ pub enum RegistryError {
         advisories: String,
     },
 
-    /// New-user registration is off: `auth.htpasswd.max_users` is
+    /// New-user registration is off: `auth.users.max_users` is
     /// unset (the secure default) or set to `-1`. Returned for adduser
     /// on a username that doesn't already exist; existing-user logins
     /// are unaffected.
     #[display(
-        "New user registration is disabled. Set auth.htpasswd.max_users to a positive number to allow sign-ups"
+        "New user registration is disabled. Set auth.users.max_users to a positive number to allow sign-ups"
     )]
     RegistrationDisabled,
 
-    /// `auth.htpasswd.max_users: N` cap reached. Returned for
+    /// `auth.users.max_users: N` cap reached. Returned for
     /// adduser on a username that doesn't already exist.
     #[display("Maximum number of users ({max}) reached")]
     #[from(skip)]
     TooManyUsers { max: u64 },
-
-    /// A registration attempt targeted a reserved username (`auth.admins`,
-    /// an OIDC binding, or a SCIM-provisioned user).
-    #[display("Username {name:?} is reserved")]
-    #[from(skip)]
-    ReservedUsername {
-        #[error(not(source))]
-        name: String,
-    },
 
     /// Caller is not a maintainer of the package.
     #[display("You must be a package maintainer to {action} {package:?}")]
@@ -381,13 +387,13 @@ pub enum RegistryError {
         reason: String,
     },
 
-    /// The htpasswd file on disk couldn't be parsed at startup.
+    /// The account file on disk could not be parsed at startup.
     /// Surfaced as a startup-time error rather than a silent empty
     /// store so a corrupted file can't quietly lock every existing
     /// user out.
-    #[display("Invalid htpasswd file {path}: {reason}")]
+    #[display("Invalid account file {path}: {reason}")]
     #[from(skip)]
-    InvalidHtpasswdFile {
+    InvalidUsersFile {
         #[error(not(source))]
         path: String,
         reason: String,

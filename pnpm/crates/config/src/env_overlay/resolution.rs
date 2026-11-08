@@ -25,6 +25,12 @@ impl WorkspaceSettings {
             resolve_peers_from_workspace_root,
             "RESOLVE_PEERS_FROM_WORKSPACE_ROOT"
         );
+        json_field!(
+            settings,
+            reader,
+            project_scoped_optional_peers,
+            "PROJECT_SCOPED_OPTIONAL_PEERS"
+        );
     }
 
     pub(super) fn read_resolution_env(&mut self, reader: &StringReader<'_>) {

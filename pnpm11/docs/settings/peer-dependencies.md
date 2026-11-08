@@ -13,9 +13,15 @@ When `true`, any missing non-optional peer dependencies are automatically instal
 
 #### Optional peer dependencies
 
-pnpm installs a missing optional peer dependency only if the workspace already has a version of it that satisfies the optional peer range. In that case, pnpm resolves the optional peer to that version. That version can come from any project in the workspace, including another project's `devDependencies`. For example, if one project depends on `webpack` and another has `webpack-cli` in its `devDependencies`, both projects get the `webpack` instance that has `webpack-cli` as its optional peer.
+pnpm installs a missing optional peer dependency only if a version of it that satisfies the optional peer range is already installed. In that case, pnpm resolves the optional peer to that version.
 
-pnpm also resolves optional peers this way when [`dedupePeerDependents`](#dedupepeerdependents) is `true`. To stop it, set both `autoInstallPeers` and `dedupePeerDependents` to `false`.
+When [`dedupePeerDependents`](#dedupepeerdependents) is `true`, that version can come from any project in the workspace, including another project's `devDependencies`. For example, if one project depends on `webpack` and another has `webpack-cli` in its `devDependencies`, both projects get the `webpack` instance that has `webpack-cli` as its optional peer.
+
+When `dedupePeerDependents` is `false`, that version must come from the project's own dependencies. The workspace root's dependencies also count if [`resolvePeersFromWorkspaceRoot`](#resolvepeersfromworkspaceroot) is `true`.
+
+pnpm skips that version if installing it would leave the project with an unmet peer dependency. This covers the version's own peers, the required peers that pnpm would install with it, and their peers in turn. `dedupePeerDependents` does not give the skipped peer back to the project by sharing another project's instance of the package that declares it.
+
+pnpm also resolves optional peers this way when `autoInstallPeers` is `false` and `dedupePeerDependents` is `true`. To stop it, set both settings to `false`.
 
 #### Version conflicts
 
@@ -31,6 +37,12 @@ In case of a version conflict, you'll need to evaluate which version of the peer
 * Type: **Boolean**
 
 When this setting is set to `true`, packages with peer dependencies will be deduplicated after peers resolution.
+
+This setting also lets pnpm resolve missing required and optional peers using compatible versions available elsewhere in the workspace, including transitive dependencies of other projects. Required peers can be resolved this way even when `autoInstallPeers` is `false`. A required peer satisfied this way is not reported as missing.
+
+To prevent this workspace-wide peer reuse, set both `autoInstallPeers` and `dedupePeerDependents` to `false`. Dependencies of the workspace root can still provide peers when [`resolvePeersFromWorkspaceRoot`](#resolvepeersfromworkspaceroot) is enabled.
+
+Resolving a package's peer does not add that peer to your project's declared dependencies. If your project's scripts run a peer package's executable, declare that package directly in your project's `dependencies` or `devDependencies`.
 
 For instance, let's say we have a workspace with two projects and both of them have `webpack` in their dependencies. `webpack` has `esbuild` in its optional peer dependencies, and one of the projects has `esbuild` in its dependencies. In this case, pnpm will link two instances of `webpack` to the `node_modules/.pnpm` directory: one with `esbuild` and another one without it:
 

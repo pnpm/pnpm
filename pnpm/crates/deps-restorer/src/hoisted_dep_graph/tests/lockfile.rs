@@ -25,7 +25,7 @@ fn walker_empty_lockfile_produces_empty_result() {
         extra: pnpm_lockfile::LockfileExtra::default(),
     };
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: PathBuf::from("/repo"),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(std::path::Path::new("/repo")),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result =
@@ -54,7 +54,7 @@ fn prev_graph_none_when_current_lockfile_absent() {
 
     let lockfile = lockfile_with(root_deps, packages, snapshots);
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: PathBuf::from("/repo"),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(std::path::Path::new("/repo")),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
@@ -91,7 +91,7 @@ fn prev_graph_none_when_current_lockfile_has_no_packages() {
         extra: pnpm_lockfile::LockfileExtra::default(),
     };
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: PathBuf::from("/repo"),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(std::path::Path::new("/repo")),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result =
@@ -130,7 +130,7 @@ fn prev_graph_none_when_current_lockfile_has_empty_packages() {
         extra: pnpm_lockfile::LockfileExtra::default(),
     };
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: PathBuf::from("/repo"),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(std::path::Path::new("/repo")),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result =
@@ -165,7 +165,7 @@ fn prev_graph_contains_orphan_from_current_only_lockfile() {
 
     let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: lockfile_dir.clone(),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(&lockfile_dir),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&wanted_lockfile, Some(&current_lockfile), &opts)

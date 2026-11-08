@@ -1,8 +1,8 @@
 pub(crate) use configuration::{
     apply_install_cli_config, derive_config_root, record_no_runtime_flag, warn_about_config_root,
 };
-pub(crate) use install::InstallPipeline;
 pub(in crate::cli_args) use install::run_dedicated_lockfile_workspace_install;
+pub(crate) use install::{InstallPipeline, ensure_project_manifest};
 pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
 pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
 pub(crate) use selection::{WorkspaceScope, select_workspace_projects};
@@ -104,14 +104,6 @@ enum RuntimePolicy {
     Config(bool),
 }
 
-impl RuntimePolicy {
-    fn use_manifest(self, config: &Config) -> bool {
-        match self {
-            Self::Config(no_runtime) => !(config.skip_runtimes || no_runtime),
-        }
-    }
-}
-
 async fn prepare_root_config<Reporter>(
     (manifest_path, config, config_root): (&Path, &mut Config, &Path),
     (frozen_lockfile, runtime_policy): (bool, RuntimePolicy),
@@ -122,11 +114,15 @@ where
     if matches!(runtime_policy, RuntimePolicy::Config(true)) {
         configuration::record_no_runtime_flag(config);
     }
-    if !config_deps::may_update_config(config, config_root) {
-        check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+    let may_update_config = config_deps::may_update_config(config, config_root);
+    let has_config_dependencies = config.config_dependencies
+        .as_ref()
+        .is_some_and(|dependencies| !dependencies.is_empty());
+    if !may_update_config && !has_config_dependencies && config.engine_strict {
+        check_root_project_engine(manifest_path, config, Reporter::emit)?;
     }
     config_deps::prepare::<Reporter>(config, config_root, frozen_lockfile).await?;
-    check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
+    check_root_project_engine(manifest_path, config, Reporter::emit)?;
     Ok(())
 }
 

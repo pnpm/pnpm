@@ -189,6 +189,8 @@ pub struct ResolveRequest {
     pub exclude_links_from_lockfile: Option<bool>,
     #[serde(default)]
     pub add_missing_peer_types: Option<bool>,
+    #[serde(default)]
+    pub project_scoped_optional_peers: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse
@@ -264,11 +266,19 @@ pub struct ResolveRequest {
 /// policies were actually enforced by the server.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the `applied` object of the pnpr `done` frame."
+    )
+)]
 pub struct AppliedPolicies {
     pub auto_install_peers: bool,
     pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
     pub add_missing_peer_types: bool,
+    pub project_scoped_optional_peers: bool,
     pub frozen_lockfile: bool,
     pub resolution_mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -295,6 +305,7 @@ impl AppliedPolicies {
             dedupe_peers: settings.dedupe_peers,
             exclude_links_from_lockfile: settings.exclude_links_from_lockfile,
             add_missing_peer_types: settings.add_missing_peer_types,
+            project_scoped_optional_peers: settings.project_scoped_optional_peers,
             frozen_lockfile: request.frozen_lockfile,
             resolution_mode,
             minimum_release_age: request.minimum_release_age,

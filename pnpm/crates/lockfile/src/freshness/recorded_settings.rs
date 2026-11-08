@@ -14,6 +14,9 @@ impl StalenessReason {
             StalenessReason::AddMissingPeerTypesChanged { .. } => {
                 Some("settings.addMissingPeerTypes")
             }
+            StalenessReason::ProjectScopedOptionalPeersChanged { .. } => {
+                Some("settings.projectScopedOptionalPeers")
+            }
             StalenessReason::ExcludeLinksFromLockfileChanged { .. } => {
                 Some("settings.excludeLinksFromLockfile")
             }
@@ -178,6 +181,12 @@ pub fn recorded_add_missing_peer_types(recorded: Option<&LockfileSettings>) -> b
 
 /// See [`auto_install_peers_changed`].
 #[must_use]
+pub fn recorded_project_scoped_optional_peers(recorded: Option<&LockfileSettings>) -> bool {
+    recorded.and_then(|settings| settings.project_scoped_optional_peers).unwrap_or(false)
+}
+
+/// See [`auto_install_peers_changed`].
+#[must_use]
 pub fn recorded_peers_suffix_max_length(recorded: Option<&LockfileSettings>) -> u64 {
     recorded
         .and_then(|settings| settings.peers_suffix_max_length)
@@ -188,6 +197,22 @@ pub fn recorded_peers_suffix_max_length(recorded: Option<&LockfileSettings>) -> 
 #[must_use]
 pub fn recorded_inject_workspace_packages(recorded: Option<&LockfileSettings>) -> bool {
     recorded.is_some_and(|settings| settings.inject_workspace_packages)
+}
+
+/// `settings.projectScopedOptionalPeers`, compared whether or not the
+/// lockfile records any other setting. pnpm v11 has no such setting.
+pub(super) fn check_project_scoped_optional_peers(
+    lockfile: &Lockfile,
+    configured: bool,
+) -> Result<(), StalenessReason> {
+    let recorded = recorded_project_scoped_optional_peers(lockfile.settings.as_ref());
+    if recorded == configured {
+        return Ok(());
+    }
+    Err(StalenessReason::ProjectScopedOptionalPeersChanged {
+        lockfile: recorded,
+        config: configured,
+    })
 }
 
 /// `settings.integrityTarget`, compared whether or not the lockfile records

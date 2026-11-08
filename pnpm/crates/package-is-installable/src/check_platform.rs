@@ -57,7 +57,10 @@ pub struct UnsupportedPlatformError {
 }
 
 impl UnsupportedPlatformError {
-    fn new(package_id: String, wanted: WantedPlatform, current: Platform) -> Self {
+    /// The error for `package_id`, which wants `wanted` where the host is
+    /// `current`.
+    #[must_use]
+    pub fn new(package_id: String, wanted: WantedPlatform, current: Platform) -> Self {
         let wanted_json = wanted_json(&wanted);
         let current_json = current_json(&current);
         Self { package_id, wanted, current, wanted_json, current_json }
@@ -186,14 +189,10 @@ fn platform_allows(
 /// suits it on its own. A platform that has no C library places no
 /// constraint on one.
 fn named_platform_allows(platform: &NamedPlatform, wanted: WantedPlatformRef<'_>) -> bool {
-    wanted.os.is_none_or(|wanted_os| axis_is_supported(platform.os.name(), None, wanted_os))
-        && wanted.cpu.is_none_or(|wanted_cpu| {
-            axis_is_supported(platform.architecture.cpu(), None, wanted_cpu)
-        })
+    wanted.os.is_none_or(|wanted_os| axis_is_supported(platform.os(), None, wanted_os))
+        && wanted.cpu.is_none_or(|wanted_cpu| axis_is_supported(platform.cpu(), None, wanted_cpu))
         && wanted.libc.is_none_or(|wanted_libc| {
-            platform.libc
-                .as_ref()
-                .is_none_or(|libc| axis_is_supported(libc.name(), None, wanted_libc))
+            platform.libc().is_none_or(|libc| axis_is_supported(libc, None, wanted_libc))
         })
 }
 

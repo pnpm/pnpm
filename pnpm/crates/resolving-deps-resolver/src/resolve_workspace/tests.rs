@@ -248,7 +248,7 @@ fn importer_opts(
             auto_install_peers_from_highest_match: false,
             resolve_peers_from_workspace_root: false,
             dedupe_peers: false,
-            dedupe_peer_dependents: true,
+            dedupe_peer_dependents: crate::PeerDependentsDedupe::On,
         },
         links: crate::PeerLinkOptions {
             exclude_links_from_lockfile: false,
@@ -281,7 +281,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         peers: crate::WorkspacePeerResolutionOptions {
             dedupe_peers: false,
             dedupe_injected_deps: false,
-            dedupe_peer_dependents: false,
+            dedupe_peer_dependents: crate::PeerDependentsDedupe::Off,
             resolve_peers_from_workspace_root: false,
             exclude_links_from_lockfile: false,
             lockfile_dir: std::path::PathBuf::from("/lockfile-dir"),

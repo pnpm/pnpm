@@ -11,6 +11,7 @@ import type { Project, ProjectId } from '@pnpm/types'
 import { workspaceBinsDigest, type WorkspaceState } from '@pnpm/workspace.state'
 
 import { assertWorkspaceProjectsUpToDate } from './assertWantedLockfileUpToDate.js'
+import { proofMissesLocalDirectory } from './findLocalFileDepsIssue.js'
 import { findModulesDirIssue, type ProjectStats, selectProjectDirs } from './findModulesDirIssue.js'
 import { findWorkspaceBinsIssue, findWorkspaceStructureIssue } from './findWorkspaceStructureIssue.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
@@ -19,7 +20,7 @@ import { patchesOrHooksAreModified } from './patchesOrHooksAreModified.js'
 import { safeStat } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
-import { recordValidatedWorkspaceState, type ValidationProof, validationProof } from './validationProof.js'
+import { type ProjectProof, recordValidatedWorkspaceState, type ValidationProof, validationProof } from './validationProof.js'
 import {
   allowUnawaitedFailure, assertCurrentLockfileMatches, assertCurrentLockfileRecordsProjects,
   currentLockfileDir, findOutdatedLockfileChangedProject, getWantedLockfileDirs,
@@ -293,9 +294,13 @@ function provenProjects (allManifestStats: ProjectStats[], proof: ValidationProo
     .map(({ project }) => project.rootDir)
 }
 
-/** The projects the gate holds that are not proven installed. */
+/**
+ * The projects the gate holds that are not proven installed, and the proven
+ * ones too per {@link proofMissesLocalDirectory}.
+ */
 function heldProjects (ctx: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
   const { lockfilesScan, opts } = ctx
+  const recheckProven = proofMissesLocalDirectory(opts, ctx.workspaceState)
   const installCovers = createInstallCoverage(ctx)
   const missingDirs = opts.sharedWorkspaceLockfile === false
     ? new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))
@@ -304,10 +309,17 @@ function heldProjects (ctx: WorkspaceDepsStatusContext, allManifestStats: Projec
     const covered = installCovers(project.rootDir)
     if (opts.selectedProjectsGraph != null && !covered) return false
     if (missingDirs?.has(path.resolve(project.rootDir)) && !covered) return false
-    const projectProof = proof.proofOf(project.rootDir, project.manifest)
-    if (projectProof === 'proven') return false
-    return projectProof !== 'unrecorded' || covered
+    return isHeld(proof.proofOf(project.rootDir, project.manifest), { covered, recheckProven })
   })
+}
+
+/**
+ * Whether the gate holds a project with `projectProof`: one never installed
+ * only where the install covers it, and a proven one only when `recheckProven`.
+ */
+function isHeld (projectProof: ProjectProof, { covered, recheckProven }: { covered: boolean, recheckProven: boolean }): boolean {
+  if (projectProof === 'proven') return recheckProven
+  return projectProof !== 'unrecorded' || covered
 }
 
 /**

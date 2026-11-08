@@ -134,11 +134,12 @@ pub fn parse_workspace_manifest(
         return Ok(WorkspaceManifest::default());
     }
 
-    let manifest: WorkspaceManifest = serde_saphyr::from_str(text)
+    let manifest: WorkspaceManifest = serde_saphyr::from_str::<Option<WorkspaceManifest>>(text)
         .map_err(|source| ReadWorkspaceManifestError::ParseYaml {
             path: path.to_path_buf(),
             source: Box::new(source),
-        })?;
+        })?
+        .unwrap_or_default();
 
     // serde_saphyr already enforces the array shape and string type
     // for `packages:` at deserialization. The remaining invariant —

@@ -44,7 +44,8 @@ async fn compute_frozen_skip_set(
         lockfile,
         settled.mode.included,
         settled.install.context.config.peer_edge_options(),
-    );
+    )
+    .linking_for(settled.owned.projects.supported_architectures.as_ref());
     let seed = if settled.install.context.config.force {
         pnpm_deps_restorer::SkippedSnapshots::default()
     } else {
@@ -102,8 +103,8 @@ async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(), InstallE
     let importer_ids = installed_importer_ids(settled, lockfile);
     let (skipped, groups) = compute_frozen_skip_set(&settled, lockfile, &importer_ids).await?;
 
-    let targets = crate::optimistic_repeat_install::frozen_local_tarballs_to_verify(
-        &crate::optimistic_repeat_install::FrozenLocalTarballCheck {
+    let targets = crate::install_state::frozen_local_tarballs_to_verify(
+        &crate::install_state::FrozenLocalTarballCheck {
             workspace_root: &settled.projects.workspace.dirs.workspace_root,
             importer_ids: &importer_ids,
             groups: &groups,
@@ -131,9 +132,14 @@ async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
         lockfile,
         settled.mode.included,
         settled.install.context.config.peer_edge_options(),
-    );
+    )
+    .linking_for(settled.owned.projects.supported_architectures.as_ref());
+    // A variant with dependencies of its own is wired as its own snapshot,
+    // so the walk follows the variant the install links.
+    let selected =
+        pnpm_deps_restorer::with_selected_variant_snapshots(lockfile, &groups.walked_platform());
     let resolutions: Vec<_> = crate::collect_reachable(
-        lockfile,
+        selected.as_ref().unwrap_or(lockfile),
         &workspace_root,
         &installed_importer_ids(settled, lockfile),
         &groups,
@@ -195,7 +201,12 @@ fn installed_importer_ids(
     let hoisted_prior = settled.loaded.current
         .as_ref()
         .filter(|_| settled.install.execution.node_linker == pnpm_config::NodeLinker::Hoisted);
-    crate::install::materialize::initial_materialization_ids(lockfile, requested, hoisted_prior)
+    crate::install::materialize::initial_materialization_ids(
+        lockfile,
+        requested,
+        Some(&settled.projects.scope.importers.real_importer_ids),
+        hoisted_prior,
+    )
 }
 
 /// Whether any package resolves to a tarball on the local filesystem, the
@@ -213,7 +224,7 @@ fn is_local_file_tarball(resolution: &pnpm_lockfile::LockfileResolution) -> bool
         resolution,
         pnpm_lockfile::LockfileResolution::Tarball(resolution)
             if resolution.tarball.starts_with("file:")
-                && pnpm_lockfile::is_local_tarball_path(&resolution.tarball),
+                && pnpm_local_spec::is_tarball_filename(&resolution.tarball),
     )
 }
 

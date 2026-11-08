@@ -142,7 +142,7 @@ describe('alias bins', () => {
   it('resolves its symlink with a readlink from PATH when the default path lacks one', { skip: NO_SH }, async () => {
     const { dir, wrapperDir } = createFixture()
     const alias = path.join(wrapperDir, 'pnpx')
-    fs.writeFileSync(alias, fs.readFileSync(alias, 'utf8').replaceAll('command -p ', 'PATH=/nonexistent command '))
+    fs.writeFileSync(alias, fs.readFileSync(alias, 'utf8').replaceAll('[ -x "/usr/bin/', '[ -x "/nonexistent/').replaceAll('[ -x "/bin/', '[ -x "/nonexistent/').replaceAll('command -p ', 'PATH=/nonexistent command '))
     const binDir = path.join(dir, 'node_modules', '.bin')
     writeStub(path.join(binDir, 'pnpm'), 'decoy')
     const link = path.join(binDir, 'pnpx')

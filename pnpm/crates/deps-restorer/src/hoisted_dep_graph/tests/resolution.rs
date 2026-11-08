@@ -41,7 +41,7 @@ fn walker_resolves_peered_reference_via_peerless_packages_key() {
     let lockfile = lockfile_with(root_deps, packages, snapshots);
     let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: lockfile_dir.clone(),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(&lockfile_dir),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
@@ -106,7 +106,7 @@ fn walker_wires_edges_declared_against_a_collapsed_peer_variant() {
     );
     let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: lockfile_dir.clone(),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(&lockfile_dir),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
@@ -177,7 +177,7 @@ fn walker_keeps_file_dep_peer_variants_apart() {
         snapshots,
     );
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: PathBuf::from("/repo"),
+        modules_dirs: crate::ImporterModulesDirs::node_modules(std::path::Path::new("/repo")),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
@@ -233,8 +233,11 @@ fn walker_places_root_packages_in_the_configured_modules_dir() {
     let lockfile = lockfile_with(root_deps, packages, snapshots);
     let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
-        lockfile_dir: lockfile_dir.clone(),
-        root_modules_dir: "deps/vendor".into(),
+        modules_dirs: crate::ImporterModulesDirs::new(
+            &lockfile_dir,
+            std::path::Path::new("deps/vendor"),
+            std::ffi::OsStr::new("deps/vendor"),
+        ),
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");

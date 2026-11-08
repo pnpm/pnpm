@@ -1,4 +1,4 @@
-pub(crate) use fixtures::seed_peer_heavy_registry;
+pub(crate) use peer_heavy::seed_peer_heavy_registry;
 
 mod scripts;
 use scripts::{
@@ -7,6 +7,7 @@ use scripts::{
 };
 
 mod fixtures;
+mod peer_heavy;
 
 use fixtures::{
     create_generated_projects, create_npmrc, create_package_json, create_pnpm_workspace,
@@ -18,10 +19,11 @@ mod injected_workspace;
 mod linked_workspace;
 mod unlocked_deps;
 
+mod revision_auth;
 mod server_config;
 use server_config::{
     PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
-    cold_revision_mock_command, distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth,
+    cold_revision_mock_command, distinct_public_route_registries, mint_pnpr_token,
     serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
 };
 
@@ -35,6 +37,7 @@ use measurements::{
 
 mod diagnostics;
 
+mod mock_home;
 mod servers;
 
 mod build;
@@ -83,7 +86,6 @@ const PEER_HEAVY_DEPTH: usize = 5;
 const PEER_HEAVY_WIDTH: usize = 80;
 const PEER_HEAVY_PROVIDER: &str = "@pnpmtest/peer-benchmark-provider";
 const PEER_HEAVY_VERSION: &str = "1.0.0";
-const PEER_HEAVY_INTEGRITY: &str = "sha512-z6pI0F3yfz8Zl3R0+g1pwMbdY12h7Osj5UYSTh6Rcpd7UtO7nxeIzf+7gPDOAH4mgxi7BXaTyBDS0hBFgZVssQ==";
 // 7 x 32 projects with a shared peer provider, so the generated workspace
 // holds 225 importers joined by 6,369 `workspace:*` edges. Sized to keep
 // fixture generation instant while leaving a walk that re-traverses shared

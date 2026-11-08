@@ -5,7 +5,7 @@ use super::{
     Config, HoistedLinkerError, NodeLinker, Path, PathBuf, SymlinkDirectDependenciesError,
     SymlinkPackageError,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 pub(super) fn link_selected_hoisted_direct_dependencies(
     config: &Config,
@@ -13,10 +13,10 @@ pub(super) fn link_selected_hoisted_direct_dependencies(
     project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
     direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
     initial_sources: &crate::HoistedBinSources,
-    claimed_commands: &mut HashMap<PathBuf, HashSet<String>>,
+    claimed_commands: &mut crate::ClaimedCommands,
 ) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
-    let modules_dir_name = config.modules_dir_name();
-    let root_modules_dir = pnpm_fs::lexical_normalize(&config.modules_dir);
+    let modules_dirs = crate::ImporterModulesDirs::from_config(config, lockfile_dir);
+    let root_modules_dir = modules_dirs.root().to_path_buf();
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     let mut changed_dirs = HashSet::new();
     for (project_dir, _) in project_manifests {
@@ -27,11 +27,7 @@ pub(super) fn link_selected_hoisted_direct_dependencies(
         let scope = HoistedLinkScope {
             importer_id: pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir),
             root_modules_dir: &root_modules_dir,
-            modules_dir: if is_workspace_root {
-                root_modules_dir.clone()
-            } else {
-                project_dir.join(modules_dir_name)
-            },
+            modules_dir: modules_dirs.of(project_dir),
             is_workspace_root,
         };
         let (changed, linked_commands) = scope.link_direct_dependencies_claiming(
@@ -40,10 +36,7 @@ pub(super) fn link_selected_hoisted_direct_dependencies(
             initial_sources.get(&scope.modules_dir).map(AsRef::as_ref),
         )?;
         if let Some(commands) = linked_commands {
-            claimed_commands
-                .entry(pnpm_fs::lexical_normalize(&scope.modules_dir))
-                .or_default()
-                .extend(commands);
+            claimed_commands.claim(&scope.modules_dir, commands);
         }
         if changed {
             changed_dirs.insert(scope.modules_dir);
@@ -116,13 +109,17 @@ impl HoistedLinkScope<'_> {
         if !changed && self.already_linked(&linked_names, initial_sources) {
             return Ok((false, None));
         }
-        crate::link_direct_dep_bins_before_builds(&self.modules_dir, &linked_names, link_options)
-            .map_err(|source| {
-                HoistedLinkerError::SymlinkDirectDependencies(
-                    SymlinkDirectDependenciesError::LinkBins(source),
-                )
-            })
-            .map(|outcome| (changed, Some(outcome.linked_commands)))
+        crate::link_bins_dir(
+            &self.modules_dir,
+            crate::BinCandidates::Aliases(&linked_names),
+            crate::BinsDirPass::new(link_options).with_targets(crate::BinTargets::MayBeBuilt),
+        )
+        .map_err(|source| {
+            HoistedLinkerError::SymlinkDirectDependencies(SymlinkDirectDependenciesError::LinkBins(
+                source,
+            ))
+        })
+        .map(|outcome| (changed, Some(outcome.linked_commands)))
     }
 
     // Both passes precede lifecycle execution and use identical hoisted shim options.

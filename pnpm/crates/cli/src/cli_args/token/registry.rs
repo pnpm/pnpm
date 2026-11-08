@@ -160,7 +160,11 @@ pub(super) async fn delete_token(
     let path = format!("-/npm/v1/tokens/token/{}", utf8_percent_encode(key, NON_ALPHANUMERIC));
     let endpoint = join_registry_endpoint(url, &path).unwrap_or_else(|_| format!("{url}{path}"));
     let (_client, response) = send_with_retry(http_client, &endpoint, retry_opts, |cli| {
-        apply_auth_and_otp(cli.delete(&endpoint), Some(auth_header), otp)
+        apply_auth_and_otp(
+            cli.delete(&endpoint).header("npm-command", "token"),
+            Some(auth_header),
+            otp,
+        )
     })
     .await
     .into_diagnostic()
@@ -196,7 +200,13 @@ pub(super) async fn create_token(
     // lost response would leave an extra live token nobody was shown.
     let single_attempt = RetryOpts { retries: 0, ..retry_opts };
     let (_client, response) = send_with_retry(http_client, &endpoint, single_attempt, |cli| {
-        apply_auth_and_otp(cli.post(&endpoint).json(request), Some(auth_header), otp)
+        apply_auth_and_otp(
+            cli.post(&endpoint)
+                .header("npm-command", "token")
+                .json(request),
+            Some(auth_header),
+            otp,
+        )
     })
     .await
     .into_diagnostic()

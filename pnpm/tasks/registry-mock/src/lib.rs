@@ -8,7 +8,8 @@ pub use port_to_url::npm_registry_url;
 pub use registry_anchor::*;
 pub use registry_info::*;
 pub use seed_storage::{
-    runtime_cache, runtime_hosted_storage, runtime_metadata_path, seed_runtime_storage,
+    runtime_cache, runtime_config_dir, runtime_hosted_storage, runtime_metadata_path,
+    seed_runtime_storage,
 };
 
 mod dirs;

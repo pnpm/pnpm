@@ -104,6 +104,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "dedupePeers": true,
             "excludeLinksFromLockfile": false,
             "addMissingPeerTypes": true,
+            "projectScopedOptionalPeers": false,
             "resolutionMode": "time-based",
             "minimumReleaseAge": 1440,
             "minimumReleaseAgeExclude": ["@acme/*"],
@@ -290,6 +291,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             dedupe_peers: Some(true),
             exclude_links_from_lockfile: Some(false),
             add_missing_peer_types: Some(true),
+            project_scoped_optional_peers: Some(false),
             resolution_mode: ResolutionMode::TimeBased,
         },
         reuse: crate::LockfileReuseOptions {

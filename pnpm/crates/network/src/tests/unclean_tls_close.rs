@@ -1,5 +1,7 @@
 use super::{NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
-use crate::{BodyChunks, read_self_delimiting_body};
+use crate::{
+    BodyChunks, LimitedBody, read_limited_self_delimiting_body, read_self_delimiting_body,
+};
 use flate2::{Compression, write::GzEncoder};
 use rustls::{
     ServerConfig, ServerConnection, StreamOwned,
@@ -27,10 +29,14 @@ fn serve_then_close_uncleanly(
     let key =
         PrivateKeyDer::from_pem_slice(include_bytes!("../../tests/fixtures/test-client-pkcs1.key"))
             .expect("parse server key");
-    let config = ServerConfig::builder()
-        .with_no_client_auth()
-        .with_single_cert(vec![cert], key)
-        .expect("configure TLS server");
+    let config = ServerConfig::builder_with_provider(Arc::new(
+        rustls::crypto::aws_lc_rs::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .expect("supported TLS protocol versions")
+    .with_no_client_auth()
+    .with_single_cert(vec![cert], key)
+    .expect("configure TLS server");
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind TLS server");
     let address = listener.local_addr().expect("TLS server address");
     let server = std::thread::spawn(move || {
@@ -63,16 +69,22 @@ fn client_trusting_any_certificate() -> ThrottledClient {
     .expect("build client")
 }
 
-async fn fetch_text(address: SocketAddr) -> Result<String, reqwest::Error> {
-    let client = client_trusting_any_certificate();
-    let response = client
+async fn fetch_response(address: SocketAddr) -> reqwest::Response {
+    client_trusting_any_certificate()
         .acquire()
         .await
         .get(format!("https://{address}/foo"))
         .send()
         .await
-        .expect("receive response head");
-    read_self_delimiting_body(response).await.map(BodyChunks::into_text)
+        .expect("receive response head")
+}
+
+async fn fetch_text(address: SocketAddr) -> Result<String, reqwest::Error> {
+    read_self_delimiting_body(fetch_response(address).await).await.map(BodyChunks::into_text)
+}
+
+async fn fetch_limited(address: SocketAddr, limit: usize) -> Result<LimitedBody, reqwest::Error> {
+    read_limited_self_delimiting_body(fetch_response(address).await, limit).await
 }
 
 #[tokio::test]
@@ -111,6 +123,34 @@ async fn cut_short_chunked_body_fails_at_unclean_tls_close() {
         format!("{:x}\r\n{DOCUMENT}\r\n", DOCUMENT.len()).into_bytes(),
     );
     let error = fetch_text(address).await.expect_err("a body without its last chunk fails");
+    server.join().expect("TLS server thread");
+    eprintln!("body error: {error:?}");
+    assert!(error.is_body() || error.is_decode(), "expected a body error: {error:?}");
+}
+
+#[tokio::test]
+async fn limited_close_delimited_body_ends_at_unclean_tls_close() {
+    let (address, server) = serve_then_close_uncleanly("", DOCUMENT.as_bytes().to_vec());
+    let body = fetch_limited(address, 1024).await.expect("read body");
+    server.join().expect("TLS server thread");
+    assert!(!body.truncated);
+    assert_eq!(body.bytes, DOCUMENT.as_bytes());
+}
+
+#[tokio::test]
+async fn limited_close_delimited_body_is_truncated_at_the_limit() {
+    let (address, server) = serve_then_close_uncleanly("", DOCUMENT.as_bytes().to_vec());
+    let body = fetch_limited(address, 10).await.expect("read body");
+    server.join().expect("TLS server thread");
+    assert!(body.truncated);
+    assert_eq!(body.bytes, &DOCUMENT.as_bytes()[..10]);
+}
+
+#[tokio::test]
+async fn limited_cut_short_content_length_body_fails_at_unclean_tls_close() {
+    let (address, server) =
+        serve_then_close_uncleanly("Content-Length: 100\r\n", DOCUMENT.as_bytes().to_vec());
+    let error = fetch_limited(address, 1024).await.err().expect("a cut-short body fails");
     server.join().expect("TLS server thread");
     eprintln!("body error: {error:?}");
     assert!(error.is_body() || error.is_decode(), "expected a body error: {error:?}");

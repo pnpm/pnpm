@@ -22,7 +22,9 @@ pub use options::{
 };
 pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
-pub use variants::{PackedArchive, PackedArchives, archive_result_json, pack_archives};
+pub use variants::{
+    PackedArchive, PackedArchives, archive_result_json, declared_manifests, pack_archives,
+};
 
 mod capabilities;
 mod collation;
@@ -75,6 +77,16 @@ pub struct PackResult {
     pub tarball_path: String,
     /// Total uncompressed size of all files in the tarball, in bytes.
     pub unpacked_size: u64,
+    /// The written tarball's integrity and size; `None` for a dry run,
+    /// which writes none.
+    pub archive: Option<ArchiveDigest>,
+}
+
+/// The SRI SHA-512 and the size in bytes of a written tarball.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArchiveDigest {
+    pub integrity: String,
+    pub size: u64,
 }
 
 /// JSON-serializable projection of a [`PackResult`].
@@ -90,6 +102,12 @@ pub struct PackResultJson {
     /// packed for.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub targets: Option<Vec<String>>,
+    /// The written archive's SRI SHA-512; absent for a dry run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub integrity: Option<String>,
+    /// The written archive's size in bytes; absent for a dry run.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
     pub files: Vec<PackFile>,
 }
 
@@ -274,13 +292,14 @@ where
             .sum::<u64>();
     let contents = packed_contents_with_injected(&files_map, &opts.output.injected_files);
 
+    let mut archive = None;
     if !opts.output.dry_run {
         let packed = PackedTarball {
             dest_file: dest_dir.join(&tarball_name),
             files_map: &files_map,
             manifest_json: &manifest_json,
         };
-        write_tarball::<Sys>(&opts.output, &packed, &source.bins).await?;
+        archive = Some(write_tarball::<Sys>(&opts.output, &packed, &source.bins).await?);
         if !opts.scripts.ignore {
             opts.scripts.run_if_present::<Reporter>(
                 &opts.dir,
@@ -292,7 +311,7 @@ where
 
     let tarball_path = packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name);
     let published_manifest = with_registry_readme(source.publish_manifest, &source.dir)?;
-    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size })
+    Ok(PackResult { published_manifest, contents, tarball_path, unpacked_size, archive })
 }
 
 /// The files `source` packs as `manifest` selects them, by their path in
@@ -334,29 +353,67 @@ struct PackedTarball<'a> {
     manifest_json: &'a [u8],
 }
 
+/// Write `packed`'s tarball, and give the integrity and size of the bytes
+/// written, digested as they are written.
 async fn write_tarball<Sys: FsReadFile + FsIsExecutable + FsAtomicWrite>(
     opts: &PackOutputOptions,
     packed: &PackedTarball<'_>,
     bins: &[PathBuf],
-) -> Result<(), PackError> {
+) -> Result<ArchiveDigest, PackError> {
     let _output_guard = match &opts.locks {
         Some(locks) => Some(locks.lock(&packed.dest_file).await),
         None => None,
     };
+    let mut digest = None;
     Sys::atomic_write(&packed.dest_file, &mut |writer| {
+        let mut digesting = DigestingWriter::new(writer);
         tarball::build_tarball::<Sys>(
-            writer,
+            &mut digesting,
             packed.files_map,
             packed.manifest_json,
             bins,
             opts.gzip_level,
             &opts.injected_files,
-        )
+        )?;
+        digest = Some(digesting.finish());
+        Ok(())
     })
     .map_err(|error| PackError::WriteTarball {
         path: packed.dest_file.display().to_string(),
         source: error,
-    })
+    })?;
+    Ok(digest.expect("a written tarball has a digest"))
+}
+
+/// A writer that hashes and counts the bytes it passes on.
+struct DigestingWriter<'w> {
+    inner: &'w mut dyn std::io::Write,
+    hasher: ssri::IntegrityOpts,
+    size: u64,
+}
+
+impl<'w> DigestingWriter<'w> {
+    fn new(inner: &'w mut dyn std::io::Write) -> Self {
+        let hasher = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+        DigestingWriter { inner, hasher, size: 0 }
+    }
+
+    fn finish(self) -> ArchiveDigest {
+        ArchiveDigest { integrity: self.hasher.result().to_string(), size: self.size }
+    }
+}
+
+impl std::io::Write for DigestingWriter<'_> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let written = self.inner.write(buf)?;
+        self.hasher.input(&buf[..written]);
+        self.size += written as u64;
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
 }
 
 mod output;

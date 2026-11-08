@@ -15,6 +15,7 @@ name = "pnpm"
 path = "src/bin/main.rs"
 
 [dependencies]
+pnpm-process = { path = "../process" }
 pnpm-python-installer = { workspace = true }
 pnpm-rust-toolchain = { workspace = true }
 pnpm-package-name = { workspace = true }
@@ -184,7 +185,6 @@ tokio = { workspace = true, features = ["net", "process", "signal"] }
 pnpm-which = { workspace = true }
 pnpm-wasm-host = { path = "../wasm-host" }
 libc = { workspace = true }
-pnpm-process = { path = "../process" }
 pnpm-http = { workspace = true }
 
 # The process-lifetime tests close a private console through its window.

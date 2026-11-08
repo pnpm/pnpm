@@ -59,6 +59,12 @@ export interface ProjectToResolve {
   hoistedPeerProviderNodeIds?: Set<NodeId>
   declaredDirectDependencies?: Set<string>
   explicitlyRequestedDirectDependencies?: Set<string>
+  /**
+   * Optional peers the project leaves unbound because their candidate was
+   * rejected. A variant of the project's closure that leaves one of them
+   * unbound does not collapse into a variant that resolves it.
+   */
+  rejectedOptionalPeers?: Set<string>
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: Array<{ name: string, version: string, alias?: string }>
@@ -105,6 +111,8 @@ export interface ResolvePeersContext {
   nodeIdsByPreviousDepPath: Map<DepPath, NodeId>
   resolvedPeerProviderPaths?: Map<NodeId, DepPath>
   currentProviderSources: CurrentProviderSource[]
+  /** When off, a lockfile pin does not bind a peer that nothing in the node's scope provides. */
+  dedupePeerDependents?: boolean
 }
 
 export interface ResolveNodePeersContext<Pkg extends PartialResolvedPackage> extends ResolvePeersContext {

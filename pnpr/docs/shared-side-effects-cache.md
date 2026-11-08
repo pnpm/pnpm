@@ -83,8 +83,8 @@ artifacts:
   enabled: true
   orgs:
     acme:
-      access: [ci-builder, alice, bob]
-      publish: ci-builder
+      access: [<workload-account-id>, <account-id-1>, <account-id-2>]
+      publish: <workload-account-id>
 ```
 
 Publisher-owned artifacts are rejected until publisher discovery is defined.

@@ -11,6 +11,7 @@ license-file = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
+axum = { workspace = true }
 base64 = { workspace = true }
 clap = { workspace = true }
 flate2 = { workspace = true }

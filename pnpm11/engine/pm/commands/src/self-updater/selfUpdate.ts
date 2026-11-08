@@ -12,7 +12,6 @@ import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { inferRangeSpecStyle, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { EngineDependency, ProjectManifest } from '@pnpm/types'
@@ -26,6 +25,7 @@ import { decide, type PinDecision, shouldReadPinLockfile } from '../pinDecision.
 import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall, unlinkReplacedPnpmInstalls } from './installPnpm.js'
 import { resolvePnpmVersion } from './resolvePnpmVersion.js'
 import { linkReplacingRetiredExecutable, retireStandaloneExecutable } from './retireStandaloneExecutable.js'
+import { pinPnpmInEngines, updateVersionConstraint } from './versionConstraint.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -278,6 +278,8 @@ async function refreshLegacyHomeDirShims (pnpmHomeDir: string, baseDir: string):
 
 async function updateProjectPin (opts: SelfUpdateCommandOptions, targetVersion: string, bootstrapConfig: PackageManagerBootstrapConfig): Promise<string> {
   if (opts.wantedPackageManager?.version === targetVersion) {
+    const { manifest, writeProjectManifest } = await readProjectManifest(opts.workspaceDir ?? opts.dir ?? opts.rootProjectManifestDir)
+    if (pinPnpmInEngines(manifest, targetVersion)) await writeProjectManifest(manifest)
     return `The current project is already set to use pnpm v${targetVersion}`
   }
   const pinUpdate = await updateManifestPinAndDecide(opts, targetVersion)
@@ -304,10 +306,11 @@ async function writeUpdatedManifestPin (
   targetVersion: string
 ): Promise<ProjectManifest> {
   const { manifest, writeProjectManifest } = await readProjectManifest(opts.workspaceDir ?? opts.dir ?? opts.rootProjectManifestDir)
+  const enginesChanged = pinPnpmInEngines(manifest, targetVersion)
   if (!manifest.devEngines?.packageManager) {
     manifest.packageManager = `pnpm@${targetVersion}`
     await writeProjectManifest(manifest)
-  } else if (pinPnpmInDevEngines(manifest, manifest.devEngines.packageManager, targetVersion)) {
+  } else if (pinPnpmInDevEngines(manifest, manifest.devEngines.packageManager, targetVersion) || enginesChanged) {
     await writeProjectManifest(manifest)
   }
   return manifest
@@ -478,25 +481,6 @@ function readShimTarget (shimPath: string): string | undefined {
     return fs.readFileSync(shimPath, 'utf8').match(/^#\s*cmd-shim-target=(.+)$/m)?.[1]
   } catch {}
   return undefined
-}
-
-/**
- * Returns the updated version constraint for devEngines.packageManager.
- * - Exact versions and simple ranges (^, ~) are rewritten to the new version,
- *   preserving the range operator — matching `pnpm update` and `pnpm runtime set`.
- * - Complex ranges (>=x <y, etc.) that still satisfy the new version are left
- *   unchanged (the exact version is pinned in the lockfile instead).
- * - Complex ranges that no longer satisfy the new version fall back to a caret
- *   range with the new version (`^${newVersion}`).
- */
-function updateVersionConstraint (current: string | undefined, newVersion: string): string | undefined {
-  if (current == null) return newVersion
-  const rangeSpecStyle = inferRangeSpecStyle(current)
-  if (rangeSpecStyle != null) {
-    return versionWithRangeSpecStyle(newVersion, rangeSpecStyle)
-  }
-  if (semver.satisfies(newVersion, current, { includePrerelease: true })) return current
-  return `^${newVersion}`
 }
 
 async function readProjectPinnedPnpmVersion (rootProjectManifestDir: string, spec: string | undefined): Promise<string | undefined> {

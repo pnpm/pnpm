@@ -1,7 +1,4 @@
-#[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process as process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
 
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
@@ -16,9 +13,13 @@ pub use auth::{
 pub use certificates::bundled_root_certs;
 pub use client_builder::{default_network_concurrency, native_dns_resolver};
 pub use error_chain::{is_permanent_error, walk_reqwest_chain};
-pub use limited_body::{BodyChunks, LimitedBody, read_limited_body, read_self_delimiting_body};
+pub use limited_body::{
+    BodyChunks, LimitedBody, read_limited_body, read_limited_self_delimiting_body,
+    read_self_delimiting_body,
+};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use redirect_guard::{RedirectGuard, origins_redirect_guard};
+pub use requests::HeadError;
 pub use retry::{
     RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
 };
@@ -285,8 +286,8 @@ pub struct ThrottledResponse {
     _permit: Permit,
     _host_permit: Option<Permit>,
     _origin_permit: Option<OriginPermit>,
-    body_timeout: Duration,
-    received_at: Instant,
+    /// How long [`Self::bytes_stream`] waits for each chunk of the body.
+    idle_timeout: Duration,
 }
 
 impl ThrottledClientGuard<'_> {
@@ -299,19 +300,20 @@ impl ThrottledClientGuard<'_> {
     }
 
     /// Transfer both concurrency permits to the response body owner.
+    /// `idle_timeout` bounds each wait for more of the body, not the whole
+    /// transfer, so a body that keeps arriving is read to its end.
     #[must_use]
     pub fn retain_for_body(
         self,
         response: reqwest::Response,
-        body_timeout: Duration,
+        idle_timeout: Duration,
     ) -> ThrottledResponse {
         ThrottledResponse {
             response,
             _permit: self.permit,
             _host_permit: self.host_permit,
             _origin_permit: self.origin_permit,
-            body_timeout,
-            received_at: Instant::now(),
+            idle_timeout,
         }
     }
 }
@@ -328,7 +330,7 @@ impl ThrottledResponse {
         response.bytes().await
     }
 
-    /// Buffer at most one channel chunk. The producer deadline and cancellation
+    /// Buffer at most one channel chunk. The idle timeout and cancellation
     /// remain active even while the consumer stops polling the stream.
     pub fn bytes_stream(
         mut self,
@@ -336,20 +338,9 @@ impl ThrottledResponse {
         let (sender, receiver) = tokio::sync::mpsc::channel(1);
         let (completion_sender, completion) = tokio::sync::oneshot::channel();
         tokio::spawn(async move {
-            let remaining = self.body_timeout.saturating_sub(self.received_at.elapsed());
             let result = tokio::select! {
                 () = sender.closed() => Ok(()),
-                result = tokio::time::timeout(remaining, async {
-                    while let Some(chunk) = self.response.chunk().await.map_err(std::io::Error::other)? {
-                        if sender.send(chunk).await.is_err() {
-                            return Ok(());
-                        }
-                    }
-                    Ok(())
-                }) => result.unwrap_or_else(|_| Err(std::io::Error::new(
-                    std::io::ErrorKind::TimedOut,
-                    "upstream response body deadline exceeded",
-                ))),
+                result = self.forward_body(&sender) => result,
             };
             drop(self);
             let _ = completion_sender.send(result);
@@ -367,6 +358,36 @@ impl ThrottledResponse {
     }
 }
 
+impl ThrottledResponse {
+    /// Send each chunk of the body to `sender`. Fails when the next chunk
+    /// takes longer than the idle timeout to arrive, or the reader takes
+    /// longer than it to accept one, so a stalled reader releases the
+    /// permits too.
+    async fn forward_body(
+        &mut self,
+        sender: &tokio::sync::mpsc::Sender<bytes::Bytes>,
+    ) -> std::io::Result<()> {
+        let stalled = |what: &str| {
+            std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                format!("{what} stalled past the timeout"),
+            )
+        };
+        loop {
+            let chunk = tokio::time::timeout(self.idle_timeout, self.response.chunk())
+                .await
+                .map_err(|_| stalled("the upstream response body"))?
+                .map_err(std::io::Error::other)?;
+            let Some(chunk) = chunk else { return Ok(()) };
+            match tokio::time::timeout(self.idle_timeout, sender.send(chunk)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(_)) => return Ok(()),
+                Err(_) => return Err(stalled("the reader of the response body")),
+            }
+        }
+    }
+}
+
 impl Deref for ThrottledResponse {
     type Target = reqwest::Response;
 
@@ -380,8 +401,7 @@ impl std::fmt::Debug for ThrottledResponse {
         formatter
             .debug_struct("ThrottledResponse")
             .field("response", &self.response)
-            .field("body_timeout", &self.body_timeout)
-            .field("received_at", &self.received_at)
+            .field("idle_timeout", &self.idle_timeout)
             .finish_non_exhaustive()
     }
 }

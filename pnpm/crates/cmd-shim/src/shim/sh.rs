@@ -243,10 +243,13 @@ const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
 # A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
-# uname, and printf go through `command -p`, which searches the system default
-# path instead. A dependency's bin cannot stand in for one of them and take over
-# the shim before it reaches its target. Directories come from `${link%/*}`,
-# which needs no helper at all.
+# and printf go through `command -p`, which searches the system default path
+# instead. A dependency's bin cannot stand in for one of them and take over the
+# shim before it reaches its target. Directories come from `${link%/*}`, which
+# needs no helper at all.
+#
+# Under Cygwin and MSYS every helper a shim runs is another Windows process, so
+# the header runs one only where shell syntax cannot do the job.
 #
 # A helper the default path lacks, as in a Nix build sandbox, comes from PATH
 # instead, with node_modules and relative entries dropped from it.
@@ -264,10 +267,11 @@ while [ -n "$rest" ]; do
 done
 # An empty PATH searches the current directory.
 PATH=${helper_path:-/}
-# A helper comes from PATH only when the default path lacks it and PATH has it.
-# The bash 3.2 that macOS ships as sh answers `command -p -v` from PATH.
+# A helper comes from PATH only when /usr/bin and /bin lack it and PATH has it.
+# `command -p -v` cannot tell, because the bash 3.2 that macOS ships as sh
+# answers it from PATH. `[ -x ]` also fails where a sandbox denies the file.
 run_helper() {
-  if command -p -v "$1" >/dev/null 2>&1 || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
 }
 link="$0"
 # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
@@ -285,7 +289,10 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
     *)  link="${link%/*}/$target" ;;
   esac
 done
-basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')
+case "$link" in
+  *\\*) basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g') ;;
+  *) basedir=$link ;;
+esac
 basedir="${basedir%/*}"
 "#;
 
@@ -296,7 +303,11 @@ const SH_SHIM_PLATFORM: &str = r#"basedir_win="$basedir"
 exe=""
 msys=""
 
-case `run_helper uname -a` in
+# /proc/version starts with the system name `uname -a` reports, and reading it
+# starts no process. Systems without it, such as macOS, take no branch.
+os=
+{ read -r os < /proc/version; } 2> /dev/null || :
+case "$os" in
   *CYGWIN*|*MINGW*|*MSYS*)
     if converted=$(command -p cygpath -w "$basedir" 2>/dev/null) && [ -n "$converted" ]; then
       basedir_win="$converted"
@@ -407,10 +418,11 @@ pub fn is_shim_pointing_at(shim_content: &str, shim_path: &Path, target_path: &P
 /// header cannot drift away from what [`is_sh_shim_hardened`] looks for.
 pub(super) const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(run_helper readlink "$link")"#;
 
-/// The line the header prints `$link` through before converting backslashes.
-/// Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+/// The line the header prints `$link` through to convert its backslashes,
+/// reached only when `$link` has one. Pinned the same way as
+/// [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_PATH_PRINTF_LINE: &str =
-    r#"basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g')"#;
+    r#"  *\\*) basedir=$(run_helper printf '%s\n' "$link" | run_helper sed -e 's,\\,/,g') ;;"#;
 
 /// The line the header converts `$basedir` through on Cygwin, MinGW, and MSYS.
 /// Taken verbatim from [`SH_SHIM_PLATFORM`] and pinned the same way as
@@ -425,6 +437,10 @@ pub(super) const SH_SHIM_WSLPATH_LINE: &str = r#"    if converted=$(command -p w
 /// The line that keeps `node_modules` entries out of the `PATH` the helpers
 /// resolve through. Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_HELPER_PATH_FILTER_LINE: &str = "    */node_modules/*|*/node_modules) ;;";
+
+/// The line that picks a helper from the default path only when a file there
+/// can be executed. Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
+pub(super) const SH_SHIM_HELPER_DEFAULT_PATH_LINE: &str = r#"  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi"#;
 
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.
@@ -444,6 +460,7 @@ pub fn is_sh_shim_hardened(shim_content: &str) -> bool {
         SH_SHIM_CYGPATH_LINE,
         SH_SHIM_WSLPATH_LINE,
         SH_SHIM_HELPER_PATH_FILTER_LINE,
+        SH_SHIM_HELPER_DEFAULT_PATH_LINE,
     ]
     .iter()
     .all(|pinned| {

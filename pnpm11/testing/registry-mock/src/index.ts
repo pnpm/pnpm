@@ -1,5 +1,4 @@
 import { execFileSync } from 'node:child_process'
-import path from 'node:path'
 
 import type { AddUserResult } from '@pnpm/registry-access.client'
 
@@ -95,9 +94,6 @@ export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
   })
 }
 
-/** pnpr's hosted namespace for npm registries without an org. */
-const HOSTED_NPM_NAMESPACE = path.join('default', 'npm')
-
 const integrities = new Map<string, string>()
 
 /**
@@ -134,53 +130,4 @@ function fetchIntegrity (pkgName: string, pkgVersion: string): string {
     // A stalled lookup fails the test rather than holding the worker.
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], timeout: 30_000 }
   )
-}
-
-/**
- * Where the registry mock's storage keeps a fixture package's blob, such as
- * its tarball.
- */
-export function hostedBlobPath (pkgName: string, fileName: string): string {
-  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
-  if (!storage) {
-    throw new Error('PNPM_REGISTRY_MOCK_STORAGE is not set; run the test under the with-registry jest preset.')
-  }
-  return path.join(packageDir(path.join(storage, HOSTED_NPM_NAMESPACE), pkgName), 'blobs', blobSegment(pkgName, fileName))
-}
-
-/**
- * Mirrors pnpr's storage layout (`pnpr/crates/storage/src/layout.rs`): a
- * package lives at `packages/@<scope>/<name>/`, or `packages/@/<name>/` when
- * it has no scope.
- */
-function packageDir (namespace: string, pkgName: string): string {
-  const separator = pkgName.indexOf('/')
-  const segments = pkgName.startsWith('@') && separator > 1
-    ? [`@${encodeSegment(pkgName.slice(1, separator))}`, encodeSegment(pkgName.slice(separator + 1))]
-    : ['@', encodeSegment(pkgName)]
-  return path.join(namespace, 'packages', ...segments)
-}
-
-/**
- * A tarball named `<basename>-<rest>` is stored as `<rest>`, and one not
- * named after its package keeps its name behind `@`.
- */
-function blobSegment (pkgName: string, fileName: string): string {
-  if (!fileName.endsWith('.tgz')) return encodeSegment(fileName)
-  const prefix = `${pkgName.slice(pkgName.lastIndexOf('/') + 1)}-`
-  const rest = fileName.startsWith(prefix) ? fileName.slice(prefix.length) : ''
-  return rest !== '' && !rest.startsWith('.') ? encodeSegment(rest) : `@${encodeSegment(fileName)}`
-}
-
-/**
- * The storage's encoding of a name as one path segment: `[a-z0-9._-]` as is,
- * every other byte as `!` and two lowercase hex digits.
- */
-function encodeSegment (text: string): string {
-  let encoded = ''
-  for (const byte of Buffer.from(text, 'utf8')) {
-    const char = String.fromCharCode(byte)
-    encoded += /[a-z0-9._-]/.test(char) ? char : `!${byte.toString(16).padStart(2, '0')}`
-  }
-  return encoded
 }

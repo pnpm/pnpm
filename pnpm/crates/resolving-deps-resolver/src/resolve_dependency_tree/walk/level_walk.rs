@@ -84,6 +84,8 @@ pub(super) fn install_owner_peer_dependencies(
         &pending.result,
         &claim.peer_shadowed,
         catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
+        ctx.catalogs_dir.as_deref(),
+        &ctx.importer.lockfile_dir,
     )?;
     let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
     let Some(existing) = packages.get_mut(&pending.identity.id) else { return Ok(()) };

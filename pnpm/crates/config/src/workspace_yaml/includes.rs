@@ -111,7 +111,17 @@ impl WorkspaceSettings {
             })?;
         settings.validate_registries()?;
         settings.reject_repo_controlled_trust_material(path)?;
-        settings.substitute_env_untrusted::<Sys>();
+        settings
+            .substitute_env_untrusted::<Sys>()
+            .map_err(|error| match error {
+                LoadWorkspaceYamlError::RegistryEnvNotExpanded { setting, .. } => {
+                    LoadWorkspaceYamlError::RegistryEnvNotExpanded {
+                        setting,
+                        file: path.display().to_string(),
+                    }
+                }
+                error => error,
+            })?;
         Ok(settings)
     }
 }

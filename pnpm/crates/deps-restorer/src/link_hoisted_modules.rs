@@ -23,23 +23,25 @@ mod bins;
 
 mod dir_clone;
 
+mod orphans;
+
 use crate::{
     DepHierarchy, DependenciesGraph, DependenciesGraphNode, ImportIndexedDirError,
-    ImportIndexedDirOpts, import_indexed_dir, prune_direct_deps::remove_dep_bins,
+    ImportIndexedDirOpts, import_indexed_dir,
 };
 use bins::{link_bundled_bins, link_hierarchy_bins};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use orphans::remove_orphans;
 use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
-use pnpm_fs::{read_modules_dir, rename_to_free_name};
-use pnpm_lockfile::PkgIdWithPatchHash;
+use pnpm_lockfile::{PackageKey, PkgIdWithPatchHash};
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
 };
 use rayon::prelude::*;
 use std::{
     collections::{BTreeSet, HashMap},
-    fs, io,
+    io,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -56,6 +58,7 @@ use std::{
 /// and the CAS contents are the same regardless of where they're
 /// extracted to.
 pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HoistedPackageFiles>;
+pub type CasPathsBySnapshot = HashMap<PackageKey, Arc<HashMap<String, PathBuf>>>;
 
 /// One package's entry in [`CasPathsByPkgId`].
 #[derive(Debug, Clone)]
@@ -68,6 +71,9 @@ pub struct HoistedPackageFiles {
     /// Whether the mutable source was there to read from. See
     /// [`crate::SlotImportSource::source_exists`].
     pub source_exists: bool,
+    /// Whether a build or a patch will write to the imported files. See
+    /// [`crate::SlotImportSource::needs_build`].
+    pub needs_build: bool,
 }
 
 impl HoistedPackageFiles {
@@ -82,20 +88,16 @@ impl HoistedPackageFiles {
 }
 
 impl From<Arc<pnpm_fs::CasPaths>> for HoistedPackageFiles {
-    /// Content-addressed files, which are never mutable.
+    /// Content-addressed files, which are never mutable, of a package
+    /// nothing will write to.
     fn from(cas_paths: Arc<pnpm_fs::CasPaths>) -> Self {
-        HoistedPackageFiles { cas_paths, source_is_mutable: false, source_exists: true }
+        HoistedPackageFiles {
+            cas_paths,
+            source_is_mutable: false,
+            source_exists: true,
+            needs_build: false,
+        }
     }
-}
-
-/// A package directory on disk that the hoisting plan does not place.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct UnplannedDir {
-    dir: PathBuf,
-    modules_dir: PathBuf,
-    /// `dir` relative to `modules_dir`, so scoped packages keep their
-    /// `@scope/` prefix.
-    pkg_name: String,
 }
 
 /// Inputs the linker reads from. Borrows everything so callers
@@ -106,23 +108,25 @@ pub struct LinkHoistedModulesOpts<'a> {
     pub import: crate::PackageImportOptions<'a>,
     pub dir_clone_cache: Option<&'a HoistedDirCloneCache<'a>>,
     pub graph: &'a DependenciesGraph,
-    /// Diffed against `graph` to compute orphans. `None` for a fresh
-    /// install (no prior lockfile); the on-disk scan still runs, since
-    /// that is exactly the state an interrupted install leaves behind.
-    pub prev_graph: Option<&'a DependenciesGraph>,
+    /// The package directories the previous install placed. Each one
+    /// `graph` does not place is removed. Empty for a fresh install; the
+    /// on-disk scan still runs, since that is exactly the state an
+    /// interrupted install leaves behind.
+    pub previous_dirs: &'a BTreeSet<PathBuf>,
     /// Per-importer directory hierarchies, keyed by importer
     /// root. Single-importer installs have one entry keyed by
     /// `lockfile_dir`.
     pub hierarchy: &'a std::collections::BTreeMap<PathBuf, DepHierarchy>,
+    /// Where each importer root of [`hierarchy`](Self::hierarchy) keeps
+    /// its dependencies. Its lockfile directory is the containment root
+    /// for orphan removal: an orphan directory that does not sit
+    /// lexically inside it is skipped, never deleted. The walker builds
+    /// every graph dir through `safe_join_modules_dir`, so a confined
+    /// path is the invariant. This keeps the deletion site from
+    /// depending on the constructor's discipline.
+    pub modules_dirs: &'a crate::ImporterModulesDirs,
     /// Pre-fetched CAS file index per package.
     pub cas_paths_by_pkg_id: &'a CasPathsByPkgId,
-    /// Containment root for orphan removal: an orphan directory that
-    /// does not sit lexically inside this root is skipped, never
-    /// deleted. The walker builds every graph dir through
-    /// `safe_join_modules_dir`, so a confined path is the invariant —
-    /// this keeps the deletion site from depending on the
-    /// constructor's discipline.
-    pub confine_root: &'a Path,
     /// Options for every bin this pass links — the
     /// [`crate::shim_link_options`] output for the hoisted linker
     /// (no `extraNodePaths`; hoisted-tree shims never carry
@@ -207,8 +211,9 @@ pub(crate) fn link_hoisted_modules_with_sources<Reporter: self::Reporter>(
     let LinkedLevel { imported: added, bins } = crate::link_pool::in_link_pool(|| {
         opts.hierarchy
             .par_iter()
-            .map(|(parent_dir, deps_hierarchy)| {
-                link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, true, opts)
+            .map(|(project_dir, deps_hierarchy)| {
+                let modules_dir = opts.modules_dirs.of(project_dir);
+                link_all_pkgs_in_order::<Reporter>(deps_hierarchy, &modules_dir, true, opts)
             })
             .collect::<Result<Vec<LinkedLevel>, _>>()
     })?
@@ -235,177 +240,6 @@ pub(crate) fn link_hoisted_modules_with_sources<Reporter: self::Reporter>(
     Ok(bins)
 }
 
-/// Phase 1: clear every directory the new plan does not place.
-///
-/// A directory the previous install recorded is pnpm's to delete. One
-/// that only the on-disk scan found is not — pnpm has no record of
-/// putting it there, so it is quarantined under `.ignored` instead, the
-/// way an alien package directory already is. Both are best-effort with
-/// the same `EPERM`/`EBUSY` tolerance: a directory we cannot clear right
-/// now is no worse than leaving a stale entry, and the next install will
-/// retry. Returns the count attempted, not necessarily cleared — the
-/// same number pnpm reports.
-fn remove_orphans(opts: &LinkHoistedModulesOpts<'_>) -> Result<u64, LinkHoistedModulesError> {
-    let recorded_dirs: BTreeSet<PathBuf> = opts.prev_graph
-        .into_iter()
-        .flatten()
-        .map(|(dir, _)| dir.clone())
-        .filter(|dir| !opts.graph.contains_key(dir))
-        .filter(|dir| confined(dir, opts.confine_root))
-        .collect();
-    let mut unplanned_dirs = BTreeSet::new();
-    for (project_dir, planned_deps) in opts.hierarchy {
-        for unplanned in find_unplanned_dirs(project_dir, planned_deps)? {
-            if !recorded_dirs.contains(&unplanned.dir)
-                && confined(&unplanned.dir, opts.confine_root)
-            {
-                unplanned_dirs.insert(unplanned);
-            }
-        }
-    }
-    recorded_dirs
-        .par_iter()
-        .for_each(|dir| {
-            if let Some(modules_dir) = containing_modules_dir(dir)
-                && let Err(error) = remove_dep_bins(modules_dir, dir)
-            {
-                tracing::warn!(?dir, %error, "failed to remove the bins of an orphan package");
-            }
-            let _ = try_remove_dir(dir);
-        });
-    unplanned_dirs.par_iter().for_each(quarantine_dir);
-    Ok((recorded_dirs.len() + unplanned_dirs.len()) as u64)
-}
-
-/// Whether `dir` sits lexically inside `confine_root`.
-fn confined(dir: &Path, confine_root: &Path) -> bool {
-    let confined = dir.starts_with(confine_root)
-        && dir
-            .components()
-            .all(|part| !matches!(part, std::path::Component::ParentDir));
-    if !confined {
-        tracing::warn!(
-            ?dir,
-            ?confine_root,
-            "refusing to remove an orphan directory outside the install root",
-        );
-    }
-    confined
-}
-
-/// Move a package directory pnpm has no record of installing into the
-/// `.ignored` sibling of the `node_modules` holding it.
-///
-/// Deleting is reserved for what the previous install recorded placing.
-/// Anything else may hold work someone did by hand, so it is displaced
-/// rather than destroyed, and an earlier quarantined copy is never
-/// overwritten. Getting it out of `node_modules` is what makes the tree
-/// correct; the bytes are incidental.
-fn quarantine_dir(unplanned: &UnplannedDir) {
-    let ignored_dir = unplanned.modules_dir.join(".ignored").join(&unplanned.pkg_name);
-    if !make_ignored_parent(&unplanned.modules_dir, &unplanned.pkg_name) {
-        tracing::warn!(
-            pkg_name = %unplanned.pkg_name,
-            modules_dir = ?unplanned.modules_dir,
-            "not moving a package to \"node_modules/.ignored\": the destination leads outside \
-             the modules directory",
-        );
-        return;
-    }
-    let Ok(Some(quarantined)) = rename_to_free_name(&unplanned.dir, &ignored_dir) else {
-        return;
-    };
-    tracing::warn!(
-        pkg_name = %unplanned.pkg_name,
-        ?quarantined,
-        "moving a package to \"node_modules/.ignored\": it is not in the dependency tree \
-         and pnpm has no record of installing it",
-    );
-}
-
-/// Create `.ignored`, and the scope directory under it when `pkg_name`
-/// is scoped, refusing to descend through a level that already exists as
-/// anything but a real directory.
-///
-/// `create_dir_all` traverses a symlink it finds on the way, so a
-/// `.ignored` link would redirect the move outside the tree pnpm is
-/// allowed to touch.
-fn make_ignored_parent(modules_dir: &Path, pkg_name: &str) -> bool {
-    let Some(ignored_dir) = make_real_dir(modules_dir, ".ignored") else { return false };
-    match pkg_name.split_once('/') {
-        Some((scope, _)) => make_real_dir(&ignored_dir, scope).is_some(),
-        None => true,
-    }
-}
-
-fn make_real_dir(parent: &Path, name: &str) -> Option<PathBuf> {
-    let dir = parent.join(name);
-    match fs::create_dir(&dir) {
-        Ok(()) => Some(dir),
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            let is_real_dir = fs::symlink_metadata(&dir).is_ok_and(|metadata| metadata.is_dir());
-            is_real_dir.then_some(dir)
-        }
-        Err(_) => None,
-    }
-}
-
-/// Package directories that physically exist inside `project_dir`'s
-/// `node_modules` but that the new hoisting plan does not place there.
-///
-/// The previous-graph diff cannot see them: an install interrupted
-/// before the current lockfile and `.modules.yaml` are written leaves
-/// nested copies on disk while the next install starts without a
-/// previous graph, so nothing ever reclaims them
-/// (<https://github.com/pnpm/pnpm/issues/13676>).
-///
-/// Only directories carrying a `package.json` are reported. That is the
-/// marker [`import_indexed_dir()`] writes last, so a directory holding
-/// one is a package that was materialized in full; a directory without
-/// one is not a package, and pruning is not entitled to remove it
-/// however little the hoisting plan has to say about it.
-///
-/// Symlinks are skipped: that is how workspace packages and `link:`
-/// dependencies are attached, and they are absent from the graph by
-/// design.
-fn find_unplanned_dirs(
-    project_dir: &Path,
-    planned_deps: &DepHierarchy,
-) -> Result<Vec<UnplannedDir>, LinkHoistedModulesError> {
-    let modules_dir = project_dir.join("node_modules");
-    let pkg_names = read_modules_dir(&modules_dir)
-        .map_err(|source| LinkHoistedModulesError::ReadModulesDir {
-            path: modules_dir.clone(),
-            source,
-        })?;
-    let mut unplanned = Vec::new();
-    for pkg_name in pkg_names {
-        let dir = modules_dir.join(&pkg_name);
-        if planned_deps.0.contains_key(&dir) {
-            continue;
-        }
-        match fs::symlink_metadata(&dir) {
-            Ok(metadata) if metadata.is_dir() => {
-                if dir.join("package.json").exists() {
-                    unplanned.push(UnplannedDir {
-                        dir,
-                        modules_dir: modules_dir.clone(),
-                        pkg_name,
-                    });
-                }
-            }
-            // A symlink or a file is not a package directory the plan owns.
-            Ok(_) => {}
-            // The entry was removed while the scan was running.
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(source) => {
-                return Err(LinkHoistedModulesError::ReadModulesDir { path: dir, source });
-            }
-        }
-    }
-    Ok(unplanned)
-}
-
 /// The modules directory physically containing a scoped or unscoped package.
 pub(crate) fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
     let parent = pkg_dir.parent()?;
@@ -413,18 +247,6 @@ pub(crate) fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
         .file_name()
         .is_some_and(|name| name.as_encoded_bytes().starts_with(b"@"));
     if is_scope { parent.parent() } else { Some(parent) }
-}
-
-/// Single-directory rimraf with error-swallowing semantics.
-/// `NotFound` is a no-op (someone else already removed it);
-/// everything else (`PermissionDenied`, `Other`) is silently
-/// dropped — a stale directory is less bad than a panicked install.
-fn try_remove_dir(dir: &Path) -> io::Result<()> {
-    match fs::remove_dir_all(dir) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(_) => Ok(()),
-    }
 }
 
 /// Phase 2 + 3: recursively import packages then link bins for
@@ -441,7 +263,7 @@ fn try_remove_dir(dir: &Path) -> io::Result<()> {
 /// [`IntoParallelRefIterator::par_iter`]: rayon::iter::IntoParallelRefIterator::par_iter
 fn link_all_pkgs_in_order<Reporter: self::Reporter>(
     hierarchy: &DepHierarchy,
-    parent_dir: &Path,
+    modules_dir: &Path,
     is_project_root: bool,
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<LinkedLevel, LinkHoistedModulesError> {
@@ -455,14 +277,19 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
                 .get(dir)
                 .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
             let here = u64::from(import_node::<Reporter>(node, opts)?);
-            let below = link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, false, opts)?;
+            let below = link_all_pkgs_in_order::<Reporter>(
+                sub_hierarchy,
+                &dir.join("node_modules"),
+                false,
+                opts,
+            )?;
             Ok(LinkedLevel { imported: here, ..LinkedLevel::default() }.merge(below))
         })
         .collect::<Result<Vec<LinkedLevel>, LinkHoistedModulesError>>()?
         .into_iter()
         .fold(LinkedLevel::default(), LinkedLevel::merge);
 
-    let mut bins = link_hierarchy_bins(hierarchy, parent_dir, opts)?;
+    let mut bins = link_hierarchy_bins(hierarchy, modules_dir, opts)?;
     // A project's `.bin` is linked again after the builds anyway.
     if is_project_root {
         bins.held_back_bins_dirs.clear();
@@ -522,10 +349,7 @@ fn import_node<Reporter: self::Reporter>(
     };
 
     let cas_paths = &*files.cas_paths;
-    // A directory dependency with install scripts is built in place, so it
-    // must not be hard-linked to its source.
-    let needs_build = files.source_is_mutable && crate::requires_build_from_cas_paths(cas_paths);
-    let import_method = opts.import.method_for(files.source_is_mutable, needs_build);
+    let import_method = opts.import.method_for(files.source_is_mutable, files.needs_build);
     if files.source_is_mutable
         || !opts.dir_clone_cache.is_some_and(|cache| {
             cache.try_import::<Reporter>(node, opts.import, cas_paths)

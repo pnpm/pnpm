@@ -83,6 +83,8 @@ export interface ChildrenByParentId {
   [id: PkgResolutionId]: Array<{
     alias: string
     id: PkgResolutionId
+    /** Set for a linked local package, which `resolvedPkgsById` does not hold. */
+    linked?: { name: string, version: string }
   }>
 }
 
@@ -93,6 +95,8 @@ export interface ResolutionContext extends RegistryContext {
   autoInstallPeersFromHighestMatch: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
+  /** Whether a missing optional peer may be supplied by a version that another importer's dependencies resolve. */
+  dedupePeerDependents: boolean
   updatedSet: Set<string>
   /**
    * One snapshot of each package in the wanted lockfile. The dependencies of
@@ -335,6 +339,11 @@ export type PostponedPeersResolutionFunction = (parentPkgAliases: ParentPkgAlias
 
 export interface ResolvedRootDependenciesResult {
   pkgAddressesByImporters: PkgAddressOrLink[][]
+  /**
+   * Per importer, the missing optional peers left unbound because every
+   * candidate version was rejected by `acceptsOptionalPeerCandidate`.
+   */
+  rejectedOptionalPeersByImporters: Array<Set<string>>
   time?: Record<string, string>
 }
 

@@ -430,6 +430,26 @@ fn a_runtime_install_keeps_its_release_age_approvals_out_of_the_caller_workspace
     assert_eq!(install_config.target_workspace_dir, None);
 }
 
+/// A parent pnpm exports its settings as `PNPM_CONFIG_*` variables, which
+/// the dispatcher's own configuration reads back.
+#[test]
+fn a_runtime_install_keeps_its_lockfile_and_links_in_the_environment() {
+    let root = tempfile::tempdir().unwrap();
+    let environment_dir = root.path().join("environment");
+    let config = Config {
+        lockfile_dir: Some(root.path().join("elsewhere")),
+        virtual_store_only: true,
+        symlink: false,
+        ..Config::default()
+    };
+
+    let install_config = hardened_install_config(config, &environment_dir, None);
+
+    assert_eq!(install_config.lockfile_dir, Some(environment_dir));
+    assert!(!install_config.virtual_store_only);
+    assert!(install_config.symlink);
+}
+
 #[test]
 fn trust_decisions_round_trip_last_record_wins() {
     let root = tempfile::tempdir().unwrap();

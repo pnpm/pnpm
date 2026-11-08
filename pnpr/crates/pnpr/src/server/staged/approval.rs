@@ -1,8 +1,7 @@
 use super::{
-    APPROVAL_CLAIM_LEASE, AppState, ApprovalClaim, CanonicalPackageName, DocumentWrite, Identity,
-    RegistryError, Response, StatusCode, StoredStagedRecord, Value, cleanup_tmp_slots,
-    commit_publishes, json, json_response, load_authorized_record, stage_publish,
-    validate_publish_doc,
+    APPROVAL_CLAIM_LEASE, AppState, ApprovalClaim, CanonicalPackageName, Identity, RegistryError,
+    Response, StatusCode, StoredStagedRecord, Value, cleanup_tmp_slots, commit_publishes, json,
+    json_response, load_authorized_record, stage_publish, validate_publish_doc,
 };
 use crate::server::publishing::add_npm_notices;
 use axum::response::IntoResponse;
@@ -46,17 +45,20 @@ pub(super) async fn claim_for_approval(
     let mut record = stored.record;
     record.approving_since = Some(now_iso());
     let claimed_bytes = serde_json::to_vec(&record).expect("a staged record serializes");
-    let written =
-        state.inner.storage.replace_staged_meta_if_current(stage_id, &stored.bytes, &claimed_bytes)
-            .await?;
+    let written = state.inner.storage.replace_staged_meta_if_current(
+        stage_id,
+        &stored.stored,
+        &claimed_bytes,
+    )
+    .await?;
     match written {
-        DocumentWrite::Written => {
-            Ok(ApprovalClaim { record, unclaimed_bytes: stored.bytes, claimed_bytes })
+        Some(claimed) => {
+            Ok(ApprovalClaim { record, unclaimed_bytes: stored.stored.bytes, claimed })
         }
         // Something got between the read and the claim. Another approval
         // leaves its claim behind; one that finished, or a rejection, leaves
         // no record at all.
-        DocumentWrite::Conflict => match state.inner.storage.read_staged_meta(stage_id).await? {
+        None => match state.inner.storage.read_staged_meta(stage_id).await? {
             Some(_) => {
                 Err(RegistryError::StagedApprovalInFlight { stage_id: stage_id.to_string() })
             }
@@ -90,7 +92,7 @@ pub(super) async fn still_claimed(
     claim: &ApprovalClaim,
 ) -> Result<(), RegistryError> {
     match state.inner.storage.read_staged_meta(stage_id).await? {
-        Some(stored) if stored == claim.claimed_bytes => Ok(()),
+        Some(stored) if stored.generation == claim.claimed.generation => Ok(()),
         Some(_) => Err(RegistryError::StagedApprovalInFlight { stage_id: stage_id.to_string() }),
         None => Err(RegistryError::NotFound),
     }
@@ -107,7 +109,7 @@ pub(super) async fn release_approval_claim(
 ) {
     let restored = state.inner.storage.replace_staged_meta_if_current(
         stage_id,
-        &claim.claimed_bytes,
+        &claim.claimed,
         &claim.unclaimed_bytes,
     )
     .await;

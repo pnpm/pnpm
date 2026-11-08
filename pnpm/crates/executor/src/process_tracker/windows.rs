@@ -7,8 +7,6 @@ use crate::process::{Command, Stdio};
 /// End `pid` with `taskkill`, which reaches only the descendants whose
 /// parent links still lead to it.
 pub(super) fn terminate_process(pid: u32, _separate_process_group: bool, _stop: Stop) {
-    use std::os::windows::process::CommandExt;
-
     let Some(taskkill) = taskkill_path() else { return };
     let _ = Command::new(taskkill)
         .args(["/pid", &pid.to_string(), "/T", "/F"])

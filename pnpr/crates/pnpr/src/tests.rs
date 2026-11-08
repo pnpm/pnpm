@@ -169,24 +169,32 @@ fn startup_error_report_redacts_dsn_credentials() {
 }
 
 #[test]
-fn oci_gc_requires_a_registry_and_parses_maintenance_options() {
+fn gc_parses_registries_and_maintenance_options() {
     let _env = scrubbed_env();
     assert!(Args::try_parse_from(["pnpr", "oci-gc"]).is_err());
+    let args = Args::try_parse_from(["pnpr", "gc"]).unwrap();
+    assert!(
+        matches!(args.command, Some(super::Command::Gc { registry, dry_run: false, min_age }) if registry.is_empty() && min_age == Duration::from_hours(24)),
+    );
     let args = Args::try_parse_from([
         "pnpr",
         "-c",
         "registry.yaml",
-        "oci-gc",
+        "gc",
         "--registry",
         "images",
+        "--registry",
+        "local",
         "--dry-run",
         "--min-age",
         "0",
     ])
     .unwrap();
     assert!(
-        matches!(args.command, Some(super::Command::OciGc { registry, dry_run: true, min_age }) if registry == "images" && min_age.is_zero()),
+        matches!(args.command, Some(super::Command::Gc { registry, dry_run: true, min_age }) if registry == ["images", "local"] && min_age.is_zero()),
     );
+    assert!(Args::try_parse_from(["pnpr", "gc", "@scope/pkg@1.0.0"]).is_err());
+    assert!(Args::try_parse_from(["pnpr", "verify", "--prune-orphans"]).is_err());
 }
 
 #[test]
@@ -226,16 +234,10 @@ fn pnpr_serve_subcommand_works_as_alias() {
 #[test]
 fn maintenance_subcommands_do_not_accept_server_flags() {
     let _env = scrubbed_env();
-    let err = Args::try_parse_from([
-        "pnpr",
-        "oci-gc",
-        "--registry",
-        "images",
-        "--listen",
-        "0.0.0.0:4873",
-    ])
-    .unwrap_err()
-    .to_string();
+    let err =
+        Args::try_parse_from(["pnpr", "gc", "--registry", "images", "--listen", "0.0.0.0:4873"])
+            .unwrap_err()
+            .to_string();
     assert!(err.contains("unexpected argument '--listen'"), "{err}");
 }
 
@@ -249,9 +251,9 @@ fn interval_valued_flags_accept_units_and_bare_seconds() {
     assert_eq!(args2.server.packument_ttl, Some(Duration::from_mins(5)));
 
     let gc_args =
-        Args::try_parse_from(["pnpr", "oci-gc", "--registry", "img", "--min-age", "2h"]).unwrap();
+        Args::try_parse_from(["pnpr", "gc", "--registry", "img", "--min-age", "2h"]).unwrap();
     assert!(
-        matches!(gc_args.command, Some(super::Command::OciGc { min_age, .. }) if min_age == Duration::from_hours(2)),
+        matches!(gc_args.command, Some(super::Command::Gc { min_age, .. }) if min_age == Duration::from_hours(2)),
     );
 }
 
@@ -282,7 +284,7 @@ fn a_storage_override_leaves_a_named_metadata_database_where_it_is() {
     let named = tempfile::TempDir::new().unwrap();
     let database = named.path().join("metadata.sqlite");
     let yaml = format!(
-        "storage: ./storage\nmetadata:\n  url: 'sqlite:{}'\n",
+        "storage: ./storage\ndatabase:\n  url: 'sqlite:{}'\n",
         database
             .display()
             .to_string()
@@ -298,7 +300,7 @@ fn a_storage_override_leaves_a_named_metadata_database_where_it_is() {
 fn a_storage_override_takes_a_database_named_at_the_default_path_along() {
     let storage = std::path::Path::new("/srv/pnpr");
     let config = served_from(
-        "storage: ./storage\nmetadata:\n  url: sqlite:./storage/.metadata/metadata.sqlite\n",
+        "storage: ./storage\ndatabase:\n  url: sqlite:./storage/.metadata/metadata.sqlite\n",
         storage,
     );
     assert_eq!(

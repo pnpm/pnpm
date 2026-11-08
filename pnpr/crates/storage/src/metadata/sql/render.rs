@@ -29,38 +29,76 @@ pub(super) fn read_view(
     cache: &RenderCache,
     key: &PackageKey,
 ) -> Result<Option<PackageView>> {
+    Ok(read_view_with(snapshot, cache, key, Vec::new())?.0)
+}
+
+/// [`read_view`], with `extra` read before the view in the same round trip;
+/// the rows of each are returned with it.
+pub(super) fn read_view_with<'read>(
+    snapshot: &dyn Connection,
+    cache: &RenderCache,
+    key: &'read PackageKey,
+    extra: Vec<Query<'read>>,
+) -> Result<(Option<PackageView>, Vec<Vec<Row>>)> {
     let view_key = ViewKey { package: key.clone(), representation: Representation::Full };
     // The rows a view is rendered from are read with the package's own row,
     // in one round trip to a remote database, unless the package is still
     // at the generation of the view the cache holds.
     let cached = cache.view_generation(&view_key);
     let unless = cached.map_or(NO_GENERATION, to_column);
-    let mut reads = vec![package_row_query(key)];
-    let npm = key.ecosystem == Ecosystem::Npm;
-    if npm {
-        reads.extend([tags_query(key, &unless), version_entries_query(key, &unless)]);
-    }
+    let extras = extra.len();
+    let reads = view_reads(key, &unless, extra);
     let mut results = snapshot.query_all(&reads)?.into_iter();
+    let extra_rows: Vec<Vec<Row>> = results.by_ref().take(extras).collect();
     let Some(package) = package_row_from(results.next().unwrap_or_default())? else {
-        return Ok(None);
+        return Ok((None, extra_rows));
     };
     // The rows of the tags and versions were read unless the cached view was
     // at the package's generation.
-    let listed = (npm && cached != Some(package.generation)).then(|| {
-        let tags = results.next().unwrap_or_default();
-        (tags, results.next().unwrap_or_default())
-    });
-    let bytes = if let Some(bytes) = cache.view(&view_key, package.generation) {
-        bytes
-    } else {
-        let bytes: Arc<[u8]> = match key.ecosystem {
-            Ecosystem::Npm => assemble_packument(snapshot, cache, key, &package, listed)?.into(),
-            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => package.state.into(),
-        };
-        cache.store_view(view_key, package.generation, Arc::clone(&bytes));
-        bytes
+    let listed =
+        (key.ecosystem == Ecosystem::Npm && cached != Some(package.generation)).then(|| {
+            (results.next().unwrap_or_default(), results.next().unwrap_or_default())
+        });
+    let generation = key.generation(package.generation);
+    let bytes = cached_or_rendered(snapshot, cache, view_key, package, listed)?;
+    Ok((Some(PackageView { bytes, generation }), extra_rows))
+}
+
+/// `extra`, then the reads a view of `key` is rendered from: its package
+/// row, and for npm its tags and versions unless the cached view is at
+/// generation `unless`.
+fn view_reads<'read>(
+    key: &'read PackageKey,
+    unless: &'read i64,
+    mut extra: Vec<Query<'read>>,
+) -> Vec<Query<'read>> {
+    extra.push(package_row_query(key));
+    if key.ecosystem == Ecosystem::Npm {
+        extra.extend([tags_query(key, unless), version_entries_query(key, unless)]);
+    }
+    extra
+}
+
+/// The view `view_key` names at `package`'s generation, from the cache or
+/// rendered from `package` and the `listed` tag and version rows.
+fn cached_or_rendered(
+    snapshot: &dyn Connection,
+    cache: &RenderCache,
+    view_key: ViewKey,
+    package: PackageRow,
+    listed: Option<(Vec<Row>, Vec<Row>)>,
+) -> Result<Arc<[u8]>> {
+    if let Some(bytes) = cache.view(&view_key, package.generation) {
+        return Ok(bytes);
+    }
+    let key = &view_key.package;
+    let generation = package.generation;
+    let bytes: Arc<[u8]> = match key.ecosystem {
+        Ecosystem::Npm => assemble_packument(snapshot, cache, key, &package, listed)?.into(),
+        Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => package.state.into(),
     };
-    Ok(Some(PackageView { bytes, generation: key.generation(package.generation) }))
+    cache.store_view(view_key, generation, Arc::clone(&bytes));
+    Ok(bytes)
 }
 
 /// One version as the version list reads it, before its fragment.
@@ -126,7 +164,11 @@ fn version_entries_from(key: &PackageKey, rows: Vec<Row>) -> Result<Vec<VersionE
                 renderer: RENDERER_VERSION,
                 annotation_generation: row.get::<Option<i64>>(2)?.map(to_generation),
             };
-            Ok(VersionEntry { version, published_at: row.get(1)?, fragment })
+            Ok(VersionEntry {
+                version,
+                published_at: row.get::<Option<i64>>(1)?.map(crate::publish::iso_from_unix_millis),
+                fragment,
+            })
         })
         .collect()
 }
@@ -203,7 +245,7 @@ fn fragment_query(key: &FragmentKey) -> Query<'_> {
     let (catalog, ecosystem, name) = key.package.params();
     if key.representation == Representation::Accepted {
         return query!(
-            "SELECT manifest, inputs, NULL, NULL, NULL FROM accepted_manifests
+            "SELECT manifest, inputs, NULL AS readme, NULL AS readme_filename, NULL AS deprecated FROM accepted_manifests
              WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
                AND revision_key = ?5 AND profile = ?6",
             catalog,

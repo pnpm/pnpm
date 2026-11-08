@@ -212,11 +212,7 @@ impl PickState<'_> {
         if picked_meta.versions.corrupt_mirror_fragment_found() {
             return None;
         }
-        // Same rationale as the version-spec fast path — promote the
-        // disk-loaded packument into the install-scoped in-memory cache.
-        if !opts.request.dry_run {
-            ctx.metadata.meta_cache.set(self.cache_key.clone(), meta);
-        }
+        self.promote_mirror(ctx, opts, &meta, Some(mtime));
         Some(PickPackageResult { meta: picked_meta, picked_package: Some(picked) })
     }
 
@@ -233,8 +229,24 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         meta: &Arc<Package>,
     ) {
+        self.promote_mirror(ctx, opts, meta, None);
+    }
+
+    /// [`Self::promote_unverified`] for a pick that read the mirror's mtime
+    /// (see [`PackageMetaCache::set_unverified`]).
+    fn promote_mirror<Cache: PackageMetaCache>(
+        &self,
+        ctx: &PickPackageContext<'_, Cache>,
+        opts: &PickPackageOptions<'_>,
+        meta: &Arc<Package>,
+        written_at: Option<DateTime<Utc>>,
+    ) {
         if !opts.request.dry_run {
-            ctx.metadata.meta_cache.set_unverified(self.cache_key.clone(), Arc::clone(meta));
+            ctx.metadata.meta_cache.set_unverified(
+                self.cache_key.clone(),
+                Arc::clone(meta),
+                written_at,
+            );
         }
     }
 

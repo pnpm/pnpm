@@ -1,3 +1,4 @@
+use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
@@ -17,11 +18,8 @@ fn engine_strict_rejects_an_incompatible_root_project() {
     )
     .expect("write package.json");
 
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "engineStrict: true\nnodeVersion: 20.0.0\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n",
-    )
-    .expect("write workspace settings");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "engineStrict: true\nnodeVersion: 20.0.0\n")
+        .expect("write workspace settings");
 
     let assert = pacquet
         .with_args(["install", "--lockfile-only"])
@@ -72,6 +70,94 @@ fn engine_strict_accepts_the_active_node_version() {
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
+
+    drop(root);
+}
+
+#[test]
+fn an_incompatible_root_pnpm_version_fails_without_engine_strict() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "pnpm": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}");
+    assert!(stderr.contains(r#"{"pnpm":">=99.0.0"}"#), "stderr: {stderr}");
+    assert!(!workspace.join("pnpm-lock.yaml").exists());
+
+    drop(root);
+}
+
+#[test]
+fn non_strict_root_node_mismatch_warns_and_continues() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let assert = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let output = assert.get_output();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let output = format!("{stdout}{stderr}");
+    assert!(output.contains("Unsupported engine for"), "output: {output}");
+    assert!(output.contains(r#"{"node":">=99.0.0"}"#), "output: {output}");
+    assert!(workspace.join("pnpm-lock.yaml").exists());
+
+    drop(root);
+}
+
+#[test]
+fn repeat_install_warns_for_incompatible_root_engines() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    _utils::pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = _utils::pacquet_in(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("run repeat install");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let output = format!("{stdout}{stderr}");
+    assert!(output.contains("Unsupported engine for"), "output: {output}");
+    assert!(output.contains("Already up to date"), "output: {output}");
 
     drop(root);
 }
@@ -332,6 +418,70 @@ fn maintenance_install_commands_check_the_root_engine() {
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
         assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}");
     }
+
+    drop(root);
+}
+
+#[test]
+fn repeat_install_under_engine_strict_reports_the_unsupported_engine() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-root",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    _utils::pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = _utils::pacquet_in(&workspace)
+        .with_args(["install", "--engine-strict"])
+        .output()
+        .expect("run repeat install");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "stderr: {stderr}");
+
+    drop(root);
+}
+
+#[test]
+fn repeat_install_with_an_external_lockfile_dir_checks_the_project_engines() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let project_dir = workspace.join("project");
+    fs::create_dir_all(&project_dir).expect("create the project dir");
+    fs::write(
+        project_dir.join("package.json"),
+        serde_json::json!({
+            "name": "incompatible-project",
+            "version": "1.0.0",
+            "engines": { "node": ">=99.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    _utils::pacquet_in(&project_dir)
+        .with_args(["install", "--lockfile-dir", ".."])
+        .assert()
+        .success();
+
+    let output = _utils::pacquet_in(&project_dir)
+        .with_args(["install", "--lockfile-dir", ".."])
+        .output()
+        .expect("run repeat install");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let output = format!("{stdout}{stderr}");
+    assert!(output.contains("Unsupported engine for"), "output: {output}");
 
     drop(root);
 }

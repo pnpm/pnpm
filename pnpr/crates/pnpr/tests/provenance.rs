@@ -9,7 +9,6 @@ use axum::{
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use pnpr::{AuthState, Config, MaxUsers, router, router_with_auth};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::local_blob_path;
 use serde_json::{Value, json};
 use std::{
     fmt::Write as _,
@@ -26,7 +25,7 @@ fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = PUBLIC_URL.to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -254,16 +253,7 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    assert!(
-        local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "del-pkg",
-            "del-pkg-1.0.0.sigstore"
-        )
-        .exists(),
-    );
+    assert!(crate::storage::hosted_file(&storage, "del-pkg", "del-pkg-1.0.0.sigstore").is_some());
 
     let del = Request::delete("/npm/del-pkg/-/del-pkg-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
@@ -278,16 +268,7 @@ async fn unpublish_tarball_cleans_up_sigstore_blob() {
         StatusCode::CREATED,
     );
 
-    assert!(
-        !local_blob_path(
-            &storage,
-            "",
-            pnpr_storage::Ecosystem::Npm,
-            "del-pkg",
-            "del-pkg-1.0.0.sigstore"
-        )
-        .exists(),
-    );
+    assert!(crate::storage::hosted_file(&storage, "del-pkg", "del-pkg-1.0.0.sigstore").is_none());
 
     let get_attest = Request::get("/npm/-/npm/v1/attestations/del-pkg@1.0.0")
         .body(Body::empty())
@@ -513,11 +494,8 @@ async fn an_archive_with_two_sha512_digests_cannot_be_named() {
     );
 }
 
-/// npm names a package in its provenance with only a leading `@`
-/// percent-encoded, so a legacy name such as `legacy!pkg` is named as npm
-/// spells it.
 #[tokio::test]
-async fn a_statement_names_a_legacy_package_as_npm_spells_it() {
+async fn a_statement_names_a_scoped_package_as_npm_spells_it() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
@@ -525,9 +503,9 @@ async fn a_statement_names_a_legacy_package_as_npm_spells_it() {
 
     let bundle = sample_sigstore_bundle("https://slsa.dev/provenance/v1");
     let doc =
-        doc_with_sigstore("legacy!pkg", "1.0.0", b"tarball", "legacy!pkg-1.0.0.sigstore", &bundle);
+        doc_with_sigstore("@example!scope/pkg", "1.0.0", b"tarball", "pkg-1.0.0.sigstore", &bundle);
     let res = app
-        .oneshot(put_publish("/npm/legacy!pkg", &token, &doc))
+        .oneshot(put_publish("/npm/@example!scope%2Fpkg", &token, &doc))
         .await
         .unwrap();
     let status = res.status();

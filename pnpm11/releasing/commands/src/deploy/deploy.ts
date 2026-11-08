@@ -19,6 +19,7 @@ import { writeYamlFile } from 'write-yaml-file'
 import { createDeployFiles, type DeployFiles } from './createDeployFiles.js'
 import { deployHook } from './deployHook.js'
 import { prepareDeployDir, validateDeployTarget } from './deployTarget.js'
+import { approveLegacyWorkspaceProjectBuilds } from './workspaceProjectBuilds.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
 
@@ -105,7 +106,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     globalWarn(warning)
   }
 
-  await deployWithoutSharedLockfile(opts, { deployDir, includeOnlyPackageFiles, workspaceDir })
+  await deployWithoutSharedLockfile(opts, { deployDir, includeOnlyPackageFiles, selectedProject, workspaceDir })
 }
 
 function resolveDeployRequest (
@@ -138,9 +139,9 @@ function resolveDeployRequest (
 
 async function deployWithoutSharedLockfile (
   opts: DeployOptions,
-  target: { deployDir: string, includeOnlyPackageFiles: boolean, workspaceDir: string }
+  target: { deployDir: string, includeOnlyPackageFiles: boolean, selectedProject: Project, workspaceDir: string }
 ): Promise<void> {
-  const { deployDir, includeOnlyPackageFiles, workspaceDir } = target
+  const { deployDir, includeOnlyPackageFiles, selectedProject, workspaceDir } = target
   const deployNodeModules = path.join(deployDir, 'node_modules')
   if (opts.allProjects) {
     for (const project of opts.allProjects) {
@@ -149,6 +150,11 @@ async function deployWithoutSharedLockfile (
   }
   await install.handler({
     ...opts,
+    allowBuilds: approveLegacyWorkspaceProjectBuilds(opts.allowBuilds, {
+      allProjects: opts.allProjects ?? [],
+      // The lockfile dir of the install below: the workspace's shared one, or else the deployed project's own.
+      lockfileDir: opts.lockfileDir ?? selectedProject.rootDir,
+    }),
     deploy: true,
     configDependencies: undefined,
     confirmModulesPurge: false,

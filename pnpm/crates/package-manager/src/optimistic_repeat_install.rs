@@ -14,43 +14,34 @@
 pub(crate) mod conflict_markers;
 pub(crate) mod deps_status;
 pub(crate) mod freshness;
-pub(crate) mod local_file_deps;
 pub(crate) mod manifest_agreement;
-pub(crate) mod settings;
-pub(crate) mod timestamps;
-pub(crate) mod validation;
 pub(crate) use conflict_markers::{
     LockfileConflictCheckFailure, first_lockfile_requiring_conflict_safe_install,
 };
-pub(crate) use current_lockfile::materialized_shape_matches;
 pub use deps_status::{RunDepsStatus, check_deps_status_before_run};
-pub(crate) use freshness::Scope;
-pub(crate) use local_file_deps::{
-    FrozenLocalTarballCheck, frozen_local_tarballs_to_verify, has_local_file_dep_requiring_install,
-    has_local_file_override, has_local_file_package_extension,
-};
 pub(crate) use manifest_agreement::{ManifestStat, held_projects_match_lockfile};
-pub use manifest_source::{DeclaredManifests, ManifestHooks, RepeatInstallManifests};
-pub(crate) use modules_dirs::{hoisted_project_modules_dir, project_id};
-pub(crate) use relocation::recorded_elsewhere;
-pub(crate) use settings::{
-    ResolvedImporters, catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_default_registry, recorded_extend_node_path_matches, recorded_registry_prefixes,
-    recorded_registry_routes_after_install, recorded_supported_architectures_match,
-    records_registry_keys_of,
+pub(crate) use modules_dirs::project_id;
+pub use up_to_date::{
+    GateWorkspace, UpToDateFastPathCheck, UpToDateWorkspace, check_deps_status_before_run_at,
+    deps_install_root, install_already_up_to_date, install_already_up_to_date_from_records,
+    install_already_up_to_date_per_project,
 };
-pub(crate) use timestamps::{
-    file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
-    filesystem_now_ns_in_modules, last_validated_timestamp, lockfile_modified_since,
-    modified_at_or_after,
+
+use crate::install_state::{
+    Decision, OptimisticRepeatInstallCheck, Scope, catalogs_cache_matches, current_pnpmfiles,
+    file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules, first_setting_drift,
+    has_local_file_dep_requiring_install, has_local_file_override,
+    has_local_file_package_extension, local_file_deps, lockfile_modified_since,
+    manifest_has_required_peers, manifest_has_runtime_deps, materialized_shape_matches,
+    modified_at_or_after, recorded_elsewhere, records_registry_keys_of, validation,
 };
 
 mod current_lockfile;
-mod manifest_source;
 mod modules_dirs;
 mod project_structure;
 mod relocation;
 mod settle;
+mod up_to_date;
 use freshness::{
     Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
 };
@@ -66,98 +57,17 @@ use std::{
     fs,
     io::{ErrorKind, Read},
     path::{Path, PathBuf},
-    time::SystemTime,
 };
 
 use pnpm_catalogs_resolver::{
     CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, TrustPolicy};
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, MaybeLazyLockfile, ProjectSnapshot};
-use pnpm_modules_yaml::{Host, IncludedDependencies};
-use pnpm_package_is_installable::SupportedArchitectures;
+use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker};
+use pnpm_lockfile::{ImporterDepVersion, Lockfile, ProjectSnapshot};
+use pnpm_modules_yaml::Host;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_workspace_state::{
-    NodeLinker as WorkspaceStateNodeLinker, TrustPolicy as WorkspaceStateTrustPolicy,
-    WorkspaceState, WorkspaceStateSettings, load_workspace_state,
-};
-
-/// Outcome of [`check_optimistic_repeat_install`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Decision {
-    /// The install is fully up to date — emit "Already up to date"
-    /// and exit before any of the install setup runs.
-    UpToDate,
-    /// Fall through to the full install path. `reason` is a short
-    /// diagnostic string surfaced via `tracing::debug!` for
-    /// diagnosability without contaminating the reporter stream.
-    Skipped { reason: &'static str },
-}
-
-/// Inputs to [`check_optimistic_repeat_install`].
-pub struct OptimisticRepeatInstallCheck<'a> {
-    /// The root the install recorded its lockfile and workspace state
-    /// against, which importer ids and relative local `pnpm.overrides`
-    /// targets are named from too. The directory containing
-    /// `pnpm-workspace.yaml` (or the project root when no workspace
-    /// manifest exists — same fallback as
-    /// [`Install::run`](crate::Install::run)), unless the configuration
-    /// pins the lockfile somewhere else.
-    pub workspace_root: &'a Path,
-    pub config: &'a Config,
-    /// Every importer's `(root_dir, manifest)` pair. For a
-    /// single-project install it's just the root manifest; for a
-    /// workspace install it's every project the resolver would
-    /// otherwise walk. The caller passes this in (rather than this
-    /// function rediscovering it) so the same walk seeds the regular
-    /// install path on the fall-through.
-    pub project_manifests: DeclaredManifests<'a>,
-    /// `true` when a `pnpm-workspace.yaml` drives the install — that
-    /// selects the workspace branch, which keys the manifest and
-    /// lockfile comparisons off `lastValidatedTimestamp`. `false` (no
-    /// workspace manifest) selects the single-project branch, which
-    /// additionally requires `pnpm-lock.yaml` to exist on disk —
-    /// `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` is raised otherwise, which
-    /// resolves to not-up-to-date — and keys its comparisons off the
-    /// lockfile mtimes instead.
-    pub is_workspace_install: bool,
-    /// The wanted lockfile (`None` once loaded when `pnpm-lock.yaml`
-    /// is absent or empty). Consulted only by the modified-manifests
-    /// content re-check; the pure-mtime fast path never parses it —
-    /// which is why it arrives lazily, so the common repeat-install
-    /// run skips the YAML parse entirely. A separately bounded byte
-    /// scan only runs when lockfile metadata changed. When absent and
-    /// `<install_state_dir>/lock.yaml` exists, the current lockfile
-    /// stands in as the wanted one — it records exactly what the
-    /// previous install materialized — and `pnpm-lock.yaml` is
-    /// regenerated from it before the check reports up-to-date.
-    pub lockfile: MaybeLazyLockfile<'a>,
-    /// Catalogs from the workspace manifest or an `updateConfig`
-    /// pnpmfile hook, for resolving `catalog:` values inside
-    /// `pnpm.overrides` before the lockfile settings comparison.
-    pub catalogs: &'a Catalogs,
-    pub layout: RepeatInstallLayout<'a>,
-    pub manifests: RepeatInstallManifests<'a>,
-}
-
-impl<'a> OptimisticRepeatInstallCheck<'a> {
-    /// The projects whose commands the importers link, per
-    /// [`RepeatInstallManifests::workspace_projects`].
-    pub(crate) fn bin_projects(&self) -> &'a [(PathBuf, &'a PackageManifest)] {
-        self.manifests.workspace_projects.unwrap_or(self.project_manifests.as_slice())
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct RepeatInstallLayout<'a> {
-    pub node_linker: NodeLinker,
-    pub included: IncludedDependencies,
-    /// The CLI-merged effective `supportedArchitectures` this run would
-    /// install with (yaml plus `--cpu` / `--os` / `--libc`), compared
-    /// against the recorded value like `included`.
-    pub supported_architectures: Option<&'a SupportedArchitectures>,
-}
+use pnpm_workspace_state::{WorkspaceState, load_workspace_state};
 
 /// Run the workspace-state freshness fast path. Returns
 /// [`Decision::UpToDate`] when the install can short-circuit.
@@ -309,55 +219,32 @@ fn recorded_local_dependency_changed(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> bool {
-    let workspace_dirs: std::collections::HashSet<PathBuf> = check
-        .bin_projects()
-        .iter()
-        .map(|(dir, _)| pnpm_fs::lexical_normalize(dir))
-        .collect();
     state.validation
         .as_ref()
-        .is_some_and(|validation| validation::local_dependency_changed(validation, &workspace_dirs))
-}
-
-pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
-    let value = manifest.value();
-    [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
-        .into_iter()
-        .flatten()
-        .any(|deps| {
-            deps.as_object()
-                .is_some_and(|map| !map.is_empty())
+        .is_some_and(|validation| {
+            validation::local_dependency_changed(validation, &workspace_dirs(check))
         })
 }
 
-/// Whether the manifest declares at least one peer that is not marked
-/// optional. The caller decides whether `autoInstallPeers` fetches them.
-pub(crate) fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
-    let Some(peers) = manifest
-        .value()
-        .get("peerDependencies")
-        .and_then(serde_json::Value::as_object)
-    else {
-        return false;
-    };
-    let meta = manifest
-        .value()
-        .get("peerDependenciesMeta")
-        .and_then(serde_json::Value::as_object);
-    peers
-        .keys()
-        .any(|name| !peer_dependency_is_optional(meta, name))
+/// Whether the last validation recorded a local directory dependency that is
+/// no workspace project.
+fn records_local_directory(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+) -> bool {
+    state.validation
+        .as_ref()
+        .is_some_and(|validation| {
+            validation::records_local_directory(validation, &workspace_dirs(check))
+        })
 }
 
-fn peer_dependency_is_optional(
-    meta: Option<&serde_json::Map<String, serde_json::Value>>,
-    name: &str,
-) -> bool {
-    meta.and_then(|meta| meta.get(name))
-        .and_then(serde_json::Value::as_object)
-        .and_then(|entry| entry.get("optional"))
-        .and_then(serde_json::Value::as_bool)
-        == Some(true)
+fn workspace_dirs(check: &OptimisticRepeatInstallCheck<'_>) -> std::collections::HashSet<PathBuf> {
+    check
+        .bin_projects()
+        .iter()
+        .map(|(dir, _)| pnpm_fs::lexical_normalize(dir))
+        .collect()
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
@@ -418,20 +305,6 @@ fn held_selection<'a>(
         }
         _ => None,
     }
-}
-
-/// The pnpmfile list recorded in the workspace state and compared by
-/// the freshness check: every pnpmfile the install loads. An install
-/// that ignores the pnpmfile records none, so the next install that
-/// honors it again sees the list change and re-validates.
-pub(crate) fn current_pnpmfiles(workspace_root: &Path, config: &Config) -> Vec<String> {
-    if config.ignore_pnpmfile {
-        return Vec::new();
-    }
-    crate::find_install_pnpmfiles(config, workspace_root)
-        .into_iter()
-        .map(|path| path.to_string_lossy().into_owned())
-        .collect()
 }
 
 /// How the pnpmfiles changed since the last validation, in pnpm's issue

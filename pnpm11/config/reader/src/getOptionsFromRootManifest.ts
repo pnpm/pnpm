@@ -65,6 +65,8 @@ interface GetOptionsFromPnpmSettingsOptions {
   trustedSource?: boolean
   manifest?: ProjectManifest
   expandRequestDestinationEnv?: boolean
+  /** Receives the warnings. Without it, they are printed. */
+  warnings?: string[]
 }
 
 export function getOptionsFromPnpmSettings (
@@ -74,9 +76,12 @@ export function getOptionsFromPnpmSettings (
 ): OptionsFromRootManifest {
   const opts = toGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
   assertValidSideEffectsCacheSettings(pnpmSettings, opts.trustedSource ?? false)
+  const warnings = opts.warnings ?? []
   const { externalDependencies: rawExternalDependencies, ...replacedSettings } = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
+    warnings,
   })
+  if (opts.warnings == null) warnings.forEach((warning) => globalWarn(warning))
   const settings: OptionsFromRootManifest = replacedSettings
   if (manifestDir != null && settings.scriptShell != null) {
     settings.scriptShell = resolveScriptShell(manifestDir, settings.scriptShell)
@@ -425,7 +430,7 @@ function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: Option
 function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
-  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
+  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value || 'warnings' in value)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {

@@ -200,3 +200,16 @@ fn a_header_the_host_keyed_explicitly_wins_over_the_unkeyed_one() {
 
     assert_eq!(by_uri.get("//trusted.example.com/").map(String::as_str), Some("Bearer explicit"));
 }
+
+#[test]
+fn an_overlay_sets_project_scoped_optional_peers() {
+    let root = tempfile::tempdir().unwrap();
+    let overlay =
+        ConfigOverlay { project_scoped_optional_peers: Some(true), ..ConfigOverlay::default() };
+
+    assert!(build_config(root.path(), &overlay).unwrap().project_scoped_optional_peers);
+    assert!(
+        !build_config(root.path(), &ConfigOverlay::default()).unwrap()
+            .project_scoped_optional_peers,
+    );
+}

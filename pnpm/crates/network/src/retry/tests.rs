@@ -535,6 +535,20 @@ async fn a_timeout_while_another_request_is_in_flight_downscales_concurrency() {
 }
 
 #[tokio::test]
+async fn a_head_deadline_timeout_while_another_request_is_in_flight_downscales_concurrency() {
+    let addr = spawn_stalling_server(b"").await;
+    let client = ThrottledClient::default();
+    let url = format!("http://{addr}/pkg.tgz");
+    let head_timeout = Duration::from_millis(200);
+    let first = client.get_response_head_within(&url, head_timeout, |request, _| request);
+    let second = client.get_response_head_within(&url, head_timeout, |request, _| request);
+    let (left, right) = tokio::join!(first, second);
+    assert!(matches!(left, Err(crate::HeadError::TimedOut)), "{:?}", left.err());
+    assert!(matches!(right, Err(crate::HeadError::TimedOut)), "{:?}", right.err());
+    assert!(client.is_origin_downscaled(&url));
+}
+
+#[tokio::test]
 async fn a_metadata_body_timeout_while_another_request_is_in_flight_downscales_concurrency() {
     let addr = spawn_stalling_server(b"HTTP/1.1 200 OK\r\ncontent-length: 100\r\n\r\n{").await;
     let client = client_with_short_fetch_timeout();

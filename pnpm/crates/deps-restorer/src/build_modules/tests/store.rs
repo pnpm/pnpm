@@ -131,6 +131,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
 
     let result = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects {
                 overlays: Some(&side_effects_maps),
                 rows: None,
@@ -139,8 +140,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -164,6 +164,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -222,6 +223,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
 
     let err = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects {
                 overlays: Some(&side_effects_maps),
                 rows: None,
@@ -230,8 +232,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
             read: false,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -255,6 +256,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -401,13 +403,13 @@ async fn write_path_populates_side_effects_row() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: Some(engine),
             read: true,
             write: true,
             publisher: None,
-            store_dir: Some(&store_dir),
-            store_index_writer: Some(&writer),
+            store: Some(crate::BuildCacheStore { directory: &store_dir, writer: &writer }),
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -431,6 +433,7 @@ async fn write_path_populates_side_effects_row() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

@@ -1,7 +1,8 @@
 use super::{
-    super::{Decision, settings::current_settings},
-    backdate_validated_files, check, isolated_included, setup_fresh_install, write_state,
+    super::Decision, backdate_validated_files, check, isolated_included, setup_fresh_install,
+    write_state,
 };
+use crate::install_state::settings::current_settings;
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ProjectEntry;

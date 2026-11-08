@@ -1,12 +1,9 @@
+use crate::install_state::ProjectManifestsByDir;
 use pnpm_package_manifest::PackageManifest;
 use std::{
     borrow::Cow,
-    collections::HashMap,
     path::{Path, PathBuf},
 };
-
-/// Project manifests keyed by their lexically normalized project directory.
-pub type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest>;
 
 /// Each project's manifest as another importer's injected dependency reads
 /// it: the project's entry in `dependency_manifests` when it has one, else
@@ -53,8 +50,8 @@ pub(crate) fn dependency_manifests_by_dir(
 /// from.
 pub(in crate::install::lockfile_freshness) struct InjectedDirectory<'a> {
     pub(in crate::install::lockfile_freshness) dir: &'a Path,
-    /// See [`super::LocalDepContext::declared_as_file`].
-    pub(in crate::install::lockfile_freshness) declared_as_file: bool,
+    /// See [`super::LocalDepContext::declared_by_path`].
+    pub(in crate::install::lockfile_freshness) declared_by_path: bool,
     pub(in crate::install::lockfile_freshness) workspace_root: &'a Path,
     pub(in crate::install::lockfile_freshness) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
 }
@@ -75,7 +72,7 @@ pub(in crate::install::lockfile_freshness) fn unhooked_manifest(
     };
     let on_disk = || pnpm_workspace::safe_read_project_manifest_only(injected.dir).ok().flatten();
     let publishing_project = || manifest_of_project_publishing_from(injected);
-    let manifest = if injected.declared_as_file {
+    let manifest = if injected.declared_by_path {
         project_manifest().or_else(on_disk).or_else(publishing_project)
     } else {
         project_manifest().or_else(publishing_project).or_else(on_disk)
@@ -107,11 +104,11 @@ fn manifest_of_project_publishing_from(
 ) -> Option<PackageManifest> {
     let target = pnpm_fs::lexical_normalize(injected.dir);
     let workspace_root = pnpm_fs::lexical_normalize(injected.workspace_root);
-    if !injected.declared_as_file && !target.starts_with(&workspace_root) {
+    if !injected.declared_by_path && !target.starts_with(&workspace_root) {
         return None;
     }
     for candidate in target.ancestors().skip(1) {
-        if !injected.declared_as_file && !candidate.starts_with(&workspace_root) {
+        if !injected.declared_by_path && !candidate.starts_with(&workspace_root) {
             return None;
         }
         let manifest = injected.manifests_by_dir
@@ -205,7 +202,7 @@ fn loaded_project_boundary(
     target_dir_within_workspace(dirs.canonical_paths, normalized_target, target_dir).ok()
 }
 
-fn publishing_project_manifest<'a>(
+pub(super) fn publishing_project_manifest<'a>(
     dirs: &super::spec::SpecDirs<'a>,
     normalized_target: &Path,
 ) -> Option<Cow<'a, serde_json::Value>> {
@@ -284,7 +281,7 @@ pub(in crate::install::lockfile_freshness) fn is_deploy_file_url(
     matches!(
         key.suffix.version(),
         pnpm_lockfile::VersionPart::File(path)
-            if !pnpm_lockfile::is_local_tarball_path(path)
+            if !pnpm_local_spec::is_tarball_filename(path)
                 && (path.starts_with("///") || (path.starts_with("//") && path != directory)),
     )
 }

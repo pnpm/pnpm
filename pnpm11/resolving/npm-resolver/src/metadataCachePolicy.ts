@@ -92,10 +92,13 @@ export function mirrorWrite (
 }
 
 /**
- * Whether a mirror the registry marked uncacheable may still answer a pick.
- * Offline and prefer-offline may serve it. Every other online path has to
- * refetch it. The flag is only set on packuments read from the mirror: a
- * document fetched during this install stays reusable for the rest of it.
+ * Whether a mirror the registry marked uncacheable may answer a pick that
+ * depends on the mirror being current. Offline and prefer-offline may serve
+ * it. Online, such a pick has to refetch it. A pick that is the same whatever
+ * was published after the mirror was written, such as a pinned version the
+ * mirror holds, does not ask. The flag is only set on packuments read from
+ * the mirror: a document fetched during this install stays reusable for the
+ * rest of it.
  */
 export function mirrorMayAnswer (
   ctx: { offline?: boolean, preferOffline?: boolean },

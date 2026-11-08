@@ -671,12 +671,11 @@ fn parses_save_settings_from_yaml_and_applies() {
 }
 
 /// The registry URL is the key here, so the untrusted-environment gate has to
-/// drop the entry rather than expanding a placeholder into a request URL. The
-/// variable resolves, so a dropped entry is distinguishable from one expanded
-/// to an empty string — expanding it is how a token would reach an
-/// attacker-chosen host from a committed pnpm-workspace.yaml.
+/// apply to the key. The variable resolves, so the refusal is distinguishable
+/// from an expansion to an empty string. Expanding it is how a token would
+/// reach an attacker-chosen host from a committed pnpm-workspace.yaml.
 #[test]
-fn drops_a_registry_declaration_whose_url_has_an_env_placeholder() {
+fn refuses_a_registry_declaration_whose_url_has_an_env_placeholder() {
     struct EnvWithToken;
     impl EnvVar for EnvWithToken {
         fn var(name: &str) -> Option<String> {
@@ -690,16 +689,11 @@ registries:
   https://npm.example.com/: {serverType: artifactory}
 ";
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    settings.substitute_env_untrusted::<EnvWithToken>();
-    let entries = settings.registries.as_ref().expect("registries present");
-    assert_eq!(entries.len(), 1);
-    assert!(entries.contains_key("https://npm.example.com/"));
-    assert!(
-        !entries
-            .keys()
-            .any(|registry| registry.contains("super-secret-token")),
-        "the token must never be expanded into a registry URL: {entries:?}",
-    );
+    let error = settings.substitute_env_untrusted::<EnvWithToken>().unwrap_err();
+    let message = error.to_string();
+    eprintln!("{message}");
+    assert!(matches!(error, crate::LoadWorkspaceYamlError::RegistryEnvNotExpanded { .. }));
+    assert!(!message.contains("super-secret-token"));
 }
 
 #[test]

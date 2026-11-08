@@ -18,15 +18,34 @@ pub struct LimitedBody {
 /// let a hostile or broken server exhaust memory, so reading stops — and the
 /// body is marked truncated — once the cap is reached.
 pub async fn read_limited_body(
+    response: Response,
+    limit: usize,
+) -> Result<LimitedBody, reqwest::Error> {
+    read_capped_body(response, limit, BodyEnd::Framed).await
+}
+
+/// [`read_limited_body`] for a body whose format proves its own
+/// completeness, ending a close-delimited body at an unclean TLS close as
+/// [`read_self_delimiting_body`] does.
+pub async fn read_limited_self_delimiting_body(
+    response: Response,
+    limit: usize,
+) -> Result<LimitedBody, reqwest::Error> {
+    let end = body_end(response.headers());
+    read_capped_body(response, limit, end).await
+}
+
+async fn read_capped_body(
     mut response: Response,
     limit: usize,
+    end: BodyEnd,
 ) -> Result<LimitedBody, reqwest::Error> {
     let header_exceeds_limit = response
         .content_length()
         .is_some_and(|length| length > limit as u64);
     let mut bytes = Vec::new();
     let mut truncated = header_exceeds_limit;
-    while let Some(chunk) = response.chunk().await? {
+    while let Some(chunk) = next_chunk(&mut response, end).await? {
         let remaining = limit.saturating_sub(bytes.len());
         if chunk.len() > remaining {
             bytes.extend_from_slice(&chunk[..remaining]);
@@ -70,17 +89,36 @@ impl BodyChunks {
 pub async fn read_self_delimiting_body(
     mut response: Response,
 ) -> Result<BodyChunks, reqwest::Error> {
-    let close_delimited = !has_body_framing(response.headers());
+    let end = body_end(response.headers());
     let mut chunks = Vec::new();
-    loop {
-        match response.chunk().await {
-            Ok(Some(chunk)) => chunks.push(chunk),
-            Ok(None) => break,
-            Err(error) if close_delimited && is_unclean_tls_close(&error) => break,
-            Err(error) => return Err(error),
-        }
+    while let Some(chunk) = next_chunk(&mut response, end).await? {
+        chunks.push(chunk);
     }
     Ok(BodyChunks(chunks))
+}
+
+/// How the end of a response body is recognized.
+#[derive(Clone, Copy)]
+enum BodyEnd {
+    /// Only by the HTTP framing, so an unclean TLS close is an error.
+    Framed,
+    /// The body has no framing and the caller's parse proves completeness,
+    /// so an unclean TLS close ends it.
+    CloseDelimited,
+}
+
+fn body_end(headers: &HeaderMap) -> BodyEnd {
+    if has_body_framing(headers) { BodyEnd::Framed } else { BodyEnd::CloseDelimited }
+}
+
+async fn next_chunk(
+    response: &mut Response,
+    end: BodyEnd,
+) -> Result<Option<Bytes>, reqwest::Error> {
+    match (response.chunk().await, end) {
+        (Err(error), BodyEnd::CloseDelimited) if is_unclean_tls_close(&error) => Ok(None),
+        (result, _) => result,
+    }
 }
 
 fn has_body_framing(headers: &HeaderMap) -> bool {

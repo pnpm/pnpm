@@ -6,7 +6,7 @@ use super::{
     adapter::{Connection, Query, Row},
     batch::Batch,
     packument::{Interpretation, ORDINARY, PackumentRows, Readme, VersionRows, decompose},
-    tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows},
+    tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows, validate_packument_tags},
     to_column, to_generation,
 };
 use crate::{
@@ -148,6 +148,15 @@ impl Commit<'_> {
         Ok(())
     }
 
+    pub(super) fn delete_state(&self) -> Result<()> {
+        let (catalog, ecosystem, name) = self.key.params();
+        self.transaction.execute(
+            "DELETE FROM packages WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3",
+            params![catalog, ecosystem, name],
+        )?;
+        Ok(())
+    }
+
     /// Commit `bytes` as the package's document when the stored one, read
     /// as `stored`, is what `expected` names, recording `principal` with
     /// every tag it moves. Reports whether the document changed any row, or
@@ -208,8 +217,31 @@ fn apply_whole_document(
     current: Option<&PackageRow>,
     bytes: &[u8],
 ) -> Result<bool> {
+    if bytes.is_empty() {
+        let Some(row) = current else {
+            return Ok(false);
+        };
+        super::removed::record_oci_manifests(
+            commit.transaction,
+            commit.key,
+            commit.generation,
+            &row.state,
+            b"",
+        )?;
+        commit.delete_state()?;
+        return Ok(true);
+    }
     if current.is_some_and(|row| row.state == bytes) {
         return Ok(false);
+    }
+    if let Some(row) = current {
+        super::removed::record_oci_manifests(
+            commit.transaction,
+            commit.key,
+            commit.generation,
+            &row.state,
+            bytes,
+        )?;
     }
     commit.write_state(bytes)?;
     Ok(true)
@@ -222,6 +254,14 @@ fn apply_packument(
     principal: Option<&str>,
     records: &ReleaseRecords,
 ) -> Result<bool> {
+    validate_packument_tags(&stored.tags, &rows)?;
+    if stored.versions
+        .keys()
+        .any(|version| !rows.versions.contains_key(version))
+        && let Some(row) = &stored.row
+    {
+        super::removed::record_package(commit.transaction, commit.key, &row.state, principal)?;
+    }
     let state = serde_json::to_vec(&rows.state)?;
     let mut changed = stored.row
         .as_ref()
@@ -264,7 +304,7 @@ fn apply_versions(
         }
     }
     for version in stored.keys() {
-        delete_version(commit, version)?;
+        super::versions::delete_version(commit, version)?;
         changed = true;
     }
     Ok(changed)
@@ -342,45 +382,6 @@ pub(super) fn accepted_digest(rows: &VersionRows) -> Result<String> {
     Ok(ssri::Integrity::from(input).to_string())
 }
 
-/// Remove a version, keeping its identity so it is never accepted again.
-fn delete_version(commit: &Commit<'_>, version: &str) -> Result<()> {
-    let (catalog, ecosystem, name) = commit.key.params();
-    commit.transaction.execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
-         SELECT catalog, ecosystem, name, version, revision_key, ?5 FROM versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4
-         ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, version, to_column(commit.generation)],
-    )?;
-    for table in VERSION_TABLES {
-        commit.transaction.execute(
-            &format!(
-                "DELETE FROM {table}
-                 WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3 AND version = ?4",
-            ),
-            params![catalog, ecosystem, name, version],
-        )?;
-    }
-    Ok(())
-}
-
-/// The tables holding a version's rows, each before the tables its rows
-/// reference.
-const VERSION_TABLES: [&str; 5] =
-    ["release_records", "accepted_manifests", "readmes", "annotations", "versions"];
-
-/// The tables holding a package's rows other than its history, each before
-/// the tables its rows reference.
-const PACKAGE_TABLES: [&str; 7] = [
-    "release_records",
-    "accepted_manifests",
-    "readmes",
-    "annotations",
-    "versions",
-    "tags",
-    "packages",
-];
-
 /// Move every tag the document points elsewhere, recording each move with
 /// `principal`.
 fn apply_tags(
@@ -406,39 +407,6 @@ fn apply_tags(
         }
     }
     Ok(changed)
-}
-
-/// Remove every row of the package except its tag history and the identities
-/// of its versions, which stay removed, under a new generation.
-pub(super) fn remove_package(connection: &dyn Connection, key: &PackageKey) -> Result<bool> {
-    let (mut batch, results) =
-        Batch::begin_with(connection, &key.catalog, &[package_row_query(key)])?;
-    let exists = results
-        .into_iter()
-        .next()
-        .is_some_and(|rows| !rows.is_empty());
-    if !exists {
-        return Ok(false);
-    }
-    let (catalog, ecosystem, name) = key.params();
-    batch.transaction().execute(
-        "INSERT INTO removed_versions (catalog, ecosystem, name, version, revision_key, generation)
-         SELECT catalog, ecosystem, name, version, revision_key, ?4 FROM versions
-         WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3
-         ON CONFLICT DO NOTHING",
-        params![catalog, ecosystem, name, to_column(batch.generation())],
-    )?;
-    for table in PACKAGE_TABLES {
-        batch
-            .transaction()
-            .execute(
-                &format!("DELETE FROM {table} WHERE catalog = ?1 AND ecosystem = ?2 AND name = ?3"),
-                params![catalog, ecosystem, name],
-            )?;
-    }
-    batch.touch(key);
-    batch.finish()?;
-    Ok(true)
 }
 
 pub(super) fn parse_json<Parsed: serde::de::DeserializeOwned>(text: &str) -> Result<Parsed> {

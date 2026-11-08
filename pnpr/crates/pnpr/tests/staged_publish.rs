@@ -1,7 +1,7 @@
 //! Integration tests for the `-/stage` endpoints — the server half of
 //! `pnpm stage`. Static-mode (no upstream) to keep the tests hermetic.
 
-use crate::{npm, storage::object_key};
+use crate::npm;
 
 use axum::{
     body::{Body, to_bytes},
@@ -10,11 +10,10 @@ use axum::{
 use npm::{npm_tgz, npm_tgz_with, publish_doc, sha1_hex};
 use pnpr::{Config, MaxUsers, router};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{local_blob_path, local_package_dir};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -23,7 +22,7 @@ fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://example.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -102,7 +101,7 @@ async fn staged_publish_is_held_back_until_approved() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let tarball = &npm_tgz("staged-pkg", "1.0.0", b"staged-tarball");
     let doc = publish_doc("staged-pkg", "1.0.0", tarball);
@@ -118,7 +117,13 @@ async fn staged_publish_is_held_back_until_approved() {
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     assert!(
-        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "staged-pkg").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "staged-pkg"
+        )
+        .is_none(),
         "no package dir before approval",
     );
 
@@ -183,14 +188,8 @@ async fn staged_publish_is_held_back_until_approved() {
     assert_eq!(read.status(), StatusCode::OK);
     let packument = body_json(read.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
-    let on_disk = std::fs::read(local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "staged-pkg",
-        "staged-pkg-1.0.0.tgz",
-    ))
-    .expect("tarball promoted on approval");
+    let on_disk = crate::storage::hosted_file(&storage, "staged-pkg", "staged-pkg-1.0.0.tgz")
+        .expect("tarball promoted on approval");
     assert_eq!(on_disk, *tarball);
 
     let list = app
@@ -208,11 +207,43 @@ async fn staged_publish_is_held_back_until_approved() {
 }
 
 #[tokio::test]
+async fn staged_publish_rejects_invalid_semver_versions() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
+    let archive = npm_tgz("invalid-staged", "banana", b"invalid");
+    let body = publish_doc("invalid-staged", "banana", &archive);
+
+    let response = app
+        .clone()
+        .oneshot(json_request("POST", "/npm/-/stage/package/invalid-staged", &body, Some(&token)))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let list = app
+        .oneshot(request("GET", "/npm/-/stage?package=invalid-staged", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(body_json(list.into_body()).await["total"], 0);
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "invalid-staged",
+        )
+        .is_none(),
+    );
+}
+
+#[tokio::test]
 async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let doc = publish_doc("rejected-pkg", "1.0.0", b"bytes");
     let stage_id = stage_package(app.clone(), "rejected-pkg", &doc, &token).await;
@@ -241,7 +272,13 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     assert!(
-        !local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "rejected-pkg").exists(),
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "rejected-pkg"
+        )
+        .is_none(),
         "a rejected stage publishes nothing",
     );
 }
@@ -251,7 +288,7 @@ async fn staging_supports_scoped_packages() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let tarball = &npm_tgz("@scope/staged", "2.0.0", b"scoped-bytes");
     let doc = publish_doc("@scope/staged", "2.0.0", tarball);
@@ -282,14 +319,8 @@ async fn staging_supports_scoped_packages() {
         .await
         .unwrap();
     assert_eq!(approve.status(), StatusCode::CREATED);
-    let on_disk = std::fs::read(local_blob_path(
-        &storage,
-        "",
-        pnpr_storage::Ecosystem::Npm,
-        "@scope/staged",
-        "staged-2.0.0.tgz",
-    ))
-    .expect("scoped tarball promoted on approval");
+    let on_disk = crate::storage::hosted_file(&storage, "@scope/staged", "staged-2.0.0.tgz")
+        .expect("scoped tarball promoted on approval");
     assert_eq!(on_disk, *tarball);
 }
 
@@ -297,7 +328,7 @@ async fn staging_supports_scoped_packages() {
 async fn the_package_filter_narrows_the_listing() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     stage_package(app.clone(), "filter-a", &publish_doc("filter-a", "1.0.0", b"a"), &token).await;
     stage_package(app.clone(), "filter-b", &publish_doc("filter-b", "1.0.0", b"b"), &token).await;
@@ -323,7 +354,7 @@ async fn the_package_filter_narrows_the_listing() {
 async fn pagination_slices_the_listing() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     for index in 0..3 {
         let name = format!("paged-{index}");
@@ -366,7 +397,7 @@ async fn staging_requires_the_publish_right() {
 async fn approving_requires_the_publish_right() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let doc = publish_doc("guarded-pkg", "1.0.0", b"bytes");
     let stage_id = stage_package(app.clone(), "guarded-pkg", &doc, &token).await;
@@ -398,7 +429,7 @@ async fn approving_requires_the_publish_right() {
 async fn approving_a_version_published_in_the_meantime_conflicts() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let doc = publish_doc("conflicted-pkg", "1.0.0", b"staged-bytes");
     let stage_id = stage_package(app.clone(), "conflicted-pkg", &doc, &token).await;
@@ -441,7 +472,7 @@ async fn approving_a_version_published_in_the_meantime_conflicts() {
 async fn a_bogus_stage_id_is_not_found_or_rejected() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
 
     let unknown = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
     let view = app
@@ -459,11 +490,12 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
     assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
 }
 
-/// An approval whose tarball key another writer took commits nothing, and the
-/// stage stays listed for a rejection.
+/// An approval refused because another writer published the version while
+/// the stage waited commits nothing of its own, and the stage stays listed
+/// for a rejection.
 #[tokio::test]
-async fn an_approval_that_loses_its_tarball_key_leaves_the_stage_to_reject() {
-    use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
+async fn an_approval_that_loses_its_version_leaves_the_stage_to_reject() {
+    use object_store::{ObjectStore, memory::InMemory};
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
 
@@ -473,23 +505,22 @@ async fn an_approval_that_loses_its_tarball_key_leaves_the_stage_to_reject() {
     config.storage.hosted_backend =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
     let app = router(config);
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the losing tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    // Another writer takes the tarball key while the stage waits for approval.
-    store
-        .put(
-            &ObjectPath::from(object_key(&local_blob_path(
-                Path::new(""),
-                "",
-                pnpr_storage::Ecosystem::Npm,
-                "staged-pkg",
-                "staged-pkg-1.0.0.tgz",
-            ))),
-            axum::body::Bytes::from_static(b"the winning tarball").into(),
-        )
+    // Another writer publishes the version while the stage waits for approval.
+    let winner = publish_doc("staged-pkg", "1.0.0", b"the winning tarball");
+    let published = app
+        .clone()
+        .oneshot(request(
+            "PUT",
+            "/npm/staged-pkg",
+            Body::from(serde_json::to_vec(&winner).unwrap()),
+            Some(&token),
+        ))
         .await
         .unwrap();
+    assert_eq!(published.status(), StatusCode::CREATED);
 
     let approve = app
         .clone()
@@ -501,13 +532,20 @@ async fn an_approval_that_loses_its_tarball_key_leaves_the_stage_to_reject() {
         ))
         .await
         .unwrap();
-    assert_eq!(approve.status(), StatusCode::CONFLICT);
-    let packument = app
+    assert!(approve.status().is_client_error(), "{}", approve.status());
+    let tarball = app
         .clone()
-        .oneshot(request("GET", "/npm/staged-pkg", Body::empty(), Some(&token)))
+        .oneshot(request(
+            "GET",
+            "/npm/staged-pkg/-/staged-pkg-1.0.0.tgz",
+            Body::empty(),
+            Some(&token),
+        ))
         .await
         .unwrap();
-    assert_eq!(packument.status(), StatusCode::NOT_FOUND);
+    assert_eq!(tarball.status(), StatusCode::OK);
+    let served = body_bytes(tarball.into_body()).await;
+    assert_eq!(served, npm_tgz("staged-pkg", "1.0.0", b"the winning tarball"));
 
     let reject = app
         .clone()
@@ -528,27 +566,30 @@ async fn an_approval_that_loses_its_tarball_key_leaves_the_stage_to_reject() {
 }
 
 /// Rewrite the stored record of `stage_id` as if another replica had claimed
-/// it for approval `age` ago. The record lives in the hosted store, which is
-/// the one thing replicas of a stateless deployment share.
-fn claim_stage_on_disk(storage: &std::path::Path, stage_id: &str, age: chrono::Duration) {
+/// it for approval `age` ago.
+async fn claim_stage(storage: &std::path::Path, stage_id: &str, age: chrono::Duration) {
     let since = chrono::Utc::now() - age;
-    write_claim_on_disk(
-        storage,
-        stage_id,
-        &since.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-    );
+    write_claim(storage, stage_id, &since.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+        .await;
 }
 
 /// Stamp `approvingSince` verbatim, for the values a well-behaved replica
 /// does not write.
-fn write_claim_on_disk(storage: &std::path::Path, stage_id: &str, since: &str) {
-    let path = storage
-        .join(".staged")
-        .join(format!("{stage_id}.json"));
-    let mut record: Value =
-        serde_json::from_slice(&std::fs::read(&path).expect("staged record on disk")).unwrap();
+async fn write_claim(storage: &std::path::Path, stage_id: &str, since: &str) {
+    let config = static_config(storage.to_path_buf());
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    let stored = storage
+        .read_staged_meta(stage_id)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut record: Value = serde_json::from_slice(&stored.bytes).unwrap();
     record["approvingSince"] = json!(since);
-    std::fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+    storage
+        .replace_staged_meta_if_current(stage_id, &stored, &serde_json::to_vec(&record).unwrap())
+        .await
+        .unwrap()
+        .unwrap();
 }
 
 /// Replicas time their claims by their own clocks. A claim from a replica
@@ -558,10 +599,10 @@ fn write_claim_on_disk(storage: &std::path::Path, stage_id: &str, since: &str) {
 async fn a_claim_from_a_replica_whose_clock_runs_ahead_holds() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    claim_stage_on_disk(tmp.path(), &stage_id, -chrono::Duration::minutes(2));
+    claim_stage(tmp.path(), &stage_id, -chrono::Duration::minutes(2)).await;
 
     let approve = app
         .oneshot(request(
@@ -580,10 +621,10 @@ async fn a_claim_from_a_replica_whose_clock_runs_ahead_holds() {
 async fn a_claim_pnpr_cannot_read_does_not_hold_the_stage() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    write_claim_on_disk(tmp.path(), &stage_id, "whenever");
+    write_claim(tmp.path(), &stage_id, "whenever").await;
 
     let approve = app
         .oneshot(request(
@@ -604,10 +645,10 @@ async fn a_claim_pnpr_cannot_read_does_not_hold_the_stage() {
 async fn an_approval_is_refused_while_another_holds_the_record() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    claim_stage_on_disk(tmp.path(), &stage_id, chrono::Duration::seconds(3));
+    claim_stage(tmp.path(), &stage_id, chrono::Duration::seconds(3)).await;
 
     let approve = app
         .clone()
@@ -644,10 +685,10 @@ async fn an_approval_is_refused_while_another_holds_the_record() {
 async fn a_claim_left_behind_by_a_dead_replica_expires() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
-    claim_stage_on_disk(tmp.path(), &stage_id, chrono::Duration::hours(1));
+    claim_stage(tmp.path(), &stage_id, chrono::Duration::hours(1)).await;
 
     let approve = app
         .clone()
@@ -674,7 +715,7 @@ async fn a_claim_left_behind_by_a_dead_replica_expires() {
 async fn a_failed_approval_releases_its_claim() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
     // Publishing the staged version directly makes every approval of the
@@ -710,7 +751,7 @@ async fn a_failed_approval_releases_its_claim() {
 async fn approving_a_tolerated_difference_sends_its_notice() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
     let tarball = npm_tgz_with(&json!({ "name": "gyp-pkg", "version": "1.0.0" }), b"");
     let mut doc = publish_doc("gyp-pkg", "1.0.0", &tarball);
     doc["versions"]["1.0.0"]["scripts"] = json!({ "install": "node-gyp rebuild" });
@@ -737,4 +778,25 @@ async fn approving_a_tolerated_difference_sends_its_notice() {
             .contains("gyp-pkg@1.0.0"),
         "{notice:?}",
     );
+}
+
+#[tokio::test]
+async fn a_failed_metadata_write_removes_the_staged_body_without_the_database() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "publisher", "secret123").await;
+    let connection =
+        rusqlite::Connection::open(tmp.path().join(".metadata/metadata.sqlite")).unwrap();
+    connection.execute_batch("DROP TABLE staged_metadata").unwrap();
+    let doc = publish_doc("example-package", "1.0.0", b"archive");
+    let response = app
+        .oneshot(json_request("POST", "/npm/-/stage/package/example-package", &doc, Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let files = std::fs::read_dir(tmp.path().join(".staged"))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert!(files.is_empty(), "failed metadata left staged bodies: {files:?}");
 }

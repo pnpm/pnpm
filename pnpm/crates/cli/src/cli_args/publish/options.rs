@@ -16,6 +16,15 @@ impl PublishArgs {
         if stage {
             self.publish_options(config, None, stage).validate()?;
         }
+        if self.flags.variants.no_variants
+            && !self.flags.variants.variant_integrity.is_empty()
+        {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_INVALID_VARIANT_FLAGS",
+                help = "--no-variants publishes only the archive packed here that targets any; --variant-integrity publishes the archives other jobs uploaded. Pass one of them.",
+                "--no-variants and --variant-integrity cannot be used together",
+            ));
+        }
         if self.flags.batch && !recursive {
             return Err(miette::miette!(
                 code = "ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE",

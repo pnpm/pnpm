@@ -7,7 +7,7 @@ import path from 'node:path'
 import { expect, jest, test } from '@jest/globals'
 import { logger } from '@pnpm/logger'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { barePathIsUnambiguous, isLocalFilesystemSpecifier, linkedDirectoryPath, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
+import { barePathIsUnambiguous, isLocalFilesystemSpecifier, linkedDirectoryPath, localSpecPath, recordedLocalPath, resolveFromLocalPath, resolveFromLocalScheme } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
@@ -498,4 +498,10 @@ test('linkedDirectoryPath() returns undefined for a specifier not saved as link:
   expect(linkedDirectoryPath('is-positive', projectDir)).toBeUndefined()
   expect(linkedDirectoryPath('gh:@scope/pkg', projectDir)).toBeUndefined()
   expect(linkedDirectoryPath('user/repo', projectDir)).toBeUndefined()
+})
+
+test('localSpecPath() gives a rooted spec the drive of the project', () => {
+  const projectDir = tempDir(false)
+  expect(localSpecPath('file:/vendor', projectDir)).toBe(path.resolve(projectDir, '/vendor'))
+  expect(localSpecPath('file:/vendor', projectDir)).toBe(recordedLocalPath('/vendor', projectDir))
 })

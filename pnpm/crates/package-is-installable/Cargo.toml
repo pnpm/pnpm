@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-detect-libc = { workspace = true }
+pnpm-platform-variants = { workspace = true }
 pnpm-semver-include-prerelease = { workspace = true }
 
 derive_more = { workspace = true }

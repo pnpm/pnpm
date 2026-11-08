@@ -1,6 +1,8 @@
 use super::{DirectByImporter, PeerSuffixes, dedupe_peer_dependents, deduplicate_dep_paths};
 use crate::{
+    PeerDependentsDedupe,
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+    peer_dependents_dedupe::{OptionalPeerScope, UnboundOptionalPeers},
     resolve_peers::split_peer_suffix_segments,
 };
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
@@ -121,10 +123,16 @@ fn build_graph() -> DependenciesGraph {
 fn collapse_target_is_independent_of_variant_order() {
     let graph = build_graph();
 
-    let (baz_first, _) =
-        deduplicate_dep_paths(&[vec![dp(SUBSET), dp(BAZ_VARIANT), dp(QUX_VARIANT)]], &graph);
-    let (qux_first, _) =
-        deduplicate_dep_paths(&[vec![dp(SUBSET), dp(QUX_VARIANT), dp(BAZ_VARIANT)]], &graph);
+    let (baz_first, _) = deduplicate_dep_paths(
+        &[vec![dp(SUBSET), dp(BAZ_VARIANT), dp(QUX_VARIANT)]],
+        &graph,
+        OptionalPeerScope::Workspace.into(),
+    );
+    let (qux_first, _) = deduplicate_dep_paths(
+        &[vec![dp(SUBSET), dp(QUX_VARIANT), dp(BAZ_VARIANT)]],
+        &graph,
+        OptionalPeerScope::Workspace.into(),
+    );
 
     // `foo(bar)(qux)` wins because it is the lexically-greater of the two
     // equal-count variants and the sorter pops the greatest first.
@@ -147,7 +155,13 @@ fn rewrites_importer_direct_dep_and_prunes_orphan() {
     );
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project-subset"]["foo"], dp(QUX_VARIANT));
     assert_eq!(direct["project-baz"]["foo"], dp(BAZ_VARIANT));
@@ -201,7 +215,13 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     direct.insert("project4".to_string(), BTreeMap::from([("foo".to_string(), dp(bar2_baz))]));
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project1"]["foo"], direct["project2"]["foo"]);
     assert_ne!(direct["project1"]["foo"], direct["project3"]["foo"]);
@@ -251,7 +271,13 @@ fn a_consumers_child_edge_follows_the_collapse() {
     );
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project-subset"]["foo"], dp(larger));
     assert_eq!(direct["project-larger"]["foo"], dp(larger));
@@ -280,7 +306,13 @@ fn incompatible_variants_do_not_collapse() {
     );
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project-baz"]["foo"], dp(BAZ_VARIANT));
     assert_eq!(direct["project-qux"]["foo"], dp(QUX_VARIANT));
@@ -333,7 +365,13 @@ fn parent_collapses_when_its_child_carries_a_peer_suffix_the_other_lacks() {
     }
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project-opt-peer"]["parent"], dp(PARENT_WITH_OPT_PEER));
     assert_eq!(direct["project-other"]["parent"], dp(PARENT_WITH_OTHER));
@@ -366,7 +404,10 @@ fn deep_divergent_chain_does_not_overflow_the_stack() {
     let larger = dp("pkg0@1.0.0(peer@1.0.0)");
     let smaller = dp("pkg0@1.0.0");
     assert!(crate::dep_path_compatibility::is_compatible_and_has_more_deps(
-        &graph, &larger, &smaller
+        &graph,
+        &larger,
+        &smaller,
+        OptionalPeerScope::Workspace.into(),
     ));
 }
 
@@ -406,7 +447,13 @@ fn does_not_collapse_peer_dependents_across_different_peer_versions() {
     );
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project1"]["host"], dp(host1));
     assert_eq!(direct["project2"]["host"], dp(host2));
@@ -449,7 +496,13 @@ fn a_twin_kept_by_the_tie_break_is_renamed_after_the_surviving_peer() {
     );
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project-a"]["plugin"], dp(plugin_core_sc));
     assert_eq!(direct["project-b"]["plugin"], dp(plugin_core_sc));
@@ -504,6 +557,8 @@ fn a_hashed_suffix_is_hashed_again_from_the_renamed_peers() {
         &mut graph,
         &mut direct,
         &PeerSuffixes { peer_ids: &peer_ids, max_length },
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
     );
 
     assert_ne!(consumer, renamed_consumer);
@@ -542,6 +597,8 @@ fn a_name_at_version_peer_is_not_renamed() {
         &mut graph,
         &mut direct,
         &PeerSuffixes { peer_ids: &peer_ids, max_length: 1000 },
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
     );
 
     assert_eq!(direct["project-consumer"]["consumer"], dp(consumer));
@@ -601,7 +658,13 @@ fn a_consumer_renamed_onto_an_existing_key_merges_its_children() {
     );
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project-a"]["consumer"], dp(via_larger));
     assert_eq!(direct["project-b"]["consumer"], dp(via_larger));
@@ -649,7 +712,13 @@ fn a_package_id_ending_in_parentheses_is_not_read_as_peers() {
     );
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project"]["foo-subset"], dp(larger));
     assert_eq!(direct["project"]["tarball"], dp(tarball));
@@ -721,7 +790,13 @@ fn a_rename_merge_picks_the_child_whose_peers_the_consumer_provides() {
     );
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project-a"]["consumer"], dp(via_larger));
     let consumer = &graph[&dp(via_larger)];
@@ -798,7 +873,13 @@ fn a_parent_merge_sees_the_transitive_peers_of_a_merged_child() {
     direct.insert("project-c".to_string(), BTreeMap::from([("c".to_string(), dp(c_new))]));
 
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
 
     assert_eq!(direct["project-a"]["p"], dp(p_new));
     assert_eq!(graph[&dp(p_new)].edges.children["c"], dp(c_new));
@@ -864,7 +945,13 @@ fn check_cycle_deduplication(size: usize, count: usize) {
             .insert(root.clone(), dp(&format!("{root}@1.0.0(peer@1.0.0)")));
     }
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
     assert_eq!(direct["bare"]["alpha"], direct["bound"]["alpha"]);
     assert_eq!(direct["bare"], direct["bound"]);
     assert_eq!(graph.len(), size * count + 1);
@@ -888,8 +975,59 @@ fn a_parent_of_a_cycle_waits_for_the_cyclic_variants_to_settle() {
         ("bound".into(), BTreeMap::from([("ancestor".into(), dp(bound))])),
     ]);
     let peer_ids = recorded_peer_ids(&graph);
-    dedupe_peer_dependents(&mut graph, &mut direct, &suffixes(&peer_ids));
+    dedupe_peer_dependents(
+        &mut graph,
+        &mut direct,
+        &suffixes(&peer_ids),
+        PeerDependentsDedupe::On,
+        UnboundOptionalPeers::default(),
+    );
     let parent = &direct["bare"]["ancestor"];
     assert_eq!(graph[parent].edges.children["node-0"], direct["bare"]["node-0"]);
     assert_eq!(direct["bare"]["node-0"], dp("node-0@1.0.0(peer@2.0.0)"));
+}
+
+/// <https://github.com/pnpm/pnpm/issues/17781>
+#[test]
+fn a_variant_absorbing_a_protected_one_keeps_its_protection_in_later_rounds() {
+    let protected = "a@1.0.0";
+    let unprotected = "a@1.0.0(e@1.0.0)";
+    let resolves_peer = "a@1.0.0(e@1.0.0)(p@1.0.0)";
+    let mut graph = DependenciesGraph::default();
+    for leaf in ["p@1.0.0", "q@1.0.0", "e@1.0.0", "x@1.0.0"] {
+        graph.insert(dp(leaf), make_node(leaf, leaf, &[], &[]));
+    }
+    graph.insert(
+        dp("x@1.0.0(q@1.0.0)"),
+        make_node("x@1.0.0", "x@1.0.0(q@1.0.0)", &[("q", "q@1.0.0")], &["q"]),
+    );
+    graph.insert(dp(protected), make_node("a@1.0.0", protected, &[("x", "x@1.0.0")], &[]));
+    graph.insert(
+        dp(unprotected),
+        make_node("a@1.0.0", unprotected, &[("x", "x@1.0.0"), ("e", "e@1.0.0")], &["e"]),
+    );
+    graph.insert(
+        dp(resolves_peer),
+        make_node(
+            "a@1.0.0",
+            resolves_peer,
+            &[("x", "x@1.0.0(q@1.0.0)"), ("e", "e@1.0.0"), ("p", "p@1.0.0")],
+            &["e", "p"],
+        ),
+    );
+    let mut unbound = UnboundOptionalPeers::default();
+    unbound.insert(dp(protected), HashSet::from_iter(["p".to_string()]));
+
+    let merged = super::deduplicate_all(
+        &mut graph,
+        &[
+            vec![dp(protected), dp(unprotected), dp(resolves_peer)],
+            vec![dp("x@1.0.0"), dp("x@1.0.0(q@1.0.0)")],
+        ],
+        OptionalPeerScope::Workspace,
+        &mut unbound,
+    );
+
+    assert_eq!(merged.get(&dp(protected)), Some(&dp(unprotected)));
+    assert_eq!(merged.get(&dp(unprotected)), None);
 }

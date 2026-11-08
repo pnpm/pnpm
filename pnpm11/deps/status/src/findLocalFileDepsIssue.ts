@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
@@ -71,10 +73,35 @@ export function findRecordedLocalDependencyIssue (workspaceState: WorkspaceState
     return 'The local dependencies of a lockfile are not recorded'
   }
   for (const local of Object.values(validation.localDependencies ?? {})) {
-    const localPath = local.tarballs?.[0] ?? local.directories?.find((dir) => !workspaceProjectDirs.has(dir))
+    const localPath = local.tarballs?.[0] ?? findLocalDirectory(local, workspaceProjectDirs)
     if (localPath != null) return `The local dependency at "${localPath}" may have changed`
   }
   return undefined
+}
+
+/**
+ * Whether a gate has to check the projects the last validation proved
+ * installed again. A gate that lets local file dependencies through still has
+ * to see a local directory dependency's manifest change, which changes what
+ * the lockfile records for it. No validation records that manifest, so the
+ * gate checks every project again when the last install recorded a local
+ * directory dependency that is not a workspace project.
+ */
+export function proofMissesLocalDirectory (opts: CheckDepsStatusOptions, workspaceState: WorkspaceState): boolean {
+  if (opts.treatLocalFileDepsAsOutdated === true) return false
+  const projectDirs = workspaceProjectDirs(opts)
+  return Object.values(workspaceState.validation?.localDependencies ?? {})
+    .some((local) => findLocalDirectory(local, projectDirs) != null)
+}
+
+function findLocalDirectory (local: { directories?: string[] }, workspaceProjectDirs: Set<string>): string | undefined {
+  return local.directories?.find((dir) => !workspaceProjectDirs.has(dir))
+}
+
+export function workspaceProjectDirs ({ allProjects, rootProjectManifestDir }: CheckDepsStatusOptions): Set<string> {
+  const dirs = new Set((allProjects ?? []).map(({ rootDir }) => path.resolve(rootDir)))
+  if (rootProjectManifestDir != null) dirs.add(path.resolve(rootProjectManifestDir))
+  return dirs
 }
 
 function listManifestsToScan ({ allProjects, rootProjectManifest, rootProjectManifestDir }: CheckDepsStatusOptions): ProjectManifest[] {

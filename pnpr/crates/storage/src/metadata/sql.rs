@@ -13,8 +13,7 @@
 //! optional embedded replica.
 //!
 //! Every operation runs on the blocking pool. A write runs in one
-//! transaction that holds the database's write lock from its start, so
-//! commits are serialized and a compare-and-set reads the generation it
+//! serializable transaction. A compare-and-set reads the generation it
 //! replaces inside its own transaction. A write reads everything it compares
 //! with in one [`adapter::Connection::query_all`] as it begins, and decides
 //! in Rust, so a remote database answers it in one round trip and takes the
@@ -27,35 +26,43 @@
 //! the catalog's generation: a replica found behind is synced, and read from
 //! the primary when the sync does not bring it far enough.
 
-pub(crate) mod adapter;
+#[cfg(feature = "backend-libsql")]
+pub(crate) use pnpr_sql::libsql;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+pub(crate) use pnpr_sql::network;
+pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 
 pub use cache::RenderStats;
+pub use mappings::{Mapping, Unmapping};
+pub(crate) use records::RecordKey;
+pub(crate) use staged::{StagedEntry, StagedId};
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
 
-#[macro_use]
-mod params;
 mod batch;
+mod blobs;
 mod cache;
 mod commit;
-#[cfg(feature = "backend-libsql")]
-mod libsql;
+mod fence;
 mod log;
+mod mappings;
 mod notes;
 mod packument;
 mod publications;
 mod publish;
+mod reclaims;
+mod records;
+mod removed;
 mod render;
-mod schema;
-mod sqlite;
+mod staged;
 mod tags;
 mod transactions;
 mod versions;
 mod view;
 
 use super::{
-    ArtifactMember, BatchDocument, Generation, Publication, PublicationCommit, PublicationRequest,
-    PublishNotes, RecordedOutcome,
+    ArtifactMember, BatchDocument, BlobFence, Generation, Publication, PublicationCommit,
+    PublicationRequest, PublishNotes, RecordedOutcome,
 };
 use crate::{HostedDocumentVersion, transparency_log::LogId};
 use adapter::{Adapter, Connection};
@@ -131,9 +138,18 @@ impl Expected {
 }
 
 impl SqlMetadata {
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    pub(crate) fn open_network(settings: &pnpr_config::SqlBackendSettings) -> Result<Self> {
+        Ok(Self::with_adapter(network::adapter(settings)?, format!("{settings:?}")))
+    }
+
     /// The version of the schema this pnpr creates and reads. A database
-    /// that holds another one is refused.
-    pub const SCHEMA_VERSION: &'static str = schema::SCHEMA_VERSION;
+    /// that holds a newer or pre-1.0 schema is refused.
+    pub const SCHEMA_VERSION: i64 = schema::SCHEMA_VERSION;
+
+    /// The statements that create the schema, so a cache of databases can
+    /// tell a layout that changed under one version apart.
+    pub const SCHEMA_TABLES: &'static str = schema::TABLES;
 
     /// Open the `SQLite` database at `path`, creating it and its directory if
     /// needed.
@@ -169,9 +185,10 @@ impl SqlMetadata {
         }
     }
 
-    /// Create the schema in an empty database, and refuse one that holds
-    /// another schema. pnpr does not migrate the schema before 1.0: the
-    /// operator wipes pnpr's metadata tables, and pnpr creates them afresh.
+    /// Create the schema in an empty database, and apply pending numbered
+    /// migration steps to one at an older version. Refuse a database from a
+    /// newer release, and a pre-1.0 database without `schema_migrations`;
+    /// the operator wipes pnpr's tables, and pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
         if self.schema.get().is_some() {
             return Ok(());
@@ -180,23 +197,8 @@ impl SqlMetadata {
         if self.schema.get().is_some() {
             return Ok(());
         }
-        let mut refused = None;
-        self.retry_conflicts(|| {
-            self.adapter.write(&mut |connection| {
-                refused = schema::prepare(connection)?;
-                Ok(())
-            })
-        })?;
-        if let Some(stored) = refused {
-            return Err(RegistryError::Internal {
-                reason: format!(
-                    "the metadata schema changed: the metadata database {} holds {stored}, and \
-                     this pnpr expects schema version {}. pnpr does not migrate its metadata \
-                     before 1.0; wipe pnpr's metadata tables, and pnpr creates them afresh",
-                    self.name,
-                    schema::SCHEMA_VERSION,
-                ),
-            });
+        if let Some(stored) = schema::prepare_adapter_with_steps(&*self.adapter, schema::STEPS)? {
+            return Err(schema::refused_error(&self.name, &stored));
         }
         let _ = self.schema.set(());
         // A replica bootstrapped before the schema existed lacks its tables.
@@ -254,6 +256,25 @@ impl SqlMetadata {
         notes: PublishNotes,
         request: Option<PublicationRequest>,
     ) -> Result<PublicationCommit> {
+        let fence = BlobFence::default();
+        self.commit_fenced_publication(catalog, documents, artifacts, notes, request, fence).await
+    }
+
+    /// [`Self::commit_publication`], mapping every file of `fence` to its
+    /// blob, and refused with [`RegistryError::ArchiveReclaimed`] unless
+    /// each blob's incarnation is live or is the next one, which the commit
+    /// creates (see [`crate::metadata::BlobRow`]). The check is read with the
+    /// commit's other reads, in the same round trip, and the rows are written
+    /// with the commit.
+    pub async fn commit_fenced_publication(
+        self: &Arc<Self>,
+        catalog: &str,
+        documents: Vec<BatchDocument>,
+        artifacts: Vec<ArtifactMember>,
+        notes: PublishNotes,
+        request: Option<PublicationRequest>,
+        fence: BlobFence,
+    ) -> Result<PublicationCommit> {
         let catalog = catalog.to_string();
         self.write(move |connection| {
             let submission = publish::Submission {
@@ -262,6 +283,7 @@ impl SqlMetadata {
                 artifacts: &artifacts,
                 notes: &notes,
                 request: request.as_ref(),
+                fence: &fence,
             };
             publish::commit_publication(connection, &submission)
         })
@@ -269,7 +291,7 @@ impl SqlMetadata {
     }
 
     /// The retained outcome of `request` in `catalog`, when an identical
-    /// request committed there.
+    /// request committed there and none of its npm versions was unpublished.
     pub async fn recorded_outcome(
         self: &Arc<Self>,
         catalog: &str,
@@ -277,19 +299,7 @@ impl SqlMetadata {
     ) -> Result<Option<RecordedOutcome>> {
         let (catalog, request) = (catalog.to_string(), request.clone());
         self.read(catalog.clone(), Freshness::Current, move |connection, _| {
-            let PublicationRequest {
-                principal,
-                idempotency_key,
-                request_digest,
-                ..
-            } = &request;
-            publications::recorded_outcome(
-                connection,
-                &catalog,
-                principal,
-                idempotency_key,
-                request_digest,
-            )
+            publications::recorded_outcome(connection, &catalog, &request)
         })
         .await
     }

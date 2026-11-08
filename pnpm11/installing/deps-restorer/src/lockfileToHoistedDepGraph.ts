@@ -15,7 +15,7 @@ import type {
 import type { PatchGroupRecord } from '@pnpm/patching.config'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, ProjectId, RegistryContext, SupportedArchitectures } from '@pnpm/types'
-import { pathAbsolute } from 'path-absolute'
+import { importerModulesDir, isStrictlyInside } from '@pnpm/workspace.state'
 
 import { pickResolvableImporterIds } from './currentLockfileImporters.js'
 import { fetchDeps, type FetchDepsOptions, type SkipFetchingOption } from './fetchHoistedDeps.js'
@@ -71,9 +71,15 @@ export async function lockfileToHoistedDepGraph (
 ): Promise<LockfileToDepGraphResult> {
   let prevGraph!: DependenciesGraph
   if (currentLockfile?.packages != null) {
+    const prevImporterIds = Array.from(new Set([
+      ...opts.importerIds,
+      ...(Object.keys(currentLockfile.importers) as ProjectId[]).filter((importerId) =>
+        isSafeImporterId(importerId, opts.lockfileDir)
+      ),
+    ]))
     prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
       ...opts,
-      importerIds: pickResolvableImporterIds(currentLockfile, opts.importerIds),
+      importerIds: pickResolvableImporterIds(currentLockfile, prevImporterIds),
       force: true,
       includeIncompatiblePackages: true,
       skipFetching: true,
@@ -88,13 +94,19 @@ export async function lockfileToHoistedDepGraph (
   }
 }
 
+function isSafeImporterId (importerId: string, lockfileDir: string): boolean {
+  if (importerId === '.') return true
+  if (path.isAbsolute(importerId)) return false
+  return isStrictlyInside(path.resolve(lockfileDir, importerId), lockfileDir)
+}
+
 async function _lockfileToHoistedDepGraph (
   lockfile: LockfileObject,
   opts: LockfileToHoistedDepGraphOptions & SkipFetchingOption
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const { tree, rootImporterId } = hoistImporters(lockfile, opts)
   const graph: DependenciesGraph = {}
-  const modulesDir = pathAbsolute(opts.modulesDir ?? 'node_modules', opts.lockfileDir)
+  const modulesDir = importerModulesDir(opts.lockfileDir, opts)
   const fetchDepsOpts: FetchDepsOptions = {
     ...opts,
     lockfile,
@@ -112,6 +124,7 @@ async function _lockfileToHoistedDepGraph (
     },
     fetchDepsOpts,
     hierarchy,
+    modulesDir: opts.modulesDir,
     symlinkedDirectDependenciesByImporterId: { '.': {} },
   }
   if (rootImporterId != null) {
@@ -171,6 +184,7 @@ interface ProjectDepsContext {
   directDependenciesByImporterId: DirectDependenciesByImporterId
   fetchDepsOpts: FetchDepsOptions
   hierarchy: Record<string, DepHierarchy>
+  modulesDir: string | undefined
   symlinkedDirectDependenciesByImporterId: DirectDependenciesByImporterId
 }
 
@@ -190,7 +204,7 @@ async function addWorkspaceProjectDeps (ctx: ProjectDepsContext, rootDep: Hoiste
   const { fetchDepsOpts } = ctx
   const importerId = reference.replace('workspace:', '') as ProjectId
   const projectDir = path.join(fetchDepsOpts.lockfileDir, importerId)
-  const modulesDir = path.join(projectDir, 'node_modules')
+  const modulesDir = importerModulesDir(projectDir, { lockfileDir: fetchDepsOpts.lockfileDir, modulesDir: ctx.modulesDir })
   const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
   const importer = fetchDepsOpts.lockfile.importers[importerId]
   if (importerHasDeps(importer) || rootDep.dependencies.size > 0) {

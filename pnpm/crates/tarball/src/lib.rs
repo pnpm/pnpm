@@ -26,6 +26,10 @@ pub use fetch_for_resolution::{
     TarballResolutionFetch,
 };
 pub use local_tarball::*;
+pub(crate) use mem_cache::{
+    CacheClaimGuard, CacheSlotClaim, claim_cache_entry, wait_for_cached_tarball,
+};
+pub use mem_cache::{CacheValue, CachedTarball, MemCache, alias_available_cache_entry};
 pub use pnpm_network::RetryOpts;
 pub use prefetch::*;
 pub use zip_archive::*;
@@ -44,6 +48,7 @@ mod extraction_task;
 mod fetch_for_resolution;
 mod ingestion;
 mod local_tarball;
+mod mem_cache;
 mod prefetch;
 mod zip_archive;
 
@@ -56,14 +61,13 @@ use std::{
     time::{Duration, Instant, UNIX_EPOCH},
 };
 
-use dashmap::{DashMap, DashSet};
-use pipe_trait::Pipe;
+use dashmap::DashSet;
 use pnpm_network::AuthHeaders;
 use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use ssri::Integrity;
-use tokio::sync::{Notify, RwLock, Semaphore};
+use tokio::sync::{RwLock, Semaphore};
 
 /// Ceiling on a single eager buffer reservation sized from untrusted
 /// archive metadata — `dist.unpackedSize` in registry metadata and an
@@ -171,72 +175,6 @@ fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
 /// per fetch.
 pub type IgnoreEntryFilter = dyn Fn(&str) -> bool + Send + Sync;
 
-/// A settled mem-cache slot: the extracted CAS map, the bundled
-/// manifest, and the build-trigger verdict the extraction recorded. The
-/// install pass reads the map and verdict; a resolve-time archive read
-/// parks on the same slot for the manifest.
-#[derive(Debug, Clone)]
-pub struct CachedTarball {
-    pub files: Arc<pnpm_fs::CasPaths>,
-    pub manifest: Option<serde_json::Value>,
-    pub requires_build: Option<bool>,
-    pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
-}
-
-impl CachedTarball {
-    /// A settled slot that carries only the CAS map, for callers that
-    /// reconstructed the files without a bundled manifest.
-    #[must_use]
-    pub fn from_files(files: pnpm_fs::CasPaths) -> Arc<Self> {
-        Self::from_files_arc(Arc::new(files))
-    }
-
-    #[must_use]
-    pub fn from_files_arc(files: Arc<pnpm_fs::CasPaths>) -> Arc<Self> {
-        Arc::new(Self { files, manifest: None, requires_build: None, bins: None })
-    }
-
-    /// Whether the extracted archive carries build triggers. Uses the verdict
-    /// recorded during extraction or store-index load when available, falling
-    /// back to the in-memory bundled manifest or the CAS file map.
-    #[must_use]
-    pub fn requires_build(&self) -> bool {
-        self.requires_build.unwrap_or_else(|| {
-            if let Some(manifest) = self.manifest.as_ref() {
-                let mut triggers = pnpm_package_manifest::files_build_triggers(self.files.keys());
-                triggers.read_manifest(manifest);
-                triggers.requires_build()
-            } else {
-                pnpm_package_manifest::requires_build_from_cas_paths(&self.files)
-            }
-        })
-    }
-}
-
-/// Value of the cache.
-#[derive(Debug, Clone)]
-pub enum CacheValue {
-    /// The package is being processed.
-    InProgress(Arc<Notify>),
-    /// The package is saved.
-    Available(Arc<CachedTarball>),
-    /// The owning fetch failed; concurrent waiters wake up to this
-    /// instead of `Available` and surface a sibling-fetch-failed
-    /// error rather than blocking on the `Notify` forever. The
-    /// originating [`TarballError`] cannot be cloned past the owner
-    /// (it's wrapped in `reqwest::Error` / IO chains that aren't
-    /// `Clone`), so waiters return their own variant — see
-    /// [`TarballError::SiblingFetchFailed`].
-    Failed,
-}
-
-/// Internal in-memory cache of tarballs.
-///
-/// Ordinary package entries retain their tarball URL key. Revision-addressed
-/// fetches and projections that produce different file sets add a discriminator
-/// so incompatible network policies or archive views never share a result.
-pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
-
 /// Install-scoped set of store-index cache keys
 /// (`store_index_key(integrity, pkg_id)`) whose package status
 /// (`fetched` or `found_in_store`) has already been emitted during this
@@ -272,6 +210,14 @@ pub struct FetchedTarball {
     pub manifest: Option<serde_json::Value>,
     pub requires_build: bool,
     pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
+}
+
+/// Output of [`IngestTarballToStore::ingest_local_tarball`], pairing the
+/// extracted archive with the `sha1` integrity of its on-disk bytes.
+#[derive(Debug, Clone)]
+pub struct FetchedLocalTarball {
+    pub tarball: FetchedTarball,
+    pub sha1_integrity: Integrity,
 }
 
 impl<'a> IngestTarballToStore<'a> {
@@ -345,18 +291,23 @@ impl<'a> IngestTarballToStore<'a> {
         // QUESTION: I see no copying from existing store_dir, is there such mechanism?
         // TODO: If it's not implemented yet, implement it
 
-        let (cache_lock, owner_notify) = claim_cache_entry(mem_cache, mem_cache_key.clone());
-        match owner_notify {
-            None => self.wait_for_owner::<Reporter>(&cache_lock, progress_key).await,
-            Some(notify) => {
-                self.fetch_as_owner::<Reporter>(
-                    mem_cache,
-                    &mem_cache_key,
-                    &cache_lock,
-                    &notify,
-                    revision_addressed,
-                )
-                .await
+        loop {
+            match claim_cache_entry(mem_cache, &mem_cache_key) {
+                CacheSlotClaim::Existing(cache_lock) => {
+                    if let Some(cached) = self.wait_for_owner::<Reporter>(
+                        mem_cache,
+                        &mem_cache_key,
+                        &cache_lock,
+                        progress_key,
+                    )
+                    .await?
+                    {
+                        return Ok(cached);
+                    }
+                }
+                CacheSlotClaim::Claimed(claim) => {
+                    return self.fetch_as_owner::<Reporter>(claim, revision_addressed).await;
+                }
             }
         }
     }
@@ -393,55 +344,43 @@ impl<'a> IngestTarballToStore<'a> {
     /// slot do not re-trigger the emit.
     async fn wait_for_owner<Reporter: self::Reporter>(
         &self,
-        cache_lock: &RwLock<CacheValue>,
+        mem_cache: &MemCache,
+        mem_cache_key: &str,
+        cache_lock: &Arc<RwLock<CacheValue>>,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
-    ) -> Result<Arc<CachedTarball>, TarballError> {
-        let cached = wait_for_cached_tarball(cache_lock, self.package.url).await?;
+    ) -> Result<Option<Arc<CachedTarball>>, TarballError> {
+        let Some(cached) =
+            wait_for_cached_tarball(mem_cache, mem_cache_key, cache_lock, self.package.url).await?
+        else {
+            return Ok(None);
+        };
         emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
-        Ok(cached)
+        Ok(Some(cached))
     }
 
     /// Run the actual fetch, then settle the cache slot either way. On error
     /// the slot must transition to `Failed` and `notify_waiters` must fire so
     /// concurrent requesters surface a sibling-fetch error instead of parking
     /// on the Notify forever.
-    ///
-    /// Ordinary fetches remove the failed slot so a later caller can retry. A
-    /// revision-addressed fetch keeps it terminal for this install,
-    /// preserving the protocol's one-GET contract.
     async fn fetch_as_owner<Reporter: self::Reporter>(
         &self,
-        mem_cache: &'a MemCache,
-        mem_cache_key: &str,
-        cache_lock: &RwLock<CacheValue>,
-        notify: &Notify,
+        claim: CacheClaimGuard<'_>,
         revision_addressed: bool,
     ) -> Result<Arc<CachedTarball>, TarballError> {
         let result = self.load_or_fetch::<Reporter>(revision_addressed).await;
         match result {
             Ok(loaded) => {
-                let cached = publish_cached_tarball(
-                    cache_lock,
-                    notify,
-                    CachedTarball {
-                        files: loaded.files,
-                        manifest: loaded.manifest,
-                        requires_build: loaded.requires_build,
-                        bins: loaded.bins,
-                    },
-                )
+                let cached = claim.publish_available(CachedTarball {
+                    files: loaded.files,
+                    manifest: loaded.manifest,
+                    requires_build: loaded.requires_build,
+                    bins: loaded.bins,
+                })
                 .await;
                 Ok(cached)
             }
             Err(err) => {
-                publish_cache_failure(
-                    mem_cache,
-                    mem_cache_key,
-                    cache_lock,
-                    notify,
-                    revision_addressed,
-                )
-                .await;
+                claim.publish_failed(&err).await;
                 Err(err)
             }
         }
@@ -485,6 +424,15 @@ impl<'a> IngestTarballToStore<'a> {
         self.ingestion(false).fetch::<Reporter>(true).await
     }
 
+    /// Ingest the local tarball at `path` in a single read, returning its
+    /// extracted metadata alongside the `sha1` integrity of its bytes.
+    pub async fn ingest_local_tarball<Reporter: self::Reporter>(
+        &self,
+        path: &Path,
+    ) -> Result<FetchedLocalTarball, TarballError> {
+        self.ingestion(false).ingest_local_tarball::<Reporter>(path).await
+    }
+
     fn ingestion(&self, revision_addressed: bool) -> ingestion::ArchiveIngestion<'_> {
         ingestion::ArchiveIngestion {
             store: &self.store,
@@ -504,104 +452,6 @@ impl<'a> IngestTarballToStore<'a> {
             },
         }
     }
-}
-
-/// Claim the single fetch for this key. Releases the entry guard before
-/// the caller awaits either the cache lock or the owning fetch.
-pub(crate) fn claim_cache_entry(
-    mem_cache: &MemCache,
-    mem_cache_key: String,
-) -> (Arc<RwLock<CacheValue>>, Option<Arc<Notify>>) {
-    match mem_cache.entry(mem_cache_key) {
-        dashmap::mapref::entry::Entry::Occupied(entry) => (Arc::clone(entry.get()), None),
-        dashmap::mapref::entry::Entry::Vacant(entry) => {
-            let notify = Arc::new(Notify::new());
-            let cache_lock = notify
-                .pipe_ref(Arc::clone)
-                .pipe(CacheValue::InProgress)
-                .pipe(RwLock::new)
-                .pipe(Arc::new);
-            entry.insert(Arc::clone(&cache_lock));
-            (cache_lock, Some(notify))
-        }
-    }
-}
-
-/// Park until the task that claimed this key settles the cache slot.
-///
-/// Register with the `Notify` *before* re-checking the slot.
-/// `notify_waiters` stores no permit — it wakes only `Notified`
-/// futures already registered at that instant — and the read guard
-/// from an `InProgress` observation is released before the loop,
-/// so the owner's flip-and-notify can land in between. Checking
-/// first and registering after loses that wakeup and parks this
-/// task forever (nothing ever notifies the slot again once it is
-/// terminal).
-pub(crate) async fn wait_for_cached_tarball(
-    cache_lock: &RwLock<CacheValue>,
-    package_url: &str,
-) -> Result<Arc<CachedTarball>, TarballError> {
-    // Read-lock the state: the variant inspection doesn't mutate
-    // anything, and a `write().await` would serialize every late
-    // visitor for a popular tarball behind a single exclusive guard.
-    // The owner branch is the only writer; the RwLock's reader-writer
-    // fairness guarantees the owner still makes progress.
-    let notify = match &*cache_lock.read().await {
-        CacheValue::Available(cached) => return Ok(Arc::clone(cached)),
-        CacheValue::InProgress(notify) => Arc::clone(notify),
-        CacheValue::Failed => return Err(sibling_fetch_failed(package_url)),
-    };
-
-    tracing::info!(target: "pacquet::download", package_url = ?package_url, "Wait for cache");
-    loop {
-        let notified = notify.notified();
-        let mut notified = std::pin::pin!(notified);
-        notified.as_mut().enable();
-        match &*cache_lock.read().await {
-            CacheValue::Available(cached) => return Ok(Arc::clone(cached)),
-            CacheValue::Failed => return Err(sibling_fetch_failed(package_url)),
-            // The owner notifies only after flipping the slot to
-            // `Available` or `Failed`, so a wake with the slot still
-            // `InProgress` cannot happen — but a stale registration
-            // completing early is harmless: re-register and park again.
-            CacheValue::InProgress(_) => {}
-        }
-        notified.await;
-    }
-}
-
-pub(crate) async fn publish_cached_tarball(
-    cache_lock: &RwLock<CacheValue>,
-    notify: &Notify,
-    cached: CachedTarball,
-) -> Arc<CachedTarball> {
-    let cached = Arc::new(cached);
-    *cache_lock.write().await = CacheValue::Available(Arc::clone(&cached));
-    notify.notify_waiters();
-    cached
-}
-
-/// Ordinary fetches remove the failed slot so a later caller can retry.
-/// A revision-addressed fetch keeps it terminal for this install,
-/// preserving the protocol's one-GET contract.
-pub(crate) async fn publish_cache_failure(
-    mem_cache: &MemCache,
-    mem_cache_key: &str,
-    cache_lock: &RwLock<CacheValue>,
-    notify: &Notify,
-    revision_addressed: bool,
-) {
-    *cache_lock.write().await = CacheValue::Failed;
-    if !revision_addressed {
-        mem_cache.remove_if(mem_cache_key, |_, existing| {
-            std::ptr::eq(existing.as_ref(), cache_lock)
-        });
-    }
-    notify.notify_waiters();
-}
-
-fn sibling_fetch_failed(url: &str) -> TarballError {
-    TarballError::SiblingFetchFailed { url: url.to_string() }
 }
 
 #[cfg(test)]

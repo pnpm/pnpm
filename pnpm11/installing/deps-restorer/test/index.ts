@@ -1163,6 +1163,43 @@ test('installing in a workspace with node-linker=hoisted quarantines directories
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
 })
 
+test('installing in a workspace with node-linker=hoisted ignores traversal importers in currentLockfile', async () => {
+  const prefix = testFixtures.prepare('workspace2')
+  const outsideVictimPkg = path.join(prefix, '../victim/node_modules/express')
+  fs.mkdirSync(outsideVictimPkg, { recursive: true })
+  fs.writeFileSync(path.join(outsideVictimPkg, 'package.json'), JSON.stringify({ name: 'express', version: '4.17.2' }))
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    nodeLinker: 'hoisted',
+    projects: [
+      path.join(prefix, 'foo'),
+      path.join(prefix, 'bar'),
+    ],
+  }))
+
+  const currentLockfilePath = path.join(prefix, 'node_modules/.pnpm/lock.yaml')
+  const currentLockfileContent = fs.readFileSync(currentLockfilePath, 'utf8')
+  fs.writeFileSync(
+    currentLockfilePath,
+    currentLockfileContent.replace(
+      'importers:\n',
+      "importers:\n  '../victim':\n    dependencies:\n      express:\n        specifier: 4.17.2\n        version: 4.17.2\n"
+    )
+  )
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    nodeLinker: 'hoisted',
+    projects: [
+      path.join(prefix, 'foo'),
+      path.join(prefix, 'bar'),
+    ],
+  }))
+
+  expect(fs.existsSync(outsideVictimPkg)).toBe(true)
+})
+
 function readPkgVersion (dir: string): string {
   return loadJsonFileSync<{ version: string }>(path.join(dir, 'package.json')).version
 }

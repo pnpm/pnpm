@@ -203,7 +203,10 @@ async fn rejection(variants: &[(&str, Value)]) -> String {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    String::from_utf8(body_bytes(response.into_body()).await).unwrap()
+    body_json(response.into_body()).await["error"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 #[tokio::test]
@@ -365,11 +368,14 @@ async fn a_rewrite_from_npms_document_keeps_the_variants() {
         body_json(get(&app, "/npm/~acme/@acme%2Ffast", None).await.into_body()).await;
     assert!(document["versions"]["1.0.0"].get("_pnprVariants").is_none());
     document["versions"]["1.0.0"]["deprecated"] = json!("use 2");
-    let rewrite = Request::put("/npm/~acme/@acme%2Ffast/-rev/1")
-        .header("content-type", "application/json")
-        .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&document).unwrap()))
-        .unwrap();
+    let rewrite = Request::put(format!(
+        "/npm/~acme/@acme%2Ffast/-rev/{}",
+        document["_rev"].as_str().unwrap(),
+    ))
+    .header("content-type", "application/json")
+    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+    .body(Body::from(serde_json::to_vec(&document).unwrap()))
+    .unwrap();
     let response = app
         .clone()
         .oneshot(rewrite)
@@ -624,41 +630,6 @@ async fn an_archive_declares_its_versions_integrity_or_none() {
     );
 }
 
-/// A variant is stored as a file named by the version and its tag, so a long
-/// version and a long tag that cannot fit one file name together are refused
-/// as a bad request, not failed as a server error.
-#[tokio::test]
-async fn a_variant_that_cannot_be_stored_as_one_file_is_refused() {
-    let platforms: Vec<String> = (100..103)
-        .map(|abi| format!("linux-x64-manylinux_2_17-node{abi}"))
-        .collect();
-    let platforms: Vec<&str> = platforms
-        .iter()
-        .map(String::as_str)
-        .collect();
-    let tag = platforms.join("+");
-    assert!(tag.len() <= pnpm_platform_variants::MAX_VARIANT_TAG_BYTES);
-    let version = format!("1.0.0-{}", "a".repeat(120));
-    let mut manifest = any_manifest();
-    manifest["version"] = json!(version);
-    let (_tmp, app, token) = setup().await;
-    let (_, any) = archive(&manifest, "any");
-    let request = publish_request(&any, &[], &token);
-    let (parts, body) = request.into_parts();
-    let mut document: Value = serde_json::from_slice(&body_bytes(body).await).unwrap();
-    let mut version_manifest = document["versions"]["1.0.0"].take();
-    version_manifest["version"] = json!(version);
-    document["versions"] = json!({ version.clone(): version_manifest });
-    document["_attachments"] = json!({
-        format!("@acme/fast-{version}~{tag}.tgz"): { "data": "AAAA", "integrity": "sha512-AAAA" },
-    });
-    let request = Request::from_parts(parts, Body::from(serde_json::to_vec(&document).unwrap()));
-    let response = app.oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(reason.contains("too long together"), "{reason}");
-}
-
 /// `request` with a provenance statement naming `subjects`, each a PURL and
 /// the `.tgz` it names.
 async fn with_statement(request: Request<Body>, subjects: &[(&str, &[u8])]) -> Request<Body> {
@@ -791,6 +762,30 @@ fn variants_only_request_at(
         .header(header::AUTHORIZATION, format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap()
+}
+
+#[tokio::test]
+async fn a_version_without_an_any_archive_rejects_a_non_semver_version() {
+    let (tmp, app, token) = setup().await;
+    let (_, linux) = archive(&variant_manifest(&["linux-x64"], &json!({})), "linux");
+    let mut manifest = any_manifest();
+    manifest["version"] = json!("banana");
+    let response = app
+        .oneshot(variants_only_request_at("banana", &manifest, &[("linux-x64", &linux)], &token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(reason.contains("semver"), "{reason}");
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            tmp.path(),
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/fast",
+        )
+        .is_none(),
+    );
 }
 
 /// A version published without an `any` archive: npm's documents describe
@@ -1054,11 +1049,12 @@ async fn a_rewrite_keeps_the_variants_of_a_version_without_an_any_archive() {
         .unwrap()
         .remove("1.1.0");
     packument["dist-tags"] = json!({ "latest": "1.0.0" });
-    let rewrite = Request::put("/npm/~acme/@acme/fast/-rev/1")
-        .header("content-type", "application/json")
-        .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
-        .unwrap();
+    let rewrite =
+        Request::put(format!("/npm/~acme/@acme/fast/-rev/{}", packument["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+            .unwrap();
     let response = app
         .clone()
         .oneshot(rewrite)

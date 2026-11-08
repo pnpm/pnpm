@@ -1,3 +1,7 @@
+pub(super) use scope::{FinalScope, MaterializationScope};
+
+mod scope;
+
 use super::{FreshInputs, errors::InstallWithFreshLockfileError};
 use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
 use pnpm_catalogs_types::Catalogs;
@@ -8,128 +12,6 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::Reporter;
 use std::collections::{BTreeMap, HashSet};
 
-/// Which importers a selected install materializes, and the lockfile
-/// closed over them.
-///
-/// Built twice: first without a skip set, to give the host probe and the
-/// layout the snapshots they plan against, then over the skip set the
-/// plan computed. The plan borrows the first closure's lockfile, so the
-/// second is a separate value rather than a mutation of the first.
-pub(super) struct MaterializationScope {
-    /// `None` when the built lockfile already is the closure: every
-    /// importer materializes and the resolve pass walked no group this
-    /// run leaves out.
-    importer_ids: Option<HashSet<String>>,
-    closure: Option<crate::MaterializationClosure>,
-    /// The built lockfile's peer classification, shared by every walk of
-    /// this install.
-    pub(super) groups: crate::GroupSelection,
-}
-/// The second closure, with the importers that anchor project links.
-pub(super) struct FinalScope {
-    closure: Option<crate::MaterializationClosure>,
-    pub(super) project_anchor_importer_ids: HashSet<String>,
-}
-impl MaterializationScope {
-    pub(super) fn initial(install: FreshInputs<'_>, is_hoisted: bool, built: &Lockfile) -> Self {
-        let importer_ids = closure_importer_ids(install, is_hoisted, built);
-        let groups = crate::GroupSelection::classify(
-            built,
-            install.included(),
-            install.drivers.config.peer_edge_options(),
-        );
-        let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
-        let empty_skipped = SkippedSnapshots::new();
-        let closure = match install.projects.selected_ids {
-            Some(selected) => Some(crate::selected_materialization_closure(
-                built,
-                install.projects.lockfile_dir,
-                selected,
-                hoisted_prior,
-                &groups,
-                &empty_skipped,
-            )),
-            None => importer_ids
-                .as_ref()
-                .map(|importer_ids| {
-                    crate::materialization_closure(
-                        built,
-                        install.projects.lockfile_dir,
-                        importer_ids,
-                        &groups,
-                        &empty_skipped,
-                    )
-                }),
-        };
-        MaterializationScope { importer_ids, closure, groups }
-    }
-
-    pub(super) fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
-        self.closure.as_ref().map_or(built, |closure| &closure.lockfile)
-    }
-
-    pub(super) fn finalize(
-        &self,
-        install: FreshInputs<'_>,
-        is_hoisted: bool,
-        built: &Lockfile,
-        skipped: &SkippedSnapshots,
-    ) -> FinalScope {
-        let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
-        let closure = match install.projects.selected_ids {
-            Some(selected) => Some(crate::selected_materialization_closure(
-                built,
-                install.projects.lockfile_dir,
-                selected,
-                hoisted_prior,
-                &self.groups,
-                skipped,
-            )),
-            None => self.importer_ids
-                .as_ref()
-                .map(|importer_ids| {
-                    crate::materialization_closure(
-                        built,
-                        install.projects.lockfile_dir,
-                        importer_ids,
-                        &self.groups,
-                        skipped,
-                    )
-                }),
-        };
-        let materialized: HashSet<String> = closure
-            .as_ref()
-            .map_or_else(
-                || {
-                    built.importers
-                        .keys()
-                        .cloned()
-                        .collect()
-                },
-                |closure| closure.importer_ids.clone(),
-            );
-        let project_anchor_importer_ids =
-            project_anchor_importer_ids(install.projects.selected_ids, is_hoisted, &materialized);
-        FinalScope { closure, project_anchor_importer_ids }
-    }
-}
-impl FinalScope {
-    pub(super) fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
-        self.closure.as_ref().map_or(built, |closure| &closure.lockfile)
-    }
-
-    pub(super) fn on_disk_projects<'l>(
-        &'l self,
-        built: &'l Lockfile,
-        importer_manifests: &'l BTreeMap<String, &'l PackageManifest>,
-    ) -> super::on_disk::OnDiskProjects<'l> {
-        super::on_disk::OnDiskProjects {
-            materialization_lockfile: self.lockfile(built),
-            importer_manifests,
-            project_anchor_importer_ids: &self.project_anchor_importer_ids,
-        }
-    }
-}
 /// The lockfiles the materialization plan reads: the one the selected
 /// importers materialize, and the full one the skip set's closure walks.
 #[derive(Clone, Copy)]
@@ -288,7 +170,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
         .keys()
         .cloned()
         .collect();
-    let all_groups = crate::GroupSelection::all();
+    let all_groups = crate::GroupSelection::all().linking_as(scope.groups);
     let closure_groups =
         if install.projects.selected_ids.is_some() { &all_groups } else { scope.groups };
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
@@ -359,44 +241,6 @@ pub(super) fn include_transitive_optional_dependencies(
 ) -> bool {
     !is_full_install || included.optional_dependencies
 }
-/// The importers the materialization closure walks, or `None` when the
-/// built lockfile needs no narrowing.
-///
-/// Two things narrow it. A `--filter` selection picks the importers; a
-/// `--prod` / `--dev` run picks their dependency groups. The resolve
-/// pass walks every group to keep `pnpm-lock.yaml` complete, so this
-/// closure is where the graph comes back down to what the run installs
-/// (pnpm/pnpm#14912).
-fn closure_importer_ids(
-    install: FreshInputs<'_>,
-    is_hoisted: bool,
-    built: &Lockfile,
-) -> Option<HashSet<String>> {
-    let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
-    materialization_importer_ids(install.projects.selected_ids, hoisted_prior, built)
-        .or_else(|| {
-            // A platform variant's own snapshot is wired in by the closure.
-            (install.resolve_widened_groups()
-                || install.included().excludes_a_group()
-                || pnpm_deps_restorer::has_variant_snapshots(built))
-            .then(|| {
-                built.importers
-                    .keys()
-                    .cloned()
-                    .collect()
-            })
-        })
-}
-/// The importers a selected install materializes. See
-/// [`crate::selected_materialization_ids`] for `hoisted_prior`.
-pub(super) fn materialization_importer_ids(
-    selected_importer_ids: Option<&HashSet<String>>,
-    hoisted_prior: Option<&Lockfile>,
-    built_lockfile: &Lockfile,
-) -> Option<HashSet<String>> {
-    let selected_importer_ids = selected_importer_ids?;
-    Some(crate::selected_materialization_ids(built_lockfile, selected_importer_ids, hoisted_prior))
-}
 /// The host the installability checks run against, resolved from the
 /// overlapped probe when one was started.
 pub(super) async fn installability_host(
@@ -445,12 +289,4 @@ pub(super) fn log_layout_phase(config: &Config, phase_start: std::time::Instant)
         elapsed_ms = phase_start.elapsed().as_millis() as u64,
         "phase complete",
     );
-}
-/// The importers whose own project manifests anchor the link phase.
-pub(super) fn project_anchor_importer_ids(
-    _selected_importer_ids: Option<&HashSet<String>>,
-    _is_hoisted: bool,
-    materialization_importer_ids: &HashSet<String>,
-) -> HashSet<String> {
-    materialization_importer_ids.clone()
 }

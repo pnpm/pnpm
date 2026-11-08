@@ -79,9 +79,10 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
     pnpm_home_dir: &Path,
     pkg_root: &Path,
 ) -> PathBuf {
-    // `dunce` keeps the Windows result free of the `\\?\` verbatim prefix,
-    // which would otherwise leak into the user-visible store path.
-    let Ok(pkg_root) = dunce::canonicalize(pkg_root) else {
+    // Keep the Windows result free of the `\\?\` verbatim prefix and, on a
+    // mapped network drive, on that drive rather than its UNC share, either
+    // of which would otherwise leak into the user-visible store path.
+    let Ok(pkg_root) = pnpm_fs::canonicalize_preserving_mapped_drive(pkg_root) else {
         return home_default;
     };
 

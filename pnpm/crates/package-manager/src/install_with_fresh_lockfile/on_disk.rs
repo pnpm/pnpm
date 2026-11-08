@@ -1,9 +1,12 @@
+pub(super) use projects::OnDiskProjects;
+
+mod projects;
+
 use super::{FreshInputs, errors::InstallWithFreshLockfileError, resolver_setup};
 use crate::{CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots};
 use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, LockfileEntries};
-use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_lockfile::LockfileEntries;
+use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
 use std::{
     collections::HashMap,
@@ -16,7 +19,7 @@ use std::{
 ///
 /// `afterAllResolved` receives the resolved lockfile object and
 /// returns the (possibly mutated) lockfile that gets written. The round-trip
-/// goes through `serde_json::Value` so hook-added keys the typed [`Lockfile`]
+/// goes through `serde_json::Value` so hook-added keys the typed [`pnpm_lockfile::Lockfile`]
 /// cannot represent survive to disk; `serde_json`'s `preserve_order` feature
 /// keeps the output byte-identical to the typed write when the hook makes no
 /// changes. A throwing hook aborts the install.
@@ -94,12 +97,6 @@ pub(super) struct OnDiskRuntime<'a> {
     pub(super) known_bins: Option<&'a pnpm_deps_restorer::PackageBins>,
 }
 
-pub(super) struct OnDiskProjects<'a> {
-    pub(super) materialization_lockfile: &'a Lockfile,
-    pub(super) importer_manifests: &'a std::collections::BTreeMap<String, &'a PackageManifest>,
-    pub(super) project_anchor_importer_ids: &'a std::collections::HashSet<String>,
-}
-
 /// What the on-disk phases leave for the install's result.
 pub(super) struct OnDiskOutput {
     pub hoisted: pnpm_deps_restorer::InstalledHoistedState,
@@ -108,12 +105,6 @@ pub(super) struct OnDiskOutput {
     pub(super) skipped: SkippedSnapshots,
 }
 impl<'a> OnDiskInputs<'a> {
-    /// See `linking::run_link_phase` for why this anchors on
-    /// `Config::modules_dir_anchor` rather than the install root.
-    fn symlink_root(&self) -> &'a Path {
-        self.ctx.config.modules_dir_anchor().unwrap_or(self.ctx.workspace_root)
-    }
-
     /// Materialize the virtual store. Skipped snapshots stay out of every
     /// map the output carries; the fetch failures it reports are folded into
     /// the skip set by the caller before anything links.
@@ -140,6 +131,7 @@ impl<'a> OnDiskInputs<'a> {
                 skipped,
                 include_optional: self.include_transitive_optional_dependencies,
                 supported_architectures: self.install.projects.supported_architectures,
+                platform_lockfile: Some(self.projects.platform_lockfile),
                 known_requires_build: self.runtime.known_requires_build,
                 known_bins: self.runtime.known_bins,
             },
@@ -182,6 +174,7 @@ impl<'a> OnDiskInputs<'a> {
     fn link_lockfiles<'b>(
         &self,
         materialized_snapshots: &'b [pnpm_lockfile::PackageKey],
+        selected_snapshots: Option<&'b [pnpm_lockfile::PackageKey]>,
     ) -> pnpm_deps_restorer::LinkLockfiles<'b>
     where
         'a: 'b,
@@ -192,6 +185,7 @@ impl<'a> OnDiskInputs<'a> {
             materialized_snapshots: (!self.install.prior.relink_every_slot_bin).then_some(
                 materialized_snapshots,
             ),
+            selected_snapshots,
             sidecar_lockfile: self.projects.materialization_lockfile,
         }
     }
@@ -204,26 +198,31 @@ impl<'a> OnDiskInputs<'a> {
         materialized: &mut CreateVirtualStoreOutput,
         skipped: &mut SkippedSnapshots,
     ) -> Result<pnpm_deps_restorer::linking::LinkPhaseOutput, InstallWithFreshLockfileError> {
-        let project_manifests = self.projects.project_manifests(self.ctx.workspace_root, true);
-        let package_map_project_manifests =
-            self.projects.project_manifests(self.ctx.workspace_root, false);
+        let project_manifests = self.projects.anchor_manifests(self.ctx.workspace_root);
+        let package_map_project_manifests = self.projects.on_disk_manifests(
+            self.ctx.workspace_root,
+            self.install.projects.real_ids,
+        );
         let root_component_importers = self.projects.root_component_importers();
 
         let linked = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
             pnpm_deps_restorer::linking::LinkPhaseInputs {
-                graph: self.link_lockfiles(&materialized.materialized_snapshots),
+                graph: self.link_lockfiles(
+                    &materialized.snapshot_placement.materialized,
+                    materialized.snapshot_placement.loaded.as_deref(),
+                ),
                 packages: pnpm_deps_restorer::LinkPackageData {
                     package_manifests: &materialized.package_manifests,
                     package_bins: Some(&materialized.package_bins),
                     requires_build_by_snapshot: Some(&materialized.requires_build_by_snapshot),
                     cas_paths_by_pkg_id: materialized.cas_paths_by_pkg_id.take(),
+                    cas_paths_by_snapshot: materialized.cas_paths_by_snapshot.take(),
                 },
                 prior: self.install.prior.link_state(),
                 projects: pnpm_deps_restorer::LinkProjects {
                     manifests: &project_manifests,
                     package_map_manifests: &package_map_project_manifests,
                     dependency_groups: self.install.projects.dependency_groups,
-                    symlink_root: self.symlink_root(),
                     trusted_importer_ids: self.projects.project_anchor_importer_ids,
                     root_component_importers: &root_component_importers,
                 },
@@ -235,16 +234,13 @@ impl<'a> OnDiskInputs<'a> {
             skipped,
         )
         .map_err(InstallWithFreshLockfileError::LinkPhase)?;
-        if let Some(observer) = self.store.resolution_observer {
-            observer.flush_progress();
-        }
-        Reporter::emit(&LogEvent::Stage(StageLog {
-            level: LogLevel::Debug,
-            prefix: self.ctx.requester.to_string(),
-            stage: Stage::ImportingDone,
-        }));
+        super::report_importing_done::<Reporter>(
+            self.store.resolution_observer,
+            self.ctx.requester,
+        );
         Ok(linked)
     }
+
     fn build_graph<'b>(
         &'b self,
         materialized: &'b CreateVirtualStoreOutput,
@@ -252,14 +248,14 @@ impl<'a> OnDiskInputs<'a> {
     ) -> pnpm_deps_restorer::BuildPhaseGraph<'b> {
         pnpm_deps_restorer::BuildPhaseGraph {
             trusted_importer_ids: self.projects.project_anchor_importer_ids,
-            loaded_snapshots: self.ctx.select_loaded_snapshots(
-                self.projects.materialization_lockfile.snapshots.as_ref(),
-            ),
+            loaded_snapshots: materialized.snapshot_placement.loaded.as_deref(),
             snapshots: self.projects.materialization_lockfile.snapshots.as_ref(),
             packages: self.projects.materialization_lockfile.packages.as_ref(),
             importers: &self.projects.materialization_lockfile.importers,
             dependency_groups: self.install.projects.dependency_groups,
-            materialized_snapshots: linked.build_snapshots(&materialized.materialized_snapshots),
+            materialized_snapshots: linked.build_snapshots(
+                &materialized.snapshot_placement.materialized,
+            ),
             build_scope: linked.build_scope.as_ref(),
         }
     }
@@ -267,9 +263,7 @@ impl<'a> OnDiskInputs<'a> {
     /// Run lifecycle scripts, report ignored builds, and re-link top-level
     /// bins: the build phase the frozen path runs, so `pacquet add esbuild`
     /// reports the blocked `esbuild` build (and builds approved packages)
-    /// exactly like `pnpm`. Scripts see the install root as `INIT_CWD`; the
-    /// post-build bin link anchors on [`Self::symlink_root`], where this
-    /// path placed `node_modules`.
+    /// exactly like `pnpm`. Scripts see the install root as `INIT_CWD`.
     ///
     /// Consumes the inputs: the store-index writer handle is dropped once
     /// the side-effects-cache rows are queued, so the channel closes and
@@ -281,7 +275,6 @@ impl<'a> OnDiskInputs<'a> {
         linked: &pnpm_deps_restorer::linking::LinkPhaseOutput,
         skipped: &SkippedSnapshots,
     ) -> Result<crate::BuildModulesOutput, InstallWithFreshLockfileError> {
-        let top_level_bin_root = self.symlink_root();
         let engine_name = settle_engine_name(
             self.runtime.deferred_engine_name.take(),
             self.runtime.engine_name.take(),
@@ -291,17 +284,14 @@ impl<'a> OnDiskInputs<'a> {
         .await;
         let extra_env =
             build_extra_env(self.ctx.config, self.ctx.linker.kind, self.ctx.workspace_root);
-        publish_deps_requiring_build(
-            self.deps_requiring_build_sink.as_ref(),
-            &materialized.requires_build_by_snapshot,
-        );
+        publish_deps_requiring_build(self.deps_requiring_build_sink.as_ref(), materialized);
         let built = crate::install_frozen_lockfile::run_build_phase::<Reporter>(
             &crate::install_frozen_lockfile::BuildPhaseInputs {
                 cache: materialized.build_cache(
                     engine_name.as_deref(),
                     &self.store.store_index_writer,
                 ),
-                directories: build_directories(self.ctx, linked, top_level_bin_root),
+                directories: build_directories(self.ctx, linked),
                 graph: self.build_graph(materialized, linked),
                 policy: pnpm_deps_restorer::BuildPhasePolicy {
                     config: self.ctx.config,
@@ -316,6 +306,7 @@ impl<'a> OnDiskInputs<'a> {
 
                 skipped,
                 pending_bins: Some(&linked.pending_bins),
+                supported_architectures: self.install.projects.supported_architectures,
                 // The fresh-resolve path never serves an explicit
                 // `pacquet rebuild`; rebuilds always take the frozen path.
             },
@@ -394,17 +385,19 @@ pub(super) async fn finish_early_materialization<Reporter: self::Reporter + 'sta
         "phase complete",
     );
 }
-/// `CreateVirtualStore` keeps skipped snapshots out of this map, so it holds
-/// only what the install put on disk. See [`crate::DepsRequiringBuildSink`].
+/// `CreateVirtualStore` keeps skipped snapshots out of its output, so this
+/// lists only what the install placed. See [`crate::DepsRequiringBuildSink`].
 pub(super) fn publish_deps_requiring_build(
     sink: Option<&crate::DepsRequiringBuildSink>,
-    requires_build_by_snapshot: &HashMap<pnpm_lockfile::PackageKey, bool>,
+    materialized: &CreateVirtualStoreOutput,
 ) {
     let Some(sink) = sink else { return };
-    let deps_requiring_build = requires_build_by_snapshot
+    let deps_requiring_build = materialized.requires_build_by_snapshot
         .iter()
         .filter(|(_, requires_build)| **requires_build)
-        .map(|(snapshot_key, _)| snapshot_key.to_string())
+        .map(|(snapshot_key, _)| snapshot_key)
+        .chain(&materialized.snapshot_placement.loaded_builds)
+        .map(ToString::to_string)
         .collect();
     *sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(deps_requiring_build);
 }
@@ -425,34 +418,6 @@ pub(super) async fn settle_engine_name(
     }
 }
 
-impl OnDiskProjects<'_> {
-    fn project_manifests(
-        &self,
-        workspace_root: &Path,
-        only_anchors: bool,
-    ) -> Vec<(std::path::PathBuf, &PackageManifest)> {
-        self.importer_manifests
-            .iter()
-            .filter(|(id, _)| {
-                !only_anchors || self.project_anchor_importer_ids.contains(id.as_str())
-            })
-            .map(|(id, manifest)| (workspace_root.join(id), *manifest))
-            .collect()
-    }
-
-    fn root_component_importers(&self) -> std::collections::HashSet<String> {
-        self.importer_manifests
-            .iter()
-            .filter(|(id, _)| self.project_anchor_importer_ids.contains(id.as_str()))
-            .filter(|(_, manifest)| {
-                manifest.install_config_hoisting_limits()
-                    == Some(pnpm_deps_restorer::HOISTING_LIMITS_WORKSPACES)
-            })
-            .map(|(id, _)| id.clone())
-            .collect()
-    }
-}
-
 impl<'a> super::FreshPriorInstall<'a> {
     fn link_state(&self) -> pnpm_deps_restorer::PriorLinkState<'a> {
         pnpm_deps_restorer::PriorLinkState {
@@ -470,11 +435,9 @@ impl<'a> super::FreshPriorInstall<'a> {
 fn build_directories<'a>(
     ctx: &'a pnpm_deps_restorer::InstallContext<'a>,
     linked: &'a pnpm_deps_restorer::linking::LinkPhaseOutput,
-    top_level_bin_root: &'a Path,
 ) -> pnpm_deps_restorer::BuildPhaseDirectories<'a> {
     pnpm_deps_restorer::BuildPhaseDirectories {
         workspace_root: ctx.workspace_root,
-        top_level_bin_root,
         layout: ctx.linker.layout,
         hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
         is_hoisted: ctx.is_hoisted(),

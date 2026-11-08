@@ -1,7 +1,8 @@
 use super::{
     InstallArgs, NodeLinkerArg, UpToDateFastPathCheck, install_already_up_to_date,
-    install_already_up_to_date_from_records, read_root_manifest_json,
-    warn_deprecated_override_version_references, warn_ignored_pnpm_manifest_fields,
+    install_already_up_to_date_from_records, install_already_up_to_date_per_project,
+    read_root_manifest_json, warn_deprecated_override_version_references,
+    warn_ignored_pnpm_manifest_fields,
 };
 use crate::cli_args::yarn_workspaces_field::{
     converts_yarn_workspaces, warn_about_workspaces_field,
@@ -28,6 +29,28 @@ fn warn_about_config(
     warn_ignored_pnpm_manifest_fields(root_manifest);
     warn_about_workspaces_field(config, root_manifest);
     warn_deprecated_override_version_references(config, emit);
+}
+
+/// Check what the projects `up_to_date` covers require of the host, as the
+/// install does. The root project is checked here only before the config
+/// setup, which checks it otherwise. Returns the warnings about the other
+/// projects, so that a declined fast path emits none of them.
+fn check_host_requirements(
+    manifest_path: &std::path::Path,
+    config: &pnpm_config::Config,
+    up_to_date: &pnpm_package_manager::UpToDateWorkspace,
+    attempt: Attempt,
+    emit: fn(&pnpm_reporter::LogEvent),
+) -> Result<Vec<pnpm_reporter::LogEvent>, &'static str> {
+    let root_dir = crate::state::root_project_dir(manifest_path, config);
+    let project_warnings = crate::state::ProjectHost::new(config, root_dir)
+        .check_projects(&up_to_date.host_requirements)
+        .map_err(|_| "a workspace project's host requirements are not met")?;
+    if matches!(attempt, Attempt::BeforeConfig) {
+        crate::state::check_root_project_engine(manifest_path, config, emit)
+            .map_err(|_| "root project engine check failed")?;
+    }
+    Ok(project_warnings)
 }
 
 fn report_up_to_date_install(
@@ -189,11 +212,15 @@ impl InstallArgs {
         if !manifest_path.is_file() {
             return Err("there is no package.json");
         }
-        let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
+        let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path.clone())
             .map_err(|_| "package.json cannot be parsed")?;
         let node_linker =
             self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        // Each project keeps its own lockfile and state, so each is decided
+        // from its own record.
+        let per_project = !config.shares_one_lockfile() && config.workspace_dir.is_some();
         let decide = match attempt {
+            _ if per_project => install_already_up_to_date_per_project,
             Attempt::BeforeConfig => install_already_up_to_date,
             Attempt::AfterConfig => install_already_up_to_date_from_records,
         };
@@ -206,9 +233,12 @@ impl InstallArgs {
                 config.supported_architectures.clone(),
             ),
         })?;
+        let project_warnings =
+            check_host_requirements(&manifest_path, config, &up_to_date, attempt, emit)?;
         if matches!(attempt, Attempt::BeforeConfig) {
             warn_about_config(root_manifest.as_ref(), config, emit);
         }
+        project_warnings.iter().for_each(emit);
         report_up_to_date_install(config, &up_to_date, emit);
         Ok(())
     }
@@ -254,14 +284,6 @@ impl InstallArgs {
                         .merge_git_branch_lockfiles_branch_pattern
                         .is_empty(),
                 "git branch lockfiles are merged",
-            ),
-            // Dedicated per-project lockfiles run one install per workspace
-            // project; a single-dir up-to-date probe can't speak for the
-            // sibling projects, so the loop (whose per-project engine runs
-            // each have their own optimistic short-circuit) must always run.
-            (
-                !config.shares_one_lockfile() && config.workspace_dir.is_some(),
-                "every workspace project has its own lockfile",
             ),
         ];
         gates

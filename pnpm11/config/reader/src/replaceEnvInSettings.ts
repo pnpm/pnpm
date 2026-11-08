@@ -1,8 +1,13 @@
 import { envReplace } from '@pnpm/config.env-replace'
 import type { PnpmSettings } from '@pnpm/types'
 
+import { hasEnvPlaceholder, RegistryEnvNotExpandedError } from './envPlaceholders.js'
+import { redactRegistryUrl } from './registryUrlUserinfo.js'
+
 export interface ReplaceEnvInSettingsOptions {
   expandRequestDestinationEnv: boolean
+  /** Receives a warning for each setting dropped for its placeholder. */
+  warnings: string[]
 }
 
 /**
@@ -27,7 +32,10 @@ export function replaceEnvInSettings (
 }
 
 function isGatedRequestScalar (key: string, value: string, opts: ReplaceEnvInSettingsOptions): boolean {
-  return REQUEST_SCALAR_KEYS.has(key) && !opts.expandRequestDestinationEnv && hasEnvPlaceholder(value)
+  if (!REQUEST_SCALAR_KEYS.has(key) || opts.expandRequestDestinationEnv || !hasEnvPlaceholder(value)) return false
+  if (key === 'registry') throw new RegistryEnvNotExpandedError(key, WORKSPACE_MANIFEST)
+  opts.warnings.push(ignoredSettingWarning(key))
+  return true
 }
 
 function replaceEnvInSettingValue (key: string, value: unknown, opts: ReplaceEnvInSettingsOptions): unknown {
@@ -35,14 +43,14 @@ function replaceEnvInSettingValue (key: string, value: unknown, opts: ReplaceEnv
   if (key === 'namedRegistries' || (key === 'registries' && isScopeRouteMap(value))) {
     return opts.expandRequestDestinationEnv
       ? replaceEnvInStringValues(value)
-      : copyStringValuesWithoutEnvPlaceholders(value)
+      : assertNoEnvPlaceholderValues(key, value)
   }
   if (key === 'registries') {
     // A declaration map is keyed by registry URL rather than valued by one,
     // so the request destination is the key and the gate has to apply there.
     return opts.expandRequestDestinationEnv
       ? replaceEnvInKeys(value)
-      : copyEntriesWithoutEnvPlaceholderKeys(value)
+      : assertNoEnvPlaceholderEntries(value)
   }
   return value
 }
@@ -71,14 +79,18 @@ function replaceEnvInStringValues (value: unknown): unknown {
   return out
 }
 
-function copyStringValuesWithoutEnvPlaceholders (value: unknown): unknown {
+/**
+ * Dropping a registry URL would resolve the packages it serves from another
+ * registry, so a placeholder in one fails instead of being ignored.
+ */
+function assertNoEnvPlaceholderValues (key: string, value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
-  const out: Record<string, unknown> = {}
   for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
-    if (typeof entryValue === 'string' && hasEnvPlaceholder(entryValue)) continue
-    out[entryKey] = entryValue
+    if (typeof entryValue === 'string' && hasEnvPlaceholder(entryValue)) {
+      throw new RegistryEnvNotExpandedError(`${key}['${redactRegistryUrl(entryKey)}']`, WORKSPACE_MANIFEST)
+    }
   }
-  return out
+  return value
 }
 
 function replaceEnvInKeys (value: unknown): unknown {
@@ -90,16 +102,24 @@ function replaceEnvInKeys (value: unknown): unknown {
   return out
 }
 
-function copyEntriesWithoutEnvPlaceholderKeys (value: unknown): unknown {
+/**
+ * {@link assertNoEnvPlaceholderValues} for a declaration map, whose URL is the
+ * key of a declaration and the value of a scope route, which a mixed map holds
+ * too.
+ */
+function assertNoEnvPlaceholderEntries (value: unknown): unknown {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
-  const out: Record<string, unknown> = {}
   for (const [entryKey, entryValue] of Object.entries(value as Record<string, unknown>)) {
-    if (hasEnvPlaceholder(entryKey)) continue
-    out[entryKey] = entryValue
+    if (hasEnvPlaceholder(typeof entryValue === 'string' ? entryValue : entryKey)) {
+      throw new RegistryEnvNotExpandedError(`registries['${redactRegistryUrl(entryKey)}']`, WORKSPACE_MANIFEST)
+    }
   }
-  return out
+  return value
 }
 
-function hasEnvPlaceholder (value: string): boolean {
-  return /\$\{[^}]+\}/.test(value)
+const WORKSPACE_MANIFEST = 'pnpm-workspace.yaml'
+
+function ignoredSettingWarning (setting: string): string {
+  return `Ignored "${setting}" in ${WORKSPACE_MANIFEST}: environment variables are not expanded in the proxy, pnprServer, and userAgent settings of a file committed to the repository. ` +
+    'Write the value literally, or move the setting to the global config.yaml.'
 }

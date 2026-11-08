@@ -19,8 +19,8 @@ use node_semver::Version;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_resolver_base::{
-    PkgResolutionId, ResolveResult, SaveWorkspaceProtocol, WantedDependency, WorkspacePackage,
-    WorkspacePackages, WorkspacePackagesByVersion,
+    DependencyManifest, PkgResolutionId, ResolveResult, SaveWorkspaceProtocol, WantedDependency,
+    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
 };
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use std::path::{Path, PathBuf};
@@ -146,10 +146,7 @@ pub fn try_resolve_from_workspace(
     if !bare.starts_with("workspace:") {
         return Ok(None);
     }
-    // `workspace:./foo` / `workspace:../foo` are owned by the local
-    // resolver; let those fall through so the chain doesn't claim
-    // them here.
-    if bare.starts_with("workspace:.") {
+    if pnpm_workspace_spec::is_workspace_path_specifier(bare) {
         return Ok(None);
     }
 
@@ -252,7 +249,7 @@ pub(crate) fn resolve_from_local_package(
     lockfile_dir: &Path,
     saved_specifier: SavedSpecifierOptions,
 ) -> ResolveResult {
-    let local_dir = resolve_workspace_package_dir(local_package);
+    let local_dir = resolve_workspace_package_dir(&local_package.root_dir, &local_package.manifest);
 
     let (id_text, directory) = if hard_link_local_packages {
         let relative_to_lockfile = forward_slashes(relative_path(lockfile_dir, &local_dir));
@@ -305,13 +302,14 @@ fn workspace_specifier(
     ))
 }
 
-/// Return the directory exposed when a workspace package is linked.
+/// Return the directory exposed when the workspace project at `root_dir` with
+/// `manifest` is linked.
 ///
 /// Honors `publishConfig.directory` when `publishConfig.linkDirectory` is
 /// unset or `true`; otherwise returns the project's own root directory.
 #[must_use]
-pub fn resolve_workspace_package_dir(local_package: &WorkspacePackage) -> PathBuf {
-    let publish_config = local_package.manifest.get("publishConfig");
+pub fn resolve_workspace_package_dir(root_dir: &Path, manifest: &DependencyManifest) -> PathBuf {
+    let publish_config = manifest.get("publishConfig");
     let publish_dir = publish_config
         .and_then(|cfg| cfg.get("directory"))
         .and_then(serde_json::Value::as_str);
@@ -319,9 +317,9 @@ pub fn resolve_workspace_package_dir(local_package: &WorkspacePackage) -> PathBu
         .and_then(|cfg| cfg.get("linkDirectory"))
         .and_then(serde_json::Value::as_bool);
     if publish_dir.is_none() || link_directory == Some(false) {
-        return local_package.root_dir.clone();
+        return root_dir.to_path_buf();
     }
-    local_package.root_dir.join(publish_dir.expect("guard above"))
+    root_dir.join(publish_dir.expect("guard above"))
 }
 
 fn relative_path(base: &Path, target: &Path) -> String {

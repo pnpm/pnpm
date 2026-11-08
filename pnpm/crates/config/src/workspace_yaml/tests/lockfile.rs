@@ -17,7 +17,8 @@ fn resolution_mode_yaml_values_round_trip() {
         assert_eq!(config.resolution_mode, expected);
     }
 
-    let settings: WorkspaceSettings = serde_saphyr::from_str("").unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str::<Option<WorkspaceSettings>>("").unwrap().unwrap_or_default();
     assert!(settings.resolution_mode.is_none());
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));

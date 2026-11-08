@@ -18,9 +18,7 @@ impl Walker<'_> {
             self.resolve_one_peer(
                 peer_name,
                 peer_dep,
-                context.parent_refs,
-                context.chain_names,
-                context.ancestor_pkg_ids,
+                &context,
                 &mut own_resolved,
                 &mut own_missing,
             );

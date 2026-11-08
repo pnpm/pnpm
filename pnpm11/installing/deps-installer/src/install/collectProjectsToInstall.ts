@@ -15,10 +15,11 @@ export async function collectProjectsToInstall (run: MutationRun): Promise<Impor
     run,
     projectsToInstall: [],
     installedProjectIds: new Set<string>(projects.map((project) => ctx.projects[project.rootDir].id)),
-    overriddenDependencyMatcherFor: createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir),
+    overriddenDependencyMatcherFor: createOverriddenDependencyMatcher(opts.parsedOverrides, opts.overridesRootDir),
     applyOverrides: createReadPackageHook({
       ignoreCompatibilityDb: true,
       lockfileDir: opts.lockfileDir,
+      overridesRootDir: opts.overridesRootDir,
       overrides: opts.parsedOverrides,
     }),
     getPreferredSpecs: memoizePreferredSpecs(ctx),

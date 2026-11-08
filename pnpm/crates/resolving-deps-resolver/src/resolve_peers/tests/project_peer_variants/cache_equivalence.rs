@@ -1,6 +1,8 @@
 use super::{
     ResolvePeersOptions, WorkspacePeerSettings, build_projects, resolve_with_cache_oracle,
 };
+use crate::PeerDependentsDedupe;
+use rustc_hash::FxHashSet as HashSet;
 use std::{collections::BTreeMap, path::Path};
 
 const ORDERS: [[usize; 3]; 6] = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
@@ -32,7 +34,7 @@ fn check_contexts(providers: usize, flags: usize) {
                 importer
             })
             .collect();
-        for dedupe in [false, true] {
+        for dedupe in [PeerDependentsDedupe::Off, PeerDependentsDedupe::On] {
             let mut tree = tree.clone();
             let result = resolve_with_cache_oracle(
                 &mut tree,
@@ -50,10 +52,11 @@ fn check_contexts(providers: usize, flags: usize) {
                     )
                 })
                 .collect();
-            let expected = expected_by_dedupe.entry(dedupe).or_insert_with(|| by_project.clone());
+            let expected =
+                expected_by_dedupe.entry(dedupe.dedupes()).or_insert_with(|| by_project.clone());
             assert_eq!(
                 &by_project, expected,
-                "providers={providers}, optional={optional}, default_dependency={default_dependency}, nested_provider={nested_provider}, order={order:?}, dedupe={dedupe}",
+                "providers={providers}, optional={optional}, default_dependency={default_dependency}, nested_provider={nested_provider}, order={order:?}, dedupe={dedupe:?}",
             );
         }
     }
@@ -134,6 +137,7 @@ fn full_walk_keeps_peer_cycle_handling() {
             direct: tree.direct.clone(),
             root_dir: "/repo".into(),
             modules_dir: None,
+            rejected_optional_peers: HashSet::default(),
         }];
         let result = resolve_peers_workspace(
             &mut tree,

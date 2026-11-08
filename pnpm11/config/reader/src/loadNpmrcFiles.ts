@@ -7,6 +7,7 @@ import { isError } from '@pnpm/error'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFileSync } from 'read-ini-file'
 
+import { hasEnvPlaceholder, RegistryEnvNotExpandedError } from './envPlaceholders.js'
 import { findLocalPrefix } from './findLocalPrefix.js'
 import { type JsonAuthResult, readGlobalConfigAuth, readJsonAuthEnv } from './jsonAuth.js'
 import { isNpmrcReadableKey } from './localConfig.js'
@@ -356,6 +357,9 @@ function readNpmrcEntry (ctx: NpmrcFilterContext, rawKey: string, rawValue: unkn
   const key = substituteEnv(rawKey, ctx.env, { warnings: ctx.warnings, key: rawKey })
   if (skipsUnexpandedEnv(ctx, { ...keyGate, key })) return undefined
   if (typeof rawValue !== 'string') return { key, value: rawValue }
+  if (!ctx.expandRequestDestinationEnv && isRegistryKey(key) && hasEnvPlaceholder(rawValue)) {
+    throw new RegistryEnvNotExpandedError(redactRegistryUrl(key), ctx.filePath)
+  }
   if (skipsUnexpandedEnv(ctx, { text: rawValue, key, reportedKey: key, isRequestDestination: isRequestDestinationValueKey })) {
     return undefined
   }
@@ -417,10 +421,6 @@ const AUTH_VALUE_KEY_SUFFIXES = AUTH_VALUE_KEYS.map(key => `:${key}`)
 
 function isAuthValueKey (key: string): boolean {
   return (AUTH_VALUE_KEYS as readonly string[]).includes(key) || AUTH_VALUE_KEY_SUFFIXES.some(suffix => key.endsWith(suffix))
-}
-
-function hasEnvPlaceholder (value: string): boolean {
-  return /\$\{[^}]+\}/.test(value)
 }
 
 const DOCS_URL = 'https://pnpm.io/npmrc'

@@ -45,6 +45,7 @@ fn capsules(root: &Path, registry_url: &str) -> CapsuleLayout {
 
     let modules_dir = capsule.join("node_modules");
     let mut config = Config::new();
+    config.workspace_search_skipped = true;
     config.cache_dir = root.join("cache");
     config.store_dir = root.join("store").into();
     config.install_state_dir = modules_dir.join(".pnpm");

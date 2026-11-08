@@ -92,6 +92,7 @@ exceptions = [
   { name = "pnpr-oci", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-osv", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-auth", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-sql", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-libsql", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-cargo", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-pypi", allow = ["PolyForm-Noncommercial-1.0.0"] },
@@ -258,3 +259,8 @@ allow-git = ["https://github.com/pnpm/node-semver-rs", "https://github.com/pnpm/
 github = []
 gitlab = []
 bitbucket = []
+
+[[licenses.clarify]]
+name = "pnpr-sql"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]

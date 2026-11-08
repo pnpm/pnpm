@@ -153,6 +153,7 @@ impl PublishArgs {
         if graph.is_empty() {
             return Ok(Vec::new());
         }
+        self.check_recursive_variant_integrities(graph)?;
 
         let (opts, to_publish) =
             self.select_candidates::<Reporter>(graph, config, stage, (dir, workspace_root)).await?;

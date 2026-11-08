@@ -82,7 +82,8 @@ pub(crate) fn is_python_prefixed(selector: &str) -> bool {
             .is_some_and(|prefix| prefix.eq_ignore_ascii_case("pkg:pypi/"))
 }
 
-fn is_purl(selector: &str) -> bool {
+pub(crate) fn is_purl(selector: &str) -> bool {
+    let selector = selector.strip_prefix('!').unwrap_or(selector);
     selector
         .get(..4)
         .is_some_and(|prefix| prefix.eq_ignore_ascii_case("pkg:"))

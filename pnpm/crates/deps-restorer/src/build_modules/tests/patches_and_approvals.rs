@@ -195,13 +195,13 @@ new file mode 100644
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: Some(engine),
             read: true,
             write: true,
             publisher: None,
-            store_dir: Some(&store_dir),
-            store_index_writer: Some(&writer),
+            store: Some(crate::BuildCacheStore { directory: &store_dir, writer: &writer }),
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -225,6 +225,7 @@ new file mode 100644
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -332,13 +333,13 @@ new file mode 100644
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: false,
             write: false,
             publisher: None,
-            store_dir: Some(&store_dir),
-            store_index_writer: Some(&writer),
+            store: Some(crate::BuildCacheStore { directory: &store_dir, writer: &writer }),
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -362,6 +363,7 @@ new file mode 100644
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -438,13 +440,13 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
 
     let err = BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: false,
             write: false,
             publisher: None,
-            store_dir: Some(&store_dir),
-            store_index_writer: Some(&writer),
+            store: Some(crate::BuildCacheStore { directory: &store_dir, writer: &writer }),
             frozen_store: false,
         },
         directories: crate::BuildLayout {
@@ -468,6 +470,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
             importers: &importers,
             dependency_groups: None,
             build_scope: None,
+            variant_platforms: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

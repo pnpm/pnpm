@@ -1,5 +1,14 @@
-use super::DirCloneCache;
+use super::{DirCloneCache, retires_dir_clone};
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+use pnpm_fs::LinkFailure;
+
+#[test]
+fn a_failed_clone_retires_the_cache_only_when_the_volume_is_at_fault() {
+    for failure in LinkFailure::ALL {
+        let retires = matches!(failure, LinkFailure::CrossDevice | LinkFailure::Unsupported);
+        assert_eq!(retires_dir_clone(&failure.sample_error()), retires, "{failure:?}");
+    }
+}
 
 #[test]
 fn eligible_for_clone_capable_local_materialization() {
@@ -159,7 +168,7 @@ mod macos {
             None,
             None,
             None,
-            &crate::host_platform_selector(),
+            &crate::platform_selection::VariantPlatforms::host(),
         )
         .hashed_slot_dir(&key)
         .expect("hashed slot for the one snapshot");

@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
+    AuthConfig, AuthState, Config, MaxUsers, TokensConfig, UsersConfig, router, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
@@ -26,12 +26,12 @@ fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
 }
 
-fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) -> Config {
+fn persistent_config(storage: PathBuf, users: PathBuf, tokens_db: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
     config.http.public_url = "http://example.test".to_string();
     config.identity.auth = AuthConfig {
         oidc: Vec::new(),
-        htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
+        users: UsersConfig { file: Some(users), max_users: MaxUsers::Unlimited },
         tokens: TokensConfig { file: Some(tokens_db) },
         scim: None,
     };
@@ -88,7 +88,7 @@ async fn user_and_token_survive_restart() {
     // adduser pulls a fresh token out of the response body.
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -131,7 +131,7 @@ async fn user_and_token_survive_restart() {
     // The existing username must accept the same password and not
     // be re-registered as a brand-new user.
     let response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -159,7 +159,7 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
 
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -176,7 +176,7 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
         let path = format!("/-/user/org.couchdb.user:{encoded_username}");
         let response = app
             .clone()
-            .oneshot(put_json(&path, adduser_body(username, "secret")))
+            .oneshot(put_json(&path, adduser_body(username, "secret123")))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case} username");
@@ -192,8 +192,8 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
         .await
         .expect("reload after restart");
     // The reloaded htpasswd still logs the user in with the original password.
-    let (_, username) = auth.users.add_or_login("alice", "secret").await.unwrap();
-    assert_eq!(username, "alice");
+    let (_, username) = auth.users.add_or_login("alice", "secret123").await.unwrap();
+    assert_eq!(Some(username), auth.users.account_id("alice").await.unwrap());
     assert_eq!(std::fs::read_to_string(&htpasswd).unwrap(), original_htpasswd);
 }
 
@@ -225,11 +225,9 @@ async fn corrupt_htpasswd_fails_startup_with_diagnostic() {
     );
 }
 
-/// htpasswd file produced by pnpr is readable by Apache's `htpasswd
-/// -v` — cross-tool compatibility. Skipped silently when the host
-/// doesn't have htpasswd installed (some CI images don't).
+/// Stored bcrypt hashes can be verified by Apache when its htpasswd tool is installed.
 #[tokio::test]
-async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
+async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
     if Command::new("htpasswd")
         .arg("-h")
         .output()
@@ -241,11 +239,12 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
 
     let auth_dir = TempDir::new().unwrap();
     let storage = TempDir::new().unwrap();
-    let htpasswd = auth_dir.path().join("htpasswd");
+    let users_file = auth_dir.path().join("users.json");
+    let htpasswd = auth_dir.path().join("apache-htpasswd");
 
     let config = persistent_config(
         storage.path().to_path_buf(),
-        htpasswd.clone(),
+        users_file.clone(),
         auth_dir.path().join("tokens.db"),
     );
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
@@ -258,6 +257,11 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
+
+    let accounts: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(users_file).unwrap()).unwrap();
+    let hash = accounts["alice"]["password_hash"].as_str().unwrap();
+    std::fs::write(&htpasswd, format!("alice:{hash}\n")).unwrap();
 
     // `htpasswd -v` (verify-only) exits 0 when the password matches.
     let status = Command::new("htpasswd")
@@ -286,7 +290,7 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
     );
 }
 
-/// `auth.htpasswd.max_users: -1` blocks new registrations — but
+/// `auth.users.max_users: -1` blocks new registrations — but
 /// existing users can still log in. Wired end-to-end through the
 /// adduser HTTP endpoint to confirm the policy surfaces as a 403,
 /// not a silent 201.
@@ -297,7 +301,7 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
     let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
     config.identity.auth = AuthConfig {
         oidc: Vec::new(),
-        htpasswd: HtpasswdConfig {
+        users: UsersConfig {
             file: Some(auth_dir.path().join("htpasswd")),
             max_users: MaxUsers::Disabled,
         },
@@ -340,7 +344,7 @@ async fn missing_max_users_disables_registration_end_to_end() {
 async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
     let storage = TempDir::new().unwrap();
     let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
-    config.identity.auth.htpasswd.max_users = MaxUsers::Limited(1);
+    config.identity.auth.users.max_users = MaxUsers::Limited(1);
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .unwrap();
@@ -348,13 +352,13 @@ async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
 
     let first = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(first.status(), StatusCode::CREATED);
 
     let second = app
-        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret123")))
         .await
         .unwrap();
     assert_eq!(second.status(), StatusCode::FORBIDDEN);
@@ -365,8 +369,16 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
     let storage = TempDir::new().unwrap();
     let auth_dir = TempDir::new().unwrap();
     let htpasswd = auth_dir.path().join("users");
-    // "test" hashed with SHA-1 in Apache/Verdaccio format
-    std::fs::write(&htpasswd, "alice:{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=\n").unwrap();
+    // "test-password" hashed with SHA-1 in Apache/Verdaccio format
+    pnpr_auth::UserStore::import_password_hashes(
+        &htpasswd,
+        [("alice".to_string(), "{SHA}eJy+BAeECxwgQcszRS/2Dxm/WMw=".to_string())].into(),
+        pnpr_auth::PasswordImport {
+            collisions: pnpr_auth::PasswordCollisions::Keep,
+            mode: pnpr_auth::ImportMode::Persist,
+        },
+    )
+    .unwrap();
 
     let config = persistent_config(
         storage.path().to_path_buf(),
@@ -381,7 +393,7 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
     // Legacy SHA user logs in via npm adduser / login endpoint
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test-password")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -406,12 +418,12 @@ async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
 
     // The htpasswd file has been upgraded from {SHA} to bcrypt
     let updated_htpasswd = std::fs::read_to_string(&htpasswd).unwrap();
-    assert!(updated_htpasswd.contains("alice:$2y$"));
+    assert!(updated_htpasswd.contains("$2y$"));
     assert!(!updated_htpasswd.contains("{SHA}"));
 
     // Subsequent login succeeds with the upgraded hash
     let second_response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test-password")))
         .await
         .unwrap();
     assert_eq!(second_response.status(), StatusCode::CREATED);

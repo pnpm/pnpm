@@ -23,6 +23,7 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import type { AllowBuild, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
+import { importerModulesDir, isStrictlyInside } from '@pnpm/workspace.state'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
@@ -55,7 +56,11 @@ interface LinkHoistedModulesOptions {
    */
   holdBackMissingBins: boolean
   ignoreScripts: boolean
+  /** The directories of every project in the lockfile, whether the plan places anything in them or not. */
+  importerDirs: string[]
   lockfileDir: string
+  /** The configured `modulesDir`. Each importer keeps its dependencies there. */
+  modulesDir?: string
   /**
    * The root project's `engines.runtime` Node version, which keys the
    * side-effects cache of every package that does not pin its own.
@@ -72,11 +77,11 @@ interface LinkHoistedModulesOptions {
 export async function linkHoistedModules (
   storeController: StoreController,
   graph: DependenciesGraph,
-  prevGraph: DependenciesGraph,
+  previousDirs: string[],
   hierarchy: DepHierarchy,
   opts: LinkHoistedModulesOptions
 ): Promise<string[]> {
-  await removeDirsOutsidePlan(graph, prevGraph, hierarchy, opts.lockfileDir)
+  await removeDirsOutsidePlan(graph, previousDirs, hierarchy, opts)
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
@@ -101,7 +106,7 @@ export async function linkHoistedModules (
             prefix: parentDir,
           })
         }
-        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
+        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts), {
           ...opts,
           holdBackMissingTargets: opts.holdBackMissingBins,
           nestedHeldBackBinsDirs: heldBackBinsDirs,
@@ -116,20 +121,21 @@ export async function linkHoistedModules (
 
 async function removeDirsOutsidePlan (
   graph: DependenciesGraph,
-  prevGraph: DependenciesGraph,
+  previousDirs: string[],
   hierarchy: DepHierarchy,
-  lockfileDir: string
+  { importerDirs, lockfileDir, modulesDir }: Pick<LinkHoistedModulesOptions, 'importerDirs' | 'lockfileDir' | 'modulesDir'>
 ): Promise<void> {
   // TODO: remove nested node modules first
-  const dirsToRemove = difference(
-    Object.keys(prevGraph),
-    Object.keys(graph)
-  )
+  const holdsImporter = holdsAnyOf([lockfileDir, ...importerDirs, ...Object.keys(hierarchy)])
+  const rootModulesDir = importerModulesDir(lockfileDir, { lockfileDir, modulesDir })
+  const isPermittedDir = (dir: string) => isStrictlyInside(dir, lockfileDir) || isStrictlyInside(dir, rootModulesDir)
+  const dirsToRemove = difference(previousDirs, Object.keys(graph))
+    .filter((dir) => !holdsImporter(dir) && isPermittedDir(dir))
   // A directory the previous install recorded is pnpm's to delete. One that only
   // the on-disk scan found is not: pnpm has no record of putting it there, so it
   // is quarantined instead, the way an alien package directory already is.
   const recordedDirs = new Set(dirsToRemove)
-  const dirsToQuarantine = (await findUnplannedDirs(hierarchy))
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, holdsImporter, { lockfileDir, modulesDir }))
     .filter(({ dir }) => !recordedDirs.has(dir))
   statsLogger.debug({
     prefix: lockfileDir,
@@ -321,7 +327,7 @@ async function linkAllPkgsInOrder (
   storeController: StoreController,
   graph: DependenciesGraph,
   hierarchy: DepHierarchy,
-  parentDir: string,
+  modulesDir: string,
   opts: LinkAllPkgsInOrderOptions
 ): Promise<void> {
   await Promise.all(
@@ -331,10 +337,9 @@ async function linkAllPkgsInOrder (
       await Promise.all(Object.entries(depNode.packageRootLinks ?? {}).map(([alias, target]) =>
         symlinkDependency(path.join(depNode.dir, target), path.join(depNode.dir, 'node_modules'), alias)
       ))
-      return linkAllPkgsInOrder(storeController, graph, deps, dir, { ...opts, isNested: true })
+      return linkAllPkgsInOrder(storeController, graph, deps, path.join(dir, 'node_modules'), { ...opts, isNested: true })
     })
   )
-  const modulesDir = path.join(parentDir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
@@ -440,25 +445,46 @@ async function pickSideEffectsCacheKey (
  * (https://github.com/pnpm/pnpm/issues/13676).
  *
  * Symlinks are skipped: that is how workspace packages and `link:` dependencies
- * are attached, and they are absent from the graph by design.
+ * are attached, and they are absent from the graph by design. A modules
+ * directory is scanned only when it is strictly inside its importer and holds
+ * no importer: `modulesDir` may point at the importer itself, a parent, a
+ * directory of projects, or a directory outside the workspace, and pnpm does
+ * not own the rest of what is there.
  */
-async function findUnplannedDirs (hierarchy: DepHierarchy): Promise<UnplannedDir[]> {
+async function findUnplannedDirs (
+  hierarchy: DepHierarchy,
+  holdsImporter: (dir: string) => boolean,
+  opts: { lockfileDir: string, modulesDir?: string }
+): Promise<UnplannedDir[]> {
   const unplannedDirs = await Promise.all(
     Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
-      const modulesDir = path.join(projectDir, 'node_modules')
-      const pkgNames = await readModulesDir(modulesDir)
-      if (pkgNames == null) return []
-      const plannedDirs = new Set(Object.keys(plannedDeps))
-      const candidates = pkgNames
-        .map((pkgName) => ({ dir: path.join(modulesDir, pkgName), modulesDir, pkgName }))
-        .filter(({ dir }) => !plannedDirs.has(dir))
-      const checked = await Promise.all(
-        candidates.map(async (candidate) => await isPackageDir(candidate.dir) ? candidate : null)
-      )
-      return checked.filter((candidate) => candidate != null)
+      const modulesDir = importerModulesDir(projectDir, opts)
+      if (!isStrictlyInside(modulesDir, projectDir) || holdsImporter(modulesDir)) return []
+      const isUnplanned = (dir: string) => plannedDeps[dir] == null
+      return findUnplannedDirsIn(modulesDir, isUnplanned)
     })
   )
   return unplannedDirs.flat()
+}
+
+async function findUnplannedDirsIn (modulesDir: string, isUnplanned: (dir: string) => boolean): Promise<UnplannedDir[]> {
+  const pkgNames = await readModulesDir(modulesDir)
+  if (pkgNames == null) return []
+  const candidates = pkgNames
+    .map((pkgName) => ({ dir: path.join(modulesDir, pkgName), modulesDir, pkgName }))
+    .filter(({ dir }) => isUnplanned(dir))
+  const checked = await Promise.all(
+    candidates.map(async (candidate) => await isPackageDir(candidate.dir) ? candidate : null)
+  )
+  return checked.filter((candidate) => candidate != null)
+}
+
+function holdsAnyOf (importerDirs: string[]): (dir: string) => boolean {
+  const resolvedImporterDirs = importerDirs.map((importerDir) => path.resolve(importerDir))
+  return (dir) => {
+    const resolvedDir = path.resolve(dir)
+    return resolvedImporterDirs.some((importerDir) => importerDir === resolvedDir || isStrictlyInside(importerDir, resolvedDir))
+  }
 }
 
 /**

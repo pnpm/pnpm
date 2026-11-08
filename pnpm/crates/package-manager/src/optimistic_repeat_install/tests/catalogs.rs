@@ -1,11 +1,9 @@
 use super::{
-    super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-        settings::current_settings_with_catalogs,
-    },
+    super::{Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install},
     backdate_validated_files, check_with_catalogs, check_workspace, isolated_included,
     setup_fresh_install, setup_fresh_install_with_config, write_empty_lockfile, write_state,
 };
+use crate::install_state::settings::current_settings_with_catalogs;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;

@@ -1,12 +1,10 @@
-import { createHash } from 'node:crypto'
-import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { bravoDepMatureUpTo101MinimumReleaseAge, hostedBlobPath } from '@pnpm/testing.registry-mock'
+import { bravoDepMatureUpTo101MinimumReleaseAge, getIntegrity } from '@pnpm/testing.registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -18,9 +16,8 @@ import {
 import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
 test('install rejects a version the registry serves as a registry revision', async () => {
-  const tarball = fs.readFileSync(hostedBlobPath('ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
-  const digest = createHash('sha512').update(tarball).digest()
-  const integrity = `sha512-${digest.toString('base64')}`
+  const integrity = getIntegrity('ajv-keywords', '1.5.0')
+  const digest = Buffer.from(integrity.slice('sha512-'.length), 'base64')
 
   let registry = ''
   const server = http.createServer((request, response) => {

@@ -92,11 +92,6 @@ export function packageIsInstallable (
 
   if (warn == null) return true
 
-  installCheckLogger.warn({
-    message: warn.message,
-    prefix: options.lockfileDir,
-  })
-
   if (options.optional) {
     skippedOptionalDependencyLogger.debug({
       details: warn.toString(),
@@ -114,6 +109,11 @@ export function packageIsInstallable (
 
   if (options.engineStrict) throw warn
 
+  installCheckLogger.warn({
+    message: warn.message,
+    prefix: options.lockfileDir,
+  })
+
   return null
 }
 
@@ -130,8 +130,8 @@ interface PlatformFields {
  * platform-specific binary the package name carries the same information, so
  * each missing field is filled from the name's tokens. A package that
  * declares no platform fields at all is treated as platform-specific only
- * when an operating system is recognized in its name — a generic name
- * segment (e.g. `arm` on its own) never marks it as such.
+ * when its name has an operating system and a cpu or libc token — a lone
+ * name segment (e.g. `arm` or `windows` on its own) never marks it as such.
  * https://github.com/pnpm/pnpm/issues/11702
  */
 function effectivePlatform (pkg: PlatformFields & { name: string }, optional: boolean): PlatformFields {
@@ -139,7 +139,8 @@ function effectivePlatform (pkg: PlatformFields & { name: string }, optional: bo
   const inferred = inferPlatformFromPackageName(pkg.name)
   if (inferred == null) return pkg
   const pkgDeclaresPlatform = pkg.os != null || pkg.cpu != null || pkg.libc != null
-  if (!pkgDeclaresPlatform && inferred.os == null) return pkg
+  const namesBinaryTarget = inferred.os != null && (inferred.cpu != null || inferred.libc != null)
+  if (!pkgDeclaresPlatform && !namesBinaryTarget) return pkg
   return {
     os: pkg.os ?? inferred.os,
     cpu: pkg.cpu ?? inferred.cpu,

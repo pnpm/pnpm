@@ -8,10 +8,7 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_which as which;
 
-#[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process as process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
 
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
@@ -90,6 +87,9 @@ pub fn main() -> ExitCode {
     let argv: Vec<OsString> = std::env::args_os().collect();
     let launch = shim_dispatch::ShimLaunch::detect(&argv);
     let argv = if launch.is_shim() { argv } else { argv_with_alias_subcommand(argv) };
+    // Like the `--env-file` load below, this sets a variable, so it runs
+    // before the startup thread exists.
+    launch.mark_preparation();
     // Load `--env-file` variables here, on the main thread before the
     // startup thread below exists: `std::env::set_var` must not run once
     // another thread is alive (see `env_file`). A shim launch is exempt:

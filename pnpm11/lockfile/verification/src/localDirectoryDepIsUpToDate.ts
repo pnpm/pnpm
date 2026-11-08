@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { DEFAULT_REGISTRIES_BY_SCOPE } from '@pnpm/config.normalize-registries'
@@ -16,6 +17,7 @@ import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
+import { isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -32,7 +34,7 @@ import {
   getVersionRange,
   isSubdirectory,
   isWorkspacePath,
-  resolveSpecPath,
+  versionSatisfies,
 } from './dependencySpec.js'
 
 export interface LocalDirectoryDepContext {
@@ -100,18 +102,35 @@ interface DependencyOfLocalDirectoryDep {
  */
 export function createLocalDirectoryDepUpToDateChecker (
   ctx: LocalDirectoryDepContext
-): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>) => Promise<boolean> {
+): (pkgSnapshot: PackageSnapshot, parentPkgAliases: Record<string, unknown>, declaration?: Declaration) => Promise<boolean> {
   const visited = new Map<PackageSnapshot, Set<string>>()
   // Collected on the first check, since most projects have no local directory dependency to check.
   let recordedPeers: string[] | undefined
-  return async (pkgSnapshot, parentPkgAliases) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+  return async (pkgSnapshot, parentPkgAliases, declaration = { declaredByPath: false }) => localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+    ...declaration,
     parentPkgAliases,
     visited,
     recordedPeers: recordedPeers ??= recordedPeersOf(ctx.lockfilePackages),
   })
 }
 
-interface DirectoryWalk {
+/** How the package being checked was declared. */
+export interface Declaration {
+  /**
+   * Whether a path spec, such as `file:../lib` or `../lib`, declared the
+   * package. The resolver leaves the `catalog:` specs of such a package's
+   * children unresolved.
+   */
+  declaredByPath: boolean
+  /**
+   * The lockfile does not record which spec declared the package, so it is
+   * checked under both declarations. Only the workspace one judges its
+   * `catalog:` children then.
+   */
+  declarationAssumed?: boolean
+}
+
+interface DirectoryWalk extends Declaration {
   /** The aliases of every ancestor, which supply the package's peers. */
   parentPkgAliases: Record<string, unknown>
   /** The peer scopes each snapshot was checked in. */
@@ -160,6 +179,8 @@ async function localDirectoryDepIsUpToDateRec (
     workspaceRoot: ctx.workspaceDir ?? ctx.lockfileDir,
   }
   const childWalk: DirectoryWalk = {
+    declaredByPath: walk.declaredByPath,
+    declarationAssumed: walk.declarationAssumed,
     parentPkgAliases: { ...walk.parentPkgAliases, ...dependencyAliasesOf(pkgSnapshot) },
     visited: walk.visited,
     recordedPeers: walk.recordedPeers,
@@ -172,6 +193,7 @@ function markVisited (walk: DirectoryWalk, pkgSnapshot: PackageSnapshot, manifes
   const scope = Array.from(new Set([...Object.keys(manifest.peerDependencies ?? {}), ...walk.recordedPeers]))
     .filter((peer) => Boolean(walk.parentPkgAliases[peer]))
     .sort()
+    .concat(walk.declaredByPath ? ['\0path'] : [], walk.declarationAssumed ? ['\0assumed'] : [])
     .join('\0')
   let scopes = walk.visited.get(pkgSnapshot)
   if (scopes == null) {
@@ -283,7 +305,7 @@ async function childIsUpToDate (
     return child.optional && ctx.resolution?.frozenLockfile === true &&
       !pkgSnapshot.dependencies?.[child.alias]
   }
-  const currentSpec = resolveCatalogSpec(ctx, child)
+  const currentSpec = resolvedChildSpec(ctx, child, walk)
   if (currentSpec == null) return false
   if (isLocalSpec(currentSpec)) {
     return localChildIsUpToDate(ctx, localDep, pkgSnapshot, child, currentSpec, lockfileDep, walk)
@@ -293,6 +315,17 @@ async function childIsUpToDate (
   if (isLockedToOtherSource(currentSpec, locked)) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked, ctx.resolution?.registries ?? DEFAULT_REGISTRY_CONTEXT) ??
     (ctx.resolution?.frozenLockfile === true && locked.name === getTargetPkgName(currentSpec, child.alias))
+}
+
+/**
+ * The spec the resolver resolves `child` with. `undefined` when it resolves
+ * none: a missing catalog entry, or a `catalog:` spec of a child of a package
+ * declared by path, which the resolver leaves as written and no resolver
+ * accepts.
+ */
+function resolvedChildSpec (ctx: LocalDirectoryDepContext, child: ManifestWantedDependency, walk: DirectoryWalk): string | undefined {
+  if (!walk.declaredByPath || walk.declarationAssumed) return resolveCatalogSpec(ctx, child)
+  return parseCatalogProtocol(child.bareSpecifier) == null ? child.bareSpecifier : undefined
 }
 
 /**
@@ -323,7 +356,11 @@ async function localChildIsUpToDate (
     // entry: its own dependencies cannot be validated, so it is stale.
     return currentSpec.startsWith('workspace:')
   }
-  return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, walk)
+  return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, {
+    ...walk,
+    declaredByPath: isLocalFilesystemSpecifier(child.bareSpecifier),
+    declarationAssumed: false,
+  })
 }
 
 function isLocalSpec (spec: string): boolean {
@@ -396,20 +433,20 @@ async function localSpecIsUpToDate (
   if (currentSpec.startsWith('link:')) {
     return (
       lockfileDep.startsWith('link:') &&
-      resolveSpecPath(localDep.localDepDir, currentSpec.slice(5)) === resolveSpecPath(localDep.lockfileDir, lockfileDep.slice(5))
+      localSpecPath(currentSpec, localDep.localDepDir) === recordedLocalPath(lockfileDep.slice(5), localDep.lockfileDir)
     )
   }
   const cleanLockfileDep = removeSuffix(lockfileDep)
   const lockfilePath = getLocalPath(cleanLockfileDep)
   if (currentSpec.startsWith('file:')) {
-    return localPathMatches(localDep, currentSpec.slice(5), lockfilePath)
+    return localPathMatches(localDep, currentSpec, lockfilePath)
   }
   return workspaceDependencyIsUpToDate(localDep, { depName, currentSpec, cleanLockfileDep, lockfilePath })
 }
 
-function localPathMatches (localDep: LocalDirectoryDep, specPath: string, lockfilePath: string | null): boolean {
+function localPathMatches (localDep: LocalDirectoryDep, currentSpec: string, lockfilePath: string | null): boolean {
   return lockfilePath != null &&
-    resolveSpecPath(localDep.localDepDir, specPath) === resolveSpecPath(localDep.lockfileDir, lockfilePath)
+    localSpecPath(currentSpec, localDep.localDepDir) === recordedLocalPath(lockfilePath, localDep.lockfileDir)
 }
 
 function hasExpectedName (cleanLockfileDep: string, { depName, currentSpec }: { depName: string, currentSpec: string }): boolean {
@@ -427,9 +464,8 @@ async function workspaceDependencyIsUpToDate (
     lockfilePath: string | null
   }
 ): Promise<boolean> {
-  const target = currentSpec.slice(10)
-  if (isWorkspacePath(target)) {
-    return localPathMatches(localDep, target, lockfilePath)
+  if (isWorkspacePath(currentSpec.slice(10))) {
+    return localPathMatches(localDep, currentSpec, lockfilePath)
   }
   const range = getVersionRange(currentSpec)
   if (lockfilePath != null) {
@@ -466,8 +502,7 @@ async function linkedWorkspaceTargetSatisfies (
   if (!targetPkg || targetPkg.name !== expectedName) {
     return false
   }
-  return range === '*' || range === '^' || range === '~' || range === '' ||
-    semver.satisfies(targetPkg.version, range, { loose: true })
+  return versionSatisfies(targetPkg.version, range)
 }
 
 async function realPathStaysInsideWorkspace (workspaceRoot: string, targetDir: string): Promise<boolean> {

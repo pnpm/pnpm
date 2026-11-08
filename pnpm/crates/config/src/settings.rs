@@ -836,6 +836,14 @@ pub struct Config {
     #[default = true]
     pub resolve_peers_from_workspace_root: bool,
 
+    /// When `true`, a missing optional peer is installed only if the
+    /// project's own dependencies, or the workspace root's direct
+    /// dependencies under [`Self::resolve_peers_from_workspace_root`],
+    /// already resolve a matching version. Versions that only other
+    /// workspace projects resolve still steer which version is picked.
+    /// `dedupePeerDependents: false` implies it.
+    pub project_scoped_optional_peers: bool,
+
     /// When `true`, reject exotic (git, tarball, file, ...) dependencies
     /// reached transitively from the importer. Direct deps remain
     /// allowed. The `blockExoticSubdeps` setting; default `true`.

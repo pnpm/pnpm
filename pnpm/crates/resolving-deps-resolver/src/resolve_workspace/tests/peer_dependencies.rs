@@ -5,6 +5,7 @@ use super::{
     graph_versions_of, importer_opts, link_root_dep_peer_provider, resolve_single_importer,
     resolve_with_transient_shared_walk, resolve_workspace, table_entry, workspace_opts,
 };
+use crate::PeerDependentsDedupe;
 
 #[tokio::test]
 async fn workspace_root_direct_deps_resolve_child_importer_peers() {
@@ -126,6 +127,7 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = PeerDependentsDedupe::On;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
@@ -146,6 +148,183 @@ async fn local_workspace_package_version_can_satisfy_another_importers_optional_
         direct.get("opt").map(std::string::ToString::to_string),
         Some("opt@1.0.0".to_string()),
     );
+}
+
+/// `needs-opt` has an optional peer `opt`. `provider` depends on `opt`,
+/// and `workspace-carrier` depends on it through `workspace:*`.
+fn optional_peer_table() -> HashMap<(String, String), pnpm_resolving_resolver_base::ResolveResult> {
+    let mut table = HashMap::default();
+    table.insert(
+        ("needs-opt".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "needs-opt",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "needs-opt",
+                "version": "1.0.0",
+                "peerDependencies": { "opt": "^1.0.0" },
+                "peerDependenciesMeta": { "opt": { "optional": true } },
+            }),
+        ),
+    );
+    table.insert(
+        ("provider".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "provider",
+            "1.0.0",
+            None,
+            serde_json::json!({ "name": "provider", "version": "1.0.0", "dependencies": { "opt": "1.0.0" } }),
+        ),
+    );
+    table.insert(
+        ("workspace-carrier".to_string(), "1.0.0".to_string()),
+        fake_result(
+            "workspace-carrier",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "workspace-carrier",
+                "version": "1.0.0",
+                "dependencies": { "opt": "workspace:*" },
+            }),
+        ),
+    );
+    table.insert(
+        ("opt".to_string(), "1.0.0".to_string()),
+        fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" })),
+    );
+    let mut local_opt =
+        fake_result("opt", "1.0.0", None, serde_json::json!({ "name": "opt", "version": "1.0.0" }));
+    local_opt.id = PkgResolutionId::from("link:packages/opt".to_string());
+    local_opt.package.name_ver = None;
+    local_opt.resolution = LockfileResolution::Directory(DirectoryResolution {
+        directory: "packages/opt".to_string(),
+    });
+    local_opt.resolved_via = "local-filesystem".to_string();
+    table.insert(("opt".to_string(), "workspace:*".to_string()), local_opt);
+    table
+}
+
+/// `pkg-b` depends on `opt`. Returns how `pkg-a`'s `needs-opt` resolved.
+async fn resolve_optional_peer_of_pkg_a(
+    pkg_a_deps: serde_json::Value,
+    dedupe: PeerDependentsDedupe,
+) -> String {
+    resolve_optional_peer_of_pkg_a_beside(pkg_a_deps, serde_json::json!({ "opt": "1.0.0" }), dedupe)
+        .await
+}
+
+async fn resolve_optional_peer_of_pkg_a_beside(
+    pkg_a_deps: serde_json::Value,
+    pkg_b_deps: serde_json::Value,
+    dedupe: PeerDependentsDedupe,
+) -> String {
+    let resolver =
+        RecordingResolver { table: optional_peer_table(), seen: Mutex::new(HashMap::default()) };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({}));
+    let (tmp_a, a_manifest) = fake_manifest(pkg_a_deps);
+    let (tmp_b, b_manifest) = fake_manifest(pkg_b_deps);
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path(), tmp_b.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = dedupe;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        importer_opts(dir, None)
+    })
+    .await
+    .unwrap();
+
+    result.peers.direct_dependencies_by_importer["pkg-a"]["needs-opt"].to_string()
+}
+
+/// <https://github.com/orgs/pnpm/discussions/16666>
+#[tokio::test]
+async fn without_dedupe_peer_dependents_another_importers_version_does_not_supply_an_optional_peer()
+{
+    let resolved = resolve_optional_peer_of_pkg_a(
+        serde_json::json!({ "needs-opt": "1.0.0" }),
+        PeerDependentsDedupe::Off,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0");
+}
+
+#[tokio::test]
+async fn with_dedupe_peer_dependents_another_importers_version_supplies_an_optional_peer() {
+    let resolved = resolve_optional_peer_of_pkg_a(
+        serde_json::json!({ "needs-opt": "1.0.0" }),
+        PeerDependentsDedupe::On,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0(opt@1.0.0)");
+}
+
+#[tokio::test]
+async fn without_dedupe_peer_dependents_the_importers_own_dependencies_supply_an_optional_peer() {
+    let resolved = resolve_optional_peer_of_pkg_a(
+        serde_json::json!({ "needs-opt": "1.0.0", "provider": "1.0.0" }),
+        PeerDependentsDedupe::Off,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0(opt@1.0.0)");
+}
+
+#[tokio::test]
+async fn project_scoped_optional_peers_keep_another_importers_version_from_supplying_an_optional_peer()
+ {
+    let resolved = resolve_optional_peer_of_pkg_a(
+        serde_json::json!({ "needs-opt": "1.0.0" }),
+        PeerDependentsDedupe::OnWithProjectScopedOptionalPeers,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0");
+}
+
+/// `pkg-b` resolves `needs-opt` with the peer, and deduplication must not
+/// hand that variant to `pkg-a`.
+#[tokio::test]
+async fn project_scoped_optional_peers_survive_peer_dependents_deduplication() {
+    let resolved = resolve_optional_peer_of_pkg_a_beside(
+        serde_json::json!({ "needs-opt": "1.0.0" }),
+        serde_json::json!({ "needs-opt": "1.0.0", "opt": "1.0.0" }),
+        PeerDependentsDedupe::OnWithProjectScopedOptionalPeers,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0");
+}
+
+#[tokio::test]
+async fn project_scoped_optional_peers_let_the_importers_own_dependencies_supply_an_optional_peer()
+{
+    let resolved = resolve_optional_peer_of_pkg_a(
+        serde_json::json!({ "needs-opt": "1.0.0", "provider": "1.0.0" }),
+        PeerDependentsDedupe::OnWithProjectScopedOptionalPeers,
+    )
+    .await;
+    assert_eq!(resolved, "needs-opt@1.0.0(opt@1.0.0)");
+}
+
+/// A workspace package resolved without a registry `name_ver` still
+/// counts as part of the importer's own dependencies.
+#[tokio::test]
+async fn without_dedupe_peer_dependents_a_workspace_package_in_the_importers_own_dependencies_supplies_an_optional_peer()
+ {
+    let resolved = resolve_optional_peer_of_pkg_a(
+        serde_json::json!({ "needs-opt": "1.0.0", "workspace-carrier": "1.0.0" }),
+        PeerDependentsDedupe::Off,
+    )
+    .await;
+    assert!(resolved.starts_with("needs-opt@1.0.0(opt@"), "{resolved}");
 }
 
 /// The pin satisfies `host`'s optional peer range and the owner's
@@ -804,5 +983,83 @@ async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: Mani
         result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
         "real-peer@1.9.9",
         "`{local}` must not be hoisted into app-b",
+    );
+}
+
+fn optional_peer_carrier_table()
+-> HashMap<(String, String), pnpm_resolving_resolver_base::ResolveResult> {
+    let mut table = HashMap::default();
+    let manifests = [
+        serde_json::json!({
+            "name": "needs-carrier",
+            "version": "1.0.0",
+            "peerDependencies": { "carrier": "*" },
+            "peerDependenciesMeta": { "carrier": { "optional": true } },
+        }),
+        serde_json::json!({ "name": "carrier", "version": "1.0.0", "peerDependencies": { "user": "*" } }),
+        serde_json::json!({ "name": "user", "version": "1.0.0", "peerDependencies": { "y": "^2.0.0" } }),
+        serde_json::json!({ "name": "y", "version": "1.0.0" }),
+        serde_json::json!({ "name": "y", "version": "2.0.0" }),
+    ];
+    for manifest in manifests {
+        let name = manifest["name"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let version = manifest["version"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        table.insert((name.clone(), version.clone()), fake_result(&name, &version, None, manifest));
+    }
+    table
+}
+
+/// Returns how `pkg-a`'s `needs-carrier` resolved.
+async fn resolve_needs_carrier_of_pkg_a(pkg_a_y: &str) -> String {
+    let resolver = RecordingResolver {
+        table: optional_peer_carrier_table(),
+        seen: Mutex::new(HashMap::default()),
+    };
+    let (tmp_root, root_manifest) = fake_manifest(serde_json::json!({}));
+    let (tmp_a, a_manifest) =
+        fake_manifest(serde_json::json!({ "needs-carrier": "1.0.0", "y": pkg_a_y }));
+    let (tmp_b, b_manifest) =
+        fake_manifest(serde_json::json!({ "carrier": "1.0.0", "user": "1.0.0", "y": "2.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
+    ];
+    let dirs = [tmp_root.path(), tmp_a.path(), tmp_b.path()];
+
+    let mut opts = workspace_opts(false, false);
+    opts.peers.auto_install_peers = true;
+    opts.peers.dedupe_peer_dependents = PeerDependentsDedupe::On;
+    let mut next = 0;
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        importer_opts(dir, None)
+    })
+    .await
+    .unwrap();
+
+    result.peers.direct_dependencies_by_importer["pkg-a"]["needs-carrier"].to_string()
+}
+
+/// <https://github.com/orgs/pnpm/discussions/17718>
+#[tokio::test]
+async fn an_optional_peer_is_not_supplied_when_a_required_peer_it_brings_in_rejects_the_importers_version()
+ {
+    assert_eq!(resolve_needs_carrier_of_pkg_a("1.0.0").await, "needs-carrier@1.0.0");
+}
+
+#[tokio::test]
+async fn an_optional_peer_is_supplied_when_the_required_peers_it_brings_in_accept_the_importers_versions()
+ {
+    assert!(
+        resolve_needs_carrier_of_pkg_a("2.0.0").await
+            .starts_with("needs-carrier@1.0.0(carrier@1.0.0"),
     );
 }

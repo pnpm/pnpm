@@ -253,3 +253,46 @@ function skippedOptionalLockfile (): LockfileObject {
     },
   } as unknown as LockfileObject
 }
+
+test('lockfileToHoistedDepGraph ignores traversal importer IDs in currentLockfile', async () => {
+  const dir = tempDir(false)
+  const opts = hoistedOpts(dir)
+  opts.storeController = {
+    fetchPackage: () => ({ filesIndexFile: '' }),
+    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
+  } as unknown as typeof opts.storeController
+
+  const wantedLockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: { a: '1.0.0' },
+        specifiers: { a: '1.0.0' },
+      },
+    },
+    packages: {
+      'a@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+    },
+  } as unknown as LockfileObject
+  const currentLockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: { a: '1.0.0' },
+        specifiers: { a: '1.0.0' },
+      },
+      '../victim': {
+        dependencies: { a: '2.0.0' },
+        specifiers: { a: '2.0.0' },
+      },
+    },
+    packages: {
+      'a@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+      'a@2.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+    },
+  } as unknown as LockfileObject
+
+  const { prevGraph } = await lockfileToHoistedDepGraph(wantedLockfile, currentLockfile, opts)
+
+  expect(Object.keys(prevGraph!)).toStrictEqual([path.join(dir, 'node_modules', 'a')])
+})

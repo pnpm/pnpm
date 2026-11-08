@@ -340,3 +340,17 @@ test('listFilesFromDir lists a directory link as one entry when it preserves lin
     rimrafSync(pkgDir)
   }
 })
+
+test.each([true, false])('listFilesFromDir skips a lockfile staging file at the package root (includeOnlyPackageFiles: %s)', async (includeOnlyPackageFiles) => {
+  const pkgDir = fs.mkdtempSync(path.join(os.tmpdir(), 'directory-fetcher-'))
+  try {
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'pkg', version: '1.0.0' }))
+    fs.writeFileSync(path.join(pkgDir, 'index.js'), '')
+    fs.writeFileSync(path.join(pkgDir, '.pnpm-lock.yaml.123.5f0e2c1a-7a3b-4c8d-9e0f-1a2b3c4d5e6f.tmp'), '')
+    const { filesMap } = await listFilesFromDir(pkgDir, { includeOnlyPackageFiles })
+
+    expect(Array.from(filesMap.keys()).sort(lexCompare)).toStrictEqual(['index.js', 'package.json'])
+  } finally {
+    rimrafSync(pkgDir)
+  }
+})

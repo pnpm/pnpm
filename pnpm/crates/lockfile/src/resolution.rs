@@ -1,6 +1,6 @@
 pub use git_hosted::is_git_hosted_tarball_url;
 pub use pnpm_crypto_hash::has_complete_sha512_digest;
-pub use pnpm_platform_variants::{AmbiguousSelection, HostFloors};
+pub use pnpm_platform_variants::{AmbiguousSelection, Floor, HostFloors, NodeAbi, host_floors};
 pub use registry::{
     DeclaredRegistryPrefixes, RegistryContext, RegistryOptions, RegistryServerType,
     TarballUrlOptions, normalized_registry_key, npm_tarball_url, pick_registry_for_package,

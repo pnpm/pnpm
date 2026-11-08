@@ -335,3 +335,23 @@ fn unc_roots_follow_minimatch_platform_semantics() {
     assert!(IgnoreRule::parse("/**").matches("/foo", false));
     assert!(IgnoreRule::parse("///**").matches("/foo", false));
 }
+
+#[test]
+fn lockfile_staging_entries_are_pruned_before_visiting_even_with_a_files_allowlist() {
+    let root = tempfile::tempdir().unwrap();
+    for name in ["index.js", ".pnpm-lock.yaml.123.0.tmp", ".pnpm-lock.yaml.backup"] {
+        std::fs::write(root.path().join(name), "contents").unwrap();
+    }
+    let temporary = root.path().join(".pnpm-lock.yaml.123.1.tmp");
+    std::fs::create_dir(&temporary).unwrap();
+    std::fs::write(temporary.join("nested.js"), "contents").unwrap();
+    std::fs::create_dir(root.path().join("nested")).unwrap();
+    std::fs::write(root.path().join("nested/.pnpm-lock.yaml.123.0.tmp"), "contents").unwrap();
+    for manifest in [serde_json::json!({}), serde_json::json!({"files": ["*"]})] {
+        let selected = crate::packlist(root.path(), &manifest).unwrap();
+        assert_eq!(
+            selected,
+            vec![".pnpm-lock.yaml.backup", "index.js", "nested/.pnpm-lock.yaml.123.0.tmp"],
+        );
+    }
+}

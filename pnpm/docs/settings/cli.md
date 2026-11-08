@@ -68,11 +68,13 @@ directory.
 * Default: **false**
 * Type: **Boolean**
 
-If this is enabled, pnpm will not install any package that claims to not be
-compatible with the current Node version.
+If this is enabled, installation fails when the project or a dependency
+declares an `engines.node` range that does not accept the current Node.js
+version. When it is disabled, an incompatible project or required dependency
+prints a warning and the install continues.
 
-Regardless of this configuration, installation will always fail if a project
-(not a dependency) specifies an incompatible version in its `engines` field.
+Regardless of this setting, installation fails if the project's `engines.pnpm`
+does not accept the running pnpm version.
 
 Optional dependencies are exempt, because a package that pnpm may skip is not
 required to be compatible. Since v12.0.0 the exemption follows the edge rather

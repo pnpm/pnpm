@@ -1,10 +1,9 @@
 use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
 use pnpr_config::{Config, HostedStoreConfig, MetadataBackend, S3Settings};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::Storage;
+use pnpr_package_name::Ecosystem;
+use pnpr_storage::{Storage, metadata::BlobRef};
 use std::path::PathBuf;
-use tokio::fs;
 
 #[derive(Debug, Default)]
 pub struct MigrateStorageOptions {
@@ -46,15 +45,7 @@ pub async fn migrate_local_to_s3(
         for ecosystem in Ecosystem::all() {
             let src = source.for_hosted(&org, ecosystem);
             let tgt = target.for_hosted(&org, ecosystem);
-
-            let package_names = src
-                .hosted_package_names()
-                .await
-                .map_err(|err| miette::miette!("failed to list source packages: {err}"))?;
-
-            for name in &package_names {
-                migrate_package(&src, &tgt, ecosystem, name, options, &mut report).await?;
-            }
+            migrate_namespace(&src, &tgt, options, &mut report).await?;
         }
     }
 
@@ -75,12 +66,17 @@ fn init_source_and_target_storage(
         let display_source = source_dir.display();
         return Err(miette::miette!("source storage directory '{display_source}' does not exist"));
     }
-    if !options.dry_run && !matches!(config.storage.metadata, MetadataBackend::Libsql(_)) {
+    if !options.dry_run
+        && !matches!(
+            config.storage.metadata,
+            MetadataBackend::Libsql(_) | MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_),
+        )
+    {
         return Err(miette::miette!(
             "migrate-storage moves archives and leaves package metadata in its database, which \
-             an S3 deployment reads through a libSQL metadata.url. Move the metadata into the \
-             libSQL database the S3 deployment will use, such as by importing the SQLite file, \
-             and point metadata.url at it before migrating"
+             an S3 deployment reads through a shared database.url. Move the metadata into the \
+             database the S3 deployment will use, such as by importing the SQLite file into Turso, \
+             and point database.url at it before migrating"
         ));
     }
 
@@ -130,121 +126,79 @@ fn resolve_target_s3_config(
     }
 }
 
-async fn migrate_package(
+/// Copy every archive `source` stores to `target` under the same key: the
+/// metadata both read maps the packages' files to those keys.
+async fn migrate_namespace(
     source: &Storage,
     target: &Storage,
-    ecosystem: Ecosystem,
-    pkg_name: &str,
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
-    let canonical = CanonicalPackageName::parse(pkg_name, ecosystem)
-        .unwrap_or_else(|_| CanonicalPackageName::from_stored(pkg_name, ecosystem));
-
-    report.packages_migrated += 1;
-
-    let blobs = source
-        .hosted_package_blobs(&canonical)
+    let packages = source
+        .hosted_package_names()
         .await
-        .map_err(|err| miette::miette!("failed to list blobs for '{pkg_name}': {err}"))?;
-
-    for filename in blobs {
-        migrate_single_blob(source, target, &canonical, &filename, options, report).await?;
+        .map_err(|err| miette::miette!("failed to list source packages: {err}"))?;
+    report.packages_migrated += packages.len();
+    let stored = source
+        .stored_incarnations()
+        .await
+        .map_err(|err| miette::miette!("failed to list source archives: {err}"))?;
+    for (blob, _) in stored {
+        migrate_archive(source, target, &blob, options, report).await?;
     }
-
     Ok(())
 }
 
-async fn migrate_single_blob(
+async fn migrate_archive(
     source: &Storage,
     target: &Storage,
-    canonical: &CanonicalPackageName,
-    filename: &str,
+    blob: &BlobRef,
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
-    let Some(safe_name) = safe_filename(filename) else {
-        return Ok(());
-    };
-
+    let key = blob.key();
     let opened = source
-        .open_hosted_blob(canonical, safe_name)
+        .open_stored_archive(blob)
         .await
-        .map_err(|err| miette::miette!("failed to read source blob '{safe_name}': {err}"))?;
-
-    let Some((body, _)) = opened else {
-        return Ok(());
-    };
-
+        .map_err(|err| miette::miette!("failed to read source archive '{key}': {err}"))?;
+    let Some((body, _)) = opened else { return Ok(()) };
     let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
     report.blobs_transferred += 1;
     report.bytes_transferred += bytes.len() as u64;
-
-    if !options.dry_run {
-        let slot = target
-            .reserve_hosted_blob(canonical, safe_name)
-            .await
-            .map_err(|err| miette::miette!("failed to reserve blob slot on target: {err}"))?;
-
-        fs::write(&slot.tmp_path, &bytes).await.into_diagnostic()?;
-
-        let outcome = target
-            .finalize_blob_slot(slot)
-            .await
-            .map_err(|err| miette::miette!("failed to finalize blob on target: {err}"))?;
-
-        if outcome == pnpr_storage::BlobFinalize::Conflict {
-            return Err(miette::miette!(
-                "blob '{safe_name}' already exists on target storage with different content (conflict)"
-            ));
-        }
-
-        if options.verify {
-            verify_uploaded_blob(target, canonical, safe_name, &bytes).await?;
-        }
+    if options.dry_run {
+        return Ok(());
+    }
+    target
+        .store_archive_copy(blob, &bytes)
+        .await
+        .map_err(|err| miette::miette!("failed to store archive '{key}' on target: {err}"))?;
+    if options.verify {
+        verify_uploaded_archive(target, blob, &bytes).await?;
     }
     Ok(())
 }
 
-async fn verify_uploaded_blob(
+async fn verify_uploaded_archive(
     target: &Storage,
-    canonical: &CanonicalPackageName,
-    filename: &str,
+    blob: &BlobRef,
     expected_bytes: &[u8],
 ) -> miette::Result<()> {
+    let key = blob.key();
     let opened = target
-        .open_hosted_blob(canonical, filename)
+        .open_stored_archive(blob)
         .await
-        .map_err(|err| miette::miette!("failed to verify uploaded blob '{filename}': {err}"))?;
-
-    match opened {
-        Some((body, _)) => {
-            let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
-            if bytes.as_ref() == expected_bytes {
-                Ok(())
-            } else {
-                Err(miette::miette!(
-                    "uploaded blob '{filename}' content mismatch: target does not match source"
-                ))
-            }
-        }
-        None => Err(miette::miette!("uploaded blob '{filename}' not found in target store")),
+        .map_err(|err| miette::miette!("failed to verify uploaded archive '{key}': {err}"))?;
+    let Some((body, _)) = opened else {
+        return Err(miette::miette!("uploaded archive '{key}' not found in target store"));
+    };
+    let bytes = to_bytes(body, usize::MAX).await.into_diagnostic()?;
+    if bytes.as_ref() == expected_bytes {
+        Ok(())
+    } else {
+        Err(miette::miette!(
+            "uploaded archive '{key}' content mismatch: target does not match source"
+        ))
     }
-}
-
-fn safe_filename(name: &str) -> Option<&str> {
-    let name = name.trim();
-    if name.is_empty() || name == "." || name == ".." {
-        return None;
-    }
-    if name.contains('/') || name.contains('\\') {
-        return None;
-    }
-    let path = std::path::Path::new(name);
-    if path.file_name().and_then(|f| f.to_str()) != Some(name) {
-        return None;
-    }
-    Some(name)
 }
 
 #[must_use]

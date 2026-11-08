@@ -10,10 +10,10 @@ This guide covers backing up authoritative package data and authentication recor
 A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
-   - **Hosted storage (`storage`)**: Contains the tarball blobs. Back this up regularly.
-   - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): holds the package metadata, in SQLite by default or in a libSQL database. SQLite's backup API copies the database consistently, but not at the same point in time as the hosted store, and a publish writes its archives before it commits the metadata that references them. Stop pnpr before copying a SQLite database and the hosted store, or take both copies from the same point in time, and run `pnpr verify` after a restore. Back a libSQL database up according to provider documentation.
+   - **Hosted storage (`storage`)**: Contains the archives, stored by the identity of their bytes rather than by file name. Only the metadata database maps a package's files to them, so a copy of the store is usable only with the metadata from the same point in time. Back this up regularly.
+   - **Metadata database** ([`metadata`](storage.md#sqlite-metadata)): holds package metadata, former maintainers and unpublished versions, team rosters, rule overrides, SCIM users, and staged-publish approval records, in SQLite by default or in a libSQL database. SQLite's backup API copies the database consistently, but not at the same point in time as the hosted store, and a publish writes its archives before it commits the metadata that references them. Stop pnpr before copying a SQLite database and the hosted store, or take both copies from the same point in time, and run `pnpr verify` after a restore. Back a libSQL database up according to provider documentation.
    - **Authentication and user state**:
-     - `htpasswd` file (when configured).
+     - `users.json` file (when configured).
      - SQLite token database (`tokens.db`, when configured).
      - If using a networked auth backend (PostgreSQL, MySQL, or Turso/libsql), back up the database according to provider documentation.
 2. **Disposable cache (`cache` / `.pnpr-cache`) (optional)**:
@@ -26,10 +26,10 @@ A pnpr instance stores two categories of data:
 
 ### Backup
 
-For local filesystem storage, back up the storage directory, the SQLite metadata database, and the auth files together. The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A database configured with `metadata.url` elsewhere needs its own copy. Stop pnpr first, so the copy is consistent and includes the database's `-wal` file:
+For local filesystem storage, back up the storage directory, the SQLite metadata database, and the auth files together. The default metadata database, `<storage>/.metadata/metadata.sqlite`, is inside the storage directory. A database configured with `database.url` elsewhere needs its own copy. Stop pnpr first, so the copy is consistent and includes the database's `-wal` file:
 
 ```sh
-tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage htpasswd tokens.db
+tar -czf /mnt/backups/pnpr-storage-$(date +%Y%m%d).tar.gz -C /var/lib/pnpr storage users.json tokens.db
 ```
 
 To back up while pnpr runs, copy the metadata database with SQLite's backup API instead of copying its file. For the default database of the storage directory above:
@@ -38,7 +38,7 @@ To back up while pnpr runs, copy the metadata database with SQLite's backup API 
 sqlite3 /var/lib/pnpr/storage/.metadata/metadata.sqlite ".backup /mnt/backups/pnpr-metadata-$(date +%Y%m%d).sqlite"
 ```
 
-With `metadata.url`, use the path that URL names.
+With `database.url`, use the path that URL names.
 
 `pnpr export` writes the current package documents, tarballs, and auth records to a directory:
 
@@ -46,7 +46,7 @@ With `metadata.url`, use the path that URL names.
 pnpr export --out /mnt/backups/pnpr-$(date +%Y%m%d) --include-auth
 ```
 
-An export is not a complete backup of the metadata. It leaves out three things only the database holds: the unpublished versions pnpr never accepts again, the record of every dist-tag move (its versions, time, and principal), and release notes.
+An export does not include unpublished versions, former maintainer claims, dist-tag history, release notes, team rosters, rule overrides, SCIM users, or staged publishes. Back up the [metadata database](storage.md#sqlite-metadata) and hosted storage at the same point in time to retain these records and the staged bodies.
 
 ### Restore
 
@@ -57,7 +57,7 @@ To restore:
    ```sh
    tar -xzf /mnt/backups/pnpr-storage-20261016.tar.gz -C /var/lib/pnpr
    ```
-3. Restore the metadata database if the storage archive does not hold it, as with a copy made by SQLite's backup API or a database outside the storage directory. Copy it to the path `metadata.url` names, or to `<storage>/.metadata/metadata.sqlite` by default. Delete any `-wal` and `-shm` files beside that path first, so SQLite does not apply another copy's write-ahead log to it.
+3. Restore the metadata database if the storage archive does not hold it, as with a copy made by SQLite's backup API or a database outside the storage directory. Copy it to the path `database.url` names, or to `<storage>/.metadata/metadata.sqlite` by default. Delete any `-wal` and `-shm` files beside that path first, so SQLite does not apply another copy's write-ahead log to it.
 4. Run `pnpr verify` to confirm all package documents and tarballs match:
    ```sh
    pnpr verify
@@ -66,7 +66,7 @@ To restore:
 
 ## S3 and object storage
 
-When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs live in your S3-compatible bucket and package metadata in the [libSQL database](storage.md#libsql-metadata) `metadata.url` names. Back them up together.
+When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs live in your S3-compatible bucket and package metadata in the libSQL, PostgreSQL, or MySQL database selected by `database.url`. Back them up together.
 
 ### Recommended S3 settings
 
@@ -93,14 +93,14 @@ pnpr verify
 # Check that every packument version points to an existing blob, without comparing hashes
 pnpr verify --skip-hashes
 
-# Prune unreferenced/orphaned blobs left behind by interrupted uploads
-pnpr verify --prune-orphans
+# Remove the archives no hosted package maps, such as those of interrupted uploads
+pnpr gc
 ```
 
 `pnpr verify` checks:
 - **Missing blobs**: Tarballs referenced in a package document's version metadata that do not exist in storage.
 - **Corrupted blobs**: Tarballs whose content hashes do not match the declared `shasum` or `integrity`.
-- **Orphaned blobs**: Physical files in the store that are not referenced by any version of any hosted package document.
+- **Orphaned blobs**: Stored archives that are not the live bytes of any file of a hosted package, such as what an interrupted publish stored. `verify` only reports them; [`pnpr gc`](cli.md#gc) removes them.
 
 ## Migrating storage to S3
 
@@ -109,16 +109,17 @@ To migrate hosted packages from a local directory to an S3 bucket:
 1. Stop pnpr, and move the package metadata into the libSQL database the S3
    deployment will use, for example by importing the SQLite database
    (`<storage>/.metadata/metadata.sqlite` by default) into Turso.
-2. Point `metadata.url` at that database, still without an `s3:` block:
+2. Point `database.url` at that database, still without an `s3:` block:
 
    ```yaml
-   metadata:
+   database:
      url: libsql://<your-db>.turso.io
      authToken: ${PNPR_LIBSQL_TOKEN}
    ```
 
-3. Move the archives. `migrate-storage` moves archives only and refuses
-   metadata an S3 deployment cannot read:
+3. Move the archives. `migrate-storage` copies every stored archive under the
+   same key, which the metadata maps files to, and refuses metadata an S3
+   deployment cannot read:
 
    ```sh
    # Dry run: check what would be transferred
@@ -128,13 +129,13 @@ To migrate hosted packages from a local directory to an S3 bucket:
    pnpr migrate-storage --to-bucket my-registry-bucket --verify
    ```
 
-4. Add the `s3:` block, keeping `metadata.url`:
+4. Add the `s3:` block, keeping `database.url`:
 
    ```yaml
    s3:
      bucket: my-registry-bucket
      region: us-east-1
-   metadata:
+   database:
      url: libsql://<your-db>.turso.io
      authToken: ${PNPR_LIBSQL_TOKEN}
    ```
@@ -147,7 +148,7 @@ If migrating from Verdaccio or an Apache htpasswd file containing legacy `{SHA}`
 # Dry run: preview entries to import
 pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
 
-# Import into pnpr's htpasswd file
+# Import into pnpr's account file
 pnpr import-htpasswd --source /path/to/old/htpasswd
 ```
 

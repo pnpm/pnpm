@@ -1,5 +1,6 @@
 use super::{
-    DepPath, DependenciesGraph, HashMap, HashSet, is_compatible_and_has_more_deps, sort_variants,
+    CollapseGuard, DepPath, DependenciesGraph, HashMap, HashSet, is_compatible_and_has_more_deps,
+    sort_variants,
 };
 use crate::strongly_connected_components::SccPass;
 
@@ -14,6 +15,7 @@ struct Component<'a> {
 pub(super) fn collapse_cycles(
     graph: &DependenciesGraph,
     duplicates: &[Vec<DepPath>],
+    guard: CollapseGuard<'_>,
 ) -> HashMap<DepPath, DepPath> {
     let components = cycle_components(graph, duplicates);
     let mut changed = vec![false; components.len()];
@@ -30,7 +32,7 @@ pub(super) fn collapse_cycles(
             continue;
         }
         if let Some((candidate, target)) =
-            component.groups.iter().find_map(|group| compatible_pair(graph, group))
+            component.groups.iter().find_map(|group| compatible_pair(graph, group, guard))
         {
             replacements.insert(candidate, target);
             changed[index] = true;
@@ -39,14 +41,18 @@ pub(super) fn collapse_cycles(
     replacements
 }
 
-fn compatible_pair(graph: &DependenciesGraph, group: &[DepPath]) -> Option<(DepPath, DepPath)> {
+fn compatible_pair(
+    graph: &DependenciesGraph,
+    group: &[DepPath],
+    guard: CollapseGuard<'_>,
+) -> Option<(DepPath, DepPath)> {
     let mut paths = group.to_vec();
     sort_variants(graph, &mut paths);
     while let Some(largest) = paths.pop() {
         let candidate = paths
             .iter()
             .rev()
-            .find(|candidate| is_compatible_and_has_more_deps(graph, &largest, candidate));
+            .find(|candidate| is_compatible_and_has_more_deps(graph, &largest, candidate, guard));
         if let Some(candidate) = candidate {
             return Some((candidate.clone(), largest));
         }

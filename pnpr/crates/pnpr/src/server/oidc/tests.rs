@@ -25,23 +25,28 @@ auth:
       workloads:
         - identity:
             subject: repo:org/repo:ref:refs/heads/main
-            username: ci
+            userId: ci
             claims:
               repository_id: '123'
           registry: private
           packages: ['@org/pkg']
 ";
 
-fn config(yaml: &str) -> Config {
+/// The config `yaml` declares, with the directory it is read from: the
+/// storage paths it leaves at their defaults resolve inside that directory,
+/// so it lives as long as the config.
+fn config(yaml: &str) -> (Config, tempfile::TempDir) {
     let directory = tempfile::TempDir::new().unwrap();
     let path = directory.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
-    Config::from_yaml(&path, "127.0.0.1:0".parse::<SocketAddr>().unwrap(), None).unwrap()
+    let config =
+        Config::from_yaml(&path, "127.0.0.1:0".parse::<SocketAddr>().unwrap(), None).unwrap();
+    (config, directory)
 }
 
 #[test]
 fn workload_credentials_only_permit_named_package_publication() {
-    let config = config(CONFIG);
+    let (config, _config_dir) = config(CONFIG);
     validate_workloads(&config).unwrap();
     let workload = &config.identity.auth.oidc[0].workloads[0];
     for path in ["/npm/~private/@org/pkg", "/npm/~private/@org%2fpkg", "/npm/~private/%40org%2Fpkg"]
@@ -80,7 +85,7 @@ fn workload_credentials_only_permit_named_package_publication() {
 /// commit checks each entry against the workload's packages.
 #[test]
 fn workload_credentials_permit_staging_and_publish_commits() {
-    let config = config(CONFIG);
+    let (config, _config_dir) = config(CONFIG);
     let workload = &config.identity.auth.oidc[0].workloads[0];
     for base in ["", "/npm", "/npm/~private"] {
         for method in [Method::PUT, Method::HEAD] {
@@ -107,7 +112,7 @@ fn workload_credentials_permit_staging_and_publish_commits() {
 /// workload's packages, whichever address it is sent to.
 #[tokio::test]
 async fn a_workload_batch_is_scoped_to_its_packages() {
-    let mut config = config(CONFIG);
+    let (mut config, _config_dir) = config(CONFIG);
     let storage = tempfile::TempDir::new().unwrap();
     config.storage.hosted_dir = storage.path().to_path_buf();
     let scope = WorkloadScope::new(&config, &config.identity.auth.oidc[0].workloads[0]);
@@ -129,6 +134,17 @@ async fn a_workload_batch_is_scoped_to_its_packages() {
             "versions": { "1.0.0": { "name": name, "version": "1.0.0" } },
         })
     };
+    let invalid_version = send(
+        "/npm/~private/-/pnpr/v0/publish",
+        serde_json::json!({
+            "packages": [{
+                "name": "@org/other",
+                "versions": { "banana": { "name": "@org/other", "version": "banana" } },
+            }],
+        }),
+    )
+    .await;
+    assert_eq!(invalid_version.status(), StatusCode::BAD_REQUEST);
     let other = send(
         "/npm/~private/-/pnpr/v0/publish",
         serde_json::json!({ "packages": [entry("@org/other")] }),
@@ -162,7 +178,7 @@ async fn archives_are_staged_under_a_registry_address() {
     use sha2::Digest as _;
 
     let storage = tempfile::TempDir::new().unwrap();
-    let mut config = config(CONFIG);
+    let (mut config, _config_dir) = config(CONFIG);
     config.storage.hosted_dir = storage.path().to_path_buf();
     let record = pnpr_auth::TokenRecord::new("ci", 1, 1);
     let app = super::super::tests::app_with_config_and_token(config, "tok", record);
@@ -199,7 +215,7 @@ async fn archives_are_staged_under_a_registry_address() {
 
 #[test]
 fn workload_targets_validate_at_startup() {
-    let mut config = config(CONFIG);
+    let (mut config, _config_dir) = config(CONFIG);
     config.identity.auth.oidc[0].workloads[0].registry = "unknown".to_string();
     assert!(validate_workloads(&config).is_err());
     config.identity.auth.oidc[0].workloads[0].registry = "private".to_string();
@@ -217,7 +233,7 @@ fn callback_secrets_never_appear_in_request_logs() {
 
 #[tokio::test]
 async fn invalid_oidc_credentials_fail_closed_on_public_endpoints() {
-    let mut config = config(CONFIG);
+    let (mut config, _config_dir) = config(CONFIG);
     let storage = tempfile::TempDir::new().unwrap();
     config.storage.hosted_dir = storage.path().to_path_buf();
     let app = crate::try_router(config).unwrap();

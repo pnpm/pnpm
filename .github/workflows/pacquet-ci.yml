@@ -141,6 +141,8 @@ jobs:
               - 'pnpm/crates/cli/tests/suite/peer_convergence.rs'
               - 'pnpm/crates/cli/tests/suite/peer_convergence/**'
               - 'pnpm/crates/cli/tests/suite/repeat_install_oracle.rs'
+              - 'pnpm/crates/cli/tests/suite/repeat_install_oracle/**'
+              - 'pnpm/crates/cli/tests/suite/repeat_install_read_set.rs'
               - 'pnpm/crates/cli/tests/suite/pnpm_compatibility.rs'
               - 'pnpm/crates/cli/tests/suite/injected_freshness_matrix.rs'
               - 'pnpm/crates/cli/tests/suite/version.rs'
@@ -258,7 +260,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: just
 
@@ -277,7 +279,7 @@ jobs:
           just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-nextest,sccache@0.17.0
 
@@ -480,8 +482,59 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # The peer convergence and repeat-install oracle harnesses through pnpm v11
-  # as well as v12, so a resolution, lockfile, or workspace-state change in
+  metadata-databases:
+    name: Rust CI / Metadata databases
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.rust == 'true' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -ptest"
+          --health-interval 5s --health-timeout 5s --health-retries 24
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/rustup
+      - uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          install: false
+      - run: pnpm runtime set node 22 --global
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
+        with:
+          tool: just,cargo-nextest
+      - name: Install dependencies
+        run: |
+          unset PNPM_HOME XDG_DATA_HOME
+          just install
+      - name: Run metadata conformance
+        env:
+          PNPR_TEST_POSTGRES_URL: postgres://postgres:test@localhost:5432/postgres
+          PNPR_TEST_MYSQL_URL: mysql://root:test@localhost:3306/mysql
+        run: >-
+          pnpm test:rust -p 'pnpr*'
+          --features pnpr/backend-postgres,pnpr/backend-mysql
+          -E 'test(on_postgres::) | test(on_mysql)'
+          --test-threads 8 --run-ignored ignored-only
+
+  # The peer convergence and repeat-install oracle harnesses, and the
+  # repeat-install read-set test, through pnpm v11 as well as v12, so a resolution, lockfile, or workspace-state change in
   # either stack cannot make them drift apart. Both harnesses also run through
   # v12 alone in the test job above.
   convergence:
@@ -515,7 +568,7 @@ jobs:
         run: pnpm runtime set node 22 --global
 
       - name: Install just
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: just,cargo-nextest
 
@@ -535,7 +588,7 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
           PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
-            pnpm test:rust -p pnpm-cli --run-ignored all -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/) or test(/^pnpm_compatibility::/) or test(/^injected_freshness_matrix::/) or test(/^version::switches_up_to_a_newer_pnpm/) or test(/^version::v11_switches_up/)'
+            pnpm test:rust -p pnpm-cli --run-ignored all -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/) or test(/^repeat_install_read_set::/) or test(/^pnpm_compatibility::/) or test(/^injected_freshness_matrix::/) or test(/^version::switches_up_to_a_newer_pnpm/) or test(/^version::v11_switches_up/)'
 
   clippy:
     name: Rust CI / Clippy / ${{ matrix.os_label }}
@@ -735,7 +788,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
+      - uses: crate-ci/typos@4c8b7f51ca60df14e3c5ca82770dfbbe6c3dae85 # v1.52.0
         with:
           files: pnpm pnpr
 
@@ -775,7 +828,7 @@ jobs:
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2.90.1
         with:
           tool: cargo-deny
 
@@ -971,6 +1024,7 @@ jobs:
       - change-check
       - test
       - convergence
+      - metadata-databases
       - npm-wrapper
       - clippy
       - doc

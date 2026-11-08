@@ -9,6 +9,7 @@ import { hoistWorkspacePackages, pruneStaleWorkspaceHoists } from '@pnpm/install
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { DependencyManifest, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
+import { importerModulesDir, isStrictlyInside } from '@pnpm/workspace.state'
 
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
 import { getDirectDependencyAliases } from './directDependencyAliases.js'
@@ -74,7 +75,7 @@ async function unlinkPriorWorkspaceHoists ({ opts, currentLockfile, wantedLockfi
 
 async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph, { hierarchy, prevGraph }: HoistedLayout): Promise<string[]> {
   const { opts } = ctx
-  return linkHoistedModules(opts.storeController, depGraph.graph, prevGraph, hierarchy, {
+  return linkHoistedModules(opts.storeController, depGraph.graph, previousPackageDirs(ctx, prevGraph), hierarchy, {
     allowBuild: depGraph.allowBuild,
     deferDependencyBuilds: opts.deferDependencyBuilds === true,
     depsStateCache: ctx.depsStateCache,
@@ -82,7 +83,9 @@ async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph
     force: opts.force,
     holdBackMissingBins: !opts.ignoreScripts && opts.enableModulesDir !== false && !opts.ignorePackageManifest,
     ignoreScripts: opts.ignoreScripts,
+    importerDirs: Object.keys(ctx.wantedLockfile.importers).map((importerId) => path.join(opts.lockfileDir, importerId)),
     lockfileDir: opts.lockfileDir,
+    modulesDir: opts.modulesDir,
     nodeVersion: ctx.rootRuntimeNodeVersion,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -91,6 +94,27 @@ async function linkHoistedTree (ctx: HeadlessContext, depGraph: HeadlessDepGraph
     configByUri: opts.configByUri,
     supportedArchitectures: opts.supportedArchitectures,
   })
+}
+
+/**
+ * The package directories the previous install placed: the previous lockfile's
+ * graph, plus every location `.modules.yaml` recorded. The graph is rebuilt
+ * under the current settings, so only the record still names a directory an
+ * older layout put elsewhere. A recorded location that leaves the lockfile
+ * directory, or names the directory itself, is ignored.
+ */
+function previousPackageDirs ({ opts, rootModulesDir }: HeadlessContext, prevGraph: DependenciesGraph): string[] {
+  const configuredRootModulesDir = importerModulesDir(opts.lockfileDir, opts)
+  const isPermittedDir = (dir: string) =>
+    isStrictlyInside(dir, opts.lockfileDir) ||
+    isStrictlyInside(dir, rootModulesDir) ||
+    isStrictlyInside(dir, configuredRootModulesDir)
+  const recorded = Object.values(opts.modulesFile?.hoistedLocations ?? {})
+    .flat()
+    .filter((location) => !path.isAbsolute(location))
+    .map((location) => path.join(opts.lockfileDir, location))
+    .filter((dir) => isStrictlyInside(dir, opts.lockfileDir))
+  return [...Object.keys(prevGraph).filter(isPermittedDir), ...recorded]
 }
 
 async function hoistWorkspacePackagesToRoot (ctx: HeadlessContext, depGraph: HeadlessDepGraph): Promise<HoistedDependencies> {

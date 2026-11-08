@@ -376,3 +376,48 @@ fn frozen_install_skips_a_workspace_project_whose_directory_is_absent_until_it_r
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn frozen_install_skips_a_workspace_project_whose_directory_is_empty() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = two_project_workspace(
+        &serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+        }),
+        &serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "is-negative": "1.0.0" },
+        }),
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_dir_all(workspace.join("pkg-a/node_modules")).expect("remove pkg-a/node_modules");
+    fs::remove_dir_all(workspace.join("pkg-b")).expect("remove pkg-b");
+    fs::create_dir(workspace.join("pkg-b")).expect("recreate pkg-b empty");
+
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        is_symlink_or_junction(&workspace.join("pkg-a/node_modules/is-positive"))
+            .expect("read pkg-a/node_modules/is-positive"),
+        "pkg-a was not installed",
+    );
+    assert!(
+        fs::read_dir(workspace.join("pkg-b"))
+            .expect("read pkg-b")
+            .next()
+            .is_none(),
+        "the frozen install wrote into the empty pkg-b",
+    );
+
+    drop((root, mock_instance));
+}

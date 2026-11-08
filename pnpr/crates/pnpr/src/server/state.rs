@@ -1,6 +1,7 @@
 use super::{
     AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, ServerMetrics,
     Singleflight, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace,
+    package_responses::processing::PackumentProcessing, publishing::retry::ReplayStorage,
 };
 use indexmap::IndexMap;
 use std::sync::Arc;
@@ -23,13 +24,16 @@ pub(crate) struct AppInner {
     pub(super) osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
     pub(super) builds: BuildServices,
     pub(super) proxy: ProxyState,
+    pub(super) packuments: PackumentProcessing,
     pub(super) locks: MutationLocks,
     pub(super) identity: IdentityServices,
     pub(crate) metrics: Arc<ServerMetrics>,
 }
 
-type PackumentSingleflight =
-    Singleflight<(String, CanonicalPackageName), Result<Option<Vec<u8>>, Arc<RegistryError>>>;
+type PackumentSingleflight = Singleflight<
+    (String, CanonicalPackageName),
+    Result<Option<Arc<super::upstream_packuments::AdmittedPackument>>, Arc<RegistryError>>,
+>;
 pub(super) struct BuildServices {
     pub(super) artifacts: Option<pnpr_shared_artifacts::SharedArtifactStore>,
     pub(super) compiler_cache_uploads: tokio::sync::Semaphore,
@@ -63,6 +67,7 @@ pub(super) struct MutationLocks {
     pub(super) packages: StripedLocks,
     pub(super) referrer_migrations: StripedLocks,
     pub(super) publish_concurrency: tokio::sync::Semaphore,
+    pub(super) publish_replays: ReplayStorage,
     /// Release archives being received for staging, each buffered whole. See
     /// [`super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS`].
     pub(super) staged_archive_uploads: tokio::sync::Semaphore,
@@ -95,6 +100,7 @@ impl AppInner {
         let builds = BuildServices::new(&config, &storage)?;
         let proxy = ProxyState::new(&config);
         let identity = IdentityServices::new(&config, auth)?;
+        let publish_replays = ReplayStorage::new(&config.storage.cache_dir);
         Ok(Self {
             storage,
             config,
@@ -102,10 +108,12 @@ impl AppInner {
             osv_index,
             builds,
             proxy,
+            packuments: PackumentProcessing::default(),
             locks: MutationLocks {
                 packages: StripedLocks::new(),
                 referrer_migrations: StripedLocks::new(),
                 publish_concurrency: tokio::sync::Semaphore::new(16),
+                publish_replays,
                 staged_archive_uploads: tokio::sync::Semaphore::new(
                     super::staged_archives::MAX_CONCURRENT_STAGED_UPLOADS,
                 ),

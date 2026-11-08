@@ -78,17 +78,80 @@ impl OutdatedRun {
         manifest: &'a PackageManifest,
         lockfile: Option<&Lockfile>,
     ) -> miette::Result<Cow<'a, PackageManifest>> {
-        let Some(overrides) = lockfile.and_then(|lockfile| lockfile.overrides.as_ref()) else {
-            return Ok(Cow::Borrowed(manifest));
+        let overrides = if let Some(lockfile) = lockfile {
+            let Some(overrides) = lockfile.overrides.as_ref() else {
+                return Ok(Cow::Borrowed(manifest));
+            };
+            parse_overrides_iter(overrides.iter(), &self.catalogs).map_err(miette::Report::new)?
+        } else {
+            let Some(overrides) = self.configured_overrides(manifest)? else {
+                return Ok(Cow::Borrowed(manifest));
+            };
+            overrides
         };
-        let overrides =
-            parse_overrides_iter(overrides, &self.catalogs).map_err(miette::Report::new)?;
         // Only registry specifiers are compared, so the base a `link:`
         // override resolves against does not matter here.
         let project_dir = project_dir(manifest);
         let mut overridden = manifest.clone();
         VersionsOverrider::new(&overrides, project_dir).apply(&mut overridden, Some(project_dir));
         Ok(Cow::Owned(overridden))
+    }
+
+    fn configured_overrides(
+        &self,
+        manifest: &PackageManifest,
+    ) -> miette::Result<Option<Vec<pnpm_config_parse_overrides::VersionOverride>>> {
+        let Some(overrides) = self.configured_override_map(manifest) else {
+            return Ok(None);
+        };
+        let overrides = self.resolve_package_config_references(overrides)?;
+        parse_overrides_iter(overrides.iter(), &self.catalogs)
+            .map(Some)
+            .map_err(miette::Report::new)
+    }
+
+    /// Config loading resolves `$name` references only in the workspace-wide
+    /// `overrides`, so a `packageConfigs` entry's references are resolved here,
+    /// once the final settings decide that the entry applies.
+    fn resolve_package_config_references<'a>(
+        &self,
+        overrides: &'a indexmap::IndexMap<String, String>,
+    ) -> miette::Result<Cow<'a, indexmap::IndexMap<String, String>>> {
+        let Some(workspace_dir) = self.config.workspace_dir.as_deref() else {
+            return Ok(Cow::Borrowed(overrides));
+        };
+        if !overrides
+            .values()
+            .any(|spec| spec.starts_with('$'))
+        {
+            return Ok(Cow::Borrowed(overrides));
+        }
+        let mut resolved = overrides.clone();
+        pnpm_config::resolve_override_version_references(&mut resolved, workspace_dir)
+            .map_err(miette::Report::new)?;
+        Ok(Cow::Owned(resolved))
+    }
+
+    fn configured_override_map(
+        &self,
+        manifest: &PackageManifest,
+    ) -> Option<&indexmap::IndexMap<String, String>> {
+        let project_config = if self.config.applies_package_configs() {
+            manifest
+                .value()
+                .get("name")
+                .and_then(|name| name.as_str())
+                .and_then(|name| self.config.package_configs.as_ref()?.get(name))
+        } else {
+            None
+        };
+        let Some(project_config) = project_config else {
+            return self.config.overrides.as_ref();
+        };
+        match project_config.overrides.as_ref() {
+            Some(overrides) => (!overrides.is_empty()).then_some(overrides),
+            None => self.config.overrides.as_ref(),
+        }
     }
 }
 
@@ -106,11 +169,12 @@ pub enum TargetVersion {
 
 /// A direct dependency with a newer (or deprecated) registry version.
 ///
-/// `current` is the lockfile-pinned version; `target` is the resolved
-/// [`TargetVersion`]. Both are always present — dependencies without a
-/// lockfile pin, without a registry target, or whose specifier is not a
-/// supported registry specifier are dropped during collection because they cannot
-/// be diffed.
+/// `current` is the lockfile-pinned version, or the lowest version the
+/// declared range allows when the lockfile does not record the dependency;
+/// `target` is the resolved [`TargetVersion`]. Both are always present:
+/// dependencies without a registry target, or whose specifier is not a
+/// supported registry specifier, are dropped during collection because they
+/// cannot be diffed.
 pub struct OutdatedPackage {
     /// The `package.json` key (and `node_modules` directory name). Equals
     /// `package_name` except for aliased registry entries (`"foo": "npm:bar@^1"`).
@@ -329,8 +393,13 @@ async fn collect_node_outdated_for_importer(
     let current_versions =
         current_versions_from_importer(lockfile, importer_id, node_query.include_direct);
     let engine_deps = declared_engine_deps(manifest, &run.config, node_query.include_direct);
-    let candidates =
-        collect_importer_candidates(manifest, &current_versions, &engine_deps, &node_query);
+    let candidates = collect_importer_candidates(
+        manifest,
+        &current_versions,
+        &engine_deps,
+        &node_query,
+        &run.catalogs,
+    )?;
     let fetches = candidates
         .into_iter()
         .map(|candidate| outdated_dependency(run, &node_query, workspace, candidate));

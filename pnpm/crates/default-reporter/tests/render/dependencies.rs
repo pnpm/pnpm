@@ -5,6 +5,42 @@ use super::{
 };
 
 #[test]
+fn install_check_warns_at_warn_level_but_not_error_level() {
+    for (max_log_level, expected) in [
+        (super::MaxLogLevel::Warn, "[WARN] Unsupported engine for required@1.0.0"),
+        (super::MaxLogLevel::Error, ""),
+    ] {
+        let mut reporter = super::state_with_options(super::ReporterOptions {
+            max_log_level,
+            ..Default::default()
+        });
+        let frame = render(
+            &mut reporter,
+            vec![LogEvent::InstallCheck(super::PnpmLog {
+                level: LogLevel::Warn,
+                message: "Unsupported engine for required@1.0.0".to_string(),
+                prefix: CWD.to_string(),
+            })],
+        );
+        assert_eq!(frame, expected);
+    }
+}
+
+#[test]
+fn install_check_strips_control_characters() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![LogEvent::InstallCheck(super::PnpmLog {
+            level: LogLevel::Warn,
+            message: "Unsupported engine for evil\n\u{1b}[2Jpkg@1.0.0".to_string(),
+            prefix: CWD.to_string(),
+        })],
+    );
+    assert_eq!(frame, "[WARN] Unsupported engine for evil[2Jpkg@1.0.0");
+}
+
+#[test]
 fn summary_groups_by_dependency_type_in_order() {
     let mut reporter = state(false);
     let frame = render(

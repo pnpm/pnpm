@@ -159,9 +159,9 @@ impl Drop for LinkConcurrencyGuard<'_> {
 /// either extend this match or fail this test.
 #[test]
 fn optimistic_wire_method_reports_each_platforms_ladder_head() {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Hardlink);
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Clone);
     assert_eq!(optimistic_wire_method(PackageImportMethod::CloneOrCopy), WireImportMethod::Clone);
     assert_eq!(optimistic_wire_method(PackageImportMethod::Clone), WireImportMethod::Clone);

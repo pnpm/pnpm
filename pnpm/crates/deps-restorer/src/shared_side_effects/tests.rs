@@ -696,8 +696,8 @@ mod restore {
                     )]),
                 },
                 config,
-                snapshots: &snapshots,
-                packages: &packages,
+                wanted: (&snapshots, &packages),
+                supported_architectures: None,
                 requires_build_by_snapshot: &RequiresBuildBySnapshot::from([(
                     snapshot_key.clone(),
                     true,

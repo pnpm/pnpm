@@ -1,8 +1,9 @@
 use super::{
-    super::{Decision, current_pnpmfiles, settings::current_settings},
+    super::{Decision, current_pnpmfiles},
     backdate_validated_files, check, isolated_included, setup_fresh_install,
     write_state_with_pnpmfiles,
 };
+use crate::install_state::settings::current_settings;
 use pnpm_workspace_state::ProjectEntry;
 use std::{collections::BTreeMap, fs};
 
