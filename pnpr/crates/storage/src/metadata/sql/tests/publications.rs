@@ -140,10 +140,10 @@ async fn sweep_query_plan(db: &Db) -> Vec<String> {
     let query = db.sql(
         "EXPLAIN QUERY PLAN DELETE FROM publication_outcomes WHERE committed_at < ?1",
         "EXPLAIN DELETE FROM publication_outcomes WHERE committed_at < ?1",
-        "EXPLAIN DELETE FROM publication_outcomes WHERE committed_at < ?1",
+        "EXPLAIN FORMAT=JSON DELETE FROM publication_outcomes WHERE committed_at < ?1",
     );
     let detail_column = db
-        .sql("3", "0", "6")
+        .sql("3", "0", "0")
         .parse::<usize>()
         .unwrap();
     let adapter = db.instance_adapter();
