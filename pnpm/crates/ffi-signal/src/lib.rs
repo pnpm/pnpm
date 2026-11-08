@@ -25,7 +25,7 @@ pub use pinned_target::{Pin, PinnedTarget};
 #[cfg(unix)]
 pub use relay::{
     Target, group_has_members, has_controlling_terminal, holds_the_terminal, process_group_of,
-    reap, signal_target, target_exists,
+    reap, signal_target, target_exists, try_signal_target,
 };
 
 /// An interrupt pnpm handles, under the name it has on both platforms.

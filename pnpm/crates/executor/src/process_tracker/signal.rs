@@ -40,7 +40,15 @@ pub(super) fn terminate_process(pid: u32, separate_process_group: bool, stop: St
 /// [`super::spawn_child`] created, a positive one a child or a descendant
 /// pnpm listed.
 pub(super) fn signal(target: i32, stop: Stop) {
-    pnpm_ffi_signal::signal_target(kill_target(target), stop.signal());
+    let outcome = pnpm_ffi_signal::try_signal_target(kill_target(target), stop.signal());
+    tracing::debug!(
+        target: "pacquet::process_tracker",
+        target_pid = target,
+        signal = stop.signal(),
+        sent = outcome.is_ok(),
+        error = outcome.err().map(tracing::field::display),
+        "signal",
+    );
 }
 
 /// Signal the group a reaped child led, while it still has a member.
@@ -127,7 +135,15 @@ impl Descendant {
     pub(super) fn signal(&self, stop: Stop) {
         #[cfg(target_os = "linux")]
         if let Some(pinned) = &self.pinned {
-            pinned.signal(stop.signal());
+            let outcome = pinned.signal(stop.signal());
+            tracing::debug!(
+                target: "pacquet::process_tracker",
+                pid = self.pid,
+                signal = stop.signal(),
+                sent = outcome.is_ok(),
+                error = outcome.err().map(tracing::field::display),
+                "signal a descendant through its pidfd",
+            );
             return;
         }
         signal(self.pid, stop);

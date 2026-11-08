@@ -46,23 +46,23 @@ impl PinnedTarget {
         Pin::Target(Self(unsafe { OwnedFd::from_raw_fd(descriptor) }))
     }
 
-    /// Send `signal` to the pinned process.
+    /// Send `signal` to the pinned process, reporting what came of it.
     ///
-    /// Best-effort, as [`signal_target`](crate::signal_target) is: a
-    /// process that exited is not an error for any caller, because there is
-    /// nothing left to signal.
-    pub fn signal(&self, signal: i32) {
+    /// A process that exited fails with `ESRCH`, which is not a problem for
+    /// any caller: there is nothing left to signal.
+    pub fn signal(&self, signal: i32) -> std::io::Result<()> {
         // SAFETY: `pidfd_send_signal` takes the descriptor, the signal, a
         // null `siginfo` asking the kernel to supply one, and no flags. The
         // descriptor is owned by `self` and so open for the call.
-        unsafe {
+        let sent = unsafe {
             libc::syscall(
                 libc::SYS_pidfd_send_signal,
                 self.0.as_raw_fd(),
                 signal,
                 std::ptr::null::<libc::siginfo_t>(),
                 0,
-            );
-        }
+            )
+        };
+        if sent == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
     }
 }
