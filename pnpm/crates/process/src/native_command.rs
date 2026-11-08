@@ -240,21 +240,6 @@ impl AsyncCommand {
         self
     }
 
-    #[cfg(unix)]
-    /// # Safety
-    ///
-    /// The function must be safe to run in the child process after `fork` and before `exec`.
-    pub unsafe fn pre_exec<Function>(&mut self, function: Function) -> &mut Self
-    where
-        Function: FnMut() -> io::Result<()> + Send + Sync + 'static,
-    {
-        unsafe {
-            // SAFETY: the caller guarantees the function is safe to run between `fork` and `exec`.
-            self.inner.pre_exec(function)
-        };
-        self
-    }
-
     pub fn kill_on_drop(&mut self, enabled: bool) -> &mut Self {
         self.inner.kill_on_drop(enabled);
         self
