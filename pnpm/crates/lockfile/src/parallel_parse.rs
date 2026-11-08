@@ -4,7 +4,8 @@
 //! together most of a lockfile. Parsing them in parallel takes the time of
 //! the largest instead of the sum.
 
-use crate::{LockfileDocument, PackageKey, PackageMetadata};
+use crate::{LockfileDocument, PackageKey};
+use rayon::prelude::*;
 use serde::{Deserialize, de::DeserializeOwned};
 use std::collections::HashMap;
 
@@ -18,8 +19,9 @@ struct Importers<Importer> {
 }
 
 #[derive(Deserialize)]
-struct Packages {
-    packages: Option<HashMap<PackageKey, PackageMetadata>>,
+#[serde(bound(deserialize = "Package: Deserialize<'de>"))]
+struct Packages<Package> {
+    packages: Option<HashMap<PackageKey, Package>>,
 }
 
 #[derive(Deserialize)]
@@ -32,34 +34,115 @@ struct Snapshots<Snapshot> {
 /// on separate threads. `None` when the document does not split into those
 /// blocks, or when any part fails to parse: the caller then parses it whole,
 /// which reports an error at its place in the document.
-pub(crate) fn parse_sections_in_parallel<Importer, Snapshot>(
+pub(crate) fn parse_sections_in_parallel<Importer, Snapshot, Package>(
     document: &str,
     options: impl Fn(usize) -> serde_saphyr::Options + Sync,
-) -> Option<LockfileDocument<Importer, Snapshot>>
+) -> Option<LockfileDocument<Importer, Snapshot, Package>>
 where
     Importer: DeserializeOwned + Send,
     Snapshot: DeserializeOwned + Send,
+    Package: DeserializeOwned + Send,
 {
     let (rest, [importers, packages, snapshots]) = split_sections(document)?;
     let ((rest, importers), (packages, snapshots)) = rayon::join(
         || {
             rayon::join(
-                || parse_optional::<LockfileDocument<Importer, Snapshot>>(&rest, &options),
-                || parse_optional::<Importers<Importer>>(importers, &options),
+                || parse_optional::<LockfileDocument<Importer, Snapshot, Package>>(&rest, &options),
+                || {
+                    parse_chunked::<Importers<Importer>, _, _>(importers, &options, |section| {
+                        section.importers
+                    })
+                },
             )
         },
         || {
             rayon::join(
-                || parse_optional::<Packages>(packages, &options),
-                || parse_optional::<Snapshots<Snapshot>>(snapshots, &options),
+                || {
+                    parse_chunked::<Packages<Package>, _, _>(packages, &options, |section| {
+                        section.packages.unwrap_or_default()
+                    })
+                },
+                || {
+                    parse_chunked::<Snapshots<Snapshot>, _, _>(snapshots, &options, |section| {
+                        section.snapshots.unwrap_or_default()
+                    })
+                },
             )
         },
     );
     let mut lockfile = rest??;
-    lockfile.importers = importers?.map(|section| section.importers).unwrap_or_default();
-    lockfile.packages = packages?.and_then(|section| section.packages);
-    lockfile.snapshots = snapshots?.and_then(|section| section.snapshots);
+    lockfile.importers = importers?.unwrap_or_default();
+    lockfile.packages = packages?;
+    lockfile.snapshots = snapshots?;
     Some(lockfile)
+}
+
+/// A section longer than this is parsed in chunks, one per thread.
+const CHUNKED_SECTION_BYTES: usize = 128 * 1024;
+
+/// A section's map, parsed in parallel chunks when the section is large.
+/// `Some(None)` for an absent section, `None` when a chunk fails to parse.
+///
+/// Each chunk is the section's key line and a run of whole entries, so it
+/// parses as the section itself; the maps are merged.
+fn parse_chunked<Section, Key, Value>(
+    text: &str,
+    options: &(impl Fn(usize) -> serde_saphyr::Options + Sync),
+    map_of: impl Fn(Section) -> HashMap<Key, Value> + Sync,
+) -> Option<Option<HashMap<Key, Value>>>
+where
+    Section: DeserializeOwned,
+    Key: Eq + std::hash::Hash + Send,
+    Value: Send,
+{
+    if text.is_empty() {
+        return Some(None);
+    }
+    if text.len() < CHUNKED_SECTION_BYTES {
+        return parse_optional::<Section>(text, options).map(|section| section.map(&map_of));
+    }
+    let chunks = chunk_entries(text, rayon::current_num_threads().clamp(2, 16));
+    let maps = chunks
+        .into_par_iter()
+        .map(|chunk| parse_optional::<Section>(&chunk, options).flatten().map(&map_of))
+        .collect::<Option<Vec<HashMap<Key, Value>>>>()?;
+    let mut merged = HashMap::with_capacity(maps.iter().map(HashMap::len).sum());
+    for map in maps {
+        merged.extend(map);
+    }
+    Some(Some(merged))
+}
+
+/// The start of the first top-level entry at or after `from`: a line that
+/// starts with two spaces and a non-space. The end of `body` when there is
+/// none.
+fn next_entry_start(body: &str, from: usize) -> usize {
+    if from >= body.len() {
+        return body.len();
+    }
+    body[from..]
+        .match_indices("\n  ")
+        .map(|(offset, _)| from + offset + 1)
+        .find(|&at| body[at + 2..].starts_with(|first: char| !first.is_whitespace()))
+        .unwrap_or(body.len())
+}
+
+/// `text`, a section starting with its key line, cut into up to `count`
+/// chunks at entry boundaries, each starting with the key line.
+fn chunk_entries(text: &str, count: usize) -> Vec<String> {
+    let header_end = text
+        .find('\n')
+        .map_or(text.len(), |end| end + 1);
+    let (header, body) = text.split_at(header_end);
+    let target = body.len().div_ceil(count).max(1);
+    let mut chunks = Vec::with_capacity(count);
+    let mut start = 0;
+    while start < body.len() {
+        let end = next_entry_start(body, (start + target).min(body.len()));
+        chunks.push(format!("{header}{}", &body[start..end]));
+        start = end;
+    }
+    chunks
 }
 
 /// `text` parsed, `Some(None)` when it is empty, and `None` when it fails to
