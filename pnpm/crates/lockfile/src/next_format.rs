@@ -12,6 +12,8 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
+pub(crate) use importer::implied_version;
+pub use importer::{NextImporter, NextImporterDep, NextImporterOut};
 pub use package::{NextPackage, NextPackageOut};
 pub use read::restore_sections;
 
@@ -27,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 mod document;
+mod importer;
 mod package;
 mod parse;
 mod read;
@@ -144,8 +147,7 @@ impl NextSnapshotEntry {
 
 /// A lockfile in the next format, as read from the file. It has no
 /// `snapshots`: each `packages` entry carries its resolved graph.
-pub type NextLockfile =
-    crate::LockfileDocument<ProjectSnapshot, serde::de::IgnoredAny, NextPackage>;
+pub type NextLockfile = crate::LockfileDocument<NextImporter, serde::de::IgnoredAny, NextPackage>;
 
 /// The next format's `packages`, built from the peer-suffixed `packages` and
 /// the converted `snapshots`. A `packages` entry no snapshot uses is not
@@ -220,22 +222,37 @@ pub enum NextFormatError {
     )]
     #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_NOT_REPRESENTABLE))]
     NotRepresentable { detail: String },
+
+    #[display(
+        "The lockfile does not say which version {name} resolves to in {importer}: nothing \
+         follows from the specifier {specifier}"
+    )]
+    #[diagnostic(code(ERR_PNPM_NEXT_LOCKFILE_UNDERIVABLE_VERSION))]
+    UnderivableVersion { importer: String, name: String, specifier: String },
 }
 
 impl Lockfile {
     /// The lockfile a next-format document describes, with peer-suffixed keys.
-    #[must_use]
-    pub fn from_next(next: NextLockfile) -> Lockfile {
+    ///
+    /// Fails when an importer's version does not follow from its specifier.
+    pub fn from_next(next: NextLockfile) -> Result<Lockfile, NextFormatError> {
         let (packages, snapshots) = match next.packages {
             Some(merged) => crate::parallel_parse::pool().install(|| split_packages(merged)),
             None => (None, None),
         };
-        let sections = NextSections { importers: next.importers, snapshots };
+        let importers = next.importers
+            .into_iter()
+            .map(|(id, importer)| {
+                Ok((importer.into_project_snapshot(&id, next.catalogs.as_ref())?, id))
+            })
+            .map(|entry| entry.map(|(importer, id)| (id, importer)))
+            .collect::<Result<HashMap<String, ProjectSnapshot>, NextFormatError>>()?;
+        let sections = NextSections { importers, snapshots };
         let context =
             RestoreContext { packages: packages.as_ref(), settings: next.settings.as_ref() };
         let restored =
             crate::parallel_parse::pool().install(|| restore_sections(&sections, context));
-        Lockfile {
+        Ok(Lockfile {
             lockfile_version: next.lockfile_version,
             settings: next.settings,
             catalogs: next.catalogs,
@@ -249,7 +266,7 @@ impl Lockfile {
             snapshots: restored.snapshots,
             time: next.time,
             extra: next.extra,
-        }
+        })
     }
 
     /// Whether this lockfile is written in the next format.
@@ -271,6 +288,12 @@ impl Lockfile {
         let NextSections { importers, snapshots } =
             self.to_next_sections().map_err(crate::SaveLockfileError::NextFormat)?;
         let packages = merge_packages(self.packages.as_ref(), snapshots);
+        let importers: HashMap<String, NextImporterOut<'_>> = importers
+            .iter()
+            .map(|(id, importer)| {
+                (id.clone(), NextImporterOut::new(importer, self.catalogs.as_ref()))
+            })
+            .collect();
         crate::serialize_yaml::to_string(&document::NextDocument::new(self, &importers, &packages))
             .map_err(crate::SaveLockfileError::SerializeYaml)
     }

@@ -217,7 +217,94 @@ fn reference_the_scope_does_not_select_keeps_its_peer_groups() {
     });
     let (yaml, _) = written_and_read(&lockfile);
     assert!(yaml.contains("      child: 1.0.0(react@18.0.0)\n"), "{yaml}");
-    assert!(yaml.contains("        version: 1.0.0\n"), "{yaml}");
+    assert!(yaml.contains("      child: 1.0.0\n"), "{yaml}");
+    assert!(yaml.contains("      parent: 1.0.0\n"), "{yaml}");
+}
+
+/// An importer's dependency is its specifier alone when the version follows
+/// from it: an exact version, a `catalog:` entry, with the alias the catalog
+/// names. A range and a workspace link write both.
+#[test]
+fn importer_versions_that_follow_from_the_specifier_are_not_written() {
+    let lockfile = parse(text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "catalogs:"
+        "  default:"
+        "    '@scope/renamed':"
+        "      specifier: npm:@scope/real@1.0.0"
+        "      version: 1.0.0"
+        "    tool:"
+        "      specifier: ^2.0.0"
+        "      version: 2.1.0"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      '@scope/renamed':"
+        "        specifier: 'catalog:'"
+        "        version: '@scope/real@1.0.0'"
+        "      exact:"
+        "        specifier: 1.2.3"
+        "        version: 1.2.3"
+        "      ranged:"
+        "        specifier: ^1.0.0"
+        "        version: 1.2.3"
+        "      shared:"
+        "        specifier: workspace:*"
+        "        version: link:../shared"
+        "      tool:"
+        "        specifier: 'catalog:'"
+        "        version: 2.1.0"
+        ""
+        "packages:"
+        ""
+        "  '@scope/real@1.0.0':"
+        "    resolution: {integrity: sha512-AAAA}"
+        ""
+        "  exact@1.2.3:"
+        "    resolution: {integrity: sha512-BBBB}"
+        ""
+        "  ranged@1.2.3:"
+        "    resolution: {integrity: sha512-CCCC}"
+        ""
+        "  tool@2.1.0:"
+        "    resolution: {integrity: sha512-DDDD}"
+        ""
+        "snapshots:"
+        ""
+        "  '@scope/real@1.0.0': {}"
+        ""
+        "  exact@1.2.3: {}"
+        ""
+        "  ranged@1.2.3: {}"
+        ""
+        "  tool@2.1.0: {}"
+    });
+    let (yaml, _) = written_and_read(&lockfile);
+    let start = yaml.find("\ncatalogs:").expect("a catalogs section");
+    let end = yaml.find("\npackages:").expect("a packages section");
+    assert_eq!(
+        &yaml[start..end],
+        text_block_macros::text_block_fnl! {
+            ""
+            "catalogs:"
+            "  default:"
+            "    '@scope/renamed': {specifier: npm:@scope/real@1.0.0, version: 1.0.0}"
+            "    tool: {specifier: ^2.0.0, version: 2.1.0}"
+            ""
+            "importers:"
+            ""
+            "  .:"
+            "    dependencies:"
+            "      '@scope/renamed': 'catalog:'"
+            "      exact: 1.2.3"
+            "      ranged: {specifier: ^1.0.0, version: 1.2.3}"
+            "      shared: {specifier: workspace:*, version: link:../shared}"
+            "      tool: 'catalog:'"
+        },
+    );
 }
 
 #[test]

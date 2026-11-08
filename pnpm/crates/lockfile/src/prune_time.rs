@@ -37,7 +37,9 @@ fn importer_dep_paths(document: &Value) -> HashSet<String> {
             dep_paths.extend(
                 dependencies
                     .iter()
-                    .filter_map(|(alias, dependency)| resolved_dep_path(alias, dependency)),
+                    .filter_map(|(alias, dependency)| {
+                        resolved_dep_path(alias, dependency, document)
+                    }),
             );
         }
     }
@@ -45,9 +47,26 @@ fn importer_dep_paths(document: &Value) -> HashSet<String> {
 }
 
 /// The peer-suffix-stripped depPath one importer dependency entry resolves
-/// to. An entry the reader cannot parse names no `time:` key.
-fn resolved_dep_path(alias: &str, dependency: &Value) -> Option<String> {
-    let version = dependency.get("version").and_then(Value::as_str)?;
+/// to. An entry the reader cannot parse names no `time:` key. In the next
+/// lockfile format, an entry can be the specifier alone, whose version is
+/// implied, through the `catalogs` section for a `catalog:` specifier.
+fn resolved_dep_path(alias: &str, dependency: &Value, document: &Value) -> Option<String> {
+    let version = match dependency {
+        Value::String(specifier) => {
+            crate::next_format::implied_version(alias, specifier, |catalog, alias| {
+                let entry = document
+                    .get("catalogs")?
+                    .get(catalog)?
+                    .get(alias)?;
+                let text = |key: &str| Some(entry.get(key)?.as_str()?.to_string());
+                Some((text("specifier")?, text("version")?))
+            })?
+        }
+        _ => dependency
+            .get("version")
+            .and_then(Value::as_str)?
+            .to_string(),
+    };
     let alias = PkgName::parse(alias).ok()?;
     let version = version.parse::<ImporterDepVersion>().ok()?;
     Some(
