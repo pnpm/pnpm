@@ -1,6 +1,6 @@
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
-use std::path::Path;
+use std::{fmt::Write as _, path::Path};
 
 fn parse(text: &str) -> Lockfile {
     Lockfile::parse(text, Path::new("pnpm-lock.yaml"))
@@ -48,10 +48,13 @@ fn a_large_section_parses_in_chunks() {
     let mut text = String::from("lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\npackages:\n\n");
     let mut snapshots = String::from("snapshots:\n\n");
     for index in 0..6000 {
-        text.push_str(&format!("  pkg-{index}@1.0.0:\n    resolution: {{integrity: sha512-{index:064}}}\n    engines: {{node: '>=18'}}\n\n"));
-        snapshots.push_str(&format!(
-            "  pkg-{index}@1.0.0:\n    dependencies:\n      other: 1.0.0\n\n"
-        ));
+        write!(
+            text,
+            "  pkg-{index}@1.0.0:\n    resolution: {{integrity: sha512-{index:064}}}\n    engines: {{node: '>=18'}}\n\n",
+        )
+        .expect("write to a string");
+        write!(snapshots, "  pkg-{index}@1.0.0:\n    dependencies:\n      other: 1.0.0\n\n")
+            .expect("write to a string");
     }
     text.push_str(&snapshots);
     assert!(text.len() > 2 * super::CHUNKED_SECTION_BYTES);
