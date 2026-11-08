@@ -70,10 +70,18 @@ where
             )
         },
     );
+    // A section that was not found as a block, as in a flow-style document,
+    // was parsed as part of the rest and stays as parsed.
     let mut lockfile = rest??;
-    lockfile.importers = importers?.unwrap_or_default();
-    lockfile.packages = packages?;
-    lockfile.snapshots = snapshots?;
+    if let Some(importers) = importers? {
+        lockfile.importers = importers;
+    }
+    if let Some(packages) = packages? {
+        lockfile.packages = Some(packages);
+    }
+    if let Some(snapshots) = snapshots? {
+        lockfile.snapshots = Some(snapshots);
+    }
     Some(lockfile)
 }
 
@@ -147,6 +155,9 @@ fn chunk_entries(text: &str, count: usize) -> Vec<String> {
 
 /// `text` parsed, `Some(None)` when it is empty, and `None` when it fails to
 /// parse.
+#[cfg(test)]
+mod tests;
+
 fn parse_optional<Section: DeserializeOwned>(
     text: &str,
     options: &impl Fn(usize) -> serde_saphyr::Options,
