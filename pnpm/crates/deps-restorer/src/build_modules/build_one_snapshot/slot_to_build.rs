@@ -94,7 +94,13 @@ fn acquire_build_slot_locks(
                 .flatten()
                 .chain(snapshot.optional_dependencies.iter().flatten())
                 .filter_map(|(alias, dependency)| dependency.resolve(alias))
-                .filter(|key| context.directories.layout.hashed_slot_dir(key).is_some()),
+                // A dependency this install skipped, such as another
+                // platform's variant, has no slot; locking it would create one.
+                .filter(|key| {
+                    context.directories.layout
+                        .hashed_slot_dir(key)
+                        .is_some_and(|slot| slot.is_dir())
+                }),
         );
     }
     crate::GlobalVirtualStoreSlot::acquire_ordered(context.directories.layout, slot_keys)

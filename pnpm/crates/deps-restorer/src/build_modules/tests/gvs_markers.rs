@@ -1,10 +1,11 @@
 use super::{
     super::{BuildModules, BuildModulesError, slots::virtual_store_dir_for_key},
-    TEST_LOGGED_METHODS, gvs_layout, key, policy_from_specs, root_importers,
+    TEST_LOGGED_METHODS, gvs_layout, gvs_layout_with_snapshots, key, policy_from_specs,
+    root_importers,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
 use pnpm_config::PackageImportMethod;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{PackageKey, PkgName, SnapshotDepRef, SnapshotEntry};
 use pnpm_patching::ExtendedPatchInfo;
 use pnpm_reporter::SilentReporter;
 use std::{collections::HashMap, fs, path::PathBuf};
@@ -53,8 +54,12 @@ struct PatchedSlot {
 
 impl PatchedSlot {
     fn new() -> Self {
+        Self::with_layout(gvs_layout)
+    }
+
+    fn with_layout(layout: impl FnOnce(&std::path::Path) -> &'static VirtualStoreLayout) -> Self {
         let root = tempdir().expect("create temp dir");
-        let layout = gvs_layout(root.path());
+        let layout = layout(root.path());
         let pkg_key = key("is-positive", "1.0.0");
         let pkg_dir = virtual_store_dir_for_key(layout, &pkg_key);
         fs::create_dir_all(&pkg_dir).expect("create pkg dir");
@@ -83,7 +88,15 @@ new file mode 100644
         &self,
         pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
     ) -> Result<crate::BuildModulesOutput, BuildModulesError> {
-        let snapshots = HashMap::from([(self.pkg_key.clone(), SnapshotEntry::default())]);
+        self.build_snapshot(SnapshotEntry::default(), pkg_roots_by_key)
+    }
+
+    fn build_snapshot(
+        &self,
+        snapshot: SnapshotEntry,
+        pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+    ) -> Result<crate::BuildModulesOutput, BuildModulesError> {
+        let snapshots = HashMap::from([(self.pkg_key.clone(), snapshot)]);
         let requires_build = HashMap::from([(self.pkg_key.clone(), true)]);
         let importers = root_importers(&[("is-positive", "1.0.0")]);
         let policy = policy_from_specs([], true);
@@ -167,4 +180,28 @@ fn hoisted_build_does_not_create_a_global_virtual_store_slot() {
 
     assert!(project_pkg_dir.join("patched.txt").exists());
     assert!(!slot_path.exists(), "a hoisted build must leave the global store untouched");
+}
+
+#[test]
+fn a_build_does_not_create_slots_for_skipped_optional_dependencies() {
+    let skipped = key("other-platform", "1.0.0");
+    let snapshot = SnapshotEntry {
+        optional_dependencies: Some(HashMap::from([(
+            PkgName::parse("other-platform").expect("parse alias"),
+            SnapshotDepRef::Plain("1.0.0".parse().expect("parse version")),
+        )])),
+        ..SnapshotEntry::default()
+    };
+    let snapshots = HashMap::from([
+        (key("is-positive", "1.0.0"), snapshot.clone()),
+        (skipped.clone(), SnapshotEntry::default()),
+    ]);
+    let slot = PatchedSlot::with_layout(|root| gvs_layout_with_snapshots(root, Some(&snapshots)));
+    let skipped_slot =
+        slot.layout.hashed_slot_dir(&skipped).expect("the skipped dependency has a slot path");
+
+    slot.build_snapshot(snapshot, None).expect("build modules must complete cleanly");
+
+    assert!(slot.pkg_dir.join("patched.txt").exists(), "the patch must still be applied");
+    assert!(!skipped_slot.exists(), "a skipped optional dependency must not get a slot");
 }

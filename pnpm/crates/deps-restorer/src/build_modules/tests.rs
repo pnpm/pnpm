@@ -147,13 +147,20 @@ fn single_patch(key: &PackageKey) -> HashMap<PackageKey, pnpm_patching::Extended
 /// (true iff `gvs_suffixes.is_some()`) and fires before any slot-dir
 /// lookup.
 fn gvs_layout(dir: &Path) -> &'static VirtualStoreLayout {
+    gvs_layout_with_snapshots(dir, None)
+}
+
+fn gvs_layout_with_snapshots(
+    dir: &Path,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> &'static VirtualStoreLayout {
     let mut config = Config::new();
     config.enable_global_virtual_store = true;
     config.store_dir = dir.join("store").into();
     config.global_virtual_store_dir = dir.join("store/links");
     config.install_state_dir = dir.join("node_modules/.pacquet");
     let config = config.leak();
-    Box::leak(Box::new(VirtualStoreLayout::new(config, None, None, None, None, None)))
+    Box::leak(Box::new(VirtualStoreLayout::new(config, None, snapshots, None, None, None)))
 }
 
 /// Run [`BuildModules`] over a single patched `is-positive@1.0.0`
