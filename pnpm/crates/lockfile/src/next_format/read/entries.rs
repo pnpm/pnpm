@@ -2,7 +2,7 @@
 
 use super::{
     super::{NextSnapshotEntry, RestoreContext},
-    Graph, Provider, Vid, child_named,
+    Graph, Provider, Sid, child_named,
 };
 use crate::{
     ImporterDepVersion, PackageKey, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotDepRef,
@@ -19,29 +19,29 @@ impl Graph<'_> {
     ) -> HashMap<PackageKey, SnapshotEntry> {
         (0..self.keys.len())
             .into_par_iter()
-            .map(|vid| (keys[vid].clone(), self.snapshot_entry(vid, keys, context)))
+            .map(|sid| (keys[sid].clone(), self.snapshot_entry(sid, keys, context)))
             .collect()
     }
 
     pub(super) fn snapshot_entry(
         &self,
-        vid: Vid,
+        sid: Sid,
         keys: &[PkgNameVerPeer],
         context: RestoreContext<'_>,
     ) -> SnapshotEntry {
-        let entry = self.entries[vid];
-        let mut dependencies = self.restored_children(vid, entry.dependencies.as_ref(), keys);
+        let entry = self.entries[sid];
+        let mut dependencies = self.restored_children(sid, entry.dependencies.as_ref(), keys);
         let mut optional_dependencies =
-            self.restored_children(vid, entry.optional_dependencies.as_ref(), keys);
+            self.restored_children(sid, entry.optional_dependencies.as_ref(), keys);
         let optional_peers = context.packages
-            .and_then(|packages| packages.get(&self.keys[vid].without_peer()))
+            .and_then(|packages| packages.get(&self.keys[sid].without_peer()))
             .and_then(|metadata| metadata.peer_dependencies_meta.as_ref());
         for (name, reference) in entry.peer_dependencies.iter().flatten() {
             let optional = optional_peers
                 .and_then(|meta| meta.get(&name.to_string()))
                 .is_some_and(|meta| meta.optional);
             let target = if optional { &mut optional_dependencies } else { &mut dependencies };
-            target.insert(name.clone(), self.restored_peer(vid, name, reference, keys));
+            target.insert(name.clone(), self.restored_peer(sid, name, reference, keys));
         }
         SnapshotEntry {
             id: entry.id.clone(),
@@ -53,10 +53,10 @@ impl Graph<'_> {
         }
     }
 
-    /// `children` with each reference pointing at the variant chosen for it.
+    /// `children` with each reference pointing at the snapshot chosen for it.
     fn restored_children(
         &self,
-        vid: Vid,
+        sid: Sid,
         children: Option<&HashMap<PkgName, SnapshotDepRef>>,
         keys: &[PkgNameVerPeer],
     ) -> HashMap<PkgName, SnapshotDepRef> {
@@ -64,7 +64,7 @@ impl Graph<'_> {
             .into_iter()
             .flatten()
             .map(|(alias, reference)| {
-                let restored = match child_named(&self.children[vid], alias) {
+                let restored = match child_named(&self.children[sid], alias) {
                     Some(child) => with_key(reference, &keys[child]),
                     None => reference.clone(),
                 };
@@ -73,20 +73,20 @@ impl Graph<'_> {
             .collect()
     }
 
-    /// The reference to the provider `vid` binds its own peer `name` to.
+    /// The reference to the provider `sid` binds its own peer `name` to.
     fn restored_peer(
         &self,
-        vid: Vid,
+        sid: Sid,
         name: &PkgName,
         reference: &SnapshotDepRef,
         keys: &[PkgNameVerPeer],
     ) -> SnapshotDepRef {
-        let provider = self.providers[vid]
+        let provider = self.providers[sid]
             .iter()
             .find(|(bound, _)| *bound == name)
             .map(|(_, provider)| provider);
         match provider {
-            Some(Provider::Variant(provider)) => with_key(reference, &keys[*provider]),
+            Some(Provider::Snapshot(provider)) => with_key(reference, &keys[*provider]),
             _ => reference.clone(),
         }
     }
@@ -108,8 +108,8 @@ impl Graph<'_> {
         .flatten()
         {
             for (alias, spec) in map.iter_mut() {
-                if let Some(vid) = child_named(chosen, alias) {
-                    spec.version = importer_version_with_key(&spec.version, &keys[vid]);
+                if let Some(sid) = child_named(chosen, alias) {
+                    spec.version = importer_version_with_key(&spec.version, &keys[sid]);
                 }
             }
         }

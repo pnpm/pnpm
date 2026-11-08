@@ -1,6 +1,6 @@
 //! One entry of the next format's `packages`: the package's metadata, its
-//! resolved dependencies, and its peer bindings, with a `variants` list for a
-//! package installed in several peer variants.
+//! resolved dependencies, and its peer bindings, with a `snapshots` list for a
+//! package installed with several sets of peers.
 
 use super::NextSnapshotEntry;
 use crate::{
@@ -12,8 +12,8 @@ use ssri::Integrity;
 use std::collections::HashMap;
 
 /// The metadata fields mirror [`PackageMetadata`], the graph fields
-/// [`NextSnapshotEntry`]. The graph fields hold what every variant shares;
-/// `variants` holds, per variant, what differs.
+/// [`NextSnapshotEntry`]. The graph fields hold what every snapshot shares;
+/// `snapshots` holds, per snapshot, what differs.
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(
@@ -71,8 +71,8 @@ pub struct NextPackage {
     )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
 
-    // The graph fields, as in [`NextSnapshotEntry`]. What every variant
-    // shares, or the one variant.
+    // The graph fields, as in [`NextSnapshotEntry`]. What every snapshot
+    // shares, or the one snapshot.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     #[serde(
@@ -106,10 +106,10 @@ pub struct NextPackage {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
 
-    /// What each variant adds to the shared graph fields, when the package
+    /// What each snapshot adds to the shared graph fields, when the package
     /// has several.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub variants: Option<Vec<NextSnapshotEntry>>,
+    pub snapshots: Option<Vec<NextSnapshotEntry>>,
 }
 
 impl NextPackage {
@@ -169,7 +169,7 @@ pub struct NextPackageOut<'a> {
     #[serde(flatten)]
     pub shared: NextSnapshotEntry,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub variants: Option<Vec<NextSnapshotEntry>>,
+    pub snapshots: Option<Vec<NextSnapshotEntry>>,
 }
 
 /// A borrowed map written with its keys sorted.
@@ -186,15 +186,15 @@ where
 }
 
 impl<'a> NextPackageOut<'a> {
-    /// The entry for `metadata` installed as `variants`, sorted. A map entry
-    /// every variant has with the same value is written once, in `shared`.
+    /// The entry for `metadata` installed as `snapshots`, sorted. A map entry
+    /// every snapshot has with the same value is written once, in `shared`.
     #[must_use]
-    pub fn new(metadata: Option<&'a PackageMetadata>, variants: Vec<NextSnapshotEntry>) -> Self {
+    pub fn new(metadata: Option<&'a PackageMetadata>, snapshots: Vec<NextSnapshotEntry>) -> Self {
         let (resolution, integrity) = match metadata {
             Some(metadata) => split_resolution(&metadata.resolution),
             None => (None, None),
         };
-        let (shared, variants) = hoist(variants);
+        let (shared, snapshots) = hoist(snapshots);
         NextPackageOut {
             resolution,
             integrity,
@@ -216,70 +216,70 @@ impl<'a> NextPackageOut<'a> {
                 .and_then(|metadata| metadata.peer_dependencies_meta.as_ref())
                 .map(SortedMap),
             shared,
-            variants,
+            snapshots,
         }
     }
 }
 
-/// What `variants` share, and what each adds, when there are several.
+/// What `snapshots` share, and what each adds, when there are several.
 fn hoist(
-    mut variants: Vec<NextSnapshotEntry>,
+    mut snapshots: Vec<NextSnapshotEntry>,
 ) -> (NextSnapshotEntry, Option<Vec<NextSnapshotEntry>>) {
-    if variants.len() <= 1 {
-        return (variants.pop().unwrap_or_default(), None);
+    if snapshots.len() <= 1 {
+        return (snapshots.pop().unwrap_or_default(), None);
     }
     let shared = {
-        let (first, rest) = variants.split_first_mut().expect("several variants");
+        let (first, rest) = snapshots.split_first_mut().expect("several snapshots");
         NextSnapshotEntry {
-            id: common_value(first.id.as_ref(), rest.iter().map(|variant| variant.id.as_ref())),
-            dependencies: common_entries(first.dependencies.as_ref(), rest, |variant| {
-                &variant.dependencies
+            id: common_value(first.id.as_ref(), rest.iter().map(|snapshot| snapshot.id.as_ref())),
+            dependencies: common_entries(first.dependencies.as_ref(), rest, |snapshot| {
+                &snapshot.dependencies
             }),
             optional_dependencies: common_entries(
                 first.optional_dependencies.as_ref(),
                 rest,
-                |variant| &variant.optional_dependencies,
+                |snapshot| &snapshot.optional_dependencies,
             ),
-            peer_dependencies: common_entries(first.peer_dependencies.as_ref(), rest, |variant| {
-                &variant.peer_dependencies
+            peer_dependencies: common_entries(first.peer_dependencies.as_ref(), rest, |snapshot| {
+                &snapshot.peer_dependencies
             }),
             transitive_peer_dependencies: common_entries(
                 first.transitive_peer_dependencies.as_ref(),
                 rest,
-                |variant| &variant.transitive_peer_dependencies,
+                |snapshot| &snapshot.transitive_peer_dependencies,
             ),
             missing_peer_dependencies: common_value(
                 first.missing_peer_dependencies.as_ref(),
-                rest.iter().map(|variant| variant.missing_peer_dependencies.as_ref()),
+                rest.iter().map(|snapshot| snapshot.missing_peer_dependencies.as_ref()),
             ),
             patched: common_value(
                 first.patched.as_ref(),
-                rest.iter().map(|variant| variant.patched.as_ref()),
+                rest.iter().map(|snapshot| snapshot.patched.as_ref()),
             ),
-            optional: first.optional && rest.iter().all(|variant| variant.optional),
+            optional: first.optional && rest.iter().all(|snapshot| snapshot.optional),
         }
     };
-    for variant in &mut variants {
-        variant.subtract(&shared);
+    for snapshot in &mut snapshots {
+        snapshot.subtract(&shared);
     }
-    (shared, Some(variants))
+    (shared, Some(snapshots))
 }
 
 impl NextPackage {
-    /// The metadata and the variants this entry was built from.
+    /// The metadata and the snapshots this entry was built from.
     #[must_use]
     pub fn split(mut self) -> (Option<PackageMetadata>, Vec<NextSnapshotEntry>) {
         let shared = self.take_shared();
-        let variants = self.variants.take();
+        let snapshots = self.snapshots.take();
         let metadata = self.into_metadata();
-        let variants = match variants {
+        let snapshots = match snapshots {
             None => vec![shared],
-            Some(variants) => variants
+            Some(snapshots) => snapshots
                 .into_iter()
-                .map(|variant| variant.over(&shared))
+                .map(|snapshot| snapshot.over(&shared))
                 .collect(),
         };
-        (metadata, variants)
+        (metadata, snapshots)
     }
 
     /// `None` when the entry records no resolution.
@@ -334,7 +334,7 @@ fn split_resolution(
 }
 
 impl NextSnapshotEntry {
-    /// This variant without what `shared` already says.
+    /// This snapshot without what `shared` already says.
     fn subtract(&mut self, shared: &NextSnapshotEntry) {
         for (map, shared_map) in [
             (&mut self.dependencies, &shared.dependencies),
@@ -363,7 +363,7 @@ impl NextSnapshotEntry {
         }
     }
 
-    /// This variant with what `shared` says added back.
+    /// This snapshot with what `shared` says added back.
     fn over(mut self, shared: &NextSnapshotEntry) -> NextSnapshotEntry {
         for (map, shared_map) in [
             (&mut self.dependencies, &shared.dependencies),
@@ -390,7 +390,7 @@ impl NextSnapshotEntry {
     }
 }
 
-/// `first` when every other variant has the same value.
+/// `first` when every other snapshot has the same value.
 fn common_value<'a, Value: PartialEq + Clone + 'a>(
     first: Option<&Value>,
     others: impl Iterator<Item = Option<&'a Value>>,
@@ -402,7 +402,7 @@ fn common_value<'a, Value: PartialEq + Clone + 'a>(
         .then(|| first.clone())
 }
 
-/// The entries of `first` that every other variant has with the same value.
+/// The entries of `first` that every other snapshot has with the same value.
 fn common_entries(
     first: Option<&HashMap<PkgName, SnapshotDepRef>>,
     others: &[NextSnapshotEntry],

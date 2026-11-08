@@ -17,7 +17,7 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 /// One snapshot of the lockfile, split into the next format's maps.
-pub(super) struct Variant<'a> {
+pub(super) struct Snapshot<'a> {
     key: &'a PackageKey,
     entry: &'a SnapshotEntry,
     own_peers: HashSet<&'a PkgName>,
@@ -25,7 +25,7 @@ pub(super) struct Variant<'a> {
     missing: Vec<String>,
 }
 
-impl Variant<'_> {
+impl Snapshot<'_> {
     fn binding_names(&self) -> impl Iterator<Item = &PkgName> {
         self.own_peers
             .iter()
@@ -77,9 +77,9 @@ impl Variant<'_> {
     }
 }
 
-pub(super) struct Variants<'a> {
-    /// Every package's variants, in the order the writer lists them.
-    by_package: Vec<(PackageKey, Vec<Variant<'a>>)>,
+pub(super) struct Snapshots<'a> {
+    /// Every package's snapshots, in the order the writer lists them.
+    by_package: Vec<(PackageKey, Vec<Snapshot<'a>>)>,
 }
 
 /// A snapshot's transitive peers: those its key names, those left for
@@ -135,7 +135,7 @@ impl<'a> Transitive<'a> {
     }
 }
 
-impl<'a> Variants<'a> {
+impl<'a> Snapshots<'a> {
     pub(super) fn of(
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
@@ -149,13 +149,13 @@ impl<'a> Variants<'a> {
             .map(|(key, entry)| Ok((key, entry, Transitive::of(key, entry, &own_peers[key])?)))
             .collect::<Result<Vec<_>, NextFormatError>>()?;
         let mut finder = ProviderFinder::new(snapshots, &own_peers);
-        let mut grouped: HashMap<PackageKey, Vec<Variant<'a>>> = HashMap::new();
+        let mut grouped: HashMap<PackageKey, Vec<Snapshot<'a>>> = HashMap::new();
         for (key, entry, mut transitive) in prepared {
             transitive.find_unnamed(&mut finder, key);
             grouped
                 .entry(key.without_peer_bindings())
                 .or_default()
-                .push(Variant {
+                .push(Snapshot {
                     key,
                     entry,
                     own_peers: own_peers[key].clone(),
@@ -163,18 +163,18 @@ impl<'a> Variants<'a> {
                     missing: transitive.missing,
                 });
         }
-        Ok(Variants::from_groups(grouped))
+        Ok(Snapshots::from_groups(grouped))
     }
 
-    fn from_groups(grouped: HashMap<PackageKey, Vec<Variant<'a>>>) -> Self {
-        let mut by_package: Vec<(PackageKey, Vec<Variant<'a>>)> = grouped.into_iter().collect();
+    fn from_groups(grouped: HashMap<PackageKey, Vec<Snapshot<'a>>>) -> Self {
+        let mut by_package: Vec<(PackageKey, Vec<Snapshot<'a>>)> = grouped.into_iter().collect();
         by_package
             .par_iter_mut()
-            .filter(|(_, variants)| variants.len() > 1)
-            .for_each(|(_, variants)| {
-                variants.sort_by_cached_key(|variant| variant.key.to_string());
+            .filter(|(_, snapshots)| snapshots.len() > 1)
+            .for_each(|(_, snapshots)| {
+                snapshots.sort_by_cached_key(|snapshot| snapshot.key.to_string());
             });
-        Variants { by_package }
+        Snapshots { by_package }
     }
 
     pub(super) fn sections(
@@ -184,10 +184,10 @@ impl<'a> Variants<'a> {
     ) -> Result<NextSections, NextFormatError> {
         let lists: Vec<Vec<NextSnapshotEntry>> = self.by_package
             .par_iter()
-            .map(|(_, variants)| {
-                variants
+            .map(|(_, snapshots)| {
+                snapshots
                     .iter()
-                    .map(|variant| variant.next_entry(explicit))
+                    .map(|snapshot| snapshot.next_entry(explicit))
                     .collect()
             })
             .collect();
@@ -207,7 +207,7 @@ impl<'a> Variants<'a> {
         Ok(NextSections { importers, snapshots })
     }
 
-    /// Marks every reference that read back to another variant. Returns
+    /// Marks every reference that read back to another snapshot. Returns
     /// whether it marked one that was not marked before.
     pub(super) fn mark_mismatches(
         &self,
@@ -228,18 +228,18 @@ impl<'a> Variants<'a> {
     fn snapshot_mismatches(&self, rebuilt: &read::Rebuilt<'_>) -> Vec<(&'a PackageKey, &PkgName)> {
         self.by_package
             .par_iter()
-            .flat_map_iter(|(package, variants)| {
-                variants
+            .flat_map_iter(|(package, snapshots)| {
+                snapshots
                     .iter()
                     .enumerate()
-                    .flat_map(move |(index, variant)| variant.mismatches(rebuilt, package, index))
+                    .flat_map(move |(index, snapshot)| snapshot.mismatches(rebuilt, package, index))
             })
             .collect()
     }
 }
 
-impl<'a> Variant<'a> {
-    /// The references of this variant that read back to another variant: all
+impl<'a> Snapshot<'a> {
+    /// The references of this snapshot that read back to another snapshot: all
     /// its bindings when its own key read back wrong, and every child that
     /// read back to another key.
     fn mismatches<'v>(
@@ -248,7 +248,7 @@ impl<'a> Variant<'a> {
         package: &PackageKey,
         index: usize,
     ) -> Vec<(&'a PackageKey, &'v PkgName)> {
-        let wrong_key = rebuilt.variant_key(package, index) != Some(self.key);
+        let wrong_key = rebuilt.snapshot_key(package, index) != Some(self.key);
         let bindings = self.binding_names().filter(|_| wrong_key);
         let changed_children = children(self.entry)
             .filter_map(|(alias, reference)| {
@@ -262,7 +262,7 @@ impl<'a> Variant<'a> {
     }
 }
 
-/// The importer references that read back to another variant.
+/// The importer references that read back to another snapshot.
 fn importer_mismatches<'l>(
     lockfile: &'l Lockfile,
     rebuilt: &read::Rebuilt<'_>,

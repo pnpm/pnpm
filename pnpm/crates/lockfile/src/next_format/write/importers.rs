@@ -8,7 +8,7 @@ use crate::{
 use std::collections::HashMap;
 
 /// The importer with its versions' peer groups dropped, except where its
-/// scope does not select the variant.
+/// scope does not select the snapshot.
 pub(super) fn next_importer(
     id: &str,
     importer: &ProjectSnapshot,

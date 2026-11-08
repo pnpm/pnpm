@@ -1,11 +1,11 @@
-//! The scope a variant's peers are bound in, and the providers it binds.
+//! The scope a snapshot's peers are bound in, and the providers it binds.
 
-use super::{Graph, Provider, Referrer, Vid, child_named, has_peer_groups};
+use super::{Graph, Provider, Referrer, Sid, child_named, has_peer_groups};
 use crate::{PkgName, SnapshotDepRef};
 
 impl<'a> Graph<'a> {
-    /// The first referrer of every variant, in a walk from the importers in
-    /// order. A variant no importer reaches starts a walk of its own.
+    /// The first referrer of every snapshot, in a walk from the importers in
+    /// order. A snapshot no importer reaches starts a walk of its own.
     pub(super) fn parents(&self) -> Vec<Option<Referrer<'a>>> {
         let mut walk = Walk {
             graph: self,
@@ -24,29 +24,29 @@ impl<'a> Graph<'a> {
             }
             walk.drain();
         }
-        for vid in self.unreached_in_key_order(&walk.parent) {
-            walk.queue.push(vid);
+        for sid in self.unreached_in_key_order(&walk.parent) {
+            walk.queue.push(sid);
             walk.drain();
         }
         walk.parent
     }
 
-    /// The variants no importer reaches. The vids follow the map the
+    /// The snapshots no importer reaches. The sids follow the map the
     /// snapshots were read into, so they are ordered by key, the same in every
     /// process.
-    fn unreached_in_key_order(&self, parent: &[Option<Referrer<'a>>]) -> Vec<Vid> {
-        let mut unreached: Vec<Vid> = (0..self.keys.len())
-            .filter(|&vid| parent[vid].is_none())
+    fn unreached_in_key_order(&self, parent: &[Option<Referrer<'a>>]) -> Vec<Sid> {
+        let mut unreached: Vec<Sid> = (0..self.keys.len())
+            .filter(|&sid| parent[sid].is_none())
             .collect();
-        unreached.sort_by_cached_key(|&vid| {
-            (self.keys[vid].to_string(), vid - self.variants[self.keys[vid]].0)
+        unreached.sort_by_cached_key(|&sid| {
+            (self.keys[sid].to_string(), sid - self.by_package[self.keys[sid]].0)
         });
         unreached
     }
 
     pub(super) fn provider(
         &self,
-        vid: Vid,
+        sid: Sid,
         name: &PkgName,
         reference: &SnapshotDepRef,
     ) -> Provider {
@@ -58,37 +58,39 @@ impl<'a> Graph<'a> {
         };
         let explicit = has_peer_groups(&key.suffix);
         let package = if explicit {
-            self.variants.get(&key.without_peer_bindings())
+            self.by_package.get(&key.without_peer_bindings())
         } else {
-            self.variants.get(&key)
+            self.by_package.get(&key)
         };
         let Some(&(start, count)) = package else {
             return Provider::Missing(format!("{}@{}", key.name, key.suffix.without_peer()));
         };
         if count == 1 {
-            return Provider::Variant(start);
+            return Provider::Snapshot(start);
         }
-        if explicit && let Some(found) = self.variant_with_providers(start, count, &key) {
-            return Provider::Variant(found);
+        if explicit && let Some(found) = self.snapshot_with_providers(start, count, &key) {
+            return Provider::Snapshot(found);
         }
-        match self.linked_above(vid, name, start, count) {
-            Some(found) => Provider::Variant(found),
-            None => Provider::Variant(self.variant_in_scope(start, count, Referrer::Snapshot(vid))),
+        match self.linked_above(sid, name, start, count) {
+            Some(found) => Provider::Snapshot(found),
+            None => {
+                Provider::Snapshot(self.snapshot_in_scope(start, count, Referrer::Snapshot(sid)))
+            }
         }
     }
 
-    /// The variant among `start..start + count` linked as `name` in the scope
-    /// `vid` was reached in: under its parent, its parent's parent, and so on
+    /// The snapshot among `start..start + count` linked as `name` in the scope
+    /// `sid` was reached in: under its parent, its parent's parent, and so on
     /// up to an importer.
     pub(super) fn linked_above(
         &self,
-        vid: Vid,
+        sid: Sid,
         name: &PkgName,
-        start: Vid,
+        start: Sid,
         count: usize,
-    ) -> Option<Vid> {
-        let is_candidate = |found: Vid| (start..start + count).contains(&found);
-        let mut referrer = self.parent[vid];
+    ) -> Option<Sid> {
+        let is_candidate = |found: Sid| (start..start + count).contains(&found);
+        let mut referrer = self.parent[sid];
         let mut steps = 0;
         while let Some(current) = referrer {
             let linked = match current {
@@ -113,29 +115,29 @@ impl<'a> Graph<'a> {
 }
 
 /// A walk from the importers that records the first referrer of every
-/// variant.
+/// snapshot.
 struct Walk<'g, 'a> {
     graph: &'g Graph<'a>,
     parent: Vec<Option<Referrer<'a>>>,
     visited: Vec<bool>,
-    queue: Vec<Vid>,
+    queue: Vec<Sid>,
 }
 
 impl<'a> Walk<'_, 'a> {
-    fn reach(&mut self, vid: Vid, referrer: Referrer<'a>) {
-        self.parent[vid].get_or_insert(referrer);
-        self.queue.push(vid);
+    fn reach(&mut self, sid: Sid, referrer: Referrer<'a>) {
+        self.parent[sid].get_or_insert(referrer);
+        self.queue.push(sid);
     }
 
     fn drain(&mut self) {
         let graph = self.graph;
-        while let Some(vid) = self.queue.pop() {
-            if std::mem::replace(&mut self.visited[vid], true) {
+        while let Some(sid) = self.queue.pop() {
+            if std::mem::replace(&mut self.visited[sid], true) {
                 continue;
             }
-            for &(_, child) in &graph.children[vid] {
+            for &(_, child) in &graph.children[sid] {
                 if !self.visited[child] {
-                    self.reach(child, Referrer::Snapshot(vid));
+                    self.reach(child, Referrer::Snapshot(sid));
                 }
             }
         }

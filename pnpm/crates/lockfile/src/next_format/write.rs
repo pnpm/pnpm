@@ -1,7 +1,7 @@
 //! Peer-suffixed sections to the next format.
 //!
 //! A reference is written without peer groups, unless reading the result back
-//! would select another variant for it. The writer reads its own output back
+//! would select another snapshot for it. The writer reads its own output back
 //! and writes those references with their peer groups, until nothing changes.
 
 pub(super) use importers::importer_dependencies;
@@ -9,12 +9,12 @@ pub(super) use importers::importer_dependencies;
 use super::{NextFormatError, NextSections, RestoreContext, RestoredSections, read};
 use crate::{Lockfile, PackageKey, PkgName, SnapshotDepRef, SnapshotEntry};
 use rayon::prelude::*;
+use snapshots::Snapshots;
 use std::collections::{HashMap, HashSet};
-use variants::Variants;
 
 mod importers;
 mod peers;
-mod variants;
+mod snapshots;
 
 /// Reading back can need a reference with peer groups only where an earlier
 /// round wrote another reference with them, so the rounds are few. This
@@ -24,21 +24,21 @@ const MAX_ROUNDS: usize = 8;
 /// The next format's sections, read back and checked against the lockfile.
 pub(super) fn next_sections(lockfile: &Lockfile) -> Result<NextSections, NextFormatError> {
     let empty = HashMap::new();
-    let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty);
-    let variants = Variants::of(snapshots, lockfile.packages.as_ref())?;
+    let suffixed = lockfile.snapshots.as_ref().unwrap_or(&empty);
+    let snapshots = Snapshots::of(suffixed, lockfile.packages.as_ref())?;
     let context = RestoreContext {
         packages: lockfile.packages.as_ref(),
         settings: lockfile.settings.as_ref(),
     };
     let mut explicit = Explicit::default();
     for _ in 0..MAX_ROUNDS {
-        let sections = variants.sections(lockfile, &explicit)?;
+        let sections = snapshots.sections(lockfile, &explicit)?;
         let Some(rebuilt) = read::Rebuilt::of(&sections, context) else {
             return Ok(sections);
         };
-        if !variants.mark_mismatches(lockfile, &rebuilt, &mut explicit) {
-            // The marks above cover which variant each reference selects
-            // and the key each variant gets. The entries themselves can
+        if !snapshots.mark_mismatches(lockfile, &rebuilt, &mut explicit) {
+            // The marks above cover which snapshot each reference selects
+            // and the key each snapshot gets. The entries themselves can
             // still read back differently, for a lockfile an older pnpm
             // wrote, so the whole sections are compared once.
             check_round_trip(lockfile, &rebuilt.into_sections(&sections, context))?;

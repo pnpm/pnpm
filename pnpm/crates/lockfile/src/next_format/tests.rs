@@ -163,7 +163,7 @@ fn package_that_is_the_peer_of_its_own_dependency_round_trips() {
     assert!(yaml.contains("      helper: 1.0.0\n"), "{yaml}");
 }
 
-/// `parent` binds no peers, so its scope does not say which variant of
+/// `parent` binds no peers, so its scope does not say which snapshot of
 /// `child` it links. The writer keeps that reference's peer groups.
 #[test]
 fn reference_the_scope_does_not_select_keeps_its_peer_groups() {

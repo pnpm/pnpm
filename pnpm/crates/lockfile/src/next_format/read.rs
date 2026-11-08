@@ -1,22 +1,22 @@
 //! The next format back to peer-suffixed sections.
 //!
-//! 1. Every reference is matched to one variant of the package it names. A
-//!    package with one variant needs no match. A reference that carries peer
-//!    groups names its variant's providers. Any other reference is matched to
-//!    the variant whose bindings all agree with the referrer's scope, binding
+//! 1. Every reference is matched to one snapshot of the package it names. A
+//!    package with one snapshot needs no match. A reference that carries peer
+//!    groups names its snapshot's providers. Any other reference is matched to
+//!    the snapshot whose bindings all agree with the referrer's scope, binding
 //!    the most names.
-//! 2. Every peer binding is matched to its provider: the variant of the
+//! 2. Every peer binding is matched to its provider: the snapshot of the
 //!    provider that the scope above the binding snapshot links under the
-//!    peer's name. The scope of a variant is that of the referrer that first
+//!    peer's name. The scope of a snapshot is that of the referrer that first
 //!    reaches it, in a walk from the importers in order.
-//! 3. Each variant's key is rebuilt from its providers, with the rules the
+//! 3. Each snapshot's key is rebuilt from its providers, with the rules the
 //!    resolver uses for the peer suffix: a provider is written as
 //!    `name@version` under `dedupePeers`, for a link, and inside a peer cycle,
 //!    and as its own key otherwise.
 //!
 //! The writer checks that this reads its output back to the sections it was
 //! given, and writes a reference with its peer groups wherever step 1 or 2
-//! would pick another variant.
+//! would pick another snapshot.
 
 mod choose;
 mod entries;
@@ -38,7 +38,7 @@ pub fn restore_sections(sections: &NextSections, context: RestoreContext<'_>) ->
     }
 }
 
-/// The reference graph of a next-format document, with every variant's
+/// The reference graph of a next-format document, with every snapshot's
 /// peer-suffixed key: what the writer checks its output against, and what
 /// the peer-suffixed sections are built from.
 pub(super) struct Rebuilt<'a> {
@@ -55,30 +55,30 @@ impl<'a> Rebuilt<'a> {
         Some(Rebuilt { graph, keys })
     }
 
-    fn vid(&self, package: &PackageKey, index: usize) -> Option<Vid> {
-        let &(start, count) = self.graph.variants.get(package)?;
+    fn sid(&self, package: &PackageKey, index: usize) -> Option<Sid> {
+        let &(start, count) = self.graph.by_package.get(package)?;
         (index < count).then_some(start + index)
     }
 
-    /// The peer-suffixed key of the variant at `index` under `package`.
-    pub(super) fn variant_key(
+    /// The peer-suffixed key of the snapshot at `index` under `package`.
+    pub(super) fn snapshot_key(
         &self,
         package: &PackageKey,
         index: usize,
     ) -> Option<&PkgNameVerPeer> {
-        self.vid(package, index)
-            .map(|vid| &self.keys[vid])
+        self.sid(package, index)
+            .map(|sid| &self.keys[sid])
     }
 
-    /// The peer-suffixed key of the child linked as `alias` by that variant.
+    /// The peer-suffixed key of the child linked as `alias` by that snapshot.
     pub(super) fn child_key(
         &self,
         package: &PackageKey,
         index: usize,
         alias: &PkgName,
     ) -> Option<&PkgNameVerPeer> {
-        let vid = self.vid(package, index)?;
-        child_named(&self.graph.children[vid], alias).map(|child| &self.keys[child])
+        let sid = self.sid(package, index)?;
+        child_named(&self.graph.children[sid], alias).map(|child| &self.keys[child])
     }
 
     /// The peer-suffixed key of the child linked as `alias` by an importer.
@@ -104,16 +104,16 @@ impl<'a> Rebuilt<'a> {
     }
 }
 
-type Vid = usize;
+type Sid = usize;
 
 #[derive(Clone, Copy)]
 enum Referrer<'a> {
     Importer(&'a str),
-    Snapshot(Vid),
+    Snapshot(Sid),
 }
 
 enum Provider {
-    Variant(Vid),
+    Snapshot(Sid),
     Link(String),
     /// The lockfile has no snapshot of the provider.
     Missing(String),
@@ -122,12 +122,13 @@ enum Provider {
 struct Graph<'a> {
     keys: Vec<&'a PackageKey>,
     entries: Vec<&'a NextSnapshotEntry>,
-    variants: HashMap<&'a PackageKey, (Vid, usize)>,
+    /// Each package's first snapshot and its count.
+    by_package: HashMap<&'a PackageKey, (Sid, usize)>,
     importers: HashMap<&'a str, &'a ProjectSnapshot>,
-    /// Each variant's chosen children, sorted by name.
-    children: Vec<Vec<(&'a PkgName, Vid)>>,
-    importer_children: HashMap<&'a str, Vec<(&'a PkgName, Vid)>>,
-    /// The referrer that first reaches each variant: the scope its peers are
+    /// Each snapshot's chosen children, sorted by name.
+    children: Vec<Vec<(&'a PkgName, Sid)>>,
+    importer_children: HashMap<&'a str, Vec<(&'a PkgName, Sid)>>,
+    /// The referrer that first reaches each snapshot: the scope its peers are
     /// bound in.
     parent: Vec<Option<Referrer<'a>>>,
     providers: Vec<Vec<(&'a PkgName, Provider)>>,
@@ -138,7 +139,7 @@ impl<'a> Graph<'a> {
         let mut graph = Graph::index(snapshots, importers);
         graph.children = (0..graph.keys.len())
             .into_par_iter()
-            .map(|vid| graph.choose_children(vid))
+            .map(|sid| graph.choose_children(sid))
             .collect();
         graph.importer_children = graph.importers
             .par_iter()
@@ -147,10 +148,10 @@ impl<'a> Graph<'a> {
         graph.parent = graph.parents();
         graph.providers = (0..graph.keys.len())
             .into_par_iter()
-            .map(|vid| {
-                graph.entries[vid]
+            .map(|sid| {
+                graph.entries[sid]
                     .bindings()
-                    .map(|(name, reference)| (name, graph.provider(vid, name, reference)))
+                    .map(|(name, reference)| (name, graph.provider(sid, name, reference)))
                     .collect()
             })
             .collect();
@@ -163,9 +164,9 @@ impl<'a> Graph<'a> {
     ) -> Self {
         let mut keys = Vec::new();
         let mut entries = Vec::new();
-        let mut variants = HashMap::with_capacity(snapshots.len());
+        let mut by_package = HashMap::with_capacity(snapshots.len());
         for (key, list) in snapshots {
-            variants.insert(key, (keys.len(), list.len()));
+            by_package.insert(key, (keys.len(), list.len()));
             for entry in list {
                 keys.push(key);
                 entries.push(entry);
@@ -174,7 +175,7 @@ impl<'a> Graph<'a> {
         Graph {
             keys,
             entries,
-            variants,
+            by_package,
             importers: importers
                 .iter()
                 .map(|(id, importer)| (id.as_str(), importer))
@@ -192,7 +193,7 @@ fn compare_names(left: &PkgName, right: &PkgName) -> std::cmp::Ordering {
     (&left.scope, &left.bare).cmp(&(&right.scope, &right.bare))
 }
 
-fn child_named(children: &[(&PkgName, Vid)], name: &PkgName) -> Option<Vid> {
+fn child_named(children: &[(&PkgName, Sid)], name: &PkgName) -> Option<Sid> {
     children
         .binary_search_by(|(alias, _)| compare_names(alias, name))
         .ok()

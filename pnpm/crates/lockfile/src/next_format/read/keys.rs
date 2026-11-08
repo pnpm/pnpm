@@ -1,8 +1,8 @@
-//! Rebuilding each variant's peer-suffixed key from its providers.
+//! Rebuilding each snapshot's peer-suffixed key from its providers.
 
 use super::{
     super::{RestoreContext, tarjan},
-    Graph, Provider, Vid,
+    Graph, Provider, Sid,
 };
 use crate::{DEFAULT_PEERS_SUFFIX_MAX_LENGTH, PkgName, PkgNameVerPeer};
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
@@ -17,7 +17,7 @@ impl Graph<'_> {
             // another.
             return (0..self.keys.len())
                 .into_par_iter()
-                .map(|vid| self.key_of(vid, &rules, |_, provider| pair_of(self.keys[provider])))
+                .map(|sid| self.key_of(sid, &rules, |_, provider| pair_of(self.keys[provider])))
                 .collect();
         }
         self.nested_keys(&rules)
@@ -28,22 +28,22 @@ impl Graph<'_> {
     fn nested_keys(&self, rules: &SuffixRules) -> Vec<PkgNameVerPeer> {
         let nesting =
             Nesting { order: self.providers_first(), cyclic_names: self.cyclic_peer_names() };
-        // A variant without bindings has the package's key, and every other
-        // variant may need it.
+        // A snapshot without bindings has the package's key, and every other
+        // snapshot may need it.
         let mut keys: Vec<Option<PkgNameVerPeer>> = (0..self.keys.len())
-            .map(|vid| {
-                self.providers[vid]
+            .map(|sid| {
+                self.providers[sid]
                     .is_empty()
-                    .then(|| self.keys[vid].clone())
+                    .then(|| self.keys[sid].clone())
             })
             .collect();
         for level in self.levels(&nesting.order) {
-            for (vid, key) in self.level_keys(&level, &nesting, &keys, rules) {
-                keys[vid] = Some(key);
+            for (sid, key) in self.level_keys(&level, &nesting, &keys, rules) {
+                keys[sid] = Some(key);
             }
         }
         keys.into_iter()
-            .map(|key| key.expect("every variant is in one component"))
+            .map(|key| key.expect("every snapshot is in one component"))
             .collect()
     }
 
@@ -53,36 +53,36 @@ impl Graph<'_> {
         nesting: &Nesting,
         keys: &[Option<PkgNameVerPeer>],
         rules: &SuffixRules,
-    ) -> Vec<(Vid, PkgNameVerPeer)> {
+    ) -> Vec<(Sid, PkgNameVerPeer)> {
         level
             .par_iter()
             .flat_map_iter(|&component| nesting.order.components[component].iter().copied())
-            .filter(|&vid| !self.providers[vid].is_empty())
-            .map(|vid| {
-                let key = self.key_of(vid, rules, |name, provider| match keys[provider].as_ref() {
-                    Some(provider_key) if !nesting.collapses(vid, provider, name) => {
+            .filter(|&sid| !self.providers[sid].is_empty())
+            .map(|sid| {
+                let key = self.key_of(sid, rules, |name, provider| match keys[provider].as_ref() {
+                    Some(provider_key) if !nesting.collapses(sid, provider, name) => {
                         PeerId::DepPath(DepPath::from(provider_key.to_string()))
                     }
                     _ => pair_of(self.keys[provider]),
                 });
-                (vid, key)
+                (sid, key)
             })
             .collect()
     }
 
-    /// The key of `vid`, with `segment` giving each provider variant's peer
+    /// The key of `sid`, with `segment` giving each provider snapshot's peer
     /// group.
     fn key_of(
         &self,
-        vid: Vid,
+        sid: Sid,
         rules: &SuffixRules,
-        segment: impl Fn(&PkgName, Vid) -> PeerId,
+        segment: impl Fn(&PkgName, Sid) -> PeerId,
     ) -> PkgNameVerPeer {
-        let base = self.keys[vid];
-        if self.providers[vid].is_empty() {
+        let base = self.keys[sid];
+        if self.providers[sid].is_empty() {
             return base.clone();
         }
-        let peer_ids: Vec<PeerId> = self.providers[vid]
+        let peer_ids: Vec<PeerId> = self.providers[sid]
             .iter()
             .map(|(name, provider)| match provider {
                 Provider::Link(path) => PeerId::Pair {
@@ -90,7 +90,7 @@ impl Graph<'_> {
                     version: link_path_to_peer_version(path),
                 },
                 Provider::Missing(pair) => PeerId::DepPath(DepPath::from(pair.clone())),
-                Provider::Variant(provider) => segment(name, *provider),
+                Provider::Snapshot(provider) => segment(name, *provider),
             })
             .collect();
         let mut peer = base.suffix.patch_group().to_string();
@@ -106,9 +106,9 @@ impl Graph<'_> {
         for (component, members) in order.components.iter().enumerate() {
             let level = members
                 .iter()
-                .flat_map(|&vid| self.providers[vid].iter())
+                .flat_map(|&sid| self.providers[sid].iter())
                 .filter_map(|(_, provider)| match provider {
-                    Provider::Variant(provider) => order.component_of.get(provider),
+                    Provider::Snapshot(provider) => order.component_of.get(provider),
                     Provider::Link(_) | Provider::Missing(_) => None,
                 })
                 .filter(|&&provider_component| provider_component != component)
@@ -124,21 +124,21 @@ impl Graph<'_> {
         levels
     }
 
-    /// Variants grouped by peer cycle, each group after the groups of its
-    /// providers. Only variants with bindings form cycles.
+    /// Snapshots grouped by peer cycle, each group after the groups of its
+    /// providers. Only snapshots with bindings form cycles.
     fn providers_first(&self) -> tarjan::Components {
         tarjan::components(
             self.keys.len(),
-            |vid| {
-                self.providers[vid]
+            |sid| {
+                self.providers[sid]
                     .iter()
                     .filter_map(|(_, provider)| match provider {
-                        Provider::Variant(provider) => Some(*provider),
+                        Provider::Snapshot(provider) => Some(*provider),
                         Provider::Link(_) | Provider::Missing(_) => None,
                     })
                     .collect()
             },
-            |vid| !self.providers[vid].is_empty(),
+            |sid| !self.providers[sid].is_empty(),
         )
     }
 
@@ -157,12 +157,12 @@ impl Graph<'_> {
                     names.len() - 1
                 })
         };
-        for vid in 0..self.keys.len() {
-            if self.providers[vid].is_empty() {
+        for sid in 0..self.keys.len() {
+            if self.providers[sid].is_empty() {
                 continue;
             }
-            let from = intern(self.keys[vid].name.to_string(), &mut edges);
-            for (name, _) in &self.providers[vid] {
+            let from = intern(self.keys[sid].name.to_string(), &mut edges);
+            for (name, _) in &self.providers[sid] {
                 let to = intern(name.to_string(), &mut edges);
                 edges[from].insert(to);
             }
@@ -188,11 +188,11 @@ struct Nesting {
 }
 
 impl Nesting {
-    /// Whether the provider `vid` binds as `name` is written as
+    /// Whether the provider `sid` binds as `name` is written as
     /// `name@version`: the two are in one peer cycle, or `name` is on a cycle
     /// of peer names.
-    fn collapses(&self, vid: Vid, provider: Vid, name: &PkgName) -> bool {
-        let component = self.order.component_of.get(&vid);
+    fn collapses(&self, sid: Sid, provider: Sid, name: &PkgName) -> bool {
+        let component = self.order.component_of.get(&sid);
         let in_cycle =
             component.is_some() && component == self.order.component_of.get(&provider);
         in_cycle || self.cyclic_names.contains(&name.to_string())

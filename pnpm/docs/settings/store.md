@@ -254,7 +254,7 @@ lockfile:
   format: next
 ```
 
-In the `next` format, `pnpm-lock.yaml` has one `packages` entry per package version, holding its metadata, its resolved dependencies, and the versions its peers resolved to, under `peers` and `transitivePeers`. The tarball's `integrity` is a field of the entry, and a registry package has no `resolution` field. A package installed with different peer dependencies lists what differs under `variants`. There is no `snapshots` section, and references between packages name a version without peer dependencies. When a peer dependency is updated, only the lines that record it change, instead of every key and reference that contains it.
+In the `next` format, `pnpm-lock.yaml` has one `packages` entry per package version, holding its metadata, its resolved dependencies, and the versions its peers resolved to, under `peers` and `transitivePeers`. The tarball's `integrity` is a field of the entry, and a registry package has no `resolution` field. A package installed with different peer dependencies lists what differs under `snapshots`. There is no top-level `snapshots` section, and references between packages name a version without peer dependencies. When a peer dependency is updated, only the lines that record it change, instead of every key and reference that contains it.
 
 A lockfile in the `next` format has `lockfileVersion: '10.0'`. pnpm reads lockfiles in both formats whatever this setting is. It writes the format this setting names whenever it resolves dependencies, and when you run `pnpm install --lockfile-only`. Versions of pnpm without this setting cannot read a lockfile in the `next` format.
 

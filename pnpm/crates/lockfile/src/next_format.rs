@@ -2,10 +2,10 @@
 //! is experimental. See pnpm/rfcs#72.
 //!
 //! A snapshot is keyed by `name@version`, plus the patch group when there is
-//! one, and every reference drops its peer groups. A package installed in
-//! several peer variants has a list of snapshots under its key, and each
-//! snapshot records its peer bindings as properties. A reference names a
-//! version; the referrer's bindings select the variant.
+//! one, and every reference drops its peer groups. A package installed with
+//! several sets of peers lists its snapshots under its key, and each snapshot
+//! records its peer bindings as properties. A reference names a version; the
+//! referrer's bindings select the snapshot.
 //!
 //! The in-memory [`Lockfile`] keeps the peer-suffixed keys, so only reading
 //! and writing know about this format: [`Lockfile::to_next_sections`] builds
@@ -61,11 +61,11 @@ impl LockfileFormat {
     }
 }
 
-/// The next format's `snapshots`: every peer variant of a package, under the
+/// The next format's `snapshots`: every peer snapshot of a package, under the
 /// package's key.
 pub type NextSnapshots = HashMap<PackageKey, Vec<NextSnapshotEntry>>;
 
-/// One peer variant of a package.
+/// One peer snapshot of a package.
 ///
 /// References carry no peer groups. `dependencies` and `optionalDependencies`
 /// hold only the package's own dependencies.
@@ -159,9 +159,9 @@ pub fn merge_packages(
     snapshots
         .into_iter()
         .flatten()
-        .map(|(key, variants)| {
+        .map(|(key, snapshots)| {
             let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
-            (key, NextPackageOut::new(metadata, variants))
+            (key, NextPackageOut::new(metadata, snapshots))
         })
         .collect()
 }
@@ -176,8 +176,8 @@ pub fn split_packages(
     let (packages, snapshots): (Vec<_>, Vec<_>) = merged
         .into_par_iter()
         .map(|(key, package)| {
-            let (metadata, variants) = package.split();
-            (metadata.map(|metadata| (key.without_peer(), metadata)), (key, variants))
+            let (metadata, snapshots) = package.split();
+            (metadata.map(|metadata| (key.without_peer(), metadata)), (key, snapshots))
         })
         .unzip();
     (Some(packages.into_iter().flatten().collect()), Some(snapshots.into_iter().collect()))
@@ -187,7 +187,7 @@ pub fn split_packages(
 #[derive(Debug, Clone, PartialEq)]
 pub struct NextSections {
     /// Importers whose versions have no peer groups, except where the
-    /// importer's scope does not select the variant.
+    /// importer's scope does not select the snapshot.
     pub importers: HashMap<String, ProjectSnapshot>,
     pub snapshots: Option<NextSnapshots>,
 }
@@ -261,7 +261,7 @@ impl Lockfile {
     /// The `importers` and `snapshots` of the next format.
     ///
     /// Fails when the result would not read back to this lockfile's
-    /// sections, so a write never loses a peer variant.
+    /// sections, so a write never loses a peer snapshot.
     pub fn to_next_sections(&self) -> Result<NextSections, NextFormatError> {
         crate::parallel_parse::pool().install(|| write::next_sections(self))
     }

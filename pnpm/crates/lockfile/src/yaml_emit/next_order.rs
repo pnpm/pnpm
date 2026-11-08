@@ -4,7 +4,7 @@ use super::{Map, Value, map_values, sort_by_priority, sort_deep_keys, sort_direc
 
 /// The key order of a `packages` entry in the next lockfile format, which
 /// has no `snapshots`: metadata, then the resolved graph. Nested maps are
-/// alphabetical, except the items of `variants`, which follow this order too.
+/// alphabetical, except the items of `snapshots`, which follow this order too.
 const NEXT_PACKAGE_KEYS: [&str; 22] = [
     "resolution",
     "integrity",
@@ -27,7 +27,7 @@ const NEXT_PACKAGE_KEYS: [&str; 22] = [
     "peers",
     "transitivePeers",
     "missingPeers",
-    "variants",
+    "snapshots",
 ];
 
 /// A next-format document: it declares the next version and has no
@@ -47,7 +47,7 @@ fn sort_next_package(entry: Value) -> Value {
         .into_iter()
         .map(|(key, value)| {
             let value = match (key.as_str(), value) {
-                ("variants", Value::Array(items)) => Value::Array(
+                ("snapshots", Value::Array(items)) => Value::Array(
                     items
                         .into_iter()
                         .map(sort_next_package)
