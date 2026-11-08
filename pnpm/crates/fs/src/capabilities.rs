@@ -42,6 +42,18 @@ pub trait FsHardLink {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
 }
 
+/// Copy the contents of an open `source` into an open `target`, as
+/// [`io::copy`].
+///
+/// The seam exists so tests can fail the copy tier, which every import
+/// ladder ends at and which a temp dir on a healthy disk never fails. It
+/// sits below [`fn@crate::copy_file_exclusive_with`], so a failure
+/// injected here still runs through the exclusive creation of the target
+/// and the removal of the partial file.
+pub trait FsCopyContents {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64>;
+}
+
 pub struct Host;
 
 impl FsReflink for Host {
@@ -53,6 +65,12 @@ impl FsReflink for Host {
 impl FsHardLink for Host {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()> {
         fs::hard_link(source, target)
+    }
+}
+
+impl FsCopyContents for Host {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
+        io::copy(source, target)
     }
 }
 

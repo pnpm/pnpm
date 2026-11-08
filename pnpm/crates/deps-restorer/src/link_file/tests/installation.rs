@@ -1,15 +1,12 @@
+#[cfg(unix)]
+use super::{super::import_into_fresh_target, FreshClone, STORE_EXEC_ENTRY};
 use super::{
     super::{
         AUTO_FIRST_TIER, Host, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
-        clone_or_copy_link, downgrade_auto_tier, is_call_error, link_file, next_auto_tier,
+        clone_or_copy_link, downgrade_auto_tier, link_file, next_auto_tier,
         recover_from_concurrent_import,
     },
     STORE_ENTRY, write_source,
-};
-#[cfg(unix)]
-use super::{
-    super::{LINK_STATE_COPY, import_into_fresh_target},
-    EaccesLinks, EpermLinks, FreshClone, STORE_EXEC_ENTRY,
 };
 use pnpm_config::PackageImportMethod;
 #[cfg(unix)]
@@ -227,8 +224,8 @@ fn local_directory_files_keep_their_own_mode() {
 }
 
 /// A mode miss belongs to one store file, not to the filesystem: the
-/// `Auto` ladder keeps the hardlink tier, like [`is_too_many_links`]
-/// does for a source out of names.
+/// `Auto` ladder keeps the hardlink tier, as it does for a source out of
+/// names.
 #[test]
 #[cfg(unix)]
 fn auto_keeps_the_hardlink_tier_across_a_mode_mismatch() {
@@ -666,113 +663,6 @@ fn clone_or_copy_call_errors_propagate_without_downgrading() {
         LINK_STATE_CLONE,
         "AlreadyExists must not poison the cache",
     );
-}
-/// Pin the deny-list classifier. The state-machine tests above
-/// exercise `NotFound` on the common path, but we also care that
-/// the capability-style errors we see on real filesystems —
-/// notably Windows NTFS's `ERROR_INVALID_FUNCTION` for
-/// `FSCTL_DUPLICATE_EXTENTS_TO_FILE`, which Rust maps to
-/// `InvalidInput` — fall through to the next tier instead of
-/// propagating.
-#[test]
-fn is_call_error_rejects_capability_codes() {
-    // Call-shape errors: must propagate.
-    for kind in
-        [io::ErrorKind::NotFound, io::ErrorKind::PermissionDenied, io::ErrorKind::AlreadyExists]
-    {
-        let err = io::Error::from(kind);
-        assert!(is_call_error(&err), "kind {kind:?} should be a call error");
-    }
-
-    // Capability / cross-device / weird OS codes: must fall
-    // through, so they must NOT be classified as call errors.
-    for err in [
-        io::Error::from(io::ErrorKind::Unsupported),
-        io::Error::from(io::ErrorKind::InvalidInput), // Windows ERROR_INVALID_FUNCTION lands here
-        io::Error::from_raw_os_error(18),             // EXDEV
-        io::Error::from_raw_os_error(25),             // ENOTTY — ext4 reflink rejection
-        io::Error::from_raw_os_error(95),             // EOPNOTSUPP
-    ] {
-        assert!(!is_call_error(&err), "{err:?} should trigger fallback, not propagate");
-    }
-
-    // Link permissions can be denied while ordinary copying is allowed.
-    #[cfg(unix)]
-    {
-        let eperm = io::Error::from_raw_os_error(libc::EPERM);
-        assert!(!is_call_error(&eperm), "EPERM is a capability signal, not a call error");
-        let eacces = io::Error::from_raw_os_error(libc::EACCES);
-        assert!(!is_call_error(&eacces), "EACCES should allow a copy fallback");
-    }
-    #[cfg(windows)]
-    {
-        let access_denied = io::Error::from_raw_os_error(
-            windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED.cast_signed(),
-        );
-        assert!(!is_call_error(&access_denied), "ERROR_ACCESS_DENIED should allow a fallback");
-    }
-}
-/// A hardlink the store file's ACL refuses falls to the next tier, as
-/// pnpm 11's `linkOrCopy` does, instead of failing the install.
-#[test]
-#[cfg(windows)]
-fn access_denied_hard_link_falls_through_the_auto_ladder() {
-    struct AccessDeniedHardLink;
-    impl super::super::FsHardLink for AccessDeniedHardLink {
-        fn hard_link(_source: &std::path::Path, _target: &std::path::Path) -> io::Result<()> {
-            Err(io::Error::from_raw_os_error(
-                windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED.cast_signed(),
-            ))
-        }
-    }
-    impl super::super::FsReflink for AccessDeniedHardLink {
-        fn reflink(source: &std::path::Path, target: &std::path::Path) -> io::Result<()> {
-            <Host as super::super::FsReflink>::reflink(source, target)
-        }
-    }
-    let state = AtomicU8::new(LINK_STATE_HARDLINK);
-    let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "src.txt", b"no hardlinks here");
-    let dst = tmp.path().join("dst.txt");
-
-    auto_link::<SilentReporter, AccessDeniedHardLink>(&AtomicU8::new(0), &state, &src, &dst)
-        .expect("a refused hardlink falls through to a tier that works");
-
-    assert_eq!(fs::read(&dst).unwrap(), b"no hardlinks here");
-    assert_ne!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK);
-}
-#[test]
-#[cfg(unix)]
-fn eacces_downgrade_still_surfaces_a_failed_copy() {
-    let state = AtomicU8::new(AUTO_FIRST_TIER);
-    let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "src.txt", b"unreachable target");
-    let dst = tmp.path().join("missing-parent/dst.txt");
-
-    let err = auto_link::<SilentReporter, EaccesLinks>(&AtomicU8::new(0), &state, &src, &dst)
-        .expect_err("copy cannot create a file under a missing directory");
-
-    assert_eq!(err.kind(), io::ErrorKind::NotFound);
-    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY);
-}
-/// Downgrading on `EPERM` does not swallow what the copy tier then
-/// finds wrong with the paths: with both links refused and no parent
-/// directory for the target, the ladder reaches the copy tier, the copy
-/// fails, and that error is the one the caller sees.
-#[test]
-#[cfg(unix)]
-fn eperm_downgrade_still_surfaces_a_failed_copy() {
-    let state = AtomicU8::new(LINK_STATE_HARDLINK);
-    let tmp = tempdir().unwrap();
-    let src = write_source(tmp.path(), "src.txt", b"unreachable target");
-    let dst = tmp.path().join("missing-parent/dst.txt");
-
-    let err = auto_link::<SilentReporter, EpermLinks>(&AtomicU8::new(0), &state, &src, &dst)
-        .expect_err("the copy tier cannot create a file under a missing directory");
-
-    assert_eq!(err.kind(), io::ErrorKind::NotFound);
-    assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY, "both link tiers were retired");
-    assert!(!dst.exists());
 }
 /// A copy that dies partway must not leave its half-written target
 /// behind. The next import reads an occupied target as a concurrent

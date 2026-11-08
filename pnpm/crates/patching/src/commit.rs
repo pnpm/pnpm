@@ -1,6 +1,7 @@
 use crate::process::Command;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_fs::{LinkFailure, LinkFallback, LinkFallbackPolicy};
 use pnpm_fs_packlist::PacklistError;
 use pnpm_package_manifest::PackageManifestError;
 use serde_json::{Map, Value};
@@ -129,7 +130,7 @@ fn prepare_pkg_files_for_diff_with_fs(
             })?;
         match fs_ops.hard_link(&source_path, &target) {
             Ok(()) => {}
-            Err(source) if is_unsupported_link_error(&source) => {
+            Err(source) if copies_instead_of_linking(&source) => {
                 fs_ops
                     .copy(&source_path, &target)
                     .map_err(|source| PatchCommitError::LinkFile { source_path, target, source })?;
@@ -291,21 +292,11 @@ fn path_from_forward_slash(path: &str) -> PathBuf {
     path.split('/').collect()
 }
 
-fn is_unsupported_link_error(error: &io::Error) -> bool {
-    if matches!(
-        error.kind(),
-        io::ErrorKind::CrossesDevices
-            | io::ErrorKind::Unsupported
-            | io::ErrorKind::PermissionDenied,
-    ) {
-        return true;
-    }
-    #[cfg(unix)]
-    return error.raw_os_error() == Some(18);
-    #[cfg(windows)]
-    return error.raw_os_error() == Some(17);
-    #[cfg(not(any(unix, windows)))]
-    return false;
+/// The filtered copy is a scratch tree for `git diff`, so a hardlink is
+/// only a saving: a file the filesystem will not link is copied under
+/// [`LinkFallbackPolicy::NextMethod`], where the copy is the next method.
+fn copies_instead_of_linking(error: &io::Error) -> bool {
+    LinkFailure::of(error).fallback(LinkFallbackPolicy::NextMethod) != LinkFallback::Fail
 }
 
 fn normalize_diff_output(diff: &str, folder_a: &str, folder_b: &str) -> String {
