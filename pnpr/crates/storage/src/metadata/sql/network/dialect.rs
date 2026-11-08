@@ -249,7 +249,8 @@ fn ignore_duplicate(insert: &str) -> Result<String> {
 
 fn insert_table(insert: &str) -> Result<&str> {
     insert
-        .split_whitespace()
+        .split(|character: char| character.is_whitespace() || character == '(')
+        .filter(|token| !token.is_empty())
         .nth(2)
         .ok_or_else(|| RegistryError::Internal {
             reason: "metadata insert has no table".to_string(),

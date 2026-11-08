@@ -1,4 +1,7 @@
 //! Connection pools shared by accounts, tokens, and package metadata.
+//!
+//! Pool acquisition permits startup deadlines. Callers bound request operations
+//! with the configured request timeout.
 #![cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 
 use pnpr_config::SqlBackendSettings;
@@ -11,11 +14,13 @@ use std::{
 #[cfg(feature = "backend-postgres")]
 mod postgres;
 #[cfg(feature = "backend-postgres")]
-pub use postgres::{options as postgres_options, pool as postgres_pool};
+pub use postgres::{
+    options as postgres_options, pool as postgres_pool, timeout_sql as postgres_timeout_sql,
+};
 #[cfg(feature = "backend-mysql")]
 mod mysql;
 #[cfg(feature = "backend-mysql")]
-pub use mysql::{options as mysql_options, pool as mysql_pool};
+pub use mysql::{options as mysql_options, pool as mysql_pool, timeout_sql as mysql_timeout_sql};
 
 fn invalid_pool_size() -> RegistryError {
     RegistryError::InvalidConfig {

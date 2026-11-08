@@ -12,7 +12,8 @@ use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
 pub fn pool(settings: &SqlBackendSettings) -> Result<Arc<MySqlPool>> {
     static OPENED: Pools<sqlx::MySql> = Pools::new();
     OPENED.get(settings, || {
-        Ok(options(settings, settings.timeout, settings.timeout)?.connect_lazy(&settings.url)?)
+        Ok(options(settings, settings.timeout, settings.timeout.max(settings.startup_timeout))?
+            .connect_lazy(&settings.url)?)
     })
 }
 
@@ -33,25 +34,27 @@ pub fn options(
         }
         options = options.max_connections(max_connections);
     }
-    let statement_timeout_sql =
-        format!("SET SESSION max_execution_time = {}", timeout_millis(session_timeout));
-    let row_lock_timeout_sql =
-        format!("SET SESSION innodb_lock_wait_timeout = {}", timeout_seconds(session_timeout));
-    let metadata_lock_timeout_sql =
-        format!("SET SESSION lock_wait_timeout = {}", timeout_seconds(session_timeout));
+    let timeout_sql = timeout_sql(session_timeout);
     options = options.after_connect(move |conn, _meta| {
-        let statement_timeout_sql = statement_timeout_sql.clone();
-        let row_lock_timeout_sql = row_lock_timeout_sql.clone();
-        let metadata_lock_timeout_sql = metadata_lock_timeout_sql.clone();
+        let timeout_sql = timeout_sql.clone();
         Box::pin(async move {
             sqlx::query("SET SESSION sql_mode = 'STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION'")
                 .execute(&mut *conn)
                 .await?;
-            sqlx::query(&statement_timeout_sql).execute(&mut *conn).await?;
-            sqlx::query(&row_lock_timeout_sql).execute(&mut *conn).await?;
-            sqlx::query(&metadata_lock_timeout_sql).execute(conn).await?;
+            sqlx::query(&timeout_sql).execute(conn).await?;
             Ok(())
         })
     });
     Ok(options.acquire_timeout(acquire_timeout))
+}
+
+/// Statements that set server-side operation deadlines.
+#[must_use]
+pub fn timeout_sql(timeout: Duration) -> String {
+    format!(
+        "SET SESSION max_execution_time = {}, innodb_lock_wait_timeout = {}, lock_wait_timeout = {}",
+        timeout_millis(timeout),
+        timeout_seconds(timeout),
+        timeout_seconds(timeout),
+    )
 }

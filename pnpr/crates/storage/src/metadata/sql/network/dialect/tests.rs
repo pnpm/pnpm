@@ -71,3 +71,14 @@ fn schema_contract(sql: &str) -> Vec<String> {
         })
         .collect()
 }
+
+#[test]
+fn mysql_upserts_accept_columns_adjacent_to_the_table() {
+    let (sql, _) = Dialect::Mysql
+        .statement(
+            "INSERT INTO records(name, body) VALUES (?1, ?2) ON CONFLICT DO NOTHING",
+            &[Param::Text("example"), Param::Blob(b"payload")],
+        )
+        .unwrap();
+    assert!(sql.ends_with("name = records.name"), "{sql}");
+}

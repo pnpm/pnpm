@@ -9,7 +9,8 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 pub fn pool(settings: &SqlBackendSettings) -> Result<Arc<PgPool>> {
     static OPENED: Pools<sqlx::Postgres> = Pools::new();
     OPENED.get(settings, || {
-        Ok(options(settings, settings.timeout, settings.timeout)?.connect_lazy(&settings.url)?)
+        Ok(options(settings, settings.timeout, settings.timeout.max(settings.startup_timeout))?
+            .connect_lazy(&settings.url)?)
     })
 }
 
@@ -30,8 +31,7 @@ pub fn options(
         }
         options = options.max_connections(max_connections);
     }
-    let statement_timeout_sql =
-        format!("SET statement_timeout = {}", timeout_millis(session_timeout));
+    let statement_timeout_sql = timeout_sql(session_timeout);
     options = options.after_connect(move |conn, _meta| {
         let statement_timeout_sql = statement_timeout_sql.clone();
         Box::pin(async move {
@@ -40,4 +40,10 @@ pub fn options(
         })
     });
     Ok(options.acquire_timeout(acquire_timeout))
+}
+
+/// Statements that set server-side operation deadlines.
+#[must_use]
+pub fn timeout_sql(timeout: Duration) -> String {
+    format!("SET statement_timeout = {}", timeout_millis(timeout))
 }
