@@ -12,6 +12,7 @@ pub use lazy_lockfile::*;
 pub use load_lockfile::*;
 pub use lockfile_version::*;
 pub use merge_lockfile_changes::*;
+pub use next_format::*;
 pub use package_metadata::*;
 pub use patched_dep_paths::*;
 pub use peer_bindings::*;
@@ -47,6 +48,7 @@ mod lazy_lockfile;
 mod load_lockfile;
 mod lockfile_version;
 mod merge_lockfile_changes;
+mod next_format;
 mod package_metadata;
 mod patched_dep_paths;
 mod peer_bindings;
@@ -157,9 +159,18 @@ impl Lockfile {
 /// were read. See [`Lockfile::extra`].
 pub type LockfileExtra = IndexMap<String, serde_json::Value>;
 
-/// A pnpm lockfile using a supported wire format.
+/// A pnpm lockfile, with peer-suffixed keys.
+pub type Lockfile = LockfileDocument;
+
+/// A lockfile document. `Importer` and `Snapshot` are the shapes of the two
+/// sections the formats differ in. [`Lockfile`] holds the peer-suffixed ones,
+/// and [`NextLockfile`] those of [the next format](crate::NEXT_LOCKFILE_MAJOR).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(bound(
+    serialize = "Importer: Serialize + Sync, Snapshot: Serialize + Sync",
+    deserialize = "Importer: Deserialize<'de>, Snapshot: Deserialize<'de>",
+))]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -167,7 +178,7 @@ pub type LockfileExtra = IndexMap<String, serde_json::Value>;
         reason = "The fields mirror the pnpm-lock.yaml format."
     )
 )]
-pub struct Lockfile {
+pub struct LockfileDocument<Importer = ProjectSnapshot, Snapshot = SnapshotEntry> {
     pub lockfile_version: LockfileVersion<9>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -235,7 +246,7 @@ pub struct Lockfile {
         skip_serializing_if = "HashMap::is_empty",
         serialize_with = "crate::serialize_yaml::sorted_map"
     )]
-    pub importers: HashMap<String, ProjectSnapshot>,
+    pub importers: HashMap<String, Importer>,
 
     #[serde(
         skip_serializing_if = "Option::is_none",
@@ -247,7 +258,7 @@ pub struct Lockfile {
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub snapshots: Option<HashMap<PackageKey, SnapshotEntry>>,
+    pub snapshots: Option<HashMap<PackageKey, Snapshot>>,
 
     /// `time:` — the publish date of every direct dependency, recorded
     /// by a `resolutionMode: time-based` install. It is the fallback

@@ -1,6 +1,6 @@
 use crate::{
-    ComVer, EnvLockfile, Lockfile, LockfileVersion, ProjectSnapshot, extract_env_document,
-    extract_main_document,
+    ComVer, EnvLockfile, Lockfile, LockfileVersion, NextLockfile, ProjectSnapshot,
+    extract_env_document, extract_main_document,
     git_merge_file::{MERGE_CONFLICT_OURS, ParsedWantedFile, parse_wanted_file},
     load_lockfile::repair_document::prepare_value_for_fix,
     merge_lockfile_changes,
@@ -110,6 +110,29 @@ fn env_document_merges(content: &str, file_path: &Path) -> bool {
         .is_ok_and(|parsed| parsed.merged_conflict_files > 0)
 }
 
+/// Which shape a lockfile document's sections have.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Shape {
+    /// The shape its `lockfileVersion` names.
+    OfVersion,
+    /// Peer-suffixed, whatever its `lockfileVersion`: the current lockfile,
+    /// which records the wanted lockfile's version but is always written
+    /// suffixed, so that reading it needs no conversion.
+    Suffixed,
+}
+
+/// Whether the document's `lockfileVersion` is the next format's. pnpm writes
+/// the field on the document's first line, so this reads no further than the
+/// first line that sets it.
+fn declares_next_format(document: &str) -> bool {
+    document
+        .lines()
+        .find_map(|line| line.strip_prefix("lockfileVersion:"))
+        .map(|value| value.trim().trim_matches(['\'', '"']))
+        .and_then(|value| value.parse::<ComVer>().ok())
+        .is_some_and(|version| version.major == crate::NEXT_LOCKFILE_MAJOR)
+}
+
 impl Lockfile {
     /// Load lockfile from the current directory.
     pub fn load_from_current_dir() -> Result<Option<Self>, LoadLockfileError> {
@@ -133,7 +156,8 @@ impl Lockfile {
         install_state_dir: &Path,
     ) -> Result<Option<Self>, LoadLockfileError> {
         let file_path = install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
-        Self::load_from_path(&file_path)
+        let Some(content) = read_lockfile_text(&file_path)? else { return Ok(None) };
+        Self::parse_as(&content, &file_path, Shape::Suffixed)
     }
 
     /// The `lockfileVersion` of the lockfile at `file_path` when
@@ -277,11 +301,29 @@ impl Lockfile {
     /// [`Self::load_wanted_from_dir`], so a caller holding an in-memory
     /// snapshot of the file gets the same value the loader would.
     pub fn parse(content: &str, file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        Self::parse_as(content, file_path, Shape::OfVersion)
+    }
+
+    fn parse_as(
+        content: &str,
+        file_path: &Path,
+        shape: Shape,
+    ) -> Result<Option<Self>, LoadLockfileError> {
         let main = extract_main_document(content);
         if main.trim().is_empty() {
             return Ok(None);
         }
-        serde_saphyr::from_str_with_options::<Self>(&main, yaml_parse_options(main.len()))
+        let options = yaml_parse_options(main.len());
+        let parsed = if shape == Shape::OfVersion && declares_next_format(&main) {
+            match crate::next_format::parse_sections_in_parallel(&main, yaml_parse_options) {
+                Some(next) => Ok(next),
+                None => serde_saphyr::from_str_with_options::<NextLockfile>(&main, options),
+            }
+            .map(Lockfile::from_next)
+        } else {
+            serde_saphyr::from_str_with_options::<Self>(&main, options)
+        };
+        parsed
             .map(|mut lockfile| {
                 lockfile.reconstruct_missing_directory_resolutions();
                 Some(lockfile)
@@ -303,7 +345,12 @@ impl Lockfile {
         )
         .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
         prepare_value_for_fix(&mut value);
-        serde_json::from_value::<Self>(value)
+        let parsed = if declares_next_format(&main) {
+            serde_json::from_value::<NextLockfile>(value).map(Lockfile::from_next)
+        } else {
+            serde_json::from_value::<Self>(value)
+        };
+        parsed
             .map(|mut merge| {
                 merge.reconstruct_missing_directory_resolutions();
                 let mut seed = merge.clone();

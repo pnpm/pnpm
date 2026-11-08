@@ -131,6 +131,7 @@ fn create_config(
         symlinked_lockfile_target_dirs: Vec::new(),
         lockfile_include_resolution_settings: false,
         lockfile_integrity_target: pnpm_lockfile::IntegrityTarget::Resource,
+        lockfile_format: pnpm_lockfile::LockfileFormat::default(),
         registry: "https://registry.npmjs.com/".to_string(),
         scope: None,
         registries_by_scope: Default::default(),

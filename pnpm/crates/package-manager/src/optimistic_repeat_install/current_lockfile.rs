@@ -6,11 +6,32 @@ use std::{cell::OnceCell, collections::HashSet};
 pub(crate) struct CurrentLockfile<'a> {
     install_state_dir: &'a Path,
     loaded: OnceCell<Option<Option<Lockfile>>>,
+    regenerated: OnceCell<Option<String>>,
 }
 
 impl<'a> CurrentLockfile<'a> {
     pub(crate) fn new(install_state_dir: &'a Path) -> Self {
-        Self { install_state_dir, loaded: OnceCell::new() }
+        Self { install_state_dir, loaded: OnceCell::new(), regenerated: OnceCell::new() }
+    }
+
+    /// The text regenerating `pnpm-lock.yaml` from this lockfile writes, when
+    /// both are in the next format. That text differs from the current
+    /// lockfile's, which stays peer-suffixed, so it is what a missing wanted
+    /// lockfile's digest has to be taken from. Rendered once, for the check
+    /// and the regeneration both.
+    pub(crate) fn regenerated_text(&self, format: pnpm_lockfile::LockfileFormat) -> Option<&str> {
+        if format != pnpm_lockfile::LockfileFormat::Next {
+            return None;
+        }
+        self.regenerated
+            .get_or_init(|| {
+                let lockfile = self.get()??;
+                lockfile
+                    .is_next_format()
+                    .then(|| lockfile.to_yaml_string().ok())
+                    .flatten()
+            })
+            .as_deref()
     }
 
     /// `None` when the file exists but cannot be loaded.

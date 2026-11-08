@@ -27,14 +27,23 @@ pub(super) fn regenerate_wanted_lockfile_if_missing(
     if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
         return Ok(false);
     }
-    let Some(current) = current.get().ok_or("the current lockfile cannot be loaded")? else {
+    let Some(current_lockfile) = current.get().ok_or("the current lockfile cannot be loaded")?
+    else {
         return Ok(false);
     };
-    current
-        .save_to_path(
-            &check.workspace_root.join(check.config.wanted_lockfile_name()),
-            check.config.symlinked_lockfile(),
-        )
+    let target = check.workspace_root.join(check.config.wanted_lockfile_name());
+    let symlinked = check.config.symlinked_lockfile();
+    let format_version = check.config.lockfile_format.version();
+    let saved = if let Some(text) = current.regenerated_text(check.config.lockfile_format) {
+        pnpm_lockfile::save_text_to_path(text.to_string(), &target, symlinked)
+    } else if current_lockfile.lockfile_version == format_version {
+        current_lockfile.save_to_path(&target, symlinked)
+    } else {
+        let mut wanted = current_lockfile.clone();
+        wanted.lockfile_version = format_version;
+        wanted.save_to_path(&target, symlinked)
+    };
+    saved
         .map(|()| true)
         .map_err(|_| "failed to regenerate the wanted lockfile from the current lockfile")
 }

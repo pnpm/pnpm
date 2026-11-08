@@ -242,6 +242,22 @@ The store remembers the tar hash of every `.tgz` it extracts, whatever this sett
 
 pnpm versions before v12.15.0 cannot install from a lockfile that pins tars. Turn this setting on when everyone working on the project uses v12.15.0 or later. A resolution by `pnprServer` cannot pin tars, so an install that is not frozen fails when `pnprServer` is set.
 
+### lockfile.format
+
+* Default: **v9**
+* Type: **v9**, **next**
+
+The format pnpm writes `pnpm-lock.yaml` in. `next` is experimental and may change before it is released.
+
+```yaml title="pnpm-workspace.yaml"
+lockfile:
+  format: next
+```
+
+In the `next` format, a snapshot is keyed by the package's name and version only. A package installed with different peer dependencies has a list of snapshots under that key, and each snapshot records the versions its peers resolved to. References between snapshots name a version without peer dependencies. When a peer dependency is updated, only the lines that record it change, instead of every snapshot key and reference that contains it.
+
+A lockfile in the `next` format has `lockfileVersion: '10.0'`. pnpm reads lockfiles in both formats whatever this setting is. It writes the format this setting names whenever it resolves dependencies, and when you run `pnpm install --lockfile-only`. Versions of pnpm without this setting cannot read a lockfile in the `next` format.
+
 ### gitBranchLockfile
 
 * Default: **false**

@@ -74,7 +74,9 @@ impl<'a> InputDrift<'a> {
     ) -> Self {
         let recorded = state.validation.as_ref();
         let digests = FileDigests::new(recorded);
-        let (lockfile_path, lockfile) = digests.lockfile(check.workspace_root, check.config);
+        let current = CurrentLockfile::new(&check.config.install_state_dir);
+        let (lockfile_path, mut lockfile) = digests.lockfile(check.workspace_root, check.config);
+        stand_in_regenerated_digest(check, &current, &lockfile_path, &mut lockfile);
         let recorded_lockfile = recorded_signature(recorded, &lockfile_path);
         let lockfile_rehashed = matches!(
             (&lockfile, recorded_lockfile),
@@ -84,7 +86,6 @@ impl<'a> InputDrift<'a> {
             && lockfile.digest()
                 != recorded_lockfile.map(|signature| signature.digest.as_str());
         let patches = patch_drift(check, state, &digests);
-        let current = CurrentLockfile::new(&check.config.install_state_dir);
         Self {
             stats: project_stats(check, &current, recorded, lockfile.digest()),
             current,
@@ -205,6 +206,28 @@ fn patch_drift(
 
 /// Every project's [`ManifestStat`] against `recorded`, which proved the
 /// projects against the lockfile whose digest was `lockfile_digest`.
+/// When the current lockfile stands in for a missing `pnpm-lock.yaml`, its
+/// digest is what the regenerated `pnpm-lock.yaml` will have only while the
+/// two files are written alike. In the next format they are not, so the
+/// digest is taken from the text the regeneration writes.
+fn stand_in_regenerated_digest(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    current: &CurrentLockfile<'_>,
+    lockfile_path: &Path,
+    lockfile: &mut FileDigest,
+) {
+    let current_path =
+        check.config.install_state_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME);
+    if lockfile_path != current_path {
+        return;
+    }
+    let FileDigest::Present(signature) = lockfile else { return };
+    let Some(text) = current.regenerated_text(check.config.lockfile_format) else { return };
+    let mut digest = pnpm_crypto_hash::create_hex_hash(text);
+    digest.truncate(signature.digest.len());
+    signature.digest = digest;
+}
+
 fn project_stats<'a>(
     check: &OptimisticRepeatInstallCheck<'a>,
     current: &CurrentLockfile<'_>,

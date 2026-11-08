@@ -188,6 +188,30 @@ impl PkgVerPeer {
     pub fn without_peer(&self) -> PkgVerPeer {
         PkgVerPeer { prefix: self.prefix, version: self.version.clone(), peer: String::new() }
     }
+
+    /// The `(patch_hash=…)` group the peer part begins with, or `""`. The
+    /// writer puts the patch group before every peer group.
+    #[must_use]
+    pub fn patch_group(&self) -> &'_ str {
+        if !self.peer.starts_with("(patch_hash=") {
+            return "";
+        }
+        self.peer
+            .find(')')
+            .map_or("", |close| &self.peer[..=close])
+    }
+
+    /// This value with the peer groups dropped and the patch group kept.
+    #[must_use]
+    pub fn without_peer_bindings(&self) -> PkgVerPeer {
+        self.with_peer(self.patch_group().to_string())
+    }
+
+    /// This value with its peer part, patch group included, replaced by `peer`.
+    #[must_use]
+    pub fn with_peer(&self, peer: String) -> PkgVerPeer {
+        PkgVerPeer { prefix: self.prefix, version: self.version.clone(), peer }
+    }
 }
 
 /// Error when parsing [`PkgVerPeer`] from a string.

@@ -14,7 +14,7 @@ impl<const MAJOR: u16> LockfileVersion<MAJOR> {
     /// Check if `comver` is compatible with `MAJOR`.
     #[must_use]
     pub const fn is_compatible(comver: ComVer) -> bool {
-        comver.major == MAJOR || MAJOR == 9 && comver.major == 12
+        comver.major == MAJOR || MAJOR == 9 && matches!(comver.major, 10 | 12)
     }
 }
 

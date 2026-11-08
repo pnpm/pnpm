@@ -166,6 +166,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("link_workspace_packages", Recorded { key: "linkWorkspacePackages", change: |config| config.link_workspace_packages = LinkWorkspacePackages::Deep }),
     ("lockfile", NotAnInput("whether `pnpm-lock.yaml` is written, not what is installed")),
     ("lockfile_dir", Through(LOCKFILE_LOCATION)),
+    ("lockfile_format", NotAnInput("how the lockfile is written, not what it records")),
     ("lockfile_include_resolution_settings", Recorded { key: "lockfile.includeResolutionSettings", change: |config| config.lockfile_include_resolution_settings = !config.lockfile_include_resolution_settings }),
     ("lockfile_include_tarball_url", NotAnInput(RESOLUTION_ONLY)),
     ("lockfile_integrity_target", Recorded { key: "lockfile.integrityTarget", change: |config| config.lockfile_integrity_target = pnpm_lockfile::IntegrityTarget::Tar }),

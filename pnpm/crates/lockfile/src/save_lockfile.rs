@@ -34,6 +34,9 @@ pub enum SaveLockfileError {
     #[diagnostic(code(ERR_PNPM_LOCKFILE_WRITE_FILE))]
     WriteFile(io::Error),
 
+    #[diagnostic(transparent)]
+    NextFormat(#[error(source)] crate::NextFormatError),
+
     #[display(
         "The lockfile at \"{}\" still has Git conflict markers in its leading document, which records the config dependencies. Its two sides cannot be merged.",
         path.display()
@@ -97,8 +100,27 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     path: &Path,
     symlinked: SymlinkedLockfile<'_>,
 ) -> Result<(), SaveLockfileError> {
+    let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
+    save_content_to_path(content, path, symlinked)
+}
+
+/// [`save_value_to_path`] for a main document already rendered, such as by
+/// [`Lockfile::to_yaml_string`].
+pub fn save_text_to_path(
+    content: String,
+    path: &Path,
+    symlinked: SymlinkedLockfile<'_>,
+) -> Result<(), SaveLockfileError> {
+    save_content_to_path(content, path, symlinked)
+}
+
+fn save_content_to_path(
+    content: String,
+    path: &Path,
+    symlinked: SymlinkedLockfile<'_>,
+) -> Result<(), SaveLockfileError> {
     let existing = read_normalized_lockfile(path)?;
-    let output = render_value_over(value, existing.as_deref(), path)?;
+    let output = render_content_over(content, existing.as_deref(), path)?;
     if existing.as_deref() == Some(output.as_str()) {
         return Ok(());
     }
@@ -114,8 +136,9 @@ pub fn render_value_for_path<Document: serde::Serialize>(
     value: &Document,
     path: &Path,
 ) -> Result<String, SaveLockfileError> {
+    let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
     let existing = read_normalized_lockfile(path)?;
-    render_value_over(value, existing.as_deref(), path)
+    render_content_over(content, existing.as_deref(), path)
 }
 
 fn read_normalized_lockfile(path: &Path) -> Result<Option<String>, SaveLockfileError> {
@@ -126,12 +149,11 @@ fn read_normalized_lockfile(path: &Path) -> Result<Option<String>, SaveLockfileE
     }
 }
 
-fn render_value_over<Document: serde::Serialize>(
-    value: &Document,
+fn render_content_over(
+    content: String,
     existing: Option<&str>,
     path: &Path,
 ) -> Result<String, SaveLockfileError> {
-    let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
     Ok(match existing.and_then(extract_env_document) {
         Some(env) => {
             let env = preserved_env_document(&env, path)?;
@@ -258,9 +280,21 @@ fn refused_symlinked_lockfile(path: &Path) -> io::Error {
 }
 
 impl Lockfile {
-    /// Render lockfile as pnpm-formatted YAML.
+    /// Render lockfile as pnpm-formatted YAML, in the format its
+    /// `lockfileVersion` names.
     pub fn to_yaml_string(&self) -> Result<String, SaveLockfileError> {
+        if self.is_next_format() {
+            return self.to_next_yaml_string();
+        }
         serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)
+    }
+
+    /// The text [`Self::save_to_path`] would leave in the lockfile at `path`.
+    /// See [`render_value_for_path`].
+    pub fn render_for_path(&self, path: &Path) -> Result<String, SaveLockfileError> {
+        let content = self.to_yaml_string()?;
+        let existing = read_normalized_lockfile(path)?;
+        render_content_over(content, existing.as_deref(), path)
     }
 
     /// Save lockfile to a specific path.
@@ -269,7 +303,7 @@ impl Lockfile {
         path: &Path,
         symlinked: SymlinkedLockfile<'_>,
     ) -> Result<(), SaveLockfileError> {
-        save_value_to_path(self, path, symlinked)
+        save_content_to_path(self.to_yaml_string()?, path, symlinked)
     }
 
     /// Save lockfile to `pnpm-lock.yaml` in the current directory.
@@ -310,7 +344,11 @@ impl Lockfile {
                     dir: install_state_dir.to_path_buf(),
                     error,
                 })?;
-            let content = self.to_yaml_string()?;
+            // pnpm reads this file on every install, so it stays
+            // peer-suffixed, which needs no conversion. See
+            // `Shape::Suffixed`.
+            let content =
+                serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
             write_atomic(&target, content.as_bytes())
         }
     }
