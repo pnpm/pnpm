@@ -50,6 +50,7 @@ mod lockfile_version;
 mod merge_lockfile_changes;
 mod next_format;
 mod package_metadata;
+mod parallel_parse;
 mod patched_dep_paths;
 mod peer_bindings;
 mod peer_edges;

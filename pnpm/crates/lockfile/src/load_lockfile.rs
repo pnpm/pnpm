@@ -292,13 +292,16 @@ impl Lockfile {
         }
         let options = yaml_parse_options(main.len());
         let parsed = if shape == Shape::OfVersion && declares_next_format(&main) {
-            match crate::next_format::parse_sections_in_parallel(&main, yaml_parse_options) {
+            match crate::parallel_parse::parse_sections_in_parallel(&main, yaml_parse_options) {
                 Some(next) => Ok(next),
                 None => serde_saphyr::from_str_with_options::<NextLockfile>(&main, options),
             }
             .map(Lockfile::from_next)
         } else {
-            serde_saphyr::from_str_with_options::<Self>(&main, options)
+            match crate::parallel_parse::parse_sections_in_parallel(&main, yaml_parse_options) {
+                Some(lockfile) => Ok(lockfile),
+                None => serde_saphyr::from_str_with_options::<Self>(&main, options),
+            }
         };
         parsed
             .map(|mut lockfile| {
