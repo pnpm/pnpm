@@ -8,7 +8,8 @@
 //!   and of the `packages:` / `importers:` / `snapshots:` maps.
 //! - **single-line keys** — `cpu`, `engines`, `os`, `libc`, and `resolution`
 //!   (unless its `type` is `variations`/`binary`) render in flow style on one
-//!   line; everything else renders in block style.
+//!   line, as does a `peerDependencies` entry that is a map; everything else
+//!   renders in block style.
 //! - **single-quote scalar style** — ambiguous scalars (`'9.0'`, `'>=10'`,
 //!   `'@scope/name@1.0.0'`) are single-quoted, matching `js-yaml`'s default
 //!   `quotingType`, not double-quoted.
@@ -284,7 +285,20 @@ fn render_map(
         } else {
             EntrySpacing::Tight
         };
-    write_block_mapping(map, level, first_entry, spacing)
+    let values = match object_key {
+        Some("peerDependencies") => ValueStyle::Flow,
+        _ => ValueStyle::Block,
+    };
+    write_block_mapping(map, level, first_entry, spacing, values)
+}
+
+/// How a block mapping's values render. A `peerDependencies` entry of the
+/// next lockfile format is a map of the peer's `specifier` and `optional`,
+/// written on the peer's line.
+#[derive(Clone, Copy)]
+enum ValueStyle {
+    Block,
+    Flow,
 }
 
 fn is_single_line_key(key: &str) -> bool {
@@ -327,9 +341,10 @@ fn write_block_mapping(
     level: usize,
     first_entry: FirstEntry,
     spacing: EntrySpacing,
+    values: ValueStyle,
 ) -> String {
     if map.len() < PARALLEL_ENTRY_THRESHOLD {
-        return write_block_mapping_serial(map, level, first_entry, spacing);
+        return write_block_mapping_serial(map, level, first_entry, spacing, values);
     }
     // Each entry's rendering depends only on its own key and value, so a
     // large map fans its entries out across the rayon pool, and the serial
@@ -341,7 +356,7 @@ fn write_block_mapping(
         .par_iter()
         .map(|(key, value)| {
             let mut entry = String::new();
-            render_entry_into(&mut entry, key, value, level);
+            render_entry_into(&mut entry, key, value, level, values);
             entry
         })
         .collect();
@@ -362,13 +377,14 @@ fn write_block_mapping_serial(
     level: usize,
     first_entry: FirstEntry,
     spacing: EntrySpacing,
+    values: ValueStyle,
 ) -> String {
     let mut result = String::new();
     for (key, value) in map {
         if !result.is_empty() || !omits_leading_newline(first_entry) {
             result.push_str(&next_line(level, spacing));
         }
-        render_entry_into(&mut result, key, value, level);
+        render_entry_into(&mut result, key, value, level, values);
     }
     if result.is_empty() { "{}".to_string() } else { result }
 }
@@ -382,7 +398,13 @@ fn omits_leading_newline(first_entry: FirstEntry) -> bool {
     }
 }
 
-fn render_entry_into(result: &mut String, key: &str, value: &Value, level: usize) {
+fn render_entry_into(
+    result: &mut String,
+    key: &str,
+    value: &Value,
+    level: usize,
+    values: ValueStyle,
+) {
     let rendered_key = write_scalar(key, level + 1, ScalarLines::OneLine, CollectionStyle::Block);
     let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
     // An explicit `? key` pair puts the value right after its own `:`, so the
@@ -395,14 +417,11 @@ fn render_entry_into(result: &mut String, key: &str, value: &Value, level: usize
     } else {
         result.push_str(&rendered_key);
     }
-    let rendered = render(
-        value,
-        level + 1,
-        CollectionStyle::Block,
-        first_entry,
-        Some(key),
-        ScalarLines::Multiline,
-    );
+    let style = match values {
+        ValueStyle::Block => CollectionStyle::Block,
+        ValueStyle::Flow => CollectionStyle::Flow,
+    };
+    let rendered = render(value, level + 1, style, first_entry, Some(key), ScalarLines::Multiline);
     result.push(':');
     if !rendered.starts_with('\n') {
         result.push(' ');

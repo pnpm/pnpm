@@ -4,8 +4,10 @@ use super::{Map, Value, map_values, sort_by_priority, sort_deep_keys, sort_direc
 
 /// The key order of a `packages` entry in the next lockfile format, which
 /// has no `snapshots`: metadata, then the resolved graph. Nested maps are
-/// alphabetical, except the items of `snapshots`, which follow this order too.
-const NEXT_PACKAGE_KEYS: [&str; 22] = [
+/// alphabetical, except the items of `snapshots`, which follow this order too,
+/// and the entries of `peerDependencies`, which keep `specifier` before
+/// `optional`.
+const NEXT_PACKAGE_KEYS: [&str; 21] = [
     "resolution",
     "integrity",
     "version",
@@ -18,7 +20,6 @@ const NEXT_PACKAGE_KEYS: [&str; 22] = [
     "prepare",
     "bundledDependencies",
     "peerDependencies",
-    "peerDependenciesMeta",
     "id",
     "patched",
     "optional",
@@ -53,6 +54,9 @@ fn sort_next_package(entry: Value) -> Value {
                         .map(sort_next_package)
                         .collect(),
                 ),
+                ("peerDependencies", Value::Object(peers)) => {
+                    Value::Object(sort_direct_keys(peers))
+                }
                 (_, value) => sort_deep_keys(value),
             };
             (key, value)

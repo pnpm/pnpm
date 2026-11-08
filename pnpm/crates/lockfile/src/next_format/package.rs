@@ -2,14 +2,19 @@
 //! resolved dependencies, and its peer bindings, with a `snapshots` list for a
 //! package installed with several sets of peers.
 
+pub use peers::{NextPeerDependency, NextPeerDependencyOut};
+
 use super::NextSnapshotEntry;
 use crate::{
-    BundledDependencies, LockfileResolution, PackageMetadata, PeerDependencyMeta, PkgName,
-    RegistryResolution, SnapshotDepRef, StringOrList, TarballResolution,
+    BundledDependencies, LockfileResolution, PackageMetadata, PkgName, RegistryResolution,
+    SnapshotDepRef, StringOrList, TarballResolution,
 };
+use peers::{merge_peer_dependencies, split_peer_dependencies};
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+
+mod peers;
 
 /// The metadata fields mirror [`PackageMetadata`], the graph fields
 /// [`NextSnapshotEntry`]. The graph fields hold what every snapshot shares;
@@ -57,19 +62,13 @@ pub struct NextPackage {
     pub prepare: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundled_dependencies: Option<BundledDependencies>,
-    /// The peers the package declares, as ranges.
+    /// The peers the package declares, with `peerDependenciesMeta` folded in.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub peer_dependencies: Option<HashMap<String, String>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::serialize_yaml::sorted_map_opt"
-    )]
-    pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
+    pub peer_dependencies: Option<HashMap<String, NextPeerDependency>>,
 
     // The graph fields, as in [`NextSnapshotEntry`]. What every snapshot
     // shares, or the one snapshot.
@@ -163,9 +162,7 @@ pub struct NextPackageOut<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bundled_dependencies: Option<&'a BundledDependencies>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub peer_dependencies: Option<SortedMap<'a, String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub peer_dependencies_meta: Option<SortedMap<'a, String, PeerDependencyMeta>>,
+    pub peer_dependencies: Option<BTreeMap<&'a str, NextPeerDependencyOut<'a>>>,
     #[serde(flatten)]
     pub shared: NextSnapshotEntry,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -209,12 +206,12 @@ impl<'a> NextPackageOut<'a> {
             bundled_dependencies: metadata.and_then(|metadata| {
                 metadata.bundled_dependencies.as_ref()
             }),
-            peer_dependencies: metadata
-                .and_then(|metadata| metadata.peer_dependencies.as_ref())
-                .map(SortedMap),
-            peer_dependencies_meta: metadata
-                .and_then(|metadata| metadata.peer_dependencies_meta.as_ref())
-                .map(SortedMap),
+            peer_dependencies: metadata.and_then(|metadata| {
+                merge_peer_dependencies(
+                    metadata.peer_dependencies.as_ref(),
+                    metadata.peer_dependencies_meta.as_ref(),
+                )
+            }),
             shared,
             snapshots,
         }
@@ -297,6 +294,8 @@ impl NextPackage {
             (Some(resolution), _) => resolution,
             (None, None) => return None,
         };
+        let (peer_dependencies, peer_dependencies_meta) =
+            split_peer_dependencies(self.peer_dependencies);
         Some(PackageMetadata {
             resolution,
             version: self.version,
@@ -308,8 +307,8 @@ impl NextPackage {
             has_bin: self.has_bin,
             prepare: self.prepare,
             bundled_dependencies: self.bundled_dependencies,
-            peer_dependencies: self.peer_dependencies,
-            peer_dependencies_meta: self.peer_dependencies_meta,
+            peer_dependencies,
+            peer_dependencies_meta,
         })
     }
 }
