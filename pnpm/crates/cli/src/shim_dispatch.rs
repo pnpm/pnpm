@@ -147,6 +147,11 @@ impl ShimLaunch {
         if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
             return;
         }
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the processes the dispatch spawns while it prepares its program have to \
+                      inherit the mark, so it has to be in the environment"
+        )]
         // SAFETY: `crate::main` calls this before `run_on_big_stack` spawns
         // the startup thread, so no other thread exists that could access
         // the environment concurrently.

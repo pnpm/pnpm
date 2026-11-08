@@ -413,34 +413,42 @@ fn missing_manifest_returns_false() {
 /// Unix-only: relies on `printf` and `$VAR` expansion, which `cmd`
 /// doesn't speak. Env stamping itself is platform-agnostic and covered
 /// by the unit tests in [`crate::make_env`].
-///
-/// The two inherited `npm_config_*` variables arrive through
-/// `run_lifecycle_hook`'s `parent_env` parameter, so the test neither
-/// mutates the process environment nor has to be serialized against the
-/// tests that read it.
 #[cfg(unix)]
 #[test]
 fn child_sees_stamped_npm_package_and_preserves_user_config() {
     use super::run_lifecycle_hook;
+    use std::fmt::Write as _;
 
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
     let dump_path = pkg_root.join("env.dump");
 
-    // printf, not echo, so the line endings are deterministic across shells.
-    let script = format!(
-        r#"printf 'stage=%s\nscript=%s\nname=%s\nver=%s\nconfig=%s\ninit_cwd=%s\nuser=%s\nauth=%s\n' "$npm_lifecycle_event" "$npm_lifecycle_script" "$npm_package_name" "$npm_package_version" "$npm_package_config_myKey" "$INIT_CWD" "$npm_config_platform_arch" "$npm_config__authtoken" > {}"#,
-        dump_path.display(),
-    );
+    // Each line of the dump, as a label and the shell expression behind it.
+    const DUMPED: &[(&str, &str)] = &[
+        ("stage", "$npm_lifecycle_event"),
+        ("script", "$npm_lifecycle_script"),
+        ("name", "$npm_package_name"),
+        ("ver", "$npm_package_version"),
+        ("config", "$npm_package_config_myKey"),
+        ("init_cwd", "$INIT_CWD"),
+        ("user", "$npm_config_platform_arch"),
+        ("auth", "$npm_config__authtoken"),
+    ];
+    // `printf`, not `echo`, so the line endings are deterministic across shells.
+    let mut template = String::new();
+    let mut arguments = String::new();
+    for (label, expression) in DUMPED {
+        write!(template, r"{label}=%s\n").expect("write to a String");
+        write!(arguments, r#" "{expression}""#).expect("write to a String");
+    }
+    let script = format!("printf '{template}'{arguments} > '{}'", dump_path.display());
     let manifest = serde_json::json!({
         "name": "stamp-target",
         "version": "9.9.9",
         "config": { "myKey": "myValue" },
     });
-    // A user-defined `npm_config_*` key and an auth one, so the dump shows
-    // which of the two `build_env` keeps. `PATH` is read from the real
-    // environment because the hook resolves its shell along the `PATH` the
-    // parent env carries.
+    // A user key and an auth key, so the dump shows which one `build_env`
+    // keeps. The hook finds its shell along this `PATH`.
     let mut parent_env: HashMap<String, String> =
         [("npm_config_platform_arch", "x64"), ("npm_config__authtoken", "should-not-leak")]
             .into_iter()

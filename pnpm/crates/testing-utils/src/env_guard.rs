@@ -106,8 +106,10 @@ impl EnvGuard {
     /// named at [`Self::snapshot`] time.
     pub fn remove(&self, name: &str) {
         #[expect(clippy::disallowed_methods, reason = "the helper the lint points to")]
-        // SAFETY: as in `set` — the lock is held and `Drop` restores
-        // the variable.
+        // SAFETY: the guard holds `env_mutex`, so no other
+        // `EnvGuard`-using test in this process is running
+        // concurrently, and the variable was named at `snapshot` time
+        // so `Drop` restores it.
         unsafe {
             env::remove_var(name);
         }
