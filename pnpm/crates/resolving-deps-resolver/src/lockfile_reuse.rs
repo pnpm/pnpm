@@ -88,8 +88,8 @@ pub(crate) fn prior_child_key(
 ///
 /// Registry entries use semver satisfaction. Git entries require the same
 /// selector (allowing equivalent hosted-repository spellings) so moving refs
-/// keep their locked commit during unrelated dependency changes. Other
-/// resolution shapes fall through to a normal resolve.
+/// keep their locked commit during unrelated dependency changes. Local
+/// directories and tarballs require an unchanged specifier.
 pub(crate) fn reusable_importer_dep(
     lockfile: &Lockfile,
     importer_id: &str,
@@ -114,7 +114,8 @@ pub(crate) fn reusable_importer_dep(
     {
         return Some(key);
     }
-    if matches!(spec.version, ImporterDepVersion::File(_))
+    if (matches!(spec.version, ImporterDepVersion::File(_))
+        || matches!(metadata.resolution, LockfileResolution::Directory(_)))
         && (spec.specifier == bare_specifier
             || pnpm_local_spec::normalize_specifier(&spec.specifier)
                 == pnpm_local_spec::normalize_specifier(bare_specifier))

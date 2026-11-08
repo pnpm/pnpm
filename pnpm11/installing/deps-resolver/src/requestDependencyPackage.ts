@@ -135,7 +135,10 @@ function isRelativeToDeclaringManifest (ctx: ResolutionContext, wantedDependency
 type ReleasePolicyOptions = Pick<RequestPackageOptions,
 'publishedBy' | 'fallbackPublishedBy' | 'publishedByExclude' | 'trustPolicy' | 'trustPolicyExclude' | 'trustPolicyIgnoreAfter'>
 
-function getReleasePolicyOptions ({ ctx, options }: DependencyRequest): ReleasePolicyOptions {
+function getReleasePolicyOptions ({ ctx, currentPkg, options }: DependencyRequest): ReleasePolicyOptions {
+  if (ctx.trustLockfile && !options.update && !options.updateChecksums && currentPkg.resolution != null) {
+    return {}
+  }
   return {
     publishedBy: options.publishedBy,
     fallbackPublishedBy: ctx.maximumPublishedBy,

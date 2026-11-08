@@ -96,14 +96,25 @@ impl<'a> WantedRegistryRange<'a> {
         )
     }
 
-    /// `None` for a specifier that is neither a semver range nor a
-    /// named-registry specifier (`<prefix>:[<name>@]<range>`) of a declared
-    /// prefix.
+    /// `None` for a specifier that is not a semver range, an `npm:` alias,
+    /// or a named-registry specifier (`<prefix>:[<name>@]<range>`) of a declared prefix.
     fn parse(
         alias: &'a PkgName,
         bare_specifier: &'a str,
         registries: &'a RegistryContext,
     ) -> Option<Self> {
+        if bare_specifier.starts_with("npm:") {
+            let alias_name = alias.to_string();
+            let (name, range) =
+                crate::resolve_dependency_tree::unwrap_package_name(&alias_name, bare_specifier);
+            let registry = registries.routed_registry(name);
+            return Some(Self {
+                name: Cow::Owned(name.parse().ok()?),
+                registry,
+                key_prefix: registries.key_prefix_for_registry(registry),
+                range: range.parse().ok()?,
+            });
+        }
         if let Some((prefix, body)) = bare_specifier.split_once(':')
             && let Some(registry) = registries.registry_of_prefix(prefix)
         {

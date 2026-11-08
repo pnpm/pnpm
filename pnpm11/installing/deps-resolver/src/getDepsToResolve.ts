@@ -6,6 +6,7 @@ import type {
   ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import {
+  getLockfileImporterId,
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
   type PkgSnapshotToResolutionOptions,
@@ -136,7 +137,7 @@ function chooseLockedReference (
   }
   const lockedRef = lookup.lockedDependencies[alias]
   if (lockedRef && satisfiesWanted(lockedRef)) {
-    return { preferredVersion: getPinnedNameVer(lookup.wantedLockfile, lockedRef, alias)?.version }
+    return { reference: lockedRef, proceed: true, preferredVersion: getPinnedNameVer(lookup.wantedLockfile, lockedRef, alias)?.version }
   }
   return {}
 }
@@ -231,8 +232,9 @@ function referenceSatisfiesWantedSpec (
  */
 export function getLockedDependenciesOfPkg (ctx: ResolutionContext, pkg: PkgAddress): ResolvedDependencies | undefined {
   const depPath = ctx.lockedDepPathByPkgId.get(pkg.pkgId)
-  if (depPath == null) return undefined
-  const snapshot = getInfoFromLockfile(ctx.wantedLockfile, pickRegistryContext(ctx), depPath, pkg.pkg.name)?.dependencyLockfile
+  const snapshot = depPath == null
+    ? (pkg.resolvedVia === 'workspace' ? ctx.wantedLockfile.importers[getLockfileImporterId(ctx.lockfileDir, pkg.rootDir)] : undefined)
+    : getInfoFromLockfile(ctx.wantedLockfile, pickRegistryContext(ctx), depPath, pkg.pkg.name)?.dependencyLockfile
   if (snapshot == null) return undefined
   return {
     ...snapshot.dependencies,
