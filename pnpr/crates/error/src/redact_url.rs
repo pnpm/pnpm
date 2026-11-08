@@ -78,11 +78,43 @@ pub(super) fn split_trailing_punctuation(candidate: &str) -> (&str, &str) {
 }
 
 pub(super) fn redact_url_candidate(candidate: &str) -> Option<String> {
-    redact_parseable_url_candidate(candidate).or_else(|| redact_unparsable_url_candidate(candidate))
+    let Ok(url) = url::Url::parse(candidate) else {
+        return redact_unparsable_url_candidate(candidate);
+    };
+    let Some(userinfo_end) = find_password_parsed_as_port(candidate) else {
+        return redact_parsed_url(url);
+    };
+    let redacted = redact_userinfo_ending_at(candidate, userinfo_end)?;
+    Some(redact_url_candidate(&redacted).unwrap_or(redacted))
 }
 
-pub(super) fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
-    let mut url = url::Url::parse(candidate).ok()?;
+/// Returns the userinfo `@` of a URL such as `postgres://admin:123/secret@db/x`,
+/// which parses with port `123` and the rest of the password after it.
+/// An `@` that starts a path segment is taken for a scoped package name, so
+/// `http://localhost:4873/@scope/pkg` keeps its host.
+pub(super) fn find_password_parsed_as_port(candidate: &str) -> Option<usize> {
+    let authority_start = candidate.find("://")? + 3;
+    let authority_end = authority_start + candidate[authority_start..].find(['/', '?', '#'])?;
+    let authority = &candidate[authority_start..authority_end];
+    let (_, port) = authority.rsplit_once(':')?;
+    if authority.contains('@') || !port.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    find_last_at_outside_segment_start(candidate, authority_end, candidate.len())
+}
+
+pub(super) fn find_last_at_outside_segment_start(
+    candidate: &str,
+    start: usize,
+    end: usize,
+) -> Option<usize> {
+    candidate[start..end]
+        .rmatch_indices('@')
+        .map(|(offset, _)| start + offset)
+        .find(|&at| candidate.as_bytes()[at - 1] != b'/')
+}
+
+pub(super) fn redact_parsed_url(mut url: url::Url) -> Option<String> {
     let mut changed = redact_url_userinfo(&mut url);
     changed |= redact_url_query(&mut url);
     changed |= redact_url_fragment(&mut url);
@@ -154,7 +186,19 @@ pub(super) fn redact_unparsable_url_candidate(candidate: &str) -> Option<String>
 
 pub(super) fn redact_unparsable_url_userinfo(candidate: &str) -> Option<String> {
     let authority_start = candidate.find("://")? + 3;
-    let userinfo_end = candidate[authority_start..].rfind('@')? + authority_start;
+    // Any `@` is accepted when none qualifies, so a password ending in `/` stays hidden.
+    let userinfo_end =
+        find_last_at_outside_segment_start(candidate, authority_start, candidate.len())
+            .or_else(|| {
+                candidate[authority_start..]
+                    .rfind('@')
+                    .map(|offset| authority_start + offset)
+            })?;
+    redact_userinfo_ending_at(candidate, userinfo_end)
+}
+
+pub(super) fn redact_userinfo_ending_at(candidate: &str, userinfo_end: usize) -> Option<String> {
+    let authority_start = candidate.find("://")? + 3;
     // A `?` or `#` before the `@` belongs to either the password or a query or fragment
     // that holds a secret, so neither side of the `@` is safe to log.
     if candidate[authority_start..userinfo_end].contains(['?', '#']) {
