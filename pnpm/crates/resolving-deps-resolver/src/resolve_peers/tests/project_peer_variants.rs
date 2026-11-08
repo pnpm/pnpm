@@ -249,3 +249,31 @@ fn locked_optional_peers_do_not_split_an_unbound_project() {
         );
     }
 }
+
+#[test]
+fn project_scoped_optional_peer_stays_unbound_across_mutual_peer_cycle() {
+    let result = resolve_projects(
+        &[
+            &[("x", "x@1.0.0"), ("w", "w@1.0.0"), ("v", "v@1.0.0")],
+            &[("x", "x@1.0.0"), ("v", "v@1.0.0"), ("u-carrier", "u-carrier@1.0.0")],
+        ],
+        &[
+            ("x", &[], &[("y", "y@1.0.0"), ("z", "z@1.0.0")]),
+            ("y", &[("z", "*", false)], &[]),
+            ("z", &[("y", "*", false)], &[("p", "p@1.0.0")]),
+            ("p", &[("w", "*", true)], &[]),
+            ("w", &[], &[("t", "t@1.0.0")]),
+            ("t", &[], &[]),
+            ("u", &[], &[]),
+            ("v", &[("t", "*", true), ("u", "*", true)], &[]),
+            ("u-carrier", &[], &[("u", "u@1.0.0"), ("v", "v@1.0.0")]),
+        ],
+        PeerDependentsDedupe::OnWithProjectScopedOptionalPeers,
+    );
+    let app = &result.direct_dependencies_by_importer["1"];
+    let app_x = &result.graph[&app["x"]];
+    let app_y = &result.graph[&app_x.edges.children["y"]];
+    let app_z = &result.graph[&app_y.edges.children["z"]];
+    assert_eq!(app_z.edges.children["p"], DepPath::from("p@1.0.0"));
+    assert_eq!(app["v"], DepPath::from("v@1.0.0"));
+}

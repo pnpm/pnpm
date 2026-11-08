@@ -80,7 +80,7 @@ impl FinishedWorkspaceGraph {
 /// is walked, then rebuild the graph and re-key each importer's direct
 /// deps.
 pub(super) fn finish_workspace_graph(
-    walker: &Walker<'_>,
+    walker: &mut Walker<'_>,
     importers: &[&ImporterPeerInput],
     lockfile_dir: &Path,
     dedupe: PeerDependentsDedupe,

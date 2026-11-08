@@ -8,7 +8,6 @@ pub(crate) use final_paths::{FinalDepPaths, PeerIdRecording};
 pub(crate) use graph_edges::merge_additional_edges;
 
 mod peer_scc;
-use peer_scc::PeerSccPass;
 
 mod graph_edges;
 use graph_edges::{PeerNameTarjan, insert_graph_node, transitive_peer_names};
