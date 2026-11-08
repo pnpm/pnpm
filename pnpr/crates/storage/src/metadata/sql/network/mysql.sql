@@ -166,9 +166,6 @@ CREATE TABLE IF NOT EXISTS publications (
     committed_at BIGINT NOT NULL,
     PRIMARY KEY (catalog, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
--- The versions a commit accepted, which are its publication's members.
-CREATE INDEX versions_by_accepted_generation
-    ON versions (catalog, accepted_generation);
 CREATE UNIQUE INDEX publications_by_name
     ON publications (catalog, name);
 
@@ -198,8 +195,6 @@ CREATE TABLE IF NOT EXISTS publication_outcomes (
     committed_at BIGINT NOT NULL,
     PRIMARY KEY (catalog, principal, idempotency_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
-CREATE INDEX publication_outcomes_by_key
-    ON publication_outcomes (principal, idempotency_key);
 
 -- Release notes of a package version (`kind` = 'version', `subject` = the
 -- version) or of a publication (`kind` = 'publication', `ecosystem` and
@@ -216,20 +211,6 @@ CREATE TABLE IF NOT EXISTS notes (
     principal VARBINARY(512),
     initial_digest LONGTEXT,
     PRIMARY KEY (catalog, kind, ecosystem, name, subject)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
-
--- Insert-only: every change of a note, with the text it replaced, so an
--- accidental or unauthorized edit can be restored.
-CREATE TABLE IF NOT EXISTS note_history (
-    catalog VARBINARY(512) NOT NULL,
-    kind VARBINARY(512) NOT NULL,
-    ecosystem VARBINARY(512) NOT NULL,
-    name VARBINARY(512) NOT NULL,
-    subject VARBINARY(512) NOT NULL,
-    changed_at BIGINT NOT NULL,
-    principal VARBINARY(512),
-    previous LONGTEXT,
-    next LONGTEXT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs;
 
 -- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
