@@ -70,7 +70,8 @@ impl<'a> Rebuilt<'a> {
             .map(|sid| &self.keys[sid])
     }
 
-    /// The peer-suffixed key of the child linked as `alias` by that snapshot.
+    /// The peer-suffixed key of the child linked as `alias` by that snapshot:
+    /// a dependency it chose, or the provider of a peer it binds.
     pub(super) fn child_key(
         &self,
         package: &PackageKey,
@@ -78,7 +79,9 @@ impl<'a> Rebuilt<'a> {
         alias: &PkgName,
     ) -> Option<&PkgNameVerPeer> {
         let sid = self.sid(package, index)?;
-        child_named(&self.graph.children[sid], alias).map(|child| &self.keys[child])
+        let child = child_named(&self.graph.children[sid], alias)
+            .or_else(|| self.graph.provider_named(sid, alias))?;
+        Some(&self.keys[child])
     }
 
     /// The peer-suffixed key of the child linked as `alias` by an importer.
@@ -185,6 +188,20 @@ impl<'a> Graph<'a> {
             parent: Vec::new(),
             providers: Vec::new(),
         }
+    }
+}
+
+impl Graph<'_> {
+    /// The snapshot that provides the peer `alias` binds for `sid`, when a
+    /// snapshot in the lockfile does.
+    fn provider_named(&self, sid: Sid, alias: &PkgName) -> Option<Sid> {
+        self.providers[sid]
+            .iter()
+            .find(|(name, _)| *name == alias)
+            .and_then(|(_, provider)| match provider {
+                Provider::Snapshot(provider) => Some(*provider),
+                Provider::Link(_) | Provider::Missing(_) => None,
+            })
     }
 }
 
