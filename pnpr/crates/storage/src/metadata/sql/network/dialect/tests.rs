@@ -38,8 +38,11 @@ fn mysql_conditional_upserts_keep_both_values_when_the_condition_fails() {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    assert!(sql.contains("body = IF( records.name = VALUES(name), VALUES(body), body )"), "{sql}");
-    assert!(!sql.contains("excluded."), "{sql}");
+    assert!(
+        sql.contains("body = IF( records.name = excluded.name, excluded.body, records.body)"),
+        "{sql}",
+    );
+    assert!(sql.contains("AS excluded ON DUPLICATE KEY UPDATE"), "{sql}");
     assert!(!sql.contains(" WHERE "), "{sql}");
 }
 

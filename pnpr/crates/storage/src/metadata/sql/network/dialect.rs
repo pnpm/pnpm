@@ -1,6 +1,6 @@
 use super::super::adapter::{Param, Query};
 use pnpr_error::{RegistryError, Result};
-use std::fmt::Write as _;
+use std::{fmt::Write as _, time::Duration};
 
 #[derive(Debug, Clone, Copy)]
 pub(super) enum Dialect {
@@ -36,10 +36,13 @@ impl Dialect {
         false
     }
 
-    pub(super) fn lock_schema(self) -> &'static str {
+    pub(super) fn lock_schema(self, timeout: Duration) -> String {
         match self {
-            Self::Postgres => "SELECT 1 FROM pg_advisory_lock(70607832)",
-            Self::Mysql => "SELECT GET_LOCK(CONCAT('pnpr_schema:', MD5(DATABASE())), 30)",
+            Self::Postgres => "SELECT 1 FROM pg_advisory_lock(70607832)".to_string(),
+            Self::Mysql => format!(
+                "SELECT GET_LOCK(CONCAT('pnpr_schema:', MD5(DATABASE())), {})",
+                timeout.as_secs_f64(),
+            ),
         }
     }
 
@@ -229,9 +232,8 @@ fn mysql_upsert(sql: &str) -> Result<String> {
         .strip_prefix("SET")
         .unwrap_or(update)
         .trim();
-    let update = conditional_assignments(update);
-    let rendered = mysql_inserted_values(&update);
-    Ok(format!("{insert} ON DUPLICATE KEY UPDATE {rendered}"))
+    let update = conditional_assignments(update, insert_table(insert)?);
+    Ok(format!("{insert} AS excluded ON DUPLICATE KEY UPDATE {update}"))
 }
 
 fn ignore_duplicate(insert: &str) -> Result<String> {
@@ -241,16 +243,20 @@ fn ignore_duplicate(insert: &str) -> Result<String> {
         .ok_or_else(|| RegistryError::Internal {
             reason: "metadata insert has no columns".to_string(),
         })?;
-    let table = insert
+    let table = insert_table(insert)?;
+    Ok(format!("{insert} ON DUPLICATE KEY UPDATE {column} = {table}.{column}"))
+}
+
+fn insert_table(insert: &str) -> Result<&str> {
+    insert
         .split_whitespace()
         .nth(2)
         .ok_or_else(|| RegistryError::Internal {
             reason: "metadata insert has no table".to_string(),
-        })?;
-    Ok(format!("{insert} ON DUPLICATE KEY UPDATE {column} = {table}.{column}"))
+        })
 }
 
-fn conditional_assignments(update: &str) -> String {
+fn conditional_assignments(update: &str, table: &str) -> String {
     let Some((assignments, condition)) = update.split_once("WHERE") else {
         return update.to_string();
     };
@@ -258,25 +264,10 @@ fn conditional_assignments(update: &str) -> String {
         .split(',')
         .map(|assignment| {
             let (column, value) = assignment.split_once('=').expect("static SQL assignment");
-            format!("{column} = IF({condition}, {value}, {column})")
+            format!("{column} = IF({condition}, {value}, {table}.{})", column.trim())
         })
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-fn mysql_inserted_values(update: &str) -> String {
-    let mut rendered = String::new();
-    let mut remaining = update;
-    while let Some((before, after)) = remaining.split_once("excluded.") {
-        rendered.push_str(before);
-        let end = after
-            .find(|character: char| !character.is_ascii_alphanumeric() && character != '_')
-            .unwrap_or(after.len());
-        let _ = write!(rendered, "VALUES({})", &after[..end]);
-        remaining = &after[end..];
-    }
-    rendered.push_str(remaining);
-    rendered
 }
 
 #[cfg(test)]

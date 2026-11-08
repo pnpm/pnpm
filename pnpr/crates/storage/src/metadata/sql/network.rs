@@ -26,14 +26,14 @@ macro_rules! driver {
             pub(in super::super) struct NetworkAdapter {
                 pool: std::sync::Arc<$pool>,
                 dialect: Dialect,
-                timeout: Duration,
+                settings: SqlBackendSettings,
             }
 
             impl NetworkAdapter {
                 pub(in super::super) fn new(settings: &SqlBackendSettings) -> Result<Self> {
                     let dialect = Dialect::from_url(&settings.url)?;
                     let pool = $pool_fn(settings)?;
-                    Ok(Self { pool, dialect, timeout: settings.timeout })
+                    Ok(Self { pool, dialect, settings: settings.clone() })
                 }
 
                 fn run(
@@ -46,7 +46,7 @@ macro_rules! driver {
                         connection: RefCell::new(connection),
                         dialect: self.dialect,
                         runtime,
-                        timeout: self.timeout,
+                        timeout: self.settings.timeout,
                         schema_locked: Cell::new(false),
                         transaction_open: Cell::new(false),
                     };
@@ -70,6 +70,17 @@ macro_rules! driver {
             }
 
             impl Adapter for NetworkAdapter {
+                fn initialize(
+                    &self,
+                    operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
+                ) -> Result<()> {
+                    // Keep startup deadlines off the shared request connections.
+                    let mut settings = self.settings.clone();
+                    settings.timeout = settings.startup_timeout;
+                    settings.max_connections = Some(1);
+                    Self::new(&settings)?.run(operation)
+                }
+
                 fn write(
                     &self,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
@@ -164,7 +175,7 @@ macro_rules! driver {
                 fn lock_schema(&self) -> Result<()> {
                     // A lost response may still have acquired the session lock.
                     self.schema_locked.set(true);
-                    let mut row = self.query_one(self.dialect.lock_schema(), &[])?;
+                    let mut row = self.query_one(&self.dialect.lock_schema(self.timeout), &[])?;
                     if row.get::<i64>(0)? != 1 {
                         return Err(RegistryError::Internal {
                             reason: "metadata schema lock timed out".to_string(),
