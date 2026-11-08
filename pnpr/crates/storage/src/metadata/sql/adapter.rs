@@ -128,6 +128,11 @@ impl<'query> Query<'query> {
 
 /// What differs between the databases the shared SQL layer runs on.
 pub(crate) trait Adapter: fmt::Debug + Send + Sync {
+    /// Run schema initialization, using startup deadlines when the adapter has them.
+    fn initialize(&self, operation: &mut dyn FnMut(&dyn Connection) -> Result<()>) -> Result<()> {
+        self.write(operation)
+    }
+
     /// Run `operation` on a primary connection.
     fn write(&self, operation: &mut dyn FnMut(&dyn Connection) -> Result<()>) -> Result<()>;
 

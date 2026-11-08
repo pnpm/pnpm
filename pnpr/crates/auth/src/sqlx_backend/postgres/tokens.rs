@@ -29,7 +29,7 @@ impl PostgresDatabase {
         .bind(record.expires_at.map(token_timestamp_to_sql))
         .bind(scopes_json)
         .bind(record.kind.as_deref())
-        .execute(&*self.pool)
+        .execute(&mut *self.pool.acquire().await?)
         .await?;
         Ok(())
     }
@@ -38,7 +38,7 @@ impl PostgresDatabase {
         sqlx::query("UPDATE tokens SET last_used_at = $1 WHERE token_hash = $2")
             .bind(token_timestamp_to_sql(now))
             .bind(token_hash)
-            .execute(&*self.pool)
+            .execute(&mut *self.pool.acquire().await?)
             .await?;
         Ok(())
     }
@@ -49,7 +49,7 @@ impl PostgresDatabase {
              FROM tokens WHERE token_hash = $1",
         )
         .bind(token_hash)
-        .fetch_optional(&*self.pool)
+        .fetch_optional(&mut *self.pool.acquire().await?)
         .await?;
         row.map(|row| token_record_from_row(&row, token_hash)).transpose()
     }
@@ -63,7 +63,7 @@ impl PostgresDatabase {
              FROM tokens t JOIN users u ON u.id = t.user_id AND u.bcrypt_hash <> '!' WHERE t.token_hash = $1",
         )
         .bind(token_hash)
-        .fetch_optional(&*self.pool)
+        .fetch_optional(&mut *self.pool.acquire().await?)
         .await?;
         row.map(|row| {
             Ok(token_record_from_row(&row, token_hash)?
@@ -81,7 +81,7 @@ impl PostgresDatabase {
              FROM tokens WHERE user_id = $1",
         )
         .bind(user_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *self.pool.acquire().await?)
         .await?;
         rows.into_iter()
             .map(|row| keyed_token_record_from_row(&row))
@@ -91,7 +91,7 @@ impl PostgresDatabase {
     pub(super) async fn delete_token_impl(&self, token_hash: &str) -> Result<()> {
         sqlx::query("DELETE FROM tokens WHERE token_hash = $1")
             .bind(token_hash)
-            .execute(&*self.pool)
+            .execute(&mut *self.pool.acquire().await?)
             .await?;
         Ok(())
     }

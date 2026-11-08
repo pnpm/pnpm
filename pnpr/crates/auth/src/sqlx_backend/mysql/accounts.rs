@@ -1,4 +1,4 @@
-use super::{MysqlDatabase, Result, Row};
+use super::{MysqlDatabase, Result, Row, username_from_row};
 
 impl MysqlDatabase {
     pub(super) async fn accounts_by_id_impl(
@@ -15,10 +15,14 @@ impl MysqlDatabase {
                 binds.push_bind(id);
             }
             binds.push_unseparated(") AND bcrypt_hash <> '!'");
-            for row in query.build().fetch_all(&*self.pool).await? {
+            for row in query
+                .build()
+                .fetch_all(&mut *self.pool.acquire().await?)
+                .await?
+            {
                 accounts.push(crate::UserAccount {
                     id: row.try_get(0)?,
-                    username: row.try_get(1)?,
+                    username: username_from_row(&row, 1)?,
                 });
             }
         }

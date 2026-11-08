@@ -14,7 +14,7 @@ mod mysql_schema;
 use dialect::Dialect;
 
 macro_rules! driver {
-    ($module:ident, $database:ty, $pool:ty, $pool_fn:path, $row:ty) => {
+    ($module:ident, $database:ty, $pool:ty, $pool_fn:path, $row:ty, $timeout_sql:path) => {
         pub(super) mod $module {
             use super::{
                 Adapter, Cell, Connection, Dialect, Duration, Param, PoolConnection, Query,
@@ -26,30 +26,36 @@ macro_rules! driver {
             pub(in super::super) struct NetworkAdapter {
                 pool: std::sync::Arc<$pool>,
                 dialect: Dialect,
-                timeout: Duration,
+                settings: SqlBackendSettings,
             }
 
             impl NetworkAdapter {
                 pub(in super::super) fn new(settings: &SqlBackendSettings) -> Result<Self> {
                     let dialect = Dialect::from_url(&settings.url)?;
                     let pool = $pool_fn(settings)?;
-                    Ok(Self { pool, dialect, timeout: settings.timeout })
+                    Ok(Self { pool, dialect, settings: settings.clone() })
                 }
 
                 fn run(
                     &self,
+                    timeout: Duration,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
                 ) -> Result<()> {
                     let runtime = tokio::runtime::Handle::current();
-                    let connection = runtime.block_on(self.pool.acquire())?;
+                    let connection = runtime.block_on(pnpr_sql::acquire(&self.pool, timeout))?;
                     let connection = NetworkConnection {
                         connection: RefCell::new(connection),
                         dialect: self.dialect,
                         runtime,
-                        timeout: self.timeout,
+                        timeout,
                         schema_locked: Cell::new(false),
                         transaction_open: Cell::new(false),
                     };
+                    if timeout != self.settings.timeout {
+                        // A startup deadline must never reach another pool borrower.
+                        connection.connection.borrow_mut().close_on_drop();
+                        connection.execute_batch(&$timeout_sql(timeout))?;
+                    }
                     let result = operation(&connection);
                     // A failed commit or rollback must not return an open transaction to the pool.
                     let rollback = if connection.transaction_open.get() {
@@ -70,11 +76,18 @@ macro_rules! driver {
             }
 
             impl Adapter for NetworkAdapter {
+                fn initialize(
+                    &self,
+                    operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
+                ) -> Result<()> {
+                    self.run(self.settings.startup_timeout, operation)
+                }
+
                 fn write(
                     &self,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
                 ) -> Result<()> {
-                    self.run(operation)
+                    self.run(self.settings.timeout, operation)
                 }
 
                 fn read(
@@ -82,7 +95,7 @@ macro_rules! driver {
                     _source: ReadSource,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
                 ) -> Result<()> {
-                    self.run(operation)
+                    self.run(self.settings.timeout, operation)
                 }
 
                 fn is_retryable(&self, error: &RegistryError) -> bool {
@@ -162,14 +175,18 @@ macro_rules! driver {
                 }
 
                 fn lock_schema(&self) -> Result<()> {
-                    // A lost response may still have acquired the session lock.
-                    self.schema_locked.set(true);
-                    let mut row = self.query_one(self.dialect.lock_schema(), &[])?;
+                    let mut row = self
+                        .query_one(&self.dialect.lock_schema(self.timeout), &[])
+                        .inspect_err(|_| {
+                            // A lost response may still have acquired the session lock.
+                            self.connection.borrow_mut().close_on_drop();
+                        })?;
                     if row.get::<i64>(0)? != 1 {
                         return Err(RegistryError::Internal {
                             reason: "metadata schema lock timed out".to_string(),
                         });
                     }
+                    self.schema_locked.set(true);
                     Ok(())
                 }
 
@@ -292,9 +309,23 @@ macro_rules! driver {
     };
 }
 #[cfg(feature = "backend-postgres")]
-driver!(postgres, sqlx::Postgres, sqlx::PgPool, pnpr_sql::postgres_pool, sqlx::postgres::PgRow);
+driver!(
+    postgres,
+    sqlx::Postgres,
+    sqlx::PgPool,
+    pnpr_sql::postgres_pool,
+    sqlx::postgres::PgRow,
+    pnpr_sql::postgres_timeout_sql
+);
 #[cfg(feature = "backend-mysql")]
-driver!(mysql, sqlx::MySql, sqlx::MySqlPool, pnpr_sql::mysql_pool, sqlx::mysql::MySqlRow);
+driver!(
+    mysql,
+    sqlx::MySql,
+    sqlx::MySqlPool,
+    pnpr_sql::mysql_pool,
+    sqlx::mysql::MySqlRow,
+    pnpr_sql::mysql_timeout_sql
+);
 
 pub(super) fn adapter(settings: &SqlBackendSettings) -> Result<Box<dyn Adapter>> {
     match Dialect::from_url(&settings.url)? {

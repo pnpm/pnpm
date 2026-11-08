@@ -17,6 +17,8 @@ mod reclaims;
 mod records;
 mod schema;
 mod staged_failure;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod startup_timeout;
 mod timestamps;
 
 use crate::{

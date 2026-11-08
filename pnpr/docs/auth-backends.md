@@ -98,7 +98,7 @@ MySQL metadata keys are case-sensitive and limited to 512 bytes each. This
 includes catalog, package, version, revision, profile, tag, artifact, and
 publication names, principal IDs, and idempotency keys. Longer keys are rejected
 without committing the publication. Package manifests, READMEs, release records,
-and other payloads are not subject to this key limit. Use MySQL 8.0 or later
+and other payloads are not subject to this key limit. Use MySQL 8.0.19 or later
 with InnoDB and its default 16 KiB page size.
 
 | Key | Required | Description |
@@ -106,7 +106,7 @@ with InnoDB and its default 16 KiB page size.
 | `url` | yes | Driver connection URL, such as `postgres://user:pass@host/db` or `mysql://user:pass@host/db`. |
 | `maxConnections` | no | Maximum connections in the backend pool. Omit to use the driver's default. |
 | `timeout` | no | Database operation deadline. Defaults to `30s`. |
-| `startupTimeout` | no | Initial auth connection and schema setup deadline. Defaults to `5m`. |
+| `startupTimeout` | no | Initial connection and schema operation deadline. Defaults to `5m`. |
 
 When `database.url` is absent or uses `sqlite:`, the `auth.users` / `auth.tokens`
 settings apply. Without `auth.users.file`, accounts

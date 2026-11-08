@@ -202,7 +202,7 @@ impl SqlMetadata {
         }
         let mut refused = None;
         self.retry_conflicts(|| {
-            self.adapter.write(&mut |connection| {
+            self.adapter.initialize(&mut |connection| {
                 refused = schema::prepare(connection)?;
                 Ok(())
             })

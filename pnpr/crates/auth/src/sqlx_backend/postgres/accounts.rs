@@ -8,7 +8,7 @@ impl PostgresDatabase {
         let rows =
             sqlx::query("SELECT id, username FROM users WHERE id = ANY($1) AND bcrypt_hash <> '!'")
                 .bind(user_ids)
-                .fetch_all(&*self.pool)
+                .fetch_all(&mut *self.pool.acquire().await?)
                 .await?;
         rows.into_iter()
             .map(|row| Ok(crate::UserAccount { id: row.try_get(0)?, username: row.try_get(1)? }))

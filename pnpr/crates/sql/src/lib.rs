@@ -11,11 +11,13 @@ use std::{
 #[cfg(feature = "backend-postgres")]
 mod postgres;
 #[cfg(feature = "backend-postgres")]
-pub use postgres::{options as postgres_options, pool as postgres_pool};
+pub use postgres::{
+    options as postgres_options, pool as postgres_pool, timeout_sql as postgres_timeout_sql,
+};
 #[cfg(feature = "backend-mysql")]
 mod mysql;
 #[cfg(feature = "backend-mysql")]
-pub use mysql::{options as mysql_options, pool as mysql_pool};
+pub use mysql::{options as mysql_options, pool as mysql_pool, timeout_sql as mysql_timeout_sql};
 
 fn invalid_pool_size() -> RegistryError {
     RegistryError::InvalidConfig {
@@ -76,4 +78,16 @@ impl<Database: sqlx::Database> Pools<Database> {
         });
         Ok(pool)
     }
+}
+
+/// Acquire a connection without extending the caller's deadline.
+///
+/// # Errors
+///
+/// The connection cannot be acquired before the deadline or the pool fails.
+pub async fn acquire<Database: sqlx::Database>(
+    pool: &sqlx::Pool<Database>,
+    timeout: Duration,
+) -> std::result::Result<sqlx::pool::PoolConnection<Database>, sqlx::Error> {
+    tokio::time::timeout(timeout, pool.acquire()).await.map_err(|_| sqlx::Error::PoolTimedOut)?
 }

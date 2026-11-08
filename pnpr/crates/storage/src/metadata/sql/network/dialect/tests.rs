@@ -38,8 +38,11 @@ fn mysql_conditional_upserts_keep_both_values_when_the_condition_fails() {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    assert!(sql.contains("body = IF( records.name = VALUES(name), VALUES(body), body )"), "{sql}");
-    assert!(!sql.contains("excluded."), "{sql}");
+    assert!(
+        sql.contains("body = IF( records.name = excluded.name, excluded.body, records.body)"),
+        "{sql}",
+    );
+    assert!(sql.contains("AS excluded ON DUPLICATE KEY UPDATE"), "{sql}");
     assert!(!sql.contains(" WHERE "), "{sql}");
 }
 
@@ -67,4 +70,15 @@ fn schema_contract(sql: &str) -> Vec<String> {
                 .join(" ")
         })
         .collect()
+}
+
+#[test]
+fn mysql_upserts_accept_columns_adjacent_to_the_table() {
+    let (sql, _) = Dialect::Mysql
+        .statement(
+            "INSERT INTO records(name, body) VALUES (?1, ?2) ON CONFLICT DO NOTHING",
+            &[Param::Text("example"), Param::Blob(b"payload")],
+        )
+        .unwrap();
+    assert!(sql.ends_with("name = records.name"), "{sql}");
 }

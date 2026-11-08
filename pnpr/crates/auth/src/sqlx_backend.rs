@@ -14,6 +14,9 @@ use super::{
     token_store::{mint_token, unix_seconds},
     verify_returning_user, with_auth_timeout,
 };
+mod request_pool;
+use request_pool::RequestPool;
+
 use crate::validation::validate_username;
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;

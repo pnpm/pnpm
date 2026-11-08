@@ -79,7 +79,7 @@ pub(crate) struct DatabaseFile {
     /// PostgreSQL/MySQL operation and pool-acquisition timeout.
     #[serde(default)]
     timeout: Option<Interval>,
-    /// PostgreSQL/MySQL auth connection and schema-initialization timeout.
+    /// PostgreSQL/MySQL initial connection and schema-operation timeout.
     #[serde(default)]
     startup_timeout: Option<Interval>,
 }
