@@ -164,9 +164,10 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     let (key, overlay) = cached;
     trace_side_effects_cache_hit(snapshot_key, key);
     if should_verify_frozen_global_slot(context) {
-        return frozen_store_slot_carries_overlay(context, snapshot_key, overlay);
+        return unlocked_slot_carries_overlay(&context.directories, snapshot_key, overlay);
     }
-    let Some(slot_lock) = lock_slot_missing_overlay(context, snapshot_key, overlay)? else {
+    let Some(slot_lock) = lock_slot_missing_overlay(&context.directories, snapshot_key, overlay)?
+    else {
         return Ok(true);
     };
     // The overlay carries the patched / built contents, so it has to reach
@@ -251,16 +252,21 @@ pub(super) enum OverlayOutcome {
 /// The lock to hold while the overlay is re-imported into the slot, or `None`
 /// when the slot already carries it. Another install may be building the
 /// shared slot, which the forced re-import would overwrite; once that build
-/// finishes, its output is the overlay.
+/// finishes, its output is the overlay. A slot that already carries the
+/// overlay is not locked, so a cache hit never waits on another build.
 fn lock_slot_missing_overlay(
-    context: &BuildOneSnapshot<'_>,
+    directories: &crate::BuildLayout<'_>,
     snapshot_key: &PackageKey,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> Result<Option<Option<crate::GlobalVirtualStoreSlot>>, BuildModulesError> {
-    let slot = if context.directories.layout.enable_global_virtual_store()
-        && context.directories.pkg_roots_by_key.is_none()
-    {
-        crate::GlobalVirtualStoreSlot::acquire(context.directories.layout, snapshot_key)
+    if !directories.layout.enable_global_virtual_store() {
+        return Ok(Some(None));
+    }
+    if unlocked_slot_carries_overlay(directories, snapshot_key, overlay)? {
+        return Ok(None);
+    }
+    let slot = if directories.pkg_roots_by_key.is_none() {
+        crate::GlobalVirtualStoreSlot::acquire(directories.layout, snapshot_key)
             .map_err(BuildModulesError::SlotLock)?
     } else {
         None
@@ -271,17 +277,19 @@ fn lock_slot_missing_overlay(
     Ok(Some(slot))
 }
 
-fn frozen_store_slot_carries_overlay(
-    context: &BuildOneSnapshot<'_>,
+fn unlocked_slot_carries_overlay(
+    directories: &crate::BuildLayout<'_>,
     snapshot_key: &PackageKey,
     overlay: &pnpm_store_dir::SideEffectsOverlay,
 ) -> Result<bool, BuildModulesError> {
-    if context.directories.pkg_roots_by_key.is_some() {
+    if directories.pkg_roots_by_key.is_some() {
         return Ok(false);
     }
-    let slot =
-        crate::GlobalVirtualStoreSlot::acquire_existing(context.directories.layout, snapshot_key)
-            .map_err(BuildModulesError::SlotLock)?;
+    let Some(path) = directories.layout.hashed_slot_dir(snapshot_key) else {
+        return Ok(false);
+    };
+    let slot = crate::GlobalVirtualStoreSlot::open_existing_path(path, snapshot_key)
+        .map_err(BuildModulesError::SlotLock)?;
     Ok(slot.as_ref().is_some_and(|slot| global_slot_carries_overlay(slot, overlay)))
 }
 
@@ -438,3 +446,6 @@ fn capture(
             );
     }
 }
+
+#[cfg(test)]
+mod tests;
