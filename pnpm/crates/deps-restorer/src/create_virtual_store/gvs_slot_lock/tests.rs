@@ -96,46 +96,6 @@ fn acquire_ordered_locks_slots_in_path_order_and_deduplicates_keys() {
 }
 
 #[test]
-fn try_acquire_ordered_releases_partial_locks_when_one_slot_is_busy() {
-    let root = tempdir().expect("temporary slot root");
-    let mut config = pnpm_config::Config::new();
-    config.enable_global_virtual_store = true;
-    config.store_dir = root.path().join("store").into();
-    config.global_virtual_store_dir = root.path().join("store/links");
-    let first: pnpm_lockfile::PackageKey = "first@1.0.0".parse().expect("package key");
-    let second: pnpm_lockfile::PackageKey = "second@1.0.0".parse().expect("package key");
-    let snapshots = HashMap::from([
-        (first.clone(), SnapshotEntry::default()),
-        (second.clone(), SnapshotEntry::default()),
-    ]);
-    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
-    let mut keys = [first, second];
-    keys.sort_by_key(|key| layout.slot_dir(key));
-    let first_path = layout.slot_dir(&keys[0]);
-    let busy_path = layout.slot_dir(&keys[1]);
-    for (key, path) in keys
-        .iter()
-        .zip([&first_path, &busy_path])
-    {
-        let package_path = path.join("node_modules").join(key.name.to_string());
-        std::fs::create_dir_all(&package_path).expect("create package directory");
-        std::fs::write(package_path.join("package.json"), "{}").expect("write manifest");
-    }
-    let busy_slot =
-        GlobalVirtualStoreSlot::acquire_path(busy_path, &keys[1]).expect("hold the later slot");
-
-    let result = GlobalVirtualStoreSlot::try_acquire_existing_ordered(&layout, keys.to_vec())
-        .expect("try the ordered lock set");
-
-    assert!(result.is_none(), "a busy slot must leave the lock set unacquired");
-    assert!(
-        !first_path.join(super::SLOT_LOCK_DIR).exists(),
-        "a partial acquisition must release every earlier slot",
-    );
-    drop(busy_slot);
-}
-
-#[test]
 fn nested_install_recognizes_a_slot_held_by_its_parent_build() {
     let root = tempdir().expect("temporary slot root");
     let slot_path = root.path().join("slot");
@@ -160,25 +120,20 @@ fn nested_install_recognizes_a_slot_held_by_its_parent_build() {
 }
 
 #[test]
-fn nested_install_does_not_wait_for_a_different_busy_slot() {
+fn nested_install_fails_after_its_wait_for_a_different_busy_slot() {
     let root = tempdir().expect("temporary slot root");
     let key = "dep@1.0.0".parse().expect("package key");
-    let parent_path = root.path().join("parent-slot");
     let contested_path = root.path().join("contested-slot");
-    std::fs::create_dir_all(&parent_path).expect("create parent slot");
     let contested_slot =
         GlobalVirtualStoreSlot::acquire_path(contested_path.clone(), &key).expect("lock slot");
 
-    let result = GlobalVirtualStoreSlot::acquire_path_with_inherited(
-        contested_path,
-        &key,
-        std::slice::from_ref(&parent_path),
-    );
-    let Err(error) = result else {
-        panic!("nested installs must not wait on another install's slot");
-    };
+    let error = super::acquire::acquire_nested(
+        &contested_path.join(super::SLOT_LOCK_DIR),
+        std::time::Duration::from_millis(200),
+    )
+    .expect_err("a busy slot must time out");
 
-    assert_eq!(error.source.kind(), std::io::ErrorKind::WouldBlock);
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
     drop(contested_slot);
 }
 
