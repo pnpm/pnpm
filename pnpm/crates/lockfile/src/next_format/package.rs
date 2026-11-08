@@ -4,10 +4,10 @@
 
 pub use peers::{NextPeerDependency, NextPeerDependencyOut};
 
-use super::NextSnapshotEntry;
+use super::{NextRef, NextSnapshotEntry};
 use crate::{
     BundledDependencies, LockfileResolution, PackageMetadata, PkgName, RegistryResolution,
-    SnapshotDepRef, StringOrList, TarballResolution,
+    StringOrList, TarballResolution,
 };
 use peers::{merge_peer_dependencies, split_peer_dependencies};
 use serde::{Deserialize, Serialize};
@@ -79,29 +79,27 @@ pub struct NextPackage {
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
+    pub dependencies: Option<HashMap<PkgName, NextRef>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub optional_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
+    pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub peers: Option<HashMap<PkgName, SnapshotDepRef>>,
+    pub peers: Option<HashMap<PkgName, NextRef>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub transitive_peers: Option<HashMap<PkgName, SnapshotDepRef>>,
+    pub transitive_peers: Option<HashMap<PkgName, NextRef>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub missing_peers: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub patched: Option<bool>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
 
@@ -121,7 +119,6 @@ impl NextPackage {
             peer_dependencies: self.peers.take(),
             transitive_peer_dependencies: self.transitive_peers.take(),
             missing_peer_dependencies: self.missing_peers.take(),
-            patched: self.patched.take(),
             optional: self.optional,
         }
     }
@@ -249,10 +246,6 @@ fn hoist(
                 first.missing_peer_dependencies.as_ref(),
                 rest.iter().map(|snapshot| snapshot.missing_peer_dependencies.as_ref()),
             ),
-            patched: common_value(
-                first.patched.as_ref(),
-                rest.iter().map(|snapshot| snapshot.patched.as_ref()),
-            ),
             optional: first.optional && rest.iter().all(|snapshot| snapshot.optional),
         }
     };
@@ -354,9 +347,6 @@ impl NextSnapshotEntry {
         if shared.missing_peer_dependencies.is_some() {
             self.missing_peer_dependencies = None;
         }
-        if shared.patched.is_some() {
-            self.patched = None;
-        }
         if shared.optional {
             self.optional = false;
         }
@@ -383,7 +373,6 @@ impl NextSnapshotEntry {
         self.missing_peer_dependencies = self.missing_peer_dependencies.or_else(|| {
             shared.missing_peer_dependencies.clone()
         });
-        self.patched = self.patched.or(shared.patched);
         self.optional |= shared.optional;
         self
     }
@@ -403,11 +392,11 @@ fn common_value<'a, Value: PartialEq + Clone + 'a>(
 
 /// The entries of `first` that every other snapshot has with the same value.
 fn common_entries(
-    first: Option<&HashMap<PkgName, SnapshotDepRef>>,
+    first: Option<&HashMap<PkgName, NextRef>>,
     others: &[NextSnapshotEntry],
-    map: impl Fn(&NextSnapshotEntry) -> &Option<HashMap<PkgName, SnapshotDepRef>>,
-) -> Option<HashMap<PkgName, SnapshotDepRef>> {
-    let common: HashMap<PkgName, SnapshotDepRef> = first
+    map: impl Fn(&NextSnapshotEntry) -> &Option<HashMap<PkgName, NextRef>>,
+) -> Option<HashMap<PkgName, NextRef>> {
+    let common: HashMap<PkgName, NextRef> = first
         .into_iter()
         .flatten()
         .filter(|(name, reference)| {

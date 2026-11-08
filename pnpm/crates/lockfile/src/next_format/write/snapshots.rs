@@ -2,13 +2,16 @@
 //! sections built from them.
 
 use super::{
-    importers::{importer_dependencies, next_importer, non_empty, without_peer_bindings},
+    importers::{importer_dependencies, next_importer, non_empty},
     peers::{
         ProviderFinder, all_groups_named, names_provider, own_peer_names, provider_segments,
         transitive_named_in_key,
     },
     {
-        super::{NextFormatError, NextSections, NextSnapshotEntry, NextSnapshots, read},
+        super::{
+            NamedBindings, NextFormatError, NextRef, NextSections, NextSnapshotEntry,
+            NextSnapshots, read, without_groups,
+        },
         Explicit, children,
     },
 };
@@ -33,14 +36,42 @@ impl Snapshot<'_> {
             .chain(self.transitive.iter().map(|(name, _)| name))
     }
 
-    fn next_entry(&self, explicit: &Explicit) -> NextSnapshotEntry {
-        let marked = explicit.snapshot_references.get(self.key);
+    /// The peer bindings of this snapshot: its own peers, then those bound
+    /// below it.
+    fn bindings(&self) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {
+        children(self.entry)
+            .filter(|(alias, _)| self.own_peers.contains(alias))
+            .chain(
+                self.transitive
+                    .iter()
+                    .map(|(name, reference)| (name, reference)),
+            )
+    }
+
+    /// `reference` as the next format writes it: its version, naming the
+    /// snapshot by its bindings when the reference is marked explicit.
+    fn written(
+        &self,
+        name: &PkgName,
+        reference: &SnapshotDepRef,
+        explicit: &Explicit,
+        snapshots: &Snapshots<'_>,
+    ) -> NextRef {
+        let version = without_groups(reference);
+        let named = explicit
+            .has_snapshot_reference(self.key, name)
+            .then(|| reference.resolve(name))
+            .flatten()
+            .and_then(|target| snapshots.naming_bindings(&target));
+        match named {
+            Some(peers) => NextRef::Named { version, peers },
+            None => NextRef::Plain(version),
+        }
+    }
+
+    fn next_entry(&self, explicit: &Explicit, snapshots: &Snapshots<'_>) -> NextSnapshotEntry {
         let written = |name: &PkgName, reference: &SnapshotDepRef| {
-            if marked.is_some_and(|names| names.contains(name)) {
-                reference.clone()
-            } else {
-                without_peer_bindings(reference)
-            }
+            self.written(name, reference, explicit, snapshots)
         };
         let mut dependencies = HashMap::new();
         let mut optional_dependencies = HashMap::new();
@@ -71,7 +102,6 @@ impl Snapshot<'_> {
             missing_peer_dependencies: (!self.missing.is_empty()).then(|| {
                 self.missing.clone()
             }),
-            patched: self.entry.patched,
             optional: self.entry.optional,
         }
     }
@@ -80,6 +110,11 @@ impl Snapshot<'_> {
 pub(super) struct Snapshots<'a> {
     /// Every package's snapshots, in the order the writer lists them.
     by_package: Vec<(PackageKey, Vec<Snapshot<'a>>)>,
+    /// Where each of today's snapshot keys is in `by_package`.
+    index: HashMap<&'a PackageKey, (usize, usize)>,
+    /// Per package, the peers its snapshots bind differently: the bindings
+    /// that name one of them.
+    varying: Vec<HashSet<PkgName>>,
 }
 
 /// A snapshot's transitive peers: those its key names, those left for
@@ -153,7 +188,7 @@ impl<'a> Snapshots<'a> {
         for (key, entry, mut transitive) in prepared {
             transitive.find_unnamed(&mut finder, key);
             grouped
-                .entry(key.without_peer_bindings())
+                .entry(key.without_peer())
                 .or_default()
                 .push(Snapshot {
                     key,
@@ -174,7 +209,36 @@ impl<'a> Snapshots<'a> {
             .for_each(|(_, snapshots)| {
                 snapshots.sort_by_cached_key(|snapshot| snapshot.key.to_string());
             });
-        Snapshots { by_package }
+        let index = by_package
+            .iter()
+            .enumerate()
+            .flat_map(|(package, (_, snapshots))| {
+                snapshots
+                    .iter()
+                    .enumerate()
+                    .map(move |(index, snapshot)| (snapshot.key, (package, index)))
+            })
+            .collect();
+        let varying = by_package
+            .par_iter()
+            .map(|(_, snapshots)| varying_bindings(snapshots))
+            .collect();
+        Snapshots { by_package, index, varying }
+    }
+
+    /// The bindings that name the snapshot `target` among its package's: the
+    /// peers the package's snapshots bind differently, as `target` binds
+    /// them. `None` when nothing tells the snapshot apart.
+    pub(super) fn naming_bindings(&self, target: &PackageKey) -> Option<NamedBindings> {
+        let &(package, index) = self.index.get(target)?;
+        let snapshot = &self.by_package[package].1[index];
+        let varying = &self.varying[package];
+        let peers: NamedBindings = snapshot
+            .bindings()
+            .filter(|(name, _)| varying.contains(*name))
+            .map(|(name, reference)| (name.to_string(), without_groups(reference)))
+            .collect();
+        (!peers.is_empty()).then_some(peers)
     }
 
     pub(super) fn sections(
@@ -187,13 +251,13 @@ impl<'a> Snapshots<'a> {
             .map(|(_, snapshots)| {
                 snapshots
                     .iter()
-                    .map(|snapshot| snapshot.next_entry(explicit))
+                    .map(|snapshot| snapshot.next_entry(explicit, self))
                     .collect()
             })
             .collect();
         let importers = lockfile.importers
             .par_iter()
-            .map(|(id, importer)| (id.clone(), next_importer(id, importer, explicit)))
+            .map(|(id, importer)| (id.clone(), next_importer(id, importer, explicit, self)))
             .collect();
         let snapshots = lockfile.snapshots
             .as_ref()
@@ -280,5 +344,23 @@ fn importer_mismatches<'l>(
                 })
                 .map(move |(alias, _)| (id.as_str(), alias))
         })
+        .collect()
+}
+
+/// The peers that `snapshots`, of one package, bind differently or not all
+/// bind.
+fn varying_bindings(snapshots: &[Snapshot<'_>]) -> HashSet<PkgName> {
+    let mut values: HashMap<&PkgName, (HashSet<SnapshotDepRef>, usize)> = HashMap::new();
+    for snapshot in snapshots {
+        for (name, reference) in snapshot.bindings() {
+            let (bound, count) = values.entry(name).or_default();
+            bound.insert(without_groups(reference));
+            *count += 1;
+        }
+    }
+    values
+        .into_iter()
+        .filter(|(_, (bound, count))| bound.len() > 1 || *count < snapshots.len())
+        .map(|(name, _)| name.clone())
         .collect()
 }

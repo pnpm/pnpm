@@ -1,14 +1,10 @@
 //! Matching a reference to one snapshot of the package it names.
 
-use super::{
-    super::write::importer_dependencies, Graph, Referrer, Sid, compare_names, has_peer_groups,
-};
+use super::{Graph, Referrer, Sid, compare_names};
 use crate::{
-    ImporterDepVersion, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotDepRef,
-    split_peer_suffix_segments,
+    ImporterDepVersion, PkgName, PkgNameVerPeer,
+    next_format::{NamedBindings, NextImporter, NextRef, names_binding},
 };
-use pnpm_deps_path::link_path_to_peer_version;
-use std::collections::HashSet;
 
 impl<'a> Graph<'a> {
     pub(super) fn choose_children(&self, sid: Sid) -> Vec<(&'a PkgName, Sid)> {
@@ -19,7 +15,7 @@ impl<'a> Graph<'a> {
             .flatten()
             .filter_map(|(alias, reference)| {
                 let key = reference.resolve(alias)?;
-                Some((alias, self.choose(&key, Referrer::Snapshot(sid))?))
+                Some((alias, self.choose(&key, reference.peers(), Referrer::Snapshot(sid))?))
             })
             .collect();
         children.sort_unstable_by(|left, right| compare_names(left.0, right.0));
@@ -29,12 +25,13 @@ impl<'a> Graph<'a> {
     pub(super) fn choose_importer_children(
         &self,
         id: &'a str,
-        importer: &'a ProjectSnapshot,
+        importer: &'a NextImporter,
     ) -> Vec<(&'a PkgName, Sid)> {
-        let mut children: Vec<(&'a PkgName, Sid)> = importer_dependencies(importer)
-            .filter_map(|(alias, spec)| {
-                let key = spec.version.resolved_key(alias)?;
-                Some((alias, self.choose(&key, Referrer::Importer(id))?))
+        let mut children: Vec<(&'a PkgName, Sid)> = importer
+            .resolved_dependencies()
+            .filter_map(|(alias, dep)| {
+                let key = dep.version.resolved_key(alias)?;
+                Some((alias, self.choose(&key, dep.peers.as_ref(), Referrer::Importer(id))?))
             })
             .collect();
         children.sort_unstable_by(|left, right| compare_names(left.0, right.0));
@@ -44,52 +41,43 @@ impl<'a> Graph<'a> {
     /// The snapshot `key` names from `referrer`, or `None` when the lockfile
     /// has no snapshot of the package. A lockfile can omit one, for a skipped
     /// optional dependency, and the reference then stays as it is.
-    pub(super) fn choose(&self, key: &PkgNameVerPeer, referrer: Referrer<'a>) -> Option<Sid> {
-        let explicit = has_peer_groups(&key.suffix);
-        let &(start, count) = if explicit {
-            self.by_package.get(&key.without_peer_bindings())?
-        } else {
-            self.by_package.get(key)?
-        };
+    pub(super) fn choose(
+        &self,
+        key: &PkgNameVerPeer,
+        peers: Option<&NamedBindings>,
+        referrer: Referrer<'a>,
+    ) -> Option<Sid> {
+        let &(start, count) = self.by_package.get(&key.without_peer())?;
         if count == 1 {
             return Some(start);
         }
-        if explicit && let Some(sid) = self.snapshot_with_providers(start, count, key) {
+        if let Some(peers) = peers
+            && let Some(sid) = self.snapshot_with_bindings(start, count, peers)
+        {
             return Some(sid);
         }
         Some(self.snapshot_in_scope(start, count, referrer))
     }
 
-    /// The snapshot whose providers are the peer groups of `key`.
-    pub(super) fn snapshot_with_providers(
+    /// The first snapshot among `start..start + count` that binds every peer
+    /// in `peers` to the reference named.
+    pub(super) fn snapshot_with_bindings(
         &self,
         start: Sid,
         count: usize,
-        key: &PkgNameVerPeer,
+        peers: &NamedBindings,
     ) -> Option<Sid> {
-        let wanted: HashSet<String> = split_peer_suffix_segments(key.suffix.peer())?
-            .into_iter()
-            .filter(|segment| !segment.starts_with("patch_hash="))
-            .map(|segment| match segment.find('(') {
-                Some(nested) => segment[..nested].to_string(),
-                None => segment,
-            })
-            .collect();
-        (start..start + count).find(|&sid| self.provider_pairs(sid) == wanted)
-    }
-
-    /// `name@version` of every provider of `sid`, as a collapsed peer suffix
-    /// writes it.
-    pub(super) fn provider_pairs(&self, sid: Sid) -> HashSet<String> {
-        self.entries[sid]
-            .bindings()
-            .filter_map(|(name, reference)| match reference.as_link_target() {
-                Some(path) => Some(format!("{name}@{}", link_path_to_peer_version(path))),
-                None => reference
-                    .resolve(name)
-                    .map(|key| format!("{}@{}", key.name, key.suffix.without_peer())),
-            })
-            .collect()
+        (start..start + count).find(|&sid| {
+            peers
+                .iter()
+                .all(|(name, wanted)| {
+                    self.entries[sid]
+                        .bindings()
+                        .any(|(bound, reference)| {
+                            bound.to_string() == *name && names_binding(wanted, reference.version())
+                        })
+                })
+        })
     }
 
     /// The snapshot none of whose bindings disagrees with the referrer's
@@ -131,7 +119,7 @@ impl<'a> Graph<'a> {
         &self,
         referrer: Referrer<'a>,
         name: &PkgName,
-        reference: &SnapshotDepRef,
+        reference: &NextRef,
     ) -> Binding {
         let agrees = |same: bool| if same { Binding::Agrees } else { Binding::Disagrees };
         match referrer {
@@ -140,21 +128,22 @@ impl<'a> Graph<'a> {
                 None if self.is_itself(sid, name, reference) => Binding::Agrees,
                 None => Binding::Absent,
             },
-            Referrer::Importer(id) => importer_dependencies(self.importers[id])
+            Referrer::Importer(id) => self.importers[id]
+                .resolved_dependencies()
                 .find(|(alias, _)| *alias == name)
-                .map_or(Binding::Absent, |(_, spec)| {
-                    agrees(importer_target_is(name, &spec.version, reference))
+                .map_or(Binding::Absent, |(_, dep)| {
+                    agrees(importer_target_is(name, &dep.version, reference))
                 }),
         }
     }
 
     /// Whether `reference` names the snapshot `sid` itself: a package is in
     /// the scope of its own dependencies, which can have it as a peer.
-    pub(super) fn is_itself(&self, sid: Sid, name: &PkgName, reference: &SnapshotDepRef) -> bool {
+    pub(super) fn is_itself(&self, sid: Sid, name: &PkgName, reference: &NextRef) -> bool {
         self.keys[sid].name == *name
             && reference
                 .resolve(name)
-                .map(|key| key.without_peer_bindings())
+                .map(|key| key.without_peer())
                 .as_ref()
                 == Some(self.keys[sid])
     }
@@ -175,29 +164,24 @@ pub(super) enum Binding {
     Absent,
 }
 
-fn same_target(name: &PkgName, left: &SnapshotDepRef, right: &SnapshotDepRef) -> bool {
+fn same_target(name: &PkgName, left: &NextRef, right: &NextRef) -> bool {
     match (left.as_link_target(), right.as_link_target()) {
         (Some(left), Some(right)) => left == right,
         (None, None) => {
-            let target = |reference: &SnapshotDepRef| {
-                reference.resolve(name).map(|key| key.without_peer_bindings())
-            };
+            let target =
+                |reference: &NextRef| reference.resolve(name).map(|key| key.without_peer());
             target(left) == target(right)
         }
         _ => false,
     }
 }
 
-fn importer_target_is(
-    name: &PkgName,
-    version: &ImporterDepVersion,
-    reference: &SnapshotDepRef,
-) -> bool {
+fn importer_target_is(name: &PkgName, version: &ImporterDepVersion, reference: &NextRef) -> bool {
     match (version.as_link_target(), reference.as_link_target()) {
         (Some(left), Some(right)) => left == right,
         (None, None) => {
-            let own = version.resolved_key(name).map(|key| key.without_peer_bindings());
-            own.is_some() && own == reference.resolve(name).map(|key| key.without_peer_bindings())
+            let own = version.resolved_key(name).map(|key| key.without_peer());
+            own.is_some() && own == reference.resolve(name).map(|key| key.without_peer())
         }
         _ => false,
     }

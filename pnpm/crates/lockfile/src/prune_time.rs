@@ -53,7 +53,7 @@ fn importer_dep_paths(document: &Value) -> HashSet<String> {
 fn resolved_dep_path(alias: &str, dependency: &Value, document: &Value) -> Option<String> {
     let version = match dependency {
         Value::String(specifier) => {
-            crate::next_format::implied_version(alias, specifier, |catalog, alias| {
+            crate::implied_version::implied_version(alias, specifier, |catalog, alias| {
                 let entry = document
                     .get("catalogs")?
                     .get(catalog)?

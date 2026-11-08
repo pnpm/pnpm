@@ -48,7 +48,7 @@ const INDENT: usize = 2;
 mod nesting;
 mod next_order;
 use nesting::{Format, Nesting, ValueStyle, one_line_values};
-use next_order::sort_next_packages;
+use next_order::sort_next_sections;
 
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
 /// key sort.
@@ -116,13 +116,13 @@ pub(crate) fn to_string(value: Value) -> String {
 fn sort_lockfile_keys(value: Value) -> (Value, Format) {
     let Value::Object(mut root) = value else { return (value, Format::V9) };
 
-    let next = sort_next_packages(&mut root);
+    let next = sort_next_sections(&mut root);
     for (section, priority) in [
         ("importers", &ROOT_KEYS[..]),
         ("packages", &ORDERED_KEYS[..]),
         ("snapshots", &ORDERED_KEYS[..]),
     ] {
-        if !(next && section == "packages") {
+        if !(next && matches!(section, "packages" | "importers")) {
             sort_entries_by_priority(&mut root, section, priority);
         }
     }

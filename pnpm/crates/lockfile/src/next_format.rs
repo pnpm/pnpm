@@ -12,16 +12,16 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
-pub(crate) use importer::implied_version;
-pub use importer::{NextImporter, NextImporterDep, NextImporterOut};
+pub use importer::{NextImporter, NextImporterDep, NextImporterDeps, NextResolvedDep};
 pub use package::{NextPackage, NextPackageOut};
 pub use read::restore_sections;
+pub use reference::{NamedBindings, NextRef, names_binding, without_groups};
 
 pub(crate) use parse::{Shape, declares_next_format};
 
 use crate::{
     Lockfile, LockfileSettings, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,
-    SnapshotDepRef, SnapshotEntry,
+    SnapshotEntry,
 };
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -33,6 +33,7 @@ mod importer;
 mod package;
 mod parse;
 mod read;
+mod reference;
 mod tarjan;
 mod write;
 
@@ -70,7 +71,7 @@ pub type NextSnapshots = HashMap<PackageKey, Vec<NextSnapshotEntry>>;
 
 /// One peer snapshot of a package.
 ///
-/// References carry no peer groups. `dependencies` and `optionalDependencies`
+/// References carry no groups. `dependencies` and `optionalDependencies`
 /// hold only the package's own dependencies.
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,14 +84,14 @@ pub struct NextSnapshotEntry {
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
+    pub dependencies: Option<HashMap<PkgName, NextRef>>,
 
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub optional_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
+    pub optional_dependencies: Option<HashMap<PkgName, NextRef>>,
 
     /// The package's own peers that are bound, linked next to it.
     #[serde(
@@ -99,7 +100,7 @@ pub struct NextSnapshotEntry {
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub peer_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
+    pub peer_dependencies: Option<HashMap<PkgName, NextRef>>,
 
     /// The peers bound below this package from outside it.
     #[serde(
@@ -108,14 +109,11 @@ pub struct NextSnapshotEntry {
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub transitive_peer_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
+    pub transitive_peer_dependencies: Option<HashMap<PkgName, NextRef>>,
 
     /// The peers needed below this package that nothing provides.
     #[serde(default, rename = "missingPeers", skip_serializing_if = "Option::is_none")]
     pub missing_peer_dependencies: Option<Vec<String>>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub patched: Option<bool>,
 
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
@@ -123,7 +121,7 @@ pub struct NextSnapshotEntry {
 
 impl NextSnapshotEntry {
     /// Every peer binding: the package's own, then those from below.
-    pub fn bindings(&self) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {
+    pub fn bindings(&self) -> impl Iterator<Item = (&PkgName, &NextRef)> {
         self.peer_dependencies
             .iter()
             .chain(self.transitive_peer_dependencies.iter())
@@ -133,7 +131,7 @@ impl NextSnapshotEntry {
     /// The reference `name` has where this snapshot is linked: a dependency,
     /// a bound peer, or a peer bound below it.
     #[must_use]
-    pub fn reference_in_scope(&self, name: &PkgName) -> Option<&SnapshotDepRef> {
+    pub fn reference_in_scope(&self, name: &PkgName) -> Option<&NextRef> {
         [
             &self.dependencies,
             &self.optional_dependencies,
@@ -188,9 +186,9 @@ pub fn split_packages(
 /// The two sections that differ between the formats.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NextSections {
-    /// Importers whose versions have no peer groups, except where the
-    /// importer's scope does not select the snapshot.
-    pub importers: HashMap<String, ProjectSnapshot>,
+    /// Importers whose versions have no groups. A reference the importer's
+    /// scope does not select names its snapshot by its bindings.
+    pub importers: HashMap<String, NextImporter>,
     pub snapshots: Option<NextSnapshots>,
 }
 
@@ -206,6 +204,9 @@ pub struct RestoredSections {
 pub struct RestoreContext<'a> {
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub settings: Option<&'a LockfileSettings>,
+    /// `patchedDependencies`: which packages are patched, with what hash,
+    /// since no key or reference carries the patch group.
+    pub patched_dependencies: Option<&'a std::collections::BTreeMap<String, String>>,
 }
 
 /// Why a lockfile cannot be converted between the formats.
@@ -243,13 +244,16 @@ impl Lockfile {
         let importers = next.importers
             .into_iter()
             .map(|(id, importer)| {
-                Ok((importer.into_project_snapshot(&id, next.catalogs.as_ref())?, id))
+                Ok((importer.resolve_specifiers(&id, next.catalogs.as_ref())?, id))
             })
             .map(|entry| entry.map(|(importer, id)| (id, importer)))
-            .collect::<Result<HashMap<String, ProjectSnapshot>, NextFormatError>>()?;
+            .collect::<Result<HashMap<String, NextImporter>, NextFormatError>>()?;
         let sections = NextSections { importers, snapshots };
-        let context =
-            RestoreContext { packages: packages.as_ref(), settings: next.settings.as_ref() };
+        let context = RestoreContext {
+            packages: packages.as_ref(),
+            settings: next.settings.as_ref(),
+            patched_dependencies: next.patched_dependencies.as_ref(),
+        };
         let restored =
             crate::parallel_parse::pool().install(|| restore_sections(&sections, context));
         Ok(Lockfile {
@@ -288,11 +292,9 @@ impl Lockfile {
         let NextSections { importers, snapshots } =
             self.to_next_sections().map_err(crate::SaveLockfileError::NextFormat)?;
         let packages = merge_packages(self.packages.as_ref(), snapshots);
-        let importers: HashMap<String, NextImporterOut<'_>> = importers
+        let importers: HashMap<String, NextImporter> = importers
             .iter()
-            .map(|(id, importer)| {
-                (id.clone(), NextImporterOut::new(importer, self.catalogs.as_ref()))
-            })
+            .map(|(id, importer)| (id.clone(), importer.collapsed(self.catalogs.as_ref())))
             .collect();
         crate::serialize_yaml::to_string(&document::NextDocument::new(self, &importers, &packages))
             .map_err(crate::SaveLockfileError::SerializeYaml)

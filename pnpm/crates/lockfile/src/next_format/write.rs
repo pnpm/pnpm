@@ -4,8 +4,6 @@
 //! would select another snapshot for it. The writer reads its own output back
 //! and writes those references with their peer groups, until nothing changes.
 
-pub(super) use importers::importer_dependencies;
-
 use super::{NextFormatError, NextSections, RestoreContext, RestoredSections, read};
 use crate::{Lockfile, PackageKey, PkgName, SnapshotDepRef, SnapshotEntry};
 use rayon::prelude::*;
@@ -29,6 +27,7 @@ pub(super) fn next_sections(lockfile: &Lockfile) -> Result<NextSections, NextFor
     let context = RestoreContext {
         packages: lockfile.packages.as_ref(),
         settings: lockfile.settings.as_ref(),
+        patched_dependencies: lockfile.patched_dependencies.as_ref(),
     };
     let mut explicit = Explicit::default();
     for _ in 0..MAX_ROUNDS {

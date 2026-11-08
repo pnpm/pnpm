@@ -35,9 +35,17 @@ pub(super) enum ValueStyle {
 pub(super) fn one_line_values(object_key: Option<&str>, nesting: Nesting) -> ValueStyle {
     match (object_key, nesting.format, nesting.values) {
         (Some("peerDependencies"), _, _) => ValueStyle::Flow,
-        (Some("dependencies" | "devDependencies" | "optionalDependencies"), Format::Next, _) => {
-            ValueStyle::Flow
-        }
+        (
+            Some(
+                "dependencies"
+                | "devDependencies"
+                | "optionalDependencies"
+                | "peers"
+                | "transitivePeers",
+            ),
+            Format::Next,
+            _,
+        ) => ValueStyle::Flow,
         (Some("catalogs"), Format::Next, _) => ValueStyle::FlowBelow,
         (_, _, ValueStyle::FlowBelow) => ValueStyle::Flow,
         _ => ValueStyle::Block,

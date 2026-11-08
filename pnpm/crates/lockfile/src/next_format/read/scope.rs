@@ -1,7 +1,7 @@
 //! The scope a snapshot's peers are bound in, and the providers it binds.
 
-use super::{Graph, Provider, Referrer, Sid, child_named, has_peer_groups};
-use crate::{PkgName, SnapshotDepRef};
+use super::{Graph, Provider, Referrer, Sid, child_named};
+use crate::{PkgName, next_format::NextRef};
 
 impl<'a> Graph<'a> {
     /// The first referrer of every snapshot, in a walk from the importers in
@@ -44,31 +44,22 @@ impl<'a> Graph<'a> {
         unreached
     }
 
-    pub(super) fn provider(
-        &self,
-        sid: Sid,
-        name: &PkgName,
-        reference: &SnapshotDepRef,
-    ) -> Provider {
+    pub(super) fn provider(&self, sid: Sid, name: &PkgName, reference: &NextRef) -> Provider {
         if let Some(path) = reference.as_link_target() {
             return Provider::Link(path.to_string());
         }
         let Some(key) = reference.resolve(name) else {
-            return Provider::Missing(reference.to_string());
+            return Provider::Missing(reference.version().to_string());
         };
-        let explicit = has_peer_groups(&key.suffix);
-        let package = if explicit {
-            self.by_package.get(&key.without_peer_bindings())
-        } else {
-            self.by_package.get(&key)
-        };
-        let Some(&(start, count)) = package else {
+        let Some(&(start, count)) = self.by_package.get(&key.without_peer()) else {
             return Provider::Missing(format!("{}@{}", key.name, key.suffix.without_peer()));
         };
         if count == 1 {
             return Provider::Snapshot(start);
         }
-        if explicit && let Some(found) = self.snapshot_with_providers(start, count, &key) {
+        if let Some(peers) = reference.peers()
+            && let Some(found) = self.snapshot_with_bindings(start, count, peers)
+        {
             return Provider::Snapshot(found);
         }
         match self.linked_above(sid, name, start, count) {

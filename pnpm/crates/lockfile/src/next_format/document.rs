@@ -1,7 +1,7 @@
 //! The next format's document, borrowed from a [`Lockfile`] and its converted
 //! sections, so writing it serializes nothing twice.
 
-use super::{NextImporterOut, NextPackageOut};
+use super::{NextImporter, NextPackageOut};
 use crate::{
     CatalogSnapshots, Lockfile, LockfileExtra, LockfileSettings, LockfileVersion, PackageKey,
 };
@@ -36,7 +36,7 @@ pub(super) struct NextDocument<'a> {
     #[serde(skip_serializing_if = "is_none")]
     patched_dependencies: &'a Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
-    importers: &'a HashMap<String, NextImporterOut<'a>>,
+    importers: &'a HashMap<String, NextImporter>,
     #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
     packages: &'a HashMap<PackageKey, NextPackageOut<'a>>,
     #[serde(skip_serializing_if = "is_none")]
@@ -48,7 +48,7 @@ pub(super) struct NextDocument<'a> {
 impl<'a> NextDocument<'a> {
     pub(super) fn new(
         lockfile: &'a Lockfile,
-        importers: &'a HashMap<String, NextImporterOut<'a>>,
+        importers: &'a HashMap<String, NextImporter>,
         packages: &'a HashMap<PackageKey, NextPackageOut<'a>>,
     ) -> Self {
         NextDocument {

@@ -1,5 +1,6 @@
 //! The next format's importers. A dependency is its specifier alone when the
-//! version follows from it, and `{specifier, version}` otherwise.
+//! version follows from it, and `{specifier, version}` otherwise, with
+//! `peers` where the project's scope does not say which snapshot it links.
 //!
 //! The version follows from an exact version, from an `npm:` alias of an
 //! exact version, from a `link:` or `file:` path, and from a `catalog:`
@@ -7,83 +8,173 @@
 //! always writes its `link:` version, so the lockfile says where the
 //! workspace dependency lives without the workspace.
 
-use super::NextFormatError;
+use super::{NamedBindings, NextFormatError};
 use crate::{
     CatalogSnapshots, ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec,
+    ResolvedDependencySpec, implied_version::implied_version,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
-/// One dependency of an importer, as read.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+/// One dependency of an importer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum NextImporterDep {
     Specifier(String),
-    Resolved(ResolvedDependencySpec),
+    Resolved(Box<NextResolvedDep>),
 }
 
-/// An importer as read. The fields mirror [`ProjectSnapshot`]'s.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+/// A dependency whose version is written out.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NextResolvedDep {
+    pub specifier: String,
+    pub version: ImporterDepVersion,
+    /// The bindings that name the snapshot, where the project's scope does
+    /// not select it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peers: Option<NamedBindings>,
+}
+
+pub type NextImporterDeps = HashMap<PkgName, NextImporterDep>;
+
+/// An importer of the next format. The fields mirror [`ProjectSnapshot`]'s.
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NextImporter {
-    #[serde(default)]
-    pub dependencies: Option<HashMap<PkgName, NextImporterDep>>,
-    #[serde(default)]
-    pub dev_dependencies: Option<HashMap<PkgName, NextImporterDep>>,
-    #[serde(default)]
-    pub optional_dependencies: Option<HashMap<PkgName, NextImporterDep>>,
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub dependencies: Option<NextImporterDeps>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub dev_dependencies: Option<NextImporterDeps>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub optional_dependencies: Option<NextImporterDeps>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dependencies_meta: Option<serde_json::Value>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub publish_directory: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_directory: Option<bool>,
 }
 
 impl NextImporter {
-    /// The importer with every version written out.
-    pub fn into_project_snapshot(
-        self,
+    fn groups(&self) -> impl Iterator<Item = &NextImporterDeps> {
+        [&self.dependencies, &self.dev_dependencies, &self.optional_dependencies]
+            .into_iter()
+            .flatten()
+    }
+
+    fn groups_mut(&mut self) -> impl Iterator<Item = &mut NextImporterDeps> {
+        [&mut self.dependencies, &mut self.dev_dependencies, &mut self.optional_dependencies]
+            .into_iter()
+            .flatten()
+    }
+
+    /// Every dependency whose version is written out, which after
+    /// [`Self::resolve_specifiers`] is every dependency.
+    pub fn resolved_dependencies(&self) -> impl Iterator<Item = (&PkgName, &NextResolvedDep)> {
+        self.groups()
+            .flat_map(HashMap::iter)
+            .filter_map(|(alias, dep)| match dep {
+                NextImporterDep::Resolved(dep) => Some((alias, dep.as_ref())),
+                NextImporterDep::Specifier(_) => None,
+            })
+    }
+
+    /// This importer with every version written out.
+    pub fn resolve_specifiers(
+        mut self,
         id: &str,
         catalogs: Option<&CatalogSnapshots>,
-    ) -> Result<ProjectSnapshot, NextFormatError> {
-        Ok(ProjectSnapshot {
+    ) -> Result<Self, NextFormatError> {
+        for map in self.groups_mut() {
+            resolve_map(id, map, catalogs)?;
+        }
+        Ok(self)
+    }
+
+    /// This importer with every dependency whose version follows from its
+    /// specifier, and which names no snapshot, written as the specifier.
+    #[must_use]
+    pub fn collapsed(&self, catalogs: Option<&CatalogSnapshots>) -> NextImporter {
+        let mut collapsed = self.clone();
+        for map in collapsed.groups_mut() {
+            for (alias, dep) in map.iter_mut() {
+                collapse(alias, dep, catalogs);
+            }
+        }
+        collapsed
+    }
+
+    /// Today's importer, with `version` giving each dependency's version.
+    pub fn project_snapshot(
+        &self,
+        version: impl Fn(&PkgName, &NextResolvedDep) -> ImporterDepVersion,
+    ) -> ProjectSnapshot {
+        let map = |deps: &Option<NextImporterDeps>| {
+            deps.as_ref().map(|deps| resolved_map(deps, &version))
+        };
+        ProjectSnapshot {
             specifiers: None,
-            dependencies: resolved_map(id, self.dependencies, catalogs)?,
-            dev_dependencies: resolved_map(id, self.dev_dependencies, catalogs)?,
-            optional_dependencies: resolved_map(id, self.optional_dependencies, catalogs)?,
-            dependencies_meta: self.dependencies_meta,
-            publish_directory: self.publish_directory,
+            dependencies: map(&self.dependencies),
+            dev_dependencies: map(&self.dev_dependencies),
+            optional_dependencies: map(&self.optional_dependencies),
+            dependencies_meta: self.dependencies_meta.clone(),
+            publish_directory: self.publish_directory.clone(),
             link_directory: self.link_directory,
-        })
+        }
     }
 }
 
 fn resolved_map(
+    deps: &NextImporterDeps,
+    version: &impl Fn(&PkgName, &NextResolvedDep) -> ImporterDepVersion,
+) -> ResolvedDependencyMap {
+    deps.iter()
+        .filter_map(|(alias, dep)| match dep {
+            NextImporterDep::Resolved(dep) => Some((alias, dep.as_ref())),
+            NextImporterDep::Specifier(_) => None,
+        })
+        .map(|(alias, dep)| {
+            let spec = ResolvedDependencySpec {
+                specifier: dep.specifier.clone(),
+                version: version(alias, dep),
+            };
+            (alias.clone(), spec)
+        })
+        .collect()
+}
+
+fn resolve_map(
     id: &str,
-    map: Option<HashMap<PkgName, NextImporterDep>>,
+    map: &mut NextImporterDeps,
     catalogs: Option<&CatalogSnapshots>,
-) -> Result<Option<ResolvedDependencyMap>, NextFormatError> {
-    let Some(map) = map else { return Ok(None) };
-    let mut resolved_entries = ResolvedDependencyMap::with_capacity(map.len());
-    for (alias, dep) in map {
-        let spec = resolved(id, &alias, dep, catalogs)?;
-        resolved_entries.insert(alias, spec);
+) -> Result<(), NextFormatError> {
+    for (alias, dep) in map.iter_mut() {
+        if let NextImporterDep::Specifier(specifier) = dep {
+            let specifier = std::mem::take(specifier);
+            *dep = NextImporterDep::Resolved(Box::new(resolved(id, alias, specifier, catalogs)?));
+        }
     }
-    Ok(Some(resolved_entries))
+    Ok(())
 }
 
 fn resolved(
     id: &str,
     alias: &PkgName,
-    dep: NextImporterDep,
+    specifier: String,
     catalogs: Option<&CatalogSnapshots>,
-) -> Result<ResolvedDependencySpec, NextFormatError> {
-    let specifier = match dep {
-        NextImporterDep::Resolved(spec) => return Ok(spec),
-        NextImporterDep::Specifier(specifier) => specifier,
-    };
+) -> Result<NextResolvedDep, NextFormatError> {
     let underivable = || NextFormatError::UnderivableVersion {
         importer: id.to_string(),
         name: alias.to_string(),
@@ -93,31 +184,18 @@ fn resolved(
         .ok_or_else(underivable)?
         .parse::<ImporterDepVersion>()
         .map_err(|_| underivable())?;
-    Ok(ResolvedDependencySpec { specifier, version })
+    Ok(NextResolvedDep { specifier, version, peers: None })
 }
 
-/// The version `specifier` implies for `alias`, or `None` when it implies
-/// none, as for a range. `catalog_entry(catalog, alias)` is the specifier
-/// and version the `catalogs` section records for a `catalog:` specifier.
-pub(crate) fn implied_version(
-    alias: &str,
-    specifier: &str,
-    catalog_entry: impl FnOnce(&str, &str) -> Option<(String, String)>,
-) -> Option<String> {
-    if let Some(catalog) = specifier.strip_prefix("catalog:") {
-        let catalog = if catalog.is_empty() { "default" } else { catalog };
-        let (catalog_specifier, version) = catalog_entry(catalog, alias)?;
-        return Some(match catalog_specifier.strip_prefix("npm:") {
-            Some(target) => format!("{}@{version}", alias_name(target)),
-            None => version,
-        });
+fn collapse(alias: &PkgName, dep: &mut NextImporterDep, catalogs: Option<&CatalogSnapshots>) {
+    let NextImporterDep::Resolved(resolved) = dep else { return };
+    if resolved.peers.is_some() {
+        return;
     }
-    Some(
-        specifier
-            .strip_prefix("npm:")
-            .unwrap_or(specifier)
-            .to_string(),
-    )
+    let implied = implied_version(&alias.to_string(), &resolved.specifier, catalog_entry(catalogs));
+    if implied.is_some_and(|implied| implied == resolved.version.to_string()) {
+        *dep = NextImporterDep::Specifier(std::mem::take(&mut resolved.specifier));
+    }
 }
 
 /// The lookup [`implied_version`] takes, over the typed `catalogs` section.
@@ -127,73 +205,5 @@ fn catalog_entry(
     move |catalog, alias| {
         let entry = catalogs?.get(catalog)?.get(alias)?;
         Some((entry.specifier.clone(), entry.version.clone()))
-    }
-}
-
-/// The package name of an `npm:` alias target, `name` or `name@range`.
-fn alias_name(target: &str) -> &str {
-    match target[1..].find('@') {
-        Some(at) => &target[..=at],
-        None => target,
-    }
-}
-
-/// [`NextImporter`] borrowed from the importer it is written from.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NextImporterOut<'a> {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dependencies: Option<BTreeMap<String, NextImporterDepOut<'a>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dev_dependencies: Option<BTreeMap<String, NextImporterDepOut<'a>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    optional_dependencies: Option<BTreeMap<String, NextImporterDepOut<'a>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dependencies_meta: &'a Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    publish_directory: &'a Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    link_directory: &'a Option<bool>,
-}
-
-#[derive(Serialize)]
-#[serde(untagged)]
-enum NextImporterDepOut<'a> {
-    Specifier(&'a str),
-    Resolved(&'a ResolvedDependencySpec),
-}
-
-impl<'a> NextImporterOut<'a> {
-    #[must_use]
-    pub fn new(importer: &'a ProjectSnapshot, catalogs: Option<&CatalogSnapshots>) -> Self {
-        let out = |map: &'a Option<ResolvedDependencyMap>| {
-            map.as_ref()
-                .map(|map| {
-                    map.iter()
-                        .map(|(alias, spec)| (alias.to_string(), dep_out(alias, spec, catalogs)))
-                        .collect()
-                })
-        };
-        NextImporterOut {
-            dependencies: out(&importer.dependencies),
-            dev_dependencies: out(&importer.dev_dependencies),
-            optional_dependencies: out(&importer.optional_dependencies),
-            dependencies_meta: &importer.dependencies_meta,
-            publish_directory: &importer.publish_directory,
-            link_directory: &importer.link_directory,
-        }
-    }
-}
-
-fn dep_out<'a>(
-    alias: &PkgName,
-    spec: &'a ResolvedDependencySpec,
-    catalogs: Option<&CatalogSnapshots>,
-) -> NextImporterDepOut<'a> {
-    let implied = implied_version(&alias.to_string(), &spec.specifier, catalog_entry(catalogs));
-    if implied.is_some_and(|implied| implied == spec.version.to_string()) {
-        NextImporterDepOut::Specifier(&spec.specifier)
-    } else {
-        NextImporterDepOut::Resolved(spec)
     }
 }

@@ -7,6 +7,7 @@ use super::{
 use crate::{
     ImporterDepVersion, PackageKey, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotDepRef,
     SnapshotEntry,
+    next_format::{NextImporter, NextRef},
 };
 use rayon::prelude::*;
 use std::collections::HashMap;
@@ -48,7 +49,7 @@ impl Graph<'_> {
             dependencies: non_empty(dependencies),
             optional_dependencies: non_empty(optional_dependencies),
             transitive_peer_dependencies: transitive_peer_names(entry),
-            patched: entry.patched,
+            patched: None,
             optional: entry.optional,
         }
     }
@@ -57,7 +58,7 @@ impl Graph<'_> {
     fn restored_children(
         &self,
         sid: Sid,
-        children: Option<&HashMap<PkgName, SnapshotDepRef>>,
+        children: Option<&HashMap<PkgName, NextRef>>,
         keys: &[PkgNameVerPeer],
     ) -> HashMap<PkgName, SnapshotDepRef> {
         children
@@ -65,8 +66,8 @@ impl Graph<'_> {
             .flatten()
             .map(|(alias, reference)| {
                 let restored = match child_named(&self.children[sid], alias) {
-                    Some(child) => with_key(reference, &keys[child]),
-                    None => reference.clone(),
+                    Some(child) => with_key(reference.version(), &keys[child]),
+                    None => reference.version().clone(),
                 };
                 (alias.clone(), restored)
             })
@@ -78,7 +79,7 @@ impl Graph<'_> {
         &self,
         sid: Sid,
         name: &PkgName,
-        reference: &SnapshotDepRef,
+        reference: &NextRef,
         keys: &[PkgNameVerPeer],
     ) -> SnapshotDepRef {
         let provider = self.providers[sid]
@@ -86,34 +87,22 @@ impl Graph<'_> {
             .find(|(bound, _)| *bound == name)
             .map(|(_, provider)| provider);
         match provider {
-            Some(Provider::Snapshot(provider)) => with_key(reference, &keys[*provider]),
-            _ => reference.clone(),
+            Some(Provider::Snapshot(provider)) => with_key(reference.version(), &keys[*provider]),
+            _ => reference.version().clone(),
         }
     }
 
     pub(super) fn restore_importer(
         &self,
         id: &str,
-        importer: &ProjectSnapshot,
+        importer: &NextImporter,
         keys: &[PkgNameVerPeer],
     ) -> ProjectSnapshot {
-        let mut snapshot = importer.clone();
         let chosen = &self.importer_children[id];
-        for map in [
-            &mut snapshot.dependencies,
-            &mut snapshot.dev_dependencies,
-            &mut snapshot.optional_dependencies,
-        ]
-        .into_iter()
-        .flatten()
-        {
-            for (alias, spec) in map.iter_mut() {
-                if let Some(sid) = child_named(chosen, alias) {
-                    spec.version = importer_version_with_key(&spec.version, &keys[sid]);
-                }
-            }
-        }
-        snapshot
+        importer.project_snapshot(|alias, dep| match child_named(chosen, alias) {
+            Some(sid) => importer_version_with_key(&dep.version, &keys[sid]),
+            None => dep.version.clone(),
+        })
     }
 }
 

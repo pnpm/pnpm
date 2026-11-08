@@ -161,9 +161,10 @@ fn package_that_is_the_peer_of_its_own_dependency_round_trips() {
 }
 
 /// `parent` binds no peers, so its scope does not say which snapshot of
-/// `child` it links. The writer keeps that reference's peer groups.
+/// `child` it links. The writer names that snapshot by the binding that
+/// tells `child`'s snapshots apart.
 #[test]
-fn reference_the_scope_does_not_select_keeps_its_peer_groups() {
+fn reference_the_scope_does_not_select_names_its_snapshot() {
     let lockfile = parse(text_block_macros::text_block! {
         "lockfileVersion: '9.0'"
         ""
@@ -216,9 +217,43 @@ fn reference_the_scope_does_not_select_keeps_its_peer_groups() {
         "  react@18.0.0: {}"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    assert!(yaml.contains("      child: 1.0.0(react@18.0.0)\n"), "{yaml}");
+    assert!(yaml.contains("      child: {version: 1.0.0, peers: {react: 18.0.0}}\n"), "{yaml}");
     assert!(yaml.contains("      child: 1.0.0\n"), "{yaml}");
     assert!(yaml.contains("      parent: 1.0.0\n"), "{yaml}");
+    assert!(!yaml.contains('('), "{yaml}");
+}
+
+/// A patched package's key and references carry no patch hash: the hash is
+/// in `patchedDependencies`, which the reader applies to the package.
+#[test]
+fn patched_packages_carry_no_hash() {
+    let lockfile = parse(text_block_macros::text_block! {
+        "lockfileVersion: '9.0'"
+        ""
+        "patchedDependencies:"
+        "  foo@2.1.0: abc123"
+        ""
+        "importers:"
+        ""
+        "  .:"
+        "    dependencies:"
+        "      foo:"
+        "        specifier: ^2.0.0"
+        "        version: 2.1.0(patch_hash=abc123)"
+        ""
+        "packages:"
+        ""
+        "  foo@2.1.0:"
+        "    resolution: {integrity: sha512-AAAA}"
+        ""
+        "snapshots:"
+        ""
+        "  foo@2.1.0(patch_hash=abc123): {}"
+    });
+    let (yaml, _) = written_and_read(&lockfile);
+    assert!(yaml.contains("      foo: {specifier: ^2.0.0, version: 2.1.0}\n"), "{yaml}");
+    assert!(yaml.contains("\n  foo@2.1.0:\n    integrity: sha512-AAAA\n"), "{yaml}");
+    assert!(!yaml.contains("patch_hash"), "{yaml}");
 }
 
 /// An importer's dependency is its specifier alone when the version follows

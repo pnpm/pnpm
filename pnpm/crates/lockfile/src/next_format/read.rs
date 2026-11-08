@@ -23,8 +23,10 @@ mod entries;
 mod keys;
 mod scope;
 
-use super::{NextSections, NextSnapshotEntry, NextSnapshots, RestoreContext, RestoredSections};
-use crate::{PackageKey, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot};
+use super::{
+    NextImporter, NextSections, NextSnapshotEntry, NextSnapshots, RestoreContext, RestoredSections,
+};
+use crate::{PackageKey, PkgName, PkgNameVerPeer};
 use rayon::prelude::*;
 use std::collections::HashMap;
 
@@ -34,7 +36,15 @@ use std::collections::HashMap;
 pub fn restore_sections(sections: &NextSections, context: RestoreContext<'_>) -> RestoredSections {
     match Rebuilt::of(sections, context) {
         Some(rebuilt) => rebuilt.into_sections(sections, context),
-        None => RestoredSections { importers: sections.importers.clone(), snapshots: None },
+        None => RestoredSections {
+            importers: sections.importers
+                .iter()
+                .map(|(id, importer)| {
+                    (id.clone(), importer.project_snapshot(|_, dep| dep.version.clone()))
+                })
+                .collect(),
+            snapshots: None,
+        },
     }
 }
 
@@ -127,7 +137,7 @@ struct Graph<'a> {
     entries: Vec<&'a NextSnapshotEntry>,
     /// Each package's first snapshot and its count.
     by_package: HashMap<&'a PackageKey, (Sid, usize)>,
-    importers: HashMap<&'a str, &'a ProjectSnapshot>,
+    importers: HashMap<&'a str, &'a NextImporter>,
     /// Each snapshot's chosen children, sorted by name.
     children: Vec<Vec<(&'a PkgName, Sid)>>,
     importer_children: HashMap<&'a str, Vec<(&'a PkgName, Sid)>>,
@@ -138,7 +148,7 @@ struct Graph<'a> {
 }
 
 impl<'a> Graph<'a> {
-    fn new(snapshots: &'a NextSnapshots, importers: &'a HashMap<String, ProjectSnapshot>) -> Self {
+    fn new(snapshots: &'a NextSnapshots, importers: &'a HashMap<String, NextImporter>) -> Self {
         let mut graph = Graph::index(snapshots, importers);
         graph.children = (0..graph.keys.len())
             .into_par_iter()
@@ -161,10 +171,7 @@ impl<'a> Graph<'a> {
         graph
     }
 
-    fn index(
-        snapshots: &'a NextSnapshots,
-        importers: &'a HashMap<String, ProjectSnapshot>,
-    ) -> Self {
+    fn index(snapshots: &'a NextSnapshots, importers: &'a HashMap<String, NextImporter>) -> Self {
         let mut keys = Vec::new();
         let mut entries = Vec::new();
         let mut by_package = HashMap::with_capacity(snapshots.len());
@@ -215,9 +222,4 @@ fn child_named(children: &[(&PkgName, Sid)], name: &PkgName) -> Option<Sid> {
         .binary_search_by(|(alias, _)| compare_names(alias, name))
         .ok()
         .map(|index| children[index].1)
-}
-
-/// Whether the reference carries peer groups, not only a patch group.
-fn has_peer_groups(version: &PkgVerPeer) -> bool {
-    version.peer().len() > version.patch_group().len()
 }

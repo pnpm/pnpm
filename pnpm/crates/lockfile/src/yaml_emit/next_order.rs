@@ -7,7 +7,7 @@ use super::{Map, Value, map_values, sort_by_priority, sort_deep_keys, sort_direc
 /// alphabetical, except the items of `snapshots`, which follow this order too,
 /// and the entries of `peerDependencies`, which keep `specifier` before
 /// `optional`.
-const NEXT_PACKAGE_KEYS: [&str; 21] = [
+const NEXT_PACKAGE_KEYS: [&str; 20] = [
     "resolution",
     "integrity",
     "version",
@@ -21,7 +21,6 @@ const NEXT_PACKAGE_KEYS: [&str; 21] = [
     "bundledDependencies",
     "peerDependencies",
     "id",
-    "patched",
     "optional",
     "dependencies",
     "optionalDependencies",
@@ -54,9 +53,14 @@ fn sort_next_package(entry: Value) -> Value {
                         .map(sort_next_package)
                         .collect(),
                 ),
-                ("peerDependencies", Value::Object(peers)) => {
-                    Value::Object(sort_direct_keys(peers))
-                }
+                (
+                    "peerDependencies"
+                    | "dependencies"
+                    | "optionalDependencies"
+                    | "peers"
+                    | "transitivePeers",
+                    Value::Object(entries),
+                ) => Value::Object(sort_direct_keys(entries)),
                 (_, value) => sort_deep_keys(value),
             };
             (key, value)
@@ -65,15 +69,42 @@ fn sort_next_package(entry: Value) -> Value {
     Value::Object(sorted)
 }
 
-/// Sorts the `packages` entries of a next-format document in place, and says
-/// whether the document is one.
-pub(super) fn sort_next_packages(root: &mut Map<String, Value>) -> bool {
+/// Sorts one entry of a section.
+type SortEntry = fn(Value) -> Value;
+
+/// An importer's keys and each dependency group's names, alphabetical. A
+/// dependency written as a map keeps `specifier`, `version`, `peers`.
+fn sort_next_importer(entry: Value) -> Value {
+    let Value::Object(map) = entry else { return entry };
+    let sorted = sort_direct_keys(map)
+        .into_iter()
+        .map(|(key, value)| {
+            let value = match (key.as_str(), value) {
+                (
+                    "dependencies" | "devDependencies" | "optionalDependencies",
+                    Value::Object(dependencies),
+                ) => Value::Object(sort_direct_keys(dependencies)),
+                (_, value) => sort_deep_keys(value),
+            };
+            (key, value)
+        })
+        .collect();
+    Value::Object(sorted)
+}
+
+/// Sorts the `packages` and `importers` entries of a next-format document in
+/// place, and says whether the document is one.
+pub(super) fn sort_next_sections(root: &mut Map<String, Value>) -> bool {
     if !is_next_format(root) {
         return false;
     }
-    if let Some(Value::Object(packages)) = root.remove("packages") {
-        let sorted = map_values(sort_direct_keys(packages), sort_next_package);
-        root.insert("packages".to_string(), Value::Object(sorted));
+    let sorts: [(&str, SortEntry); 2] =
+        [("packages", sort_next_package), ("importers", sort_next_importer)];
+    for (section, sort) in sorts {
+        if let Some(Value::Object(entries)) = root.remove(section) {
+            let sorted = map_values(sort_direct_keys(entries), sort);
+            root.insert(section.to_string(), Value::Object(sorted));
+        }
     }
     true
 }

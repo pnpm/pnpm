@@ -4,28 +4,42 @@ use super::{
     super::{RestoreContext, tarjan},
     Graph, Provider, Sid,
 };
-use crate::{DEFAULT_PEERS_SUFFIX_MAX_LENGTH, PkgName, PkgNameVerPeer};
+use crate::{
+    DEFAULT_PEERS_SUFFIX_MAX_LENGTH, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer,
+    name_version_from_package_key, patch_groups_from_hashes,
+};
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
+use pnpm_patching_config::{PatchGroupRecord, get_patch_info};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 impl Graph<'_> {
     pub(super) fn keys(&self, context: RestoreContext<'_>) -> Vec<PkgNameVerPeer> {
         let rules = SuffixRules::of(context);
+        let patches = Patches::of(context);
         if rules.dedupe {
             // Every provider is written as `name@version`, so no key waits for
             // another.
             return (0..self.keys.len())
                 .into_par_iter()
-                .map(|sid| self.key_of(sid, &rules, |_, provider| pair_of(self.keys[provider])))
+                .map(|sid| {
+                    self.key_of(sid, &rules, &patches, |_, provider| pair_of(self.keys[provider]))
+                })
                 .collect();
         }
-        self.nested_keys(&rules)
+        self.nested_keys(&rules, &patches)
+    }
+
+    /// `name@version` of `sid`, with its patch group when it is patched: the
+    /// key of a snapshot that binds no peers.
+    fn base_key(&self, sid: Sid, patches: &Patches<'_>) -> PkgNameVerPeer {
+        let key = self.keys[sid];
+        PkgNameVerPeer::new(key.name.clone(), key.suffix.with_peer(patches.group(self, sid)))
     }
 
     /// The keys when a provider's group nests its own key, computed level by
     /// level so that every provider's key is ready before its dependents'.
-    fn nested_keys(&self, rules: &SuffixRules) -> Vec<PkgNameVerPeer> {
+    fn nested_keys(&self, rules: &SuffixRules, patches: &Patches<'_>) -> Vec<PkgNameVerPeer> {
         let nesting =
             Nesting { order: self.providers_first(), cyclic_names: self.cyclic_peer_names() };
         // A snapshot without bindings has the package's key, and every other
@@ -34,11 +48,11 @@ impl Graph<'_> {
             .map(|sid| {
                 self.providers[sid]
                     .is_empty()
-                    .then(|| self.keys[sid].clone())
+                    .then(|| self.base_key(sid, patches))
             })
             .collect();
         for level in self.levels(&nesting.order) {
-            for (sid, key) in self.level_keys(&level, &nesting, &keys, rules) {
+            for (sid, key) in self.level_keys(&level, &nesting, &keys, rules, patches) {
                 keys[sid] = Some(key);
             }
         }
@@ -53,17 +67,20 @@ impl Graph<'_> {
         nesting: &Nesting,
         keys: &[Option<PkgNameVerPeer>],
         rules: &SuffixRules,
+        patches: &Patches<'_>,
     ) -> Vec<(Sid, PkgNameVerPeer)> {
         level
             .par_iter()
             .flat_map_iter(|&component| nesting.order.components[component].iter().copied())
             .filter(|&sid| !self.providers[sid].is_empty())
             .map(|sid| {
-                let key = self.key_of(sid, rules, |name, provider| match keys[provider].as_ref() {
-                    Some(provider_key) if !nesting.collapses(sid, provider, name) => {
-                        PeerId::DepPath(DepPath::from(provider_key.to_string()))
+                let key = self.key_of(sid, rules, patches, |name, provider| {
+                    match keys[provider].as_ref() {
+                        Some(provider_key) if !nesting.collapses(sid, provider, name) => {
+                            PeerId::DepPath(DepPath::from(provider_key.to_string()))
+                        }
+                        _ => pair_of(self.keys[provider]),
                     }
-                    _ => pair_of(self.keys[provider]),
                 });
                 (sid, key)
             })
@@ -76,11 +93,12 @@ impl Graph<'_> {
         &self,
         sid: Sid,
         rules: &SuffixRules,
+        patches: &Patches<'_>,
         segment: impl Fn(&PkgName, Sid) -> PeerId,
     ) -> PkgNameVerPeer {
         let base = self.keys[sid];
         if self.providers[sid].is_empty() {
-            return base.clone();
+            return self.base_key(sid, patches);
         }
         let peer_ids: Vec<PeerId> = self.providers[sid]
             .iter()
@@ -93,7 +111,7 @@ impl Graph<'_> {
                 Provider::Snapshot(provider) => segment(name, *provider),
             })
             .collect();
-        let mut peer = base.suffix.patch_group().to_string();
+        let mut peer = patches.group(self, sid);
         peer.push_str(&create_peer_dep_graph_hash(&peer_ids, rules.max_length));
         PkgNameVerPeer::new(base.name.clone(), base.suffix.with_peer(peer))
     }
@@ -220,4 +238,30 @@ impl SuffixRules {
 /// `name@version` of a provider, as the resolver writes a collapsed peer.
 fn pair_of(key: &PkgNameVerPeer) -> PeerId {
     PeerId::Pair { name: key.name.to_string(), version: key.suffix.without_peer().to_string() }
+}
+
+/// The patch group each package's key gets, from `patchedDependencies`,
+/// matched the way the resolver matches its keys to packages.
+struct Patches<'a> {
+    groups: Option<PatchGroupRecord>,
+    packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+}
+
+impl<'a> Patches<'a> {
+    fn of(context: RestoreContext<'a>) -> Self {
+        Patches {
+            groups: context.patched_dependencies.and_then(patch_groups_from_hashes),
+            packages: context.packages,
+        }
+    }
+
+    /// `(patch_hash=…)` for a patched package, or nothing.
+    fn group(&self, graph: &Graph<'_>, sid: Sid) -> String {
+        let Some(groups) = self.groups.as_ref() else { return String::new() };
+        let (name, version) = name_version_from_package_key(graph.keys[sid], self.packages);
+        match get_patch_info(Some(groups), &name, &version) {
+            Ok(Some(patch)) => format!("(patch_hash={})", patch.hash),
+            _ => String::new(),
+        }
+    }
 }
