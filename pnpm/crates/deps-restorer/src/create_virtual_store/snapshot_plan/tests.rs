@@ -210,31 +210,27 @@ impl PlanFixture {
                 )
             })
             .collect();
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("build planning runtime")
-            .block_on(plan_snapshots::<SilentReporter>(SnapshotPlanInputs {
-                policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
-                    supported_architectures: None,
-                    skipped: &SkippedSnapshots::default(),
-                    link_dependencies: true,
-                    force,
-                    is_hoisted: false,
-                    include_optional: true,
-                },
-                snapshots: &self.snapshots,
-                packages: &self.packages,
-                current_entries: LockfileEntries {
-                    packages: current_matches_wanted.then_some(&self.packages),
-                    snapshots: current_matches_wanted.then_some(&self.snapshots),
-                },
-                layout: &self.layout,
-                allow_build_policy: &allow_build_policy,
+        plan_snapshots::<SilentReporter>(SnapshotPlanInputs {
+            policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
+                supported_architectures: None,
+                skipped: &SkippedSnapshots::default(),
+                link_dependencies: true,
+                force,
+                is_hoisted: false,
+                include_optional: true,
+            },
+            snapshots: &self.snapshots,
+            packages: &self.packages,
+            current_entries: LockfileEntries {
+                packages: current_matches_wanted.then_some(&self.packages),
+                snapshots: current_matches_wanted.then_some(&self.snapshots),
+            },
+            layout: &self.layout,
+            allow_build_policy: &allow_build_policy,
 
-                cache_keys: &mut cache_keys,
-            }))
-            .expect("plan snapshots")
+            cache_keys: &mut cache_keys,
+        })
+        .expect("plan snapshots")
     }
 }
 

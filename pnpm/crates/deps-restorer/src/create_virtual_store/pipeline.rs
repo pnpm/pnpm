@@ -51,7 +51,7 @@ impl<'a> CreateVirtualStore<'a> {
         let (prefetch, marker_source) = self.prefetch_and_prepare_store(wanted, check).await?;
         let retained_keys =
             retained.map(|snapshots| retained_cache_keys(&prefetch.cache_keys, snapshots));
-        let mut plan = self.plan_with_check::<Reporter>(wanted, prefetch.cache_keys, check).await?;
+        let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
         let imported = plan.materialized_keys();
         let prefetched = run_checked(
             check,
@@ -293,7 +293,7 @@ impl<'a> CreateVirtualStore<'a> {
     /// `(snapshot_key, snapshot)` tuple for the warm/cold partition.
     /// Its slot probes run while the prefetch task reads the store
     /// index.
-    async fn plan<Reporter: self::Reporter>(
+    fn plan<Reporter: self::Reporter>(
         &self,
         wanted: WantedEntries<'a>,
         mut cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
@@ -316,16 +316,6 @@ impl<'a> CreateVirtualStore<'a> {
 
             cache_keys: &mut cache_keys,
         })
-        .await
-    }
-
-    async fn plan_with_check<Reporter: self::Reporter>(
-        &self,
-        wanted: WantedEntries<'a>,
-        cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
-        check: &mut Option<ConcurrentCheck<'_>>,
-    ) -> Result<snapshot_plan::SnapshotPlan<'a>, CreateVirtualStoreError> {
-        run_checked(check, self.plan::<Reporter>(wanted, cache_keys)).await
     }
 
     fn link_plan(&self, plan: &snapshot_plan::SnapshotPlan<'_>) -> LinkPlan<'a> {
