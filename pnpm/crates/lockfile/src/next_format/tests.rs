@@ -72,10 +72,10 @@ fn optional_peer_bound_from_the_root_round_trips() {
             "packages:"
             ""
             "  buffer-impl@3.7.1:"
-            "    resolution: {integrity: sha512-AAAA}"
+            "    integrity: sha512-AAAA"
             ""
             "  container@3.2.2:"
-            "    resolution: {integrity: sha512-BBBB}"
+            "    integrity: sha512-BBBB"
             "    dependencies:"
             "      fs-impl: 4.8.4"
             "    transitivePeers:"
@@ -84,7 +84,7 @@ fn optional_peer_bound_from_the_root_round_trips() {
             "      - abort-impl"
             ""
             "  fs-impl@4.8.4:"
-            "    resolution: {integrity: sha512-CCCC}"
+            "    integrity: sha512-CCCC"
             "    peerDependencies:"
             "      buffer-impl: '*'"
             "    peerDependenciesMeta:"
@@ -96,7 +96,7 @@ fn optional_peer_bound_from_the_root_round_trips() {
             "      buffer-impl: 3.7.1"
             ""
             "  path-impl@3.1.2:"
-            "    resolution: {integrity: sha512-DDDD}"
+            "    integrity: sha512-DDDD"
         },
     );
 }

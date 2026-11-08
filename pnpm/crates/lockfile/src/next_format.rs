@@ -12,7 +12,7 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
-pub use package::NextPackage;
+pub use package::{NextPackage, NextPackageOut};
 pub use read::restore_sections;
 
 pub(crate) use parse::{Shape, declares_next_format};
@@ -154,14 +154,14 @@ pub type NextLockfile =
 #[must_use]
 pub fn merge_packages(
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
-    snapshots: Option<&NextSnapshots>,
-) -> HashMap<PackageKey, NextPackage> {
+    snapshots: Option<NextSnapshots>,
+) -> HashMap<PackageKey, NextPackageOut<'_>> {
     snapshots
         .into_iter()
         .flatten()
         .map(|(key, variants)| {
             let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
-            (key.clone(), NextPackage::hoisted(metadata, variants.clone()))
+            (key, NextPackageOut::new(metadata, variants))
         })
         .collect()
 }
@@ -172,16 +172,15 @@ pub fn merge_packages(
 pub fn split_packages(
     merged: HashMap<PackageKey, NextPackage>,
 ) -> (Option<HashMap<PackageKey, PackageMetadata>>, Option<NextSnapshots>) {
-    let mut packages = HashMap::with_capacity(merged.len());
-    let mut snapshots = HashMap::with_capacity(merged.len());
-    for (key, package) in merged {
-        let (metadata, variants) = package.split();
-        if let Some(metadata) = metadata {
-            packages.insert(key.without_peer(), metadata);
-        }
-        snapshots.insert(key, variants);
-    }
-    (Some(packages), Some(snapshots))
+    use rayon::prelude::*;
+    let (packages, snapshots): (Vec<_>, Vec<_>) = merged
+        .into_par_iter()
+        .map(|(key, package)| {
+            let (metadata, variants) = package.split();
+            (metadata.map(|metadata| (key.without_peer(), metadata)), (key, variants))
+        })
+        .unzip();
+    (Some(packages.into_iter().flatten().collect()), Some(snapshots.into_iter().collect()))
 }
 
 /// The two sections that differ between the formats.
@@ -228,14 +227,14 @@ impl Lockfile {
     #[must_use]
     pub fn from_next(next: NextLockfile) -> Lockfile {
         let (packages, snapshots) = match next.packages {
-            Some(merged) => split_packages(merged),
+            Some(merged) => crate::parallel_parse::pool().install(|| split_packages(merged)),
             None => (None, None),
         };
         let sections = NextSections { importers: next.importers, snapshots };
-        let restored = restore_sections(
-            &sections,
-            RestoreContext { packages: packages.as_ref(), settings: next.settings.as_ref() },
-        );
+        let context =
+            RestoreContext { packages: packages.as_ref(), settings: next.settings.as_ref() };
+        let restored =
+            crate::parallel_parse::pool().install(|| restore_sections(&sections, context));
         Lockfile {
             lockfile_version: next.lockfile_version,
             settings: next.settings,
@@ -264,14 +263,15 @@ impl Lockfile {
     /// Fails when the result would not read back to this lockfile's
     /// sections, so a write never loses a peer variant.
     pub fn to_next_sections(&self) -> Result<NextSections, NextFormatError> {
-        write::next_sections(self)
+        crate::parallel_parse::pool().install(|| write::next_sections(self))
     }
 
     /// Render this lockfile as a next-format document.
     pub(crate) fn to_next_yaml_string(&self) -> Result<String, crate::SaveLockfileError> {
-        let sections = self.to_next_sections().map_err(crate::SaveLockfileError::NextFormat)?;
-        let packages = merge_packages(self.packages.as_ref(), sections.snapshots.as_ref());
-        crate::serialize_yaml::to_string(&document::NextDocument::new(self, &sections, &packages))
+        let NextSections { importers, snapshots } =
+            self.to_next_sections().map_err(crate::SaveLockfileError::NextFormat)?;
+        let packages = merge_packages(self.packages.as_ref(), snapshots);
+        crate::serialize_yaml::to_string(&document::NextDocument::new(self, &importers, &packages))
             .map_err(crate::SaveLockfileError::SerializeYaml)
     }
 }

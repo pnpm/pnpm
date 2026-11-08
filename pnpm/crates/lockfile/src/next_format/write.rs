@@ -33,9 +33,15 @@ pub(super) fn next_sections(lockfile: &Lockfile) -> Result<NextSections, NextFor
     let mut explicit = Explicit::default();
     for _ in 0..MAX_ROUNDS {
         let sections = variants.sections(lockfile, &explicit)?;
-        let restored = read::restore_with_variant_keys(&sections, context);
-        if !variants.mark_mismatches(lockfile, &restored, &mut explicit) {
-            check_round_trip(lockfile, &restored.sections)?;
+        let Some(rebuilt) = read::Rebuilt::of(&sections, context) else {
+            return Ok(sections);
+        };
+        if !variants.mark_mismatches(lockfile, &rebuilt, &mut explicit) {
+            // The marks above cover which variant each reference selects
+            // and the key each variant gets. The entries themselves can
+            // still read back differently, for a lockfile an older pnpm
+            // wrote, so the whole sections are compared once.
+            check_round_trip(lockfile, &rebuilt.into_sections(&sections, context))?;
             return Ok(sections);
         }
     }
@@ -132,10 +138,4 @@ pub(super) fn children(entry: &SnapshotEntry) -> impl Iterator<Item = (&PkgName,
         .iter()
         .chain(entry.optional_dependencies.iter())
         .flatten()
-}
-
-pub(super) fn child<'e>(entry: &'e SnapshotEntry, alias: &PkgName) -> Option<&'e SnapshotDepRef> {
-    [&entry.dependencies, &entry.optional_dependencies]
-        .into_iter()
-        .find_map(|map| map.as_ref()?.get(alias))
 }

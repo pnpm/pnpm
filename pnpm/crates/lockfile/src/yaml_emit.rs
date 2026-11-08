@@ -44,9 +44,12 @@ const SINGLE_LINE_KEYS: [&str; 4] = ["cpu", "engines", "os", "libc"];
 /// One indentation level, in spaces (`js-yaml`'s default `indent`).
 const INDENT: usize = 2;
 
+mod next_order;
+use next_order::sort_next_packages;
+
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
 /// key sort.
-const ORDERED_KEYS: [&str; 23] = [
+const ORDERED_KEYS: [&str; 20] = [
     "resolution",
     "id",
     "name",
@@ -65,9 +68,6 @@ const ORDERED_KEYS: [&str; 23] = [
     "dependencies",
     "optionalDependencies",
     "transitivePeerDependencies",
-    "peers",
-    "transitivePeers",
-    "missingPeers",
     "dev",
     "optional",
 ];
@@ -112,12 +112,15 @@ pub(crate) fn to_string(value: Value) -> String {
 fn sort_lockfile_keys(value: Value) -> Value {
     let Value::Object(mut root) = value else { return value };
 
+    let next = sort_next_packages(&mut root);
     for (section, priority) in [
         ("importers", &ROOT_KEYS[..]),
         ("packages", &ORDERED_KEYS[..]),
         ("snapshots", &ORDERED_KEYS[..]),
     ] {
-        sort_entries_by_priority(&mut root, section, priority);
+        if !(next && section == "packages") {
+            sort_entries_by_priority(&mut root, section, priority);
+        }
     }
 
     if let Some(Value::Object(catalogs)) = root.remove("catalogs") {

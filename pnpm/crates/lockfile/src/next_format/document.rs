@@ -1,7 +1,7 @@
 //! The next format's document, borrowed from a [`Lockfile`] and its converted
 //! sections, so writing it serializes nothing twice.
 
-use super::{NextPackage, NextSections};
+use super::NextPackageOut;
 use crate::{
     CatalogSnapshots, Lockfile, LockfileExtra, LockfileSettings, LockfileVersion, PackageKey,
     ProjectSnapshot,
@@ -39,7 +39,7 @@ pub(super) struct NextDocument<'a> {
     #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
     importers: &'a HashMap<String, ProjectSnapshot>,
     #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
-    packages: &'a HashMap<PackageKey, NextPackage>,
+    packages: &'a HashMap<PackageKey, NextPackageOut<'a>>,
     #[serde(skip_serializing_if = "is_none")]
     time: &'a Option<BTreeMap<String, String>>,
     #[serde(flatten, skip_serializing_if = "LockfileExtra::is_empty")]
@@ -49,8 +49,8 @@ pub(super) struct NextDocument<'a> {
 impl<'a> NextDocument<'a> {
     pub(super) fn new(
         lockfile: &'a Lockfile,
-        sections: &'a NextSections,
-        packages: &'a HashMap<PackageKey, NextPackage>,
+        importers: &'a HashMap<String, ProjectSnapshot>,
+        packages: &'a HashMap<PackageKey, NextPackageOut<'a>>,
     ) -> Self {
         NextDocument {
             lockfile_version: &lockfile.lockfile_version,
@@ -61,7 +61,7 @@ impl<'a> NextDocument<'a> {
             pnpmfile_checksum: &lockfile.pnpmfile_checksum,
             ignored_optional_dependencies: &lockfile.ignored_optional_dependencies,
             patched_dependencies: &lockfile.patched_dependencies,
-            importers: &sections.importers,
+            importers,
             packages,
             time: &lockfile.time,
             extra: &lockfile.extra,

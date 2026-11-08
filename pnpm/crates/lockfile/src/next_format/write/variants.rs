@@ -9,13 +9,10 @@ use super::{
     },
     {
         super::{NextFormatError, NextSections, NextSnapshotEntry, NextSnapshots, read},
-        Explicit, child, children,
+        Explicit, children,
     },
 };
-use crate::{
-    ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,
-    SnapshotDepRef, SnapshotEntry,
-};
+use crate::{Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
@@ -215,27 +212,27 @@ impl<'a> Variants<'a> {
     pub(super) fn mark_mismatches(
         &self,
         lockfile: &Lockfile,
-        restored: &read::Restored,
+        rebuilt: &read::Rebuilt<'_>,
         explicit: &mut Explicit,
     ) -> bool {
         let mut marked = false;
-        for (key, name) in self.snapshot_mismatches(restored) {
+        for (key, name) in self.snapshot_mismatches(rebuilt) {
             marked |= explicit.mark_snapshot_reference(key, name);
         }
-        for (id, name) in importer_mismatches(lockfile, restored) {
+        for (id, name) in importer_mismatches(lockfile, rebuilt) {
             marked |= explicit.mark_importer_reference(id, name);
         }
         marked
     }
 
-    fn snapshot_mismatches(&self, restored: &read::Restored) -> Vec<(&'a PackageKey, &PkgName)> {
+    fn snapshot_mismatches(&self, rebuilt: &read::Rebuilt<'_>) -> Vec<(&'a PackageKey, &PkgName)> {
         self.by_package
             .par_iter()
             .flat_map_iter(|(package, variants)| {
                 variants
                     .iter()
-                    .zip(&restored.variant_keys[package])
-                    .flat_map(|(variant, restored_key)| variant.mismatches(restored, restored_key))
+                    .enumerate()
+                    .flat_map(move |(index, variant)| variant.mismatches(rebuilt, package, index))
             })
             .collect()
     }
@@ -243,23 +240,20 @@ impl<'a> Variants<'a> {
 
 impl<'a> Variant<'a> {
     /// The references of this variant that read back to another variant: all
-    /// its bindings when its own key read back wrong, and every child whose
-    /// reference changed.
+    /// its bindings when its own key read back wrong, and every child that
+    /// read back to another key.
     fn mismatches<'v>(
         &'v self,
-        restored: &read::Restored,
-        restored_key: &PackageKey,
+        rebuilt: &read::Rebuilt<'_>,
+        package: &PackageKey,
+        index: usize,
     ) -> Vec<(&'a PackageKey, &'v PkgName)> {
-        let restored_entry = restored.sections.snapshots
-            .as_ref()
-            .and_then(|snapshots| snapshots.get(restored_key));
-        let bindings = self
-            .binding_names()
-            .filter(|_| restored_key != self.key);
+        let wrong_key = rebuilt.variant_key(package, index) != Some(self.key);
+        let bindings = self.binding_names().filter(|_| wrong_key);
         let changed_children = children(self.entry)
             .filter_map(|(alias, reference)| {
-                let restored_reference = restored_entry.and_then(|entry| child(entry, alias));
-                (restored_reference != Some(reference)).then_some(alias)
+                let expected = reference.resolve(alias)?;
+                (rebuilt.child_key(package, index, alias) != Some(&expected)).then_some(alias)
             });
         bindings
             .chain(changed_children)
@@ -271,26 +265,20 @@ impl<'a> Variant<'a> {
 /// The importer references that read back to another variant.
 fn importer_mismatches<'l>(
     lockfile: &'l Lockfile,
-    restored: &read::Restored,
+    rebuilt: &read::Rebuilt<'_>,
 ) -> Vec<(&'l str, &'l PkgName)> {
     lockfile.importers
         .iter()
         .flat_map(|(id, importer)| {
-            let restored_importer = restored.sections.importers.get(id);
             importer_dependencies(importer)
                 .filter(move |(alias, spec)| {
-                    version_of(restored_importer, alias) != Some(&spec.version)
+                    spec.version
+                        .resolved_key(alias)
+                        .is_some_and(|expected| {
+                            rebuilt.importer_child_key(id, alias) != Some(&expected)
+                        })
                 })
                 .map(move |(alias, _)| (id.as_str(), alias))
         })
         .collect()
-}
-
-fn version_of<'r>(
-    importer: Option<&'r ProjectSnapshot>,
-    alias: &PkgName,
-) -> Option<&'r ImporterDepVersion> {
-    importer_dependencies(importer?)
-        .find(|(other, _)| *other == alias)
-        .map(|(_, spec)| &spec.version)
 }

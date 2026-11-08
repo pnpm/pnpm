@@ -32,40 +32,76 @@ use std::collections::HashMap;
 /// format's.
 #[must_use]
 pub fn restore_sections(sections: &NextSections, context: RestoreContext<'_>) -> RestoredSections {
-    restore_with_variant_keys(sections, context).sections
+    match Rebuilt::of(sections, context) {
+        Some(rebuilt) => rebuilt.into_sections(sections, context),
+        None => RestoredSections { importers: sections.importers.clone(), snapshots: None },
+    }
 }
 
-/// [`restore_sections`], plus the key each variant was given, in the order of
-/// [`Graph::index`].
-pub(super) struct Restored {
-    pub sections: RestoredSections,
-    pub variant_keys: HashMap<PackageKey, Vec<PkgNameVerPeer>>,
+/// The reference graph of a next-format document, with every variant's
+/// peer-suffixed key: what the writer checks its output against, and what
+/// the peer-suffixed sections are built from.
+pub(super) struct Rebuilt<'a> {
+    graph: Graph<'a>,
+    keys: Vec<PkgNameVerPeer>,
 }
 
-pub(super) fn restore_with_variant_keys(
-    sections: &NextSections,
-    context: RestoreContext<'_>,
-) -> Restored {
-    let Some(snapshots) = sections.snapshots.as_ref() else {
+impl<'a> Rebuilt<'a> {
+    /// `None` when the document has no `snapshots`.
+    pub(super) fn of(sections: &'a NextSections, context: RestoreContext<'_>) -> Option<Self> {
+        let snapshots = sections.snapshots.as_ref()?;
+        let graph = Graph::new(snapshots, &sections.importers);
+        let keys = graph.keys(context);
+        Some(Rebuilt { graph, keys })
+    }
+
+    fn vid(&self, package: &PackageKey, index: usize) -> Option<Vid> {
+        let &(start, count) = self.graph.variants.get(package)?;
+        (index < count).then_some(start + index)
+    }
+
+    /// The peer-suffixed key of the variant at `index` under `package`.
+    pub(super) fn variant_key(
+        &self,
+        package: &PackageKey,
+        index: usize,
+    ) -> Option<&PkgNameVerPeer> {
+        self.vid(package, index)
+            .map(|vid| &self.keys[vid])
+    }
+
+    /// The peer-suffixed key of the child linked as `alias` by that variant.
+    pub(super) fn child_key(
+        &self,
+        package: &PackageKey,
+        index: usize,
+        alias: &PkgName,
+    ) -> Option<&PkgNameVerPeer> {
+        let vid = self.vid(package, index)?;
+        child_named(&self.graph.children[vid], alias).map(|child| &self.keys[child])
+    }
+
+    /// The peer-suffixed key of the child linked as `alias` by an importer.
+    pub(super) fn importer_child_key(&self, id: &str, alias: &PkgName) -> Option<&PkgNameVerPeer> {
+        let children = self.graph.importer_children.get(id)?;
+        child_named(children, alias).map(|child| &self.keys[child])
+    }
+
+    /// The peer-suffixed sections.
+    pub(super) fn into_sections(
+        self,
+        sections: &NextSections,
+        context: RestoreContext<'_>,
+    ) -> RestoredSections {
+        let snapshots = self.graph.snapshot_entries(&self.keys, context);
         let importers = sections.importers
-            .iter()
-            .map(|(id, importer)| (id.clone(), importer.clone()))
+            .par_iter()
+            .map(|(id, importer)| {
+                (id.clone(), self.graph.restore_importer(id, importer, &self.keys))
+            })
             .collect();
-        let sections = RestoredSections { importers, snapshots: None };
-        return Restored { sections, variant_keys: HashMap::new() };
-    };
-    let graph = Graph::new(snapshots, &sections.importers);
-    let keys = graph.keys(context);
-    let snapshots = graph.snapshot_entries(&keys, context);
-    let importers = sections.importers
-        .par_iter()
-        .map(|(id, importer)| (id.clone(), graph.restore_importer(id, importer, &keys)))
-        .collect();
-    let variant_keys = graph.variants
-        .iter()
-        .map(|(key, &(start, count))| ((*key).clone(), keys[start..start + count].to_vec()))
-        .collect();
-    Restored { sections: RestoredSections { importers, snapshots: Some(snapshots) }, variant_keys }
+        RestoredSections { importers, snapshots: Some(snapshots) }
+    }
 }
 
 type Vid = usize;

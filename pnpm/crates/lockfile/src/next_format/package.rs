@@ -5,9 +5,10 @@
 use super::NextSnapshotEntry;
 use crate::{
     BundledDependencies, LockfileResolution, PackageMetadata, PeerDependencyMeta, PkgName,
-    SnapshotDepRef, StringOrList,
+    RegistryResolution, SnapshotDepRef, StringOrList, TarballResolution,
 };
 use serde::{Deserialize, Serialize};
+use ssri::Integrity;
 use std::collections::HashMap;
 
 /// The metadata fields mirror [`PackageMetadata`], the graph fields
@@ -23,10 +24,17 @@ use std::collections::HashMap;
     )
 )]
 pub struct NextPackage {
-    /// Absent for a package whose metadata the lockfile does not record, such
-    /// as a directory dependency written by an older pnpm.
+    /// The resolution without its integrity, and absent for a registry
+    /// package without a revision, the common case, whose resolution is the
+    /// integrity alone. Also absent for a package whose metadata the lockfile
+    /// does not record, such as a directory dependency written by an older
+    /// pnpm.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution: Option<LockfileResolution>,
+    /// The integrity of the package's tarball, whatever its resolution:
+    /// every resolution kind that has one records it here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub integrity: Option<Integrity>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(
@@ -105,47 +113,124 @@ pub struct NextPackage {
 }
 
 impl NextPackage {
-    /// The shared graph fields as one entry.
-    fn shared(&self) -> NextSnapshotEntry {
+    /// The shared graph fields, moved out.
+    fn take_shared(&mut self) -> NextSnapshotEntry {
         NextSnapshotEntry {
-            id: self.id.clone(),
-            dependencies: self.dependencies.clone(),
-            optional_dependencies: self.optional_dependencies.clone(),
-            peer_dependencies: self.peers.clone(),
-            transitive_peer_dependencies: self.transitive_peers.clone(),
-            missing_peer_dependencies: self.missing_peers.clone(),
-            patched: self.patched,
+            id: self.id.take(),
+            dependencies: self.dependencies.take(),
+            optional_dependencies: self.optional_dependencies.take(),
+            peer_dependencies: self.peers.take(),
+            transitive_peer_dependencies: self.transitive_peers.take(),
+            missing_peer_dependencies: self.missing_peers.take(),
+            patched: self.patched.take(),
             optional: self.optional,
         }
     }
+}
 
-    fn set_shared(&mut self, shared: NextSnapshotEntry) {
-        self.id = shared.id;
-        self.dependencies = shared.dependencies;
-        self.optional_dependencies = shared.optional_dependencies;
-        self.peers = shared.peer_dependencies;
-        self.transitive_peers = shared.transitive_peer_dependencies;
-        self.missing_peers = shared.missing_peer_dependencies;
-        self.patched = shared.patched;
-        self.optional = shared.optional;
+/// [`NextPackage`] borrowed from the lockfile it is written from, so a write
+/// clones no metadata. The serde attributes mirror [`NextPackage`]'s.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm-lock.yaml format."
+    )
+)]
+pub struct NextPackageOut<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<std::borrow::Cow<'a, LockfileResolution>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub integrity: Option<&'a Integrity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<&'a String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engines: Option<SortedMap<'a, String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpu: Option<&'a Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub os: Option<&'a Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libc: Option<&'a StringOrList>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<&'a String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_bin: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prepare: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bundled_dependencies: Option<&'a BundledDependencies>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_dependencies: Option<SortedMap<'a, String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_dependencies_meta: Option<SortedMap<'a, String, PeerDependencyMeta>>,
+    #[serde(flatten)]
+    pub shared: NextSnapshotEntry,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variants: Option<Vec<NextSnapshotEntry>>,
+}
+
+/// A borrowed map written with its keys sorted.
+pub struct SortedMap<'a, Key, Value>(&'a HashMap<Key, Value>);
+
+impl<Key, Value> Serialize for SortedMap<'_, Key, Value>
+where
+    Key: Serialize + std::fmt::Display,
+    Value: Serialize + Sync,
+{
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        crate::serialize_yaml::sorted_map(self.0, serializer)
     }
 }
 
-impl NextPackage {
+impl<'a> NextPackageOut<'a> {
     /// The entry for `metadata` installed as `variants`, sorted. A map entry
     /// every variant has with the same value is written once, in `shared`.
     #[must_use]
-    pub fn hoisted(
-        metadata: Option<&PackageMetadata>,
-        mut variants: Vec<NextSnapshotEntry>,
-    ) -> Self {
-        let mut package = metadata.map(NextPackage::from).unwrap_or_default();
-        if variants.len() <= 1 {
-            package.set_shared(variants.pop().unwrap_or_default());
-            return package;
+    pub fn new(metadata: Option<&'a PackageMetadata>, variants: Vec<NextSnapshotEntry>) -> Self {
+        let (resolution, integrity) = match metadata {
+            Some(metadata) => split_resolution(&metadata.resolution),
+            None => (None, None),
+        };
+        let (shared, variants) = hoist(variants);
+        NextPackageOut {
+            resolution,
+            integrity,
+            version: metadata.and_then(|metadata| metadata.version.as_ref()),
+            engines: metadata.and_then(|metadata| metadata.engines.as_ref()).map(SortedMap),
+            cpu: metadata.and_then(|metadata| metadata.cpu.as_ref()),
+            os: metadata.and_then(|metadata| metadata.os.as_ref()),
+            libc: metadata.and_then(|metadata| metadata.libc.as_ref()),
+            deprecated: metadata.and_then(|metadata| metadata.deprecated.as_ref()),
+            has_bin: metadata.and_then(|metadata| metadata.has_bin),
+            prepare: metadata.and_then(|metadata| metadata.prepare),
+            bundled_dependencies: metadata.and_then(|metadata| {
+                metadata.bundled_dependencies.as_ref()
+            }),
+            peer_dependencies: metadata
+                .and_then(|metadata| metadata.peer_dependencies.as_ref())
+                .map(SortedMap),
+            peer_dependencies_meta: metadata
+                .and_then(|metadata| metadata.peer_dependencies_meta.as_ref())
+                .map(SortedMap),
+            shared,
+            variants,
         }
+    }
+}
+
+/// What `variants` share, and what each adds, when there are several.
+fn hoist(
+    mut variants: Vec<NextSnapshotEntry>,
+) -> (NextSnapshotEntry, Option<Vec<NextSnapshotEntry>>) {
+    if variants.len() <= 1 {
+        return (variants.pop().unwrap_or_default(), None);
+    }
+    let shared = {
         let (first, rest) = variants.split_first_mut().expect("several variants");
-        let shared = NextSnapshotEntry {
+        NextSnapshotEntry {
             id: common_value(first.id.as_ref(), rest.iter().map(|variant| variant.id.as_ref())),
             dependencies: common_entries(first.dependencies.as_ref(), rest, |variant| {
                 &variant.dependencies
@@ -172,21 +257,21 @@ impl NextPackage {
                 rest.iter().map(|variant| variant.patched.as_ref()),
             ),
             optional: first.optional && rest.iter().all(|variant| variant.optional),
-        };
-        for variant in &mut variants {
-            variant.subtract(&shared);
         }
-        package.set_shared(shared);
-        package.variants = Some(variants);
-        package
+    };
+    for variant in &mut variants {
+        variant.subtract(&shared);
     }
+    (shared, Some(variants))
+}
 
+impl NextPackage {
     /// The metadata and the variants this entry was built from.
     #[must_use]
-    pub fn split(self) -> (Option<PackageMetadata>, Vec<NextSnapshotEntry>) {
-        let shared = self.shared();
-        let variants = self.variants.clone();
-        let metadata = self.resolution.is_some().then(|| self.into_metadata());
+    pub fn split(mut self) -> (Option<PackageMetadata>, Vec<NextSnapshotEntry>) {
+        let shared = self.take_shared();
+        let variants = self.variants.take();
+        let metadata = self.into_metadata();
         let variants = match variants {
             None => vec![shared],
             Some(variants) => variants
@@ -197,9 +282,23 @@ impl NextPackage {
         (metadata, variants)
     }
 
-    fn into_metadata(self) -> PackageMetadata {
-        PackageMetadata {
-            resolution: self.resolution.expect("checked by the caller"),
+    /// `None` when the entry records no resolution.
+    fn into_metadata(self) -> Option<PackageMetadata> {
+        let resolution = match (self.resolution, self.integrity) {
+            (None, Some(integrity)) => {
+                LockfileResolution::Registry(RegistryResolution { integrity, revision: None })
+            }
+            (Some(LockfileResolution::Tarball(tarball)), Some(integrity)) => {
+                LockfileResolution::Tarball(TarballResolution {
+                    integrity: Some(tarball.integrity.unwrap_or(integrity)),
+                    ..tarball
+                })
+            }
+            (Some(resolution), _) => resolution,
+            (None, None) => return None,
+        };
+        Some(PackageMetadata {
+            resolution,
             version: self.version,
             engines: self.engines,
             cpu: self.cpu,
@@ -211,35 +310,26 @@ impl NextPackage {
             bundled_dependencies: self.bundled_dependencies,
             peer_dependencies: self.peer_dependencies,
             peer_dependencies_meta: self.peer_dependencies_meta,
-        }
+        })
     }
 }
 
-impl From<&PackageMetadata> for NextPackage {
-    fn from(metadata: &PackageMetadata) -> Self {
-        NextPackage {
-            resolution: Some(metadata.resolution.clone()),
-            version: metadata.version.clone(),
-            engines: metadata.engines.clone(),
-            cpu: metadata.cpu.clone(),
-            os: metadata.os.clone(),
-            libc: metadata.libc.clone(),
-            deprecated: metadata.deprecated.clone(),
-            has_bin: metadata.has_bin,
-            prepare: metadata.prepare,
-            bundled_dependencies: metadata.bundled_dependencies.clone(),
-            peer_dependencies: metadata.peer_dependencies.clone(),
-            peer_dependencies_meta: metadata.peer_dependencies_meta.clone(),
-            id: None,
-            dependencies: None,
-            optional_dependencies: None,
-            peers: None,
-            transitive_peers: None,
-            missing_peers: None,
-            patched: None,
-            optional: false,
-            variants: None,
+/// The resolution as the entry writes it, with the integrity apart.
+fn split_resolution(
+    resolution: &LockfileResolution,
+) -> (Option<std::borrow::Cow<'_, LockfileResolution>>, Option<&Integrity>) {
+    match resolution {
+        LockfileResolution::Registry(RegistryResolution { integrity, revision: None }) => {
+            (None, Some(integrity))
         }
+        LockfileResolution::Tarball(tarball) if tarball.integrity.is_some() => (
+            Some(std::borrow::Cow::Owned(LockfileResolution::Tarball(TarballResolution {
+                integrity: None,
+                ..tarball.clone()
+            }))),
+            tarball.integrity.as_ref(),
+        ),
+        other => (Some(std::borrow::Cow::Borrowed(other)), None),
     }
 }
 
