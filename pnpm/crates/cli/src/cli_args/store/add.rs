@@ -15,7 +15,7 @@ use pnpm_resolving_local_resolver::LocalTarballResolution;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, WantedDependency};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
-use pnpm_tarball::{IngestTarballToStore, MemCache};
+use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{path::Path, sync::Arc};
 
@@ -145,7 +145,6 @@ async fn add_packages<Reporter: self::Reporter>(
             index: StoreIndex::open_shared(&config.store_dir, false).await,
             index_writer: &store_index_writer,
             verified_files_cache: SharedVerifiedFilesCache::default(),
-            mem_cache: MemCache::default(),
             registry_prefixes: &registry_prefixes,
         },
     };
@@ -208,7 +207,6 @@ pub(crate) struct StoreAddIndex<'a> {
     index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
     index_writer: &'a Arc<StoreIndexWriter>,
     verified_files_cache: SharedVerifiedFilesCache,
-    mem_cache: MemCache,
     registry_prefixes: &'a [String],
 }
 
@@ -283,7 +281,7 @@ impl<'a> AddOne<'a> {
             Some(path) => self.add_downloaded_tarball::<Reporter>(&path, &archive).await?,
             None => {
                 self.ingestion(&archive, integrity.as_ref())
-                    .run_with_mem_cache::<Reporter>(&self.store.mem_cache)
+                    .run_without_mem_cache::<Reporter>()
                     .await
                     .map_err(miette::Report::new)?;
             }
