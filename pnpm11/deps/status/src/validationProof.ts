@@ -175,6 +175,7 @@ export async function recordValidatedWorkspaceState (
     allProjects,
     workspaceDir: lockfileDir,
     storeBaseDir: storeBaseDir(opts, lockfileDir),
+    modulesDir: opts.modulesDir,
     pnpmfiles: workspaceState.pnpmfiles,
     settings: {
       ...opts,

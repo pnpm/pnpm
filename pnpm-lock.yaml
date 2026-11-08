@@ -6790,6 +6790,9 @@ importers:
       '@pnpm/workspace.project-manifest-reader':
         specifier: workspace:*
         version: link:../../workspace/project-manifest-reader
+      '@pnpm/workspace.state':
+        specifier: workspace:*
+        version: link:../../workspace/state
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
@@ -11233,6 +11236,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
+      path-absolute:
+        specifier: 'catalog:'
+        version: 2.0.0
       path-temp:
         specifier: 'catalog:'
         version: 3.0.0

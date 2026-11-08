@@ -9,11 +9,11 @@ import { hoistWorkspacePackages, pruneStaleWorkspaceHoists } from '@pnpm/install
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { DependencyManifest, DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
+import { importerModulesDir, isStrictlyInside } from '@pnpm/workspace.state'
 
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
 import { getDirectDependencyAliases } from './directDependencyAliases.js'
 import { forgetReplacedHoistedLocations } from './forgetReplacedHoistedLocations.js'
-import { importerModulesDir, isStrictlyInside } from './importerModulesDir.js'
 import { linkHoistedModules } from './linkHoistedModules.js'
 import { reportDirectDependencyChanges } from './reportDirectDependencyChanges.js'
 import { symlinkDirectDependencies } from './symlinkDirectDependencies.js'
