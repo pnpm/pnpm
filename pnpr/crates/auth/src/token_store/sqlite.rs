@@ -3,26 +3,8 @@ use crate::validation::{
     token_scopes_from_sql, token_scopes_to_sql, token_timestamp_from_sql, token_timestamp_to_sql,
 };
 
-/// `tokens` table DDL — shared by every SQL-backed auth store so the
-/// backends store the same shape and records can be moved between them.
-pub(crate) const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
-    token_hash      CHAR(64) PRIMARY KEY,
-    user_id        VARCHAR(255) NOT NULL,
-    created_at      BIGINT NOT NULL,
-    last_used_at    BIGINT NOT NULL,
-    readonly        SMALLINT NOT NULL DEFAULT 0,
-    cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]',
-    name            VARCHAR(255),
-    expires_at      BIGINT,
-    scopes          TEXT,
-    kind            VARCHAR(64)
-)";
-
-pub(crate) const TOKENS_INDEX_SQL: &str =
-    "CREATE INDEX IF NOT EXISTS tokens_user_id ON tokens(user_id)";
-
 pub(crate) fn init_tokens_schema(conn: &Connection) -> Result<()> {
-    crate::schema::migrate_sqlite(conn)
+    pnpr_sql::sqlite::ensure_schema(conn, "SQLite auth database")
 }
 
 fn decode_token_row(row: &rusqlite::Row<'_>) -> Result<(String, TokenRecord)> {

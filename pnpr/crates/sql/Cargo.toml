@@ -1,7 +1,7 @@
 [package]
 name = "pnpr-sql"
 version = "0.0.1"
-description = "Shared PostgreSQL and MySQL connection pools"
+description = "Shared SQL adapters, connection pools, and schema migrations"
 publish = false
 authors.workspace = true
 edition.workspace = true
@@ -11,14 +11,19 @@ license-file = "../../LICENSE.md"
 repository.workspace = true
 
 [features]
-backend-postgres = ["sqlx/postgres", "pnpr-error/backend-postgres"]
-backend-mysql = ["sqlx/mysql", "pnpr-error/backend-mysql"]
+backend-libsql = ["dep:libsql", "dep:pnpr-libsql", "pnpr-error/backend-libsql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres"]
+backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql"]
 
 [dependencies]
+libsql = { workspace = true, optional = true }
 pnpr-config = { workspace = true }
-pnpr-error = { workspace = true }
-sqlx = { workspace = true }
+pnpr-error = { workspace = true, features = ["server"] }
+pnpr-libsql = { workspace = true, optional = true }
+rusqlite = { workspace = true }
+sqlx = { workspace = true, optional = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
 
 [lints]
 workspace = true

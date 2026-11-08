@@ -11,7 +11,6 @@
 //! Raw tokens are returned once; only their SHA-256 hashes are stored.
 
 pub mod oidc;
-pub mod schema;
 pub(crate) mod validation;
 
 pub use htpasswd::{
@@ -21,7 +20,7 @@ pub use htpasswd::{
 pub use identify::identify;
 pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
 pub use owned_tokens::OwnedTokens;
-pub use schema::CURRENT_SCHEMA_VERSION;
+pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
 pub use token_store::{NewToken, TokenRecord, TokenStore};
 pub use user_store::{ImportMode, PasswordCollisions, PasswordImport, UserStore};
 pub use validation::MAX_PASSWORD_BYTES;
@@ -467,21 +466,6 @@ pub enum UserRemoval {
     /// There was no such account.
     NoSuchUser,
 }
-
-/// SQL account records, keyed by immutable ID.
-#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
-pub(crate) const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
-    id           VARCHAR(64) PRIMARY KEY,
-    username     VARCHAR(255) UNIQUE NOT NULL,
-    username_skeleton_hash CHAR(64) UNIQUE,
-    bcrypt_hash  TEXT NOT NULL
-)";
-
-#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
-pub(crate) const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters (
-    name   VARCHAR(64) PRIMARY KEY,
-    value  BIGINT NOT NULL
-)";
 
 #[cfg(test)]
 mod retirement_tests;

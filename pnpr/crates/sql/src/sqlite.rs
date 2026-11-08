@@ -6,7 +6,10 @@
 //! transaction sees one committed snapshot while a write is in progress. The
 //! database has no replica, so every read source is the database itself.
 
-use super::adapter::{Adapter, Connection, Param, ReadSource, Row, Value};
+use crate::{
+    adapter::{Adapter, Connection, Param, ReadSource, Row, Value},
+    schema,
+};
 use pnpr_error::{RegistryError, Result};
 use rusqlite::{
     ErrorCode, ToSql,
@@ -26,9 +29,16 @@ const IDLE_READERS: usize = 8;
 /// fails as busy.
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Migrate `connection` to [`schema::SCHEMA_VERSION`], refusing incompatible
+/// databases with `name` in the error.
+pub fn ensure_schema(connection: &rusqlite::Connection, name: &str) -> Result<()> {
+    connection.busy_timeout(BUSY_TIMEOUT)?;
+    schema::ensure(connection, name)
+}
+
 /// A metadata database in one `SQLite` file.
 #[derive(Debug)]
-pub(crate) struct SqliteAdapter {
+pub struct SqliteAdapter {
     path: PathBuf,
     /// The connection every write commits through.
     writer: Mutex<rusqlite::Connection>,
@@ -38,7 +48,7 @@ pub(crate) struct SqliteAdapter {
 
 impl SqliteAdapter {
     /// Open the database at `path`, creating it and its directory if needed.
-    pub(crate) fn open(path: &Path) -> Result<Self> {
+    pub fn open(path: &Path) -> Result<Self> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }

@@ -1,8 +1,23 @@
-//! Connection pools shared by accounts, tokens, and package metadata.
-#![cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+//! SQL adapters, connection pools, and the numbered schema migration runner
+//! shared by accounts, tokens, and package metadata.
 
-use pnpr_config::SqlBackendSettings;
-use pnpr_error::{RegistryError, Result};
+// Link rusqlite's bundled SQLite symbols before libsql's.
+extern crate pnpr_error;
+
+#[macro_use]
+pub mod params;
+pub mod adapter;
+#[cfg(feature = "backend-libsql")]
+pub mod libsql;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+pub mod network;
+pub mod schema;
+pub mod sqlite;
+
+pub use pnpr_config::{LibsqlSettings, SqlBackendSettings};
+pub use pnpr_error::{RegistryError, Result};
+
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 use std::{
     sync::{Arc, Mutex, Weak},
     time::Duration,
@@ -19,12 +34,14 @@ mod mysql;
 #[cfg(feature = "backend-mysql")]
 pub use mysql::{options as mysql_options, pool as mysql_pool, timeout_sql as mysql_timeout_sql};
 
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 fn invalid_pool_size() -> RegistryError {
     RegistryError::InvalidConfig {
         reason: "database.maxConnections must be greater than 0".to_string(),
     }
 }
 
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 fn timeout_millis(timeout: Duration) -> u128 {
     timeout.as_millis().max(1)
 }
@@ -33,19 +50,22 @@ fn timeout_seconds(timeout: Duration) -> u64 {
     timeout.as_secs().max(1)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "backend-postgres", feature = "backend-mysql")))]
 mod tests;
 
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 struct Pools<Database: sqlx::Database> {
     entries: Mutex<Vec<PoolEntry<Database>>>,
 }
 
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 struct PoolEntry<Database: sqlx::Database> {
     runtime: tokio::runtime::Id,
     settings: SqlBackendSettings,
     pool: Weak<sqlx::Pool<Database>>,
 }
 
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 impl<Database: sqlx::Database> Pools<Database> {
     const fn new() -> Self {
         Self { entries: Mutex::new(Vec::new()) }
@@ -85,6 +105,7 @@ impl<Database: sqlx::Database> Pools<Database> {
 /// # Errors
 ///
 /// The connection cannot be acquired before the deadline or the pool fails.
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 pub async fn acquire<Database: sqlx::Database>(
     pool: &sqlx::Pool<Database>,
     timeout: Duration,

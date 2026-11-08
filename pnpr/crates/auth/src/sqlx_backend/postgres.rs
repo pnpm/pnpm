@@ -35,7 +35,12 @@ impl SqlAuth<PostgresDatabase> {
             pool: RequestPool::new(std::sync::Arc::clone(&startup_pool), settings.startup_timeout),
         };
         with_auth_timeout(settings.startup_timeout, async {
-            crate::schema::migrate_postgres(&startup_pool).await?;
+            pnpr_sql::network::ensure_postgres_schema(
+                std::sync::Arc::clone(&startup_pool),
+                settings.startup_timeout,
+                "PostgreSQL auth database",
+            )
+            .await?;
             startup_db.ensure_user_counter().await
         })
         .await?;

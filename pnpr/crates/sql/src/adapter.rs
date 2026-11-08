@@ -16,11 +16,11 @@
 //! Every method blocks. The shared layer calls them on the blocking pool.
 
 use pnpr_error::{RegistryError, Result};
-use std::{fmt, time::Instant};
+use std::{fmt, ops::Deref, time::Instant};
 
 /// The database a read runs on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ReadSource {
+pub enum ReadSource {
     /// The database every write commits to.
     Primary,
     /// A copy of the primary that may lag it. An adapter without one reads
@@ -35,29 +35,45 @@ pub(crate) enum ReadSource {
 /// whose answer the caller needs, and send them together in one round trip.
 /// The error of a held statement then surfaces from that later call, which
 /// fails the transaction just the same.
-pub(crate) trait Connection {
+pub trait Connection {
     fn lock_schema(&self) -> Result<()> {
         Ok(())
     }
 
-    fn recover_schema_initialization(&self) -> Result<bool> {
+    /// Whether DDL statements run inside [`Self::begin_write`] can roll back.
+    fn transactional_ddl(&self) -> bool {
+        true
+    }
+
+    /// Whether an empty `schema_migrations` table on a non-transactional-DDL
+    /// database was created by an interrupted step-1 run of this pnpr version
+    /// and may resume.
+    fn is_recoverable_empty_migrations(&self) -> Result<bool> {
         Ok(false)
     }
 
-    fn create_schema(&self) -> Result<()> {
-        super::schema::create(self)
-    }
-
-    fn schema_tables(&self) -> String {
-        super::schema::TABLES.to_string()
+    /// Dialect-specific step-1 schema DDL script, when it differs from
+    /// [`crate::schema::TABLES`].
+    fn schema_tables(&self) -> Option<String> {
+        None
     }
 
     fn schema_table_names(&self) -> Result<Vec<Row>> {
         self.query("SELECT name FROM sqlite_master WHERE type = 'table'", &[])
     }
 
-    fn schema_marker(&self) -> &'static str {
-        super::schema::MARKER_TABLE
+    /// Dialect-specific `CREATE TABLE` statement for `schema_migrations`, when
+    /// it differs from [`crate::schema::MARKER_TABLE`].
+    fn schema_marker(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Run one DDL statement in a migration step. On backends where DDL
+    /// commits implicitly (`MySQL`), checks `information_schema` before
+    /// `CREATE [UNIQUE] INDEX` and `ALTER TABLE ... ADD COLUMN` so an
+    /// interrupted step can be rerun safely.
+    fn execute_ddl(&self, sql: &str) -> Result<()> {
+        self.execute(sql, &[])
     }
 
     /// Run one statement whose rows and count the caller does not need. It
@@ -113,21 +129,63 @@ pub(crate) trait Connection {
     }
 }
 
+/// A write transaction, rolled back unless it is committed.
+pub struct WriteTransaction<'conn> {
+    connection: &'conn dyn Connection,
+    open: bool,
+}
+
+impl<'conn> WriteTransaction<'conn> {
+    /// Begin the transaction, taking the database's write lock.
+    pub fn begin(connection: &'conn dyn Connection) -> Result<Self> {
+        connection.begin_write()?;
+        Ok(Self { connection, open: true })
+    }
+
+    /// Commit the transaction. A failed `COMMIT` can leave it open, so it
+    /// stays marked open until the commit succeeds and is otherwise rolled
+    /// back on drop.
+    pub fn commit(mut self) -> Result<()> {
+        self.connection.commit()?;
+        self.open = false;
+        Ok(())
+    }
+}
+
+impl<'conn> Deref for WriteTransaction<'conn> {
+    type Target = dyn Connection + 'conn;
+
+    fn deref(&self) -> &Self::Target {
+        self.connection
+    }
+}
+
+impl Drop for WriteTransaction<'_> {
+    fn drop(&mut self) {
+        if self.open {
+            // A failed rollback leaves the connection in its transaction; the
+            // adapter ends it before the connection's next use.
+            drop(self.connection.rollback());
+        }
+    }
+}
+
 /// A statement whose rows [`Connection::query_all`] returns.
 #[derive(Debug, Clone)]
-pub(crate) struct Query<'query> {
-    pub(crate) sql: &'query str,
-    pub(crate) params: Vec<Param<'query>>,
+pub struct Query<'query> {
+    pub sql: &'query str,
+    pub params: Vec<Param<'query>>,
 }
 
 impl<'query> Query<'query> {
-    pub(crate) fn new(sql: &'query str, params: &[Param<'query>]) -> Self {
+    #[must_use]
+    pub fn new(sql: &'query str, params: &[Param<'query>]) -> Self {
         Self { sql, params: params.to_vec() }
     }
 }
 
 /// What differs between the databases the shared SQL layer runs on.
-pub(crate) trait Adapter: fmt::Debug + Send + Sync {
+pub trait Adapter: fmt::Debug + Send + Sync {
     /// Run schema initialization, using startup deadlines when the adapter has them.
     fn initialize(&self, operation: &mut dyn FnMut(&dyn Connection) -> Result<()>) -> Result<()> {
         self.write(operation)
@@ -170,7 +228,7 @@ pub(crate) trait Adapter: fmt::Debug + Send + Sync {
 
 /// A value bound to a statement's parameter.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum Param<'value> {
+pub enum Param<'value> {
     Null,
     NullInteger,
     NullBlob,
@@ -180,7 +238,8 @@ pub(crate) enum Param<'value> {
 }
 
 /// A type that binds to a statement's parameter.
-pub(crate) trait ToParam {
+pub trait ToParam {
+    #[must_use]
     fn null_param() -> Param<'static> {
         Param::Null
     }
@@ -255,7 +314,7 @@ impl<Inner: ToParam + ?Sized> ToParam for &Inner {
 
 /// A value a statement returned.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub(crate) enum Value {
+pub enum Value {
     #[default]
     Null,
     Integer(i64),
@@ -266,20 +325,31 @@ pub(crate) enum Value {
 
 /// A row a statement returned.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Row(Vec<Value>);
+pub struct Row(Vec<Value>);
 
 impl Row {
-    pub(crate) fn new(values: Vec<Value>) -> Self {
+    #[must_use]
+    pub fn new(values: Vec<Value>) -> Self {
         Self(values)
     }
 
     /// Take the value of column `index` out of the row.
-    pub(crate) fn get<Column: FromValue>(&mut self, index: usize) -> Result<Column> {
+    pub fn get<Column: FromValue>(&mut self, index: usize) -> Result<Column> {
         let value = self.0
             .get_mut(index)
             .map(std::mem::take)
             .ok_or_else(|| column_error(index, "missing"))?;
         Column::from_value(value).map_err(|value| column_error(index, &format!("{value:?}")))
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -289,7 +359,7 @@ fn column_error(index: usize, found: &str) -> RegistryError {
 
 /// A type a returned column converts to. Gives the value back when it holds
 /// another type.
-pub(crate) trait FromValue: Sized {
+pub trait FromValue: Sized {
     fn from_value(value: Value) -> Result<Self, Value>;
 }
 

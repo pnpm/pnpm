@@ -7467,10 +7467,14 @@ dependencies = [
 name = "pnpr-sql"
 version = "0.0.1"
 dependencies = [
+ "libsql",
  "pnpr-config",
  "pnpr-error",
+ "pnpr-libsql",
+ "rusqlite",
  "sqlx",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -7484,7 +7488,6 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "libc",
- "libsql",
  "node-semver",
  "object_store",
  "percent-encoding",

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate pnpr_sql;
+
 pub mod layout;
 
 pub mod metadata;

@@ -20,8 +20,7 @@ pub(super) async fn claim_user_counter_slot(tx: &libsql::Transaction, max: u64) 
     Ok(updated > 0)
 }
 
-/// Create the schema and seed the user counter. `sync` is
-/// [`crate::schema::migrate_libsql`]'s.
+/// Create the schema and seed the user counter.
 pub(super) async fn init_schema<SyncFuture>(
     conn: &Connection,
     sync: impl Fn() -> SyncFuture + Send + Sync,
@@ -29,7 +28,8 @@ pub(super) async fn init_schema<SyncFuture>(
 where
     SyncFuture: Future<Output = Result<()>> + Send,
 {
-    crate::schema::migrate_libsql(conn, &sync).await?;
+    pnpr_sql::libsql::ensure_schema(conn, "libSQL auth database").await?;
+    sync().await?;
     ensure_user_counter(conn).await?;
     sync().await
 }

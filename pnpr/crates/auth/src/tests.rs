@@ -953,7 +953,7 @@ async fn schema_migrations_runs_on_empty_sqlite_database() {
 
     let conn = rusqlite::Connection::open(&path).unwrap();
     let version: i64 = conn
-        .query_row("SELECT MAX(version) FROM auth_schema_migrations", [], |row| row.get(0))
+        .query_row("SELECT MAX(version) FROM schema_migrations", [], |row| row.get(0))
         .unwrap();
     assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
 
@@ -997,6 +997,18 @@ async fn incompatible_auth_databases_are_refused_without_migration() {
     }
 
     assert!(TokenStore::open(path).is_err());
+
+    let pre1_0_path = tmp.path().join("pre1_0_tokens.db");
+    {
+        let conn = rusqlite::Connection::open(&pre1_0_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE auth_schema_migrations (version INTEGER PRIMARY KEY, applied_at BIGINT NOT NULL);
+             INSERT INTO auth_schema_migrations (version, applied_at) VALUES (4, 123456789);",
+        )
+        .unwrap();
+    }
+    let err = TokenStore::open(pre1_0_path).unwrap_err().to_string();
+    assert!(err.contains("auth_schema_migrations"), "{err}");
 }
 
 #[tokio::test]
@@ -1007,15 +1019,18 @@ async fn schema_migrations_refuses_future_schema_version() {
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
         conn.execute_batch(
-            "CREATE TABLE auth_schema_migrations (version INTEGER PRIMARY KEY, applied_at BIGINT NOT NULL);
-             INSERT INTO auth_schema_migrations (version, applied_at) VALUES (999, 123456789);",
+            "CREATE TABLE schema_migrations (version INTEGER NOT NULL PRIMARY KEY) STRICT;
+             INSERT INTO schema_migrations (version) VALUES (1), (2);",
         )
         .unwrap();
     }
 
     let err = TokenStore::open(path).unwrap_err();
     let err_str = err.to_string();
-    assert!(err_str.contains("incompatible"), "expected error about newer version, got: {err_str}");
+    assert!(
+        err_str.contains("schema version 2"),
+        "expected error about newer version, got: {err_str}",
+    );
 }
 
 #[tokio::test]
@@ -1209,4 +1224,129 @@ async fn same_size_replacement_reloads_users_even_if_timestamp_preserved() {
 
 fn native_account(id: &str, name: &str, hash: &str) -> String {
     serde_json::json!({ name: { "id": id, "password_hash": hash } }).to_string()
+}
+
+#[cfg(feature = "backend-postgres")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires PNPR_TEST_POSTGRES_URL"]
+async fn postgres_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
+    let base_url = std::env::var("PNPR_TEST_POSTGRES_URL").unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let db_name = format!(
+        "auth_{}",
+        tmp.path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace(['.', '-'], "")
+            .to_ascii_lowercase(),
+    );
+    let admin_pool = sqlx::PgPool::connect(&base_url).await.unwrap();
+    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    let db_url = format!("{}/{db_name}", base_url.rsplit_once('/').unwrap().0);
+    let settings = pnpr_config::SqlBackendSettings {
+        url: db_url.clone(),
+        max_connections: Some(2),
+        timeout: std::time::Duration::from_secs(30),
+        startup_timeout: std::time::Duration::from_secs(30),
+    };
+    let auth = super::PostgresAuth::connect(&settings, MaxUsers::Unlimited)
+        .await
+        .unwrap();
+    let (_, user_id) = auth.add_or_login("alice", "secret123").await.unwrap();
+    let (outcome, logged_in_id) = auth.add_or_login("alice", "secret123").await.unwrap();
+    assert_eq!(outcome, UpsertOutcome::LoggedIn);
+    assert_eq!(logged_in_id, user_id);
+    let (_, _) = auth.add_or_login("zo\u{00e9}", "secret123").await.unwrap();
+    let decomposed = auth.add_or_login("zoe\u{0301}", "secret123").await.unwrap_err();
+    assert_eq!(decomposed.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert_eq!(auth.account_id("zoe\u{0301}").await.unwrap(), None);
+    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zo\u{00e9}"]);
+    let (raw, record) = auth
+        .issue_token(&user_id, NewToken::new().with_readonly(true))
+        .await
+        .unwrap();
+    assert!(record.readonly);
+    let looked_up = auth
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(looked_up.readonly);
+    assert_eq!(looked_up.user_id, user_id);
+    drop(auth);
+
+    let pool = sqlx::PgPool::connect(&db_url).await.unwrap();
+    let version: i64 = sqlx::query_scalar("SELECT MAX(version) FROM schema_migrations")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
+    pool.close().await;
+    sqlx::query(&format!("DROP DATABASE {db_name} WITH (FORCE)"))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
+    admin_pool.close().await;
+}
+
+#[cfg(feature = "backend-mysql")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires PNPR_TEST_MYSQL_URL"]
+async fn mysql_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
+    let base_url = std::env::var("PNPR_TEST_MYSQL_URL").unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let db_name = format!(
+        "auth_{}",
+        tmp.path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace(['.', '-'], "")
+            .to_ascii_lowercase(),
+    );
+    let admin_pool = sqlx::MySqlPool::connect(&base_url).await.unwrap();
+    sqlx::query(&format!("CREATE DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    let db_url = format!("{}/{db_name}", base_url.rsplit_once('/').unwrap().0);
+    let settings = pnpr_config::SqlBackendSettings {
+        url: db_url.clone(),
+        max_connections: Some(2),
+        timeout: std::time::Duration::from_secs(30),
+        startup_timeout: std::time::Duration::from_secs(30),
+    };
+    let auth = super::MysqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
+    let (_, user_id) = auth.add_or_login("alice", "secret123").await.unwrap();
+    let (outcome, logged_in_id) = auth.add_or_login("alice", "secret123").await.unwrap();
+    assert_eq!(outcome, UpsertOutcome::LoggedIn);
+    assert_eq!(logged_in_id, user_id);
+    let (_, _) = auth.add_or_login("zo\u{00e9}", "secret123").await.unwrap();
+    let decomposed = auth.add_or_login("zoe\u{0301}", "secret123").await.unwrap_err();
+    assert_eq!(decomposed.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert_eq!(auth.account_id("zoe\u{0301}").await.unwrap(), None);
+    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zo\u{00e9}"]);
+    let (raw, record) = auth
+        .issue_token(&user_id, NewToken::new().with_readonly(true))
+        .await
+        .unwrap();
+    assert!(record.readonly);
+    let looked_up = auth
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(looked_up.readonly);
+    assert_eq!(looked_up.user_id, user_id);
+    drop(auth);
+
+    let pool = sqlx::MySqlPool::connect(&db_url).await.unwrap();
+    let version: i64 = sqlx::query_scalar("SELECT MAX(version) FROM schema_migrations")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(version, super::CURRENT_SCHEMA_VERSION);
+    pool.close().await;
+    sqlx::query(&format!("DROP DATABASE {db_name}")).execute(&admin_pool).await.unwrap();
+    admin_pool.close().await;
 }

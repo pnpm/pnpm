@@ -302,4 +302,34 @@ CREATE TABLE IF NOT EXISTS record_generation (
     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
     generation INTEGER NOT NULL
 ) STRICT;
-INSERT INTO record_generation (singleton, generation) VALUES (1, 0);
+INSERT INTO record_generation (singleton, generation) VALUES (1, 0)
+    ON CONFLICT DO NOTHING;
+
+-- Registered user accounts for SQL-backed auth.
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT NOT NULL PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    username_skeleton_hash TEXT UNIQUE,
+    bcrypt_hash TEXT NOT NULL
+) STRICT;
+
+-- Bearer tokens for SQL-backed and local SQLite auth.
+CREATE TABLE IF NOT EXISTS tokens (
+    token_hash TEXT NOT NULL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER NOT NULL,
+    readonly INTEGER NOT NULL DEFAULT 0,
+    cidr_whitelist TEXT NOT NULL DEFAULT '[]',
+    name TEXT,
+    expires_at INTEGER,
+    scopes TEXT,
+    kind TEXT
+) STRICT;
+CREATE INDEX IF NOT EXISTS tokens_user_id ON tokens (user_id);
+
+-- Monotonic and reconciled counters for SQL-backed auth.
+CREATE TABLE IF NOT EXISTS auth_counters (
+    name TEXT NOT NULL PRIMARY KEY,
+    value INTEGER NOT NULL
+) STRICT;

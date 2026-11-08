@@ -229,7 +229,7 @@ fn fixture_fingerprint(root: &Path) -> String {
     // A storage tree built in another layout, or with metadata in another
     // schema, must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
-    hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_VERSION.as_bytes());
+    hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_VERSION.to_le_bytes());
     hasher.update(pnpr_storage::metadata::SqlMetadata::SCHEMA_TABLES.as_bytes());
     hasher.update([0]);
     hasher.update(

@@ -233,7 +233,26 @@ fn mysql_upsert(sql: &str) -> Result<String> {
         .unwrap_or(update)
         .trim();
     let update = conditional_assignments(update, insert_table(insert)?);
-    Ok(format!("{insert} AS excluded ON DUPLICATE KEY UPDATE {update}"))
+    if insert.contains("VALUES") {
+        return Ok(format!("{insert} AS excluded ON DUPLICATE KEY UPDATE {update}"));
+    }
+    let rendered = mysql_inserted_values(&update);
+    Ok(format!("{insert} ON DUPLICATE KEY UPDATE {rendered}"))
+}
+
+fn mysql_inserted_values(update: &str) -> String {
+    let mut rendered = String::new();
+    let mut remaining = update;
+    while let Some((before, after)) = remaining.split_once("excluded.") {
+        rendered.push_str(before);
+        let end = after
+            .find(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+            .unwrap_or(after.len());
+        let _ = write!(rendered, "VALUES({})", &after[..end]);
+        remaining = &after[end..];
+    }
+    rendered.push_str(remaining);
+    rendered
 }
 
 fn ignore_duplicate(insert: &str) -> Result<String> {

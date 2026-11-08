@@ -11,24 +11,17 @@ license-file = "../../LICENSE.md"
 repository.workspace = true
 
 [features]
-backend-libsql = ["dep:libsql", "dep:pnpr-libsql", "pnpr-error/backend-libsql"]
+backend-libsql = ["pnpr-error/backend-libsql", "pnpr-sql/backend-libsql"]
 
-backend-postgres = [
-  "dep:sqlx",
-  "sqlx/postgres",
-  "pnpr-error/backend-postgres",
-  "dep:pnpr-sql",
-  "pnpr-sql/backend-postgres",
-]
-backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql", "dep:pnpr-sql", "pnpr-sql/backend-mysql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", "pnpr-sql/backend-postgres"]
+backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql", "pnpr-sql/backend-mysql"]
 
 [dependencies]
 chrono = { workspace = true }
-pnpr-sql = { workspace = true, optional = true }
+pnpr-sql = { workspace = true }
 pnpm-network = { workspace = true }
 pnpr-config = { workspace = true }
 pnpr-error = { workspace = true, features = ["server"] }
-pnpr-libsql = { workspace = true, optional = true }
 pnpr-package-name = { workspace = true }
 pnpr-registry = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
@@ -40,7 +33,6 @@ axum = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }
 getrandom = { workspace = true }
-libsql = { workspace = true, optional = true }
 node-semver = { workspace = true }
 object_store = { workspace = true }
 percent-encoding = { workspace = true }
