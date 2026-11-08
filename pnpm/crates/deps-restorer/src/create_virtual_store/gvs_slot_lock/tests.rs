@@ -96,6 +96,46 @@ fn acquire_ordered_locks_slots_in_path_order_and_deduplicates_keys() {
 }
 
 #[test]
+fn try_acquire_ordered_releases_partial_locks_when_one_slot_is_busy() {
+    let root = tempdir().expect("temporary slot root");
+    let mut config = pnpm_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.store_dir = root.path().join("store").into();
+    config.global_virtual_store_dir = root.path().join("store/links");
+    let first: pnpm_lockfile::PackageKey = "first@1.0.0".parse().expect("package key");
+    let second: pnpm_lockfile::PackageKey = "second@1.0.0".parse().expect("package key");
+    let snapshots = HashMap::from([
+        (first.clone(), SnapshotEntry::default()),
+        (second.clone(), SnapshotEntry::default()),
+    ]);
+    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
+    let mut keys = [first, second];
+    keys.sort_by_key(|key| layout.slot_dir(key));
+    let first_path = layout.slot_dir(&keys[0]);
+    let busy_path = layout.slot_dir(&keys[1]);
+    for (key, path) in keys
+        .iter()
+        .zip([&first_path, &busy_path])
+    {
+        let package_path = path.join("node_modules").join(key.name.to_string());
+        std::fs::create_dir_all(&package_path).expect("create package directory");
+        std::fs::write(package_path.join("package.json"), "{}").expect("write manifest");
+    }
+    let busy_slot =
+        GlobalVirtualStoreSlot::acquire_path(busy_path, &keys[1]).expect("hold the later slot");
+
+    let result = GlobalVirtualStoreSlot::try_acquire_existing_ordered(&layout, keys.to_vec())
+        .expect("try the ordered lock set");
+
+    assert!(result.is_none(), "a busy slot must leave the lock set unacquired");
+    assert!(
+        !first_path.join(super::SLOT_LOCK_DIR).exists(),
+        "a partial acquisition must release every earlier slot",
+    );
+    drop(busy_slot);
+}
+
+#[test]
 fn nested_install_recognizes_a_slot_held_by_its_parent_build() {
     let root = tempdir().expect("temporary slot root");
     let slot_path = root.path().join("slot");
@@ -195,29 +235,4 @@ fn existing_slot_acquisition_rejects_the_empty_parent_left_by_prune() {
 
     assert!(slot.is_none(), "the newly created lock directory is not a populated slot");
     assert!(!slot_path.exists(), "the empty slot directory is removed");
-}
-
-#[test]
-fn only_an_unlocked_settled_slot_opens_without_its_lock() {
-    let root = tempdir().expect("temporary slot root");
-    let mut config = pnpm_config::Config::new();
-    config.enable_global_virtual_store = true;
-    config.store_dir = root.path().join("store").into();
-    config.global_virtual_store_dir = root.path().join("store/links");
-    let key: pnpm_lockfile::PackageKey = "dep@1.0.0".parse().expect("package key");
-    let snapshots = HashMap::from([(key.clone(), SnapshotEntry::default())]);
-    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
-    assert!(GlobalVirtualStoreSlot::open_settled(&layout, &key).is_none());
-
-    let slot =
-        GlobalVirtualStoreSlot::acquire(&layout, &key).expect("lock slot").expect("hashed slot");
-    std::fs::create_dir_all(slot.package_path()).expect("create package directory");
-    slot.begin_population().expect("mark slot populating");
-    assert!(GlobalVirtualStoreSlot::open_settled(&layout, &key).is_none());
-    slot.finish_population(super::BuildRequirement::NotRequired).expect("mark slot populated");
-    assert!(GlobalVirtualStoreSlot::open_settled(&layout, &key).is_none());
-
-    drop(slot);
-    let settled = GlobalVirtualStoreSlot::open_settled(&layout, &key).expect("settled slot");
-    assert_eq!(settled.path(), layout.slot_dir(&key));
 }

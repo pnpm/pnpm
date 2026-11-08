@@ -3,6 +3,7 @@
 pub use path_codec::GVS_LOCKED_SLOT_PATHS_ENV;
 pub(crate) use path_codec::{encode_slot_lock_paths, inherited_slot_locks};
 mod acquire;
+mod ordered;
 mod path_codec;
 use crate::VirtualStoreLayout;
 use derive_more::{Display, Error};
@@ -88,44 +89,9 @@ pub struct GlobalVirtualStoreSlot {
     needs_build_marker: PathBuf,
     state_file: PathBuf,
     lock: Option<DirLock>,
-    /// The phase [`Self::open_settled`] read, which its unlocked probe
-    /// reuses instead of reading the state file again.
-    settled_phase: Option<GlobalVirtualStoreSlotPhase>,
 }
 
 impl GlobalVirtualStoreSlot {
-    pub fn acquire_ordered(
-        layout: &VirtualStoreLayout,
-        keys: impl IntoIterator<Item = PackageKey>,
-    ) -> Result<Vec<Self>, GvsSlotLockError> {
-        let mut keys = keys.into_iter().collect::<Vec<_>>();
-        keys.sort_by_key(|key| layout.slot_dir(key));
-        keys.dedup_by(|left, right| layout.slot_dir(left) == layout.slot_dir(right));
-        let mut slots = Vec::with_capacity(keys.len());
-        for key in keys {
-            if let Some(slot) = Self::acquire(layout, &key)? {
-                slots.push(slot);
-            }
-        }
-        Ok(slots)
-    }
-
-    pub fn acquire_existing_ordered(
-        layout: &VirtualStoreLayout,
-        keys: impl IntoIterator<Item = PackageKey>,
-    ) -> Result<Vec<Self>, GvsSlotLockError> {
-        let mut keys = keys.into_iter().collect::<Vec<_>>();
-        keys.sort_by_key(|key| layout.slot_dir(key));
-        keys.dedup_by(|left, right| layout.slot_dir(left) == layout.slot_dir(right));
-        let mut slots = Vec::with_capacity(keys.len());
-        for key in keys {
-            if let Some(slot) = Self::acquire_existing(layout, &key)? {
-                slots.push(slot);
-            }
-        }
-        Ok(slots)
-    }
-
     /// Take the lock of `key`'s slot. `None` only when the global virtual
     /// store is off. A timeout starts another wait; an acquisition error
     /// prevents the caller from mutating the shared slot.
@@ -156,31 +122,6 @@ impl GlobalVirtualStoreSlot {
             return Self::open_existing_path(path, key);
         }
         Self::acquire_existing_path(path, key)
-    }
-
-    /// Open `key`'s slot without its lock for a read-only probe, when nobody
-    /// holds the lock and the state file records `populated` or `built`.
-    /// Every write to a slot happens under its lock, so such a slot is not
-    /// being changed when the probe starts. `None` for any other slot,
-    /// including one whose state cannot be read: the caller locks it and
-    /// reports the error from there.
-    #[must_use]
-    pub fn open_settled(layout: &VirtualStoreLayout, key: &PackageKey) -> Option<Self> {
-        let path = layout.hashed_slot_dir(key)?;
-        match fs::symlink_metadata(path.join(SLOT_LOCK_DIR)) {
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            _ => return None,
-        }
-        let mut slot = Self::from_path(path, key, None);
-        let phase = slot.read_state_file().ok().flatten()?;
-        if !matches!(
-            phase,
-            GlobalVirtualStoreSlotPhase::Populated | GlobalVirtualStoreSlotPhase::Built,
-        ) {
-            return None;
-        }
-        slot.settled_phase = Some(phase);
-        Some(slot)
     }
 
     pub fn open_existing_path(
@@ -227,7 +168,7 @@ impl GlobalVirtualStoreSlot {
         let package_path = path.join("node_modules").join(key.name.to_string());
         let needs_build_marker = package_path.join(crate::NEEDS_BUILD_MARKER);
         let state_file = path.join(crate::GVS_SLOT_STATE_FILE);
-        Self { path, package_path, needs_build_marker, state_file, lock, settled_phase: None }
+        Self { path, package_path, needs_build_marker, state_file, lock }
     }
 
     #[must_use]
@@ -258,9 +199,6 @@ impl GlobalVirtualStoreSlot {
     ) -> io::Result<GlobalVirtualStoreSlotPhase> {
         if !self.package_path.is_dir() {
             return Ok(GlobalVirtualStoreSlotPhase::Missing);
-        }
-        if let Some(phase) = self.settled_phase {
-            return Ok(phase);
         }
         self.read_state_file()?
             .map_or_else(|| self.legacy_state(completion_marker, build_requirement), Ok)

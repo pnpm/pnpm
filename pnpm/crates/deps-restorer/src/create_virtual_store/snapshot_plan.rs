@@ -14,7 +14,10 @@ use pnpm_lockfile::{
     LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
 };
 use pnpm_reporter::{BrokenModulesLog, LogEvent, LogLevel, Reporter};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 const SLOT_LOCK_BATCH_SIZE: usize = 128;
 
@@ -121,27 +124,33 @@ fn plan_snapshot_batch<'a, Reporter: self::Reporter>(
     probe: &WarmSlotProbe<'a, '_>,
     cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
 ) -> Result<SnapshotBatchPlan<'a>, CreateVirtualStoreError> {
-    let mut settled_slots = Vec::new();
-    let mut unsettled_keys = Vec::new();
-    for key in batch
+    let slot_keys = batch
         .iter()
         .filter(|key| {
             !probe.policy.skipped.contains(key)
                 && probe.layout.hashed_slot_dir(key).is_some()
                 && slot_probe_applies(probe, key)
         })
-    {
-        match crate::GlobalVirtualStoreSlot::open_settled(probe.layout, key) {
-            Some(slot) => settled_slots.push(slot),
-            None => unsettled_keys.push((*key).clone()),
+        .map(|key| (*key).clone())
+        .collect::<Vec<_>>();
+    let locked_slots = if probe.layout.frozen_store() {
+        crate::GlobalVirtualStoreSlot::acquire_existing_ordered(probe.layout, slot_keys)
+    } else {
+        loop {
+            if let Some(slots) = crate::GlobalVirtualStoreSlot::try_acquire_existing_ordered(
+                probe.layout,
+                slot_keys.clone(),
+            )
+            .map_err(CreateVirtualStoreError::SlotLock)?
+            {
+                break Ok(slots);
+            }
+            std::thread::sleep(Duration::from_millis(10));
         }
     }
-    let locked_slots =
-        crate::GlobalVirtualStoreSlot::acquire_existing_ordered(probe.layout, unsettled_keys)
-            .map_err(CreateVirtualStoreError::SlotLock)?;
-    let slots = settled_slots
+    .map_err(CreateVirtualStoreError::SlotLock)?;
+    let slots = locked_slots
         .into_iter()
-        .chain(locked_slots)
         .map(|slot| (slot.path().to_path_buf(), slot))
         .collect::<HashMap<_, _>>();
     let mut markers = MarkerProbes::default();

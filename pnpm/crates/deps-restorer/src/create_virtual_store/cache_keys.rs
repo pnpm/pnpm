@@ -276,11 +276,13 @@ impl SlotReuse<'_> {
         {
             return Ok(true);
         }
+        let slot = crate::GlobalVirtualStoreSlot::acquire_existing(self.layout, snapshot_key)
+            .map_err(CreateVirtualStoreError::SlotLock)?;
         super::linked_archives::slot_holds_other_variant(
             self.layout,
             (snapshot_key, self.packages),
             self.supported_architectures,
-            None,
+            slot.as_ref(),
         )
         .map_err(CreateVirtualStoreError::SlotLock)
     }
