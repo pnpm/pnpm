@@ -49,7 +49,12 @@ fn offline_deploy_reuses_source_lockfile_without_metadata() {
 #[test]
 fn offline_legacy_deploy_reuses_registry_dependencies_of_workspace_projects() {
     let fixture = CommandTempCwd::init().add_mocked_registry();
-    let workspace = &fixture.workspace;
+    let workspace = &fixture.workspace.join("workspace (old)");
+    fs::create_dir_all(workspace).unwrap();
+    for name in [".npmrc", "pnpm-workspace.yaml"] {
+        let config = fs::read_to_string(fixture.workspace.join(name)).unwrap();
+        fs::write(workspace.join(name), config.replace("../pacquet-", "../../pacquet-")).unwrap();
+    }
     super::write_workspace(workspace, false);
     append_workspace_yaml_key(workspace, "trustLockfile", true);
     append_workspace_yaml_key(workspace, "ignoreScripts", true);

@@ -123,8 +123,9 @@ impl DeployArgs {
         {
             source.verify::<ReporterT>(&state).await?;
         }
-        if let Some(source) = &legacy_source {
-            state.lockfile = LazyLockfile::preloaded(Some(source.lockfile.clone()));
+        let preferred_versions = legacy_source.as_ref().map(LegacyDeploySource::preferred_versions);
+        if let Some(source) = legacy_source {
+            state.lockfile = LazyLockfile::preloaded(Some(source.lockfile));
         }
         self.install_deployed_state::<ReporterT>(
             &state,
@@ -132,7 +133,7 @@ impl DeployArgs {
             legacy,
             frozen_lockfile,
             pnpmfile_hook,
-            legacy_source.as_ref().map(LegacyDeploySource::preferred_versions),
+            preferred_versions,
         )
         .await
     }

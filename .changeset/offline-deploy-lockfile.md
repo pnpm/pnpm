@@ -4,8 +4,11 @@
 "@pnpm/releasing.commands": patch
 "@pnpm/lockfile.fs": patch
 "@pnpm/lockfile.utils": patch
+"@pnpm/store.controller-types": patch
+"@pnpm/resolving.resolver-base": patch
+"@pnpm/resolving.npm-resolver": patch
 "pnpm": patch
 "pacquet": patch
 ---
 
-Fixed `pnpm deploy --offline` requiring registry metadata for dependencies already pinned in the source lockfile and available in the store. This covers per-project lockfiles, `--legacy`, and npm aliases. `--trust-lockfile` now also skips supply-chain policy checks when resolving unchanged locked dependencies [pnpm/pnpm#17888](https://github.com/pnpm/pnpm/issues/17888).
+`pnpm deploy --offline --trust-lockfile` now reuses dependencies pinned in the source lockfile from a populated store when registry metadata is unavailable. This works with per-project lockfiles, `--legacy`, and npm aliases [pnpm/pnpm#17888](https://github.com/pnpm/pnpm/issues/17888).

@@ -115,6 +115,7 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
     update: options.update,
     updateRequested: options.updateRequested,
     updateChecksums: options.updateChecksums,
+    trustLockfile: ctx.trustLockfile,
     workspacePackages: ctx.workspacePackages,
     supportedArchitectures: options.supportedArchitectures,
     onFetchError: createFetchErrorDecorator(request),
@@ -135,10 +136,7 @@ function isRelativeToDeclaringManifest (ctx: ResolutionContext, wantedDependency
 type ReleasePolicyOptions = Pick<RequestPackageOptions,
 'publishedBy' | 'fallbackPublishedBy' | 'publishedByExclude' | 'trustPolicy' | 'trustPolicyExclude' | 'trustPolicyIgnoreAfter'>
 
-function getReleasePolicyOptions ({ ctx, currentPkg, options }: DependencyRequest): ReleasePolicyOptions {
-  if (ctx.trustLockfile && !options.update && !options.updateChecksums && currentPkg.resolution != null) {
-    return {}
-  }
+function getReleasePolicyOptions ({ ctx, options }: DependencyRequest): ReleasePolicyOptions {
   return {
     publishedBy: options.publishedBy,
     fallbackPublishedBy: ctx.maximumPublishedBy,
