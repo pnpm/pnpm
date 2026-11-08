@@ -444,8 +444,9 @@ fn parallel_parse_matches_whole(text: &str, lockfile: &Lockfile) -> bool {
         && whole.extra == lockfile.extra
 }
 
-/// `lockfile` without the `packages` entries no snapshot uses, which the next
-/// format does not write.
+/// `lockfile` as the next format can write it back: without the `packages`
+/// entries no snapshot uses, and without `deprecated`, which it does not
+/// record.
 fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
     let used: std::collections::HashSet<crate::PackageKey> = lockfile.snapshots
         .iter()
@@ -454,6 +455,9 @@ fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
         .collect();
     if let Some(packages) = lockfile.packages.as_mut() {
         packages.retain(|key, _| used.contains(key));
+        for metadata in packages.values_mut() {
+            metadata.deprecated = None;
+        }
     }
     if lockfile.packages.as_ref().is_some_and(std::collections::HashMap::is_empty) {
         lockfile.packages = None;

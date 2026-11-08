@@ -55,8 +55,6 @@ pub struct NextPackage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub libc: Option<StringOrList>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deprecated: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub has_bin: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prepare: Option<bool>,
@@ -151,8 +149,6 @@ pub struct NextPackageOut<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub libc: Option<&'a StringOrList>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub deprecated: Option<&'a String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub has_bin: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prepare: Option<bool>,
@@ -197,7 +193,6 @@ impl<'a> NextPackageOut<'a> {
             cpu: metadata.and_then(|metadata| metadata.cpu.as_ref()),
             os: metadata.and_then(|metadata| metadata.os.as_ref()),
             libc: metadata.and_then(|metadata| metadata.libc.as_ref()),
-            deprecated: metadata.and_then(|metadata| metadata.deprecated.as_ref()),
             has_bin: metadata.and_then(|metadata| metadata.has_bin),
             prepare: metadata.and_then(|metadata| metadata.prepare),
             bundled_dependencies: metadata.and_then(|metadata| {
@@ -296,7 +291,7 @@ impl NextPackage {
             cpu: self.cpu,
             os: self.os,
             libc: self.libc,
-            deprecated: self.deprecated,
+            deprecated: None,
             has_bin: self.has_bin,
             prepare: self.prepare,
             bundled_dependencies: self.bundled_dependencies,
