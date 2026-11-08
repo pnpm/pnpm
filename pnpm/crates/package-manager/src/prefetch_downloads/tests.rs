@@ -8,9 +8,7 @@ async fn wait_reports_the_failed_downloads_by_url() {
     downloads.track(
         "https://registry.test/failed.tgz".to_string(),
         tokio::spawn(async {
-            Err(TarballError::SiblingFetchFailed {
-                url: "https://registry.test/failed.tgz".to_string(),
-            })
+            Err(TarballError::SiblingFetchFailed { cause: "the download failed".into() })
         }),
     );
 
@@ -27,9 +25,9 @@ async fn a_failed_download_is_reported_without_the_url_credentials() {
     let url = "https://user:secret@registry.test/pkg.tgz?token=secret".to_string();
     downloads.track(
         url.clone(),
-        tokio::spawn(
-            async move { Err(TarballError::SiblingFetchFailed { url: "pkg".to_string() }) },
-        ),
+        tokio::spawn(async move {
+            Err(TarballError::SiblingFetchFailed { cause: "the download failed".into() })
+        }),
     );
 
     let error = crate::store_fetch::wait_for_prefetched_downloads(&downloads)

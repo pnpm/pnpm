@@ -6,7 +6,9 @@
 //! The request's outcome commits with it. A retry of the same request by the
 //! same principal gets that outcome back instead of a conflict, whether or not
 //! the client sent an idempotency key: without one, the digest of the whole
-//! request is the key. A retry is authorized against current permissions
+//! request is the key. Unpublishing an npm version or deleting an OCI manifest
+//! by digest invalidates its outcome.
+//! A retry is authorized against current permissions
 //! like any publish before its outcome is looked up.
 
 use super::{RegistryError, StagedPublish, Value, promotion::promote_fenced};
@@ -57,7 +59,7 @@ pub(in super::super) fn publication_request(
     name: Option<&str>,
     target: Option<&CanonicalPackageName>,
 ) -> Option<PublicationRequest> {
-    let principal = identity.username()?.to_string();
+    let principal = identity.user_id()?.to_string();
     let request_digest = request_digest(body, target.map(CanonicalPackageName::as_str));
     let idempotency_key = key.map_or_else(|| format!("request:{request_digest}"), str::to_string);
     let name = name.map(str::to_string);

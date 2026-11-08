@@ -51,8 +51,7 @@ use crate::{
     InstallWithFreshLockfileError, LockfileVerificationOverride, OptimisticRepeatInstallCheck,
     RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
     emit_initial_package_manifest, install_state::Decision as OptimisticRepeatInstallDecision,
-    link_project_bins, prune_merged_branch_lockfile::prune_merged_branch_lockfile,
-    report_merged_lockfile_conflicts,
+    prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
 };
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
@@ -134,7 +133,7 @@ use lockfile_freshness::{
 };
 use materialize::{MaterializationInputs, Materialized, materialize};
 use modules_state::{
-    build_modules_manifest, current_contains_dep_path, drain_settled_projects,
+    build_modules_manifest, current_contains_ignored_build, drain_settled_projects,
     gvs_build_marker_present, gvs_build_markers_may_require_recovery,
     has_newly_allowed_ignored_builds, keep_recorded_layout, manifest_string_field,
     merge_filtered_modules_metadata, merge_pending_builds, modules_consistent_with,

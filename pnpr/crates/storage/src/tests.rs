@@ -1,6 +1,6 @@
 use super::{
     AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, HostedStoreConfig,
-    PackageTombstone, RegistryRecord, Storage, atomic_write::create_tmp_file_with, fs,
+    RegistryRecord, Storage, atomic_write::create_tmp_file_with, fs,
 };
 use crate::archives::testing::{served, store_file};
 use tempfile::TempDir;
@@ -128,7 +128,7 @@ async fn nested_names_are_stored_as_siblings() {
         served(&storage, &blobs_repo, "sha256-repo").await.as_deref(),
         Some(&b"repo-layer"[..]),
     );
-    storage.remove_package(&parent).await.unwrap();
+    storage.remove_package(&parent, None).await.unwrap();
     assert_eq!(
         storage.hosted_package_names().await.unwrap(),
         ["acme", "acme/app/tool", "acme/blobs"],
@@ -172,7 +172,7 @@ async fn an_org_named_like_a_package_is_its_own_namespace() {
         .unwrap();
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme"]);
     storage
-        .remove_package(&pkg("acme"))
+        .remove_package(&pkg("acme"), None)
         .await
         .unwrap();
     assert_eq!(org.hosted_package_names().await.unwrap(), ["tool"]);
@@ -247,8 +247,6 @@ async fn a_cache_from_another_layout_is_emptied_once() {
     assert!(cache.join("~public").exists());
 }
 
-/// The local backend has no `ETag`, so its claim on a staged record compares
-/// the bytes: only the writer whose copy is what the store holds wins.
 #[tokio::test]
 async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
     let tmp = TempDir::new().unwrap();
@@ -256,23 +254,29 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
     let stage_id = "11111111-2222-3333-4444-555555555555";
     storage.create_staged_meta(stage_id, br#"{"id":"stage"}"#).await.unwrap();
 
+    let original = storage
+        .read_staged_meta(stage_id)
+        .await
+        .unwrap()
+        .unwrap();
     let first = storage
-        .replace_staged_meta_if_current(stage_id, br#"{"id":"stage"}"#, br#"{"id":"stage","a":1}"#)
+        .replace_staged_meta_if_current(stage_id, &original, br#"{"id":"stage","a":1}"#)
         .await
         .unwrap();
-    assert_eq!(first, super::DocumentWrite::Written);
+    assert!(first.is_some());
 
     let second = storage
-        .replace_staged_meta_if_current(stage_id, br#"{"id":"stage"}"#, br#"{"id":"stage","b":2}"#)
+        .replace_staged_meta_if_current(stage_id, &original, br#"{"id":"stage","b":2}"#)
         .await
         .unwrap();
-    assert_eq!(second, super::DocumentWrite::Conflict);
+    assert!(second.is_none());
     assert_eq!(
         storage
             .read_staged_meta(stage_id)
             .await
             .unwrap()
-            .as_deref(),
+            .as_ref()
+            .map(|record| record.bytes.as_slice()),
         Some(&br#"{"id":"stage","a":1}"#[..]),
     );
 
@@ -280,12 +284,12 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
     let removed = storage
         .replace_staged_meta_if_current(
             stage_id,
-            br#"{"id":"stage","a":1}"#,
+            first.as_ref().unwrap(),
             br#"{"id":"stage","c":3}"#,
         )
         .await
         .unwrap();
-    assert_eq!(removed, super::DocumentWrite::Conflict);
+    assert!(removed.is_none());
     assert!(
         storage
             .read_staged_meta(stage_id)
@@ -293,151 +297,6 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
             .unwrap()
             .is_none(),
     );
-}
-
-fn add_tombstone_ban(
-    existing: Option<PackageTombstone>,
-    package: &str,
-    maintainer: &str,
-    version: &str,
-) -> PackageTombstone {
-    let mut tombstone = existing.unwrap_or_else(|| PackageTombstone {
-        package: package.to_string(),
-        unpublished_by: Some(maintainer.to_string()),
-        unpublished_at: "2026-01-01T00:00:00Z".to_string(),
-        maintainers: vec![maintainer.to_string()],
-        unpublished_versions: Vec::new(),
-    });
-    if !tombstone.maintainers
-        .iter()
-        .any(|user| user == maintainer)
-    {
-        tombstone.maintainers.push(maintainer.to_string());
-    }
-    if !tombstone.unpublished_versions
-        .iter()
-        .any(|ver| ver == version)
-    {
-        tombstone.unpublished_versions.push(version.to_string());
-    }
-    tombstone
-}
-
-#[tokio::test]
-async fn concurrent_tombstone_writers_retain_all_version_bans() {
-    let tmp = TempDir::new().unwrap();
-    let storage = std::sync::Arc::new(storage_in(&tmp));
-    let name = pkg("concurrent-pkg");
-
-    let mut handles = Vec::new();
-    for i in 0..10 {
-        let storage = std::sync::Arc::clone(&storage);
-        let name = name.clone();
-        let version = format!("1.{i}.0");
-        let maintainer = format!("user-{i}");
-        handles.push(tokio::spawn(async move {
-            storage
-                .update_tombstone(&name, |existing| {
-                    add_tombstone_ban(existing, name.as_str(), &maintainer, &version)
-                })
-                .await
-                .unwrap();
-        }));
-    }
-
-    for handle in handles {
-        handle.await.unwrap();
-    }
-
-    let tombstone = storage
-        .read_tombstone(&name)
-        .await
-        .unwrap()
-        .expect("tombstone exists");
-    assert_eq!(tombstone.package, "concurrent-pkg");
-    assert_eq!(tombstone.unpublished_versions.len(), 10);
-    for i in 0..10 {
-        let version = format!("1.{i}.0");
-        assert!(
-            tombstone.unpublished_versions.contains(&version),
-            "missing unpublished version {version}",
-        );
-        let maintainer = format!("user-{i}");
-        assert!(tombstone.maintainers.contains(&maintainer), "missing maintainer {maintainer}");
-    }
-}
-
-#[tokio::test]
-async fn concurrent_write_tombstone_merges_version_bans() {
-    let tmp = TempDir::new().unwrap();
-    let storage = std::sync::Arc::new(storage_in(&tmp));
-    let name = pkg("concurrent-write-pkg");
-
-    let mut handles = Vec::new();
-    for i in 0..5 {
-        let storage = std::sync::Arc::clone(&storage);
-        let name = name.clone();
-        let version = format!("2.{i}.0");
-        handles.push(tokio::spawn(async move {
-            let tombstone = PackageTombstone {
-                package: name.as_str().to_string(),
-                unpublished_by: Some("admin".to_string()),
-                unpublished_at: "2026-01-01T00:00:00Z".to_string(),
-                maintainers: vec!["admin".to_string()],
-                unpublished_versions: vec![version],
-            };
-            storage.write_tombstone(&tombstone).await.unwrap();
-        }));
-    }
-
-    for handle in handles {
-        handle.await.unwrap();
-    }
-
-    let tombstone = storage
-        .read_tombstone(&name)
-        .await
-        .unwrap()
-        .expect("tombstone exists");
-    assert_eq!(tombstone.unpublished_versions.len(), 5);
-    for i in 0..5 {
-        let version = format!("2.{i}.0");
-        assert!(tombstone.unpublished_versions.contains(&version));
-    }
-}
-
-#[tokio::test]
-async fn subsequent_write_tombstone_replaces_maintainers_and_merges_version_bans() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let name = pkg("ownership-reset-pkg");
-
-    let first = PackageTombstone {
-        package: name.as_str().to_string(),
-        unpublished_by: Some("alice".to_string()),
-        unpublished_at: "2026-01-01T00:00:00Z".to_string(),
-        maintainers: vec!["alice".to_string()],
-        unpublished_versions: vec!["1.0.0".to_string()],
-    };
-    storage.write_tombstone(&first).await.unwrap();
-
-    let second = PackageTombstone {
-        package: name.as_str().to_string(),
-        unpublished_by: Some("bob".to_string()),
-        unpublished_at: "2026-02-01T00:00:00Z".to_string(),
-        maintainers: vec!["bob".to_string()],
-        unpublished_versions: vec!["2.0.0".to_string()],
-    };
-    storage.write_tombstone(&second).await.unwrap();
-
-    let stored = storage
-        .read_tombstone(&name)
-        .await
-        .unwrap()
-        .expect("tombstone exists");
-    assert_eq!(stored.maintainers, vec!["bob".to_string()]);
-    assert_eq!(stored.unpublished_versions, vec!["1.0.0".to_string(), "2.0.0".to_string()]);
-    assert_eq!(stored.unpublished_by.as_deref(), Some("bob"));
 }
 
 #[tokio::test]
@@ -486,12 +345,22 @@ async fn grouped_registries_with_same_local_name_keep_records_isolated() {
     );
 
     assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
-        Some(npm_record.to_vec()),
+        storage
+            .read_registry_record(RegistryRecord::TeamRoster, "npm/shared")
+            .await
+            .unwrap()
+            .unwrap()
+            .bytes,
+        npm_record.to_vec(),
     );
     assert_eq!(
-        storage.read_registry_record(RegistryRecord::TeamRoster, "pypi/shared").await.unwrap(),
-        Some(pypi_record.to_vec()),
+        storage
+            .read_registry_record(RegistryRecord::TeamRoster, "pypi/shared")
+            .await
+            .unwrap()
+            .unwrap()
+            .bytes,
+        pypi_record.to_vec(),
     );
     assert!(
         storage.remove_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
@@ -511,12 +380,12 @@ async fn replace_registry_record_returns_conflict_if_record_is_absent() {
         .replace_registry_record_if_current(
             RegistryRecord::TeamRoster,
             "npm/shared",
-            b"expected-val",
+            &super::MetadataRecord { bytes: b"expected-val".to_vec(), generation: 1 },
             b"new-val",
         )
         .await
         .unwrap();
-    assert_eq!(write_result, DocumentWrite::Conflict);
+    assert!(write_result.is_none());
 
     assert_eq!(
         storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),

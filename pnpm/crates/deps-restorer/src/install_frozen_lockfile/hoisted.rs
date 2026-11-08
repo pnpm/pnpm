@@ -142,7 +142,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let walked = walk_hoisted_graph(inputs, lockfile, skipped)?;
     forget_replaced_hoisted_locations(inputs, &walked)?;
     unlink_prior_workspace_hoists(inputs)?;
-    unlink_stale_direct_links(inputs, skipped)?;
+    unlink_stale_direct_links::<Reporter>(inputs, skipped)?;
     let (mut bins, hoisted_dependencies) =
         link_hoisted::<Reporter>(inputs, lockfile, &walked, skipped)?;
     record_hoisted_archives(inputs, &walked.graph);
@@ -337,7 +337,7 @@ fn link_hoisted_workspace_packages(
     inputs: &HoistedLinkerInputs<'_>,
     walked: &crate::hoisted_dep_graph::LockfileToDepGraphResult,
     link_options: &pnpm_cmd_shim::LinkBinsOptions,
-    claimed_commands: &mut HashMap<PathBuf, std::collections::HashSet<String>>,
+    claimed_commands: &mut crate::ClaimedCommands,
 ) -> Result<(crate::HoistedDependencies, bool), HoistedLinkerError> {
     let config = inputs.config;
     if !config.hoist_workspace_packages {
@@ -395,7 +395,7 @@ fn link_workspace_hoists(
     inputs: &HoistedLinkerInputs<'_>,
     aliases: Vec<(String, pnpm_modules_yaml::HoistKind, PathBuf)>,
     link_options: &pnpm_cmd_shim::LinkBinsOptions,
-    claimed_commands: &mut HashMap<PathBuf, std::collections::HashSet<String>>,
+    claimed_commands: &mut crate::ClaimedCommands,
 ) -> Result<(), HoistedLinkerError> {
     let modules_dir = &inputs.config.modules_dir;
     crate::symlink_hoisted_dependencies(
@@ -412,17 +412,15 @@ fn link_workspace_hoists(
         .into_iter()
         .map(|(_, _, project_dir)| project_dir)
         .collect();
-    let root_claimed = claimed_commands
-        .entry(pnpm_fs::lexical_normalize(modules_dir))
-        .or_default();
-    let linked = crate::link_bins_from_locations_excluding(
+    let root_claimed = claimed_commands.commands_mut(modules_dir);
+    let linked = crate::link_bins_dir(
         modules_dir,
-        &project_dirs,
-        root_claimed,
-        link_options,
+        crate::BinCandidates::Locations(&project_dirs),
+        crate::BinsDirPass::new(link_options)
+            .skipping(crate::SkippedCommands::Listed(root_claimed)),
     )
     .map_err(HoistedLinkerError::HoistLinkBins)?;
-    root_claimed.extend(linked);
+    root_claimed.extend(linked.linked_commands);
     Ok(())
 }
 

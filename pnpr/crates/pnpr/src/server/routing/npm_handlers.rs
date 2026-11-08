@@ -13,7 +13,7 @@ use super::{
 // --------------------------------------------------------------------
 // Path shapes. Each names only the segments its handlers read: the
 // `/~<name>/` registration captures a `registry` segment too, and the
-// `-rev` routes capture a revision token pnpr does not track.
+// `-rev` routes also capture the document revision.
 // --------------------------------------------------------------------
 
 /// A package addressed by a single segment: an unscoped name, or a scoped name
@@ -21,6 +21,12 @@ use super::{
 #[derive(Deserialize)]
 pub(super) struct NamePath {
     pub(super) name: String,
+}
+
+#[derive(Deserialize)]
+pub(super) struct RevisionPath {
+    pub(super) name: String,
+    pub(super) rev: String,
 }
 
 /// npm's overloaded two-segment address. Which package it names, and which
@@ -56,8 +62,7 @@ pub(super) struct ScopedTarballPath {
 pub(super) struct ScopedRevPath {
     pub(super) scope: String,
     pub(super) name: String,
-    #[serde(default)]
-    pub(super) _rev: Option<String>,
+    pub(super) rev: String,
 }
 
 #[derive(Deserialize)]
@@ -230,7 +235,12 @@ async fn collect_publish_body(
 ) -> Result<axum::body::Bytes, Response> {
     let _permit = state.inner.locks.publish_concurrency.acquire().await;
     axum::body::to_bytes(body, MAX_PUBLISH_BODY_BYTES).await
-        .map_err(|_| StatusCode::PAYLOAD_TOO_LARGE.into_response())
+        .map_err(|_| {
+            super::npm_errors::json_error(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "Publish request body exceeds the size limit",
+            )
+        })
 }
 
 /// `PUT {base}/{pkg}`.
@@ -285,7 +295,7 @@ pub(super) async fn put_packument_revision(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
-    Path(path): Path<NamePath>,
+    Path(path): Path<RevisionPath>,
     body: axum::body::Body,
 ) -> Response {
     if let Err(rejection) =
@@ -297,7 +307,8 @@ pub(super) async fn put_packument_revision(
         Ok(bytes) => bytes,
         Err(response) => return response,
     };
-    update_packument(&state, &identity, registry.as_deref(), &path.name, &body_bytes).await
+    update_packument(&state, &identity, registry.as_deref(), (&path.name, &path.rev), &body_bytes)
+        .await
 }
 
 /// `PUT {base}/@{scope}/{pkg}/-rev/{rev}` — full mutated packument or
@@ -309,7 +320,7 @@ pub(super) async fn put_scoped_packument_revision(
     Path(path): Path<ScopedRevPath>,
     body: axum::body::Body,
 ) -> Response {
-    let ScopedRevPath { scope, name, .. } = path;
+    let ScopedRevPath { scope, name, rev } = path;
     if !scope.starts_with('@') {
         return not_found();
     }
@@ -323,7 +334,7 @@ pub(super) async fn put_scoped_packument_revision(
         Ok(bytes) => bytes,
         Err(response) => return response,
     };
-    update_packument(&state, &identity, registry.as_deref(), &full, &body_bytes).await
+    update_packument(&state, &identity, registry.as_deref(), (&full, &rev), &body_bytes).await
 }
 
 /// `DELETE {base}/{pkg}` and `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole
@@ -396,7 +407,9 @@ async fn unpublish_version_tarball(
     raw_name: &str,
     version: &str,
 ) -> Response {
-    if super::super::revision_tarballs::parse_revision_version(version).is_some() {
+    if super::super::publishing::is_valid_semver(version)
+        && super::super::revision_tarballs::parse_revision_version(version).is_some()
+    {
         return not_found();
     }
     let canonical = match CanonicalPackageName::parse(raw_name, Ecosystem::Npm) {

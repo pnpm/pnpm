@@ -247,10 +247,3 @@ pub(crate) fn materialized_shape_matches(
             &skipped,
         )
 }
-
-/// Where the hoisted linker nests the dependencies of the workspace project at
-/// `root_dir` that it cannot hoist to the root. The walker always uses
-/// `node_modules` here, whatever `modulesDir` says.
-pub(crate) fn hoisted_project_modules_dir(root_dir: &Path) -> PathBuf {
-    root_dir.join("node_modules")
-}

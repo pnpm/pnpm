@@ -226,7 +226,10 @@ jobs:
           fi
           test -x "$release/$client"
           test -x "$release/pnpr"
-          files=("$release/$client" "$release/pnpr")
+          fixture="bench-work-env/pnpr@$REVISION/pacquet/pnpr/.fixtures/config.yaml"
+          mkdir -p "$(dirname "$fixture")"
+          cp pnpr/.fixtures/config.yaml "$fixture"
+          files=("$release/$client" "$release/pnpr" "$fixture")
           if [ "$REVISION" = HEAD ]; then
             mkdir -p target/release
             cp "$release/pnpr" target/release/pnpr

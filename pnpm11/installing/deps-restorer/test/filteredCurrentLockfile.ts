@@ -93,3 +93,45 @@ test('does not record dependencies for unselected importers in the current lockf
     },
   })
 })
+
+test('retains link-only on-disk importers in the current lockfile during a filtered hoisted install', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    { name: 'a', dependencies: { '@pnpm.e2e/foo': '100.0.0' } },
+    { name: 'b', dependencies: { a: 'link:../a' } },
+  ])
+  const wantedLockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: { specifiers: {} },
+      ['a' as ProjectId]: {
+        specifiers: { '@pnpm.e2e/foo': '100.0.0' },
+        dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+      },
+      ['b' as ProjectId]: {
+        specifiers: { a: 'link:../a' },
+        dependencies: { a: 'link:../a' },
+      },
+    },
+    packages: {
+      ['@pnpm.e2e/foo@100.0.0' as DepPath]: {
+        resolution: { integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+      },
+    },
+  }
+  const allProjects = [path.resolve('.'), path.resolve('a'), path.resolve('b')]
+  await headlessInstall(await testDefaults({
+    nodeLinker: 'hoisted',
+    projects: allProjects,
+    selectedProjectDirs: allProjects,
+    wantedLockfile,
+  }))
+  await headlessInstall(await testDefaults({
+    nodeLinker: 'hoisted',
+    projects: allProjects,
+    selectedProjectDirs: [path.resolve('a')],
+    wantedLockfile,
+  }))
+  const current = await readCurrentLockfile('node_modules/.pnpm', { ignoreIncompatible: false })
+  expect(current?.importers).toHaveProperty(['b', 'dependencies', 'a'], 'link:../a')
+})

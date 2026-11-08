@@ -3,8 +3,8 @@
 //! workspace state, with the configuration anchored to it.
 
 use super::{
-    Catalogs, Config, FastPathContext, FastPathProjects, Path, PathBuf, UpToDateFastPathCheck,
-    UpToDateWorkspace, WorkspaceState, check_fast_path_repeat_install,
+    Catalogs, Config, CoveredProjects, FastPathContext, FastPathProjects, Path, PathBuf,
+    UpToDateFastPathCheck, UpToDateWorkspace, WorkspaceState, check_fast_path_repeat_install,
     configured_or_discovered_workspace_dir, fast_path_workspace_context, lazy_wanted_lockfile,
     load_fast_path_state, register_fast_path_workspace,
 };
@@ -47,19 +47,36 @@ pub fn install_already_up_to_date_per_project(
     };
     let (projects, records) =
         recorded_projects(check, &workspace)?.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
+    check_and_register_projects(check, &workspace, &projects, &records)?;
+    let manifests = projects
+        .iter()
+        .map(|project| (project.root_dir.as_path(), &project.manifest));
+    Ok(CoveredProjects::new(
+        Some(projects.len()),
+        manifests,
+        check.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    )
+    .into_workspace(workspace_root.clone()))
+}
+
+fn check_and_register_projects(
+    check: &UpToDateFastPathCheck<'_>,
+    workspace: &ListedWorkspace<'_>,
+    projects: &[Project],
+    records: &[ProjectRecord],
+) -> Result<(), &'static str> {
     projects
         .par_iter()
-        .zip(&records)
+        .zip(records)
         .try_for_each(|(project, record)| {
-            check_project(check, &workspace, (project, record), &projects)
+            check_project(check, workspace, (project, record), projects)
         })?;
     projects
         .par_iter()
-        .zip(&records)
+        .zip(records)
         .try_for_each(|(project, record)| {
             register_fast_path_workspace(&record.config, &project.root_dir)
-        })?;
-    Ok(UpToDateWorkspace { root: workspace_root.clone(), project_count: Some(projects.len()) })
+        })
 }
 
 /// The configuration that keeps the per-project fast path off.

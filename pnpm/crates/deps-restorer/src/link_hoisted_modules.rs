@@ -34,7 +34,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use orphans::remove_orphans;
 use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
-use pnpm_lockfile::PkgIdWithPatchHash;
+use pnpm_lockfile::{PackageKey, PkgIdWithPatchHash};
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
 };
@@ -58,6 +58,7 @@ use std::{
 /// and the CAS contents are the same regardless of where they're
 /// extracted to.
 pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HoistedPackageFiles>;
+pub type CasPathsBySnapshot = HashMap<PackageKey, Arc<HashMap<String, PathBuf>>>;
 
 /// One package's entry in [`CasPathsByPkgId`].
 #[derive(Debug, Clone)]
@@ -70,6 +71,9 @@ pub struct HoistedPackageFiles {
     /// Whether the mutable source was there to read from. See
     /// [`crate::SlotImportSource::source_exists`].
     pub source_exists: bool,
+    /// Whether a build or a patch will write to the imported files. See
+    /// [`crate::SlotImportSource::needs_build`].
+    pub needs_build: bool,
 }
 
 impl HoistedPackageFiles {
@@ -84,9 +88,15 @@ impl HoistedPackageFiles {
 }
 
 impl From<Arc<pnpm_fs::CasPaths>> for HoistedPackageFiles {
-    /// Content-addressed files, which are never mutable.
+    /// Content-addressed files, which are never mutable, of a package
+    /// nothing will write to.
     fn from(cas_paths: Arc<pnpm_fs::CasPaths>) -> Self {
-        HoistedPackageFiles { cas_paths, source_is_mutable: false, source_exists: true }
+        HoistedPackageFiles {
+            cas_paths,
+            source_is_mutable: false,
+            source_exists: true,
+            needs_build: false,
+        }
     }
 }
 
@@ -339,10 +349,7 @@ fn import_node<Reporter: self::Reporter>(
     };
 
     let cas_paths = &*files.cas_paths;
-    // A directory dependency with install scripts is built in place, so it
-    // must not be hard-linked to its source.
-    let needs_build = files.source_is_mutable && crate::requires_build_from_cas_paths(cas_paths);
-    let import_method = opts.import.method_for(files.source_is_mutable, needs_build);
+    let import_method = opts.import.method_for(files.source_is_mutable, files.needs_build);
     if files.source_is_mutable
         || !opts.dir_clone_cache.is_some_and(|cache| {
             cache.try_import::<Reporter>(node, opts.import, cas_paths)

@@ -3,10 +3,11 @@ pub(super) mod direct_links;
 pub(super) use direct_links::direct_dependency_link_dangling;
 
 use super::{
-    OptimisticRepeatInstallCheck, hoisted_project_modules_dir, manifest_has_required_peers,
-    manifest_has_runtime_deps, manifest_string_field,
+    OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
+    manifest_string_field,
 };
 use pnpm_config::{Config, NodeLinker};
+use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
 use pnpm_modules_yaml::IncludedDependencies;
@@ -96,6 +97,7 @@ fn first_project_missing_recorded_hoisted_modules_dir(
     if check.layout.node_linker != NodeLinker::Hoisted {
         return None;
     }
+    let modules_dirs = ImporterModulesDirs::from_config(check.config, check.workspace_root);
     check.project_manifests
         .iter()
         .find_map(|(root_dir, manifest)| {
@@ -104,7 +106,7 @@ fn first_project_missing_recorded_hoisted_modules_dir(
                 && state.projects
                     .get(&*root_dir.to_string_lossy())
                     .is_some_and(|entry| entry.has_modules_dir)
-                && !hoisted_project_modules_dir(root_dir).is_dir();
+                && !modules_dirs.of(root_dir).is_dir();
             missing.then(|| project_id(root_dir, manifest))
         })
 }

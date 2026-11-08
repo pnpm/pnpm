@@ -14,17 +14,45 @@ pub enum Target {
 /// Best-effort: a target that exited concurrently is not an error for any
 /// caller, because there is nothing left to signal.
 ///
-/// Async-signal-safe.
+/// Async-signal-safe, which is what separates it from
+/// [`try_signal_target`]: it builds no value, so a signal handler can run
+/// it.
 pub fn signal_target(target: Target, signal: i32) {
     let Some(target) = raw_target(target) else { return };
+    send(target, signal);
+}
+
+/// Send `signal` to `target`, reporting what came of it.
+///
+/// [`signal_target`] for a caller with nothing to do with the outcome. A
+/// caller that logs or surfaces it takes this one, which reads the failure
+/// where the call left it rather than leaving the caller to find it.
+///
+/// A target that exited concurrently fails with `ESRCH`, which is not a
+/// problem for any caller: there is nothing left to signal.
+pub fn try_signal_target(target: Target, signal: i32) -> std::io::Result<()> {
+    let Some(target) = raw_target(target) else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "the target's id is not one this platform can signal",
+        ));
+    };
+    if send(target, signal) { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+}
+
+/// Send `signal` to the already-converted `target`, reporting whether the
+/// kernel took it.
+///
+/// The one place the call is written, so a caller reading the failure
+/// through [`std::io::Error::last_os_error`] sees this call's own: nothing
+/// runs between the two.
+fn send(target: libc::pid_t, signal: i32) -> bool {
     // SAFETY: `kill` takes both arguments by value and writes no memory. A
     // target that no longer exists is reported with `ESRCH` rather than
     // reaching an unrelated process, because the caller passes the id of a
     // child it has not yet reaped, whose id the kernel therefore cannot
     // have reused.
-    unsafe {
-        libc::kill(target, signal);
-    }
+    unsafe { libc::kill(target, signal) == 0 }
 }
 
 /// Whether `target` still exists.

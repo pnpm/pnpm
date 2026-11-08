@@ -313,7 +313,11 @@ function findDeclaredPacquetConfigDepName (configDependencies: InstallDepsOption
 async function readAllProjects (opts: InstallDepsOptions): Promise<Project[]> {
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir
-      ? await findWorkspaceProjects(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      ? await findWorkspaceProjects(opts.workspaceDir, {
+        ...opts,
+        patterns: opts.workspacePackagePatterns,
+        skipRuntimes: opts.runtime === false,
+      })
       : []
   )
   if (opts.runtimeOnFail) {

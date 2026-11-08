@@ -32,6 +32,18 @@ pub struct LocalResolverContext {
     pub preserve_absolute_paths: bool,
     /// Which hash a `file:` tarball's integrity names.
     pub integrity_target: IntegrityTarget,
+    /// Whether `file:` tarball resolution reads the archive on disk.
+    pub tarball_resolution: LocalTarballResolution,
+}
+
+/// Whether `file:` tarball resolution reads the archive on disk.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum LocalTarballResolution {
+    /// Read the archive's integrity and bundled `package.json` during resolution.
+    #[default]
+    ReadMetadata,
+    /// Claim the `file:` specifier without reading the archive, leaving extraction to the caller.
+    DeferToFetcher,
 }
 
 /// Per-call options.
@@ -247,7 +259,7 @@ async fn resolve_spec(
     };
 
     if matches!(spec.kind, LocalSpecKind::File) {
-        return resolve_file_spec(&spec, opts, ctx.integrity_target).await.map(Some);
+        return resolve_file_spec(&spec, opts, ctx).await.map(Some);
     }
 
     // Directory branch.
@@ -283,9 +295,9 @@ async fn resolve_spec(
 async fn resolve_file_spec(
     spec: &LocalPackageSpec,
     opts: &LocalResolverOptions,
-    integrity_target: IntegrityTarget,
+    ctx: &LocalResolverContext,
 ) -> Result<LocalResolveResult, ResolveLocalError> {
-    match resolve_local_tarball(spec, integrity_target).await {
+    match resolve_local_tarball(spec, ctx).await {
         Ok(result) => Ok(result),
         Err(ResolveLocalError::LinkedPkgDirNotFound { .. })
             if opts.update == LocalResolverUpdate::Off
@@ -317,40 +329,54 @@ async fn resolve_file_spec(
 /// Resolve a `file:` specifier that names a tarball.
 async fn resolve_local_tarball(
     spec: &LocalPackageSpec,
-    integrity_target: IntegrityTarget,
+    ctx: &LocalResolverContext,
 ) -> Result<LocalResolveResult, ResolveLocalError> {
+    match ctx.tarball_resolution {
+        LocalTarballResolution::DeferToFetcher => {
+            return Ok(tarball_resolve_result(spec, None));
+        }
+        LocalTarballResolution::ReadMetadata => {}
+    }
     // A missing tarball file raises the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`
     // code the directory branch uses for a missing `file:` target, so both
     // kinds of missing `file:` target share one error code.
-    let LocalTarballMetadata {
-        integrity,
-        manifest,
-        has_manifest_entry,
-    } = match read_local_tarball_metadata(&spec.fetch_spec, integrity_target.into()).await {
-        Ok(metadata) => metadata,
-        Err(err) if is_missing_tarball(&err) => {
-            return Err(ResolveLocalError::LinkedPkgDirNotFound {
-                path: spec.fetch_spec.display().to_string(),
-            });
-        }
-        Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
-    };
-    if has_manifest_entry {
-        check_bundled_package_name(manifest.as_ref(), &spec.normalized_bare_specifier)?;
+    let metadata =
+        match read_local_tarball_metadata(&spec.fetch_spec, ctx.integrity_target.into()).await {
+            Ok(metadata) => metadata,
+            Err(err) if is_missing_tarball(&err) => {
+                return Err(ResolveLocalError::LinkedPkgDirNotFound {
+                    path: spec.fetch_spec.display().to_string(),
+                });
+            }
+            Err(err) => return Err(ResolveLocalError::ReadTarball(err)),
+        };
+    if metadata.has_manifest_entry {
+        check_bundled_package_name(metadata.manifest.as_ref(), &spec.normalized_bare_specifier)?;
     }
-    Ok(LocalResolveResult {
+    Ok(tarball_resolve_result(spec, Some(metadata)))
+}
+
+fn tarball_resolve_result(
+    spec: &LocalPackageSpec,
+    metadata: Option<LocalTarballMetadata>,
+) -> LocalResolveResult {
+    let (manifest, integrity) = match metadata {
+        Some(metadata) => (metadata.manifest.map(Arc::new), Some(metadata.integrity)),
+        None => (None, None),
+    };
+    LocalResolveResult {
         id: spec.id.clone(),
-        manifest: manifest.map(std::sync::Arc::new),
+        manifest,
         normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: spec.id.as_str().to_string(),
-            integrity: Some(integrity),
+            integrity,
             revision: None,
             git_hosted: None,
             path: None,
         }),
         resolved_via: spec.resolved_via,
-    })
+    }
 }
 
 /// The bundled name prefixes the dep path and names the package's

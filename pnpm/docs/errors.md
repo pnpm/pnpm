@@ -128,7 +128,7 @@ If you changed the store directory intentionally, run `pnpm install` and pnpm wi
 
 A project's `engines.node` or `engines.pnpm` range, or a dependency's `engines.node` range, does not accept the current version. The message names the package, the wanted range, and the current version.
 
-A project's incompatible `engines.pnpm` always raises this error. For `engines.node`, pnpm raises it only with [`engineStrict`](./settings/cli.md#enginestrict) enabled. Without it, an incompatible `engines.node` in the project produces a warning.
+A project's incompatible `engines.pnpm` always raises this error. For `engines.node`, pnpm raises it only with [`engineStrict`](./settings/cli.md#enginestrict) enabled. Without it, an incompatible `engines.node` in the project or a required dependency produces a warning.
 
 To fix this error, switch to a Node.js or pnpm version the package accepts, or turn `engineStrict` off for an `engines.node` mismatch.
 

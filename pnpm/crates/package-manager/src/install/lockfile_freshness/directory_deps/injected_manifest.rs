@@ -202,7 +202,7 @@ fn loaded_project_boundary(
     target_dir_within_workspace(dirs.canonical_paths, normalized_target, target_dir).ok()
 }
 
-fn publishing_project_manifest<'a>(
+pub(super) fn publishing_project_manifest<'a>(
     dirs: &super::spec::SpecDirs<'a>,
     normalized_target: &Path,
 ) -> Option<Cow<'a, serde_json::Value>> {

@@ -29,12 +29,13 @@ store directly without modifying any projects or files outside of the store.
 pnpm store add express@4
 ```
 
-It also takes package tarballs that were downloaded some other way. This
-prepares the store for an install without network access, such as a sandboxed
-build that downloads its sources ahead of time:
+It also takes package tarballs or directories of tarballs that were downloaded
+some other way, searching directories recursively for `.tgz`, `.tar.gz`, and
+`.tar` archives. This prepares the store for an install without network access,
+such as a sandboxed build that downloads its sources ahead of time:
 
 ```sh
-pnpm store add ./tarballs/*.tgz
+pnpm store add ./tarballs
 pnpm install --offline --frozen-lockfile
 ```
 

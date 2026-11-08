@@ -17,7 +17,7 @@ import {
   type Project,
   type ProjectId,
 } from '@pnpm/types'
-import { getHoistedProjectModulesDir, type WorkspaceState } from '@pnpm/workspace.state'
+import { importerModulesDir, type WorkspaceState } from '@pnpm/workspace.state'
 import { isEmpty } from 'ramda'
 
 import { dereferenceCatalog, rangeMatches, splitNameAndRange } from './findInjectedWorkspaceDep.js'
@@ -68,7 +68,12 @@ export async function findModulesDirIssue (ctx: ModulesDirCheckContext): Promise
   const projectWithoutModulesDir = await findProjectWithoutModulesDir(ctx, selectedProjectDirs)
   if (projectWithoutModulesDir != null) return missingModulesDirIssue(projectWithoutModulesDir)
   const missingRecordedModulesDir = opts.nodeLinker === 'hoisted'
-    ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, { rootProjectManifestDir: opts.rootProjectManifestDir, selectedProjectDirs })
+    ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, {
+      lockfileDir: opts.lockfileDir ?? ctx.workspaceDir,
+      modulesDir: opts.modulesDir,
+      rootProjectManifestDir: opts.rootProjectManifestDir,
+      selectedProjectDirs,
+    })
     : undefined
   if (missingRecordedModulesDir != null) return missingModulesDirIssue(missingRecordedModulesDir)
   if (selectedProjectDirs == null || ctx.hasValidationProof) return undefined
@@ -402,7 +407,9 @@ function resolveKnownProjectDir (dir: string, relPath: string, index: WorkspaceW
 async function findProjectMissingRecordedHoistedModulesDir (
   allProjects: Project[],
   workspaceState: WorkspaceState,
-  { rootProjectManifestDir, selectedProjectDirs }: {
+  { lockfileDir, modulesDir, rootProjectManifestDir, selectedProjectDirs }: {
+    lockfileDir: string
+    modulesDir?: string
     rootProjectManifestDir: string
     selectedProjectDirs: Set<string> | undefined
   }
@@ -411,7 +418,7 @@ async function findProjectMissingRecordedHoistedModulesDir (
     (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
     project.rootDir !== rootProjectManifestDir &&
     workspaceState.projects[project.rootDir]?.hasModulesDir === true &&
-    (await safeStat(getHoistedProjectModulesDir(project.rootDir)))?.isDirectory() !== true
+    (await safeStat(importerModulesDir(project.rootDir, { lockfileDir, modulesDir })))?.isDirectory() !== true
   ))
   return allProjects.find((_, index) => missing[index])
 }

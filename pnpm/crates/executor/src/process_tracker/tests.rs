@@ -2,11 +2,12 @@ use super::{
     ProcessTracker, RunningExecution, group_is_running, group_watchdog::GroupWatch,
     process_table::is_unsettled, spawn_child,
 };
+use crate::process::Command;
 use std::{
     fs,
     io::{BufRead, BufReader, Read},
-    os::unix::{fs::symlink, process::CommandExt},
-    process::{self, Child, Command, Stdio},
+    os::unix::fs::symlink,
+    process::{self, Child, Stdio},
     sync::mpsc,
     thread::{self, sleep},
     time::{Duration, Instant},

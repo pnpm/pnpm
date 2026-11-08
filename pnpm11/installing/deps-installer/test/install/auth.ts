@@ -78,7 +78,7 @@ test('a package that need authentication', async () => {
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 
@@ -136,7 +136,7 @@ test('a scoped package that need authentication specific to scope', async () => 
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 
@@ -228,7 +228,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 
@@ -254,7 +254,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 

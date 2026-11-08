@@ -31,7 +31,7 @@ async fn default_registration_cannot_mint_a_resolver_credential() {
     let registration = json!({
         "_id": "org.couchdb.user:outsider",
         "name": "outsider",
-        "password": "secret",
+        "password": "secret123",
         "email": "outsider@example.test",
         "type": "user",
         "roles": [],
@@ -206,7 +206,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
     config.features.registry.enabled = false;
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     // The resolver surface stays reachable. `/-/ping` and the capability
@@ -342,7 +342,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let registration = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
-        "password": "secret",
+        "password": "secret123",
         "email": "alice@example.test",
         "type": "user",
         "roles": [],

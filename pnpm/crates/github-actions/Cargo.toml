@@ -16,6 +16,7 @@ pnpm-fs = { workspace = true }
 pnpm-git-utils = { workspace = true }
 pnpm-matcher = { workspace = true }
 pnpm-network = { workspace = true }
+pnpm-process = { path = "../process" }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-git-resolver = { workspace = true }
 
@@ -33,7 +34,6 @@ yamlpath = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

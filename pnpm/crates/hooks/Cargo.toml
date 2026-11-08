@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-ffi-process = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
+pnpm-process = { path = "../process" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
@@ -32,7 +33,6 @@ tokio = { workspace = true, features = ["net", "process", "signal"] }
 libc = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

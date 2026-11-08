@@ -189,3 +189,5 @@ fn semver_validation_is_strict() {
 }
 
 mod fence;
+
+mod names;

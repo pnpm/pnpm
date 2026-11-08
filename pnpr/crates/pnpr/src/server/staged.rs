@@ -40,13 +40,15 @@ use serde_json::{Value, json};
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize_package,
     commit_publishes, json_response, not_found, private_no_cache,
-    publishing::{ValidatedPublish, cleanup_tmp_slots},
+    publishing::{
+        ValidatedPublish, check_body_name, cleanup_tmp_slots, validate_staged_publish_name,
+    },
     resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_search::percent_decode;
-use pnpr_storage::{DocumentWrite, publish::extract_attachments};
+use pnpr_storage::publish::extract_attachments;
 use std::time::Duration;
 
 pub const STAGED_RECORD_FORMAT_VERSION: u32 = 1;
@@ -91,11 +93,9 @@ struct StagedRecord {
     approving_since: Option<String>,
 }
 
-/// A staged record as the store holds it. The bytes are what a conditional
-/// rewrite compares against, so they are the stored ones rather than a
-/// re-serialization of `record`.
+/// A staged record with the generation a conditional rewrite replaces.
 struct StoredStagedRecord {
-    bytes: Vec<u8>,
+    stored: pnpr_storage::MetadataRecord,
     record: StagedRecord,
 }
 
@@ -104,7 +104,7 @@ struct StoredStagedRecord {
 struct ApprovalClaim {
     record: StagedRecord,
     unclaimed_bytes: Vec<u8>,
-    claimed_bytes: Vec<u8>,
+    claimed: pnpr_storage::MetadataRecord,
 }
 
 /// How long a claim on a staged record is honored. An approval releases its
@@ -223,22 +223,14 @@ async fn serve_staged_publish(
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let body_name = incoming.get("name").and_then(Value::as_str);
-    if body_name.is_some_and(|body_name| body_name != name.as_str()) {
-        return RegistryError::BadRequest {
-            reason: format!(
-                "package in URL ({:?}) does not match body ({:?})",
-                name.as_str(),
-                body_name.unwrap_or(""),
-            ),
-        }
-        .into_response();
+    if let Err(err) = check_body_name(&name, &incoming) {
+        return err.into_response();
     }
 
     // The same routing + `publish`-rule + attachment validation a direct
     // publish runs; conflicts with already-published versions are checked
     // when the stage is approved, against the registry state at that time.
-    let (validated, _target) =
+    let (validated, target) =
         match validate_publish_doc(state, identity, registry, name, incoming).await {
             Ok(validated) => validated,
             Err(err) => return err.into_response(),
@@ -259,6 +251,9 @@ async fn serve_staged_publish(
 
     let stage_id = generate_stage_id();
     let record = staged_record(&validated, identity, registry, &stage_id);
+    if let Err(err) = validate_staged_publish_name(state, validated, &target.org).await {
+        return err.into_response();
+    }
 
     if let Err(err) = store_staged(state, &stage_id, body, &record).await {
         return err.into_response();
@@ -276,11 +271,7 @@ async fn store_staged(
 ) -> Result<(), RegistryError> {
     state.inner.storage.create_staged_body(stage_id, body).await?;
     let meta_bytes = serde_json::to_vec(record).expect("a staged record serializes");
-    if let Err(err) = state.inner.storage.create_staged_meta(stage_id, &meta_bytes).await {
-        let _ = state.inner.storage.remove_staged(stage_id).await;
-        return Err(err);
-    }
-    Ok(())
+    state.inner.storage.create_staged_meta(stage_id, &meta_bytes).await
 }
 
 /// `GET /-/stage?page=&perPage=&package=` — the staged records visible to
@@ -293,13 +284,13 @@ async fn serve_staged_list(
     query: &StagedListQuery,
 ) -> Response {
     let per_page = query.per_page.clamp(1, MAX_PER_PAGE);
-    let ids = match state.inner.storage.list_staged_ids().await {
-        Ok(ids) => ids,
+    let staged = match state.inner.storage.list_staged_meta().await {
+        Ok(records) => records,
         Err(err) => return err.into_response(),
     };
     let mut records: Vec<StagedRecord> = Vec::new();
-    for stage_id in ids {
-        let Ok(Some(stored)) = read_staged_record(state, &stage_id).await else {
+    for (stage_id, stored) in staged {
+        let Ok(stored) = parse_staged_record(&stage_id, stored) else {
             continue;
         };
         let record = stored.record;
@@ -469,10 +460,17 @@ async fn read_staged_record(
     state: &AppState,
     stage_id: &str,
 ) -> Result<Option<StoredStagedRecord>, RegistryError> {
-    let Some(bytes) = state.inner.storage.read_staged_meta(stage_id).await? else {
+    let Some(stored) = state.inner.storage.read_staged_meta(stage_id).await? else {
         return Ok(None);
     };
-    let record: StagedRecord = serde_json::from_slice(&bytes).map_err(RegistryError::Json)?;
+    parse_staged_record(stage_id, stored).map(Some)
+}
+
+fn parse_staged_record(
+    stage_id: &str,
+    stored: pnpr_storage::MetadataRecord,
+) -> Result<StoredStagedRecord, RegistryError> {
+    let record: StagedRecord = serde_json::from_slice(&stored.bytes).map_err(RegistryError::Json)?;
     if record.format_version > STAGED_RECORD_FORMAT_VERSION {
         return Err(RegistryError::DocumentFormatTooNew {
             document: format!("staged record {stage_id}"),
@@ -480,7 +478,7 @@ async fn read_staged_record(
             supported_version: STAGED_RECORD_FORMAT_VERSION,
         });
     }
-    Ok(Some(StoredStagedRecord { bytes, record }))
+    Ok(StoredStagedRecord { stored, record })
 }
 
 /// A fresh random (version 4) UUID from the OS CSPRNG — the stage id

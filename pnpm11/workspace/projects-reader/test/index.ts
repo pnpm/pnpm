@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
@@ -9,6 +10,7 @@ import {
   findWorkspaceProjectsSync,
 } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
+import { temporaryDirectory } from 'tempy'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')
@@ -54,6 +56,121 @@ test('findWorkspaceProjects() outputs warnings for non-root workspace project', 
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. Configure dependency overrides in pnpm-workspace.yaml using the "overrides" field instead.` }],
   ])
 })
+test('findWorkspaceProjects() fails on an engine mismatch of a project on an unsupported platform', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    os: [`!${process.platform}`],
+    engines: { node: '>=99.0.0' },
+  }))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '20.0.0',
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_ENGINE' })
+})
+
+test('findWorkspaceProjects() checks engines.node against the project runtime', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=99.0.0' },
+    devEngines: { runtime: { name: 'node', version: '99.0.0', onFail: 'download' } },
+  }))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+    nodeVersionFromEnginesRuntime: true,
+    runtimeOnFail: 'download',
+  })).resolves.toHaveLength(2)
+})
+
+test('findWorkspaceProjects() applies runtimeOnFail when checking a project runtime', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=99.0.0' },
+    devEngines: { runtime: { name: 'node', version: '99.0.0' } },
+  }))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+    nodeVersionFromEnginesRuntime: true,
+    runtimeOnFail: 'download',
+  })).resolves.toHaveLength(2)
+})
+
+test('findWorkspaceProjects() keeps an explicitly configured Node.js version above a project runtime', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=99.0.0' },
+    devEngines: { runtime: { name: 'node', version: '99.0.0', onFail: 'download' } },
+  }))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_ENGINE' })
+})
+
+test('findWorkspaceProjects() uses the shared Node.js version when a project runtime is not downloaded', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=99.0.0' },
+    devEngines: { runtime: { name: 'node', version: '99.0.0' } },
+  }))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '22.0.0',
+    nodeVersionFromEnginesRuntime: true,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_ENGINE' })
+})
+
+test('findWorkspaceProjects() ignores runtime pins when runtimes are skipped', async () => {
+  const workspaceDir = temporaryDirectory()
+  const projectDir = path.join(workspaceDir, 'packages/app')
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify({ name: 'root' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    engines: { node: '>=99.0.0' },
+    devEngines: { runtime: { name: 'node', version: '99.0.0', onFail: 'download' } },
+  }))
+
+  await expect(findWorkspaceProjects(workspaceDir, {
+    patterns: ['packages/*'],
+    engineStrict: true,
+    nodeVersion: '99.0.0',
+    nodeVersionFromEnginesRuntime: true,
+    skipRuntimes: true,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_ENGINE' })
+})
+
 test('findWorkspaceProjectsNoCheckSync() works synchronously', () => {
   const fixturePath = path.join(import.meta.dirname, '__fixtures__/bad-engine')
   const workspaceManifest = readWorkspaceManifestSync(fixturePath)

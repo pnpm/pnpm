@@ -14,7 +14,7 @@ use crate::cli_args::{
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::DependencyGroup;
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 #[cfg(unix)]
 use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 use text_block_macros::text_block;
@@ -42,7 +42,7 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
 // lockfile-pinned semver, so `collect_outdated` drops it before any
 // registry fetch even when its manifest specifier is a plain semver range.
 #[test]
-fn current_versions_omit_local_refs() {
+fn current_versions_record_local_refs_without_a_version() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
@@ -67,8 +67,10 @@ fn current_versions_omit_local_refs() {
         Lockfile::ROOT_IMPORTER_KEY,
         &[DependencyGroup::Dev],
     );
-    dbg!(&versions);
-    assert_eq!(versions, HashMap::from([("is-positive".to_string(), v("1.0.0"))]));
+    assert_eq!(versions.get("is-positive"), Some(&Some(v("1.0.0"))));
+    assert_eq!(versions.get("private-workspace-pkg"), Some(&None));
+    assert_eq!(versions.get("injected-pkg"), Some(&None));
+    assert_eq!(versions.get("workspace-pkg"), Some(&None));
 }
 
 #[test]

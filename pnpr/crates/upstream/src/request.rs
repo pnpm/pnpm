@@ -23,6 +23,13 @@ impl Upstream {
             })
     }
 
+    /// Body timeouts can reflect local scheduling delays after a healthy response head.
+    pub(crate) fn record_body_failure(&self, error: &reqwest::Error) {
+        if !error.is_timeout() {
+            self.breaker.record_failure();
+        }
+    }
+
     pub(crate) async fn get_with_scoped_headers(
         &self,
         url: &str,

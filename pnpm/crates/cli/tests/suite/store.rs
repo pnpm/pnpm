@@ -713,6 +713,70 @@ fn store_add_of_downloaded_tarballs_serves_named_registry_lockfile_keys() {
     assert_downloaded_tarballs_warm_the_store_for_an_offline_install(PinnedHash::Sha512, "work:");
 }
 
+/// <https://github.com/pnpm/pnpm/issues/17875>
+#[test]
+fn store_add_of_a_tarball_directory_warms_the_store_recursively() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/foo": "100.0.0",
+                "@pnpm.e2e/bar": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    if npmrc_info.store_dir.exists() {
+        fs::remove_dir_all(&npmrc_info.store_dir).expect("empty the store");
+    }
+
+    let storage = root.path().join("registry-storage");
+    let tarballs_dir = workspace.join(".pnpm-tarballs");
+    fs::create_dir_all(tarballs_dir.join("@pnpm.e2e")).expect("create nested tarball dir");
+    fs::copy(
+        pnpr_fixtures::tarball_path(&storage, "@pnpm.e2e/foo", "100.0.0"),
+        tarballs_dir.join("@pnpm.e2e/foo-100.0.0.tgz"),
+    )
+    .expect("copy foo tarball");
+    fs::copy(
+        pnpr_fixtures::tarball_path(&storage, "@pnpm.e2e/bar", "100.0.0"),
+        tarballs_dir.join("bar-100.0.0.tgz"),
+    )
+    .expect("copy bar tarball");
+
+    pacquet_at(&workspace)
+        .with_args(["store", "add", ".pnpm-tarballs"])
+        .assert()
+        .success();
+
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--offline", "--frozen-lockfile"])
+        .output()
+        .expect("run the offline install");
+    assert!(output.status.success(), "{output:?}");
+    for name in ["foo", "bar"] {
+        assert!(
+            workspace
+                .join("node_modules/@pnpm.e2e")
+                .join(name)
+                .join("package.json")
+                .exists(),
+        );
+    }
+}
+
 #[test]
 fn store_add_waits_for_the_store_operation_lock() {
     let CommandTempCwd {

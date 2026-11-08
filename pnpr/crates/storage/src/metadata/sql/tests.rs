@@ -1,19 +1,25 @@
-//! Conformance tests of the SQL metadata backend. [`conformance!`] runs each
-//! test against every adapter: `SQLite`, a libSQL primary, and a libSQL
-//! primary read through an embedded replica of each instance that syncs only
-//! when it must.
+//! Conformance tests shared by every SQL metadata adapter.
 
 #[macro_use]
 mod conformance;
+mod batched_reads;
 mod blobs;
 mod concurrency;
 #[cfg(feature = "backend-libsql")]
 mod libsql;
 mod log;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod network_cleanup;
 mod notes;
+mod payload_benchmark;
 mod publications;
 mod reclaims;
+mod records;
 mod schema;
+mod staged_failure;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+mod startup_timeout;
+mod timestamps;
 
 use crate::{
     DocumentWrite, HostedDocumentVersion, Storage,
@@ -38,6 +44,8 @@ pub(super) struct Db {
 }
 
 enum Adapter {
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    Network(pnpr_config::SqlBackendSettings),
     Sqlite,
     #[cfg(feature = "backend-libsql")]
     Libsql {
@@ -48,6 +56,63 @@ enum Adapter {
 }
 
 impl Db {
+    pub(super) fn sql<'sql>(
+        &self,
+        embedded: &'sql str,
+        postgres: &'sql str,
+        mysql: &'sql str,
+    ) -> &'sql str {
+        let _ = (postgres, mysql);
+        match &self.adapter {
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            Adapter::Network(settings) => {
+                if settings.url.starts_with("mysql:") {
+                    mysql
+                } else {
+                    postgres
+                }
+            }
+            _ => embedded,
+        }
+    }
+
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    pub(super) async fn network(variable: &str) -> Self {
+        let url = std::env::var(variable).expect("network database URL is required");
+        let tmp = TempDir::new().unwrap();
+        let name = format!(
+            "metadata_{}",
+            tmp.path()
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .replace(['.', '-'], "")
+                .to_ascii_lowercase(),
+        );
+
+        #[cfg(feature = "backend-postgres")]
+        if variable == "PNPR_TEST_POSTGRES_URL" {
+            let pool = sqlx::PgPool::connect(&url).await.unwrap();
+            sqlx::query(&format!("CREATE DATABASE {name}")).execute(&pool).await.unwrap();
+            pool.close().await;
+        }
+        #[cfg(feature = "backend-mysql")]
+        if variable == "PNPR_TEST_MYSQL_URL" {
+            let pool = sqlx::MySqlPool::connect(&url).await.unwrap();
+            sqlx::query(&format!("CREATE DATABASE {name}")).execute(&pool).await.unwrap();
+            pool.close().await;
+        }
+        let database_url = format!("{}/{name}", url.rsplit_once('/').unwrap().0);
+        let settings = pnpr_config::SqlBackendSettings {
+            url: database_url,
+            max_connections: Some(4),
+            timeout: std::time::Duration::from_secs(30),
+            startup_timeout: std::time::Duration::from_mins(1),
+        };
+        Self::new(tmp, Adapter::Network(settings))
+    }
+
     pub(super) fn sqlite() -> Self {
         Self::new(TempDir::new().unwrap(), Adapter::Sqlite)
     }
@@ -62,6 +127,8 @@ impl Db {
     /// operator's own client would be.
     pub(super) fn adapter(&self) -> Box<dyn super::adapter::Adapter> {
         match &self.adapter {
+            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            Adapter::Network(settings) => super::network::adapter(settings).unwrap(),
             Adapter::Sqlite => {
                 Box::new(super::sqlite::SqliteAdapter::open(&sqlite_path(&self.tmp)).unwrap())
             }
@@ -116,6 +183,15 @@ fn sqlite_path(tmp: &TempDir) -> std::path::PathBuf {
 /// when a read must see more than it holds.
 pub(super) fn storage(db: &Db) -> Storage {
     match &db.adapter {
+        #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+        Adapter::Network(settings) => {
+            let config = config(&db.tmp);
+            Storage::from_parts(
+                std::sync::Arc::new(crate::Store::new(config.hosted_dir)),
+                crate::Store::new(config.cache_dir),
+                std::sync::Arc::new(super::SqlMetadata::open_network(settings).unwrap()),
+            )
+        }
         Adapter::Sqlite => Storage::from_config(&config(&db.tmp)).unwrap(),
         #[cfg(feature = "backend-libsql")]
         Adapter::Libsql { server, replica } => {
@@ -157,7 +233,7 @@ pub(super) fn packument(name: &str, versions: &[&str]) -> Value {
     json!({
         "name": name,
         "description": "a package",
-        "dist-tags": { "latest": versions.last().copied().unwrap_or_default() },
+        "dist-tags": versions.last().map_or_else(|| json!({}), |version| json!({ "latest": version })),
         "versions": manifests,
         "time": time,
         "maintainers": [{ "name": "someone" }],
@@ -453,12 +529,14 @@ async fn a_version_reads_without_the_package_view(db: Db) {
 
 async fn tag_moves_are_recorded(db: Db) {
     let storage = storage(&db);
-    let published = serde_json::to_vec(&packument("pkg", &["1.0.0", "2.0.0"])).unwrap();
+    let mut document = packument("pkg", &["1.0.0", "2.0.0"]);
+    document["dist-tags"]["next"] = json!("2.0.0");
+    let published = serde_json::to_vec(&document).unwrap();
     storage
         .write_hosted_document_if_current(&npm("pkg"), &published, None, Some("carol"))
         .await
         .unwrap();
-    let set = TagChange { tag: "latest", target: Some("1.0.0"), principal: Some("alice") };
+    let set = TagChange { tag: "next", target: Some("1.0.0"), principal: Some("alice") };
     storage
         .change_dist_tag(&npm("pkg"), set)
         .await
@@ -467,14 +545,14 @@ async fn tag_moves_are_recorded(db: Db) {
         .change_dist_tag(&npm("pkg"), set)
         .await
         .unwrap();
-    let remove = TagChange { tag: "latest", target: None, principal: Some("bob") };
+    let remove = TagChange { tag: "next", target: None, principal: Some("bob") };
     storage
         .change_dist_tag(&npm("pkg"), remove)
         .await
         .unwrap();
     let history = storage
         .sql_metadata()
-        .tag_history(&npm("pkg"), "", "latest")
+        .tag_history(&npm("pkg"), "", "next")
         .await
         .unwrap();
     let moves: Vec<_> = history
@@ -500,19 +578,147 @@ async fn tag_moves_are_recorded(db: Db) {
     assert_eq!(missing, TagUpdate::NotFound);
 }
 
-async fn removing_versions_and_packages(db: Db) {
+async fn invalid_document_tags_leave_metadata_unchanged(db: Db) {
+    let storage = storage(&db);
+    write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
+    let before = read(&storage, "pkg").await;
+    let generation_before = generation(&storage, "pkg").await;
+    for tags in [
+        json!({ "latest": "2.0.0", "ghost": "9.9.9" }),
+        json!({ "latest": "not a version" }),
+        json!({ "latest": "2.0.0", "1.x": "2.0.0" }),
+        json!({ "next": "2.0.0" }),
+        json!({ "latest": "1.0.0" }),
+    ] {
+        let mut document = packument("pkg", &["2.0.0"]);
+        document["dist-tags"] = tags;
+        let bytes = serde_json::to_vec(&document).unwrap();
+        let expected = Some(&HostedDocumentVersion::Unversioned);
+        let error = storage
+            .write_hosted_document_if_current(&npm("pkg"), &bytes, expected, None)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, RegistryError::BadRequest { .. }), "{error:?}");
+        assert_eq!(generation(&storage, "pkg").await, generation_before);
+        assert_eq!(read(&storage, "pkg").await, before);
+    }
+    write(&storage, "pkg", &packument("pkg", &["2.0.0", "3.0.0"])).await;
+    assert_eq!(read(&storage, "pkg").await["dist-tags"]["latest"], "3.0.0");
+    write(&storage, "pkg", &packument("pkg", &[])).await;
+}
+
+async fn invalid_tag_changes_leave_metadata_unchanged(db: Db) {
     let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
     write(&storage, "pkg", &packument("pkg", &["2.0.0"])).await;
+    let before = read(&storage, "pkg").await;
+    let generation_before = generation(&storage, "pkg").await;
+    for (tag, target) in [
+        ("ghost", Some("9.9.9")),
+        ("junk", Some("not a version")),
+        ("removed", Some("1.0.0")),
+        ("latest", Some("9.9.9")),
+        ("latest", None),
+    ] {
+        let change = TagChange { tag, target, principal: None };
+        let error = storage
+            .change_dist_tag(&npm("pkg"), change)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, RegistryError::BadRequest { .. }), "{error:?}");
+        assert_eq!(generation(&storage, "pkg").await, generation_before);
+        assert_eq!(read(&storage, "pkg").await, before);
+        let history = storage
+            .sql_metadata()
+            .tag_history(&npm("pkg"), "", tag)
+            .await
+            .unwrap();
+        if tag != "latest" {
+            assert!(history.is_empty());
+        }
+    }
+    write(&storage, "pkg", &packument("pkg", &[])).await;
+    let remove = TagChange { tag: "latest", target: None, principal: None };
+    assert!(
+        storage
+            .change_dist_tag(&npm("pkg"), remove)
+            .await
+            .is_ok(),
+    );
+}
+
+async fn removing_versions_and_packages(db: Db) {
+    let storage = storage(&db);
+    let packument_with_dependents = |versions: &[&str]| {
+        let mut document = packument("pkg", versions);
+        for version in versions {
+            document["versions"][version]["deprecated"] = json!("old");
+            document["versions"][version]["_archiveManifest"] =
+                json!({ "profile": "npm-install-manifest/1", "packageJson": "sha512-x" });
+        }
+        document
+    };
+    let mut records = crate::metadata::ReleaseRecords::new();
+    for version in ["1.0.0", "2.0.0"] {
+        records.insert(version.to_string(), log::record_of("pkg", version));
+    }
+    let initial = crate::metadata::BatchDocument {
+        ecosystem: Ecosystem::Npm,
+        name: "pkg".to_string(),
+        bytes: serde_json::to_vec(&packument_with_dependents(&["1.0.0", "2.0.0"])).unwrap(),
+        expected: None,
+        principal: None,
+        records,
+    };
+    let fence = crate::metadata::BlobFence {
+        artifacts: vec![
+            blobs::tgz("pkg", "1.0.0", &blobs::id(b"1.0.0"), 1),
+            blobs::tgz("pkg", "2.0.0", &blobs::id(b"2.0.0"), 1),
+        ],
+        references: Vec::new(),
+    };
+    storage
+        .sql_metadata()
+        .commit_fenced_publication(
+            "",
+            vec![initial],
+            Vec::new(),
+            crate::metadata::PublishNotes::default(),
+            None,
+            fence,
+        )
+        .await
+        .unwrap();
+    let version_tables = [
+        "artifact_blobs",
+        "release_records",
+        "accepted_manifests",
+        "readmes",
+        "annotations",
+        "versions",
+    ];
+    for table in version_tables {
+        assert_eq!(row_count(&storage, table).await, 2, "{table}");
+    }
+    write(&storage, "pkg", &packument_with_dependents(&["2.0.0"])).await;
     let document = read(&storage, "pkg").await;
     assert!(document["versions"].get("1.0.0").is_none());
     assert!(document["time"].get("1.0.0").is_none());
+    for table in version_tables {
+        assert_eq!(row_count(&storage, table).await, 1, "{table}");
+    }
     assert!(
         storage
-            .remove_package(&npm("pkg"))
+            .remove_package(&npm("pkg"), None)
             .await
             .unwrap(),
     );
+    for table in version_tables
+        .into_iter()
+        .chain(["tags", "packages"])
+    {
+        assert_eq!(row_count(&storage, table).await, 0, "{table}");
+    }
     assert!(
         storage
             .read_hosted_document(&npm("pkg"))
@@ -533,6 +739,23 @@ async fn removing_versions_and_packages(db: Db) {
     assert_eq!(read(&storage, "pkg").await, republished);
 }
 
+async fn row_count(storage: &Storage, table: &'static str) -> i64 {
+    let metadata = std::sync::Arc::clone(storage.sql_metadata());
+    tokio::task::spawn_blocking(move || {
+        let mut count = 0;
+        metadata.adapter
+            .write(&mut |connection| {
+                let mut row = connection.query_one(&format!("SELECT COUNT(*) FROM {table}"), &[])?;
+                count = row.get(0)?;
+                Ok(())
+            })
+            .unwrap();
+        count
+    })
+    .await
+    .unwrap()
+}
+
 async fn a_removed_version_is_never_accepted_again(db: Db) {
     let storage = storage(&db);
     write(&storage, "pkg", &packument("pkg", &["1.0.0", "2.0.0"])).await;
@@ -547,7 +770,7 @@ async fn a_removed_version_is_never_accepted_again(db: Db) {
     );
     assert!(
         storage
-            .remove_package(&npm("pkg"))
+            .remove_package(&npm("pkg"), None)
             .await
             .unwrap(),
     );
@@ -587,6 +810,30 @@ async fn another_ecosystem_stores_its_document_whole(db: Db) {
     );
     let tag = TagChange { tag: "latest", target: Some("1.0.0"), principal: None };
     assert_eq!(storage.change_dist_tag(&name, tag).await.unwrap(), TagUpdate::NotFound);
+    let current = storage
+        .read_hosted_document_for_update(&name)
+        .await
+        .unwrap()
+        .unwrap();
+    storage
+        .write_hosted_document_if_current(&name, b"", Some(&current.version), None)
+        .await
+        .unwrap();
+    storage.write_hosted_document_if_current(&name, b"", None, None).await.unwrap();
+    assert!(
+        storage
+            .read_hosted_document(&name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        storage
+            .hosted_package_names()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
 }
 
 conformance! {
@@ -598,6 +845,8 @@ conformance! {
     a_tag_change_reuses_every_fragment,
     a_deprecation_rerenders_one_fragment,
     tag_moves_are_recorded,
+    invalid_tag_changes_leave_metadata_unchanged,
+    invalid_document_tags_leave_metadata_unchanged,
     a_version_reads_without_the_package_view,
     removing_versions_and_packages,
     a_removed_version_is_never_accepted_again,
@@ -605,3 +854,6 @@ conformance! {
     an_archive_manifest_record_must_name_a_profile,
     another_ecosystem_stores_its_document_whole,
 }
+
+#[cfg(feature = "backend-mysql")]
+mod on_mysql_limits;

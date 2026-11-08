@@ -42,8 +42,9 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
             },
         );
     }
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    let app = router(config);
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret123"), ("bob", "secret123")]);
+    let app = pnpr::router_with_auth(config, auth);
 
     let handshake = app
         .clone()
@@ -134,7 +135,7 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     let registration = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
-        "password": "secret",
+        "password": "secret123",
         "email": "alice@example.test",
         "type": "user",
         "roles": [],

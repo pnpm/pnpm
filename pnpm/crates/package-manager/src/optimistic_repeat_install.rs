@@ -31,10 +31,9 @@ use crate::install_state::{
     Decision, OptimisticRepeatInstallCheck, Scope, catalogs_cache_matches, current_pnpmfiles,
     file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules, first_setting_drift,
     has_local_file_dep_requiring_install, has_local_file_override,
-    has_local_file_package_extension, hoisted_project_modules_dir, local_file_deps,
-    lockfile_modified_since, manifest_has_required_peers, manifest_has_runtime_deps,
-    materialized_shape_matches, modified_at_or_after, recorded_elsewhere, records_registry_keys_of,
-    validation,
+    has_local_file_package_extension, local_file_deps, lockfile_modified_since,
+    manifest_has_required_peers, manifest_has_runtime_deps, materialized_shape_matches,
+    modified_at_or_after, recorded_elsewhere, records_registry_keys_of, validation,
 };
 
 mod current_lockfile;

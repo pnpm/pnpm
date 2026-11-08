@@ -3,6 +3,7 @@ import type { StreamParser } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter } from 'rxjs/operators'
 
+import type { InstallCheckEvent } from './reporterForClient/reportInstallChecks.js'
 import type { ReporterPnpmConfig } from './ReporterPnpmConfig.js'
 
 interface LogsByStream {
@@ -11,7 +12,7 @@ interface LogsByStream {
   fetchingProgress: logs.FetchingProgressLog
   executionTime: logs.ExecutionTimeLog
   hook: logs.HookLog
-  installCheck: logs.InstallCheckLog
+  installCheck: InstallCheckEvent
   installingConfigDeps: logs.InstallingConfigDepsLog
   ignoredScripts: logs.IgnoredScriptsLog
   lifecycle: logs.LifecycleLog

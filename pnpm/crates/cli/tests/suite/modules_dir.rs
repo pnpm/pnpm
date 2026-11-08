@@ -11,7 +11,7 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Output},
 };
 
@@ -567,4 +567,332 @@ fn registry_bin_sets_node_path(project_dir: &Path) -> bool {
         "vendor/.bin/hello-world-js-bin"
     };
     fs::read_to_string(project_dir.join(shim)).expect("read the shim").contains("NODE_PATH=")
+}
+
+#[test]
+fn a_modules_dir_outside_the_project_is_the_root_projects_only() {
+    for linker in ["isolated", "hoisted"] {
+        for setting in MODULES_DIR_SETTINGS {
+            install_with_modules_dir_outside_the_project(linker, setting);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum IsPositive {
+    Declared,
+    Removed,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ModulesDirSetting {
+    Absolute,
+    Climbing,
+    /// An absolute path through a symlink to a directory at another depth,
+    /// as macOS `/var` is to `/private/var`.
+    ThroughSymlink,
+}
+
+const MODULES_DIR_SETTINGS: [ModulesDirSetting; 3] =
+    [ModulesDirSetting::Absolute, ModulesDirSetting::Climbing, ModulesDirSetting::ThroughSymlink];
+
+fn install_with_modules_dir_outside_the_project(linker: &str, setting: ModulesDirSetting) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let (root_modules_dir, project_modules_dir) =
+        set_modules_dir_outside_the_project(&workspace, setting);
+    append_workspace_yaml_key(&workspace, "nodeLinker", linker);
+    append_workspace_yaml_key(&workspace, "packages", "['project-1']");
+    append_workspace_yaml_key(&workspace, "allowBuilds", "{'@pnpm.e2e/generated-bins': true}");
+    let write_manifests = |is_positive: IsPositive| {
+        let dependencies = |version: &str| {
+            let mut dependencies = serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" });
+            match is_positive {
+                IsPositive::Declared => dependencies["is-positive"] = version.into(),
+                IsPositive::Removed => {}
+            }
+            dependencies
+        };
+        let mut root_dependencies = dependencies("3.1.0");
+        root_dependencies["@pnpm.e2e/generated-bins"] = "1.0.0".into();
+        write_manifest(
+            &workspace,
+            &serde_json::json!({
+                "name": "root",
+                "scripts": { "postinstall": "hello-world-js-bin" },
+                "dependencies": root_dependencies,
+            }),
+        );
+        write_manifest(
+            &workspace.join("project-1"),
+            &serde_json::json!({
+                "name": "project-1",
+                "version": "1.0.0",
+                "dependencies": dependencies("1.0.0"),
+            }),
+        );
+    };
+    let installed_version = |dir: &Path| -> String {
+        let manifest = fs::read_to_string(dir.join("is-positive/package.json"))
+            .unwrap_or_else(|error| panic!("read {}: {error}", dir.display()));
+        let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse manifest");
+        manifest["version"]
+            .as_str()
+            .expect("version")
+            .to_string()
+    };
+    let assert_nothing_outside = |context: &str| {
+        assert!(!workspace.join("vendor").exists(), "{context}");
+        assert!(!root_modules_dir.join("../project-1").exists(), "{context}");
+    };
+    write_manifests(IsPositive::Declared);
+
+    for args in [&["install"][..], &["install", "--frozen-lockfile"]] {
+        let context = format!("{linker} {setting:?} {args:?}");
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert_eq!(installed_version(&root_modules_dir), "3.1.0", "{context}");
+        assert_eq!(installed_version(&project_modules_dir), "1.0.0", "{context}");
+        assert!(has_bin(&root_modules_dir, "hello-world-js-bin"), "{context}");
+        assert!(has_bin(&root_modules_dir, "cmd1"), "{context}");
+        assert_nothing_outside(&context);
+        fs::remove_dir_all(&root_modules_dir).expect("remove the root modules dir");
+        fs::remove_dir_all(&project_modules_dir).expect("remove project-1/vendor");
+    }
+
+    let context = format!("{linker} {setting:?} removal");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    write_manifests(IsPositive::Removed);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!root_modules_dir.join("is-positive").exists(), "{context}");
+    assert!(!project_modules_dir.join("is-positive").exists(), "{context}");
+    assert!(has_bin(&root_modules_dir, "hello-world-js-bin"), "{context}");
+    assert_nothing_outside(&context);
+
+    drop((root, mock_instance));
+}
+
+fn has_bin(modules_dir: &Path, command: &str) -> bool {
+    fs::read_dir(modules_dir.join(".bin"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(command)
+        })
+}
+
+/// The root's and project-1's modules directories for `setting`, after
+/// writing it to `pnpm-workspace.yaml`.
+fn set_modules_dir_outside_the_project(
+    workspace: &Path,
+    setting: ModulesDirSetting,
+) -> (PathBuf, PathBuf) {
+    let parent = dunce::canonicalize(workspace.parent().expect("workspace parent"))
+        .expect("canonicalize the workspace parent");
+    let root_modules_dir = match setting {
+        ModulesDirSetting::Absolute | ModulesDirSetting::Climbing => parent.join("vendor"),
+        ModulesDirSetting::ThroughSymlink => {
+            let real = parent.join("real/deep");
+            fs::create_dir_all(&real).expect("create the symlink target");
+            pnpm_fs::symlink_dir(&real, &parent.join("alias")).expect("create the symlink");
+            parent.join("alias/vendor")
+        }
+    };
+    let modules_dir = match setting {
+        ModulesDirSetting::Climbing => "../vendor".to_string(),
+        _ => root_modules_dir.to_string_lossy().replace('\\', "/"),
+    };
+    append_workspace_yaml_key(workspace, "modulesDir", &modules_dir);
+    (root_modules_dir, workspace.join("project-1/vendor"))
+}
+
+#[test]
+fn linked_dependencies_go_to_a_modules_dir_outside_the_project() {
+    for linker in ["isolated", "hoisted"] {
+        for setting in MODULES_DIR_SETTINGS {
+            for links in [Links::InLockfile, Links::ExcludedFromLockfile] {
+                link_with_modules_dir_outside_the_project(linker, setting, links);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Links {
+    InLockfile,
+    ExcludedFromLockfile,
+}
+
+fn link_with_modules_dir_outside_the_project(
+    linker: &str,
+    setting: ModulesDirSetting,
+    links: Links,
+) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let (root_modules_dir, project_modules_dir) =
+        set_modules_dir_outside_the_project(&workspace, setting);
+    append_workspace_yaml_key(&workspace, "nodeLinker", linker);
+    append_workspace_yaml_key(&workspace, "packages", "['project-1']");
+    append_workspace_yaml_key(
+        &workspace,
+        "excludeLinksFromLockfile",
+        matches!(links, Links::ExcludedFromLockfile),
+    );
+    fs::create_dir_all(workspace.join("linked")).expect("create the linked package");
+    fs::write(workspace.join("linked/bin.js"), "#!/usr/bin/env node\n").expect("write bin.js");
+    write_manifest(
+        &workspace.join("linked"),
+        &serde_json::json!({ "name": "linked", "version": "1.0.0", "bin": { "linked-bin": "bin.js" } }),
+    );
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "name": "root", "devDependencies": { "linked": "link:./linked" } }),
+    );
+    write_manifest(
+        &workspace.join("project-1"),
+        &serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "devDependencies": { "linked": "link:../linked" },
+        }),
+    );
+
+    for args in [&["install"][..], &["install", "--frozen-lockfile"]] {
+        let context = format!("{linker} {setting:?} {links:?} {args:?}");
+        pacquet_in(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(root_modules_dir.join("linked/package.json").exists(), "{context}");
+        assert!(has_bin(&root_modules_dir, "linked-bin"), "{context}");
+        assert!(project_modules_dir.join("linked/package.json").exists(), "{context}");
+        assert!(!workspace.join("vendor").exists(), "{context}");
+    }
+
+    let context = format!("{linker} {setting:?} {links:?} --prod");
+    pacquet_in(&workspace)
+        .with_args(["install", "--prod"])
+        .assert()
+        .success();
+    assert!(!root_modules_dir.join("linked").exists(), "{context}");
+    assert!(!project_modules_dir.join("linked").exists(), "{context}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn the_loaded_linker_links_bins_into_a_modules_dir_outside_the_project() {
+    for setting in MODULES_DIR_SETTINGS {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let (root_modules_dir, _) = set_modules_dir_outside_the_project(&workspace, setting);
+        append_workspace_yaml_key(&workspace, "nodeLinker", "{type: loaded}");
+        append_workspace_yaml_key(&workspace, "allowBuilds", "{'@pnpm.e2e/generated-bins': true}");
+        write_manifest(
+            &workspace,
+            &serde_json::json!({
+                "name": "root",
+                "dependencies": {
+                    "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+                    "@pnpm.e2e/generated-bins": "1.0.0",
+                },
+            }),
+        );
+
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert!(has_bin(&root_modules_dir, "hello-world-js-bin"), "{setting:?}");
+        assert!(has_bin(&root_modules_dir, "cmd1"), "{setting:?}");
+        assert!(!workspace.join("vendor").exists(), "{setting:?}");
+
+        drop((root, mock_instance));
+    }
+}
+
+#[test]
+fn commands_find_each_projects_modules_dir_outside_the_project() {
+    for setting in MODULES_DIR_SETTINGS {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let (root_modules_dir, project_modules_dir) =
+            set_modules_dir_outside_the_project(&workspace, setting);
+        append_workspace_yaml_key(&workspace, "packages", "['project-1']");
+        let project_dir = workspace.join("project-1");
+        // Each project gets its own command: the root's `.bin` is on every
+        // project's `PATH`, so a shared one would hide a missed member `.bin`.
+        for (dir, name, to_workspace) in
+            [(&workspace, "root", "."), (&project_dir, "project-1", "..")]
+        {
+            let tool = workspace.join(format!("{name}-tool"));
+            fs::create_dir_all(&tool).expect("create the tool package");
+            fs::write(tool.join("bin.js"), "#!/usr/bin/env node\n").expect("write bin.js");
+            write_manifest(
+                &tool,
+                &serde_json::json!({
+                    "name": format!("{name}-tool"),
+                    "version": "1.0.0",
+                    "bin": { format!("{name}-tool"): "bin.js" },
+                }),
+            );
+            write_manifest(
+                dir,
+                &serde_json::json!({
+                    "name": name,
+                    "version": "1.0.0",
+                    "scripts": { "greet": format!("{name}-tool") },
+                    "dependencies": { format!("{name}-tool"): format!("link:{to_workspace}/{name}-tool") },
+                }),
+            );
+        }
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        assert_commands_use(&workspace, &root_modules_dir, "root-tool", setting);
+        assert_commands_use(&project_dir, &project_modules_dir, "project-1-tool", setting);
+        drop((root, mock_instance));
+    }
+}
+
+fn assert_commands_use(dir: &Path, modules_dir: &Path, command: &str, setting: ModulesDirSetting) {
+    let context = format!("{setting:?} {}", dir.display());
+    let real = |path: &str| {
+        dunce::canonicalize(path.trim())
+            .unwrap_or_else(|error| panic!("{context}: canonicalize {path:?}: {error}"))
+    };
+    assert_eq!(
+        real(&probe_stdout(dir, &["root"])),
+        dunce::canonicalize(modules_dir).unwrap(),
+        "{context}",
+    );
+    assert_eq!(
+        real(&probe_stdout(dir, &["bin"])),
+        dunce::canonicalize(modules_dir.join(".bin")).unwrap(),
+        "{context}",
+    );
+    for args in [&["run", "greet"][..], &["exec", command]] {
+        pacquet_in(dir)
+            .with_args(args)
+            .assert()
+            .success();
+    }
 }

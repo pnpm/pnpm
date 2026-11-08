@@ -153,6 +153,11 @@ pub struct ManifestFile {
     /// without them, which cannot stand in for the manifest.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fields: Option<serde_json::Map<String, serde_json::Value>>,
+    /// Which list of fields `fields` holds. A record of another revision
+    /// may lack a field the check reads, so it cannot stand in for the
+    /// manifest. `0` in a record written before revisions were recorded.
+    #[serde(default)]
+    pub fields_revision: u32,
 }
 
 /// The local dependencies one lockfile resolves, as absolute paths.

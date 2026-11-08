@@ -60,6 +60,7 @@ use version_tarballs::{VersionTgzCache, serve_package_tarball};
 mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 
+mod conditional_requests;
 mod package_responses;
 mod split_packuments;
 use package_responses::{
@@ -267,7 +268,7 @@ pub(super) struct AppState {
 /// router level, so we take both via one handler that branches on
 /// the `@` prefix and the literal-`-` segment.
 pub fn router(config: Config) -> Router {
-    let max_users = config.identity.auth.htpasswd.max_users;
+    let max_users = config.identity.auth.users.max_users;
     router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 
@@ -276,7 +277,7 @@ pub fn router(config: Config) -> Router {
 /// that don't build a client as errors instead of panicking, for embedders
 /// that build the router directly rather than via [`serve`].
 pub fn try_router(config: Config) -> pnpr_error::Result<Router> {
-    let max_users = config.identity.auth.htpasswd.max_users;
+    let max_users = config.identity.auth.users.max_users;
     try_router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 

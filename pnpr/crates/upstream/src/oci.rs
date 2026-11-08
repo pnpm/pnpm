@@ -202,7 +202,10 @@ impl Upstream {
             return Err(self.oci_error("OCI token service refused authentication"));
         }
         let body = read_limited_body(response, 64 * 1024).await
-            .map_err(|source| self.token_request_failed(source))?;
+            .map_err(|source| {
+                self.record_body_failure(&source);
+                RegistryError::Upstream { url: self.base.clone(), source }
+            })?;
         *budget = budget.saturating_sub(started.elapsed());
         if body.truncated {
             return Err(self.oci_error("OCI token response is too large"));

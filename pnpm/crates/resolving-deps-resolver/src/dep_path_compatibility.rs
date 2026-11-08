@@ -9,7 +9,7 @@ use rustc_hash::FxHashSet as HashSet;
 
 use crate::{
     dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
-    peer_dependents_dedupe::OptionalPeerScope,
+    peer_dependents_dedupe::{CollapseGuard, OptionalPeerScope},
 };
 
 /// Number of edges a variant carries: its child dependencies plus the
@@ -36,11 +36,11 @@ pub(crate) fn is_compatible_and_has_more_deps<'a>(
     graph: &'a DependenciesGraph,
     larger: &'a DepPath,
     smaller: &'a DepPath,
-    optional_peers: OptionalPeerScope,
+    guard: CollapseGuard<'_>,
 ) -> bool {
     let mut queue = PairQueue::new(larger, smaller);
     while let Some((larger, smaller)) = queue.pop() {
-        if !pair_is_compatible(graph, (larger, smaller), optional_peers, &mut queue) {
+        if !pair_is_compatible(graph, (larger, smaller), guard, &mut queue) {
             return false;
         }
     }
@@ -77,7 +77,7 @@ impl<'a> PairQueue<'a> {
 fn pair_is_compatible<'a>(
     graph: &'a DependenciesGraph,
     (larger, smaller): (&DepPath, &DepPath),
-    optional_peers: OptionalPeerScope,
+    guard: CollapseGuard<'_>,
     queue: &mut PairQueue<'a>,
 ) -> bool {
     let (Some(larger_node), Some(smaller_node)) = (graph.get(larger), graph.get(smaller)) else {
@@ -92,13 +92,17 @@ fn pair_is_compatible<'a>(
         return false;
     }
 
-    match optional_peers {
+    match guard.optional_peers {
         OptionalPeerScope::Workspace => {}
         OptionalPeerScope::Project => {
             if adds_optional_peer(larger_node, smaller_node) {
                 return false;
             }
         }
+    }
+
+    if resolves_unbound_optional_peer(guard, larger_node, smaller) {
+        return false;
     }
 
     smaller_node.edges.children
@@ -130,6 +134,21 @@ fn adds_optional_peer(
             peer.optional
                 && larger_node.edges.resolved_peer_names.contains(name)
                 && !smaller_node.edges.resolved_peer_names.contains(name)
+        })
+}
+
+/// Whether `larger` resolves a peer that `smaller` must leave unbound.
+fn resolves_unbound_optional_peer(
+    guard: CollapseGuard<'_>,
+    larger_node: &DependenciesGraphNode,
+    smaller: &DepPath,
+) -> bool {
+    guard.unbound_optional_peers
+        .and_then(|unbound| unbound.get(smaller))
+        .is_some_and(|names| {
+            names
+                .iter()
+                .any(|name| larger_node.edges.resolved_peer_names.contains(name))
         })
 }
 

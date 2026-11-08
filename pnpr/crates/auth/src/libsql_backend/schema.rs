@@ -20,8 +20,7 @@ pub(super) async fn claim_user_counter_slot(tx: &libsql::Transaction, max: u64) 
     Ok(updated > 0)
 }
 
-/// Create the schema and seed the user counter. `sync` is
-/// [`crate::schema::migrate_libsql`]'s.
+/// Create the schema and seed the user counter.
 pub(super) async fn init_schema<SyncFuture>(
     conn: &Connection,
     sync: impl Fn() -> SyncFuture + Send + Sync,
@@ -29,13 +28,14 @@ pub(super) async fn init_schema<SyncFuture>(
 where
     SyncFuture: Future<Output = Result<()>> + Send,
 {
-    crate::schema::migrate_libsql(conn, &sync).await?;
+    pnpr_sql::libsql::ensure_schema(conn, "libSQL auth database").await?;
+    sync().await?;
     ensure_user_counter(conn).await?;
     sync().await
 }
 
 pub(super) async fn ensure_user_counter(conn: &Connection) -> Result<()> {
-    let rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+    let rows = conn.query("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'", ()).await?;
     let Some(count) = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await? else {
         return Err(missing_count_row());
     };
@@ -72,7 +72,7 @@ pub(super) async fn reconcile_user_counter_overcount(conn: &Connection) -> Resul
         tx.commit().await?;
         return Ok(false);
     };
-    let count_rows = tx.query("SELECT COUNT(*) FROM users", ()).await?;
+    let count_rows = tx.query("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'", ()).await?;
     let Some(count) = first_row(count_rows, |row| Ok(row.get::<i64>(0)?)).await? else {
         return Err(missing_count_row());
     };

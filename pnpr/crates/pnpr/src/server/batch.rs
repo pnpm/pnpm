@@ -93,7 +93,11 @@ async fn serve(
     let key = headers
         .get(IDEMPOTENCY_KEY)
         .and_then(|key| key.to_str().ok());
-    publish_batch(state, caller, key, body).await.unwrap_or_else(IntoResponse::into_response)
+    super::publishing::retry::retry_reclaimed(&state.inner.locks.publish_replays, body, |body| {
+        publish_batch(state, caller, key, body)
+    })
+    .await
+    .unwrap_or_else(IntoResponse::into_response)
 }
 
 /// Who sends a batch, and the registry its npm entries are addressed
@@ -198,9 +202,6 @@ async fn publish_batch(
 ) -> Result<Response, RegistryError> {
     let identity = caller.identity;
     let mut incoming: Value = serde_json::from_slice(&body).map_err(|err| malformed_body(&err))?;
-    // The parsed body holds everything the entries need, and the payloads are
-    // decoded out of it below: keep only one copy of a body that may run to
-    // the request limit.
     drop(body);
     let name = publication_name(&incoming)?;
     let request = publication_request(identity, &incoming, key, name, None);
@@ -390,7 +391,7 @@ async fn validate_entry(
                 verify_crate_archive(target, entry.metadata, archive.into()).await?,
             ))
         }
-        Ecosystem::Pypi => validate_pypi_entry(state, identity, package),
+        Ecosystem::Pypi => validate_pypi_entry(state, identity, package).await,
         Ecosystem::Oci => {
             let entry: OciEntry =
                 serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
@@ -470,7 +471,7 @@ async fn validate_npm_entry(
     Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
 }
 
-fn validate_pypi_entry(
+async fn validate_pypi_entry(
     state: &AppState,
     identity: &Identity,
     package: Value,
@@ -487,5 +488,5 @@ fn validate_pypi_entry(
     };
     let target = authorize_upload(state, identity, None, &upload)?;
     upload.content = decode_base64(&entry.content, "content")?;
-    Ok(ValidatedEntry::Pypi(verify_upload(target, upload)?))
+    Ok(ValidatedEntry::Pypi(verify_upload(target, upload).await?))
 }

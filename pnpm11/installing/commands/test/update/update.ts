@@ -142,7 +142,7 @@ test('update --peer updates a named peer without changing other peers', async ()
     },
   })
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
 
   await update.handler({
     ...DEFAULT_OPTS,

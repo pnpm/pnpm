@@ -26,6 +26,7 @@ export interface ProjectToLink {
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
   modulesDir: string
+  rejectedOptionalPeers: Set<string>
   rootDir: ProjectRootDir
   topParents: Array<{ name: string, version: string }>
 }
@@ -50,6 +51,7 @@ export async function toProjectToLink (
     ]),
     directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
     hoistedPeerProviderNodeIds: resolvedImporter.hoistedPeerProviderNodeIds,
+    rejectedOptionalPeers: resolvedImporter.rejectedOptionalPeers,
     explicitlyRequestedDirectDependencies: new Set(
       project.wantedDependencies.flatMap(({ alias, bareSpecifier, isNew, prevSpecifier, updateSpec }) =>
         alias != null && (isNew === true || updateSpec === true || (prevSpecifier != null && bareSpecifier !== prevSpecifier))

@@ -203,7 +203,10 @@ async fn rejection(variants: &[(&str, Value)]) -> String {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    String::from_utf8(body_bytes(response.into_body()).await).unwrap()
+    body_json(response.into_body()).await["error"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 #[tokio::test]
@@ -365,11 +368,14 @@ async fn a_rewrite_from_npms_document_keeps_the_variants() {
         body_json(get(&app, "/npm/~acme/@acme%2Ffast", None).await.into_body()).await;
     assert!(document["versions"]["1.0.0"].get("_pnprVariants").is_none());
     document["versions"]["1.0.0"]["deprecated"] = json!("use 2");
-    let rewrite = Request::put("/npm/~acme/@acme%2Ffast/-rev/1")
-        .header("content-type", "application/json")
-        .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&document).unwrap()))
-        .unwrap();
+    let rewrite = Request::put(format!(
+        "/npm/~acme/@acme%2Ffast/-rev/{}",
+        document["_rev"].as_str().unwrap(),
+    ))
+    .header("content-type", "application/json")
+    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+    .body(Body::from(serde_json::to_vec(&document).unwrap()))
+    .unwrap();
     let response = app
         .clone()
         .oneshot(rewrite)
@@ -1043,11 +1049,12 @@ async fn a_rewrite_keeps_the_variants_of_a_version_without_an_any_archive() {
         .unwrap()
         .remove("1.1.0");
     packument["dist-tags"] = json!({ "latest": "1.0.0" });
-    let rewrite = Request::put("/npm/~acme/@acme/fast/-rev/1")
-        .header("content-type", "application/json")
-        .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
-        .unwrap();
+    let rewrite =
+        Request::put(format!("/npm/~acme/@acme/fast/-rev/{}", packument["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+            .unwrap();
     let response = app
         .clone()
         .oneshot(rewrite)

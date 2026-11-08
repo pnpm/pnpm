@@ -1,7 +1,7 @@
 use super::{Result, TokenBackend};
 
 /// Identify the caller behind an HTTP request. Inspects the
-/// `Authorization` header and resolves it to a username via the token
+/// `Authorization` header and resolves it to an account ID via the token
 /// store. Only `Bearer` tokens are honored: pnpr does not accept Basic
 /// credentials on requests.
 ///

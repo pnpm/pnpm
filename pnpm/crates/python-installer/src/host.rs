@@ -236,7 +236,9 @@ struct FileImport {
 }
 
 impl FileImport {
-    fn import<Sys: pnpm_fs::FsReflink + pnpm_deps_restorer::FsHardLink>(
+    fn import<
+        Sys: pnpm_fs::FsReflink + pnpm_deps_restorer::FsHardLink + pnpm_fs::FsCopyContents,
+    >(
         &self,
         state: &pnpm_deps_restorer::ImportState,
         logged: &std::sync::atomic::AtomicU8,

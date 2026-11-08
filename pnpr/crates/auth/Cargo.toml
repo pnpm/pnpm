@@ -11,11 +11,13 @@ license-file = "../../LICENSE.md"
 repository.workspace = true
 
 [features]
-backend-libsql = ["dep:libsql", "dep:pnpr-libsql", "pnpr-error/backend-libsql"]
-backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql"]
-backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres"]
+backend-libsql = ["dep:libsql", "dep:pnpr-libsql", "pnpr-error/backend-libsql", "pnpr-sql/backend-libsql"]
+backend-mysql = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql", "pnpr-sql/backend-mysql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", "pnpr-sql/backend-postgres"]
 
 [dependencies]
+pnpr-sql = { workspace = true }
+pnpm-crypto-hash = { workspace = true }
 pnpm-network = { workspace = true }
 p256 = { workspace = true }
 serde = { workspace = true }
@@ -36,6 +38,7 @@ sha2 = { workspace = true }
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+unicode-security = { workspace = true }
 url = { workspace = true }
 ssri = { workspace = true }
 

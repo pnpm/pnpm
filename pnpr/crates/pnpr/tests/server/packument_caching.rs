@@ -1,6 +1,6 @@
 use super::{
-    AuthState, Body, Duration, Request, ServiceExt, StatusCode, TempDir, body_bytes, config_for,
-    foo_packument, header, json, router, router_with_auth,
+    AuthState, Body, Duration, PackageRules, Request, ServiceExt, StatusCode, TempDir, access_rule,
+    body_bytes, config_for, foo_packument, header, header_of, json, router, router_with_auth,
 };
 use crate::tokens::issue_token;
 
@@ -370,61 +370,69 @@ async fn packument_conditional_if_modified_since() {
 }
 
 #[tokio::test]
-async fn private_and_named_registry_packuments_scoped_cache_control_and_vary() {
+async fn named_registry_packuments_are_caller_scoped_only_for_restricted_packages() {
     let mut upstream = mockito::Server::new_async().await;
-    let packument = foo_packument(&upstream.url());
-    let _mock = upstream
+    let _foo = upstream
         .mock("GET", "/foo")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(packument.to_string())
+        .with_body(foo_packument(&upstream.url()).to_string())
+        .create_async()
+        .await;
+    let _restricted = upstream
+        .mock("GET", "/restricted")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "name": "restricted",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": { "1.0.0": { "name": "restricted", "version": "1.0.0" } },
+            })
+            .to_string(),
+        )
         .create_async()
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").rules =
+        PackageRules::new(vec![access_rule("restricted", "$authenticated")], None);
     let auth = AuthState::in_memory();
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
-    // Named registry: /~npmjs/foo is always caller-scoped
-    let response = app
+    let public = app
         .clone()
         .oneshot(
             Request::get("/npm/~npmjs/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(public.status(), StatusCode::OK);
+    assert_eq!(header_of(&public, header::CACHE_CONTROL), Some("public, max-age=60"));
+    assert_eq!(header_of(&public, header::VARY), Some("Accept"));
+
+    let restricted = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/~npmjs/restricted")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(
-        response
-            .headers()
-            .get(header::CACHE_CONTROL)
-            .and_then(|header_value| header_value.to_str().ok()),
-        Some("private, no-store"),
-    );
-    assert_eq!(
-        response
-            .headers()
-            .get(header::VARY)
-            .and_then(|header_value| header_value.to_str().ok()),
-        Some("Accept, Authorization"),
-    );
-    let etag = response
-        .headers()
-        .get(header::ETAG)
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    assert_eq!(restricted.status(), StatusCode::OK);
+    assert_eq!(header_of(&restricted, header::CACHE_CONTROL), Some("private, no-store"));
+    assert_eq!(header_of(&restricted, header::VARY), Some("Accept, Authorization"));
+    let etag = header_of(&restricted, header::ETAG).unwrap().to_string();
 
-    // Conditional 304 on named registry preserves private, no-store and Accept, Authorization
     let not_modified = app
         .oneshot(
-            Request::get("/npm/~npmjs/foo")
+            Request::get("/npm/~npmjs/restricted")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .header(header::IF_NONE_MATCH, &etag)
                 .body(Body::empty())
@@ -433,20 +441,8 @@ async fn private_and_named_registry_packuments_scoped_cache_control_and_vary() {
         .await
         .unwrap();
     assert_eq!(not_modified.status(), StatusCode::NOT_MODIFIED);
-    assert_eq!(
-        not_modified
-            .headers()
-            .get(header::CACHE_CONTROL)
-            .and_then(|header_value| header_value.to_str().ok()),
-        Some("private, no-store"),
-    );
-    assert_eq!(
-        not_modified
-            .headers()
-            .get(header::VARY)
-            .and_then(|header_value| header_value.to_str().ok()),
-        Some("Accept, Authorization"),
-    );
+    assert_eq!(header_of(&not_modified, header::CACHE_CONTROL), Some("private, no-store"));
+    assert_eq!(header_of(&not_modified, header::VARY), Some("Accept, Authorization"));
 }
 
 #[tokio::test]

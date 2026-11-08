@@ -56,3 +56,22 @@ fn a_package_config_nested_modules_dir_keeps_every_segment() {
     assert_eq!(Path::new(config.modules_dir_name()), Path::new("www/modules"));
     assert_eq!(config.modules_dir_anchor(), Some(project_dir.as_path()));
 }
+
+#[test]
+fn a_project_modules_dir_follows_the_install_rule_for_a_modules_dir_outside_the_project() {
+    let project = workspace().join("packages/member");
+    let mut config = config_with_modules_dir("../vendor");
+    config.workspace_dir = Some(workspace());
+    config.shared_workspace_lockfile = true;
+    assert_eq!(
+        config.project_modules_dir(&workspace(), None),
+        pnpm_fs::lexical_normalize(&workspace().join("../vendor")),
+    );
+    assert_eq!(config.project_modules_dir(&project, None), project.join("vendor"));
+
+    config.shared_workspace_lockfile = false;
+    assert_eq!(
+        config.project_modules_dir(&project, None),
+        pnpm_fs::lexical_normalize(&project.join("../vendor")),
+    );
+}

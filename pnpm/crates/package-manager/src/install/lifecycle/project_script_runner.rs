@@ -1,8 +1,8 @@
 use super::{
     super::{
         Config, DependencyGroup, HashMap, HashSet, InstallError, NodeLinker, PackageManifest, Path,
-        PathBuf, Reporter, RunPostinstallHooks, link_project_bins,
-        project_requires_implicit_gyp_build, run_project_lifecycle_stages,
+        PathBuf, Reporter, RunPostinstallHooks, project_requires_implicit_gyp_build,
+        run_project_lifecycle_stages,
     },
     project_lifecycle_extra_env,
 };
@@ -22,12 +22,14 @@ pub(super) fn run_project_stages(
     mut extra_env: HashMap<String, String>,
     stages: impl FnOnce(&RunPostinstallHooks<'_>) -> Result<bool, LifecycleScriptError>,
 ) -> Result<bool, LifecycleScriptError> {
-    let root_modules_dir = project_dir.join(config.modules_dir_name());
+    let root_modules_dir =
+        pnpm_deps_restorer::ImporterModulesDirs::from_config(config, workspace_root)
+            .of(project_dir);
     let bin_dir = root_modules_dir.join(".bin");
     config.prepend_project_node_path::<pnpm_config::Host>(
         &mut extra_env,
         project_dir,
-        config.modules_dir_name(),
+        &root_modules_dir,
     );
     let dep_path = project_dir.to_string_lossy();
     stages(&RunPostinstallHooks {
@@ -63,6 +65,7 @@ pub(super) struct ProjectScriptRunner<'a> {
     config: &'a Config,
     workspace_root: &'a Path,
     normalized_workspace_root: PathBuf,
+    modules_dirs: pnpm_deps_restorer::ImporterModulesDirs,
     /// The root project's `preinstall` ran before the install began, here
     /// (see [`super::run_root_hook`]) or in the CLI that delegated the install,
     /// so its run here starts at `install`.
@@ -81,9 +84,12 @@ impl ProjectScriptRunner<'_> {
         manifest: &PackageManifest,
         stages: &[&str],
     ) -> Result<(), InstallError> {
-        let root_modules_dir = project_dir.join(self.config.modules_dir_name());
-        link_project_bins(&root_modules_dir, &direct_dep_names(manifest), &self.link_options)
-            .map_err(InstallError::ProjectBinLink)?;
+        crate::link_bins_dir(
+            &self.modules_dirs.of(project_dir),
+            crate::BinCandidates::ProjectModulesDir(&direct_dep_names(manifest)),
+            crate::BinsDirPass::new(&self.link_options),
+        )
+        .map_err(InstallError::ProjectBinLink)?;
         let stages = if self.root_preinstall_ran
             && stages.first() == Some(&"preinstall")
             && pnpm_fs::lexical_normalize(project_dir) == self.normalized_workspace_root
@@ -192,6 +198,10 @@ impl<'a> ProjectScriptRunner<'a> {
             config,
             workspace_root,
             normalized_workspace_root: pnpm_fs::lexical_normalize(workspace_root),
+            modules_dirs: pnpm_deps_restorer::ImporterModulesDirs::from_config(
+                config,
+                workspace_root,
+            ),
             root_preinstall_ran,
             extra_env: project_lifecycle_extra_env(config, node_linker, workspace_root),
             link_options: crate::shim_link_options(config, node_linker),

@@ -3,7 +3,7 @@
 //! records, before discovery reads any project manifest.
 
 use super::{
-    Config, FastPathContext, FastPathProjects, PackageManifest, Path, PathBuf,
+    Config, CoveredProjects, FastPathContext, FastPathProjects, PackageManifest, Path, PathBuf,
     UpToDateFastPathCheck, WorkspaceState, build_project_manifests_list,
     check_fast_path_repeat_install,
 };
@@ -13,8 +13,8 @@ use std::collections::HashMap;
 
 /// What the check on the stand-ins decided.
 pub(super) enum RecordsCheck {
-    /// The install is up to date. Holds the number of workspace projects.
-    UpToDate(usize),
+    /// The install is up to date.
+    UpToDate(CoveredProjects),
     /// The check on the files decides. Holds the listing the attempt made,
     /// for that check to read.
     Undecided(Option<Vec<ProjectManifestPaths>>),
@@ -65,7 +65,11 @@ pub(super) fn check_from_records(
         return RecordsCheck::Undecided(Some(listed));
     }
     tracing::debug!(target: "pacquet::install", "the recorded manifests decided the install");
-    RecordsCheck::UpToDate(stand_ins.projects.len())
+    RecordsCheck::UpToDate(CoveredProjects::of(
+        Some(stand_ins.projects.len()),
+        &project_manifests,
+        check.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ))
 }
 
 /// The workspace a check lists projects in.

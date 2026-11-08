@@ -6,6 +6,7 @@ use super::super::{
 pub(super) struct SelectMaterializedStateInputs<'a> {
     pub(crate) lockfiles: crate::install::state_options::SelectedLockfiles<'a>,
     pub(crate) projects: crate::install::state_options::SelectedImporters<'a>,
+    pub(super) node_linker: NodeLinker,
     pub(super) workspace_root: &'a Path,
     pub(super) groups: crate::GroupSelection,
     pub(super) install_skipped: &'a crate::SkippedSnapshots,
@@ -79,6 +80,19 @@ pub(super) fn materialized_current_lockfile(
 ) -> Lockfile {
     if inputs.projects.requested_ids.is_none() && inputs.projects.ignore_manifest_check {
         crate::filter_lockfile_for_current(wanted, &inputs.groups, inputs.install_skipped)
+    } else if inputs.node_linker == NodeLinker::Hoisted
+        && let Some(requested_ids) = inputs.projects.requested_ids
+    {
+        crate::selected_materialization_closure(
+            wanted,
+            inputs.workspace_root,
+            requested_ids,
+            Some(inputs.projects.real_ids),
+            (!inputs.is_inconsistent).then_some(inputs.lockfiles.current).flatten(),
+            &inputs.groups,
+            &inputs.install_skipped.transient_only(),
+        )
+        .lockfile
     } else {
         crate::merge_filtered_current_lockfile(
             (inputs.projects.requested_ids.is_some() && !inputs.is_inconsistent)
@@ -124,14 +138,16 @@ pub(super) async fn link_materialized_projects<Reporter: self::Reporter + 'stati
     // These are importer symlinks, so `virtualStoreOnly` skips them too.
     if !inputs.config.virtual_store_only {
         crate::link_manifest_link_deps::<Reporter>(
-            inputs.workspace_root,
+            &pnpm_deps_restorer::ImporterModulesDirs::from_config(
+                inputs.config,
+                inputs.workspace_root,
+            ),
             inputs.materialized_project_manifests,
             inputs.lockfiles.wanted.and_then(|lockfile| {
                 (!lockfile.importers.is_empty()).then_some(&lockfile.importers)
             }),
             inputs.manifest_links.workspace_links,
             inputs.manifest_links.included,
-            inputs.config.modules_dir_name(),
             &crate::shim_link_options(inputs.config, inputs.node_linker),
         )
         .map_err(InstallError::LinkManifestLinkDeps)?;

@@ -1,3 +1,7 @@
+pub(crate) use skipped_downloads::SkippedDownloads;
+
+mod skipped_downloads;
+
 use clap::ValueEnum;
 use pnpm_config::ColorMode;
 use pnpm_default_reporter::{DefaultReporter, MaxLogLevel, SummaryScope};
@@ -182,6 +186,7 @@ pub(crate) struct CliReporter;
 
 impl Reporter for CliReporter {
     fn emit(event: &LogEvent) {
+        skipped_downloads::record(event);
         if EventFilter::current().hides(event) {
             return;
         }

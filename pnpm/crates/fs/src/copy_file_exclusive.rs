@@ -1,3 +1,4 @@
+use crate::{FsCopyContents, Host};
 use std::{fs, io, path::Path};
 
 /// The permission state a copy carries from one file to another.
@@ -139,9 +140,19 @@ pub fn copy_file_exclusive(
     permissions: &CopyPermissions,
     finish: impl FnOnce(&fs::File) -> io::Result<()>,
 ) -> io::Result<()> {
+    copy_file_exclusive_with::<Host>(source_path, target_path, permissions, finish)
+}
+
+/// [`copy_file_exclusive`] with the bytes moved by `Sys`.
+pub fn copy_file_exclusive_with<Sys: FsCopyContents>(
+    source_path: &Path,
+    target_path: &Path,
+    permissions: &CopyPermissions,
+    finish: impl FnOnce(&fs::File) -> io::Result<()>,
+) -> io::Result<()> {
     let mut source = fs::File::open(source_path)?;
     let mut target = create_new_with_permissions(target_path, permissions)?;
-    io::copy(&mut source, &mut target)
+    Sys::copy_contents(&mut source, &mut target)
         .and_then(|_| permissions.apply_to_file(&target))
         .and_then(|()| finish(&target))
         .inspect_err(|_| {

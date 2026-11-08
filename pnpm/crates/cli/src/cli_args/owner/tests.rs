@@ -376,6 +376,7 @@ async fn owner_add_success() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("PUT", "/-/package/my-pkg/owners")
+        .match_header("npm-command", "owner")
         .match_body(mockito::Matcher::Json(json!({"user": "alice"})))
         .with_status(200)
         .create_async()
@@ -512,6 +513,7 @@ async fn owner_rm_success() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("DELETE", "/-/package/my-pkg/owners/alice")
+        .match_header("npm-command", "owner")
         .with_status(200)
         .create_async()
         .await;

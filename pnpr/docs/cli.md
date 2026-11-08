@@ -93,11 +93,11 @@ pnpr export --out /mnt/backups/pnpr-export --include-auth
 | Flag | Description |
 | --- | --- |
 | `--out <dir>` | Destination directory for exported packages and files. Required. |
-| `--include-auth` | Include configured auth files (`htpasswd`, `tokens.db`) in the output directory (excluded by default). Files are created with restricted (`0600`) permissions. |
+| `--include-auth` | Include configured auth files (`users.json`, `tokens.db`) in the output directory (excluded by default). Files are created with restricted (`0600`) permissions. |
 
 ### migrate-storage
 
-Migrates hosted package blobs from local filesystem storage to an S3-compatible object store. Package metadata stays in its [database](storage.md#libsql-metadata), which an S3 deployment reads through a libSQL `metadata.url`. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `metadata.url` at it. A run that is not `--dry-run` refuses any other metadata.
+Migrates hosted package blobs from local filesystem storage to an S3-compatible object store. Package metadata stays in the database selected by `database.url`. S3 deployments support libSQL, PostgreSQL, or MySQL metadata. Move the metadata into that database first, for example by importing the SQLite file into Turso, and point `database.url` at it. A run that is not `--dry-run` refuses local SQLite metadata.
 
 ```sh
 # Preview packages and blobs that would be transferred
@@ -138,26 +138,26 @@ Run this command as an offline maintenance step while pnpr is stopped, or specif
 # Preview users that would be imported
 pnpr import-htpasswd --source /path/to/old/htpasswd --dry-run
 
-# Import and merge with pnpr's configured htpasswd file
+# Import and merge with pnpr's configured account file
 pnpr import-htpasswd --source /path/to/old/htpasswd
 ```
 
 | Flag | Description |
 | --- | --- |
 | `--source <path>` | Path to the source htpasswd file to import. Required. |
-| `--target <path>` | Path to destination htpasswd file. Defaults to `auth.htpasswd.file` from config. |
+| `--target <path>` | Path to the destination JSON account file. Defaults to `auth.users.file` from config. |
 | `--dry-run` | Preview imported user counts without writing to target file. |
 | `--overwrite` | Overwrite conflicting credentials for existing users in destination file (skipped by default). |
 
 ### add-user
 
 Creates a user account, or changes the password of an existing one. Use it to
-create admin accounts, which cannot self-register. Creating an account revokes
-any tokens left under that username.
+create an account, then use the printed immutable account ID in `auth.admins`.
+A new account never inherits tokens or grants from a reused login name.
 
-The command needs `auth.htpasswd.file` or a database backend. With the
-htpasswd file, run it while pnpr is stopped. A running pnpr does not see the
-new account, and its next account change overwrites the file.
+The command needs `auth.users.file` or a database backend. With the
+account file, edits share a lock with the running server. Password changes
+preserve the account ID.
 
 ```sh
 # Prompts for the password
@@ -201,6 +201,12 @@ the children of retained indexes, and their config and layer blobs. A
 repository whose retained manifest is missing or corrupt keeps every blob, and
 `gc` reports the error after collecting the rest. A name in the store that is
 no key pnpr stores archives under is never removed.
+
+For unmapped archives, `gc` logs each reclaimed archive's key and size at info
+level under the [`pnpr::audit` target](configuration.md#admin-audit-logs).
+When it unmaps an unreachable image blob, the removal record also names
+the repository. Collection logs include the organization and ecosystem.
+Successful removals are logged even if another archive cannot be removed.
 
 The metadata database fences every removal; no step depends on timing. A
 reclaim first moves the bytes' live incarnation to `reclaiming`, in a

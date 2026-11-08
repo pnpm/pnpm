@@ -42,7 +42,7 @@ async fn served_version(app: &axum::Router, name: &str, version: &str) -> Value 
 async fn setup() -> (TempDir, axum::Router, String) {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
     (tmp, app, token)
 }
 
@@ -301,6 +301,7 @@ async fn a_version_with_build_metadata_cannot_be_published() {
         let response = publish(&app, &token, "widgets", &doc).await;
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "archive {archive_version}");
         let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-        assert!(reason.contains("version"), "{reason}");
+        assert!(reason.contains("cannot publish version"), "{reason}");
+        assert!(reason.contains("with build metadata"), "{reason}");
     }
 }

@@ -4,8 +4,9 @@
 //! state as rows of a SQL database and renders documents from them. The
 //! registry's handlers reach one namespace of it through [`Storage`]: reading
 //! a package view, committing a package document, changing a tag, removing a
-//! package. Archives and the records beside them stay in the hosted backend;
-//! the metadata owns only what a package's document says about them.
+//! package. The database also owns removed-package claims, registry records,
+//! and staged-publish metadata. Archives and staged bodies stay in the hosted
+//! backend.
 
 pub(crate) mod sql;
 
@@ -13,6 +14,8 @@ pub use blobs::{
     ArtifactBlob, BlobFence, BlobLookup, BlobRef, BlobRow, BlobState, MappedArtifact, PublishBase,
     PublishIncarnation, Uncommitted,
 };
+pub(crate) use dist_tags::validate_dist_tag_target;
+pub use dist_tags::{validate_dist_tag, validate_document_dist_tags};
 pub use notes::{
     MAX_NOTE_BYTES, Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note,
 };
@@ -26,6 +29,7 @@ pub(crate) use sql::{StagedEntry, StagedId};
 pub(crate) use staged::{StagedRecord, StagedState};
 
 mod blobs;
+mod dist_tags;
 mod notes;
 mod publication;
 mod staged;
@@ -93,6 +97,9 @@ pub(crate) fn open(backend: &MetadataBackend) -> Result<Arc<SqlMetadata>> {
     match backend {
         MetadataBackend::Sqlite(path) => Ok(Arc::new(SqlMetadata::open_sqlite(path)?)),
         MetadataBackend::Libsql(settings) => open_libsql(settings),
+        MetadataBackend::Postgres(settings) | MetadataBackend::Mysql(settings) => {
+            open_network(settings)
+        }
     }
 }
 
@@ -218,5 +225,19 @@ impl Storage {
     #[must_use]
     pub fn sql_metadata(&self) -> &Arc<SqlMetadata> {
         &self.database
+    }
+}
+
+fn open_network(settings: &pnpr_config::SqlBackendSettings) -> Result<Arc<SqlMetadata>> {
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    {
+        Ok(Arc::new(SqlMetadata::open_network(settings)?))
+    }
+    #[cfg(not(any(feature = "backend-postgres", feature = "backend-mysql")))]
+    {
+        let _ = settings;
+        Err(RegistryError::InvalidConfig {
+            reason: "this build does not include network SQL metadata support".to_string(),
+        })
     }
 }

@@ -1,7 +1,7 @@
 //! The [`PackageMetadata`] of one `(catalog, ecosystem)` namespace.
 
 use super::{
-    Expected, PackageKey, SqlMetadata, blobs::LookupRead, commit, render, tags,
+    Expected, PackageKey, SqlMetadata, blobs::LookupRead, commit, removed, render, tags,
     transactions::Freshness,
 };
 use crate::{
@@ -192,9 +192,14 @@ impl PackageMetadata {
     pub(crate) async fn remove_package(
         &self,
         name: &CanonicalPackageName,
+        principal: Option<&str>,
     ) -> Result<Option<Vec<crate::BlobId>>> {
         let key = self.key(name);
-        self.database.write(move |connection| commit::remove_package(connection, &key)).await
+        let principal = principal.map(str::to_string);
+        self.database.write(move |connection| {
+            removed::remove_package(connection, &key, principal.as_deref())
+        })
+        .await
     }
 
     /// The names of every package with metadata, sorted.

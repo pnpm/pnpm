@@ -4,7 +4,7 @@
 //!
 //! Bin linking for hoisted aliases is handled at the call site
 //! ([`crate::InstallFrozenLockfile::run`]) by re-using
-//! [`crate::link_direct_dep_bins`] against the private and public
+//! [`crate::link_bins_dir`] against the private and public
 //! hoisted modules dirs — the hoist pass itself only computes the
 //! alias-list inputs that pass needs.
 
@@ -238,7 +238,7 @@ pub struct HoistResult {
     /// privately, paired with the snapshot key the alias resolves to
     /// (so the bin pass can derive the slot directory without a
     /// `realpath`). The install pipeline feeds this into
-    /// `link_direct_dep_bins_resolved` against the private hoisted
+    /// [`crate::link_bins_dir`] against the private hoisted
     /// modules dir to write shims into `<vs>/node_modules/.bin`.
     pub hoisted_aliases_with_bins: Vec<(String, PackageKey)>,
     /// Aliases whose target package declares a bin and were hoisted
@@ -246,7 +246,7 @@ pub struct HoistResult {
     /// direct-dep bins in `<root>/node_modules/.bin`.
     /// In pacquet's pipeline ordering, `SymlinkDirectDependencies`
     /// runs *before* `hoist`, so the install pipeline does an
-    /// additional `link_direct_dep_bins` pass over this list after
+    /// additional [`crate::link_bins_dir`] pass over this list after
     /// the hoist symlinks land.
     pub publicly_hoisted_aliases_with_bins: Vec<String>,
     /// `hoist-workspace-packages` placements: (alias, kind, absolute

@@ -32,7 +32,7 @@ fn null_auth_and_cors_use_default_settings() {
 
     assert_eq!(parsed.identity.admins, default.identity.admins);
     assert_eq!(parsed.identity.auth.oidc.len(), default.identity.auth.oidc.len());
-    assert_eq!(parsed.identity.auth.htpasswd.max_users, default.identity.auth.htpasswd.max_users);
+    assert_eq!(parsed.identity.auth.users.max_users, default.identity.auth.users.max_users);
     assert_eq!(parsed.identity.auth.tokens.file, default.identity.auth.tokens.file);
     assert_eq!(parsed.http.cors.allowed_origins(), default.http.cors.allowed_origins());
 }
@@ -49,10 +49,10 @@ fn null_auth_and_cors_do_not_disable_mapping_validation() {
 #[test]
 fn null_defaulted_aggregate_config_fields_use_defaults() {
     let configs = [
-        "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  htpasswd: null\n  tokens: null\n",
+        "trustedProxies: null\nui: null\noci: null\nosv: null\nregistries: null\nroutes:\n  public: null\n  allowedPrivateNetworks: null\ncors:\n  allowedOrigins: null\nauth:\n  admins: null\n  oidc: null\n  users: null\n  tokens: null\n",
         "registries:\n  local: {type: hosted, teams: null, packages: null}\n  public: {type: upstream, url: https://registry.example/, public: true, headers: null, teams: null, packages: null}\n",
         "artifacts:\n  orgs: null\n  quota: null\n",
-        "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      workloads: null\n      login:\n        users:\n          - {subject: sub, username: alice, claims: null}\n",
+        "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      workloads: null\n      login:\n        users:\n          - {subject: sub, userId: alice, claims: null}\n",
     ];
 
     for yaml in configs {
@@ -186,7 +186,7 @@ fn backend_block_rejects_empty_selection() {
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an empty backend block must not fall back to local");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("exactly one database backend")),
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("use database.url")),
         "expected an InvalidConfig naming the backend selection, got {err:?}",
     );
 }
@@ -202,7 +202,7 @@ backend:
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an unknown backend key must not fall back to local");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("unknown field `sqlite`")),
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("use database.url")),
         "expected an InvalidConfig naming the unknown field, got {err:?}",
     );
 }
@@ -211,16 +211,16 @@ backend:
 fn postgres_backend_block_selects_postgres_record_store() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  postgres:
-    url: postgres://pnpr:secret@db.example/pnpr
-    maxConnections: 12
-    timeout: 5s
-    startupTimeout: 2m
+database:
+  url: postgres://pnpr:secret@db.example/pnpr
+  maxConnections: 12
+  timeout: 5s
+  startupTimeout: 2m
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
         BackendConfig::Postgres(settings) => {
+            assert_eq!(config.storage.metadata, crate::MetadataBackend::Postgres(settings.clone()));
             assert_eq!(settings.url, "postgres://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, Some(12));
             assert_eq!(settings.timeout, Duration::from_secs(5));
@@ -234,13 +234,13 @@ backend:
 fn mysql_backend_block_selects_mysql_record_store() {
     let yaml = "\
 storage: /var/lib/pnpr
-backend:
-  mysql:
-    url: mysql://pnpr:secret@db.example/pnpr
+database:
+  url: mysql://pnpr:secret@db.example/pnpr
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
         BackendConfig::Mysql(settings) => {
+            assert_eq!(config.storage.metadata, crate::MetadataBackend::Mysql(settings.clone()));
             assert_eq!(settings.url, "mysql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
             assert_eq!(settings.timeout, super::super::SqlBackendSettings::DEFAULT_TIMEOUT);
@@ -472,7 +472,7 @@ fn typed_token_grammar_is_validated() {
     // and an empty team reference is named as such.
     for (token, needle) in [
         ("group:platform", r#"did you mean "team:platform""#),
-        ("org:corp", "the only typed token is `team:<name>`"),
+        ("org:corp", "the only typed token is `team:<id>`"),
         ("'team:'", "names no team"),
         ("team:a:b", "a team name cannot contain `:`"),
     ] {
@@ -556,7 +556,7 @@ fn bundled_default_config_enforces_its_protections() {
     // The bundled YAML provides production-safe defaults: registration disabled,
     // default public npmjs proxy, and an empty local hosted registry.
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(config.identity.auth.users.max_users, super::super::MaxUsers::Disabled);
     assert_eq!(config.routing.registries.default_registry(), Some("npmjs"));
     assert!(config.routing.hosted.contains_key("local"));
     assert_eq!(
@@ -651,23 +651,27 @@ fn rejects_package_keys_that_normalize_to_the_same_name() {
 #[test]
 fn oci_limits_are_positive_and_preserve_defaults() {
     let config = Config::from_yaml_str(
-        "oci: {maxBlobBytes: 123, maxManifestBytes: 456, bearerAuth: true}",
+        "oci: {maxBlobBytes: 123, maxManifestBytes: 456, chunkMaxBytes: 100, bearerAuth: true}",
         Path::new("/config"),
         listen(),
         None,
     )
     .unwrap();
     assert_eq!(config.http.oci.max_blob_bytes, 123);
+    assert_eq!(config.http.oci.chunk_max_bytes.unwrap().get(), 100);
     assert_eq!(config.http.oci.max_manifest_bytes, 456);
     assert!(config.http.oci.bearer_auth);
     let config = Config::from_yaml_str("{}", Path::new("/config"), listen(), None).unwrap();
     assert_eq!(config.http.oci.max_blob_bytes, 10 * 1024 * 1024 * 1024);
     assert_eq!(config.http.oci.max_manifest_bytes, 4 * 1024 * 1024);
     assert!(!config.http.oci.bearer_auth);
+    assert!(config.http.oci.chunk_max_bytes.is_none());
     for yaml in [
         "oci: {maxBlobBytes: 0}",
         "oci: {maxManifestBytes: 0}",
         "oci: {maxBlobBytes: -1}",
+        "oci: {chunkMaxBytes: 0}",
+        "oci: {chunkMaxBytes: -1}",
         "oci: {maxManifestByte: 1}",
     ] {
         assert!(

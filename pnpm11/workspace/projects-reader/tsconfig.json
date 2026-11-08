@@ -25,6 +25,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
       "path": "../../text/ordinal-comparator"
     },
     {

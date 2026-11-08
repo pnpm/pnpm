@@ -61,7 +61,7 @@ pub enum Command {
         /// Target directory to export packages into.
         #[arg(long)]
         out: PathBuf,
-        /// Include auth files (htpasswd, tokens.db) in export.
+        /// Include auth files (users.json, tokens.db) in export.
         #[arg(long)]
         include_auth: bool,
     },
@@ -94,7 +94,7 @@ pub enum Command {
         /// Path to source htpasswd file.
         #[arg(long)]
         source: PathBuf,
-        /// Path to target htpasswd file. Defaults to config htpasswd file.
+        /// Path to the target JSON account file. Defaults to the configured account file.
         #[arg(long)]
         target: Option<PathBuf>,
         /// Report what would be imported without writing to target file.
@@ -104,8 +104,7 @@ pub enum Command {
         #[arg(long)]
         overwrite: bool,
     },
-    /// Add or update a user account in the configured auth backend. With an
-    /// htpasswd file, run it while the server is stopped.
+    /// Add or update an account and print its immutable ID.
     AddUser {
         /// Username of the account to create or update.
         username: String,
@@ -249,10 +248,10 @@ fn run_import_htpasswd(
     dry_run: bool,
     overwrite: bool,
 ) -> miette::Result<()> {
-    let target = target.or_else(|| config.identity.auth.htpasswd.file.clone());
+    let target = target.or_else(|| config.identity.auth.users.file.clone());
     let Some(target) = target else {
         return Err(miette::miette!(
-            "no target htpasswd file specified and none configured in identity.auth.htpasswd.file; pass --target <path>"
+            "no target account file specified and none configured in identity.auth.users.file; pass --target <path>"
         ));
     };
     let options = crate::htpasswd_import::HtpasswdImportOptions {
@@ -342,25 +341,17 @@ async fn run_add_user_command(
     password: Option<String>,
 ) -> miette::Result<()> {
     if matches!(config.identity.backend, pnpr_config::BackendConfig::Local)
-        && config.identity.auth.htpasswd.file.is_none()
+        && config.identity.auth.users.file.is_none()
     {
         return Err(miette::miette!(
-            "standalone add-user requires a persistent auth backend (configure auth.htpasswd.file or a database backend)"
+            "standalone add-user requires a persistent auth backend (configure auth.users.file or a database backend)"
         ));
     }
     let password = match password {
         Some(password) => password,
         None => read_password()?,
     };
-    if password.is_empty() {
-        return Err(miette::miette!("password cannot be empty"));
-    }
-    if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
-        return Err(miette::miette!(
-            "password cannot exceed {} bytes",
-            pnpr_auth::MAX_PASSWORD_BYTES,
-        ));
-    }
+    validate_password(&password)?;
     let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .map_err(|err| miette::miette!("could not connect to auth backend: {err}"))?;
@@ -374,6 +365,25 @@ async fn run_add_user_command(
             println!("Password for user '{username}' updated successfully.");
         }
         None => return Err(miette::miette!("failed to create or update user '{username}'")),
+    }
+    let id = auth.users
+        .account_id(&username)
+        .await
+        .map_err(|err| miette::miette!("{err}"))?
+        .ok_or_else(|| miette::miette!("account disappeared after update"))?;
+    println!("Account ID: {id}");
+    Ok(())
+}
+
+fn validate_password(password: &str) -> miette::Result<()> {
+    if password.is_empty() {
+        return Err(miette::miette!("password cannot be empty"));
+    }
+    if password.len() > pnpr_auth::MAX_PASSWORD_BYTES {
+        return Err(miette::miette!(
+            "password cannot exceed {} bytes",
+            pnpr_auth::MAX_PASSWORD_BYTES,
+        ));
     }
     Ok(())
 }

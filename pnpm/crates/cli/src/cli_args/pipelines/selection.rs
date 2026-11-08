@@ -7,9 +7,12 @@ use super::{
     nested_workspace_manifests::report_nested_workspace_manifests, precomputed_workspace_cycles,
     project_dependencies, sequence_project_dependencies,
 };
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, RecursiveSelection, UnmatchedFilters, discover_workspace_projects,
-    select_recursive_projects_deferring_no_match,
+use crate::{
+    cli_args::recursive::{
+        AutoExcludeRoot, RecursiveSelection, UnmatchedFilters, discover_workspace_projects,
+        select_recursive_projects_deferring_no_match,
+    },
+    state::{ProjectHost, host_requirements},
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
@@ -89,22 +92,12 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
         precompute_workspace_cycles,
     )?
     else {
+        check_single_project_workspace::<Reporter>(cfg)?;
         return Ok(InstallFamily { plan: InstallFamilyPlan::Single, scope: None, unmatched: None });
     };
     let NarrowedWorkspace { selection, unmatched, root_selector } = narrowed;
-    // Only an install another ecosystem takes part in reads the scope. The
-    // npm install reads the selection itself, so it pays nothing for this.
-    let scope = crate::ecosystem_install::is_enabled(cfg)
-        .then(|| WorkspaceScope {
-            projects: Arc::new(
-                selection.projects
-                    .iter()
-                    .map(|project| project.root_dir.clone())
-                    .collect(),
-            ),
-            selected: Arc::clone(&selection.selected_dirs),
-            root_selector,
-        });
+    check_project_requirements::<Reporter>(cfg, &selection.workspace_root, &selection.projects)?;
+    let scope = workspace_scope(cfg, &selection, root_selector);
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
     // every plan shape below — a `PerProject` plan installs each selected
@@ -128,6 +121,54 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
         InstallFamilyPlan::PerProject(Box::new(DedicatedProjects::new(cfg, selection)))
     };
     Ok(InstallFamily { plan, scope, unmatched })
+}
+
+/// The scope the other ecosystems narrow themselves by. Only an install
+/// another ecosystem takes part in reads it. The npm install reads the
+/// selection itself, so it pays nothing for this.
+fn workspace_scope(
+    cfg: &Config,
+    selection: &InstallFamilySelection,
+    root_selector: Option<String>,
+) -> Option<WorkspaceScope> {
+    crate::ecosystem_install::is_enabled(cfg)
+        .then(|| WorkspaceScope {
+            projects: Arc::new(
+                selection.projects
+                    .iter()
+                    .map(|project| project.root_dir.clone())
+                    .collect(),
+            ),
+            selected: Arc::clone(&selection.selected_dirs),
+            root_selector,
+        })
+}
+
+/// Check what every workspace project, selected or not, requires of the
+/// host, per [`ProjectHost`].
+fn check_project_requirements<Reporter: self::Reporter>(
+    cfg: &Config,
+    workspace_root: &Path,
+    projects: &[pnpm_workspace::Project],
+) -> miette::Result<()> {
+    let host = ProjectHost::new(cfg, workspace_root);
+    for warning in host.check_projects(&host_requirements(
+        projects,
+        cfg.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ))? {
+        Reporter::emit(&warning);
+    }
+    Ok(())
+}
+
+/// A command that acts on one project of a workspace checks every project
+/// of it too, as one that acts on the whole workspace does.
+fn check_single_project_workspace<Reporter: self::Reporter>(cfg: &Config) -> miette::Result<()> {
+    let Some(workspace_root) = cfg.workspace_dir.as_deref() else {
+        return Ok(());
+    };
+    let (projects, _) = discover_workspace_projects(workspace_root, cfg)?;
+    check_project_requirements::<Reporter>(cfg, workspace_root, &projects)
 }
 
 pub(crate) fn select_workspace_projects(

@@ -18,6 +18,8 @@
 
 pub(super) use publication::{PypiPublication, authorize_upload, verify_upload};
 
+mod management;
+mod metadata;
 mod publication;
 use publication::post_upload;
 
@@ -36,10 +38,10 @@ use super::{
 use axum::{
     Router,
     body::{Body, Bytes},
-    extract::{Path, Request, State},
+    extract::{DefaultBodyLimit, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post, put},
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
@@ -69,6 +71,16 @@ pub(super) fn routes() -> Router<AppState> {
             .route(&format!("{base}/{SIMPLE_PATH}/{{project}}"), get(get_project_page))
             .route(&format!("{base}/{SIMPLE_PATH}/{{project}}/"), get(get_project_page))
             .route(&format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"), get(get_file))
+            .route(
+                &format!("{base}/{FILES_PATH}/{{project}}/{{filename}}/yank"),
+                put(management::yank)
+                    .delete(management::unyank)
+                    .layer(DefaultBodyLimit::max(management::MAX_YANK_BODY_BYTES)),
+            )
+            .route(
+                &format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"),
+                delete(management::delete_file),
+            )
             .route(&format!("{base}/{UPLOAD_PATH}"), post(post_upload))
             .route(&format!("{base}/{UPLOAD_PATH}/"), post(post_upload));
     }
@@ -96,6 +108,7 @@ fn html_response(headers: &HeaderMap, html: String) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, content_type)
+        .header(header::VARY, "Accept")
         .body(Body::from(html))
         .expect("static-shape response always builds")
 }
@@ -104,6 +117,7 @@ fn json_page_response(json: &serde_json::Value) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, JSON_CONTENT_TYPE)
+        .header(header::VARY, "Accept")
         .body(Body::from(serde_json::to_vec(json).expect("static-shape JSON serializes")))
         .expect("static-shape response always builds")
 }
@@ -340,7 +354,9 @@ async fn file_via_upstream(
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let Some(entry) = document.file(filename) else { return not_found() };
+    let Some(entry) = document.file(filename.strip_suffix(".metadata").unwrap_or(filename)) else {
+        return not_found();
+    };
     let bad_entry = |reason: String| {
         RegistryError::UpstreamResponse { url: base.to_string(), reason }.into_response()
     };
@@ -351,6 +367,9 @@ async fn file_via_upstream(
         Ok(url) if is_fetchable_artifact_url(&url) => url,
         _ => return bad_entry(format!("file {filename} has no fetchable HTTP(S) URL")),
     };
+    if filename.ends_with(".metadata") {
+        return metadata::serve(state, upstream, &namespace, key, entry, &url).await;
+    }
     let Some(integrity) = entry.sha256().and_then(sha256_integrity) else {
         return bad_entry(format!("file {filename} has no SHA-256 hash"));
     };

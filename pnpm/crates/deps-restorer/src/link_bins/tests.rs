@@ -1,6 +1,6 @@
 use super::{
-    LinkVirtualStoreBins, LinkVirtualStoreBinsError, PrefetchedBinLookup, build_has_bin_set,
-    link_direct_dep_bins, link_direct_dep_bins_prefetched, link_new_bins_from_locations,
+    BinCandidates, BinsDirPass, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
+    PrefetchedBinLookup, SkippedCommands, build_has_bin_set, link_bins_dir,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
 use pnpm_cmd_shim::{LinkBinsOptions, is_shim_pointing_at};
@@ -443,11 +443,11 @@ fn lockfile_driven_linking_only_visits_selected_snapshots() {
     assert!(!bin_path(&unchanged).exists());
 }
 
-/// [`link_direct_dep_bins`] walks the project's `node_modules/<dep>`
+/// [`BinCandidates::Aliases`] walks the project's `node_modules/<dep>`
 /// symlinks and writes a shim per declared bin. End-to-end exercise of
 /// the path that runs after [`crate::SymlinkDirectDependencies`].
 #[test]
-fn link_direct_dep_bins_writes_shims_for_each_dep() {
+fn aliases_writes_shims_for_each_dep() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     let foo_dir = modules.join("foo");
@@ -456,7 +456,12 @@ fn link_direct_dep_bins_writes_shims_for_each_dep() {
         .unwrap();
     write_file(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
-    link_direct_dep_bins(&modules, &["foo".to_string()], &LinkBinsOptions::default()).unwrap();
+    link_bins_dir(
+        &modules,
+        BinCandidates::Aliases(&["foo".to_string()]),
+        BinsDirPass::new(&LinkBinsOptions::default()),
+    )
+    .unwrap();
 
     let shim = modules.join(".bin/foo");
     assert!(shim.exists(), "shim should be created at {shim:?}");
@@ -464,23 +469,28 @@ fn link_direct_dep_bins_writes_shims_for_each_dep() {
     assert!(is_shim_pointing_at(&body, &shim, &foo_dir.join("cli.js")));
 }
 
-/// [`link_direct_dep_bins`] with no deps is a no-op. It must not even
+/// [`BinCandidates::Aliases`] with no deps is a no-op. It must not even
 /// create the `.bin` directory. Mirrors the early-return of
 /// [`pnpm_cmd_shim::link_bins_of_packages`].
 #[test]
-fn link_direct_dep_bins_no_op_for_empty_dep_list() {
+fn aliases_no_op_for_empty_dep_list() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(&modules).unwrap();
-    link_direct_dep_bins(&modules, &[], &LinkBinsOptions::default()).unwrap();
+    link_bins_dir(
+        &modules,
+        BinCandidates::Aliases(&[]),
+        BinsDirPass::new(&LinkBinsOptions::default()),
+    )
+    .unwrap();
     assert!(!modules.join(".bin").exists());
 }
 
-/// [`link_direct_dep_bins`] resolves the dep name through the symlink
+/// [`BinCandidates::Aliases`] resolves the dep name through the symlink
 /// pacquet creates under `<modules_dir>/<name>`. Pin that the manifest
 /// is read from the symlink's *target*, not the symlink path itself.
 #[test]
-fn link_direct_dep_bins_follows_symlink_to_real_package() {
+fn aliases_follows_symlink_to_real_package() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(&modules).unwrap();
@@ -501,26 +511,36 @@ fn link_direct_dep_bins_follows_symlink_to_real_package() {
     let symlink = modules.join("foo");
     pnpm_fs::symlink_dir(&real_pkg, &symlink).unwrap();
 
-    link_direct_dep_bins(&modules, &["foo".to_string()], &LinkBinsOptions::default()).unwrap();
+    link_bins_dir(
+        &modules,
+        BinCandidates::Aliases(&["foo".to_string()]),
+        BinsDirPass::new(&LinkBinsOptions::default()),
+    )
+    .unwrap();
 
     assert!(modules.join(".bin/foo").exists(), "symlinked dep must produce a shim");
 }
 
 /// Skip dep names whose symlink points at a non-existent target.
-/// [`link_direct_dep_bins`] filters those silently because the
+/// [`BinCandidates::Aliases`] filters those silently because the
 /// surrounding install pipeline has already populated whatever it could.
 #[test]
-fn link_direct_dep_bins_skips_dep_with_missing_manifest() {
+fn aliases_skips_dep_with_missing_manifest() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(&modules).unwrap();
     // No `<modules>/foo` directory at all.
-    link_direct_dep_bins(&modules, &["foo".to_string()], &LinkBinsOptions::default()).unwrap();
+    link_bins_dir(
+        &modules,
+        BinCandidates::Aliases(&["foo".to_string()]),
+        BinsDirPass::new(&LinkBinsOptions::default()),
+    )
+    .unwrap();
     assert!(!modules.join(".bin").exists());
 }
 
 #[test]
-fn read_dep_bin_source_skips_missing_publish_directory() {
+fn read_alias_skips_missing_publish_directory() {
     let tmp = tempdir().unwrap();
     let project = tmp.path().join("project");
     create_dir_all(&project).unwrap();
@@ -531,10 +551,10 @@ fn read_dep_bin_source_skips_missing_publish_directory() {
     )
     .unwrap();
 
-    let source = super::direct::read_dep_bin_source(
+    let source = super::bins_dir::read_alias(
         &tmp.path().join("node_modules"),
         "foo",
-        &project.join("dist"),
+        Some(&project.join("dist")),
     );
 
     assert!(source.is_none(), "a missing publish directory has no bins");
@@ -545,16 +565,15 @@ fn read_dep_bin_source_skips_missing_publish_directory() {
 /// with `ENOTDIR` on Unix, where Windows reports it as not found.
 #[cfg(unix)]
 #[test]
-fn read_dep_bin_source_reports_publish_directory_inspection_error() {
+fn read_alias_reports_publish_directory_inspection_error() {
     let tmp = tempdir().unwrap();
     let file = tmp.path().join("file");
     write_file(&file, "").unwrap();
     let target = file.join("dist");
 
-    let error =
-        super::direct::read_dep_bin_source(&tmp.path().join("node_modules"), "foo", &target)
-            .expect("an inspection error yields a result")
-            .expect_err("an inspection error is not a bin source");
+    let error = super::bins_dir::read_alias(&tmp.path().join("node_modules"), "foo", Some(&target))
+        .expect("an inspection error yields a result")
+        .expect_err("an inspection error is not a bin source");
 
     dbg!(&error);
     assert!(
@@ -774,11 +793,10 @@ fn prefetched_bin_pass_trusts_the_has_bin_gate_over_the_disk_manifest() {
     )]);
     let requires_build = HashMap::from([(key.clone(), false)]);
     let lookup = PrefetchedBinLookup::new(Some(&packages), None, Some(&requires_build));
-    link_direct_dep_bins_prefetched(
+    link_bins_dir(
         &modules,
-        &[("foo".to_string(), foo_dir, Some(key))],
-        &lookup,
-        &LinkBinsOptions::default(),
+        BinCandidates::Prefetched(&[("foo".to_string(), foo_dir, Some(key))], &lookup),
+        BinsDirPass::new(&LinkBinsOptions::default()),
     )
     .unwrap();
     assert!(!modules.join(".bin").exists(), "hasBin: false must skip the dep without IO");
@@ -807,11 +825,10 @@ fn prefetched_bin_pass_reads_a_may_build_dep_from_disk() {
     )]);
     let requires_build = HashMap::from([(key.clone(), true)]);
     let lookup = PrefetchedBinLookup::new(Some(&packages), None, Some(&requires_build));
-    link_direct_dep_bins_prefetched(
+    link_bins_dir(
         &modules,
-        &[("foo".to_string(), foo_dir.clone(), Some(key))],
-        &lookup,
-        &LinkBinsOptions::default(),
+        BinCandidates::Prefetched(&[("foo".to_string(), foo_dir.clone(), Some(key))], &lookup),
+        BinsDirPass::new(&LinkBinsOptions::default()),
     )
     .unwrap();
     let body = read_to_string(modules.join(".bin/foo")).expect("may-build dep read from disk");
@@ -841,11 +858,10 @@ fn prefetched_bin_pass_links_from_the_prefetched_manifest_without_a_disk_manifes
     )]);
     let requires_build = HashMap::from([(key.clone(), false)]);
     let lookup = PrefetchedBinLookup::new(Some(&packages), Some(&manifests), Some(&requires_build));
-    link_direct_dep_bins_prefetched(
+    link_bins_dir(
         &modules,
-        &[("foo".to_string(), foo_dir.clone(), Some(key))],
-        &lookup,
-        &LinkBinsOptions::default(),
+        BinCandidates::Prefetched(&[("foo".to_string(), foo_dir.clone(), Some(key))], &lookup),
+        BinsDirPass::new(&LinkBinsOptions::default()),
     )
     .unwrap();
     let shim = modules.join(".bin/foo");
@@ -973,11 +989,10 @@ fn prefetched_and_virtual_store_bin_passes_use_precalculated_bins_without_disk_r
     pnpm_fs::symlink_dir(&pkg_dir, &modules.join("foo")).unwrap();
     let lookup = PrefetchedBinLookup::new(Some(&packages), Some(&manifests), Some(&requires_build))
         .with_package_bins(Some(&bins));
-    link_direct_dep_bins_prefetched(
+    link_bins_dir(
         &modules,
-        &[("foo".to_string(), pkg_dir, Some(key))],
-        &lookup,
-        &LinkBinsOptions::default(),
+        BinCandidates::Prefetched(&[("foo".to_string(), pkg_dir, Some(key))], &lookup),
+        BinsDirPass::new(&LinkBinsOptions::default()),
     )
     .unwrap();
     let direct_shim = modules.join(".bin/cli.js");
@@ -1000,11 +1015,10 @@ fn prefetched_bin_pass_reads_a_link_dep_from_disk() {
 
     let packages = HashMap::new();
     let lookup = PrefetchedBinLookup::new(Some(&packages), None, None);
-    link_direct_dep_bins_prefetched(
+    link_bins_dir(
         &modules,
-        &[("sibling".to_string(), sibling_dir.clone(), None)],
-        &lookup,
-        &LinkBinsOptions::default(),
+        BinCandidates::Prefetched(&[("sibling".to_string(), sibling_dir.clone(), None)], &lookup),
+        BinsDirPass::new(&LinkBinsOptions::default()),
     )
     .unwrap();
     let body = read_to_string(modules.join(".bin/sibling")).expect("link: dep read from disk");
@@ -1033,7 +1047,12 @@ fn link_new_bins_from_locations_keeps_commands_with_any_windows_extension() {
     write_file(project.join("package.json"), json!({ "name": "project", "bin": bin }).to_string())
         .unwrap();
 
-    link_new_bins_from_locations(&modules_dir, &[project], &LinkBinsOptions::default()).unwrap();
+    link_bins_dir(
+        &modules_dir,
+        BinCandidates::Locations(&[project]),
+        BinsDirPass::new(&LinkBinsOptions::default()).skipping(SkippedCommands::AlreadyLinked),
+    )
+    .unwrap();
 
     let mut linked: Vec<String> = std::fs::read_dir(&bins_dir)
         .unwrap()

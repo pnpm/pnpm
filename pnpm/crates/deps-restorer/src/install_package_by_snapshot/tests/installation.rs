@@ -153,15 +153,12 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
     let rendered = render_variant_targets(&variants);
     assert_eq!(rendered, "darwin/arm64, linux/x64+musl, win32/x64");
 }
-/// The resolve-time prefetch is best-effort: if it failed (its mem-cache
-/// slot is [`CacheValue::Failed`]), the cold batch must not inherit the
-/// failure — it falls back to its own retried download. Proven here by
-/// seeding a `Failed` slot under `offline: true`: the only way to reach
-/// the offline gate (`NoOfflineTarball`) instead of surfacing
-/// `SiblingFetchFailed` is for the fallback to `run_without_mem_cache` to
-/// have run.
+/// A prefetch that failed has already spent the archive's retry budget, so
+/// the cold batch reports its error instead of downloading again. The slot
+/// is seeded under `offline: true`, where a second download would fail at
+/// the offline gate (`NoOfflineTarball`) instead.
 #[tokio::test]
-async fn cold_batch_falls_back_when_prefetch_failed() {
+async fn cold_batch_reports_a_failed_prefetch_without_downloading_again() {
     use crate::InstallPackageBySnapshotError;
     use pnpm_tarball::{CacheValue, MemCache, TarballError, package_mem_cache_key};
     use std::sync::{Arc, atomic::AtomicU8};
@@ -178,7 +175,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
             Some(&DUMMY_SHA512.parse().expect("parse integrity")),
             false,
         ),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Failed)),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Failed("prefetch failed".into()))),
     );
 
     let layout = crate::VirtualStoreLayout::legacy(store_tmp.path().join("vstore"), 120);
@@ -234,14 +231,15 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     }
     .run::<pnpm_reporter::SilentReporter>(&package_key, &metadata, &snapshot)
     .await
-    .expect_err("a failed prefetch must fall back to a real download, here offline-gated");
+    .expect_err("the failed prefetch must fail the install");
 
     assert!(
         matches!(
-            err,
-            InstallPackageBySnapshotError::DownloadTarball(TarballError::NoOfflineTarball { .. }),
+            &err,
+            InstallPackageBySnapshotError::DownloadTarball(TarballError::SiblingFetchFailed { cause })
+                if &**cause == "prefetch failed",
         ),
-        "fallback must reach the offline download gate, not inherit SiblingFetchFailed; got {err:?}",
+        "the prefetch's error must be reported without another download; got {err:?}",
     );
 
     drop(store_tmp);

@@ -123,6 +123,42 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
 }
 
 #[test]
+fn legacy_deploy_resolves_a_workspace_path_from_the_selected_project() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "packages", "\n  - packages/*");
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app", "version": "1.0.0", "dependencies": { "lib": "workspace:../lib" },
+        }),
+    );
+    write_project(&workspace, "lib", &serde_json::json!({ "name": "lib", "version": "1.0.0" }));
+    fs::write(workspace.join("packages/lib/index.js"), "module.exports = 'lib'").unwrap();
+    fs::write(workspace.join("packages/app/index.js"), "console.log(require('lib'))").unwrap();
+
+    pacquet_cmd(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "deployed"])
+        .assert()
+        .success();
+
+    fs::rename(workspace.join("packages/lib"), workspace.join("source-lib")).unwrap();
+    Command::new("node")
+        .current_dir(workspace.join("deployed"))
+        .arg("index.js")
+        .assert()
+        .success()
+        .stdout("lib\n");
+    drop((root, mock_instance));
+}
+
+#[test]
 fn legacy_deploy_installs_selected_project() {
     let CommandTempCwd {
         pacquet,

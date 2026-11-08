@@ -1,10 +1,13 @@
-pub(crate) use resolve::fallback_version;
+pub(crate) use resolve::{fallback_version, link_target_dir};
 
 mod publish;
 use publish::remove_publish_modules_link;
 
 mod report;
 use report::emit_root_added;
+
+mod entry_bins;
+use entry_bins::{link_symlinked_entry_bins, link_unlinked_entry_bins};
 
 mod resolve;
 use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets};
@@ -22,7 +25,6 @@ use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
@@ -59,7 +61,7 @@ where
 
     /// Parsed manifests recovered from the store-index prefetch
     /// ([`crate::PackageManifests`]), when the caller has them. Feeds
-    /// [`crate::link_direct_dep_bins_prefetched`] so an importer's bin
+    /// [`crate::BinCandidates::Prefetched`] so an importer's bin
     /// pass reads no `package.json` for a prefetched dep; `None` keeps
     /// every dep on the disk-read fallback.
     pub package_manifests: Option<&'a crate::PackageManifests>,
@@ -67,7 +69,7 @@ where
 
     /// Per-snapshot `requiresBuild` flags from the same prefetch,
     /// gating [`Self::package_manifests`] — see
-    /// [`crate::link_direct_dep_bins_prefetched`].
+    /// [`crate::BinCandidates::Prefetched`].
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
 
     /// The builds that run after this pass. See
@@ -133,10 +135,10 @@ where
     }
 
     /// Execute the subroutine and return the command names linked for each
-    /// importer's modules directory (keyed by [`pnpm_fs::lexical_normalize`]).
+    /// importer's modules directory.
     pub fn run_claiming_bins<Reporter: self::Reporter>(
         self,
-    ) -> Result<HashMap<PathBuf, HashSet<String>>, SymlinkDirectDependenciesError> {
+    ) -> Result<crate::ClaimedCommands, SymlinkDirectDependenciesError> {
         // Collect once so the same group order can drive every importer.
         let dependency_groups: Vec<DependencyGroup> = self.dependency_groups.into_iter().collect();
         ImporterPass {
@@ -146,6 +148,10 @@ where
 
             dependency_groups,
             workspace_root_real: std::fs::canonicalize(self.context.workspace_root).ok(),
+            modules_dirs: crate::ImporterModulesDirs::from_config(
+                self.context.config,
+                self.context.workspace_root,
+            ),
 
             // One bin lookup for the whole pass: the `hasBin` gate and
             // the shim probe memo are importer-invariant.
@@ -169,15 +175,14 @@ struct ImporterPass<'a> {
     pub policy: crate::DirectLinkPolicy<'a>,
     dependency_groups: Vec<DependencyGroup>,
     workspace_root_real: Option<PathBuf>,
+    modules_dirs: crate::ImporterModulesDirs,
     bin_lookup: crate::PrefetchedBinLookup<'a>,
 }
 
 impl ImporterPass<'_> {
     fn run<Reporter: self::Reporter>(
         &self,
-    ) -> Result<HashMap<PathBuf, HashSet<String>>, SymlinkDirectDependenciesError> {
-        let modules_dir_name: &OsStr = self.context.config.modules_dir_name();
-
+    ) -> Result<crate::ClaimedCommands, SymlinkDirectDependenciesError> {
         // Sorted so the fallible upfront validation below rejects a
         // hostile lockfile on a deterministic importer. `pnpm:root`
         // event order is not pinned — the per-importer work runs on
@@ -207,7 +212,6 @@ impl ImporterPass<'_> {
                         self.link_importer::<Reporter>(
                             importer_id,
                             group.real_dir.as_deref(),
-                            modules_dir_name,
                             root_targets.as_ref(),
                         )
                     })
@@ -260,7 +264,6 @@ impl ImporterPass<'_> {
         &self,
         importer_id: &str,
         real_dir: Option<&Path>,
-        modules_dir_name: &OsStr,
         root_targets: Option<&BTreeMap<String, PathBuf>>,
     ) -> Result<(PathBuf, HashSet<String>), SymlinkDirectDependenciesError> {
         // Safe: the task groups were built from `importers.keys()`.
@@ -272,7 +275,7 @@ impl ImporterPass<'_> {
             real_dir,
             importer_id,
         );
-        let modules_dir = pnpm_fs::lexical_normalize(&modules_parent.join(modules_dir_name));
+        let modules_dir = pnpm_fs::lexical_normalize(&self.modules_dirs.of(modules_parent));
         let real_modules_dir = pnpm_fs::symlinked_dir_real_path(modules_parent, &modules_dir);
 
         // Only non-root importers get deduped against root: the
@@ -557,35 +560,12 @@ fn link_one_importer<Reporter: self::Reporter>(
             )
         })?;
 
-    // After the symlinks exist, walk them to discover each
-    // direct dep's `package.json` and link declared bins into
-    // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
-    // destination, so the bin pass gets the resolved location for
-    // free.
-    let claimed = if symlink {
-        let deps = resolved_entry_bins(&entries);
-        crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
-            .map_err(SymlinkDirectDependenciesError::LinkBins)?
+    if symlink {
+        link_symlinked_entry_bins(modules_dir, &entries, bin_lookup, link_options)
     } else {
-        let locations: Vec<PathBuf> = entries
-            .iter()
-            .map(|entry| entry.target.clone())
-            .collect();
-        crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
-            .map_err(SymlinkDirectDependenciesError::LinkBins)?
-    };
-
-    Ok(claimed)
-}
-
-fn resolved_entry_bins(entries: &[ResolvedEntry<'_>]) -> Vec<crate::PrefetchedDepBin> {
-    entries
-        .iter()
-        .map(|entry| {
-            let snapshot_key = entry.spec.version.resolved_key(entry.name);
-            (entry.name_str.clone(), entry.target.clone(), snapshot_key)
-        })
-        .collect()
+        link_unlinked_entry_bins(modules_dir, &entries, link_options)
+    }
+    .map_err(SymlinkDirectDependenciesError::LinkBins)
 }
 
 #[cfg(test)]

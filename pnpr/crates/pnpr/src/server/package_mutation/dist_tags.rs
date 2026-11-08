@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::metadata::{Generation, TagChange, TagUpdate};
+use pnpr_storage::metadata::{Generation, TagChange, TagUpdate, validate_dist_tag};
 
 use crate::server::{
     Action, AppState, GENERATION_HEADER, RegistrySource, authorize_package,
@@ -49,17 +49,6 @@ pub(crate) async fn get_dist_tags(
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
-}
-
-fn validate_dist_tag(tag: &str) -> Result<(), RegistryError> {
-    if tag.is_empty()
-        || tag
-            .chars()
-            .any(|character| character.is_control() || character.is_whitespace())
-    {
-        return Err(RegistryError::BadRequest { reason: "invalid dist-tag name".to_string() });
-    }
-    Ok(())
 }
 
 /// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
@@ -146,14 +135,11 @@ async fn update_dist_tag(
     )
     .await
     .map_err(IntoResponse::into_response)?;
-    let version = request.body
-        .map(serde_json::from_slice::<String>)
-        .transpose()
-        .map_err(|err| RegistryError::Json(err).into_response())?;
+    let version = parse_tag_target(request.body).map_err(IntoResponse::into_response)?;
     let storage = hosted_storage(state, Some(&target.org));
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     let change =
-        TagChange { tag: request.tag, target: version.as_deref(), principal: identity.username() };
+        TagChange { tag: request.tag, target: version.as_deref(), principal: identity.user_id() };
     match storage.change_dist_tag(&name, change).await {
         Ok(TagUpdate::Committed { generation, moved }) => Ok(TagOutcome {
             response: ok_created_response(generation.as_ref()),
@@ -164,6 +150,14 @@ async fn update_dist_tag(
         Ok(TagUpdate::NotFound) => Err(not_found()),
         Err(err) => Err(err.into_response()),
     }
+}
+
+fn parse_tag_target(body: Option<&[u8]>) -> Result<Option<String>, RegistryError> {
+    body.map(serde_json::from_slice::<String>)
+        .transpose()
+        .map_err(|_| RegistryError::BadRequest {
+            reason: "dist-tag target must be a JSON string".to_string(),
+        })
 }
 
 fn log_tag_change(identity: &Identity, request: &TagRequest<'_>, outcome: &TagOutcome) {

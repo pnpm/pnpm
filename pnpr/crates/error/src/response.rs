@@ -4,6 +4,10 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+/// The safe client message attached to an error response for protocol renderers.
+#[derive(Clone)]
+pub struct PublicErrorMessage(pub String);
+
 impl RegistryError {
     /// Whether a failed upstream fetch is a transient *availability* failure —
     /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
@@ -25,6 +29,14 @@ impl RegistryError {
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
             RegistryError::Shared(inner) => inner.is_transient_upstream_error(),
             _ => false,
+        }
+    }
+
+    fn retry_after(&self) -> Option<std::time::Duration> {
+        match self {
+            RegistryError::UpstreamUnavailable { retry_after, .. } => Some(*retry_after),
+            RegistryError::Shared(inner) => inner.retry_after(),
+            _ => None,
         }
     }
 
@@ -71,7 +83,6 @@ impl RegistryError {
 
     fn package_log_kind(&self) -> Option<&'static str> {
         match self {
-            RegistryError::ReservedUsername { .. } => Some("reserved_username"),
             RegistryError::NotPackageMaintainer { .. } => Some("not_package_maintainer"),
             RegistryError::PackageTombstoned { .. } => Some("package_tombstoned"),
             RegistryError::CannotRepublishUnpublishedVersion { .. } => {
@@ -89,7 +100,7 @@ impl RegistryError {
             RegistryError::DocumentFormatTooNew { .. } => "document_format_too_new",
             RegistryError::StorageUnavailable { .. } => "storage_unavailable",
             RegistryError::Internal { .. } => "internal",
-            RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
+            RegistryError::InvalidUsersFile { .. } => "invalid_users_file",
             RegistryError::Bcrypt(_) => "bcrypt",
             RegistryError::Sqlite(_) => "sqlite",
             #[cfg(feature = "backend-libsql")]
@@ -114,7 +125,7 @@ impl RegistryError {
         match self {
             RegistryError::StorageUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::Internal { .. }
-            | RegistryError::InvalidHtpasswdFile { .. }
+            | RegistryError::InvalidUsersFile { .. }
             | RegistryError::Bcrypt(_)
             | RegistryError::Sqlite(_)
             | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -147,6 +158,9 @@ impl RegistryError {
     pub fn public_message(&self) -> String {
         if let RegistryError::Shared(inner) = self {
             return inner.public_message();
+        }
+        if let RegistryError::UpstreamUnavailable { .. } = self {
+            return self.to_string();
         }
         let status = self.status_code();
         if status.is_server_error() {
@@ -218,7 +232,6 @@ impl RegistryError {
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
             | RegistryError::TooManyUsers { .. }
-            | RegistryError::ReservedUsername { .. }
             | RegistryError::NotPackageMaintainer { .. }
             | RegistryError::PackageTombstoned { .. }
             | RegistryError::CannotRepublishUnpublishedVersion { .. } => {
@@ -249,7 +262,26 @@ impl IntoResponse for RegistryError {
         } else {
             tracing::warn!(err = %self, %error_kind, %status, "request failed");
         }
-        (status, self.public_message()).into_response()
+        let message = self.public_message();
+        let mut response = (status, message.clone()).into_response();
+        response
+            .extensions_mut()
+            .insert(PublicErrorMessage(message));
+        if let Some(delay) = self.retry_after() {
+            let seconds = delay
+                .as_secs()
+                .saturating_add(u64::from(delay.subsec_nanos() > 0));
+            response
+                .headers_mut()
+                .insert(
+                    axum::http::header::RETRY_AFTER,
+                    seconds
+                        .to_string()
+                        .parse()
+                        .expect("integer is a valid header value"),
+                );
+        }
+        response
     }
 }
 

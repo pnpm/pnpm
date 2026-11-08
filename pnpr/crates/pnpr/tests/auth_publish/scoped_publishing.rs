@@ -17,7 +17,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let bytes = &npm_tgz("@pnpmtest/lib-pub-form", "1.0.0", b"libnpmpublish-form");
     let pkg = "@pnpmtest/lib-pub-form";
@@ -84,7 +84,7 @@ async fn unpublish_partial_writes_modified_packument() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Publish two versions, then PUT a modified packument with the
     // older one removed — simulating the partial-unpublish flow.
@@ -128,11 +128,12 @@ async fn unpublish_partial_writes_modified_packument() {
         .as_object_mut()
         .unwrap()
         .remove("integrity");
-    let request = Request::put("/npm/unpub-partial/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(serde_json::to_vec(&modified).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/unpub-partial/-rev/{}", modified["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&modified).unwrap()))
+            .unwrap();
     let response = app
         .clone()
         .oneshot(request)
@@ -205,7 +206,7 @@ async fn unpublish_tarball_preserves_cache_subsystems_and_cached_entries() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("blend-pkg", "1.0.0", b"hosted-bytes");
     let request = Request::put("/npm/blend-pkg")
@@ -269,7 +270,7 @@ async fn unpublish_force_removes_entire_package() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("unpub-force", "1.0.0", b"contents");
     let request = Request::put("/npm/unpub-force")
@@ -328,7 +329,7 @@ async fn unpublish_package_without_rev_suffix() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     for (pkg, path) in
         [("unpub-clean", "/npm/unpub-clean"), ("@scope/unpub-clean", "/npm/@scope/unpub-clean")]
@@ -376,7 +377,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("@scope/unpub", "1.0.0", b"bytes");
     let request = Request::put("/npm/@scope/unpub")
@@ -407,7 +408,7 @@ async fn unpublish_tarball_via_version_route_url() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     for (pkg, put_path, delete_path, blob_name) in [
         (
@@ -517,7 +518,7 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
     publish: alice",
     );
     let app = router(config);
-    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let body = publish_doc("missing-unpublish", "1.0.0", b"contents");
     let request = Request::put("/npm/missing-unpublish")
@@ -568,8 +569,8 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     unpublish: admin",
     );
     let app = router(config);
-    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret123").await;
 
     let body = publish_doc("replace-policy", "1.0.0", b"contents");
     let request = Request::put("/npm/replace-policy")
@@ -596,13 +597,24 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .unwrap(),
     )
     .unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/replace-policy")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    replacement["_rev"] = body_json(response.into_body()).await["_rev"].clone();
     replacement["owner"] = json!("admin");
 
-    let request = Request::put("/npm/replace-policy/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {alice}"))
-        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/replace-policy/-rev/{}", replacement["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {alice}"))
+            .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+            .unwrap();
     assert_eq!(
         app.clone()
             .oneshot(request)
@@ -623,11 +635,12 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     .unwrap();
     assert!(on_disk.get("owner").is_none());
 
-    let request = Request::put("/npm/replace-policy/-rev/anything")
-        .header("content-type", "application/json")
-        .header("Authorization", format!("Bearer {admin}"))
-        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
-        .unwrap();
+    let request =
+        Request::put(format!("/npm/replace-policy/-rev/{}", replacement["_rev"].as_str().unwrap()))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {admin}"))
+            .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+            .unwrap();
     assert_eq!(
         app.clone()
             .oneshot(request)
@@ -660,7 +673,7 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
     let app = router(static_config(storage.clone()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let publish = |version: &'static str| {
         let app = app.clone();

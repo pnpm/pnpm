@@ -104,16 +104,25 @@ pub(super) fn enforce_published_version_immutability(
     None
 }
 
-/// The packument a rewrite submitted, with the fields only the store owns
-/// stripped.
+/// Validate a rewrite and retain its revision precondition.
 ///
 /// The write destination is the URL package name; a mismatched body name would
 /// otherwise land under the URL package and persist an inconsistent manifest.
 pub(super) fn submitted_packument(
-    body: &[u8],
-    name: &CanonicalPackageName,
+    mut packument: Value,
+    (name, revision): (&CanonicalPackageName, &str),
 ) -> Result<Value, RegistryError> {
-    let mut packument: Value = serde_json::from_slice(body).map_err(RegistryError::Json)?;
+    if !packument.is_object() {
+        return Err(RegistryError::BadRequest {
+            reason: "packument must be an object".to_string(),
+        });
+    }
+    if packument
+        .get("_rev")
+        .is_some_and(|value| value.as_str() != Some(revision))
+    {
+        return Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() });
+    }
     if let Some(body_name) = packument.get("name").and_then(Value::as_str)
         && body_name != name.as_str()
     {
@@ -126,7 +135,7 @@ pub(super) fn submitted_packument(
     }
     if let Some(obj) = packument.as_object_mut() {
         obj.remove("_attachments");
-        obj.remove("_rev");
+        obj.insert("_rev".to_string(), Value::String(revision.to_string()));
         obj.remove("_revisions");
     }
     Ok(packument)

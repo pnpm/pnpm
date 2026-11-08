@@ -168,5 +168,11 @@ fn remove_manifest_or_tag(
         Ok(digest) => document.remove_manifest(&digest),
         Err(_) => document.remove_tag(reference),
     };
-    Ok(removed.then(|| document.to_bytes()))
+    if !removed {
+        return Ok(None);
+    }
+    if document.manifests().is_empty() {
+        return Ok(Some(Vec::new()));
+    }
+    Ok(Some(document.to_bytes()))
 }

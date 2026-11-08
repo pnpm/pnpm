@@ -67,11 +67,20 @@ fn start_pnpr_for(registry_urls: &[&str]) -> (String, String) {
             .expect("open user store");
         users.create_user("pacquet-test", "password").await.expect("store pnpr test account");
         let tokens = pnpr::TokenStore::open(tokens_path.clone()).expect("open token store");
-        tokens.issue("pacquet-test").await.expect("issue pnpr test token")
+        tokens
+            .issue(
+                &users
+                    .account_id("pacquet-test")
+                    .await
+                    .unwrap()
+                    .unwrap(),
+            )
+            .await
+            .expect("issue pnpr test token")
     });
 
     let addr = server.serve(move |config| {
-        config.identity.auth.htpasswd.file = Some(htpasswd_path);
+        config.identity.auth.users.file = Some(htpasswd_path);
         config.identity.auth.tokens.file = Some(tokens_path);
         config.routing.route_policy.public.extend(
             registry_urls

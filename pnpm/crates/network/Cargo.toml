@@ -16,6 +16,7 @@ derive_more = { workspace = true }
 futures-util = { workspace = true }
 miette = { workspace = true }
 pipe-trait = { workspace = true }
+pnpm-process = { path = "../process" }
 rustls = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 tracing = { workspace = true }
@@ -37,7 +38,6 @@ reqwest = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-pnpm-process = { path = "../process" }
 pnpm-http = { workspace = true }
 
 [lints]

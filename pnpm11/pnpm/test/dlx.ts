@@ -295,10 +295,15 @@ testParallel('parallel dlx calls of the same package', async () => {
 
   // parallel dlx calls with cache
   await Promise.all(['abc', 'def', 'ghi'].map(
-    name => execPnpm(['dlx', 'shx@0.3.4', 'mkdir', name])
+    name => execPnpm([
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+      '--config.dlx-cache-max-age=Infinity',
+      'dlx', 'shx@0.3.4', 'mkdir', name])
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
+  expect(fs.existsSync(path.resolve('../cache'))).toBe(false)
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'))).sort()).toStrictEqual(cacheContentAfterFirstRun)
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'))
@@ -427,7 +432,7 @@ test('dlx read registry from .npmrc in the current directory', async () => {
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 

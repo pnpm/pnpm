@@ -1,11 +1,7 @@
-#[cfg(target_family = "wasm")]
-pub(crate) use pnpm_process as process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
-
 pub mod build_graph;
 pub mod build_modules;
 pub mod cas;
+pub mod claimed_commands;
 pub mod create_symlink_layout;
 pub mod create_virtual_dir_by_snapshot;
 pub mod create_virtual_store;
@@ -43,12 +39,17 @@ pub mod symlink_package;
 pub mod validate_lockfile_paths;
 pub mod version_policy;
 pub mod virtual_store_layout;
+
+pub(crate) use pnpm_process as process;
+
 pub use build_graph::*;
 pub use build_modules::*;
 pub use build_options::{
-    BuildCacheContext, BuildGraphInputs, BuildLayout, BuildProgress, BuildScriptOptions,
-    BuildSnapshotInputs, CachedSideEffects, PatchedEngineCheck, ScriptPath,
+    BuildCacheContext, BuildCacheStore, BuildGraphInputs, BuildLayout, BuildProgress,
+    BuildScriptOptions, BuildSnapshotInputs, BuiltSideEffects, CachedSideEffects,
+    CapturedBuildSideEffects, PatchedEngineCheck, ScriptPath,
 };
+pub use claimed_commands::ClaimedCommands;
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
 pub use create_virtual_store::*;

@@ -16,7 +16,7 @@ use super::{
     sanitize::body_display_string,
 };
 use crate::cli_args::registry_client::{
-    build_registry_client, resolve_target_registry_for_package,
+    build_registry_client, resolve_target_registry_for_package, web_auth_fetch_options,
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -29,7 +29,7 @@ use pnpm_network::{
 };
 use pnpm_network_web_auth::{
     Host as WebAuthHost, OtpChallenge, OtpError, OtpErrorBody, OtpSession, WebAuthFetchOptions,
-    WebAuthRetryOptions, WithOtpError,
+    WithOtpError,
 };
 use pnpm_publish::{Host, PublishSummary, resolve_otp_from_env};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
@@ -355,16 +355,7 @@ impl StageArgs {
             http_client: build_registry_client(config)?,
             retry_opts: config.retry_opts(),
             otp: resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),
-            web_auth_fetch_options: WebAuthFetchOptions {
-                timeout: Some(config.fetch_timeout),
-                retry: Some(WebAuthRetryOptions {
-                    factor: Some(f64::from(config.fetch_retry_factor)),
-                    max_timeout: Some(config.fetch_retry_maxtimeout),
-                    min_timeout: Some(config.fetch_retry_mintimeout),
-                    randomize: None,
-                    retries: Some(config.fetch_retries),
-                }),
-            },
+            web_auth_fetch_options: web_auth_fetch_options(config),
         })
     }
 }

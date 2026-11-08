@@ -157,8 +157,12 @@ impl Storage {
 
     /// Remove the package's metadata, then reclaim the blobs its files were
     /// mapped to that nothing else maps. Reports whether there was any.
-    pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        let Some(ids) = self.metadata.remove_package(name).await? else {
+    pub async fn remove_package(
+        &self,
+        name: &CanonicalPackageName,
+        principal: Option<&str>,
+    ) -> Result<bool> {
+        let Some(ids) = self.metadata.remove_package(name, principal).await? else {
             return Ok(false);
         };
         if let Err(error) = self.reclaim_blobs(ids).await {

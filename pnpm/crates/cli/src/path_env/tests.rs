@@ -30,7 +30,8 @@ fn the_directories_come_first_in_the_order_given() {
 #[test]
 fn a_path_variable_in_another_case_is_left_to_the_child() {
     use super::set_command_path;
-    use std::{ffi::OsStr, process::Command};
+    use crate::process::Command;
+    use std::ffi::OsStr;
 
     let mut cmd = Command::new("true");
     set_command_path(&mut cmd, OsStr::new("/store/bin"));

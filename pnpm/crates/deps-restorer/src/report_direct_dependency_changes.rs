@@ -97,7 +97,8 @@ fn report_importer<Reporter: self::Reporter>(
 
 /// The importer's direct dependencies, first group wins on a name that
 /// appears in several. `link:` dependencies are left out: they are
-/// symlinked even under the hoisted linker, so they are already reported.
+/// symlinked even under the hoisted linker, so the link pass reports
+/// their additions and the stale-link prune their removals.
 /// So are the packages in `skipped`, which that install resolved but left
 /// uninstalled, an unsupported optional dependency among them.
 fn direct_dependencies<'a>(

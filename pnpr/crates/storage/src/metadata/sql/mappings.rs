@@ -138,11 +138,12 @@ impl SqlMetadata {
                 .unwrap_or_default()
                 .into_iter()
                 .map(|mut row| {
-                    let seconds = to_generation(row.get(2)?);
+                    let millis = to_generation(row.get(2)?);
                     Ok(Mapping {
                         artifact: row.get(0)?,
                         id: id_from(&row.get::<String>(1)?)?,
-                        mapped_at: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(seconds),
+                        mapped_at: SystemTime::UNIX_EPOCH
+                            + std::time::Duration::from_millis(millis),
                         mapping: row.get(3)?,
                     })
                 })

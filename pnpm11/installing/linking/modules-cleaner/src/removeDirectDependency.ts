@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { removeBin, removeBinsOfDependency } from '@pnpm/bins.remover'
 import { rootLogger } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import type { DependenciesField, ProjectRootDir } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 
@@ -10,6 +11,11 @@ export async function removeDirectDependency (
   dependency: {
     dependenciesField?: DependenciesField | undefined
     name: string
+    /**
+     * The wanted lockfile still records the dependency, so its removal is
+     * reported only when there is an entry to remove.
+     */
+    stillWanted?: boolean
   },
   opts: {
     binsDir: string
@@ -20,6 +26,7 @@ export async function removeDirectDependency (
   }
 ): Promise<void> {
   const dependencyDir = path.join(opts.modulesDir, dependency.name)
+  if (dependency.stillWanted && !await entryExists(dependencyDir)) return
   // The bins are found through the dependency's manifest, so the dependency
   // directory is removed only after they are.
   const uninstalledPkg = await removeBinsOfDependency(dependencyDir, opts)
@@ -40,6 +47,16 @@ export async function removeDirectDependency (
         version: uninstalledPkg?.version,
       },
     })
+  }
+}
+
+async function entryExists (entryPath: string): Promise<boolean> {
+  try {
+    await fs.lstat(entryPath)
+    return true
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
   }
 }
 

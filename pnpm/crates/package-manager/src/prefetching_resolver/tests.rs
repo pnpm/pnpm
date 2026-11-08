@@ -762,4 +762,112 @@ async fn a_manifest_read_reuses_the_prefetch_already_in_flight() {
     get_mock.assert_async().await;
 }
 
+fn slow_first_attempt_body(
+    body: Vec<u8>,
+    request_started: Arc<tokio::sync::Notify>,
+) -> impl Fn(&mut dyn std::io::Write) -> std::io::Result<()> + Send + Sync + 'static {
+    let first_attempt = std::sync::atomic::AtomicBool::new(true);
+    move |writer| {
+        if first_attempt.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            request_started.notify_one();
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        writer.write_all(&body)
+    }
+}
+
+async fn assert_waiter_cancellation_releases_download_claim(
+    resolver: &Arc<PrefetchingResolver<SilentReporter>>,
+    mem_cache: &MemCache,
+    cache_key: &str,
+) {
+    mem_cache.insert(
+        cache_key.to_owned(),
+        Arc::new(tokio::sync::RwLock::new(pnpm_tarball::CacheValue::InProgress(Arc::new(
+            tokio::sync::Notify::new(),
+        )))),
+    );
+    let waiting_resolve = {
+        let resolver = Arc::clone(resolver);
+        tokio::spawn(async move {
+            resolver.resolve(&WantedDependency::default(), &ResolveOptions::default()).await
+        })
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !resolver.spawned_downloads.contains(cache_key) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("waiting manifest read claimed download");
+    waiting_resolve.abort();
+    let _ = waiting_resolve.await;
+    assert!(!resolver.spawned_downloads.contains(cache_key));
+    mem_cache.remove(cache_key);
+}
+
+/// <https://github.com/zkochan/pnpm-tasks/issues/23>
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelled_manifest_read_releases_slot_and_download_claim() {
+    let dir = tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let tarball_path = "/pinned-cancel-1.0.0.tgz";
+    let body = tarball_with_a_dependency("pinned");
+    let integrity = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&body)
+        .result()
+        .to_string();
+    let tarball_url = format!("{}{tarball_path}", server.url());
+    let request_started = Arc::new(tokio::sync::Notify::new());
+    let get_mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .expect(2)
+        .with_chunked_body(slow_first_attempt_body(body, Arc::clone(&request_started)))
+        .create_async()
+        .await;
+    let pkg_integrity: ssri::Integrity = integrity.parse().expect("parse integrity");
+    let without_manifest = manifestless_tarball_result(&tarball_url, &integrity);
+    let (resolver, mem_cache) = resolver_with_mem_cache(
+        dir.path(),
+        Box::new(FixedResolver { result: without_manifest }),
+        true,
+    );
+    let resolver = Arc::new(resolver);
+    let cache_key = package_mem_cache_key(&tarball_url, Some(&pkg_integrity), false);
+
+    let first_resolve = {
+        let resolver = Arc::clone(&resolver);
+        tokio::spawn(async move {
+            resolver.resolve(&WantedDependency::default(), &ResolveOptions::default()).await
+        })
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !mem_cache.contains_key(&cache_key) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("first manifest read claimed the mem-cache slot");
+    request_started.notified().await;
+    first_resolve.abort();
+    let _ = first_resolve.await;
+    assert!(!resolver.spawned_downloads.contains(&cache_key));
+    assert!(!mem_cache.contains_key(&cache_key));
+    assert_waiter_cancellation_releases_download_claim(&resolver, &mem_cache, &cache_key).await;
+
+    let read = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        resolver.resolve(&WantedDependency::default(), &ResolveOptions::default()),
+    )
+    .await
+    .expect("second manifest read must not hang after first was cancelled")
+    .expect("second manifest read succeeds")
+    .expect("resolver returns a result");
+    let manifest = read.package.manifest.expect("bundled manifest recovered");
+    assert_eq!(manifest["dependencies"]["ms"], json!("2.1.2"));
+    get_mock.assert_async().await;
+}
+
 mod custom_archives;

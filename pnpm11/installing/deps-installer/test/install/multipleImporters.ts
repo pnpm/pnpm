@@ -2318,6 +2318,68 @@ test('frozenLockfile fails when a linked workspace package version is bumped and
   })
 })
 
+test('frozenLockfile fails when a workspace package linked by a plain range is bumped to a version outside the range', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'project-2': '^7.9.5',
+        },
+      },
+    },
+    {
+      location: 'project-2',
+      package: {
+        name: 'project-2',
+        version: '7.10.0',
+      },
+    },
+  ])
+
+  const project2Manifest: ProjectManifest = {
+    name: 'project-2',
+    version: '7.10.0',
+  }
+
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'project-2': '^7.9.5',
+        },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  const importers: MutatedProject[] = [
+    { mutation: 'install', rootDir: path.resolve('project-1') as ProjectRootDir },
+    { mutation: 'install', rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+
+  await mutateModules(importers, testDefaults({ allProjects, linkWorkspacePackagesDepth: 0, lockfileOnly: true }))
+  expect(readYamlFileSync<any>(WANTED_LOCKFILE).importers['project-1'].dependencies['project-2'].version).toBe('link:../project-2') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on a raw lockfile field
+
+  project2Manifest.version = '7.11.0-beta.1'
+
+  await expect(
+    mutateModules(importers, testDefaults({ allProjects, linkWorkspacePackagesDepth: 0, frozenLockfile: true }))
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_OUTDATED_LOCKFILE',
+  })
+})
+
 test('transitive dependencies and bins are accessible when using publishConfig directory and linkDirectory', async () => {
   preparePackages([
     {

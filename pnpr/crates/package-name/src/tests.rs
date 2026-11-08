@@ -5,7 +5,7 @@ fn canonicalizes_each_ecosystem() {
     assert_eq!(CanonicalPackageName::parse("React", Ecosystem::Npm).unwrap().as_str(), "React");
     assert_eq!(
         CanonicalPackageName::parse("Serde_JSON", Ecosystem::Cargo).unwrap().as_str(),
-        "serde_json",
+        "serde-json",
     );
     assert_eq!(
         CanonicalPackageName::parse("Demo.Package_name", Ecosystem::Pypi).unwrap().as_str(),
@@ -182,4 +182,30 @@ fn accepts_sigstore_names() {
     assert!(unscoped.parse_sigstore_name("bar-1.0.0.sigstore").is_err());
     assert!(unscoped.parse_sigstore_name("foo-1.0.0.tgz").is_err());
     assert!(unscoped.parse_sigstore_name("../foo-1.0.0.sigstore").is_err());
+}
+
+#[test]
+fn publishing_rejects_names_that_reads_accept() {
+    for name in ["Upper", "a~b", "_pkg", "pkg@x", "@scope/pkg@x", "café", "http"] {
+        let parsed = CanonicalPackageName::parse(name, Ecosystem::Npm).unwrap();
+        assert!(parsed.validate_npm_publish().is_err(), "{name}");
+    }
+    for name in ["pkg", "@scope/pkg", "pkg_name", "@scope/_pkg"] {
+        CanonicalPackageName::parse(name, Ecosystem::Npm)
+            .unwrap()
+            .validate_npm_publish()
+            .unwrap();
+    }
+}
+
+#[test]
+fn cargo_keys_fold_case_and_separators_without_collapsing_them() {
+    for raw in ["Demo_Crate", "demo-crate", "DEMO-CRATE"] {
+        let name = CanonicalPackageName::parse(raw, Ecosystem::Cargo).unwrap();
+        assert_eq!(name.as_str(), "demo-crate");
+        assert_eq!(name, CanonicalPackageName::parse(name.as_str(), Ecosystem::Cargo).unwrap());
+    }
+    for (raw, expected) in [("_demo", "-demo"), ("demo__crate", "demo--crate")] {
+        assert_eq!(CanonicalPackageName::parse(raw, Ecosystem::Cargo).unwrap().as_str(), expected);
+    }
 }

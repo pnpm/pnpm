@@ -11,10 +11,7 @@
 //! Parsing, grouping, and matching the entries live in
 //! [`pnpm_patching_config`], which this crate re-exports.
 
-#[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process as process;
-#[cfg(not(target_family = "wasm"))]
-pub(crate) use std::process;
 
 pub use apply::{
     MANIFEST_FILE_NAME, PatchApplyError, PatchPreview, apply_patch_to_dir, preview_patch,

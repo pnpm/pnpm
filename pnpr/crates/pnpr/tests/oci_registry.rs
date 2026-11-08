@@ -14,6 +14,9 @@ mod discovery;
 #[path = "oci_registry/manifests.rs"]
 mod manifests;
 
+#[path = "oci_registry/upload_hint.rs"]
+mod upload_hint;
+
 #[path = "oci_registry/uploads.rs"]
 mod uploads;
 
@@ -83,7 +86,7 @@ async fn token(app: &Router) -> String {
     let body = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
-        "password": "secret",
+        "password": "secret123",
         "email": "alice@example.com",
         "type": "user",
         "roles": [],

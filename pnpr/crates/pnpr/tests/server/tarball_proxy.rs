@@ -1,6 +1,6 @@
 use super::{
-    AccessList, AuthState, Body, PackageRules, Request, ServiceExt, StatusCode, TempDir, Value,
-    access_rule, body_bytes, body_json, config_for, enable_osv, foo_packument, header, json,
+    AccessList, Body, PackageRules, Request, ServiceExt, StatusCode, TempDir, Value, access_rule,
+    body_bytes, body_json, config_for, enable_osv, foo_packument, header, json,
     mock_packument_for_tarball, osv_database, public_cache_blob, public_cache_blobs, router,
     router_with_auth, sha512_integrity, upstream_endpoint_config,
 };
@@ -70,7 +70,7 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
     // A credentialed upstream must be access-gated (server construction
     // enforces it), so the read authenticates as an admitted caller.
     upstream.access = Some(AccessList::from_tokens(["$authenticated"]));
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -155,7 +155,7 @@ async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
 
     let tmp = TempDir::new().unwrap();
     let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -245,7 +245,7 @@ async fn upstream_endpoint_tarball_is_verified_and_cached_per_upstream() {
 
     let tmp = TempDir::new().unwrap();
     let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -313,7 +313,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     corp.url = private_upstream.url();
     corp.access = Some(AccessList::from_tokens(["alice"]));
     config.routing.upstreams.insert("corp".to_string(), corp);
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
@@ -438,7 +438,7 @@ async fn upstream_endpoint_cache_false_streams_without_caching() {
     let tmp = TempDir::new().unwrap();
     let mut config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     config.routing.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
-    let auth = AuthState::in_memory();
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
     let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 

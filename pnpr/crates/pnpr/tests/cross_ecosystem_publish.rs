@@ -31,7 +31,7 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://pnpr.test".to_string();
-    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     for (name, org) in [("crates", ""), ("python", "")] {
         config.routing.hosted.insert(
             name.to_string(),
@@ -186,7 +186,7 @@ async fn token_for(app: &axum::Router, username: &str) -> String {
     let body = json!({
         "_id": format!("org.couchdb.user:{username}"),
         "name": username,
-        "password": "secret",
+        "password": "secret123",
         "email": "foo@bar.net",
         "type": "user",
         "roles": [],
@@ -213,7 +213,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
     let token = token_for(&app, "alice").await;
     let tarball = &npm_tgz("mixed-pkg", "1.0.0", b"npm-tarball-bytes");
     let archive = crate_archive("demo", "0.1.0");
-    let wheel = b"PK\x03\x04 pretend wheel";
+    let wheel = &crate::ecosystem::python_wheel("demo-pkg", "1.0.0");
 
     let body = json!({
         "packages": [
@@ -297,7 +297,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         )
         .await
         .unwrap();
-    assert_eq!(body_bytes(file.into_body()).await, wheel);
+    assert_eq!(body_bytes(file.into_body()).await, wheel.as_slice());
 
     // One transaction, and it left nothing behind.
 }
@@ -308,7 +308,7 @@ async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
     let storage = tmp.path().to_path_buf();
     let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
-    let wheel = b"PK\x03\x04 pretend wheel";
+    let wheel = &crate::ecosystem::python_wheel("demo-pkg", "1.0.0");
 
     // The archive belongs to another version than the metadata claims, which
     // the Cargo surface refuses.
@@ -357,7 +357,7 @@ async fn a_failure_while_staging_takes_the_staged_blobs_with_it() {
     let body = json!({
         "packages": [
             cargo_entry("demo", "0.1.0", &crate_archive("demo", "0.1.0")),
-            pypi_entry("demo-pkg", "1.0.0", WHEEL, b"PK\x03\x04 pretend wheel"),
+            pypi_entry("demo-pkg", "1.0.0", WHEEL, &crate::ecosystem::python_wheel("demo-pkg", "1.0.0")),
             broken,
         ],
     });
@@ -493,7 +493,7 @@ async fn an_uppercase_digest_is_accepted() {
     let app =
         router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
-    let wheel = b"PK\x03\x04 pretend wheel";
+    let wheel = &crate::ecosystem::python_wheel("demo-pkg", "1.0.0");
     let mut entry = pypi_entry("demo-pkg", "1.0.0", WHEEL, wheel);
     entry["sha256_digest"] = json!(sha256_hex(wheel).to_uppercase());
 
@@ -596,7 +596,7 @@ async fn another_file_of_a_published_python_version_takes_no_publish_time_note()
         pnpr_config::MetadataBackend::Sqlite(tmp.path().join("metadata.sqlite"));
     let app = router_with_auth(config, AuthState::in_memory());
     let token = token_for(&app, "alice").await;
-    let first = json!({ "packages": [pypi_entry("demo-pkg", "1.0.0", WHEEL, b"PK\x03\x04 one")] });
+    let first = json!({ "packages": [pypi_entry("demo-pkg", "1.0.0", WHEEL, &crate::ecosystem::python_wheel("demo-pkg", "1.0.0"))] });
     let published = app
         .clone()
         .oneshot(publish_request("/-/pnpr/v0/publish", &first, Some(&token)))
@@ -604,7 +604,12 @@ async fn another_file_of_a_published_python_version_takes_no_publish_time_note()
         .unwrap();
     assert_eq!(published.status(), StatusCode::CREATED);
 
-    let mut sdist = pypi_entry("demo-pkg", "1.0.0", "demo_pkg-1.0.0.tar.gz", b"sdist bytes");
+    let mut sdist = pypi_entry(
+        "demo-pkg",
+        "1.0.0",
+        "demo_pkg-1.0.0.tar.gz",
+        &crate::ecosystem::python_sdist("demo-pkg", "1.0.0"),
+    );
     sdist["filetype"] = json!("sdist");
     sdist["notes"] = json!("- late\n");
     let second = json!({ "packages": [sdist] });

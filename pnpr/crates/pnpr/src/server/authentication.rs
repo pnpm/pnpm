@@ -1,3 +1,11 @@
+pub(super) use accounts::require_active_account;
+pub(super) use credentials::{bearer_credentials, token_credentials};
+
+mod accounts;
+mod credentials;
+
+use accounts::{account_identity, active_account_name};
+
 use std::{
     net::IpAddr,
     sync::LazyLock,
@@ -6,12 +14,11 @@ use std::{
 
 use axum::{
     extract::{ConnectInfo, FromRequestParts, Request, State},
-    http::{HeaderMap, Method, header, request::Parts},
+    http::{HeaderMap, Method, StatusCode, header, request::Parts},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use pnpr_auth::TokenRecord;
 use pnpr_error::RegistryError;
 use pnpr_policy::{Identity, PackageRules};
@@ -20,6 +27,13 @@ use super::{
     AppState, PeerAddr, RegistrySource, oidc::WorkloadScope,
     restrictions::check_token_restrictions, single_authorization_header,
 };
+
+#[derive(Clone)]
+pub(super) struct InvalidToken;
+
+/// A password login authenticates independently of the Authorization header.
+#[derive(Clone)]
+pub(super) struct PasswordAuthentication;
 
 /// Whether `headers` carry `Authorization: Bearer <expected>`, for an
 /// endpoint authenticated by a configured secret instead of a user token.
@@ -119,17 +133,17 @@ pub(super) async fn authenticate(
         match bearer_token_identity(&state, &raw, &method, &path, client_ip).await {
             Ok(Some(identity)) => {
                 if let Err(err) = refuse_deprovisioned(&state, &identity) {
-                    return err.into_response();
+                    return token_failure_response(err.into_response(), header.as_deref());
                 }
                 let caller = AuthedCaller(identity);
                 record_user_on_span(&caller.0);
                 request.extensions_mut().insert(caller.clone());
                 let mut response = next.run(request).await;
                 response.extensions_mut().insert(caller);
-                return response;
+                return token_failure_response(response, header.as_deref());
             }
             Ok(None) => {}
-            Err(response) => return response,
+            Err(response) => return token_failure_response(response, header.as_deref()),
         }
     }
 
@@ -139,10 +153,27 @@ pub(super) async fn authenticate(
         Ok(resolved)
     }) {
         Ok(resolved) => attach_caller(&mut request, resolved),
-        Err(err) => return err.into_response(),
+        Err(err) => return token_failure_response(err.into_response(), header.as_deref()),
     };
     let mut response = next.run(request).await;
     response.extensions_mut().insert(caller);
+    token_failure_response(response, header.as_deref())
+}
+
+fn token_failure_response(mut response: Response, header: Option<&str>) -> Response {
+    if response.status() == StatusCode::UNAUTHORIZED
+        && response
+            .extensions()
+            .get::<PasswordAuthentication>()
+            .is_none()
+        && response
+            .extensions()
+            .get::<AuthedCaller>()
+            .is_none_or(|caller| matches!(caller.0, Identity::Anonymous))
+        && header.and_then(token_credentials).is_some()
+    {
+        response.extensions_mut().insert(InvalidToken);
+    }
     response
 }
 
@@ -195,7 +226,7 @@ pub(super) fn refuse_deprovisioned(
     identity: &Identity,
 ) -> Result<(), RegistryError> {
     match identity {
-        Identity::User { username, .. } if super::scim::is_deprovisioned(state, username)? => {
+        Identity::User { id, .. } if super::scim::is_deprovisioned(state, id)? => {
             Err(RegistryError::Unauthenticated { resource: "a deprovisioned account".to_string() })
         }
         _ => Ok(()),
@@ -231,7 +262,10 @@ async fn bearer_token_identity(
             check_token_restrictions(&record, method, path, client_ip)
                 .map_err(axum::response::IntoResponse::into_response)?;
             state.inner.identity.last_used.record(parent, record.last_used_at);
-            Ok(Some(Identity::user(record.username)))
+            Ok(Some(
+                account_identity(state, &record.user_id).await
+                    .map_err(IntoResponse::into_response)?,
+            ))
         }
         Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
         Err(err) => Err(err.into_response()),
@@ -253,14 +287,14 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
     if record.expires_at.is_some_and(|exp| exp <= now) {
         return Ok(None);
     }
-    let owned = auth.users.password_hash(&record.username).await?.is_some();
+    let owned = auth.users.account_name(&record.user_id).await?.is_some();
     Ok(owned.then_some(record))
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
-/// backend at most once. Browser sessions and prefixed workload credentials
-/// skip the persistent backend. Invalid OIDC
-/// credentials are rejected even on public routes.
+/// backend at most once. Browser sessions and workload credentials check
+/// whether their account still exists. Invalid OIDC credentials are rejected even on
+/// public routes.
 /// A pnpr token — however the client carried it, see
 /// [`token_credentials`] — is looked up as a full record so its read-only /
 /// CIDR restrictions can be enforced here (a violation is a `Forbidden`
@@ -278,7 +312,11 @@ async fn resolve_caller(
 ) -> Result<(Identity, Option<WorkloadScope>), RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
         if let Some(user) = state.inner.identity.oidc.session(&raw_token)? {
-            return Ok((super::oidc_groups::session_identity(&state.inner.config, user), None));
+            let name = active_account_name(state, &user.user_id).await?;
+            return Ok((
+                super::oidc_groups::session_identity(&state.inner.config, user, name),
+                None,
+            ));
         }
         if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
             let workload = state.inner.identity.oidc
@@ -289,12 +327,16 @@ async fn resolve_caller(
                 })?;
             super::oidc::check_workload_request(&workload, method, path)?;
             let scope = WorkloadScope::new(&state.inner.config, &workload);
-            return Ok((Identity::user(workload.identity.username), Some(scope)));
+            return Ok((account_identity(state, &workload.identity.user_id).await?, Some(scope)));
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, client_ip)?;
             state.inner.identity.last_used.record_raw(&raw_token, record.last_used_at);
-            return Ok((Identity::user(record.username), None));
+            let identity = match record.owner_name().map(str::to_string) {
+                Some(name) => Identity::account(record.user_id, name),
+                None => account_identity(state, &record.user_id).await?,
+            };
+            return Ok((identity, None));
         }
     }
     // Anything that is not a pnpr token — a user:password Basic pair, another
@@ -302,34 +344,6 @@ async fn resolve_caller(
     // `identify` here would re-run the token lookup and bypass the
     // restriction checks above, so resolve straight to anonymous.
     Ok((Identity::Anonymous, None))
-}
-
-/// The pnpr token an `Authorization` header carries, in any of the shapes
-/// the supported clients send: `Bearer <token>` (npm, pnpm), the bare
-/// `<token>` with no scheme (`cargo`, which sends registry tokens raw), or
-/// `Basic` with the token as the password (`twine` and `pip` pair it with
-/// pypi.org's `__token__` pseudo-user, `docker` and `podman` with whatever
-/// name the user typed at login).
-///
-/// The password is the whole credential: the `Basic` username is not checked
-/// against the token's owner, so a caller authenticates as whoever the token
-/// belongs to. That is what every registry taking a personal access token as
-/// a password does, and what its clients expect.
-pub(super) fn token_credentials(header_value: &str) -> Option<String> {
-    let value = header_value.trim();
-    if let Some(bearer) = bearer_credentials(value) {
-        return Some(bearer.to_string());
-    }
-    let Some((scheme, credentials)) = value.split_once(' ') else {
-        return (!value.is_empty()).then(|| value.to_string());
-    };
-    if !scheme.eq_ignore_ascii_case("Basic") {
-        return None;
-    }
-    let decoded = BASE64_STANDARD.decode(credentials.trim()).ok()?;
-    let decoded = String::from_utf8(decoded).ok()?;
-    let (_, password) = decoded.split_once(':')?;
-    (!password.is_empty()).then(|| password.to_string())
 }
 
 /// The `packages:` rules of the concrete registry a request resolved to.
@@ -398,7 +412,7 @@ pub(super) async fn is_package_owner(
     org: Option<&str>,
     action: Action,
 ) -> Result<bool, RegistryError> {
-    let Some(username) = identity.username() else {
+    let Some(username) = identity.user_id() else {
         return Ok(false);
     };
     if state.inner.config.identity.admins.contains(username) {
@@ -420,7 +434,7 @@ pub(super) async fn is_package_owner(
             let is_maintainer = maintainers
                 .iter()
                 .any(|entry| {
-                    entry.get("name").and_then(serde_json::Value::as_str) == Some(username)
+                    entry.get("userId").and_then(serde_json::Value::as_str) == Some(username)
                 });
             return Ok(is_maintainer);
         }
@@ -470,12 +484,4 @@ pub(super) async fn authorize_package(
         }),
         _ => Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") }),
     }
-}
-
-/// The raw credentials of an `Authorization: Bearer <token>` header, or
-/// `None` for any other scheme. The scheme is matched case-insensitively,
-/// matching [`pnpr_auth::identify`].
-pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
-    let (scheme, credentials) = header_value.trim().split_once(' ')?;
-    scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
 }

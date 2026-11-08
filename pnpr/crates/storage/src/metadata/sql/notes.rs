@@ -1,4 +1,4 @@
-//! Version and publication notes, with the history of every change.
+//! Version and publication notes.
 //!
 //! A note is keyed by its catalog, its kind, and its subject: a package
 //! version (`ecosystem`, `name`, `subject` = version) or a publication
@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     metadata::{Note, NoteChange, validate_note},
-    publish::now_iso,
+    publish::{iso_from_unix_millis, now_millis},
 };
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
@@ -83,15 +83,14 @@ fn note_query(subject: &NoteSubject) -> Query<'_> {
 fn note_row(mut row: Row) -> Result<Note> {
     Ok(Note {
         text: row.get(0)?,
-        modified: row.get(1)?,
+        modified: iso_from_unix_millis(row.get(1)?),
         principal: row.get(2)?,
         initial_digest: row.get(3)?,
     })
 }
 
-/// Write or delete a note after its subject was published, recording the
-/// change. Answers `false` when the subject does not exist: notes are never
-/// created ahead of what they describe.
+/// Write or delete a note after its subject was published. Answers `false`
+/// when the subject does not exist.
 pub(super) fn change_note(
     connection: &dyn Connection,
     subject: &NoteSubject,
@@ -161,7 +160,7 @@ fn subject_query<'query>(
     }
 }
 
-/// Store a note's text, `None` for a deletion, keeping its history.
+/// Store a note's text, `None` for a deletion.
 fn write_note(
     transaction: &dyn Connection,
     subject: &NoteSubject,
@@ -169,24 +168,7 @@ fn write_note(
     principal: Option<&str>,
     initial_digest: Option<&str>,
 ) -> Result<()> {
-    let now = now_iso();
-    transaction.execute(
-        "INSERT INTO note_history (catalog, kind, ecosystem, name, subject, changed_at, principal,
-                                   previous, next)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
-           (SELECT text FROM notes WHERE catalog = ?1 AND kind = ?2 AND ecosystem = ?3
-              AND name = ?4 AND subject = ?5), ?8)",
-        params![
-            subject.catalog,
-            subject.kind,
-            subject.ecosystem,
-            subject.name,
-            subject.subject,
-            now,
-            principal,
-            text
-        ],
-    )?;
+    let now = now_millis();
     transaction.execute(
         "INSERT INTO notes (catalog, kind, ecosystem, name, subject, text, modified_at, principal,
                             initial_digest)

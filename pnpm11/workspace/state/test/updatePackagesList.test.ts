@@ -152,3 +152,34 @@ test('updateWorkspaceState() records which hoisted projects have their own modul
     [path.resolve('packages/flat')]: { name: 'flat' },
   })
 })
+
+test('updateWorkspaceState() looks for a hoisted project\'s modules directory where modulesDir places it', async () => {
+  preparePackages([
+    { location: './packages/nested', package: { name: 'nested' } },
+    { location: './packages/flat', package: { name: 'flat' } },
+  ])
+  fs.mkdirSync('packages/nested/vendor')
+  fs.mkdirSync('packages/flat/node_modules')
+  const workspaceDir = process.cwd()
+
+  await updateWorkspaceState({
+    pnpmfiles: [],
+    workspaceDir,
+    modulesDir: 'vendor',
+    allProjects: [
+      { rootDir: path.resolve('packages/nested') as ProjectRootDir, manifest: { name: 'nested' } },
+      { rootDir: path.resolve('packages/flat') as ProjectRootDir, manifest: { name: 'flat' } },
+    ],
+    filteredInstall: false,
+    settings: {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: false,
+      nodeLinker: 'hoisted',
+      preferWorkspacePackages: false,
+    },
+  })
+  expect(loadWorkspaceState(workspaceDir)?.projects).toStrictEqual({
+    [path.resolve('packages/nested')]: { name: 'nested', hasModulesDir: true },
+    [path.resolve('packages/flat')]: { name: 'flat' },
+  })
+})

@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 
+pnpm-process = { path = "../process" }
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
@@ -19,7 +20,6 @@ libc = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-pnpm-process = { path = "../process" }
 
 [lints]
 workspace = true

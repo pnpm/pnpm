@@ -33,16 +33,19 @@ pub fn realpath_missing(path: &Path) -> io::Result<PathBuf> {
 
 /// The real path of `dir` when a symlink lies between `base` and `dir`,
 /// resolved through the deepest existing ancestor as [`realpath_missing`] does.
+/// When `dir` is not under `base`, a symlink anywhere on its path counts.
 ///
 /// `None` when every component of `dir` below `base` is a real directory (or
-/// does not exist yet), when `dir` is not under `base`, or when either path
-/// cannot be resolved. Relative symlinks written into `dir` must be computed
-/// from the returned path, since the OS resolves them from there.
+/// does not exist yet), or when either path cannot be resolved. Relative
+/// symlinks written into `dir` must be computed from the returned path, since
+/// the OS resolves them from there.
 #[must_use]
 pub fn symlinked_dir_real_path(base: &Path, dir: &Path) -> Option<PathBuf> {
-    let below_base = dir.strip_prefix(base).ok()?;
     let real = realpath_missing(dir).ok()?;
-    let lexical_real = dunce::canonicalize(base).ok()?.join(below_base);
+    let lexical_real = match dir.strip_prefix(base) {
+        Ok(below_base) => dunce::canonicalize(base).ok()?.join(below_base),
+        Err(_) => dir.to_path_buf(),
+    };
     (real != crate::lexical_normalize(&lexical_real)).then_some(real)
 }
 

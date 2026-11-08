@@ -13,10 +13,8 @@
 //!
 //! In a multi-ecosystem registry, both families answer under `/cargo/` (the
 //! default target) and `/cargo/~<name>/` (a named registry). A Cargo-only
-//! registry omits `/cargo`. Crate names are case-insensitive:
-//! the index path `cargo` requests is lowercase, so hosted documents and cache
-//! entries are keyed by the lowercase name while archives keep the name as
-//! published.
+//! registry omits `/cargo`. Crate keys fold ASCII case and map `_` to `-`;
+//! archives and index entries keep the published name.
 
 pub(super) use publication::{CratePublication, authorize_crate_publish, verify_crate_archive};
 
@@ -25,7 +23,9 @@ use publication::{delete_yank, put_publish, put_unyank};
 
 use super::{
     Action, AppState, AuthedCaller, DiscoverySource, RegistrySource, SearchPage, TargetRegistry,
-    authorize, discovery_sources,
+    authorize,
+    conditional_requests::is_not_modified,
+    discovery_sources,
     documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
@@ -40,7 +40,7 @@ use axum::{
     Router,
     body::{Body, Bytes},
     extract::{Path, RawQuery, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, put},
 };
@@ -106,7 +106,8 @@ async fn get_search(
                 .expect("search response serializes"),
         )
     };
-    let Some(text) = pnpr_search::parse_query(&query_string).map(pnpr_search::SearchText::Package)
+    let Some(text) = pnpr_search::parse_query(&query_string)
+        .map(|query| pnpr_search::SearchText::Package(query.replace('_', "-")))
     else {
         return respond(Vec::new(), 0);
     };
@@ -159,9 +160,10 @@ async fn add_crates_to_page(
     names: Vec<String>,
 ) {
     for name in names {
-        let Ok(key) = CanonicalPackageName::parse(&name, ECOSYSTEM) else {
+        if !is_safe_path_segment(&name) {
             continue;
-        };
+        }
+        let key = CanonicalPackageName::from_stored(&name, ECOSYSTEM);
         if page.push_name(&name) {
             page.objects.push(search_crate(storage, &key).await);
         }
@@ -191,8 +193,12 @@ async fn search_crate(storage: &pnpr_storage::Storage, key: &CanonicalPackageNam
 /// detail instead of a bare status.
 fn error_response(err: RegistryError) -> Response {
     let detail = err.public_message();
-    let status = err.into_response().status();
-    json_response(status, &errors_json(&detail))
+    let original = err.into_response();
+    let mut response = json_response(original.status(), &errors_json(&detail));
+    if let Some(retry_after) = original.headers().get(header::RETRY_AFTER) {
+        response.headers_mut().insert(header::RETRY_AFTER, retry_after.clone());
+    }
+    response
 }
 
 fn bad_request(reason: impl Display) -> Response {
@@ -218,11 +224,18 @@ async fn get_index_config(
     caller_scoped(&state, ECOSYSTEM, registry.as_deref(), None, response)
 }
 
-fn index_response(text: String) -> Response {
+fn index_response(text: String, headers: &HeaderMap) -> Response {
+    let etag = format!(r#""{}""#, sha256_hex(text.as_bytes()));
+    let (status, body) = if is_not_modified(headers, &etag, None) {
+        (StatusCode::NOT_MODIFIED, Body::empty())
+    } else {
+        (StatusCode::OK, Body::from(text))
+    };
     Response::builder()
-        .status(StatusCode::OK)
+        .status(status)
+        .header(header::ETAG, etag)
         .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
-        .body(Body::from(text))
+        .body(body)
         .expect("static-shape response always builds")
 }
 
@@ -233,6 +246,7 @@ async fn get_index_file(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(params): Path<HashMap<String, String>>,
+    headers: HeaderMap,
 ) -> Response {
     let segments: Vec<&str> = ["a", "b", "c"]
         .iter()
@@ -259,7 +273,7 @@ async fn get_index_file(
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     };
     let response = match index {
-        Ok(Some(text)) => index_response(text),
+        Ok(Some(text)) => index_response(text, &headers),
         Ok(None) => not_found(),
         Err(err) => error_response(err),
     };
@@ -274,8 +288,15 @@ async fn load_upstream_index(
     path: &str,
 ) -> Result<Option<String>, RegistryError> {
     let (upstream, namespace) = upstream_for(state, identity, source, key)?;
-    let request =
-        UpstreamDocument { name: key, relative_path: path, accept: None, limit: INDEX_FILE_LIMIT };
+    // Sparse-index paths distinguish separator aliases even when claims share a key.
+    let index_name = path.rsplit('/').next().unwrap_or(path);
+    let cache_key = CanonicalPackageName::from_stored(index_name, ECOSYSTEM);
+    let request = UpstreamDocument {
+        name: &cache_key,
+        relative_path: path,
+        accept: None,
+        limit: INDEX_FILE_LIMIT,
+    };
     let bytes = load_upstream_document(state, upstream, &namespace, request, |document| {
         decode_index_text(document.bytes, path).map(String::into_bytes)
     })
@@ -426,3 +447,6 @@ fn parse_upstream_index(index: &str, name: &str) -> Result<Vec<IndexEntry>, Regi
             reason: err.to_string(),
         })
 }
+
+#[cfg(test)]
+mod tests;

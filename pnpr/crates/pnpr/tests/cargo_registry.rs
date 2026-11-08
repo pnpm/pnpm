@@ -1,6 +1,9 @@
 //! The Cargo registry surface: sparse index, downloads, `cargo publish`,
 //! yank, and proxying an upstream sparse index and its downloads.
 
+#[path = "cargo_registry/caching.rs"]
+mod caching;
+
 #[path = "cargo_registry/behavior.rs"]
 mod behavior;
 

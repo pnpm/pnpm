@@ -415,20 +415,21 @@ fn pnpr_benchmark_config_declares_local_registry_public() {
     let yaml = pnpr_benchmark_config_yaml(
         &storage,
         &["http://localhost:4873/", "http://127.0.0.1:61824/"],
+        serde_json::json!({"users": {"file": "users.json", "maxUsers": -1}}),
     );
 
     assert!(yaml.contains("registry: http://localhost:4873/"));
     assert!(yaml.contains("registry: http://127.0.0.1:61824/"));
     assert!(yaml.contains("allowedPrivateNetworks:"));
     assert!(yaml.contains("maxUsers: -1"));
-    assert!(yaml.contains("htpasswd"));
+    assert!(yaml.contains("users.json"));
 }
 
 #[test]
 fn pnpr_benchmark_config_relies_on_the_builtin_npm_route() {
     let storage = std::env::temp_dir().join("pnpr-benchmark-config-test-storage");
 
-    let yaml = pnpr_benchmark_config_yaml(&storage, &[]);
+    let yaml = pnpr_benchmark_config_yaml(&storage, &[], serde_json::json!({}));
 
     // No operator-declared public routes: npmjs resolution comes from the
     // built-in route, so the config never spells out an npmjs registry rule.

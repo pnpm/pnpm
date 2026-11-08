@@ -6,7 +6,9 @@
 //! What a `pacquet update` reaches, and so excludes from reuse, is
 //! [`super::update_scope`].
 
-pub(crate) use direct_versions::{preseed_changed_direct_versions, record_changed_direct_deps};
+pub(crate) use direct_versions::{
+    preseed_changed_direct_versions, record_changed_direct_deps, resolve_direct_dependency_detached,
+};
 
 pub(super) use direct_versions::{
     higher_direct_dep_version, node_depends_on_changed_direct_dep, record_direct_dep_versions,

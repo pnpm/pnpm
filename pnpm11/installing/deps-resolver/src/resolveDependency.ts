@@ -81,6 +81,29 @@ export async function resolveDependency (
   }
 }
 
+/**
+ * The manifest the wanted dependency resolves to, read the way
+ * {@link resolveDependency} reads it. The package is neither fetched nor
+ * added to the graph. `null` when an optional dependency fails to resolve,
+ * which is not reported.
+ */
+export async function resolveDependencyManifest (
+  wantedDependency: WantedDependency,
+  ctx: ResolutionContext,
+  options: ResolveDependencyOptions
+): Promise<PackageManifest | null> {
+  const request: DependencyRequest = {
+    ctx,
+    currentPkg: options.currentPkg ?? {},
+    depIsLinked: false,
+    detached: true,
+    options,
+    wantedDependency,
+  }
+  const pkgResponse = await requestDependencyPackage(request)
+  return pkgResponse == null ? null : readResolvedManifest(request, pkgResponse)
+}
+
 async function isDepLinkedInVirtualStore (ctx: ResolutionContext, currentPkg: CurrentPkg): Promise<boolean> {
   const currentLockfileContainsTheDep = currentPkg.depPath
     ? Boolean(ctx.currentLockfile.packages?.[currentPkg.depPath])
