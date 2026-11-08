@@ -387,30 +387,22 @@ pub(crate) fn built_slot_is_complete(directory: &Path) -> Result<bool, BuildModu
     if !complete_manifest {
         return Ok(false);
     }
-    let state_file = directory
+    let slot = directory
         .ancestors()
         .find(|path| {
             path.file_name()
                 .is_some_and(|name| name == "node_modules")
         })
-        .and_then(Path::parent)
-        .map(|slot| slot.join(crate::GVS_SLOT_STATE_FILE));
-    if let Some(state_file) = state_file {
-        match fs::read_to_string(&state_file) {
-            Ok(state) => {
-                let phase = crate::GlobalVirtualStoreSlotPhase::parse(&state)
-                    .map_err(|source| BuildModulesError::ReadBuildMarker {
-                        path: state_file.clone(),
-                        source,
-                    })?;
-                return Ok(phase == crate::GlobalVirtualStoreSlotPhase::Built
-                    || (phase == crate::GlobalVirtualStoreSlotPhase::Populated
-                        && !exists(&marker)?));
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(source) => {
-                return Err(BuildModulesError::ReadBuildMarker { path: state_file, source });
-            }
+        .and_then(Path::parent);
+    if let Some(slot) = slot {
+        let phase = crate::GlobalVirtualStoreSlot::recorded_phase_at(slot)
+            .map_err(|source| BuildModulesError::ReadBuildMarker {
+                path: slot.join(crate::GVS_SLOT_STATE_FILE),
+                source,
+            })?;
+        if let Some(phase) = phase {
+            return Ok(phase == crate::GlobalVirtualStoreSlotPhase::Built
+                || (phase == crate::GlobalVirtualStoreSlotPhase::Populated && !exists(&marker)?));
         }
     }
     Ok(!exists(&marker)?)

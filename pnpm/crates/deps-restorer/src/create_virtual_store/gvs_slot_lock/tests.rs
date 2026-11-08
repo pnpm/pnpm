@@ -211,3 +211,26 @@ fn an_unfinished_population_needs_recovery_without_a_build_marker() {
         !GlobalVirtualStoreSlot::needs_recovery_at(&slot_path, &key).expect("probe populated slot"),
     );
 }
+
+#[test]
+fn an_unrecognised_slot_state_is_imported_again() {
+    let root = tempdir().expect("temporary slot root");
+    let key: pnpm_lockfile::PackageKey = "dep@1.0.0".parse().expect("package key");
+    let slot_path = root.path().join("slot");
+    let slot = GlobalVirtualStoreSlot::acquire_path(slot_path.clone(), &key).expect("lock slot");
+    let completion_marker = slot.package_path().join("package.json");
+    std::fs::create_dir_all(slot.package_path()).expect("create package directory");
+    std::fs::write(&completion_marker, "{}").expect("write manifest");
+    std::fs::write(slot_path.join(crate::GVS_SLOT_STATE_FILE), "damaged").expect("damage state");
+
+    assert!(GlobalVirtualStoreSlot::needs_recovery_at(&slot_path, &key).expect("probe slot"));
+    assert_eq!(
+        slot.phase(&completion_marker, super::BuildRequirement::NotRequired)
+            .expect("read slot phase"),
+        GlobalVirtualStoreSlotPhase::Populating,
+    );
+    assert!(
+        !crate::build_modules::slots::built_slot_is_complete(slot.package_path())
+            .expect("check slot completeness"),
+    );
+}

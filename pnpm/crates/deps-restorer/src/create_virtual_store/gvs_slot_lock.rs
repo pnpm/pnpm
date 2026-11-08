@@ -162,14 +162,22 @@ impl GlobalVirtualStoreSlot {
         if marker.is_file() {
             return Ok(true);
         }
-        Self::population_unfinished_at(path)
+        Ok(Self::recorded_phase_at(path)? == Some(GlobalVirtualStoreSlotPhase::Populating))
     }
 
-    fn population_unfinished_at(path: &std::path::Path) -> io::Result<bool> {
+    /// The phase in the state file of the slot at `path`, read without the
+    /// lock; `None` when it has none. A state this version does not recognise
+    /// reads as [`GlobalVirtualStoreSlotPhase::Populating`], so the slot is
+    /// imported again instead of failing every install that needs it.
+    pub fn recorded_phase_at(
+        path: &std::path::Path,
+    ) -> io::Result<Option<GlobalVirtualStoreSlotPhase>> {
         match fs::read_to_string(path.join(crate::GVS_SLOT_STATE_FILE)) {
-            Ok(state) => Ok(GlobalVirtualStoreSlotPhase::parse(&state)?
-                == GlobalVirtualStoreSlotPhase::Populating),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Ok(state) => Ok(Some(
+                GlobalVirtualStoreSlotPhase::parse(&state)
+                    .unwrap_or(GlobalVirtualStoreSlotPhase::Populating),
+            )),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error),
         }
     }
@@ -250,17 +258,9 @@ impl GlobalVirtualStoreSlot {
         if !self.package_path.is_dir() {
             return Ok(GlobalVirtualStoreSlotPhase::Missing);
         }
-        match self.read_state_file()? {
+        match Self::recorded_phase_at(&self.path)? {
             Some(phase) => Ok(phase),
             None => self.legacy_state(completion_marker, build_requirement),
-        }
-    }
-
-    fn read_state_file(&self) -> io::Result<Option<GlobalVirtualStoreSlotPhase>> {
-        match fs::read_to_string(&self.state_file) {
-            Ok(state) => GlobalVirtualStoreSlotPhase::parse(&state).map(Some),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(error),
         }
     }
 
@@ -314,7 +314,7 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn is_populated(&self) -> io::Result<bool> {
-        match self.read_state_file()? {
+        match Self::recorded_phase_at(&self.path)? {
             Some(GlobalVirtualStoreSlotPhase::Populated | GlobalVirtualStoreSlotPhase::Built) => {
                 Ok(true)
             }
