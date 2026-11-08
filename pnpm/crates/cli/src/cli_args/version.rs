@@ -6,7 +6,7 @@ use crate::cli_args::{
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 use bump::{Bump, inc, parse_bump, parse_current_version};
-use clap::Args;
+use clap::{Args, ValueHint};
 use git::version_from_git;
 use miette::Context;
 use node_semver::{Identifier, Version};
@@ -52,7 +52,7 @@ pub struct VersionArgs {
     /// intents for a registry declared `serverType: pnpr`: the publication's
     /// note, or the package's version note when the release has one
     /// package.
-    #[clap(long = "release-notes", value_name = "FILE")]
+    #[clap(long = "release-notes", value_name = "FILE", value_hint = ValueHint::FilePath)]
     pub release_notes: Option<String>,
     #[clap(flatten)]
     pub git: VersionGitArgs,

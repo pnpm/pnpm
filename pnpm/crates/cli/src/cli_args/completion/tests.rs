@@ -1,7 +1,12 @@
-use super::{CompletionError, CompletionShell, SUPPORTED_SHELLS, shell_from_args};
+use super::{
+    CompletionError, CompletionShell, SUPPORTED_SHELLS,
+    paths::{PathCompletionKind, complete_paths, resolve_directory_arg},
+    shell_from_args,
+};
 use crate::cli_args::CliArgs;
 use clap::Parser as _;
 use miette::Diagnostic as _;
+use tempfile::TempDir;
 
 fn strings(values: &[&str]) -> Vec<String> {
     values
@@ -135,4 +140,152 @@ fn completion_can_run_before_async_runtime_setup() {
     let args = CliArgs::parse_from(["pnpm", "completion-server", "--", "pnpm", "completion", ""]);
 
     assert!(args.run_completion_if_requested().expect("completion dispatch succeeds"));
+}
+
+#[test]
+fn complete_paths_completes_directories_and_files_by_kind() {
+    let temp = TempDir::new().expect("temp dir");
+    std::fs::create_dir_all(temp.path().join("alpha/nested")).expect("create alpha/nested");
+    std::fs::create_dir(temp.path().join("beta")).expect("create beta");
+    std::fs::create_dir(temp.path().join(".hidden-dir")).expect("create .hidden-dir");
+    std::fs::write(temp.path().join("gamma.txt"), "").expect("write gamma.txt");
+    std::fs::write(temp.path().join(".env"), "").expect("write .env");
+
+    let home = TempDir::new().expect("home dir");
+    std::fs::create_dir_all(home.path().join("projects/demo")).expect("create projects/demo");
+
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "", PathCompletionKind::Directories),
+        strings(&["alpha/", "beta/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "./", PathCompletionKind::Directories),
+        strings(&["./alpha/", "./beta/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "./al", PathCompletionKind::Directories),
+        strings(&["./alpha/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "alpha/", PathCompletionKind::Directories),
+        strings(&["alpha/nested/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), ".", PathCompletionKind::Directories),
+        strings(&[".hidden-dir/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "~/pr", PathCompletionKind::Directories),
+        strings(&["~/projects/"]),
+    );
+    assert_eq!(
+        complete_paths(
+            temp.path(),
+            Some(home.path()),
+            "~/projects/",
+            PathCompletionKind::Directories,
+        ),
+        strings(&["~/projects/demo/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), None, "~/pr", PathCompletionKind::Directories),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "missing/", PathCompletionKind::Directories),
+        Vec::<String>::new(),
+    );
+
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "", PathCompletionKind::FilesAndDirectories),
+        strings(&["alpha/", "beta/", "gamma.txt"]),
+    );
+    assert_eq!(
+        complete_paths(
+            temp.path(),
+            Some(home.path()),
+            ".",
+            PathCompletionKind::FilesAndDirectories,
+        ),
+        strings(&[".env", ".hidden-dir/"]),
+    );
+
+    assert_eq!(resolve_directory_arg(temp.path(), Some(home.path()), "~"), home.path());
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), "~/projects"),
+        home.path().join("projects"),
+    );
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), r#""~/projects""#),
+        temp.path().join("~/projects"),
+    );
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), "'~/projects'"),
+        temp.path().join("~/projects"),
+    );
+
+    #[cfg(windows)]
+    {
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r"alpha\",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r"alpha\nested/"]),
+        );
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r".\al",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r".\alpha/"]),
+        );
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r"~\pr",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r"~\projects/"]),
+        );
+        assert_eq!(
+            resolve_directory_arg(temp.path(), Some(home.path()), r"~\projects"),
+            home.path().join("projects"),
+        );
+    }
+
+    let large = TempDir::new().expect("large dir");
+    for index in 0..super::paths::MAX_PATH_CANDIDATES + 10 {
+        std::fs::create_dir(
+            large
+                .path()
+                .join(format!("dir-{index:04}")),
+        )
+        .expect("create dir");
+    }
+    assert_eq!(
+        complete_paths(large.path(), None, "", PathCompletionKind::Directories).len(),
+        super::paths::MAX_PATH_CANDIDATES,
+    );
+}
+
+#[test]
+fn non_enum_options_do_not_fall_back_to_commands_or_shells() {
+    for words in [
+        &["pnpm", "--registry", ""][..],
+        &["pnpm", "--registry", "in"],
+        &["pnpm", "--registry=in"],
+        &["pnpm", "completion", "--registry", ""],
+    ] {
+        assert_eq!(
+            super::complete_words(&strings(words)).expect("complete words"),
+            Vec::<String>::new(),
+            "{words:?}",
+        );
+    }
 }

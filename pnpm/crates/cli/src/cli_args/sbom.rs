@@ -13,7 +13,7 @@ use crate::{
         },
     },
 };
-use clap::Args;
+use clap::{Args, ValueHint};
 use collection::collect_components;
 use cyclonedx::{CycloneDxOpts, serialize_cyclonedx};
 use indexmap::IndexMap;
@@ -75,7 +75,7 @@ pub struct SbomArgs {
     pub lockfile_only: bool,
     /// Write SBOM to a file instead of stdout. Use `%s` for the
     /// package name and `%v` for the version.
-    #[clap(long)]
+    #[clap(long, value_hint = ValueHint::FilePath)]
     pub out: Option<String>,
     /// Generate a separate SBOM for each matched workspace package.
     #[clap(long)]
