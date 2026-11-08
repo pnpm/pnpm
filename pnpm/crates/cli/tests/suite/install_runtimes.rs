@@ -582,7 +582,7 @@ fn repeat_install_applies_runtime_on_fail_changes() {
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert!(
         lockfile.contains(format!("node@runtime:{version}").as_str()),
-        "lockfile was:\n{lockfile}"
+        "lockfile was:\n{lockfile}",
     );
     for mock in mocks {
         mock.assert();
