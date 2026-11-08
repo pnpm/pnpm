@@ -56,7 +56,12 @@ enum Adapter {
 }
 
 impl Db {
-    fn sql<'sql>(&self, embedded: &'sql str, postgres: &'sql str, mysql: &'sql str) -> &'sql str {
+    pub(super) fn sql<'sql>(
+        &self,
+        embedded: &'sql str,
+        postgres: &'sql str,
+        mysql: &'sql str,
+    ) -> &'sql str {
         let _ = (postgres, mysql);
         match &self.adapter {
             #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]

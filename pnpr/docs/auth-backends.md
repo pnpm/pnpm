@@ -121,8 +121,10 @@ Passwords must contain at least 8 characters and at most 71 bytes.
 This applies to registration, login, administrator-created accounts, and password changes.
 
 Account creation and renaming reject usernames with the same Unicode confusable
-skeleton as another account. SQL auth databases from earlier releases must be
-recreated for this release.
+skeleton as another account. Recreate pre-1.0 SQL auth databases that lack a
+`schema_migrations` table; databases at schema version `1` or later migrate
+automatically at startup (see
+[Schema migrations](storage.md#metadata-schema-changes)).
 
 ## Extensibility model
 

@@ -48,19 +48,22 @@ fn mysql_conditional_upserts_keep_both_values_when_the_condition_fails() {
 
 #[test]
 fn dialect_schemas_have_the_same_tables_columns_and_keys() {
-    let original = schema_contract(crate::metadata::sql::schema::TABLES);
+    let original = schema_contract(crate::schema::TABLES);
     for dialect in [Dialect::Postgres, Dialect::Mysql] {
         assert_eq!(schema_contract(&dialect.tables()), original, "{dialect:?}");
     }
 }
 
 fn schema_contract(sql: &str) -> Vec<String> {
-    crate::metadata::sql::schema::statements(sql)
+    crate::schema::statements(sql)
         .filter(|statement| statement.starts_with("CREATE TABLE"))
         .map(|statement| {
             let end = statement.rfind(')').unwrap();
             statement[..=end]
                 .replace("VARBINARY(512)", "TEXT")
+                .replace("VARCHAR(512)", "TEXT")
+                .replace(" CHARACTER SET utf8mb4 COLLATE utf8mb4_bin", "")
+                .replace("VARCHAR(4096)", "TEXT")
                 .replace("LONGTEXT", "TEXT")
                 .replace("LONGBLOB", "BLOB")
                 .replace("BYTEA", "BLOB")
@@ -81,4 +84,16 @@ fn mysql_upserts_accept_columns_adjacent_to_the_table() {
         )
         .unwrap();
     assert!(sql.ends_with("name = records.name"), "{sql}");
+}
+
+#[test]
+fn mysql_select_upserts_omit_row_alias() {
+    let (sql, _) = Dialect::Mysql
+        .statement(
+            "INSERT INTO removed_versions (name, generation) SELECT value, ?2 FROM (SELECT value FROM json_each(?1)) AS removed WHERE value != '' ON CONFLICT (name) DO UPDATE SET generation = excluded.generation",
+            &[Param::Text("[\"sha256-a\"]"), Param::Integer(7)],
+        )
+        .unwrap();
+    assert!(!sql.contains("AS excluded"), "{sql}");
+    assert!(sql.ends_with("ON DUPLICATE KEY UPDATE generation = VALUES(generation)"), "{sql}");
 }

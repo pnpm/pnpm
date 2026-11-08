@@ -136,25 +136,21 @@ render them in UTC with millisecond precision.
 Release notes retain their current text and publish-time digest. Edits and
 deletions do not retain earlier text for restoration.
 
-### Schema changes {#metadata-schema-changes}
+### Schema migrations {#metadata-schema-changes}
 
-pnpr creates its tables in an empty database and marks the database with
-the version of their schema, in the `schema_version` table. pnpr does not
-migrate the metadata schema before 1.0. Until then the version is `0.x`, and
-a pnpr release that changes the schema bumps its minor part. That pnpr
-refuses a database that holds another version, before it changes anything in
-it. The error names the version pnpr expects and what the database holds:
-another version, the integer schema version an older pnpr stored, pnpr's
-metadata tables without a version, or pnpr's version without some of its
-tables, as a wipe that kept the `schema_version` table leaves it.
+pnpr creates its metadata and auth tables in an empty database and records each
+applied migration step in the `schema_migrations` table, starting with step `1`
+for the 1.0 schema. When pnpr opens a database at an older numbered version, it
+takes the database write lock and runs each pending migration step in order.
+Steps run in one transaction on SQLite, libSQL, and PostgreSQL, and record
+their version in `schema_migrations` after completing on MySQL.
 
-To start that pnpr, wipe pnpr's metadata tables by hand: drop the
-`schema_version` table and the metadata tables beside it. pnpr then creates
-them afresh. Leave the tables of the [auth backend](auth-backends.md) in
-place when it shares the database. A SQLite database that holds only the
-metadata, as the default `<storage>/.metadata/metadata.sqlite` does, can be
-deleted instead, with its `-wal` and `-shm` files. Before accepting traffic,
-republish packages and recreate managed access settings and staged publishes.
+pnpr refuses a database from a newer release, or one whose `schema_migrations`
+table lacks expected tables. It also refuses a pre-1.0 database without
+`schema_migrations` (such as one holding `schema_version`,
+`auth_schema_migrations`, or unmarked tables) before changing anything in it.
+To replace a pre-1.0 database, drop its pnpr tables or delete the SQLite file
+and its `-wal` and `-shm` files so pnpr creates the 1.0 schema afresh.
 
 ## PostgreSQL and MySQL metadata
 

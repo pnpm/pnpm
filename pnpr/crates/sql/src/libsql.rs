@@ -22,7 +22,10 @@
 //! layer is synchronous and opening reaches the network. Every statement runs
 //! on the blocking pool and waits there for libsql's async client.
 
-use super::adapter::{Adapter, Connection, ReadSource};
+use crate::{
+    adapter::{Adapter, Connection, ReadSource},
+    schema,
+};
 use pnpr_config::LibsqlSettings;
 use pnpr_error::{RegistryError, Result};
 use pnpr_libsql::{Checkout, ConnectionPool};
@@ -43,8 +46,48 @@ const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 /// included.
 const STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 
+/// Migrate `connection` to [`schema::SCHEMA_VERSION`], refusing incompatible
+/// databases with `name` in the error.
+pub async fn ensure_schema(connection: &libsql::Connection, name: &str) -> Result<()> {
+    let runtime = Handle::current();
+    let conn = connection.clone();
+    let name = name.to_string();
+    tokio::task::spawn_blocking(move || {
+        let mut attempt = 0_u32;
+        loop {
+            let statements = Statements {
+                runtime: &runtime,
+                conn: &conn,
+                local: true,
+                deadline: None,
+                read: false,
+                held: RefCell::new(Vec::new()),
+                end_later: Cell::new(false),
+            };
+            let result =
+                schema::ensure(&statements, &name).and_then(|()| statements.send().map(drop));
+            match result {
+                Ok(()) => return Ok(()),
+                Err(RegistryError::Libsql(ref error))
+                    if attempt + 1 < schema::MIGRATION_ATTEMPTS
+                        && pnpr_libsql::is_transaction_conflict(error) =>
+                {
+                    drop(statements.rollback());
+                    std::thread::sleep(schema::retry_delay(attempt));
+                    attempt += 1;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    })
+    .await
+    .map_err(|error| RegistryError::Internal {
+        reason: format!("libSQL schema migration task panicked: {error}"),
+    })?
+}
+
 /// A metadata database in libSQL.
-pub(crate) struct LibsqlAdapter {
+pub struct LibsqlAdapter {
     settings: LibsqlSettings,
     opened: tokio::sync::OnceCell<Arc<Opened>>,
     /// Held by the write in progress. The primary serializes the writes of
@@ -81,7 +124,8 @@ impl fmt::Debug for LibsqlAdapter {
 impl LibsqlAdapter {
     /// The database `settings` name. Nothing is opened until the first
     /// operation.
-    pub(crate) fn new(settings: LibsqlSettings) -> Self {
+    #[must_use]
+    pub fn new(settings: LibsqlSettings) -> Self {
         Self { settings, opened: tokio::sync::OnceCell::new(), writer: Mutex::new(()) }
     }
 

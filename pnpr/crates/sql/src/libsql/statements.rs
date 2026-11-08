@@ -1,10 +1,8 @@
 //! The statements of one libSQL connection, held and sent to the primary in
 //! batches.
 
-use super::{
-    super::adapter::{Connection, Param, Query, Row, Value},
-    timed_out,
-};
+use super::timed_out;
+use crate::adapter::{Connection, Param, Query, Row, Value};
 use pnpr_error::Result;
 use std::cell::{Cell, RefCell};
 use tokio::runtime::Handle;
@@ -140,6 +138,9 @@ impl Connection for Statements<'_> {
     }
 
     fn begin_write(&self) -> Result<()> {
+        if self.local {
+            return self.execute("BEGIN IMMEDIATE", &[]);
+        }
         self.hold("BEGIN IMMEDIATE", &[]);
         Ok(())
     }
@@ -158,7 +159,7 @@ impl Connection for Statements<'_> {
     /// that did is ended by [`run`](super::run) after it answers.
     fn commit(&self) -> Result<()> {
         if self.local {
-            return self.execute_batch("COMMIT");
+            return self.execute("COMMIT", &[]);
         }
         if self.read {
             let mut held = self.held.borrow_mut();
@@ -180,11 +181,17 @@ impl Connection for Statements<'_> {
     /// A transaction whose `BEGIN` is still held never reached the primary,
     /// and one the primary already ended needs no `ROLLBACK`.
     fn rollback(&self) -> Result<()> {
+        if self.local {
+            if self.conn.is_autocommit() {
+                return Ok(());
+            }
+            return self.execute("ROLLBACK", &[]);
+        }
         let held = std::mem::take(&mut *self.held.borrow_mut());
         let unsent = held
             .first()
             .is_some_and(|(sql, _)| sql.starts_with("BEGIN"));
-        if unsent || (!self.local && self.conn.is_autocommit()) {
+        if unsent || self.conn.is_autocommit() {
             return Ok(());
         }
         self.execute_batch("ROLLBACK")

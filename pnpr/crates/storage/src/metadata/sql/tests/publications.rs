@@ -137,19 +137,33 @@ async fn outcome_keys(db: &Db) -> Vec<String> {
 }
 
 async fn sweep_query_plan(db: &Db) -> Vec<String> {
+    let sql = db
+        .sql(
+            "EXPLAIN QUERY PLAN DELETE FROM publication_outcomes WHERE committed_at < ?1",
+            "EXPLAIN (COSTS OFF) DELETE FROM publication_outcomes WHERE committed_at < ?1",
+            "EXPLAIN FORMAT=JSON DELETE FROM publication_outcomes WHERE committed_at < ?1",
+        )
+        .to_string();
+    let disable_seqscan = db.sql("", "SET LOCAL enable_seqscan = off", "");
+    let column =
+        if disable_seqscan.is_empty() && sql.starts_with("EXPLAIN QUERY PLAN") { 3 } else { 0 };
     let adapter = db.instance_adapter();
     tokio::task::spawn_blocking(move || {
         let mut details = Vec::new();
         adapter
             .read(ReadSource::Replica, &mut |connection| {
+                if !disable_seqscan.is_empty() {
+                    connection.begin_read()?;
+                    connection.execute(disable_seqscan, params![])?;
+                }
                 details = connection
-                    .query(
-                        "EXPLAIN QUERY PLAN DELETE FROM publication_outcomes WHERE committed_at < ?1",
-                        params![0_i64],
-                    )?
+                    .query(&sql, params![0_i64])?
                     .into_iter()
-                    .map(|mut row| row.get::<String>(3))
+                    .map(|mut row| row.get::<String>(column))
                     .collect::<pnpr_error::Result<Vec<_>>>()?;
+                if !disable_seqscan.is_empty() {
+                    connection.commit()?;
+                }
                 Ok(())
             })
             .unwrap();
@@ -766,7 +780,11 @@ async fn measure_outcome_sweep(
     }
     let mut statements: Vec<_> = schema::statements(&tables).collect();
     statements.push(schema::MARKER_TABLE.to_string());
-    statements.push(format!("INSERT INTO schema_version VALUES ('{}')", schema::SCHEMA_VERSION));
+    statements.push(format!(
+        "INSERT INTO {} (version) VALUES ({})",
+        schema::MARKER,
+        schema::SCHEMA_VERSION,
+    ));
     let refs: Vec<_> = statements
         .iter()
         .map(String::as_str)

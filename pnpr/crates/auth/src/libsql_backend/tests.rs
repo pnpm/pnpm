@@ -621,7 +621,7 @@ async fn libsql_schema_migrations_runs_and_records_version() {
     let mut rows = backend.pool
         .connect()
         .unwrap()
-        .query("SELECT MAX(version) FROM auth_schema_migrations", ())
+        .query("SELECT MAX(version) FROM schema_migrations", ())
         .await
         .unwrap();
     let row = rows
@@ -665,10 +665,7 @@ async fn libsql_schema_migrations_refuses_future_version() {
     backend.pool
         .connect()
         .unwrap()
-        .execute(
-            "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (999, 123456789)",
-            (),
-        )
+        .execute("INSERT INTO schema_migrations (version) VALUES (2)", ())
         .await
         .unwrap();
 
@@ -678,7 +675,10 @@ async fn libsql_schema_migrations_refuses_future_version() {
     .await
     .unwrap_err();
     let err_str = err.to_string();
-    assert!(err_str.contains("incompatible"), "expected error about newer version, got: {err_str}");
+    assert!(
+        err_str.contains("schema version 2"),
+        "expected error about newer version, got: {err_str}",
+    );
 }
 
 #[tokio::test]

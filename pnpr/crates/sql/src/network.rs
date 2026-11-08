@@ -1,11 +1,15 @@
-//! Network SQL connections used from the metadata blocking pool.
+//! Network SQL connections used from the blocking pool.
 
-use super::adapter::{Adapter, Connection, Param, Query, ReadSource, Row, Value};
+use super::{
+    adapter::{Adapter, Connection, Param, Query, ReadSource, Row, Value},
+    schema,
+};
 use pnpr_config::SqlBackendSettings;
 use pnpr_error::{RegistryError, Result};
 use sqlx::{TypeInfo, ValueRef, pool::PoolConnection};
 use std::{
     cell::{Cell, RefCell},
+    sync::Arc,
     time::Duration,
 };
 
@@ -14,17 +18,18 @@ mod mysql_schema;
 use dialect::Dialect;
 
 macro_rules! driver {
-    ($module:ident, $database:ty, $pool:ty, $pool_fn:path, $row:ty, $timeout_sql:path) => {
+    ($module:ident, $database:ty, $pool:ty, $pool_fn:path, $row:ty, $dialect:expr, $timeout_sql:path) => {
         pub(super) mod $module {
             use super::{
-                Adapter, Cell, Connection, Dialect, Duration, Param, PoolConnection, Query,
+                Adapter, Arc, Cell, Connection, Dialect, Duration, Param, PoolConnection, Query,
                 ReadSource, RefCell, RegistryError, Result, Row, SqlBackendSettings, TypeInfo,
                 Value, ValueRef,
             };
             use sqlx::Row as _;
+
             #[derive(Debug)]
             pub(in super::super) struct NetworkAdapter {
-                pool: std::sync::Arc<$pool>,
+                pool: Arc<$pool>,
                 dialect: Dialect,
                 settings: SqlBackendSettings,
             }
@@ -36,13 +41,26 @@ macro_rules! driver {
                     Ok(Self { pool, dialect, settings: settings.clone() })
                 }
 
+                pub(super) fn from_pool(pool: Arc<$pool>, timeout: Duration) -> Self {
+                    Self {
+                        pool,
+                        dialect: $dialect,
+                        settings: SqlBackendSettings {
+                            url: String::new(),
+                            max_connections: None,
+                            timeout,
+                            startup_timeout: timeout,
+                        },
+                    }
+                }
+
                 fn run(
                     &self,
                     timeout: Duration,
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
                 ) -> Result<()> {
                     let runtime = tokio::runtime::Handle::current();
-                    let connection = runtime.block_on(pnpr_sql::acquire(&self.pool, timeout))?;
+                    let connection = runtime.block_on(crate::acquire(&self.pool, timeout))?;
                     let connection = NetworkConnection {
                         connection: RefCell::new(connection),
                         dialect: self.dialect,
@@ -158,20 +176,15 @@ macro_rules! driver {
             }
 
             impl Connection for NetworkConnection {
-                fn recover_schema_initialization(&self) -> Result<bool> {
-                    if matches!(self.dialect, Dialect::Mysql) {
-                        return super::mysql_schema::recover(self);
-                    }
-                    Ok(false)
+                fn transactional_ddl(&self) -> bool {
+                    !matches!(self.dialect, Dialect::Mysql)
                 }
 
-                fn create_schema(&self) -> Result<()> {
+                fn is_recoverable_empty_migrations(&self) -> Result<bool> {
                     if matches!(self.dialect, Dialect::Mysql) {
-                        super::mysql_schema::begin(self)?;
-                        super::mysql_schema::finish(self)
-                    } else {
-                        super::super::schema::create(self)
+                        return super::mysql_schema::is_recoverable(self);
                     }
+                    Ok(false)
                 }
 
                 fn lock_schema(&self) -> Result<()> {
@@ -193,6 +206,13 @@ macro_rules! driver {
                 fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()> {
                     self.rows(sql, params)
                         .map(|_| ())
+                }
+
+                fn execute_ddl(&self, sql: &str) -> Result<()> {
+                    if matches!(self.dialect, Dialect::Mysql) {
+                        return super::mysql_schema::execute_ddl(self, sql);
+                    }
+                    self.execute(sql, &[])
                 }
 
                 fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>> {
@@ -260,16 +280,21 @@ macro_rules! driver {
                     Ok(())
                 }
 
-                fn schema_tables(&self) -> String {
-                    self.dialect.tables()
+                fn schema_tables(&self) -> Option<String> {
+                    Some(self.dialect.tables())
                 }
 
                 fn schema_table_names(&self) -> Result<Vec<Row>> {
                     self.query(self.dialect.table_names(), &[])
                 }
 
-                fn schema_marker(&self) -> &'static str {
-                    "CREATE TABLE schema_version (version TEXT NOT NULL)"
+                fn schema_marker(&self) -> Option<&'static str> {
+                    Some(match self.dialect {
+                        Dialect::Postgres => {
+                            "CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT NOT NULL PRIMARY KEY)"
+                        }
+                        Dialect::Mysql => super::mysql_schema::MARKER_TABLE,
+                    })
                 }
             }
 
@@ -313,21 +338,24 @@ driver!(
     postgres,
     sqlx::Postgres,
     sqlx::PgPool,
-    pnpr_sql::postgres_pool,
+    crate::postgres_pool,
     sqlx::postgres::PgRow,
-    pnpr_sql::postgres_timeout_sql
+    Dialect::Postgres,
+    crate::postgres_timeout_sql
 );
 #[cfg(feature = "backend-mysql")]
 driver!(
     mysql,
     sqlx::MySql,
     sqlx::MySqlPool,
-    pnpr_sql::mysql_pool,
+    crate::mysql_pool,
     sqlx::mysql::MySqlRow,
-    pnpr_sql::mysql_timeout_sql
+    Dialect::Mysql,
+    crate::mysql_timeout_sql
 );
 
-pub(super) fn adapter(settings: &SqlBackendSettings) -> Result<Box<dyn Adapter>> {
+/// Open a network [`Adapter`] for the database URL in `settings`.
+pub fn adapter(settings: &SqlBackendSettings) -> Result<Box<dyn Adapter>> {
     match Dialect::from_url(&settings.url)? {
         #[cfg(feature = "backend-postgres")]
         Dialect::Postgres => Ok(Box::new(postgres::NetworkAdapter::new(settings)?)),
@@ -341,4 +369,46 @@ pub(super) fn adapter(settings: &SqlBackendSettings) -> Result<Box<dyn Adapter>>
             reason: "this build does not include the configured database driver".to_string(),
         }),
     }
+}
+
+/// Migrate a `PostgreSQL` pool to [`schema::SCHEMA_VERSION`].
+#[cfg(feature = "backend-postgres")]
+pub async fn ensure_postgres_schema(
+    pool: Arc<sqlx::PgPool>,
+    timeout: Duration,
+    name: &str,
+) -> Result<()> {
+    let adapter = postgres::NetworkAdapter::from_pool(pool, timeout);
+    let name = name.to_string();
+    tokio::task::spawn_blocking(move || {
+        if let Some(stored) = schema::prepare_adapter_with_steps(&adapter, schema::STEPS)? {
+            return Err(schema::refused_error(&name, &stored));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|error| RegistryError::Internal {
+        reason: format!("PostgreSQL schema migration task panicked: {error}"),
+    })?
+}
+
+/// Migrate a `MySQL` pool to [`schema::SCHEMA_VERSION`].
+#[cfg(feature = "backend-mysql")]
+pub async fn ensure_mysql_schema(
+    pool: Arc<sqlx::MySqlPool>,
+    timeout: Duration,
+    name: &str,
+) -> Result<()> {
+    let adapter = mysql::NetworkAdapter::from_pool(pool, timeout);
+    let name = name.to_string();
+    tokio::task::spawn_blocking(move || {
+        if let Some(stored) = schema::prepare_adapter_with_steps(&adapter, schema::STEPS)? {
+            return Err(schema::refused_error(&name, &stored));
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|error| RegistryError::Internal {
+        reason: format!("MySQL schema migration task panicked: {error}"),
+    })?
 }

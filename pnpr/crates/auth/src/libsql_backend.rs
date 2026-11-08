@@ -13,10 +13,10 @@
 //! the natural next optimization (see
 //! [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199)).
 //!
-//! The SQL is identical to the local backend — the `tokens` table reuses
-//! [`super::token_store::sqlite::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
+//! The SQL is identical to the local backend — the `tokens` and `users` tables
+//! come from [`pnpr_sql::schema::TABLES`] — so a database can be migrated
 //! between the two. Users, which the local backend keeps in a JSON account
-//! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
+//! file, live in the `users` table here.
 
 mod accounts;
 mod schema;

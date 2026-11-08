@@ -34,7 +34,11 @@ async fn measure(db: Db, layout: Layout) {
     }
     let mut statements: Vec<_> = schema::statements(&tables).collect();
     statements.push(schema::MARKER_TABLE.to_string());
-    statements.push(format!("INSERT INTO schema_version VALUES ('{}')", schema::SCHEMA_VERSION));
+    statements.push(format!(
+        "INSERT INTO {} (version) VALUES ({})",
+        schema::MARKER,
+        schema::SCHEMA_VERSION,
+    ));
     let statements: Vec<_> = statements
         .iter()
         .map(String::as_str)

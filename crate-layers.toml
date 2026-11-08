@@ -217,7 +217,6 @@ pnpm-workspace-projects-filter = 2
 pnpm-workspace-task-scheduler = 2
 pnpm-yaml-document-sync = 2
 pnpr = 3
-pnpr-auth = 2
 pnpr-config = 4
 pnpr-registry = 2
 pnpr-storage = 6
@@ -330,8 +329,8 @@ pnpr-registry = 1
 pnpr-route = 4
 pnpr-search = 3
 pnpr-shared-artifacts = 3
-pnpr-sql = 2
-pnpr-storage = 11
+pnpr-sql = 3
+pnpr-storage = 10
 pnpr-upstream = 6
 
 # The accepted number of workspace crates whose items each crate names in its

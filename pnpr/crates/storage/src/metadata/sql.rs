@@ -26,7 +26,11 @@
 //! the catalog's generation: a replica found behind is synced, and read from
 //! the primary when the sync does not bring it far enough.
 
-pub(crate) mod adapter;
+#[cfg(feature = "backend-libsql")]
+pub(crate) use pnpr_sql::libsql;
+#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+pub(crate) use pnpr_sql::network;
+pub(crate) use pnpr_sql::{adapter, schema, sqlite};
 
 pub use cache::RenderStats;
 pub use mappings::{Mapping, Unmapping};
@@ -35,19 +39,13 @@ pub(crate) use staged::{StagedEntry, StagedId};
 pub use tags::TagHistoryEntry;
 pub(crate) use view::PackageMetadata;
 
-#[macro_use]
-mod params;
 mod batch;
 mod blobs;
 mod cache;
 mod commit;
 mod fence;
-#[cfg(feature = "backend-libsql")]
-mod libsql;
 mod log;
 mod mappings;
-#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-mod network;
 mod notes;
 mod packument;
 mod publications;
@@ -56,8 +54,6 @@ mod reclaims;
 mod records;
 mod removed;
 mod render;
-mod schema;
-mod sqlite;
 mod staged;
 mod tags;
 mod transactions;
@@ -148,8 +144,8 @@ impl SqlMetadata {
     }
 
     /// The version of the schema this pnpr creates and reads. A database
-    /// that holds another one is refused.
-    pub const SCHEMA_VERSION: &'static str = schema::SCHEMA_VERSION;
+    /// that holds a newer or pre-1.0 schema is refused.
+    pub const SCHEMA_VERSION: i64 = schema::SCHEMA_VERSION;
 
     /// The statements that create the schema, so a cache of databases can
     /// tell a layout that changed under one version apart.
@@ -189,9 +185,10 @@ impl SqlMetadata {
         }
     }
 
-    /// Create the schema in an empty database, and refuse one that holds
-    /// another schema. pnpr does not migrate the schema before 1.0: the
-    /// operator wipes pnpr's metadata tables, and pnpr creates them afresh.
+    /// Create the schema in an empty database, and apply pending numbered
+    /// migration steps to one at an older version. Refuse a database from a
+    /// newer release, and a pre-1.0 database without `schema_migrations`;
+    /// the operator wipes pnpr's tables, and pnpr creates them afresh.
     fn ensure_schema(&self) -> Result<()> {
         if self.schema.get().is_some() {
             return Ok(());
@@ -200,23 +197,8 @@ impl SqlMetadata {
         if self.schema.get().is_some() {
             return Ok(());
         }
-        let mut refused = None;
-        self.retry_conflicts(|| {
-            self.adapter.initialize(&mut |connection| {
-                refused = schema::prepare(connection)?;
-                Ok(())
-            })
-        })?;
-        if let Some(stored) = refused {
-            return Err(RegistryError::Internal {
-                reason: format!(
-                    "the metadata schema changed: the metadata database {} holds {stored}, and \
-                     this pnpr expects schema version {}. pnpr does not migrate its metadata \
-                     before 1.0; wipe pnpr's metadata tables, and pnpr creates them afresh",
-                    self.name,
-                    schema::SCHEMA_VERSION,
-                ),
-            });
+        if let Some(stored) = schema::prepare_adapter_with_steps(&*self.adapter, schema::STEPS)? {
+            return Err(schema::refused_error(&self.name, &stored));
         }
         let _ = self.schema.set(());
         // A replica bootstrapped before the schema existed lacks its tables.

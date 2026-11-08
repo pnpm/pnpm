@@ -23,7 +23,7 @@ impl MysqlDatabase {
         .bind(&record.user_id)
         .bind(token_timestamp_to_sql(record.created_at))
         .bind(token_timestamp_to_sql(record.last_used_at))
-        .bind(i16::from(record.readonly))
+        .bind(i64::from(record.readonly))
         .bind(cidr_json)
         .bind(record.name.as_deref())
         .bind(record.expires_at.map(token_timestamp_to_sql))
@@ -117,7 +117,7 @@ fn token_record_from_offset(
         .map_err(|err| RegistryError::Internal {
             reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
         })?;
-    let readonly: i16 = row.try_get(offset + 3)?;
+    let readonly: i64 = row.try_get(offset + 3)?;
     let name: Option<String> = row.try_get(offset + 5)?;
     let expires_at: Option<i64> = row.try_get(offset + 6)?;
     let scopes_json: Option<String> = row.try_get(offset + 7)?;
