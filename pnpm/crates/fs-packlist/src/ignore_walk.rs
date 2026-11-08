@@ -341,10 +341,9 @@ fn read_dir_rules(dir: &Path) -> io::Result<Vec<IgnoreRule>> {
 }
 
 /// Trims a line the way ignore-walk's `String.prototype.trim` does: unlike
-/// [`str::trim`], that also strips U+FEFF, so an ignore file that starts with a
-/// UTF-8 BOM keeps its first rule.
+/// [`str::trim`], that also strips U+FEFF.
 fn trim_ignore_line(line: &str) -> &str {
-    line.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
+    line.trim_matches(|ch: char| ch.is_whitespace() || ch == '\u{feff}')
 }
 
 fn inherited_rules(pkg_dir: &Path, workspace_dir: Option<&Path>) -> io::Result<Vec<IgnoreRule>> {
