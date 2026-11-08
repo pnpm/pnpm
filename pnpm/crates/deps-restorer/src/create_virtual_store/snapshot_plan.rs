@@ -323,14 +323,14 @@ fn slot_state_allows_reuse(
     let Some(slot) = slot else {
         return Ok(true);
     };
-    let state = slot
-        .state(&slot.package_path().join("package.json"), crate::BuildRequirement::NotRequired)
+    let phase = slot
+        .phase(&slot.package_path().join("package.json"), crate::BuildRequirement::NotRequired)
         .map_err(|error| CreateVirtualStoreError::ReadSlotState {
             path: slot.path().to_path_buf(),
             error,
         })?;
     Ok(!matches!(
-        state.phase,
+        phase,
         crate::GlobalVirtualStoreSlotPhase::Missing
             | crate::GlobalVirtualStoreSlotPhase::Populating
             | crate::GlobalVirtualStoreSlotPhase::Building,

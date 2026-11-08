@@ -87,6 +87,9 @@ pub struct GlobalVirtualStoreSlot {
     needs_build_marker: PathBuf,
     state_file: PathBuf,
     lock: Option<DirLock>,
+    /// The phase [`Self::open_settled`] read, which its unlocked probe
+    /// reuses instead of reading the state file again.
+    settled_phase: Option<GlobalVirtualStoreSlotPhase>,
 }
 
 impl GlobalVirtualStoreSlot {
@@ -167,10 +170,16 @@ impl GlobalVirtualStoreSlot {
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             _ => return None,
         }
-        let slot = Self::from_path(path, key, None);
-        slot.is_populated()
-            .unwrap_or(false)
-            .then_some(slot)
+        let mut slot = Self::from_path(path, key, None);
+        let phase = slot.read_state_file().ok().flatten()?;
+        if !matches!(
+            phase,
+            GlobalVirtualStoreSlotPhase::Populated | GlobalVirtualStoreSlotPhase::Built,
+        ) {
+            return None;
+        }
+        slot.settled_phase = Some(phase);
+        Some(slot)
     }
 
     pub fn open_existing_path(
@@ -236,7 +245,7 @@ impl GlobalVirtualStoreSlot {
         let package_path = path.join("node_modules").join(key.name.to_string());
         let needs_build_marker = package_path.join(crate::NEEDS_BUILD_MARKER);
         let state_file = path.join(crate::GVS_SLOT_STATE_FILE);
-        Self { path, package_path, needs_build_marker, state_file, lock }
+        Self { path, package_path, needs_build_marker, state_file, lock, settled_phase: None }
     }
 
     #[must_use]
@@ -255,16 +264,24 @@ impl GlobalVirtualStoreSlot {
         build_requirement: BuildRequirement,
     ) -> io::Result<GlobalVirtualStoreSlotState> {
         let linked_archive = self.linked_archive();
-        if !self.package_path.is_dir() {
-            return Ok(GlobalVirtualStoreSlotState {
-                phase: GlobalVirtualStoreSlotPhase::Missing,
-                linked_archive,
-            });
-        }
-        let phase = self
-            .read_state_file()?
-            .map_or_else(|| self.legacy_state(completion_marker, build_requirement), Ok)?;
+        let phase = self.phase(completion_marker, build_requirement)?;
         Ok(GlobalVirtualStoreSlotState { phase, linked_archive })
+    }
+
+    /// [`Self::state`] without the linked archive record.
+    pub fn phase(
+        &self,
+        completion_marker: &std::path::Path,
+        build_requirement: BuildRequirement,
+    ) -> io::Result<GlobalVirtualStoreSlotPhase> {
+        if !self.package_path.is_dir() {
+            return Ok(GlobalVirtualStoreSlotPhase::Missing);
+        }
+        if let Some(phase) = self.settled_phase {
+            return Ok(phase);
+        }
+        self.read_state_file()?
+            .map_or_else(|| self.legacy_state(completion_marker, build_requirement), Ok)
     }
 
     fn read_state_file(&self) -> io::Result<Option<GlobalVirtualStoreSlotPhase>> {
@@ -310,10 +327,10 @@ impl GlobalVirtualStoreSlot {
     }
 
     pub fn has_build_marker(&self) -> io::Result<bool> {
-        let state =
-            self.state(&self.package_path.join("package.json"), BuildRequirement::NotRequired)?;
+        let phase =
+            self.phase(&self.package_path.join("package.json"), BuildRequirement::NotRequired)?;
         Ok(matches!(
-            state.phase,
+            phase,
             GlobalVirtualStoreSlotPhase::Populating
                 | GlobalVirtualStoreSlotPhase::BuildPending
                 | GlobalVirtualStoreSlotPhase::Building,
