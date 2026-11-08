@@ -58,6 +58,7 @@ test('createWorkspaceState() saves lockfile-affecting settings', () => {
         'some-pkg': 'patches/some-pkg.patch',
       },
       peersSuffixMaxLength: 100,
+      runtimeOnFail: 'download',
       supportedArchitectures: {
         os: ['darwin'],
         cpu: ['x64'],
@@ -77,6 +78,7 @@ test('createWorkspaceState() saves lockfile-affecting settings', () => {
     'some-pkg': 'patches/some-pkg.patch',
   })
   expect(state.settings.peersSuffixMaxLength).toBe(100)
+  expect(state.settings).toEqual(expect.objectContaining({ runtimeOnFail: 'download' }))
   expect(state.settings.supportedArchitectures).toStrictEqual({
     os: ['darwin'],
     cpu: ['x64'],

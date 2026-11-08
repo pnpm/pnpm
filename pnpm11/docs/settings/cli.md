@@ -143,6 +143,8 @@ Overrides the `onFail` field of [`devEngines.runtime`](../package_json.md#deveng
 runtimeOnFail: download
 ```
 
+Changes to this setting take effect on the next `pnpm install`, including repeat installs.
+
 ### nodeDownloadMirrors
 
 Added in: v11.0.0

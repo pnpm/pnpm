@@ -170,6 +170,8 @@ Overrides the `onFail` field of [`devEngines.runtime`](../package_json.md#deveng
 runtimeOnFail: download
 ```
 
+Changes to this setting take effect on the next `pnpm install`, including repeat installs.
+
 Since v12.5.0, this setting also controls Python interpreter downloads when no installed interpreter satisfies a project. The unset default permits Python downloads. `warn` and `ignore` use an available interpreter even when it does not satisfy `requires-python`; `error` refuses the install.
 
 Since v12.11.0, `error`, `warn`, and `ignore` also stop pnpm from installing the [Rust toolchain](../cargo.md#rust-toolchain) a toolchain file names.

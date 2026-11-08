@@ -244,7 +244,7 @@ const CLASSIFICATION: &[(&str, Reach)] = &[
     ("resolution_mode", NotAnInput(RESOLUTION_ONLY)),
     ("resolve_peers_from_workspace_root", NotAnInput(RESOLUTION_ONLY)),
     ("reverse", NotAnInput(CLI_ONLY)),
-    ("runtime_on_fail", NotAnInput("whether a missing runtime fails the command")),
+    ("runtime_on_fail", Recorded { key: "runtimeOnFail", change: |config| config.runtime_on_fail = Some(pnpm_config::RuntimeOnFail::Download) }),
     ("save_catalog_name", NotAnInput(OTHER_COMMAND)),
     ("save_exact", NotAnInput(OTHER_COMMAND)),
     ("save_peer", NotAnInput(OTHER_COMMAND)),
@@ -365,6 +365,27 @@ fn every_recorded_field_is_compared() {
         let mut config = base.clone();
         change(&mut config);
         assert_eq!(install_gate_drift(&state, &config), Some(*key), "changing `{name}`");
+    }
+}
+
+#[test]
+fn runtime_policy_changes_are_compared_in_both_directions() {
+    use pnpm_config::RuntimeOnFail::{Download, Error, Ignore, Warn};
+
+    let policies = [None, Some(Download), Some(Error), Some(Warn), Some(Ignore)];
+    for previous in policies {
+        let mut config = Config { runtime_on_fail: previous, ..Default::default() };
+        let state = recorded_state(&config);
+        let state: WorkspaceState =
+            serde_json::from_value(serde_json::to_value(state).unwrap()).unwrap();
+        for current in policies {
+            config.runtime_on_fail = current;
+            assert_eq!(
+                install_gate_drift(&state, &config),
+                (previous != current).then_some("runtimeOnFail"),
+                "{previous:?} -> {current:?}",
+            );
+        }
     }
 }
 

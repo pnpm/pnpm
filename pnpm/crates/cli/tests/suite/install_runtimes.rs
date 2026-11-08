@@ -547,6 +547,49 @@ fn installs_node_runtime_declared_by_a_dependency_engine() {
 }
 
 #[test]
+fn repeat_install_applies_runtime_on_fail_changes() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        &format!(
+            "packages: ['packages/*']\nruntimeOnFail: ignore\nnodeDownloadMirrors:\n  rc: '{}/'\n",
+            server.url(),
+        ),
+    );
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).unwrap();
+    write_devengines_manifest(&project, version, None);
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!project.join("node_modules/node").exists());
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).unwrap();
+    fs::write(&yaml_path, yaml.replace("runtimeOnFail: ignore", "runtimeOnFail: download"))
+        .unwrap();
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(project.join("node_modules/node").exists());
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains(format!("node@runtime:{version}").as_str()),
+        "lockfile was:\n{lockfile}"
+    );
+    for mock in mocks {
+        mock.assert();
+    }
+}
+
+#[test]
 fn runtime_on_fail_download_reifies_the_manifest_runtime() {
     let root = tempfile::tempdir().unwrap();
     let workspace = prepare_workspace(&root, "runtimeOnFail: download\n");

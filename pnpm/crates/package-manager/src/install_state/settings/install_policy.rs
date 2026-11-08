@@ -22,6 +22,7 @@ pub(super) fn install_policy_settings(
         dangerously_allow_all_builds: Some(config.dangerously_allow_all_builds),
         extend_node_path: (!config.extend_node_path).then_some(false),
         runtime: config.skip_runtimes.then_some(false),
+        runtime_on_fail: config.runtime_on_fail.map(|policy| policy.as_str().to_string()),
         trust_lockfile: config.trust_lockfile.then_some(true),
         ..rest
     }
@@ -44,6 +45,7 @@ impl SettingsComparison<'_> {
                     != live.extend_node_path.unwrap_or(true),
             ),
             ("runtime", recorded.runtime.unwrap_or(true) != live.runtime.unwrap_or(true)),
+            ("runtimeOnFail", recorded.runtime_on_fail != live.runtime_on_fail),
             ("trustLockfile", differs(recorded.trust_lockfile, live.trust_lockfile)),
         ]
         .into_iter()

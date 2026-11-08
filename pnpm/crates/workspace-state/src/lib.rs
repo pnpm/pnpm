@@ -380,6 +380,8 @@ pub struct WorkspaceStateSettings {
     /// `runtime`, recorded only while it is off.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_on_fail: Option<String>,
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,
