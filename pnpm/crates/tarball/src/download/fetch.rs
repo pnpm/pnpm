@@ -1,10 +1,12 @@
 use super::{
     Arc, AuthHeaders, BodyProgress, BodyVerification, BufferBody, Buffered, BufferedArchive,
-    FetchingProgressLog, FetchingProgressMessage, IgnoreEntryFilter, LogEvent, LogLevel,
+    FetchingProgressLog, FetchingProgressMessage, IgnoreEntryFilter, Integrity, LogEvent, LogLevel,
     NetworkError, PackageFilesIndex, Path, Reporter, SemaphorePermit, StoreDir, Stream,
     TarballError, ThrottledClient, buffer_body, extract_body_while_downloading,
-    extract_tarball_buffer, local_file_tarball_path, open_local_tarball, read_local_tarball_buffer,
-    streaming_extract_semaphore, streams_while_downloading,
+    extract_local_tarball_buffer_with_sha1, extract_tarball_buffer,
+    extract_tarball_buffer_with_permit, local_file_tarball_path, open_local_tarball,
+    post_download_semaphore, read_local_tarball_buffer, streaming_extract_semaphore,
+    streams_while_downloading,
 };
 use crate::{
     TarLimits, archive_integrity::ArchiveVerification, content_coding::ContentCoding,
@@ -26,7 +28,7 @@ use std::collections::BTreeMap;
 /// Permits are acquired inside the attempt so a backoff sleep never
 /// parks one. The network permit spans connect through body streaming
 /// (pnpm's pQueue, and [#281]'s EMFILE fix) and is dropped before
-/// [`post_download_semaphore`](crate::post_download_semaphore) gates the CPU-bound tail.
+/// [`post_download_semaphore`] gates the CPU-bound tail.
 ///
 /// [#281]: https://github.com/pnpm/pacquet/pull/281
 #[expect(clippy::too_many_arguments, reason = "arg count is fixed by the fetcher signature")]
@@ -152,6 +154,29 @@ pub(super) struct TarballDownload<'a> {
     pub(super) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 }
 
+async fn read_local_archive<Reporter: self::Reporter>(
+    path: &Path,
+    package_url: &str,
+    package_id: &str,
+    attempt: u32,
+) -> Result<(SemaphorePermit<'static>, Vec<u8>), TarballError> {
+    let permit = post_download_semaphore()
+        .acquire()
+        .await
+        .expect("post-download semaphore shouldn't be closed this soon");
+    let (file, size) = open_local_tarball(path).await?;
+    Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+        level: LogLevel::Debug,
+        message: FetchingProgressMessage::Started {
+            attempt: attempt + 1,
+            package_id: package_id.to_owned(),
+            size: Some(size),
+        },
+    }));
+    let buffer = read_local_tarball_buffer(file, path, package_url, size).await?;
+    Ok((permit, buffer))
+}
+
 /// A `file:` tarball is read straight off disk: no request, no streaming
 /// extractor, and progress is reported once at its known size.
 #[expect(
@@ -169,17 +194,41 @@ pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<ExtractedFiles, TarballError> {
-    let (file, size) = open_local_tarball(path).await?;
-    Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
-        level: LogLevel::Debug,
-        message: FetchingProgressMessage::Started {
-            attempt: attempt + 1,
-            package_id: package_id.to_owned(),
-            size: Some(size),
+    let (permit, buffer) =
+        read_local_archive::<Reporter>(path, package_url, package_id, attempt).await?;
+    extract_tarball_buffer_with_permit(
+        permit,
+        BufferedArchive {
+            buffer,
+            content_coding: ContentCoding::Identity,
+            verification: verification.clone(),
+            unpacked_size: package_unpacked_size,
+            tar_limits,
         },
-    }));
-    let buffer = read_local_tarball_buffer(file, path, package_url, size).await?;
-    extract_tarball_buffer(
+        package_url,
+        store_dir,
+        ignore_file_pattern,
+    )
+    .await
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the parameters are the independent pieces of one fetch; a struct would only move the same fields into a wrapper"
+)]
+pub(crate) async fn fetch_local_tarball_with_sha1<Reporter: self::Reporter>(
+    path: &Path,
+    verification: &ArchiveVerification,
+    package_unpacked_size: Option<usize>,
+    tar_limits: TarLimits,
+    package_url: &str,
+    package_id: &str,
+    store_dir: &'static StoreDir,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+) -> Result<(ExtractedFiles, Integrity), TarballError> {
+    let (permit, buffer) = read_local_archive::<Reporter>(path, package_url, package_id, 0).await?;
+    extract_local_tarball_buffer_with_sha1(
+        permit,
         BufferedArchive {
             buffer,
             content_coding: ContentCoding::Identity,

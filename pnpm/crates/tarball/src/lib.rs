@@ -212,6 +212,14 @@ pub struct FetchedTarball {
     pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
 }
 
+/// Output of [`IngestTarballToStore::ingest_local_tarball`], pairing the
+/// extracted archive with the `sha1` integrity of its on-disk bytes.
+#[derive(Debug, Clone)]
+pub struct FetchedLocalTarball {
+    pub tarball: FetchedTarball,
+    pub sha1_integrity: Integrity,
+}
+
 impl<'a> IngestTarballToStore<'a> {
     /// Execute the subroutine with an in-memory cache.
     ///
@@ -414,6 +422,15 @@ impl<'a> IngestTarballToStore<'a> {
         &self,
     ) -> Result<FetchedTarball, TarballError> {
         self.ingestion(false).fetch::<Reporter>(true).await
+    }
+
+    /// Ingest the local tarball at `path` in a single read, returning its
+    /// extracted metadata alongside the `sha1` integrity of its bytes.
+    pub async fn ingest_local_tarball<Reporter: self::Reporter>(
+        &self,
+        path: &Path,
+    ) -> Result<FetchedLocalTarball, TarballError> {
+        self.ingestion(false).ingest_local_tarball::<Reporter>(path).await
     }
 
     fn ingestion(&self, revision_addressed: bool) -> ingestion::ArchiveIngestion<'_> {

@@ -41,7 +41,8 @@ pub enum StoreCommand {
 #[derive(Debug, Args)]
 pub struct StoreAddArgs {
     /// The packages to fetch into the store, e.g. `express@4`, or package
-    /// tarballs on disk, e.g. `./express-4.22.1.tgz`.
+    /// tarballs or directories of tarballs on disk, e.g. `./express-4.22.1.tgz`
+    /// or `./tarballs`.
     pub packages: Vec<String>,
 }
 

@@ -159,7 +159,30 @@ async fn sweep_query_plan(db: &Db) -> Vec<String> {
     .unwrap()
 }
 
-async fn expired_outcomes_are_swept_by_committed_at_index(db: Db) {
+async fn the_outcome_sweep_uses_the_committed_at_index(db: Db) {
+    let storage = storage(&db);
+    commit(
+        storage.sql_metadata(),
+        vec![document("core", &packument("core", &["1.0.0"]))],
+        request("one", None),
+    )
+    .await
+    .unwrap();
+    let plan = sweep_query_plan(&db).await;
+    assert!(
+        plan.iter()
+            .any(|detail| detail.contains("publication_outcomes_by_committed_at")),
+        "{plan:?}",
+    );
+    assert!(
+        !plan
+            .iter()
+            .any(|detail| detail.contains("SCAN publication_outcomes")),
+        "{plan:?}",
+    );
+}
+
+async fn expired_outcomes_are_swept(db: Db) {
     let storage = storage(&db);
     let database = storage.sql_metadata();
     commit(
@@ -176,18 +199,6 @@ async fn expired_outcomes_are_swept_by_committed_at_index(db: Db) {
     )
     .await
     .unwrap();
-    let plan = sweep_query_plan(&db).await;
-    assert!(
-        plan.iter()
-            .any(|detail| detail.contains("publication_outcomes_by_committed_at")),
-        "{plan:?}",
-    );
-    assert!(
-        !plan
-            .iter()
-            .any(|detail| detail.contains("SCAN publication_outcomes")),
-        "{plan:?}",
-    );
 
     execute(
         &db,
@@ -482,13 +493,19 @@ conformance! {
     a_release_record_must_describe_its_version,
     a_batch_commits_every_package_under_one_generation_or_none,
     a_retried_request_gets_its_recorded_outcome,
-    expired_outcomes_are_swept_by_committed_at_index,
+    expired_outcomes_are_swept,
     an_unpublished_member_invalidates_the_recorded_outcome,
     publications_are_found_by_id_name_and_member,
     a_version_written_outside_a_publish_request_gets_a_publication,
     a_publication_without_a_request_records_its_publisher,
     a_publication_cannot_bring_back_a_removed_version,
     competing_publications_of_one_version_commit_once,
+}
+
+/// `EXPLAIN QUERY PLAN` is `SQLite` syntax.
+mod embedded_query_plan {
+    use super::the_outcome_sweep_uses_the_committed_at_index;
+    embedded_conformance!(the_outcome_sweep_uses_the_committed_at_index);
 }
 
 #[derive(Debug, Clone, Copy)]
