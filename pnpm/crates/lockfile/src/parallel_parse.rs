@@ -30,6 +30,21 @@ struct Snapshots<Snapshot> {
     snapshots: Option<HashMap<PackageKey, Snapshot>>,
 }
 
+/// The pool the lockfile's parallel work runs on. Parsing happens before
+/// pnpm configures rayon's global pool, and using that pool first would fix
+/// its size, so this crate keeps a pool of its own.
+pub(crate) fn pool() -> &'static rayon::ThreadPool {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        let threads = std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .thread_name(|index| format!("pnpm-lockfile-{index}"))
+            .build()
+            .expect("build the lockfile thread pool")
+    })
+}
+
 /// The document parsed as `importers`, `packages`, `snapshots`, and the rest,
 /// on separate threads. `None` when the document does not split into those
 /// blocks, or when any part fails to parse: the caller then parses it whole,
@@ -44,31 +59,10 @@ where
     Package: DeserializeOwned + Send,
 {
     let (rest, [importers, packages, snapshots]) = split_sections(document)?;
-    let ((rest, importers), (packages, snapshots)) = rayon::join(
-        || {
-            rayon::join(
-                || parse_optional::<LockfileDocument<Importer, Snapshot, Package>>(&rest, &options),
-                || {
-                    parse_chunked::<Importers<Importer>, _, _>(importers, &options, |section| {
-                        section.importers
-                    })
-                },
-            )
-        },
-        || {
-            rayon::join(
-                || {
-                    parse_chunked::<Packages<Package>, _, _>(packages, &options, |section| {
-                        section.packages.unwrap_or_default()
-                    })
-                },
-                || {
-                    parse_chunked::<Snapshots<Snapshot>, _, _>(snapshots, &options, |section| {
-                        section.snapshots.unwrap_or_default()
-                    })
-                },
-            )
-        },
+    let ((rest, importers), (packages, snapshots)) = parse_parts::<Importer, Snapshot, Package>(
+        &rest,
+        [importers, packages, snapshots],
+        &options,
     );
     // A section that was not found as a block, as in a flow-style document,
     // was parsed as part of the rest and stays as parsed.
@@ -109,7 +103,7 @@ where
     if text.len() < CHUNKED_SECTION_BYTES {
         return parse_optional::<Section>(text, options).map(|section| section.map(&map_of));
     }
-    let chunks = chunk_entries(text, rayon::current_num_threads().clamp(2, 16));
+    let chunks = chunk_entries(text, chunk_count(text.len()));
     let maps = chunks
         .into_par_iter()
         .map(|chunk| parse_optional::<Section>(&chunk, options).flatten().map(&map_of))
@@ -135,6 +129,15 @@ fn next_entry_start(body: &str, from: usize) -> usize {
         .unwrap_or(body.len())
 }
 
+/// Enough chunks to spread a section over the threads, each at least
+/// [`CHUNK_TARGET_BYTES`] so that the merge of the maps stays cheap.
+fn chunk_count(len: usize) -> usize {
+    let by_size = len.div_ceil(CHUNK_TARGET_BYTES);
+    by_size.clamp(2, pool().current_num_threads() * 4)
+}
+
+const CHUNK_TARGET_BYTES: usize = 32 * 1024;
+
 /// `text`, a section starting with its key line, cut into up to `count`
 /// chunks at entry boundaries, each starting with the key line.
 fn chunk_entries(text: &str, count: usize) -> Vec<String> {
@@ -151,6 +154,58 @@ fn chunk_entries(text: &str, count: usize) -> Vec<String> {
         start = end;
     }
     chunks
+}
+
+type Parsed<Importer, Snapshot, Package> = (
+    (
+        Option<Option<LockfileDocument<Importer, Snapshot, Package>>>,
+        Option<Option<HashMap<String, Importer>>>,
+    ),
+    (Option<Option<HashMap<PackageKey, Package>>>, Option<Option<HashMap<PackageKey, Snapshot>>>),
+);
+
+/// The rest and the three sections, parsed on the pool at once.
+fn parse_parts<Importer, Snapshot, Package>(
+    rest: &str,
+    [importers, packages, snapshots]: [&str; 3],
+    options: &(impl Fn(usize) -> serde_saphyr::Options + Sync),
+) -> Parsed<Importer, Snapshot, Package>
+where
+    Importer: DeserializeOwned + Send,
+    Snapshot: DeserializeOwned + Send,
+    Package: DeserializeOwned + Send,
+{
+    pool()
+        .join(
+            || {
+                rayon::join(
+                    || {
+                        parse_optional::<LockfileDocument<Importer, Snapshot, Package>>(
+                            rest, options,
+                        )
+                    },
+                    || {
+                        parse_chunked::<Importers<Importer>, _, _>(importers, options, |section| {
+                            section.importers
+                        })
+                    },
+                )
+            },
+            || {
+                rayon::join(
+                    || {
+                        parse_chunked::<Packages<Package>, _, _>(packages, options, |section| {
+                            section.packages.unwrap_or_default()
+                        })
+                    },
+                    || {
+                        parse_chunked::<Snapshots<Snapshot>, _, _>(snapshots, options, |section| {
+                            section.snapshots.unwrap_or_default()
+                        })
+                    },
+                )
+            },
+        )
 }
 
 /// `text` parsed, `Some(None)` when it is empty, and `None` when it fails to
