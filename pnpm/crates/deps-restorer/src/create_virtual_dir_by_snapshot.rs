@@ -92,7 +92,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         {
             crate::SlotAttempt::Busy => Ok(SlotRun::Busy),
             crate::SlotAttempt::Acquired(global_slot) => {
-                self.link_slot::<Reporter>(paths, global_slot)?;
+                self.link_slot::<Reporter>(paths, global_slot.map(|slot| *slot))?;
                 Ok(SlotRun::Linked)
             }
         }

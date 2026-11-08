@@ -57,7 +57,7 @@ impl GlobalVirtualStoreSlot {
         }
         match DirLock::acquire(path.join(SLOT_LOCK_DIR), Duration::ZERO, ABANDONED_AFTER) {
             Ok(Some(lock)) => {
-                Ok(SlotAttempt::Acquired(Some(Self::from_path(path, key, Some(lock)))))
+                Ok(SlotAttempt::Acquired(Some(Box::new(Self::from_path(path, key, Some(lock))))))
             }
             Ok(None) => Ok(SlotAttempt::Busy),
             // A prune removed the slot between the attempt's steps.

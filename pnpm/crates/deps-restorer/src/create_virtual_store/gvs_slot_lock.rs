@@ -87,7 +87,7 @@ pub struct GlobalVirtualStoreSlotState {
 /// The outcome of [`GlobalVirtualStoreSlot::try_acquire`].
 pub enum SlotAttempt {
     /// The lock is held, or the slot is not in the global virtual store.
-    Acquired(Option<GlobalVirtualStoreSlot>),
+    Acquired(Option<Box<GlobalVirtualStoreSlot>>),
     Busy,
 }
 
