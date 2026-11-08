@@ -92,8 +92,13 @@ impl<'a> Graph<'a> {
             .collect()
     }
 
-    /// The snapshot whose bindings all agree with the referrer's scope, binding
-    /// the most names. The first snapshot when none agrees.
+    /// The snapshot none of whose bindings disagrees with the referrer's
+    /// scope, agreeing on the most names, then binding the fewest names the
+    /// scope lacks. The first snapshot when every one disagrees.
+    ///
+    /// A name the scope lacks is neutral: an optional peer bound from
+    /// elsewhere in the graph is in no referrer's scope, and would otherwise
+    /// keep every reference to the package from being selected by scope.
     pub(super) fn snapshot_in_scope(
         &self,
         start: Sid,
@@ -101,37 +106,45 @@ impl<'a> Graph<'a> {
         referrer: Referrer<'a>,
     ) -> Sid {
         (start..start + count)
-            .filter_map(|sid| Some((sid, self.agreeing_bindings(sid, referrer)?)))
-            .min_by_key(|&(sid, bound)| (std::cmp::Reverse(bound), sid))
+            .filter_map(|sid| Some((sid, self.agreement(sid, referrer)?)))
+            .min_by_key(|&(sid, agreement)| {
+                (std::cmp::Reverse(agreement.agreeing), agreement.absent, sid)
+            })
             .map_or(start, |(sid, _)| sid)
     }
 
-    /// How many bindings `sid` has, if every one agrees with the referrer.
-    pub(super) fn agreeing_bindings(&self, sid: Sid, referrer: Referrer<'a>) -> Option<usize> {
-        let mut count = 0;
+    /// How the bindings of `sid` stand to the referrer's scope, or `None`
+    /// when one disagrees.
+    pub(super) fn agreement(&self, sid: Sid, referrer: Referrer<'a>) -> Option<Agreement> {
+        let mut agreement = Agreement::default();
         for (name, reference) in self.entries[sid].bindings() {
-            if !self.in_scope(referrer, name, reference) {
-                return None;
+            match self.binding_in_scope(referrer, name, reference) {
+                Binding::Agrees => agreement.agreeing += 1,
+                Binding::Absent => agreement.absent += 1,
+                Binding::Disagrees => return None,
             }
-            count += 1;
         }
-        Some(count)
+        Some(agreement)
     }
 
-    pub(super) fn in_scope(
+    pub(super) fn binding_in_scope(
         &self,
         referrer: Referrer<'a>,
         name: &PkgName,
         reference: &SnapshotDepRef,
-    ) -> bool {
+    ) -> Binding {
+        let agrees = |same: bool| if same { Binding::Agrees } else { Binding::Disagrees };
         match referrer {
             Referrer::Snapshot(sid) => match self.entries[sid].reference_in_scope(name) {
-                Some(scoped) => same_target(name, scoped, reference),
-                None => self.is_itself(sid, name, reference),
+                Some(scoped) => agrees(same_target(name, scoped, reference)),
+                None if self.is_itself(sid, name, reference) => Binding::Agrees,
+                None => Binding::Absent,
             },
             Referrer::Importer(id) => importer_dependencies(self.importers[id])
                 .find(|(alias, _)| *alias == name)
-                .is_some_and(|(_, spec)| importer_target_is(name, &spec.version, reference)),
+                .map_or(Binding::Absent, |(_, spec)| {
+                    agrees(importer_target_is(name, &spec.version, reference))
+                }),
         }
     }
 
@@ -145,6 +158,21 @@ impl<'a> Graph<'a> {
                 .as_ref()
                 == Some(self.keys[sid])
     }
+}
+
+/// How many of a snapshot's bindings the referrer's scope agrees with, and
+/// how many it lacks.
+#[derive(Debug, Default, Clone, Copy)]
+pub(super) struct Agreement {
+    agreeing: usize,
+    absent: usize,
+}
+
+/// How one binding stands to the referrer's scope.
+pub(super) enum Binding {
+    Agrees,
+    Disagrees,
+    Absent,
 }
 
 fn same_target(name: &PkgName, left: &SnapshotDepRef, right: &SnapshotDepRef) -> bool {
