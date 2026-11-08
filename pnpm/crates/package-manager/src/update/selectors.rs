@@ -91,12 +91,24 @@ pub(super) fn insert_update_target(
             continue;
         }
         claimed = true;
-        targets.insert(name.to_string(), selector.version.as_deref().and_then(VersionLine::parse));
+        targets.insert(
+            name.to_string(),
+            selector.version.as_deref().and_then(selector_version_line),
+        );
     }
     if !claimed {
         targets.insert(name.to_string(), None);
     }
 }
+fn selector_version_line(version: &str) -> Option<VersionLine> {
+    match version.strip_prefix("npm:") {
+        Some(aliased) => {
+            parse_update_param(aliased).version.as_deref().and_then(VersionLine::parse)
+        }
+        None => VersionLine::parse(version),
+    }
+}
+
 /// Whether any of `manifests` declares a dependency `selector` names, so the
 /// update has a manifest entry to write the requested version into.
 pub(super) fn selector_matches_a_direct_dependency(

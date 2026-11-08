@@ -817,16 +817,18 @@ fn a_range_or_a_tag_is_not_rejected() {
 
 #[test]
 fn a_versioned_update_of_an_existing_alias_targets_its_real_name_and_version_line() {
-    let selectors = vec![parse_update_param("alias@1.2.0")];
-    let name = update_target_name(&selectors, "alias", "npm:@scope/real@^1.0.0");
-    assert_eq!(name, "@scope/real");
-    let mut targets = pnpm_resolving_deps_resolver::UpdateTargets::default();
-    insert_update_target(&mut targets, &selectors, "alias", &name);
-    assert_eq!(
-        [
-            targets.covers(&name, Some(&"1.9.0".parse().unwrap())),
-            targets.covers(&name, Some(&"2.0.0".parse().unwrap())),
-        ],
-        [true, false],
-    );
+    for selector in ["alias@1.2.0", "alias@npm:@scope/real@1.2.0"] {
+        let selectors = vec![parse_update_param(selector)];
+        let name = update_target_name(&selectors, "alias", "npm:@scope/real@^1.0.0");
+        assert_eq!(name, "@scope/real");
+        let mut targets = pnpm_resolving_deps_resolver::UpdateTargets::default();
+        insert_update_target(&mut targets, &expand_update_selectors(&selectors), "alias", &name);
+        assert_eq!(
+            [
+                targets.covers(&name, Some(&"1.9.0".parse().unwrap())),
+                targets.covers(&name, Some(&"2.0.0".parse().unwrap())),
+            ],
+            [true, false],
+        );
+    }
 }
