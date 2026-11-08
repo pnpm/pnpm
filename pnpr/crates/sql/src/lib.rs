@@ -79,3 +79,15 @@ impl<Database: sqlx::Database> Pools<Database> {
         Ok(pool)
     }
 }
+
+/// Acquire a connection without extending the caller's deadline.
+///
+/// # Errors
+///
+/// The connection cannot be acquired before the deadline or the pool fails.
+pub async fn acquire<Database: sqlx::Database>(
+    pool: &sqlx::Pool<Database>,
+    timeout: Duration,
+) -> std::result::Result<sqlx::pool::PoolConnection<Database>, sqlx::Error> {
+    tokio::time::timeout(timeout, pool.acquire()).await.map_err(|_| sqlx::Error::PoolTimedOut)?
+}

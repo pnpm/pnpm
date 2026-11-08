@@ -1,15 +1,15 @@
 use super::{
     super::{PasswordChange, TokenRecord, UserRemoval},
-    AuthSqlBackend, InsertUser, SqlAuth, StoredUser, sql_max_users, with_auth_timeout,
+    AuthSqlBackend, InsertUser, RequestPool, SqlAuth, StoredUser, sql_max_users, with_auth_timeout,
 };
 use async_trait::async_trait;
 use pnpr_config::{MaxUsers, SqlBackendSettings};
 use pnpr_error::{RegistryError, Result};
-use sqlx::{MySqlConnection, MySqlPool, Row};
+use sqlx::{MySqlConnection, Row};
 
 #[derive(Debug)]
 pub(crate) struct MysqlDatabase {
-    pool: std::sync::Arc<MySqlPool>,
+    pool: RequestPool<sqlx::MySql>,
 }
 
 mod accounts;
@@ -27,12 +27,19 @@ impl SqlAuth<MysqlDatabase> {
         let startup_pool =
             with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
                 .await?;
-        let startup_db = MysqlDatabase { pool: std::sync::Arc::new(startup_pool) };
-        with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
-        startup_db.pool.close().await;
+        let startup_pool = std::sync::Arc::new(startup_pool);
+        let startup_db = MysqlDatabase {
+            pool: RequestPool::new(std::sync::Arc::clone(&startup_pool), settings.startup_timeout),
+        };
+        with_auth_timeout(settings.startup_timeout, async {
+            crate::schema::migrate_mysql(&startup_pool).await?;
+            startup_db.ensure_user_counter().await
+        })
+        .await?;
+        startup_pool.close().await;
 
         let pool = pnpr_sql::mysql_pool(settings)?;
-        let db = MysqlDatabase { pool };
+        let db = MysqlDatabase { pool: RequestPool::new(pool, settings.timeout) };
         Ok(SqlAuth::new(db, max_users, settings.timeout))
     }
 }
@@ -42,11 +49,11 @@ impl AuthSqlBackend for MysqlDatabase {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
         let row = sqlx::query("SELECT username, bcrypt_hash, id FROM users WHERE username = ?")
             .bind(username)
-            .fetch_optional(&*self.pool)
+            .fetch_optional(&mut *self.pool.acquire().await?)
             .await?;
         row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
             Ok(StoredUser {
-                username: row.try_get(0)?,
+                username: username_from_row(&row, 0)?,
                 bcrypt_hash: row.try_get(1)?,
                 id: row.try_get(2)?,
             })
@@ -56,10 +63,13 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
-        Ok(sqlx::query_scalar("SELECT username FROM users WHERE id = ? AND bcrypt_hash <> '!'")
+        sqlx::query("SELECT username FROM users WHERE id = ? AND bcrypt_hash <> '!'")
             .bind(user_id)
-            .fetch_optional(&*self.pool)
-            .await?)
+            .fetch_optional(&mut *self.pool.acquire().await?)
+            .await?
+            .map(|row| username_from_row(&row, 0))
+            .transpose()
+            .map_err(RegistryError::from)
     }
 
     async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
@@ -72,7 +82,7 @@ impl AuthSqlBackend for MysqlDatabase {
                 .bind(username)
                 .bind(crate::validation::username_skeleton_hash(username))
                 .bind(user_id)
-                .execute(&*self.pool)
+                .execute(&mut *self.pool.acquire().await?)
                 .await;
         match result {
             Ok(result) if result.rows_affected() > 0 => Ok(()),
@@ -89,10 +99,15 @@ impl AuthSqlBackend for MysqlDatabase {
         let rows = sqlx::query(
             "SELECT id, username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
         )
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *self.pool.acquire().await?)
         .await?;
         rows.into_iter()
-            .map(|row| Ok(crate::UserAccount { id: row.try_get(0)?, username: row.try_get(1)? }))
+            .map(|row| {
+                Ok(crate::UserAccount {
+                    id: row.try_get(0)?,
+                    username: username_from_row(&row, 1)?,
+                })
+            })
             .collect()
     }
 
@@ -186,11 +201,12 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn list_usernames(&self) -> Result<Vec<String>> {
-        Ok(sqlx::query_scalar(
-            "SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
-        )
-        .fetch_all(&*self.pool)
-        .await?)
+        sqlx::query("SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username")
+            .fetch_all(&mut *self.pool.acquire().await?)
+            .await?
+            .iter()
+            .map(|row| username_from_row(row, 0).map_err(RegistryError::from))
+            .collect()
     }
 
     async fn update_password_hash(
@@ -202,7 +218,7 @@ impl AuthSqlBackend for MysqlDatabase {
             sqlx::query("UPDATE users SET bcrypt_hash = ? WHERE id = ? AND bcrypt_hash <> '!'")
                 .bind(bcrypt_hash)
                 .bind(user_id)
-                .execute(&*self.pool)
+                .execute(&mut *self.pool.acquire().await?)
                 .await?;
         if updated.rows_affected() > 0 {
             Ok(PasswordChange::Changed)
@@ -222,7 +238,7 @@ impl AuthSqlBackend for MysqlDatabase {
                 .bind(new_hash)
                 .bind(user_id)
                 .bind(old_hash)
-                .execute(&*self.pool)
+                .execute(&mut *self.pool.acquire().await?)
                 .await?;
         Ok(updated.rows_affected() > 0)
     }
@@ -232,7 +248,10 @@ impl AuthSqlBackend for MysqlDatabase {
     }
 
     async fn check_readiness(&self) -> Result<()> {
-        sqlx::query("SELECT 1;").execute(&*self.pool).await.map_err(RegistryError::from)?;
+        sqlx::query("SELECT 1;")
+            .execute(&mut *self.pool.acquire().await?)
+            .await
+            .map_err(RegistryError::from)?;
         Ok(())
     }
 }
@@ -256,11 +275,6 @@ impl MysqlDatabase {
         Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
     }
 
-    async fn init_schema(&self) -> Result<()> {
-        crate::schema::migrate_mysql(&self.pool).await?;
-        self.ensure_user_counter().await
-    }
-
     async fn ensure_user_counter(&self) -> Result<()> {
         let count = self.actual_user_count().await?;
         if self.user_counter().await?.is_some() {
@@ -270,7 +284,7 @@ impl MysqlDatabase {
         let inserted = sqlx::query("INSERT INTO auth_counters (name, value) VALUES (?, ?)")
             .bind("users")
             .bind(count)
-            .execute(&*self.pool)
+            .execute(&mut *self.pool.acquire().await?)
             .await;
         match inserted {
             Ok(_) => Ok(()),
@@ -284,7 +298,7 @@ impl MysqlDatabase {
 
     async fn actual_user_count(&self) -> Result<i64> {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
-            .fetch_one(&*self.pool)
+            .fetch_one(&mut *self.pool.acquire().await?)
             .await?;
         Ok(count.max(0))
     }
@@ -293,7 +307,7 @@ impl MysqlDatabase {
         let count: Option<i64> =
             sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = ?")
                 .bind("users")
-                .fetch_optional(&*self.pool)
+                .fetch_optional(&mut *self.pool.acquire().await?)
                 .await?;
         Ok(count)
     }
@@ -307,7 +321,7 @@ impl MysqlDatabase {
         .bind(count)
         .bind(count)
         .bind("users")
-        .execute(&*self.pool)
+        .execute(&mut *self.pool.acquire().await?)
         .await?;
         Ok(updated.rows_affected())
     }
@@ -382,3 +396,11 @@ async fn claim_user_slot(connection: &mut MySqlConnection, max_users: MaxUsers) 
 
 #[cfg(test)]
 mod on_mysql;
+
+fn username_from_row(
+    row: &sqlx::mysql::MySqlRow,
+    index: usize,
+) -> std::result::Result<String, sqlx::Error> {
+    // MySQL marks utf8mb4_bin as binary; decoding still validates UTF-8.
+    row.try_get_unchecked(index)
+}

@@ -506,10 +506,59 @@ pub(super) async fn assert_saturated_auth_writes_timeout(database: impl AuthSqlB
         database.insert_user("example", "unused", MaxUsers::Unlimited),
     )
     .await
-    .expect("user write waited for the startup deadline");
-    assert!(matches!(insert, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))));
+    .expect("user write waited for the startup deadline")
+    .map(|_| ());
+    assert!(matches!(insert, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))), "{insert:?}");
     let delete = tokio::time::timeout(Duration::from_secs(2), database.delete_token("missing"))
         .await
         .expect("token write waited for the startup deadline");
-    assert!(matches!(delete, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))));
+    assert!(matches!(delete, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))), "{delete:?}");
+}
+
+pub(super) async fn assert_network_auth_roundtrip(auth: impl UserBackend + TokenBackend) {
+    let id = auth.provision_user("example").await.unwrap();
+    assert!(auth.provision_user("example").await.is_err());
+    auth.rename_user(&id, "renamed").await.unwrap();
+    assert_eq!(
+        auth.account_name(&id).await
+            .unwrap()
+            .as_deref(),
+        Some("renamed"),
+    );
+    assert_eq!(
+        auth.accounts_by_id(std::slice::from_ref(&id)).await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(auth.list_users().await.unwrap(), ["renamed"]);
+    assert_eq!(
+        auth.list_accounts().await
+            .unwrap()
+            .len(),
+        1,
+    );
+    assert_eq!(auth.account_id("renamed").await.unwrap(), Some(id.clone()));
+    let token = auth.issue(&id).await.unwrap();
+    assert_eq!(auth.lookup(&token).await.unwrap(), Some(id.clone()));
+    auth.delete_user(&id).await.unwrap();
+    assert!(
+        auth.lookup(&token).await
+            .unwrap()
+            .is_none(),
+    );
+}
+
+pub(super) fn test_database_name(directory: &tempfile::TempDir) -> String {
+    format!(
+        "auth_{}",
+        directory
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .replace(['.', '-'], "")
+            .to_ascii_lowercase(),
+    )
 }

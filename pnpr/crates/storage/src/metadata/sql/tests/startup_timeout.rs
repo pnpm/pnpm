@@ -74,6 +74,30 @@ async fn initialization_reuses_pool_capacity(mut db: Db) {
     assert_request_timeout(metadata, sleep).await;
 }
 
+async fn slow_connection_uses_startup_deadline(mut db: Db) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let proxy_address = listener.local_addr().unwrap();
+    let Adapter::Network(settings) = &mut db.adapter else { unreachable!() };
+    let original_url = settings.url.clone();
+    let (credentials, endpoint) = settings.url.rsplit_once('@').unwrap();
+    let (server_address, database) = endpoint.split_once('/').unwrap();
+    let server_address = server_address.to_string();
+    settings.url = format!("{credentials}@{proxy_address}/{database}");
+    settings.timeout = Duration::from_millis(100);
+    settings.startup_timeout = Duration::from_secs(5);
+    let proxy = tokio::spawn(async move {
+        let (mut client, _) = listener.accept().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let mut server = tokio::net::TcpStream::connect(server_address).await.unwrap();
+        tokio::io::copy_bidirectional(&mut client, &mut server).await
+    });
+    let metadata = SqlMetadata::with_adapter(db.instance_adapter(), "test".into());
+    let Adapter::Network(settings) = &mut db.adapter else { unreachable!() };
+    settings.url = original_url;
+    tokio::task::spawn_blocking(move || metadata.ensure_schema()).await.unwrap().unwrap();
+    proxy.await.unwrap().unwrap();
+}
+
 async fn assert_request_timeout(metadata: Arc<SqlMetadata>, sleep: &'static str) {
     let error = tokio::task::spawn_blocking(move || {
         metadata.adapter.read(ReadSource::Primary, &mut |connection| {
@@ -94,6 +118,15 @@ async fn assert_request_timeout(metadata: Arc<SqlMetadata>, sleep: &'static str)
 
 #[cfg(feature = "backend-postgres")]
 mod on_postgres {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires PNPR_TEST_POSTGRES_URL"]
+    async fn slow_connection_opening_uses_startup_timeout() {
+        super::slow_connection_uses_startup_deadline(
+            super::Db::network("PNPR_TEST_POSTGRES_URL").await,
+        )
+        .await;
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "requires PNPR_TEST_POSTGRES_URL"]
     async fn a_pending_lock_query_does_not_add_a_cleanup_timeout() {
@@ -155,6 +188,15 @@ mod on_postgres {
 
 #[cfg(feature = "backend-mysql")]
 mod on_mysql {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[ignore = "requires PNPR_TEST_MYSQL_URL"]
+    async fn slow_connection_opening_uses_startup_timeout() {
+        super::slow_connection_uses_startup_deadline(
+            super::Db::network("PNPR_TEST_MYSQL_URL").await,
+        )
+        .await;
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "requires PNPR_TEST_MYSQL_URL"]
     async fn initialization_shares_pool_capacity_and_preserves_request_timeout() {

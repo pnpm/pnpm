@@ -1,15 +1,15 @@
 use super::{
     super::{PasswordChange, TokenRecord, UserRemoval},
-    AuthSqlBackend, InsertUser, SqlAuth, StoredUser, sql_max_users, with_auth_timeout,
+    AuthSqlBackend, InsertUser, RequestPool, SqlAuth, StoredUser, sql_max_users, with_auth_timeout,
 };
 use async_trait::async_trait;
 use pnpr_config::{MaxUsers, SqlBackendSettings};
 use pnpr_error::{RegistryError, Result};
-use sqlx::{PgConnection, PgPool, Row};
+use sqlx::{PgConnection, Row};
 
 #[derive(Debug)]
 pub(crate) struct PostgresDatabase {
-    pool: std::sync::Arc<PgPool>,
+    pool: RequestPool<sqlx::Postgres>,
 }
 
 mod accounts;
@@ -30,12 +30,19 @@ impl SqlAuth<PostgresDatabase> {
         let startup_pool =
             with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
                 .await?;
-        let startup_db = PostgresDatabase { pool: std::sync::Arc::new(startup_pool) };
-        with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
-        startup_db.pool.close().await;
+        let startup_pool = std::sync::Arc::new(startup_pool);
+        let startup_db = PostgresDatabase {
+            pool: RequestPool::new(std::sync::Arc::clone(&startup_pool), settings.startup_timeout),
+        };
+        with_auth_timeout(settings.startup_timeout, async {
+            crate::schema::migrate_postgres(&startup_pool).await?;
+            startup_db.ensure_user_counter().await
+        })
+        .await?;
+        startup_pool.close().await;
 
         let pool = pnpr_sql::postgres_pool(settings)?;
-        let db = PostgresDatabase { pool };
+        let db = PostgresDatabase { pool: RequestPool::new(pool, settings.timeout) };
         Ok(SqlAuth::new(db, max_users, settings.timeout))
     }
 }
@@ -45,7 +52,7 @@ impl AuthSqlBackend for PostgresDatabase {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>> {
         let row = sqlx::query("SELECT username, bcrypt_hash, id FROM users WHERE username = $1")
             .bind(username)
-            .fetch_optional(&*self.pool)
+            .fetch_optional(&mut *self.pool.acquire().await?)
             .await?;
         row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
             Ok(StoredUser {
@@ -61,7 +68,7 @@ impl AuthSqlBackend for PostgresDatabase {
     async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
         Ok(sqlx::query_scalar("SELECT username FROM users WHERE id = $1 AND bcrypt_hash <> '!'")
             .bind(user_id)
-            .fetch_optional(&*self.pool)
+            .fetch_optional(&mut *self.pool.acquire().await?)
             .await?)
     }
 
@@ -75,7 +82,7 @@ impl AuthSqlBackend for PostgresDatabase {
                 .bind(user_id)
                 .bind(username)
                 .bind(crate::validation::username_skeleton_hash(username))
-                .execute(&*self.pool)
+                .execute(&mut *self.pool.acquire().await?)
                 .await;
         match result {
             Ok(result) if result.rows_affected() > 0 => Ok(()),
@@ -92,7 +99,7 @@ impl AuthSqlBackend for PostgresDatabase {
         let rows = sqlx::query(
             "SELECT id, username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
         )
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *self.pool.acquire().await?)
         .await?;
         rows.into_iter()
             .map(|row| Ok(crate::UserAccount { id: row.try_get(0)?, username: row.try_get(1)? }))
@@ -191,7 +198,7 @@ impl AuthSqlBackend for PostgresDatabase {
         Ok(sqlx::query_scalar(
             "SELECT username FROM users WHERE bcrypt_hash <> '!' ORDER BY username",
         )
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *self.pool.acquire().await?)
         .await?)
     }
 
@@ -204,7 +211,7 @@ impl AuthSqlBackend for PostgresDatabase {
             sqlx::query("UPDATE users SET bcrypt_hash = $2 WHERE id = $1 AND bcrypt_hash <> '!'")
                 .bind(user_id)
                 .bind(bcrypt_hash)
-                .execute(&*self.pool)
+                .execute(&mut *self.pool.acquire().await?)
                 .await?;
         if updated.rows_affected() > 0 {
             Ok(PasswordChange::Changed)
@@ -224,7 +231,7 @@ impl AuthSqlBackend for PostgresDatabase {
                 .bind(user_id)
                 .bind(old_hash)
                 .bind(new_hash)
-                .execute(&*self.pool)
+                .execute(&mut *self.pool.acquire().await?)
                 .await?;
         Ok(updated.rows_affected() > 0)
     }
@@ -234,7 +241,10 @@ impl AuthSqlBackend for PostgresDatabase {
     }
 
     async fn check_readiness(&self) -> Result<()> {
-        sqlx::query("SELECT 1;").execute(&*self.pool).await.map_err(RegistryError::from)?;
+        sqlx::query("SELECT 1;")
+            .execute(&mut *self.pool.acquire().await?)
+            .await
+            .map_err(RegistryError::from)?;
         Ok(())
     }
 }
@@ -258,11 +268,6 @@ impl PostgresDatabase {
         Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
     }
 
-    async fn init_schema(&self) -> Result<()> {
-        crate::schema::migrate_postgres(&self.pool).await?;
-        self.ensure_user_counter().await
-    }
-
     async fn ensure_user_counter(&self) -> Result<()> {
         let count = self.actual_user_count().await?;
         if self.set_user_counter_floor(count).await? > 0 {
@@ -271,7 +276,7 @@ impl PostgresDatabase {
         let inserted = sqlx::query("INSERT INTO auth_counters (name, value) VALUES ($1, $2)")
             .bind("users")
             .bind(count)
-            .execute(&*self.pool)
+            .execute(&mut *self.pool.acquire().await?)
             .await;
         match inserted {
             Ok(_) => Ok(()),
@@ -285,7 +290,7 @@ impl PostgresDatabase {
 
     async fn actual_user_count(&self) -> Result<i64> {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE bcrypt_hash <> '!'")
-            .fetch_one(&*self.pool)
+            .fetch_one(&mut *self.pool.acquire().await?)
             .await?;
         Ok(count.max(0))
     }
@@ -294,7 +299,7 @@ impl PostgresDatabase {
         let count: Option<i64> =
             sqlx::query_scalar("SELECT value FROM auth_counters WHERE name = $1")
                 .bind("users")
-                .fetch_optional(&*self.pool)
+                .fetch_optional(&mut *self.pool.acquire().await?)
                 .await?;
         Ok(count)
     }
@@ -307,7 +312,7 @@ impl PostgresDatabase {
         )
         .bind("users")
         .bind(count)
-        .execute(&*self.pool)
+        .execute(&mut *self.pool.acquire().await?)
         .await?;
         Ok(updated.rows_affected())
     }

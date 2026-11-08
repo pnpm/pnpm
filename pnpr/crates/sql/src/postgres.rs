@@ -9,7 +9,8 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 pub fn pool(settings: &SqlBackendSettings) -> Result<Arc<PgPool>> {
     static OPENED: Pools<sqlx::Postgres> = Pools::new();
     OPENED.get(settings, || {
-        Ok(options(settings, settings.timeout, settings.timeout)?.connect_lazy(&settings.url)?)
+        Ok(options(settings, settings.timeout, settings.timeout.max(settings.startup_timeout))?
+            .connect_lazy(&settings.url)?)
     })
 }
 

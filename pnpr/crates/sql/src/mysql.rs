@@ -12,7 +12,8 @@ use sqlx::{MySqlPool, mysql::MySqlPoolOptions};
 pub fn pool(settings: &SqlBackendSettings) -> Result<Arc<MySqlPool>> {
     static OPENED: Pools<sqlx::MySql> = Pools::new();
     OPENED.get(settings, || {
-        Ok(options(settings, settings.timeout, settings.timeout)?.connect_lazy(&settings.url)?)
+        Ok(options(settings, settings.timeout, settings.timeout.max(settings.startup_timeout))?
+            .connect_lazy(&settings.url)?)
     })
 }
 

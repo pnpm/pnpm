@@ -42,25 +42,7 @@ macro_rules! driver {
                     operation: &mut dyn FnMut(&dyn Connection) -> Result<()>,
                 ) -> Result<()> {
                     let runtime = tokio::runtime::Handle::current();
-                    let connection = runtime
-                        .block_on(async {
-                            tokio::time::timeout(timeout, async {
-                                loop {
-                                    match self.pool.acquire().await {
-                                        Err(sqlx::Error::PoolTimedOut)
-                                            if timeout > self.settings.timeout =>
-                                        {
-                                            continue;
-                                        }
-                                        result => break result,
-                                    }
-                                }
-                            })
-                            .await
-                        })
-                        .map_err(|_| RegistryError::Internal {
-                            reason: "metadata database connection timed out".to_string(),
-                        })??;
+                    let connection = runtime.block_on(pnpr_sql::acquire(&self.pool, timeout))?;
                     let connection = NetworkConnection {
                         connection: RefCell::new(connection),
                         dialect: self.dialect,
