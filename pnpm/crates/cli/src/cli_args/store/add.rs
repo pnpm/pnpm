@@ -3,6 +3,7 @@
 
 use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
+use futures_util::StreamExt;
 use miette::{Diagnostic, WrapErr};
 use pnpm_config::Config;
 use pnpm_deps_restorer::{manifest_file_count, manifest_unpacked_size};
@@ -10,6 +11,7 @@ use pnpm_lockfile::LockfileResolution;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, emit_global_warning};
 use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_standalone_chain};
+use pnpm_resolving_local_resolver::LocalTarballResolution;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, WantedDependency};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
@@ -124,45 +126,45 @@ async fn add_packages<Reporter: self::Reporter>(
 ) -> miette::Result<()> {
     let http_client = Arc::new(build_registry_client(config)?);
     let resolver = store_resolver(config, &http_client)?;
-    let resolve_options = ResolveOptions {
+    let resolve_options = store_resolve_options(dir);
+    let (store_index_writer, writer_task) =
+        StoreIndexWriter::spawn_in_format(&config.store_dir, config.store_index_format);
+    let registry_prefixes: Vec<String> = config
+        .merged_registries_by_prefix()
+        .into_keys()
+        .collect();
+    let requester = dir.display().to_string();
+    let adder = AddOne {
+        config,
+        http_client: &http_client,
+        resolver: &resolver,
+        resolve_options: &resolve_options,
+        requester: &requester,
+        store: StoreAddIndex {
+            index: StoreIndex::open_shared(&config.store_dir, false).await,
+            index_writer: &store_index_writer,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            registry_prefixes: &registry_prefixes,
+        },
+    };
+    let packages = downloaded_tarball::expand_tarball_directories(dir, packages);
+    let has_failures = adder.add_all::<Reporter>(packages).await;
+
+    drop(store_index_writer);
+    StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
+
+    if has_failures { Err(StoreAddFailureError.into()) } else { Ok(()) }
+}
+
+fn store_resolve_options(dir: &Path) -> ResolveOptions {
+    ResolveOptions {
         project: pnpm_resolving_resolver_base::ResolverProjectOptions {
             project_dir: dir.to_path_buf(),
             lockfile_dir: dir.to_path_buf(),
             ..Default::default()
         },
         ..ResolveOptions::default()
-    };
-
-    let store_index = StoreIndex::open_shared(&config.store_dir, false).await;
-    let (store_index_writer, writer_task) =
-        StoreIndexWriter::spawn_in_format(&config.store_dir, config.store_index_format);
-    let verified_files_cache = SharedVerifiedFilesCache::default();
-    let requester = dir.display().to_string();
-
-    let mut has_failures = false;
-    for package in packages {
-        has_failures |= report_add_outcome::<Reporter>(
-            add_one::<Reporter>(AddOne {
-                config,
-                http_client: &http_client,
-                resolver: &resolver,
-                resolve_options: &resolve_options,
-                requester: &requester,
-                package,
-                store: StoreAddIndex {
-                    index: store_index.clone(),
-                    index_writer: &store_index_writer,
-                    verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-                },
-            })
-            .await,
-        );
     }
-
-    drop(store_index_writer);
-    StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
-
-    if has_failures { Err(StoreAddFailureError.into()) } else { Ok(()) }
 }
 
 /// Report one specifier's outcome; `true` when it failed.
@@ -198,7 +200,6 @@ struct AddOne<'a> {
     resolver: &'a pnpm_resolving_default_resolver::DefaultResolver,
     resolve_options: &'a ResolveOptions,
     requester: &'a str,
-    package: &'a str,
     store: StoreAddIndex<'a>,
 }
 
@@ -206,38 +207,7 @@ pub(crate) struct StoreAddIndex<'a> {
     index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
     index_writer: &'a Arc<StoreIndexWriter>,
     verified_files_cache: SharedVerifiedFilesCache,
-}
-
-/// Resolve one specifier and pull its tarball into the store, returning
-/// the package id pnpm reports it under.
-async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<String> {
-    let resolved = args.resolve().await?;
-    let package_id = resolved.id.to_string();
-    let Some((package_url, integrity)) = archive_to_fetch(&resolved.resolution) else {
-        return Err(UnsupportedSpecError {
-            package: args.package.to_owned(),
-            resolved_via: resolved.resolved_via,
-        }
-        .into());
-    };
-
-    let archive = ArchiveToAdd {
-        url: package_url,
-        id: &package_id,
-        manifest: resolved.package.manifest.as_deref(),
-    };
-    let lockfile_dir = &args.resolve_options.project.lockfile_dir;
-    match downloaded_tarball::tarball_on_disk(&resolved.resolved_via, package_url, lockfile_dir) {
-        Some(path) => args.add_downloaded_tarball::<Reporter>(&path, &archive).await?,
-        None => {
-            args.ingestion(&archive, integrity.as_ref())
-                .run_without_mem_cache::<Reporter>()
-                .await
-                .map_err(miette::Report::new)?;
-        }
-    }
-
-    Ok(package_id)
+    registry_prefixes: &'a [String],
 }
 
 fn store_wanted_dependency(package: &str) -> WantedDependency {
@@ -262,6 +232,7 @@ fn store_resolver(
         // which the abbreviated document carries.
         full_metadata: false,
         filter_metadata: false,
+        local_tarball_resolution: LocalTarballResolution::DeferToFetcher,
     })
     .map_err(miette::Report::new)
 }
@@ -275,6 +246,50 @@ struct ArchiveToAdd<'r> {
 }
 
 impl<'a> AddOne<'a> {
+    async fn add_all<Reporter: self::Reporter>(&self, packages: Vec<String>) -> bool {
+        futures_util::stream::iter(packages)
+            .map(|package| async move { self.add_one::<Reporter>(&package).await })
+            .buffer_unordered(self.config.network_concurrency.max(1))
+            .fold(false, |failed, outcome| {
+                let outcome_failed = report_add_outcome::<Reporter>(outcome);
+                std::future::ready(failed || outcome_failed)
+            })
+            .await
+    }
+
+    /// Resolve one specifier and pull its tarball into the store, returning
+    /// the package id pnpm reports it under.
+    async fn add_one<Reporter: self::Reporter>(&self, package: &str) -> miette::Result<String> {
+        let resolved = self.resolve(package).await?;
+        let package_id = resolved.id.to_string();
+        let Some((package_url, integrity)) = archive_to_fetch(&resolved.resolution) else {
+            return Err(UnsupportedSpecError {
+                package: package.to_owned(),
+                resolved_via: resolved.resolved_via,
+            }
+            .into());
+        };
+
+        let archive = ArchiveToAdd {
+            url: package_url,
+            id: &package_id,
+            manifest: resolved.package.manifest.as_deref(),
+        };
+        let lockfile_dir = &self.resolve_options.project.lockfile_dir;
+        match downloaded_tarball::tarball_on_disk(&resolved.resolved_via, package_url, lockfile_dir)
+        {
+            Some(path) => self.add_downloaded_tarball::<Reporter>(&path, &archive).await?,
+            None => {
+                self.ingestion(&archive, integrity.as_ref())
+                    .run_without_mem_cache::<Reporter>()
+                    .await
+                    .map_err(miette::Report::new)?;
+            }
+        }
+
+        Ok(package_id)
+    }
+
     fn ingestion<'r>(
         &'r self,
         archive: &ArchiveToAdd<'r>,
@@ -323,11 +338,11 @@ impl<'a> AddOne<'a> {
         }
     }
 
-    async fn resolve(&self) -> miette::Result<ResolveResult> {
-        let wanted = store_wanted_dependency(self.package);
+    async fn resolve(&self, package: &str) -> miette::Result<ResolveResult> {
+        let wanted = store_wanted_dependency(package);
         self.resolver
             .resolve(&wanted, self.resolve_options)
             .await
-            .map_err(|error| miette::miette!("{}: {error}", self.package))
+            .map_err(|error| miette::miette!("{package}: {error}"))
     }
 }

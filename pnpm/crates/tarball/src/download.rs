@@ -4,8 +4,13 @@
 //! events the reporter renders during a fetch.
 
 pub(crate) use body::{BodyProgress, slow_download_warning};
-pub(crate) use buffered::{BufferedArchive, ExtractedFiles, extract_tarball_buffer};
-pub(crate) use fetch::{AttemptedFetch, ExtractedArchive, fetch_and_extract_once};
+pub(crate) use buffered::{
+    BufferedArchive, ExtractedFiles, extract_local_tarball_buffer_with_sha1,
+    extract_tarball_buffer, extract_tarball_buffer_with_permit,
+};
+pub(crate) use fetch::{
+    AttemptedFetch, ExtractedArchive, fetch_and_extract_once, fetch_local_tarball_with_sha1,
+};
 pub use progress::download_priority;
 pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
 

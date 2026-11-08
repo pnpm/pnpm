@@ -1,7 +1,8 @@
 use super::{
-    Arc, ContentCoding, ExtractedResource, IgnoreEntryFilter, MAX_UNTRUSTED_PREALLOC_BYTES,
-    PackageFilesIndex, StoreDir, StreamedResource, TarLimits, TarballError, extract_archive_bytes,
-    extract_resource_stream, post_download_semaphore, spawn_extraction, verify_tarball_integrity,
+    Algorithm, Arc, ContentCoding, ExtractedResource, IgnoreEntryFilter, Integrity, IntegrityOpts,
+    MAX_UNTRUSTED_PREALLOC_BYTES, PackageFilesIndex, SemaphorePermit, StoreDir, StreamedResource,
+    TarLimits, TarballError, extract_archive_bytes, extract_resource_stream,
+    post_download_semaphore, spawn_extraction, verify_tarball_integrity,
 };
 use crate::{
     ArchiveIntegrity,
@@ -34,22 +35,55 @@ pub(crate) async fn extract_tarball_buffer(
         .acquire()
         .await
         .expect("post-download semaphore shouldn't be closed this soon");
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
-
-    let extraction = BufferedExtraction {
-        buffer: archive.buffer,
-        content_coding: archive.content_coding,
-        verification: archive.verification,
-        unpacked_size: archive.unpacked_size,
-        limits: archive.tar_limits.with_unpacked_size(archive.unpacked_size),
-        package_url: package_url.to_string(),
+    extract_tarball_buffer_with_permit(
+        post_download_permit,
+        archive,
+        package_url,
         store_dir,
         ignore_file_pattern,
-    };
+    )
+    .await
+}
+
+pub(crate) async fn extract_tarball_buffer_with_permit(
+    post_download_permit: SemaphorePermit<'static>,
+    archive: BufferedArchive,
+    package_url: &str,
+    store_dir: &'static StoreDir,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+) -> Result<ExtractedFiles, TarballError> {
+    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
+
+    let extraction = BufferedExtraction::new(archive, package_url, store_dir, ignore_file_pattern);
     let result = spawn_extraction(post_download_permit, move || extraction.run())
         .await
         .map_err(TarballError::TaskJoin)??;
+
+    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
+
+    Ok(result)
+}
+
+pub(crate) async fn extract_local_tarball_buffer_with_sha1(
+    post_download_permit: SemaphorePermit<'static>,
+    archive: BufferedArchive,
+    package_url: &str,
+    store_dir: &'static StoreDir,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+) -> Result<(ExtractedFiles, Integrity), TarballError> {
+    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
+
+    let extraction = BufferedExtraction::new(archive, package_url, store_dir, ignore_file_pattern);
+    let result = spawn_extraction(post_download_permit, move || {
+        let mut sha1 = IntegrityOpts::new().algorithm(Algorithm::Sha1);
+        sha1.input(&extraction.buffer);
+        let sha1 = sha1.result();
+        extraction
+            .run()
+            .map(|extracted| (extracted, sha1))
+    })
+    .await
+    .map_err(TarballError::TaskJoin)??;
 
     tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
 
@@ -69,6 +103,24 @@ struct BufferedExtraction {
 }
 
 impl BufferedExtraction {
+    fn new(
+        archive: BufferedArchive,
+        package_url: &str,
+        store_dir: &'static StoreDir,
+        ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    ) -> Self {
+        Self {
+            buffer: archive.buffer,
+            content_coding: archive.content_coding,
+            verification: archive.verification,
+            unpacked_size: archive.unpacked_size,
+            limits: archive.tar_limits.with_unpacked_size(archive.unpacked_size),
+            package_url: package_url.to_string(),
+            store_dir,
+            ignore_file_pattern,
+        }
+    }
+
     fn run(mut self) -> Result<ExtractedFiles, TarballError> {
         let body = std::mem::take(&mut self.buffer);
         let resource = match decode_buffered_body(self.content_coding, body, self.unpacked_size) {
