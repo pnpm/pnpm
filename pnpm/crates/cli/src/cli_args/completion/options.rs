@@ -52,7 +52,7 @@ pub(super) fn attached_option_values(
     else {
         return Ok(None);
     };
-    let values = complete_argument_values(context, argument, value_prefix)?
+    let values = complete_argument_values(context, argument, value_prefix, true)?
         .into_iter()
         .map(|value| format!("{option_prefix}{value}"))
         .collect();
@@ -93,6 +93,7 @@ pub(super) fn complete_argument_values(
     context: &CompletionContext<'_>,
     argument: &Arg,
     value_prefix: &str,
+    attached: bool,
 ) -> miette::Result<Vec<String>> {
     if matches!(argument.get_id().as_str(), "filter" | "filter_prod") {
         return Ok(filter_by_prefix(packages::complete_packages(context)?, value_prefix));
@@ -105,7 +106,10 @@ pub(super) fn complete_argument_values(
     if let Some(kind) = path_kind {
         let home_dir = pnpm_config::home_dir();
         let base_dir = path_base_directory(context, argument, home_dir.as_deref())?;
-        return Ok(paths::complete_paths(&base_dir, home_dir.as_deref(), value_prefix, kind));
+        let value_home_dir = home_dir
+            .as_deref()
+            .filter(|_| !attached || argument.get_id() == "store_dir");
+        return Ok(paths::complete_paths(&base_dir, value_home_dir, value_prefix, kind));
     }
     let mut values = filter_by_prefix(visible_possible_values(argument), value_prefix);
     values.sort();
@@ -124,10 +128,7 @@ fn path_base_directory(
     {
         return Ok(cwd);
     }
-    let selected = match context.directory {
-        Some(directory) => paths::resolve_directory_arg(&cwd, home_dir, directory),
-        None => context.resolve_implicit_directory(&cwd)?,
-    };
+    let selected = context.resolve_selected_directory(&cwd, home_dir)?;
     let selected = if context.workspace_root {
         find_workspace_root_dir(&selected).unwrap_or(selected)
     } else {

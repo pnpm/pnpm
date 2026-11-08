@@ -16,9 +16,7 @@ pub(super) fn complete_paths(
     kind: PathCompletionKind,
 ) -> Vec<String> {
     let (dir_prefix, name_prefix) = split_path_prefix(value_prefix);
-    let Some(search_dir) = resolve_search_dir(cwd, home_dir, dir_prefix) else {
-        return Vec::new();
-    };
+    let search_dir = resolve_search_dir(cwd, home_dir, dir_prefix);
     let Ok(entries) = fs::read_dir(search_dir) else {
         return Vec::new();
     };
@@ -31,19 +29,16 @@ pub(super) fn complete_paths(
     candidates
 }
 
-fn resolve_search_dir(cwd: &Path, home_dir: Option<&Path>, dir_prefix: &str) -> Option<PathBuf> {
+fn resolve_search_dir(cwd: &Path, home_dir: Option<&Path>, dir_prefix: &str) -> PathBuf {
     if dir_prefix.is_empty() {
-        return Some(cwd.to_path_buf());
+        return cwd.to_path_buf();
     }
-    if let Some(after_tilde) = strip_home_prefix(dir_prefix) {
-        let home = home_dir?;
-        return Some(if after_tilde.is_empty() {
-            home.to_path_buf()
-        } else {
-            home.join(after_tilde)
-        });
+    if let Some(after_tilde) = strip_home_prefix(dir_prefix)
+        && let Some(home) = home_dir
+    {
+        return if after_tilde.is_empty() { home.to_path_buf() } else { home.join(after_tilde) };
     }
-    Some(cwd.join(dir_prefix))
+    cwd.join(dir_prefix)
 }
 
 pub(super) fn resolve_directory_arg(

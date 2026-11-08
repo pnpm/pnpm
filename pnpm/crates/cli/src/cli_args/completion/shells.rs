@@ -90,11 +90,11 @@ Register-ArgumentCompleter -Native -CommandName pnpm,pn -ScriptBlock {
   $env:COMP_LINE = $commandAst.ToString()
   $env:COMP_POINT = $cursorPosition
   $elements = @($commandAst.CommandElements | ForEach-Object {
-    if ($_ -is [System.Management.Automation.Language.StringConstantExpressionAst]) { $_.Value }
+    if ($_ -is [System.Management.Automation.Language.StringConstantExpressionAst] -and ($_.StringConstantType -eq 'BareWord' -or $_.Value -notlike '~*')) { $_.Value }
     else { $_.Extent.Text }
   })
   $last = $commandAst.CommandElements[-1]
-  if ($last -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $last.Extent.Text -eq $wordToComplete) {
+  if ($last -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $last.Extent.Text -eq $wordToComplete -and ($last.StringConstantType -eq 'BareWord' -or $last.Value -notlike '~*')) {
     $wordToComplete = $last.Value
   }
   if ($elements.Count -eq 0 -or $elements[-1] -ne $wordToComplete) {

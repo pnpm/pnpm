@@ -223,6 +223,41 @@ fn complete_paths_completes_directories_and_files_by_kind() {
         resolve_directory_arg(temp.path(), Some(home.path()), "'~/projects'"),
         temp.path().join("~/projects"),
     );
+
+    #[cfg(windows)]
+    {
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r"alpha\",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r"alpha\nested/"]),
+        );
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r".\al",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r".\alpha/"]),
+        );
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r"~\pr",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r"~\projects/"]),
+        );
+        assert_eq!(
+            resolve_directory_arg(temp.path(), Some(home.path()), r"~\projects"),
+            home.path().join("projects"),
+        );
+    }
 }
 
 #[test]

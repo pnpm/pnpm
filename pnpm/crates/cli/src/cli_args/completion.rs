@@ -122,10 +122,16 @@ pub fn complete_words(words: &[String]) -> miette::Result<Vec<String>> {
     }
 
     if let Some(argument) = context.pending_option {
-        return complete_argument_values(&context, argument, current_word);
+        return complete_argument_values(&context, argument, current_word, false);
     }
 
     Ok(filter_by_prefix(context.positional_candidates()?, current_word))
+}
+
+#[derive(Clone, Copy)]
+struct DirectoryArg<'a> {
+    path: &'a str,
+    attached: bool,
 }
 
 struct CompletionContext<'a> {
@@ -133,7 +139,7 @@ struct CompletionContext<'a> {
     command: &'a Command,
     command_name: Option<&'a str>,
     has_positional: bool,
-    directory: Option<&'a str>,
+    directory: Option<DirectoryArg<'a>>,
     pending_option: Option<&'a Arg>,
     workspace_root: bool,
     ignore_workspace: bool,
@@ -143,11 +149,23 @@ impl<'a> CompletionContext<'a> {
     fn resolve_project_directory(&self) -> miette::Result<PathBuf> {
         let cwd = env::current_dir().into_diagnostic()?;
         let home_dir = pnpm_config::home_dir();
-        let directory = match self.directory {
-            Some(directory) => paths::resolve_directory_arg(&cwd, home_dir.as_deref(), directory),
-            None => self.resolve_implicit_directory(&cwd)?,
-        };
+        let directory = self.resolve_selected_directory(&cwd, home_dir.as_deref())?;
         Ok(if self.workspace_root { find_workspace_root_dir(&directory)? } else { directory })
+    }
+
+    fn resolve_selected_directory(
+        &self,
+        cwd: &Path,
+        home_dir: Option<&Path>,
+    ) -> miette::Result<PathBuf> {
+        match self.directory {
+            Some(directory) => Ok(paths::resolve_directory_arg(
+                cwd,
+                home_dir.filter(|_| !directory.attached),
+                directory.path,
+            )),
+            None => self.resolve_implicit_directory(cwd),
+        }
     }
 
     fn resolve_implicit_directory(&self, cwd: &Path) -> miette::Result<PathBuf> {
@@ -202,8 +220,8 @@ impl<'a> CompletionContext<'a> {
         }
         let pending_option = separate_value_option(self, word, next);
         let width = if pending_option.is_some() { 2 } else { 1 };
-        if let Some(directory) = scripts::directory_option(word, next.filter(|_| width == 2)) {
-            self.directory = Some(directory);
+        if let Some(path) = scripts::directory_option(word, next.filter(|_| width == 2)) {
+            self.directory = Some(DirectoryArg { path, attached: width == 1 });
         }
         (width, pending_option)
     }
@@ -221,7 +239,9 @@ impl<'a> CompletionContext<'a> {
             self.workspace_root |= argument.get_id() == "workspace_root";
             let accepts_next = option_value_is_allowed(argument, next);
             if argument.get_id() == "dir" {
-                self.directory = short_option_value(remaining, next, accepts_next);
+                let attached = !remaining.is_empty();
+                self.directory = short_option_value(remaining, next, accepts_next)
+                    .map(|path| DirectoryArg { path, attached });
             }
             let takes_separate = argument_takes_separate_value(argument);
             pending_option = (takes_separate && accepts_next).then_some(argument);

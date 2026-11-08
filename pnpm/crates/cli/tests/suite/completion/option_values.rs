@@ -362,6 +362,33 @@ fn completion_server_handles_tilde_and_workspace_root_fallback_in_directory_opti
 
     let output = pacquet()
         .current_dir(workspace.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .args(["completion-server", "--", "pnpm", "--dir=~/proj", "--store-dir", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "literal-store/\n");
+
+    let output = pacquet()
+        .current_dir(workspace.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .args(["completion-server", "--", "pnpm", "--dir=~/pr"])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "--dir=~/proj/\n");
+
+    let output = pacquet()
+        .current_dir(workspace.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .args(["completion-server", "--", "pnpm", "--store-dir=~/pr"])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "--store-dir=~/proj/\n");
+
+    let output = pacquet()
+        .current_dir(workspace.path())
         .args(["completion-server", "--", "pnpm", "-w", "--store-dir", ""])
         .output()
         .unwrap();
