@@ -137,7 +137,7 @@ function chooseLockedReference (
   }
   const lockedRef = lookup.lockedDependencies[alias]
   if (lockedRef && satisfiesWanted(lockedRef)) {
-    return { reference: lockedRef, proceed: true, preferredVersion: getPinnedNameVer(lookup.wantedLockfile, lockedRef, alias)?.version }
+    return { preferredVersion: getPinnedNameVer(lookup.wantedLockfile, lockedRef, alias)?.version }
   }
   return {}
 }

@@ -42,7 +42,7 @@ pub(super) async fn record_matched_direct_update<Reporter: self::Reporter>(
     inputs: MatchedRewriteInputs<'_, '_, '_>,
     declared: (&String, DependencyGroup, &String),
 ) -> Result<(), UpdateError> {
-    let (name, group, _) = declared;
+    let (name, group, previous) = declared;
     let expanded = inputs.expanded;
     let MatchedRewrite::Target(rewrite) =
         matched_direct_rewrite::<Reporter>(scope, plan, inputs, declared).await?
@@ -52,7 +52,8 @@ pub(super) async fn record_matched_direct_update<Reporter: self::Reporter>(
     insert_update_target(
         &mut plan.drop_targets,
         expanded,
-        &update_target_name(scope.selectors, name),
+        name,
+        &update_target_name(scope.selectors, name, previous),
     );
     if let Some(specifier) = rewrite {
         plan.rewrites.push((name.clone(), group, specifier));
