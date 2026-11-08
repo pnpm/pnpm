@@ -120,6 +120,18 @@ fn nested_install_recognizes_a_slot_held_by_its_parent_build() {
 }
 
 #[test]
+fn missing_slot_paths_are_not_inherited() {
+    let root = tempdir().expect("temporary slot root");
+    let missing_slot = root.path().join("pruned-slot");
+
+    assert!(!super::slot_lock_is_inherited(&missing_slot, &[]).expect("empty inherited slots"));
+    assert!(
+        !super::slot_lock_is_inherited(&missing_slot, std::slice::from_ref(&missing_slot))
+            .expect("pruned inherited slot"),
+    );
+}
+
+#[test]
 fn nested_install_slot_paths_round_trip() {
     let slot_paths = [PathBuf::from("/store/links/package/hash")];
     let encoded = super::encode_slot_lock_paths(&slot_paths).expect("encode slot paths");

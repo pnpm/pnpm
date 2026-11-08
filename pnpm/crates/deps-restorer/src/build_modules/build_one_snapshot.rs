@@ -91,7 +91,7 @@ fn build_candidate<Reporter: self::Reporter>(
     let pkg_dir = &locked_slot.package_dir;
     let slot_lock = locked_slot.slot.as_ref();
 
-    let Some((is_patched, has_side_effects)) =
+    let Some(preparation) =
         prepare_candidate::<Reporter>(context, snapshot_key, candidate, optional, &locked_slot)?
     else {
         return Ok(());
@@ -100,7 +100,7 @@ fn build_candidate<Reporter: self::Reporter>(
     refresh_private_hoisted_bins(
         context,
         snapshot_key,
-        is_patched || candidate.should_run_scripts,
+        preparation.is_patched || candidate.should_run_scripts,
     )?;
 
     clear_global_virtual_store_build_markers(
@@ -116,8 +116,8 @@ fn build_candidate<Reporter: self::Reporter>(
         candidate,
         pkg_dir,
         cache_key,
-        is_patched,
-        has_side_effects,
+        preparation.is_patched,
+        preparation.has_side_effects,
     );
 
     Ok(())
@@ -134,13 +134,18 @@ fn refresh_private_hoisted_bins(
     Ok(())
 }
 
+struct CandidatePreparation {
+    is_patched: bool,
+    has_side_effects: bool,
+}
+
 fn prepare_candidate<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
     optional: bool,
     locked_slot: &slot_to_build::LockedSlotToBuild,
-) -> Result<Option<(bool, bool)>, BuildModulesError> {
+) -> Result<Option<CandidatePreparation>, BuildModulesError> {
     let Some(is_patched) = apply_configured_patch::<Reporter>(
         context,
         snapshot_key,
@@ -155,7 +160,7 @@ fn prepare_candidate<Reporter: self::Reporter>(
     else {
         return Ok(None);
     };
-    Ok(Some((is_patched, has_side_effects)))
+    Ok(Some(CandidatePreparation { is_patched, has_side_effects }))
 }
 
 fn run_candidate_scripts<Reporter: self::Reporter>(

@@ -73,10 +73,14 @@ pub(super) fn slot_lock_is_inherited(
     path: &std::path::Path,
     inherited_paths: &[PathBuf],
 ) -> io::Result<bool> {
-    if !path.exists() {
+    if inherited_paths.is_empty() {
         return Ok(false);
     }
-    let path_identity = fs::canonicalize(path)?;
+    let path_identity = match fs::canonicalize(path) {
+        Ok(path_identity) => path_identity,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
     for inherited_path in inherited_paths {
         match fs::canonicalize(inherited_path) {
             Ok(inherited_identity) if inherited_identity == path_identity => return Ok(true),
