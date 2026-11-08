@@ -1,7 +1,6 @@
 use super::{
     Arc, BTreeMap, BTreeSet, FinalPeerContext, HashMap, HashSet, NodeId, PeerNameTarjan, Walker,
 };
-use crate::resolved_tree::TreeChildren;
 
 type PeerSccPass = crate::strongly_connected_components::SccPass<crate::NodeId>;
 
@@ -219,27 +218,17 @@ impl Walker<'_> {
         let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else {
             return false;
         };
-        if pkg.name().as_ref() == peer_alias {
-            return false;
-        }
-        match &tree_node.children {
-            TreeChildren::Realized(children) => !children.contains_key(peer_alias),
-            TreeChildren::Lazy => true,
-        }
+        pkg.name().as_ref() != peer_alias && !pkg.peer_set.taken().contains_key(peer_alias)
     }
 
     fn apply_propagated_peers(&mut self, node_id: &NodeId, additions: Vec<(String, NodeId)>) {
-        let pkg_id = &self.tree.dependencies_tree[node_id].resolved_package_id;
-        let own_peers = self.tree.packages[pkg_id].peer_set.taken();
         let Some(peers) = self.nodes.external_peers.get_mut(node_id) else {
             return;
         };
         let peers_mut = Arc::make_mut(peers);
         let mut record = self.output.node_records.get_mut(node_id);
         for (alias, peer_node_id) in additions {
-            if !own_peers.contains_key(&alias)
-                && let Some(record) = record.as_deref_mut()
-            {
+            if let Some(record) = record.as_deref_mut() {
                 record.transitive_peer_dependencies.insert(alias.clone());
             }
             peers_mut.insert(alias, peer_node_id);
