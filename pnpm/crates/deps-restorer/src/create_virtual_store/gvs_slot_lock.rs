@@ -89,9 +89,6 @@ pub struct GlobalVirtualStoreSlot {
     lock: Option<DirLock>,
 }
 
-/// Take the lock of `key`'s slot. `None` only when the global virtual
-/// store is off. A timeout starts another wait; an acquisition error
-/// prevents the caller from mutating the shared slot.
 impl GlobalVirtualStoreSlot {
     pub fn acquire_ordered(
         layout: &VirtualStoreLayout,
@@ -125,6 +122,9 @@ impl GlobalVirtualStoreSlot {
         Ok(slots)
     }
 
+    /// Take the lock of `key`'s slot. `None` only when the global virtual
+    /// store is off. A timeout starts another wait; an acquisition error
+    /// prevents the caller from mutating the shared slot.
     pub fn acquire(
         layout: &VirtualStoreLayout,
         key: &PackageKey,
@@ -152,6 +152,25 @@ impl GlobalVirtualStoreSlot {
             return Self::open_existing_path(path, key);
         }
         Self::acquire_existing_path(path, key)
+    }
+
+    /// Open `key`'s slot without its lock for a read-only probe, when nobody
+    /// holds the lock and the state file records `populated` or `built`.
+    /// Every write to a slot happens under its lock, so such a slot is not
+    /// being changed when the probe starts. `None` for any other slot,
+    /// including one whose state cannot be read: the caller locks it and
+    /// reports the error from there.
+    #[must_use]
+    pub fn open_settled(layout: &VirtualStoreLayout, key: &PackageKey) -> Option<Self> {
+        let path = layout.hashed_slot_dir(key)?;
+        match fs::symlink_metadata(path.join(SLOT_LOCK_DIR)) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            _ => return None,
+        }
+        let slot = Self::from_path(path, key, None);
+        slot.is_populated()
+            .unwrap_or(false)
+            .then_some(slot)
     }
 
     pub fn open_existing_path(

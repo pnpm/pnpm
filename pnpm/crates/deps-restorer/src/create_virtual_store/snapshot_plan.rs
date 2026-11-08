@@ -121,20 +121,27 @@ fn plan_snapshot_batch<'a, Reporter: self::Reporter>(
     probe: &WarmSlotProbe<'a, '_>,
     cache_keys: &mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
 ) -> Result<SnapshotBatchPlan<'a>, CreateVirtualStoreError> {
-    let locked_slots = crate::GlobalVirtualStoreSlot::acquire_existing_ordered(
-        probe.layout,
-        batch
-            .iter()
-            .filter(|key| {
-                !probe.policy.skipped.contains(key)
-                    && probe.layout.hashed_slot_dir(key).is_some()
-                    && slot_probe_applies(probe, key)
-            })
-            .map(|key| (*key).clone()),
-    )
-    .map_err(CreateVirtualStoreError::SlotLock)?;
-    let slots = locked_slots
+    let mut settled_slots = Vec::new();
+    let mut unsettled_keys = Vec::new();
+    for key in batch
+        .iter()
+        .filter(|key| {
+            !probe.policy.skipped.contains(key)
+                && probe.layout.hashed_slot_dir(key).is_some()
+                && slot_probe_applies(probe, key)
+        })
+    {
+        match crate::GlobalVirtualStoreSlot::open_settled(probe.layout, key) {
+            Some(slot) => settled_slots.push(slot),
+            None => unsettled_keys.push((*key).clone()),
+        }
+    }
+    let locked_slots =
+        crate::GlobalVirtualStoreSlot::acquire_existing_ordered(probe.layout, unsettled_keys)
+            .map_err(CreateVirtualStoreError::SlotLock)?;
+    let slots = settled_slots
         .into_iter()
+        .chain(locked_slots)
         .map(|slot| (slot.path().to_path_buf(), slot))
         .collect::<HashMap<_, _>>();
     let mut markers = MarkerProbes::default();
