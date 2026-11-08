@@ -183,7 +183,8 @@ fn a_failed_commit_is_rolled_back() {
             // A deferred foreign key fails the `COMMIT` itself, which leaves
             // the transaction open.
             connection.execute_batch(
-                "CREATE TEMP TABLE parent (id INTEGER PRIMARY KEY);
+                "PRAGMA foreign_keys = ON;
+                 CREATE TEMP TABLE parent (id INTEGER PRIMARY KEY);
                  CREATE TEMP TABLE child (
                      parent INTEGER REFERENCES parent (id) DEFERRABLE INITIALLY DEFERRED
                  );",

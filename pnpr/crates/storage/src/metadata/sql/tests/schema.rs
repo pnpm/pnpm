@@ -138,7 +138,7 @@ async fn a_matching_version_opens(db: Db) {
 }
 
 async fn another_version_is_refused(db: Db) {
-    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.2')");
+    let insert = format!("INSERT INTO {MARKER} (version) VALUES ('0.3')");
     execute(
         &db,
         &[
@@ -149,7 +149,7 @@ async fn another_version_is_refused(db: Db) {
     )
     .await;
     let reason = refused(&db).await;
-    assert!(reason.contains("holds schema version 0.2,"), "{reason}");
+    assert!(reason.contains("holds schema version 0.3,"), "{reason}");
     // Once the operator wipes the tables, pnpr creates them afresh.
     execute(&db, &[&format!("DROP TABLE {MARKER}"), "DROP TABLE catalogs"]).await;
     open(&db).await.unwrap();
@@ -209,6 +209,9 @@ fn every_metadata_table_is_known() {
     assert!(tables.contains(&"note_history".to_string()));
     assert!(!tables.contains(&MARKER.to_string()));
     assert_eq!(schema::table_names(schema::MARKER_TABLE), [MARKER]);
+    let upper = TABLES.to_ascii_uppercase();
+    assert!(!upper.contains("FOREIGN KEY"), "schema still declares a foreign key");
+    assert!(!upper.contains("REFERENCES "), "schema still declares a foreign key reference");
 }
 
 #[test]
