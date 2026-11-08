@@ -274,7 +274,9 @@ fn completion_server_completes_workspace_anchored_path_options_from_workspace_ro
     let workspace = TempDir::new().unwrap();
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .unwrap();
-    std::fs::create_dir_all(workspace.path().join("packages/foo/local-dir")).unwrap();
+    let pkg_foo = workspace.path().join("packages/foo");
+    std::fs::create_dir_all(pkg_foo.join("local-dir/sub-dir")).unwrap();
+    std::fs::write(pkg_foo.join("package.json"), r#"{"name":"foo"}"#).unwrap();
     std::fs::create_dir(workspace.path().join("root-patches")).unwrap();
 
     for words in [
@@ -289,6 +291,81 @@ fn completion_server_completes_workspace_anchored_path_options_from_workspace_ro
             .unwrap();
         assert_eq!(stdout(output), "packages/\nroot-patches/\n", "{words:?}");
     }
+
+    for words in
+        [vec!["pnpm", "--store-dir", ""], vec!["pnpm", "patch-commit", "dir", "--patches-dir", ""]]
+    {
+        let output = pacquet()
+            .current_dir(&pkg_foo)
+            .args(["completion-server", "--"])
+            .args(&words)
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "packages/\nroot-patches/\n", "{words:?}");
+    }
+
+    for words in [
+        vec!["pnpm", "--ignore-workspace", "-C", "packages/foo", "--store-dir", ""],
+        vec![
+            "pnpm",
+            "--ignore-workspace",
+            "-C",
+            "packages/foo",
+            "patch-commit",
+            "dir",
+            "--patches-dir",
+            "",
+        ],
+    ] {
+        let output = pacquet()
+            .current_dir(workspace.path())
+            .args(["completion-server", "--"])
+            .args(&words)
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "local-dir/\n", "{words:?}");
+    }
+
+    let output = pacquet()
+        .current_dir(pkg_foo.join("local-dir"))
+        .args(["completion-server", "--", "pnpm", "--state-dir", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "local-dir/\n");
+}
+
+#[test]
+fn completion_server_handles_tilde_and_workspace_root_fallback_in_directory_options() {
+    let workspace = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    std::fs::create_dir_all(home.path().join("proj/home-store")).unwrap();
+    std::fs::create_dir_all(workspace.path().join("~/proj/literal-store")).unwrap();
+    std::fs::create_dir(workspace.path().join("standalone-dir")).unwrap();
+
+    let output = pacquet()
+        .current_dir(workspace.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .args(["completion-server", "--", "pnpm", "-C", "~/proj", "--store-dir", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "home-store/\n");
+
+    let output = pacquet()
+        .current_dir(workspace.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .args(["completion-server", "--", "pnpm", "-C", r#""~/proj""#, "--store-dir", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "literal-store/\n");
+
+    let output = pacquet()
+        .current_dir(workspace.path())
+        .args(["completion-server", "--", "pnpm", "-w", "--store-dir", ""])
+        .output()
+        .unwrap();
+    assert_eq!(stdout(output), "standalone-dir/\n~/\n");
 }
 
 #[cfg_attr(not(unix), ignore = "requires Bash")]

@@ -1,6 +1,6 @@
 use super::{
     CompletionError, CompletionShell, SUPPORTED_SHELLS,
-    paths::{PathCompletionKind, complete_paths},
+    paths::{PathCompletionKind, complete_paths, resolve_directory_arg},
     shell_from_args,
 };
 use crate::cli_args::CliArgs;
@@ -208,6 +208,20 @@ fn complete_paths_completes_directories_and_files_by_kind() {
             PathCompletionKind::FilesAndDirectories,
         ),
         strings(&[".env", ".hidden-dir/"]),
+    );
+
+    assert_eq!(resolve_directory_arg(temp.path(), Some(home.path()), "~"), home.path());
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), "~/projects"),
+        home.path().join("projects"),
+    );
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), r#""~/projects""#),
+        temp.path().join("~/projects"),
+    );
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), "'~/projects'"),
+        temp.path().join("~/projects"),
     );
 }
 

@@ -46,6 +46,37 @@ fn resolve_search_dir(cwd: &Path, home_dir: Option<&Path>, dir_prefix: &str) -> 
     Some(cwd.join(dir_prefix))
 }
 
+pub(super) fn resolve_directory_arg(
+    cwd: &Path,
+    home_dir: Option<&Path>,
+    directory: &str,
+) -> PathBuf {
+    if let Some(unquoted) = strip_matching_quotes(directory) {
+        return cwd.join(unquoted);
+    }
+    if directory == "~" {
+        if let Some(home) = home_dir {
+            return home.to_path_buf();
+        }
+    } else if let Some(after_tilde) = strip_home_prefix(directory)
+        && let Some(home) = home_dir
+    {
+        return if after_tilde.is_empty() { home.to_path_buf() } else { home.join(after_tilde) };
+    }
+    cwd.join(directory)
+}
+
+fn strip_matching_quotes(value: &str) -> Option<&str> {
+    value
+        .strip_prefix('"')
+        .and_then(|rest| rest.strip_suffix('"'))
+        .or_else(|| {
+            value
+                .strip_prefix('\'')
+                .and_then(|rest| rest.strip_suffix('\''))
+        })
+}
+
 fn strip_home_prefix(dir_prefix: &str) -> Option<&str> {
     dir_prefix
         .strip_prefix("~/")

@@ -6,7 +6,10 @@ use crate::cli_args::cli_command::options::find_workspace_root_dir;
 use clap::{Arg, ArgAction, Command, ValueHint};
 use miette::IntoDiagnostic;
 use pnpm_workspace::find_workspace_dir;
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 pub(super) fn visible_options(context: &CompletionContext<'_>) -> Vec<String> {
     let mut options = Vec::new();
@@ -100,8 +103,8 @@ pub(super) fn complete_argument_values(
         _ => None,
     };
     if let Some(kind) = path_kind {
-        let base_dir = path_base_directory(context, argument)?;
         let home_dir = pnpm_config::home_dir();
+        let base_dir = path_base_directory(context, argument, home_dir.as_deref())?;
         return Ok(paths::complete_paths(&base_dir, home_dir.as_deref(), value_prefix, kind));
     }
     let mut values = filter_by_prefix(visible_possible_values(argument), value_prefix);
@@ -110,20 +113,29 @@ pub(super) fn complete_argument_values(
     Ok(values)
 }
 
-fn path_base_directory(context: &CompletionContext<'_>, argument: &Arg) -> miette::Result<PathBuf> {
+fn path_base_directory(
+    context: &CompletionContext<'_>,
+    argument: &Arg,
+    home_dir: Option<&Path>,
+) -> miette::Result<PathBuf> {
     let cwd = env::current_dir().into_diagnostic()?;
     if matches!(argument.get_id().as_str(), "dir" | "env_file" | "npmrc_auth_file")
         || (context.command_name == Some("sbom") && argument.get_id() == "out")
     {
         return Ok(cwd);
     }
-    let Some(directory) = context.directory else {
-        return Ok(if context.workspace_root { find_workspace_root_dir(&cwd)? } else { cwd });
+    let selected = match context.directory {
+        Some(directory) => paths::resolve_directory_arg(&cwd, home_dir, directory),
+        None => context.resolve_implicit_directory(&cwd)?,
     };
-    let selected = cwd.join(directory);
-    let selected =
-        if context.workspace_root { find_workspace_root_dir(&selected)? } else { selected };
-    if matches!(argument.get_id().as_str(), "store_dir" | "patches_dir") {
+    let selected = if context.workspace_root {
+        find_workspace_root_dir(&selected).unwrap_or(selected)
+    } else {
+        selected
+    };
+    if !context.ignore_workspace
+        && matches!(argument.get_id().as_str(), "store_dir" | "patches_dir")
+    {
         return Ok(find_workspace_dir(&selected)?.unwrap_or(selected));
     }
     Ok(selected)

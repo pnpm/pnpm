@@ -1,7 +1,10 @@
 pub use shells::{CompletionShell, SUPPORTED_SHELLS};
 
 use crate::{
-    cli_args::{cli_command::options::find_workspace_root_dir, prefix::find_npm_local_prefix},
+    cli_args::{
+        cli_command::options::find_workspace_root_dir,
+        prefix::{find_local_prefix, find_npm_local_prefix},
+    },
     flag_relocation::short_cluster_consumes_value,
 };
 use clap::{Arg, Args, Command, CommandFactory};
@@ -133,16 +136,44 @@ struct CompletionContext<'a> {
     directory: Option<&'a str>,
     pending_option: Option<&'a Arg>,
     workspace_root: bool,
+    ignore_workspace: bool,
 }
 
 impl<'a> CompletionContext<'a> {
     fn resolve_project_directory(&self) -> miette::Result<PathBuf> {
         let cwd = env::current_dir().into_diagnostic()?;
+        let home_dir = pnpm_config::home_dir();
         let directory = match self.directory {
-            Some(directory) => cwd.join(directory),
-            None => find_npm_local_prefix(&cwd)?,
+            Some(directory) => paths::resolve_directory_arg(&cwd, home_dir.as_deref(), directory),
+            None => self.resolve_implicit_directory(&cwd)?,
         };
         Ok(if self.workspace_root { find_workspace_root_dir(&directory)? } else { directory })
+    }
+
+    fn resolve_implicit_directory(&self, cwd: &Path) -> miette::Result<PathBuf> {
+        if matches!(
+            self.command_name,
+            Some(
+                "bin"
+                    | "clean"
+                    | "exec"
+                    | "fund"
+                    | "pkg"
+                    | "purge"
+                    | "restart"
+                    | "root"
+                    | "run"
+                    | "set-script"
+                    | "start"
+                    | "stop"
+                    | "tasks"
+                    | "test"
+            ),
+        ) {
+            find_npm_local_prefix(cwd)
+        } else {
+            find_local_prefix(cwd)
+        }
     }
 
     fn positional_candidates(&self) -> miette::Result<Vec<String>> {
@@ -164,6 +195,11 @@ impl<'a> CompletionContext<'a> {
             return self.scan_short_options(rest, next);
         }
         self.workspace_root |= word == "--workspace-root";
+        if word == "--ignore-workspace" {
+            self.ignore_workspace = true;
+        } else if word == "--no-ignore-workspace" {
+            self.ignore_workspace = false;
+        }
         let pending_option = separate_value_option(self, word, next);
         let width = if pending_option.is_some() { 2 } else { 1 };
         if let Some(directory) = scripts::directory_option(word, next.filter(|_| width == 2)) {
@@ -203,6 +239,7 @@ impl<'a> CompletionContext<'a> {
             directory: None,
             pending_option: None,
             workspace_root: false,
+            ignore_workspace: false,
         };
         let mut index = 0;
         while let Some(word) = words.get(index) {
