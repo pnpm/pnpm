@@ -165,11 +165,13 @@ impl<'a> CompletionContext<'a> {
         home_dir: Option<&Path>,
     ) -> miette::Result<PathBuf> {
         match self.directory {
-            Some(directory) => Ok(paths::resolve_directory_arg(
-                cwd,
-                home_dir.filter(|_| directory.form == ValueForm::Separate),
-                directory.path,
-            )),
+            Some(directory) => {
+                let dir_home = match directory.form {
+                    ValueForm::Separate => home_dir,
+                    ValueForm::Attached => None,
+                };
+                Ok(paths::resolve_directory_arg(cwd, dir_home, directory.path))
+            }
             None => self.resolve_implicit_directory(cwd),
         }
     }

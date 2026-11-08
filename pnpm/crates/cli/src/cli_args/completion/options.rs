@@ -2,6 +2,7 @@ use super::{
     CompletionContext, ValueForm, filter_by_prefix, packages,
     paths::{self, PathCompletionKind},
 };
+use crate::cli_args::cli_command::options::{WorkspaceRootError, find_workspace_root_dir};
 use clap::{Arg, ArgAction, Command, ValueHint};
 use miette::IntoDiagnostic;
 use pnpm_workspace::find_workspace_dir;
@@ -105,9 +106,11 @@ pub(super) fn complete_argument_values(
     if let Some(kind) = path_kind {
         let home_dir = pnpm_config::home_dir();
         let base_dir = path_base_directory(context, argument, home_dir.as_deref())?;
-        let value_home_dir = home_dir
-            .as_deref()
-            .filter(|_| form == ValueForm::Separate || argument.get_id() == "store_dir");
+        let value_home_dir = match form {
+            ValueForm::Separate => home_dir.as_deref(),
+            ValueForm::Attached if argument.get_id() == "store_dir" => home_dir.as_deref(),
+            ValueForm::Attached => None,
+        };
         return Ok(paths::complete_paths(&base_dir, value_home_dir, value_prefix, kind));
     }
     let mut values = filter_by_prefix(visible_possible_values(argument), value_prefix);
@@ -129,7 +132,11 @@ fn path_base_directory(
     }
     let selected = context.resolve_selected_directory(&cwd, home_dir)?;
     let selected = if context.workspace_root {
-        find_workspace_dir(&selected)?.unwrap_or(selected)
+        match find_workspace_root_dir(&selected) {
+            Ok(root) => root,
+            Err(WorkspaceRootError::NotInWorkspace) => selected,
+            Err(error) => return Err(error.into()),
+        }
     } else {
         selected
     };
