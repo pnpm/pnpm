@@ -65,10 +65,12 @@ pub(super) fn advance_head(
     root: &[u8],
 ) -> Result<()> {
     let transaction = super::batch::WriteTransaction::begin(connection)?;
+    if head(connection, log)?.is_some_and(|(current, _)| current >= size) {
+        return transaction.commit();
+    }
     transaction.execute(
         "INSERT INTO log_heads (catalog, ecosystem, size, root) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT (catalog, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root
-         WHERE excluded.size > log_heads.size",
+         ON CONFLICT (catalog, ecosystem) DO UPDATE SET size = excluded.size, root = excluded.root",
         params![log.catalog, log.ecosystem.as_str(), to_column(size), root],
     )?;
     transaction.commit()

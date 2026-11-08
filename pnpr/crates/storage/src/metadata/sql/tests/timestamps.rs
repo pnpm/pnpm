@@ -70,11 +70,9 @@ fn assert_timestamp_column(
     (table, column): (&str, &str),
     before: i64,
 ) -> pnpr_error::Result<()> {
-    let rows =
-        connection.query(&format!("SELECT {column}, typeof({column}) FROM {table}"), params![])?;
+    let rows = connection.query(&format!("SELECT {column} FROM {table}"), params![])?;
     assert!(!rows.is_empty(), "{table}");
     for mut row in rows {
-        assert_eq!(row.get::<String>(1)?, "integer", "{table}");
         let millis: i64 = row.get(0)?;
         if table == "versions" {
             assert_eq!(iso_from_unix_millis(millis), "2026-01-01T00:00:00.000Z");
@@ -90,6 +88,12 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
     let org = storage.for_hosted("", pnpr_package_name::Ecosystem::Npm);
     write(&org, "example", &packument("example", &["1.0.0"])).await;
     let adapter = db.adapter();
+    let column_type_sql = db.sql(
+        "SELECT type FROM pragma_table_info(?1) WHERE name = ?2",
+        "SELECT data_type FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ?1 AND column_name = ?2",
+        "SELECT CAST(data_type AS CHAR) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ?1 AND column_name = ?2",
+    );
+    let integer_type = db.sql("integer", "bigint", "bigint");
     tokio::task::spawn_blocking(move || {
         adapter.read(ReadSource::Primary, &mut |connection| {
             for (table, column) in [
@@ -104,11 +108,12 @@ async fn every_timestamp_column_has_integer_affinity(db: Db) {
                 ("staged_archives", "staged_at"),
                 ("removed_packages", "unpublished_at"),
             ] {
-                let mut row = connection.query_one(
-                    "SELECT type FROM pragma_table_info(?1) WHERE name = ?2",
-                    params![table, column],
-                )?;
-                assert_eq!(row.get::<String>(0)?, "INTEGER", "{table}.{column}");
+                let mut row = connection.query_one(column_type_sql, params![table, column])?;
+                assert_eq!(
+                    row.get::<String>(0)?.to_ascii_lowercase(),
+                    integer_type,
+                    "{table}.{column}",
+                );
             }
             Ok(())
         })?;

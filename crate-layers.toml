@@ -143,6 +143,7 @@ crates = [
   "pnpm-workspace-manifest-writer",
   "pnpr-auth",
   "pnpr-libsql",
+  "pnpr-sql",
   "pnpr-osv",
   "pnpr-pipeline-runs",
   "pnpr-route",
@@ -314,7 +315,7 @@ pnpm-workspace-projects-graph = 6
 pnpm-workspace-state = 2
 pnpm-workspace-task-scheduler = 2
 pnpr = 39
-pnpr-auth = 5
+pnpr-auth = 6
 pnpr-cargo = 2
 pnpr-config = 7
 pnpr-fixtures = 5
@@ -329,7 +330,8 @@ pnpr-registry = 1
 pnpr-route = 4
 pnpr-search = 3
 pnpr-shared-artifacts = 3
-pnpr-storage = 10
+pnpr-sql = 2
+pnpr-storage = 11
 pnpr-upstream = 6
 
 # The accepted number of workspace crates whose items each crate names in its

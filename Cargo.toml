@@ -123,6 +123,7 @@ pnpr-auth = { path = "pnpr/crates/auth" }
 pnpr-cargo = { path = "pnpr/crates/cargo" }
 pnpr-config = { path = "pnpr/crates/config" }
 pnpr-error = { path = "pnpr/crates/error" }
+pnpr-sql = { path = "pnpr/crates/sql" }
 pnpr-libsql = { path = "pnpr/crates/libsql" }
 pnpr-oci = { path = "pnpr/crates/oci" }
 pnpr-osv = { path = "pnpr/crates/osv" }

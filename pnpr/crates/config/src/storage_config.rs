@@ -45,18 +45,20 @@ pub enum MetadataBackend {
     /// An embedded `SQLite` database at this path. Single-instance only, so
     /// only with the filesystem hosted store.
     Sqlite(PathBuf),
+    Postgres(crate::SqlBackendSettings),
+    Mysql(crate::SqlBackendSettings),
     /// A libSQL database, such as a Turso primary, shared by every instance
     /// and read through an embedded replica when one is configured.
     Libsql(LibsqlSettings),
 }
 
-/// Disk shape of the `metadata:` block.
+/// Disk shape of the `database:` block.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(crate) struct MetadataFile {
+pub(crate) struct DatabaseFile {
     /// The metadata database: `sqlite:<path>`, with a relative path resolved
-    /// against the config file's directory, or a libSQL database
-    /// (`libsql://`, or `http://` and `https://` for a self-hosted `sqld`).
+    /// against the config file's directory, `postgres://`, `mysql://`, or
+    /// libSQL (`libsql://`, `http://`, or `https://`).
     /// Without it, a filesystem hosted store keeps its metadata in
     /// [`default_metadata_path`].
     #[serde(default)]
@@ -71,13 +73,15 @@ pub(crate) struct MetadataFile {
     /// how stale a replica read may be.
     #[serde(default)]
     sync_interval: Option<Interval>,
-    /// Most libSQL operations running at once.
+    /// Maximum concurrent libSQL operations or PostgreSQL/MySQL pool connections.
     #[serde(default)]
     max_connections: Option<u32>,
-    /// The metadata backend of earlier releases. pnpr keeps metadata only in
-    /// the database `url` names, so any value is refused.
+    /// PostgreSQL/MySQL operation and pool-acquisition timeout.
     #[serde(default)]
-    backend: Option<serde::de::IgnoredAny>,
+    timeout: Option<Interval>,
+    /// PostgreSQL/MySQL auth connection and schema-initialization timeout.
+    #[serde(default)]
+    startup_timeout: Option<Interval>,
 }
 
 /// The default `SQLite` metadata database of a filesystem hosted store. The
@@ -88,7 +92,7 @@ pub fn default_metadata_path(storage: &Path) -> PathBuf {
 }
 
 pub(crate) fn resolve_metadata_backend(
-    file: Option<&MetadataFile>,
+    file: Option<&DatabaseFile>,
     storage: &Path,
     base_dir: &Path,
     hosted: &HostedStoreConfig,
@@ -98,17 +102,17 @@ pub(crate) fn resolve_metadata_backend(
     // reads package metadata, whichever store its bucket is.
     let on_fs = matches!(hosted, HostedStoreConfig::Fs) || !hosts_packages;
     let Some(file) = file else { return default_metadata(storage, on_fs) };
-    if file.backend.is_some() {
+    if (file.timeout.is_some() || file.startup_timeout.is_some())
+        && !file.url.as_deref().is_some_and(is_network_sql_url)
+    {
         return Err(invalid(
-            "metadata.backend is no longer supported: pnpr keeps package metadata only in the \
-             database metadata.url names. Remove metadata.backend, and set metadata.url to \
-             `sqlite:<path>` or a libSQL URL, or leave it out to use the SQLite database in the \
-             storage directory",
+            "database.timeout and startupTimeout require a PostgreSQL or MySQL URL",
         ));
     }
     match &file.url {
-        None if has_libsql_settings(file) => Err(invalid(LIBSQL_ONLY_SETTINGS)),
+        None if has_remote_settings(file) => Err(invalid(REMOTE_ONLY_SETTINGS)),
         None => default_metadata(storage, on_fs),
+        Some(url) if is_network_sql_url(url) => network_metadata(file, url),
         Some(url) if is_libsql_url(url) => libsql_metadata(file, url, base_dir),
         Some(url) => sqlite_metadata(file, url, base_dir, on_fs),
     }
@@ -123,18 +127,16 @@ fn default_metadata(storage: &Path, on_fs: bool) -> Result<MetadataBackend, Regi
         Ok(MetadataBackend::Sqlite(default_metadata_path(storage)))
     } else {
         Err(invalid(
-            "an `s3:` hosted store needs metadata.url to name a libSQL database, such as \
+            "an `s3:` hosted store needs database.url to name a shared database, such as \
              `libsql://<host>`: pnpr keeps package metadata in a database, not in the bucket",
         ))
     }
 }
 
-/// Why settings only a libSQL URL takes are refused anywhere else.
-const LIBSQL_ONLY_SETTINGS: &str = "metadata.authToken, replicaPath, syncInterval, and \
-                                    maxConnections apply only to a libSQL metadata URL";
+const REMOTE_ONLY_SETTINGS: &str = "database.authToken, replicaPath, and syncInterval require a \
+    libSQL URL. database.maxConnections requires a libSQL, PostgreSQL, or MySQL URL";
 
-/// Whether `file` sets anything only a libSQL URL takes.
-fn has_libsql_settings(file: &MetadataFile) -> bool {
+fn has_remote_settings(file: &DatabaseFile) -> bool {
     file.auth_token.is_some()
         || file.replica_path.is_some()
         || file.sync_interval.is_some()
@@ -147,28 +149,25 @@ fn invalid(reason: &str) -> RegistryError {
 
 /// `SQLite` metadata at the path of a `sqlite:` URL.
 fn sqlite_metadata(
-    file: &MetadataFile,
+    file: &DatabaseFile,
     url: &str,
     base_dir: &Path,
     on_fs: bool,
 ) -> Result<MetadataBackend, RegistryError> {
     let Some(path) = url.strip_prefix("sqlite:") else {
         return Err(RegistryError::InvalidConfig {
-            reason: format!(
-                "metadata.url {url:?} names an unsupported database; use `sqlite:<path>` or \
-                 `libsql://<host>`",
-            ),
+            reason: "database.url names an unsupported database; use `sqlite:<path>`, `postgres://`, `mysql://`, or `libsql://<host>`".to_string(),
         });
     };
-    if has_libsql_settings(file) {
-        return Err(invalid(LIBSQL_ONLY_SETTINGS));
+    if has_remote_settings(file) {
+        return Err(invalid(REMOTE_ONLY_SETTINGS));
     }
     if path.is_empty() {
-        return Err(invalid("metadata.url `sqlite:` needs a path after the colon"));
+        return Err(invalid("database.url `sqlite:` needs a path after the colon"));
     }
     if !on_fs {
         return Err(invalid(
-            "metadata.url `sqlite:` is single-instance and needs the filesystem hosted store; \
+            "database.url `sqlite:` is single-instance and needs the filesystem hosted store; \
              remove the `s3:` block or the metadata URL",
         ));
     }
@@ -189,7 +188,7 @@ fn is_libsql_url(url: &str) -> bool {
 /// libSQL metadata, which any hosted store can use: it is shared by every
 /// instance.
 fn libsql_metadata(
-    file: &MetadataFile,
+    file: &DatabaseFile,
     url: &str,
     base_dir: &Path,
 ) -> Result<MetadataBackend, RegistryError> {
@@ -202,11 +201,11 @@ fn libsql_metadata(
             max_connections: file.max_connections,
         },
         base_dir,
-        "metadata",
+        "database",
     )?;
     if settings.replica_path.is_some() && settings.sync_interval_secs == Some(0) {
         return Err(invalid(
-            "metadata.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
+            "database.syncInterval must be at least 1s with a replicaPath: it bounds how stale a \
              replica read may be",
         ));
     }
@@ -266,4 +265,37 @@ pub(crate) fn resolve_storage_paths(
         }
     };
     Ok((storage, cache_dir, cache))
+}
+
+fn network_metadata(file: &DatabaseFile, url: &str) -> Result<MetadataBackend, RegistryError> {
+    if file.auth_token.is_some()
+        || file.replica_path.is_some()
+        || file.sync_interval.is_some()
+    {
+        return Err(invalid(
+            "database.authToken, replicaPath, and syncInterval require a libSQL URL",
+        ));
+    }
+    if file.max_connections == Some(0) {
+        return Err(invalid("database.maxConnections must be greater than 0"));
+    }
+    let mysql = url
+        .split_once(':')
+        .is_some_and(|(scheme, _)| scheme.eq_ignore_ascii_case("mysql"));
+    let settings = crate::backend_config::build_sql_backend_settings(crate::SqlBackendFile {
+        url: url.to_string(),
+        max_connections: file.max_connections,
+        timeout: file.timeout.clone(),
+        startup_timeout: file.startup_timeout.clone(),
+    })?;
+    Ok(if mysql { MetadataBackend::Mysql(settings) } else { MetadataBackend::Postgres(settings) })
+}
+
+fn is_network_sql_url(url: &str) -> bool {
+    ["postgres:", "postgresql:", "mysql:"]
+        .iter()
+        .any(|prefix| {
+            url.get(..prefix.len())
+                .is_some_and(|scheme| scheme.eq_ignore_ascii_case(prefix))
+        })
 }

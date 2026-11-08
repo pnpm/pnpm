@@ -513,7 +513,7 @@ async fn test_migrate_storage_refuses_metadata_an_s3_deployment_cannot_read() {
         ..MigrateStorageOptions::default()
     };
     let err = migrate_local_to_s3(&config, &options).await.unwrap_err();
-    assert!(err.to_string().contains("libSQL metadata.url"), "{err}");
+    assert!(err.to_string().contains("shared database.url"), "{err}");
 }
 
 #[tokio::test]
@@ -618,11 +618,10 @@ fn test_config_check_reports_the_auth_backend_and_every_default_registry() {
         r"
 storage: '{}'
 cache: '{}'
-backend:
-  libsql:
-    url: 'libsql://db.example.turso.io'
-    authToken: 'secret-database-token'
-    replicaPath: '{}'
+database:
+  url: 'libsql://db.example.turso.io'
+  authToken: 'secret-database-token'
+  replicaPath: '{}'
 auth:
   users:
     maxUsers: 3
@@ -652,7 +651,7 @@ defaultRegistry:
 
     let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
     let output = pnpr::config_check::format_report(&report);
-    let replica = dir.path().join("replica.db");
+    let replica = dir.path().join("replica.db.auth");
     assert!(
         output.contains(&format!(
             "Auth: libsql (libsql://db.example.turso.io, replica: {}, registration: max 3)",
@@ -677,7 +676,7 @@ s3:
   region: auto
   endpoint: https://storage.example.com
 {prefix}
-metadata:
+database:
   url: libsql://db.example.turso.io
 registries:
   local:
@@ -710,9 +709,8 @@ fn test_config_check_hides_an_unparsable_database_url() {
         r"
 storage: '{}'
 cache: '{}'
-backend:
-  postgres:
-    url: 'postgres://admin:hunter2@[::1'
+database:
+  url: 'postgres://admin:hunter2@[::1'
 registries:
   local:
     type: hosted
@@ -739,9 +737,8 @@ fn test_config_check_redacts_the_database_user_query_parameter() {
         r"
 storage: '{}'
 cache: '{}'
-backend:
-  postgres:
-    url: 'postgres://db.example.com/pnpr?user=registry-admin'
+database:
+  url: 'postgres://db.example.com/pnpr?user=registry-admin'
 registries:
   local:
     type: hosted

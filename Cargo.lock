@@ -6443,6 +6443,7 @@ dependencies = [
  "pnpr-package-name",
  "reqwest",
  "serde",
+ "serde-saphyr",
  "serde_json",
  "sysinfo",
  "tokio",
@@ -7197,6 +7198,7 @@ dependencies = [
  "pnpr-config",
  "pnpr-error",
  "pnpr-libsql",
+ "pnpr-sql",
  "reqwest",
  "rusqlite",
  "rustls",
@@ -7462,6 +7464,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpr-sql"
+version = "0.0.1"
+dependencies = [
+ "pnpr-config",
+ "pnpr-error",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
 name = "pnpr-storage"
 version = "0.0.1"
 dependencies = [
@@ -7486,10 +7498,12 @@ dependencies = [
  "pnpr-libsql",
  "pnpr-package-name",
  "pnpr-registry",
+ "pnpr-sql",
  "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
+ "sqlx",
  "ssri",
  "tempfile",
  "tlog_tiles",

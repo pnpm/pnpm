@@ -398,27 +398,11 @@ where
     }
 }
 
-fn invalid_pool_size(backend: &str) -> RegistryError {
-    RegistryError::InvalidConfig {
-        reason: format!("backend.{backend}.maxConnections must be greater than 0"),
-    }
-}
-
 fn sql_max_users(max: u64, backend: &str) -> Result<i64> {
     i64::try_from(max)
         .map_err(|_| RegistryError::InvalidConfig {
             reason: format!("backend.{backend} auth max_users must fit a signed BIGINT"),
         })
-}
-
-#[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-fn timeout_millis(timeout: Duration) -> u128 {
-    timeout.as_millis().max(1)
-}
-
-#[cfg(feature = "backend-mysql")]
-fn timeout_seconds(timeout: Duration) -> u64 {
-    timeout.as_secs().max(1)
 }
 
 #[cfg(test)]

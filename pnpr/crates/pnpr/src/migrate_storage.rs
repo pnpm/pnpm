@@ -66,12 +66,17 @@ fn init_source_and_target_storage(
         let display_source = source_dir.display();
         return Err(miette::miette!("source storage directory '{display_source}' does not exist"));
     }
-    if !options.dry_run && !matches!(config.storage.metadata, MetadataBackend::Libsql(_)) {
+    if !options.dry_run
+        && !matches!(
+            config.storage.metadata,
+            MetadataBackend::Libsql(_) | MetadataBackend::Postgres(_) | MetadataBackend::Mysql(_),
+        )
+    {
         return Err(miette::miette!(
             "migrate-storage moves archives and leaves package metadata in its database, which \
-             an S3 deployment reads through a libSQL metadata.url. Move the metadata into the \
-             libSQL database the S3 deployment will use, such as by importing the SQLite file, \
-             and point metadata.url at it before migrating"
+             an S3 deployment reads through a shared database.url. Move the metadata into the \
+             database the S3 deployment will use, such as by importing the SQLite file into Turso, \
+             and point database.url at it before migrating"
         ));
     }
 

@@ -147,7 +147,7 @@ impl Connection for rusqlite::Connection {
 impl ToSql for Param<'_> {
     fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
         Ok(ToSqlOutput::Borrowed(match *self {
-            Self::Null => ValueRef::Null,
+            Self::Null | Self::NullInteger | Self::NullBlob => ValueRef::Null,
             Self::Integer(value) => ValueRef::Integer(value),
             Self::Text(value) => ValueRef::Text(value.as_bytes()),
             Self::Blob(value) => ValueRef::Blob(value),

@@ -36,6 +36,30 @@ pub(crate) enum ReadSource {
 /// The error of a held statement then surfaces from that later call, which
 /// fails the transaction just the same.
 pub(crate) trait Connection {
+    fn lock_schema(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn recover_schema_initialization(&self) -> Result<bool> {
+        Ok(false)
+    }
+
+    fn create_schema(&self) -> Result<()> {
+        super::schema::create(self)
+    }
+
+    fn schema_tables(&self) -> String {
+        super::schema::TABLES.to_string()
+    }
+
+    fn schema_table_names(&self) -> Result<Vec<Row>> {
+        self.query("SELECT name FROM sqlite_master WHERE type = 'table'", &[])
+    }
+
+    fn schema_marker(&self) -> &'static str {
+        super::schema::MARKER_TABLE
+    }
+
     /// Run one statement whose rows and count the caller does not need. It
     /// may run as late as the next call that answers.
     fn execute(&self, sql: &str, params: &[Param<'_>]) -> Result<()>;
@@ -43,8 +67,8 @@ pub(crate) trait Connection {
     /// Run one statement and return every row it produced.
     fn query(&self, sql: &str, params: &[Param<'_>]) -> Result<Vec<Row>>;
 
-    /// Run `queries` in order and return the rows of each, in one round trip
-    /// to a remote database.
+    /// Run `queries` in order and return the rows of each. Remote adapters
+    /// combine compatible queries into one round trip.
     fn query_all(&self, queries: &[Query<'_>]) -> Result<Vec<Vec<Row>>> {
         queries
             .iter()
@@ -56,8 +80,7 @@ pub(crate) trait Connection {
     /// every statement held so far.
     fn execute_batch(&self, sql: &str) -> Result<()>;
 
-    /// Begin a transaction that holds the database's write lock from its
-    /// first statement, so it reads what its commit replaces.
+    /// Begin a serializable write transaction. A conflict may abort it for retry.
     fn begin_write(&self) -> Result<()>;
 
     /// Begin a transaction that reads one committed snapshot.
@@ -105,12 +128,10 @@ impl<'query> Query<'query> {
 
 /// What differs between the databases the shared SQL layer runs on.
 pub(crate) trait Adapter: fmt::Debug + Send + Sync {
-    /// Run `operation` on the connection writes commit through. Writes of
-    /// one process run one at a time.
+    /// Run `operation` on a primary connection.
     fn write(&self, operation: &mut dyn FnMut(&dyn Connection) -> Result<()>) -> Result<()>;
 
-    /// Run `operation` on a connection that reads from `source`. Reads never
-    /// wait for a write.
+    /// Run `operation` on a connection that reads from `source`.
     fn read(
         &self,
         source: ReadSource,
@@ -146,6 +167,8 @@ pub(crate) trait Adapter: fmt::Debug + Send + Sync {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Param<'value> {
     Null,
+    NullInteger,
+    NullBlob,
     Integer(i64),
     Text(&'value str),
     Blob(&'value [u8]),
@@ -153,6 +176,10 @@ pub(crate) enum Param<'value> {
 
 /// A type that binds to a statement's parameter.
 pub(crate) trait ToParam {
+    fn null_param() -> Param<'static> {
+        Param::Null
+    }
+
     fn to_param(&self) -> Param<'_>;
 }
 
@@ -169,30 +196,53 @@ impl ToParam for String {
 }
 
 impl ToParam for i64 {
+    fn null_param() -> Param<'static> {
+        Param::NullInteger
+    }
+
     fn to_param(&self) -> Param<'_> {
         Param::Integer(*self)
     }
 }
 
 impl ToParam for [u8] {
+    fn null_param() -> Param<'static> {
+        Param::NullBlob
+    }
+
     fn to_param(&self) -> Param<'_> {
         Param::Blob(self)
     }
 }
 
 impl ToParam for Vec<u8> {
+    fn null_param() -> Param<'static> {
+        Param::NullBlob
+    }
+
     fn to_param(&self) -> Param<'_> {
         Param::Blob(self)
     }
 }
 
 impl<Inner: ToParam> ToParam for Option<Inner> {
+    fn null_param() -> Param<'static> {
+        Inner::null_param()
+    }
+
     fn to_param(&self) -> Param<'_> {
-        self.as_ref().map_or(Param::Null, ToParam::to_param)
+        match self {
+            Some(value) => value.to_param(),
+            None => Inner::null_param(),
+        }
     }
 }
 
 impl<Inner: ToParam + ?Sized> ToParam for &Inner {
+    fn null_param() -> Param<'static> {
+        Inner::null_param()
+    }
+
     fn to_param(&self) -> Param<'_> {
         (**self).to_param()
     }

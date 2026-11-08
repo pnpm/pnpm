@@ -97,6 +97,9 @@ pub(crate) fn open(backend: &MetadataBackend) -> Result<Arc<SqlMetadata>> {
     match backend {
         MetadataBackend::Sqlite(path) => Ok(Arc::new(SqlMetadata::open_sqlite(path)?)),
         MetadataBackend::Libsql(settings) => open_libsql(settings),
+        MetadataBackend::Postgres(settings) | MetadataBackend::Mysql(settings) => {
+            open_network(settings)
+        }
     }
 }
 
@@ -222,5 +225,19 @@ impl Storage {
     #[must_use]
     pub fn sql_metadata(&self) -> &Arc<SqlMetadata> {
         &self.database
+    }
+}
+
+fn open_network(settings: &pnpr_config::SqlBackendSettings) -> Result<Arc<SqlMetadata>> {
+    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    {
+        Ok(Arc::new(SqlMetadata::open_network(settings)?))
+    }
+    #[cfg(not(any(feature = "backend-postgres", feature = "backend-mysql")))]
+    {
+        let _ = settings;
+        Err(RegistryError::InvalidConfig {
+            reason: "this build does not include network SQL metadata support".to_string(),
+        })
     }
 }

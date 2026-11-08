@@ -89,7 +89,7 @@ The hosted store can instead live in an S3-compatible object store. See
 [Storage backends](storage.md). With the filesystem hosted store, package
 metadata lives in an embedded SQLite database by default. Several instances can
 share a [libSQL database](storage.md#libsql-metadata) instead, which an `s3:`
-block needs. The [`metadata` block](storage.md#sqlite-metadata) configures
+block needs. The [`database` block](storage.md#sqlite-metadata) configures
 each of these.
 
 ## `registries` and `defaultRegistry`
@@ -679,7 +679,7 @@ ui:
 
 ## `auth`
 
-Without `auth.users.file` and without a [`backend`](auth-backends.md),
+Without `auth.users.file` and without a [shared database](auth-backends.md),
 accounts live in memory and are lost on restart, and `pnpr add-user` refuses
 to run. Tokens live in memory too unless `auth.tokens.file` is set. The bundled config stores users in a JSON account
 file and tokens in a local SQLite database:
@@ -702,7 +702,7 @@ Existing users can still log in. When `auth.tokens.file` is omitted and
 the account file.
 
 To share auth state across several stateless pnpr replicas, move users and
-tokens into a shared SQL database. See [Auth backends](auth-backends.md).
+tokens into a shared SQL database. See [Shared database](auth-backends.md).
 
 `auth.admins` lists the account IDs that may administer the registry. An admin
 may:

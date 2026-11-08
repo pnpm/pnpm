@@ -195,7 +195,7 @@ fn to_params(params: &[Param<'_>]) -> Vec<libsql::Value> {
     params
         .iter()
         .map(|param| match *param {
-            Param::Null => libsql::Value::Null,
+            Param::Null | Param::NullInteger | Param::NullBlob => libsql::Value::Null,
             Param::Integer(value) => libsql::Value::Integer(value),
             Param::Text(value) => libsql::Value::Text(value.to_string()),
             Param::Blob(value) => libsql::Value::Blob(value.to_vec()),
