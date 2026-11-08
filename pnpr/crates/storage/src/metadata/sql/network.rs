@@ -44,7 +44,19 @@ macro_rules! driver {
                     let runtime = tokio::runtime::Handle::current();
                     let connection = runtime
                         .block_on(async {
-                            tokio::time::timeout(timeout, self.pool.acquire()).await
+                            tokio::time::timeout(timeout, async {
+                                loop {
+                                    match self.pool.acquire().await {
+                                        Err(sqlx::Error::PoolTimedOut)
+                                            if timeout > self.settings.timeout =>
+                                        {
+                                            continue;
+                                        }
+                                        result => break result,
+                                    }
+                                }
+                            })
+                            .await
                         })
                         .map_err(|_| RegistryError::Internal {
                             reason: "metadata database connection timed out".to_string(),

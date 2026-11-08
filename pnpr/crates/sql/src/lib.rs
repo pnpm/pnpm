@@ -1,7 +1,4 @@
 //! Connection pools shared by accounts, tokens, and package metadata.
-//!
-//! Pool acquisition permits startup deadlines. Callers bound request operations
-//! with the configured request timeout.
 #![cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 
 use pnpr_config::SqlBackendSettings;

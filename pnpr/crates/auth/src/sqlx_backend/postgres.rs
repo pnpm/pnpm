@@ -377,3 +377,6 @@ async fn claim_user_slot(connection: &mut PgConnection, max_users: MaxUsers) -> 
         MaxUsers::Disabled => Ok(true),
     }
 }
+
+#[cfg(test)]
+mod on_postgres;

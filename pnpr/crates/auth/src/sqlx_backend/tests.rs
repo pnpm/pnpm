@@ -490,3 +490,26 @@ async fn password_policy_rejects_existing_short_credentials() {
     let error = auth.add_or_login("member", "short").await.unwrap_err();
     assert!(matches!(error, RegistryError::BadRequest { .. }));
 }
+
+pub(super) fn saturated_pool_settings(variable: &str) -> pnpr_config::SqlBackendSettings {
+    pnpr_config::SqlBackendSettings {
+        url: std::env::var(variable).expect("database test URL"),
+        max_connections: Some(1),
+        timeout: Duration::from_millis(250),
+        startup_timeout: Duration::from_secs(5),
+    }
+}
+
+pub(super) async fn assert_saturated_auth_writes_timeout(database: impl AuthSqlBackend) {
+    let insert = tokio::time::timeout(
+        Duration::from_secs(2),
+        database.insert_user("example", "unused", MaxUsers::Unlimited),
+    )
+    .await
+    .expect("user write waited for the startup deadline");
+    assert!(matches!(insert, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))));
+    let delete = tokio::time::timeout(Duration::from_secs(2), database.delete_token("missing"))
+        .await
+        .expect("token write waited for the startup deadline");
+    assert!(matches!(delete, Err(RegistryError::Sqlx(sqlx::Error::PoolTimedOut))));
+}

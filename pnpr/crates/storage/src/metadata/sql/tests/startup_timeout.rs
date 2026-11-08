@@ -32,7 +32,7 @@ async fn schema_waits_longer_than_the_request_timeout(mut db: Db) {
 async fn initialization_reuses_pool_capacity(mut db: Db) {
     let Adapter::Network(settings) = &mut db.adapter else { unreachable!() };
     settings.max_connections = Some(1);
-    settings.timeout = Duration::from_millis(100);
+    settings.timeout = Duration::from_millis(250);
     settings.startup_timeout = Duration::from_secs(5);
     let metadata = Arc::new(SqlMetadata::with_adapter(db.instance_adapter(), "test".into()));
     let holder = Arc::clone(&metadata);
@@ -43,7 +43,7 @@ async fn initialization_reuses_pool_capacity(mut db: Db) {
         holder.adapter.write(&mut |connection| {
             let id = connection.query(identity, &[])?[0].get::<i64>(0)?;
             locked.take().unwrap().send(id).unwrap();
-            std::thread::sleep(Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(750));
             Ok(())
         })
     });
@@ -70,7 +70,7 @@ async fn initialization_reuses_pool_capacity(mut db: Db) {
     .await
     .unwrap()
     .unwrap_err();
-    assert!(error.to_string().contains("initialization failed"));
+    assert!(error.to_string().contains("initialization failed"), "{error}");
     assert_request_timeout(metadata, sleep).await;
 }
 
