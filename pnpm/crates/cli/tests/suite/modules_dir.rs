@@ -573,56 +573,65 @@ fn registry_bin_sets_node_path(project_dir: &Path) -> bool {
 fn frozen_offline_install_keeps_links_in_an_external_modules_dir() {
     for cli_setting in [false, true] {
         for explicit_virtual_store in [false, true] {
-            let CommandTempCwd { root, workspace, npmrc_info, .. } =
-                CommandTempCwd::init().add_mocked_registry();
-            let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-            let modules = workspace
-                .parent()
-                .expect("workspace parent")
-                .join("external/node_modules");
-            let modules_setting = modules.to_string_lossy().replace('\\', "/");
-            if !cli_setting {
-                append_workspace_yaml_key(&workspace, "modulesDir", &modules_setting);
-            }
-            if explicit_virtual_store {
-                let virtual_store = modules
-                    .join(".pnpm")
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                append_workspace_yaml_key(&workspace, "virtualStoreDir", &virtual_store);
-            }
-            append_workspace_yaml_key(&workspace, "preferSymlinkedExecutables", "true");
-            write_manifest(
-                &workspace,
-                &serde_json::json!({
-                    "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
-                }),
-            );
-            for frozen in [false, true] {
-                let mut command = pacquet_in(&workspace);
-                command.arg("install");
-                if cli_setting {
-                    command.arg("--modules-dir").arg(&modules);
-                }
-                if frozen {
-                    command.args(["--offline", "--frozen-lockfile"]);
-                }
-                command.assert().success();
-                assert!(modules.join("@pnpm.e2e/hello-world-js-bin/package.json").exists());
-                assert!(has_bin(&modules, "hello-world-js-bin"));
-                assert!(!workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists());
-                if !frozen {
-                    fs::remove_dir_all(&modules).expect("remove modules directory");
-                    let default_modules = workspace.join("node_modules");
-                    if default_modules.exists() {
-                        fs::remove_dir_all(default_modules)
-                            .expect("remove default modules directory");
-                    }
-                }
-            }
-            drop((root, mock_instance));
+            check_frozen_offline_modules_dir(cli_setting, explicit_virtual_store);
         }
     }
+}
+
+fn check_frozen_offline_modules_dir(cli_setting: bool, explicit_virtual_store: bool) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let modules = workspace
+        .parent()
+        .expect("workspace parent")
+        .join("external/node_modules");
+    if !cli_setting {
+        let modules_setting = modules.to_string_lossy().replace('\\', "/");
+        append_workspace_yaml_key(&workspace, "modulesDir", &modules_setting);
+    }
+    if explicit_virtual_store {
+        let virtual_store = modules
+            .join(".pnpm")
+            .to_string_lossy()
+            .replace('\\', "/");
+        append_workspace_yaml_key(&workspace, "virtualStoreDir", &virtual_store);
+    }
+    append_workspace_yaml_key(&workspace, "preferSymlinkedExecutables", "true");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        }),
+    );
+    install_with_external_modules(&workspace, &modules, cli_setting, false);
+    fs::remove_dir_all(&modules).expect("remove modules directory");
+    let default_modules = workspace.join("node_modules");
+    if default_modules.exists() {
+        fs::remove_dir_all(default_modules).expect("remove default modules directory");
+    }
+    install_with_external_modules(&workspace, &modules, cli_setting, true);
+    drop((root, mock_instance));
+}
+
+fn install_with_external_modules(
+    workspace: &Path,
+    modules: &Path,
+    cli_setting: bool,
+    frozen: bool,
+) {
+    let mut command = pacquet_in(workspace);
+    command.arg("install");
+    if cli_setting {
+        command.arg("--modules-dir").arg(modules);
+    }
+    if frozen {
+        command.args(["--offline", "--frozen-lockfile"]);
+    }
+    command.assert().success();
+    assert!(modules.join("@pnpm.e2e/hello-world-js-bin/package.json").exists());
+    assert!(has_bin(modules, "hello-world-js-bin"));
+    assert!(!workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists());
 }
 
 #[test]
