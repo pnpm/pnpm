@@ -1,0 +1,42 @@
+name: pnpm
+base: core24
+version: '12.18.0'
+summary: Fast, disk space efficient package manager
+description: |
+  pnpm is a fast, disk space efficient package manager for JavaScript projects.
+grade: stable
+confinement: classic
+license: MIT
+website: https://pnpm.io
+source-code: https://github.com/pnpm/pnpm
+issues: https://github.com/pnpm/pnpm/issues
+
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  pnpm:
+    command: pnpm
+
+parts:
+  pnpm:
+    plugin: nil
+    build-packages:
+      - ca-certificates
+      - curl
+    override-build: |
+      case "$CRAFT_ARCH_BUILD_FOR" in
+        amd64)
+          arch=x64
+          checksum=3726060e236c0db3e7124c0a5af123c840ba0cb76682149b63ea0baf290017c2
+          ;;
+        arm64)
+          arch=arm64
+          checksum=700bd1aa4028465b80e62b7c5bec8455be60bbafaf53a3262a4ab8e2057712ac
+          ;;
+        *) exit 1 ;;
+      esac
+      curl -fsSL --retry 3 "https://github.com/pnpm/pnpm/releases/download/v${CRAFT_PROJECT_VERSION}/pnpm-linux-${arch}.tar.gz" -o pnpm.tar.gz
+      echo "$checksum  pnpm.tar.gz" | sha256sum -c -
+      tar -xzf pnpm.tar.gz -C "$CRAFT_PART_INSTALL"
