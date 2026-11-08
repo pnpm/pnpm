@@ -361,7 +361,12 @@ where
     if context.layout.frozen_store() && context.layout.enable_global_virtual_store() {
         return Ok(());
     }
-    let with_bin = children_with_bins(snapshot, context.sets.has_bin);
+    // This install does not link a child it skipped, and a build's lock set
+    // leaves it out, so its bins are neither read nor locked here.
+    let with_bin = children_with_bins(snapshot, context.sets.has_bin)
+        .into_iter()
+        .filter(|(_, child_key, _)| !context.skipped.contains(child_key))
+        .collect::<Vec<_>>();
     let self_metadata_key = slot_key.without_peer();
     let self_has_bin = declares_bin(context.sets.has_bin, &self_metadata_key);
     let self_bundles = context.sets.bundling.contains(&self_metadata_key);
@@ -404,14 +409,9 @@ fn lock_bin_slots(
     with_bin: &[(&PkgName, PackageKey, PackageKey)],
     locked_slots: &[&crate::GlobalVirtualStoreSlot],
 ) -> Result<Vec<Option<crate::GlobalVirtualStoreSlot>>, LinkVirtualStoreBinsError> {
-    // A build holds the slots it links, which leave out the children this
-    // install skipped; locking one of those here would break the build's
-    // path order.
     let mut slot_keys: Vec<PackageKey> = with_bin
         .iter()
-        .map(|(_, child_key, _)| child_key)
-        .filter(|child_key| !context.skipped.contains(child_key))
-        .cloned()
+        .map(|(_, child_key, _)| child_key.clone())
         .collect();
     slot_keys.push(slot_key.clone());
     slot_keys.sort_by_key(|key| context.layout.slot_dir(key));

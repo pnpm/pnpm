@@ -1145,11 +1145,12 @@ fn link_new_bins_from_locations_keeps_commands_with_any_windows_extension() {
 }
 
 /// A build holds its package slot and the slots it links, which leave out the
-/// children this install skipped. Refreshing its bins must not lock a skipped
-/// child's slot out of path order, so it never waits on another install that
-/// holds that slot.
+/// children this install skipped. Refreshing its bins must neither lock a
+/// skipped child's slot out of path order nor read the child through a link
+/// an earlier install left behind.
+#[cfg(unix)]
 #[test]
-fn bin_refresh_under_a_build_does_not_lock_a_skipped_child() {
+fn bin_refresh_under_a_build_ignores_a_skipped_child() {
     let tmp = tempdir().expect("temporary store");
     let parent: PackageKey = "parent@1.0.0".parse().expect("parent key");
     let child: PackageKey = "child@1.0.0".parse().expect("child key");
@@ -1195,6 +1196,17 @@ fn bin_refresh_under_a_build_does_not_lock_a_skipped_child() {
     let other_install = crate::GlobalVirtualStoreSlot::acquire(&layout, &child)
         .expect("lock child slot")
         .expect("child global slot");
+    create_dir_all(other_install.package_path()).expect("create child package");
+    write_file(
+        other_install.package_path().join("package.json"),
+        r#"{"name":"child","version":"1.0.0","bin":"cli.js"}"#,
+    )
+    .unwrap();
+    write_file(other_install.package_path().join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let retained_alias = parent_slot.path().join("node_modules/child");
+    std::os::unix::fs::symlink(other_install.package_path(), &retained_alias)
+        .expect("link the child an earlier install left behind");
+    let child_shim = parent_slot.package_path().join("node_modules/.bin/child");
     let skipped = SkippedSnapshots::from_set(std::collections::HashSet::from([child]));
 
     let finished = std::thread::scope(|scope| {
@@ -1221,4 +1233,5 @@ fn bin_refresh_under_a_build_does_not_lock_a_skipped_child() {
     });
 
     assert_eq!(finished, Ok(true));
+    assert!(!child_shim.exists(), "a skipped child's bins must not be linked");
 }
