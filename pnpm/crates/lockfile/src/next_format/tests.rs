@@ -64,30 +64,39 @@ const OPTIONAL_PEER_LOCKFILE: &str = text_block_macros::text_block! {
 #[test]
 fn optional_peer_bound_from_the_root_round_trips() {
     let (yaml, _) = written_and_read(&parse(OPTIONAL_PEER_LOCKFILE));
-    let snapshots = &yaml[yaml.find("\nsnapshots:").expect("a snapshots section")..];
+    let packages = &yaml[yaml.find("\npackages:").expect("a packages section")..];
     assert_eq!(
-        snapshots,
+        packages,
         text_block_macros::text_block_fnl! {
             ""
-            "snapshots:"
+            "packages:"
             ""
-            "  buffer-impl@3.7.1: {}"
+            "  buffer-impl@3.7.1:"
+            "    resolution: {integrity: sha512-AAAA}"
             ""
             "  container@3.2.2:"
+            "    resolution: {integrity: sha512-BBBB}"
             "    dependencies:"
             "      fs-impl: 4.8.4"
-            "    transitivePeerDependencies:"
+            "    transitivePeers:"
             "      buffer-impl: 3.7.1"
-            "    missingPeerDependencies:"
+            "    missingPeers:"
             "      - abort-impl"
             ""
             "  fs-impl@4.8.4:"
+            "    resolution: {integrity: sha512-CCCC}"
             "    peerDependencies:"
-            "      buffer-impl: 3.7.1"
+            "      buffer-impl: '*'"
+            "    peerDependenciesMeta:"
+            "      buffer-impl:"
+            "        optional: true"
             "    dependencies:"
             "      path-impl: 3.1.2"
+            "    peers:"
+            "      buffer-impl: 3.7.1"
             ""
-            "  path-impl@3.1.2: {}"
+            "  path-impl@3.1.2:"
+            "    resolution: {integrity: sha512-DDDD}"
         },
     );
 }
@@ -253,7 +262,7 @@ fn corpus_round_trips() {
             }
         };
         let parsed = Lockfile::parse(&yaml, path).expect("parse the next format").expect("content");
-        if parsed == lockfile {
+        if parsed == without_unused_packages(lockfile) {
             converted += 1;
         } else {
             failures.push(format!("{}: the next format reads back differently", path.display()));
@@ -314,4 +323,21 @@ fn parallel_parse_matches_whole(text: &str, lockfile: &Lockfile) -> bool {
         && whole.importers == lockfile.importers
         && whole.packages == lockfile.packages
         && whole.extra == lockfile.extra
+}
+
+/// `lockfile` without the `packages` entries no snapshot uses, which the next
+/// format does not write.
+fn without_unused_packages(mut lockfile: Lockfile) -> Lockfile {
+    let used: std::collections::HashSet<crate::PackageKey> = lockfile.snapshots
+        .iter()
+        .flatten()
+        .map(|(key, _)| key.without_peer())
+        .collect();
+    if let Some(packages) = lockfile.packages.as_mut() {
+        packages.retain(|key, _| used.contains(key));
+    }
+    if lockfile.packages.as_ref().is_some_and(std::collections::HashMap::is_empty) {
+        lockfile.packages = None;
+    }
+    lockfile
 }

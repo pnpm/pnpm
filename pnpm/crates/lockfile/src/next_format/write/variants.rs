@@ -8,9 +8,7 @@ use super::{
         transitive_named_in_key,
     },
     {
-        super::{
-            NextFormatError, NextSections, NextSnapshotEntry, NextSnapshots, NextVariants, read,
-        },
+        super::{NextFormatError, NextSections, NextSnapshotEntry, NextSnapshots, read},
         Explicit, child, children,
     },
 };
@@ -187,14 +185,13 @@ impl<'a> Variants<'a> {
         lockfile: &Lockfile,
         explicit: &Explicit,
     ) -> Result<NextSections, NextFormatError> {
-        let lists: Vec<NextVariants> = self.by_package
+        let lists: Vec<Vec<NextSnapshotEntry>> = self.by_package
             .par_iter()
             .map(|(_, variants)| {
                 variants
                     .iter()
                     .map(|variant| variant.next_entry(explicit))
-                    .collect::<Vec<_>>()
-                    .into()
+                    .collect()
             })
             .collect();
         let importers = lockfile.importers

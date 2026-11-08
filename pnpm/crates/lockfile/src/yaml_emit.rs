@@ -46,7 +46,7 @@ const INDENT: usize = 2;
 
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
 /// key sort.
-const ORDERED_KEYS: [&str; 21] = [
+const ORDERED_KEYS: [&str; 23] = [
     "resolution",
     "id",
     "name",
@@ -65,7 +65,9 @@ const ORDERED_KEYS: [&str; 21] = [
     "dependencies",
     "optionalDependencies",
     "transitivePeerDependencies",
-    "missingPeerDependencies",
+    "peers",
+    "transitivePeers",
+    "missingPeers",
     "dev",
     "optional",
 ];

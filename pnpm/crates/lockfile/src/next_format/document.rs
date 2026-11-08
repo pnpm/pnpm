@@ -1,10 +1,10 @@
 //! The next format's document, borrowed from a [`Lockfile`] and its converted
 //! sections, so writing it serializes nothing twice.
 
-use super::{NextSections, NextSnapshots};
+use super::{NextPackage, NextSections};
 use crate::{
     CatalogSnapshots, Lockfile, LockfileExtra, LockfileSettings, LockfileVersion, PackageKey,
-    PackageMetadata, ProjectSnapshot,
+    ProjectSnapshot,
 };
 use indexmap::IndexMap;
 use serde::{Serialize, Serializer};
@@ -38,10 +38,8 @@ pub(super) struct NextDocument<'a> {
     patched_dependencies: &'a Option<BTreeMap<String, String>>,
     #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
     importers: &'a HashMap<String, ProjectSnapshot>,
-    #[serde(skip_serializing_if = "is_none", serialize_with = "sorted_map_opt")]
-    packages: &'a Option<HashMap<PackageKey, PackageMetadata>>,
-    #[serde(skip_serializing_if = "is_none", serialize_with = "sorted_map_opt")]
-    snapshots: &'a Option<NextSnapshots>,
+    #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
+    packages: &'a HashMap<PackageKey, NextPackage>,
     #[serde(skip_serializing_if = "is_none")]
     time: &'a Option<BTreeMap<String, String>>,
     #[serde(flatten, skip_serializing_if = "LockfileExtra::is_empty")]
@@ -49,7 +47,11 @@ pub(super) struct NextDocument<'a> {
 }
 
 impl<'a> NextDocument<'a> {
-    pub(super) fn new(lockfile: &'a Lockfile, sections: &'a NextSections) -> Self {
+    pub(super) fn new(
+        lockfile: &'a Lockfile,
+        sections: &'a NextSections,
+        packages: &'a HashMap<PackageKey, NextPackage>,
+    ) -> Self {
         NextDocument {
             lockfile_version: &lockfile.lockfile_version,
             settings: &lockfile.settings,
@@ -60,8 +62,7 @@ impl<'a> NextDocument<'a> {
             ignored_optional_dependencies: &lockfile.ignored_optional_dependencies,
             patched_dependencies: &lockfile.patched_dependencies,
             importers: &sections.importers,
-            packages: &lockfile.packages,
-            snapshots: &sections.snapshots,
+            packages,
             time: &lockfile.time,
             extra: &lockfile.extra,
         }
@@ -90,20 +91,4 @@ where
     Ser: Serializer,
 {
     crate::serialize_yaml::sorted_map(map, serializer)
-}
-
-#[expect(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "serde passes a reference to the field, which is itself a reference"
-)]
-fn sorted_map_opt<Key, Value, Ser>(
-    map: &&Option<HashMap<Key, Value>>,
-    serializer: Ser,
-) -> Result<Ser::Ok, Ser::Error>
-where
-    Key: Serialize + std::fmt::Display,
-    Value: Serialize + Sync,
-    Ser: Serializer,
-{
-    crate::serialize_yaml::sorted_map_opt(map, serializer)
 }

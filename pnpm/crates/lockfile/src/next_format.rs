@@ -12,8 +12,8 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
+pub use package::NextPackage;
 pub use read::restore_sections;
-pub use variants::NextVariants;
 
 pub(crate) use parse::{Shape, declares_next_format};
 
@@ -27,10 +27,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 mod document;
+mod package;
 mod parse;
 mod read;
 mod tarjan;
-mod variants;
 mod write;
 
 /// The `lockfileVersion` major of the next format.
@@ -63,7 +63,7 @@ impl LockfileFormat {
 
 /// The next format's `snapshots`: every peer variant of a package, under the
 /// package's key.
-pub type NextSnapshots = HashMap<PackageKey, NextVariants>;
+pub type NextSnapshots = HashMap<PackageKey, Vec<NextSnapshotEntry>>;
 
 /// One peer variant of a package.
 ///
@@ -92,6 +92,7 @@ pub struct NextSnapshotEntry {
     /// The package's own peers that are bound, linked next to it.
     #[serde(
         default,
+        rename = "peers",
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
@@ -100,13 +101,14 @@ pub struct NextSnapshotEntry {
     /// The peers bound below this package from outside it.
     #[serde(
         default,
+        rename = "transitivePeers",
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub transitive_peer_dependencies: Option<HashMap<PkgName, SnapshotDepRef>>,
 
     /// The peers needed below this package that nothing provides.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "missingPeers", skip_serializing_if = "Option::is_none")]
     pub missing_peer_dependencies: Option<Vec<String>>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -140,8 +142,47 @@ impl NextSnapshotEntry {
     }
 }
 
-/// A lockfile in the next format, as read from the file.
-pub type NextLockfile = crate::LockfileDocument<ProjectSnapshot, NextVariants>;
+/// A lockfile in the next format, as read from the file. It has no
+/// `snapshots`: each `packages` entry carries its resolved graph.
+pub type NextLockfile =
+    crate::LockfileDocument<ProjectSnapshot, serde::de::IgnoredAny, NextPackage>;
+
+/// The next format's `packages`, built from the peer-suffixed `packages` and
+/// the converted `snapshots`. A `packages` entry no snapshot uses is not
+/// written: nothing can reach it, and an entry with metadata only would read
+/// back as a package with an empty snapshot.
+#[must_use]
+pub fn merge_packages(
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    snapshots: Option<&NextSnapshots>,
+) -> HashMap<PackageKey, NextPackage> {
+    snapshots
+        .into_iter()
+        .flatten()
+        .map(|(key, variants)| {
+            let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
+            (key.clone(), NextPackage::hoisted(metadata, variants.clone()))
+        })
+        .collect()
+}
+
+/// The peer-suffixed `packages` and the next format's `snapshots` an entry
+/// map holds.
+#[must_use]
+pub fn split_packages(
+    merged: HashMap<PackageKey, NextPackage>,
+) -> (Option<HashMap<PackageKey, PackageMetadata>>, Option<NextSnapshots>) {
+    let mut packages = HashMap::with_capacity(merged.len());
+    let mut snapshots = HashMap::with_capacity(merged.len());
+    for (key, package) in merged {
+        let (metadata, variants) = package.split();
+        if let Some(metadata) = metadata {
+            packages.insert(key.without_peer(), metadata);
+        }
+        snapshots.insert(key, variants);
+    }
+    (Some(packages), Some(snapshots))
+}
 
 /// The two sections that differ between the formats.
 #[derive(Debug, Clone, PartialEq)]
@@ -186,10 +227,14 @@ impl Lockfile {
     /// The lockfile a next-format document describes, with peer-suffixed keys.
     #[must_use]
     pub fn from_next(next: NextLockfile) -> Lockfile {
-        let sections = NextSections { importers: next.importers, snapshots: next.snapshots };
+        let (packages, snapshots) = match next.packages {
+            Some(merged) => split_packages(merged),
+            None => (None, None),
+        };
+        let sections = NextSections { importers: next.importers, snapshots };
         let restored = restore_sections(
             &sections,
-            RestoreContext { packages: next.packages.as_ref(), settings: next.settings.as_ref() },
+            RestoreContext { packages: packages.as_ref(), settings: next.settings.as_ref() },
         );
         Lockfile {
             lockfile_version: next.lockfile_version,
@@ -201,7 +246,7 @@ impl Lockfile {
             ignored_optional_dependencies: next.ignored_optional_dependencies,
             patched_dependencies: next.patched_dependencies,
             importers: restored.importers,
-            packages: next.packages,
+            packages,
             snapshots: restored.snapshots,
             time: next.time,
             extra: next.extra,
@@ -225,7 +270,8 @@ impl Lockfile {
     /// Render this lockfile as a next-format document.
     pub(crate) fn to_next_yaml_string(&self) -> Result<String, crate::SaveLockfileError> {
         let sections = self.to_next_sections().map_err(crate::SaveLockfileError::NextFormat)?;
-        crate::serialize_yaml::to_string(&document::NextDocument::new(self, &sections))
+        let packages = merge_packages(self.packages.as_ref(), sections.snapshots.as_ref());
+        crate::serialize_yaml::to_string(&document::NextDocument::new(self, &sections, &packages))
             .map_err(crate::SaveLockfileError::SerializeYaml)
     }
 }

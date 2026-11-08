@@ -169,8 +169,8 @@ pub type Lockfile = LockfileDocument;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(bound(
-    serialize = "Importer: Serialize + Sync, Snapshot: Serialize + Sync",
-    deserialize = "Importer: Deserialize<'de>, Snapshot: Deserialize<'de>",
+    serialize = "Importer: Serialize + Sync, Snapshot: Serialize + Sync, Package: Serialize + Sync",
+    deserialize = "Importer: Deserialize<'de>, Snapshot: Deserialize<'de>, Package: Deserialize<'de>",
 ))]
 #[cfg_attr(
     dylint_lib = "perfectionist",
@@ -179,7 +179,11 @@ pub type Lockfile = LockfileDocument;
         reason = "The fields mirror the pnpm-lock.yaml format."
     )
 )]
-pub struct LockfileDocument<Importer = ProjectSnapshot, Snapshot = SnapshotEntry> {
+pub struct LockfileDocument<
+    Importer = ProjectSnapshot,
+    Snapshot = SnapshotEntry,
+    Package = PackageMetadata,
+> {
     pub lockfile_version: LockfileVersion<9>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -253,7 +257,7 @@ pub struct LockfileDocument<Importer = ProjectSnapshot, Snapshot = SnapshotEntry
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub packages: Option<HashMap<PackageKey, PackageMetadata>>,
+    pub packages: Option<HashMap<PackageKey, Package>>,
 
     #[serde(
         skip_serializing_if = "Option::is_none",

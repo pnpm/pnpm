@@ -130,7 +130,7 @@ impl<'a> Graph<'a> {
         let mut variants = HashMap::with_capacity(snapshots.len());
         for (key, list) in snapshots {
             variants.insert(key, (keys.len(), list.len()));
-            for entry in list.iter() {
+            for entry in list {
                 keys.push(key);
                 entries.push(entry);
             }
