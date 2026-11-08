@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Deleting an OCI manifest by digest now invalidates saved batch publish outcomes that included it, while tag-only deletions leave batch replay intact and deleted OCI manifests can still be republished.
+Deleting an OCI manifest by digest now invalidates the saved batch publish outcomes that include it. Deleting an OCI tag leaves batch replay intact. A deleted OCI manifest can be published again.

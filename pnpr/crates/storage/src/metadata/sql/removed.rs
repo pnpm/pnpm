@@ -10,7 +10,7 @@ use crate::{BlobId, PackageTombstone, metadata::PackageMetadata};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::borrow::Cow;
 
 /// The tables holding a package's rows other than its history, each before
 /// the tables its rows reference.
@@ -108,23 +108,37 @@ pub(super) fn record_removed_package(
 }
 
 #[derive(serde::Deserialize)]
-struct StoredImageManifests {
-    #[serde(default)]
-    manifests: Vec<StoredManifestDigest>,
+struct StoredImageManifests<'bytes> {
+    #[serde(default, borrow)]
+    manifests: Vec<StoredManifestDigest<'bytes>>,
 }
 
 #[derive(serde::Deserialize)]
-struct StoredManifestDigest {
-    digest: String,
+struct StoredManifestDigest<'bytes> {
+    #[serde(borrow)]
+    digest: Cow<'bytes, str>,
 }
 
-fn oci_manifest_artifacts(bytes: &[u8]) -> Result<BTreeSet<String>> {
-    if bytes.is_empty() {
-        return Ok(BTreeSet::new());
+fn removed_oci_artifacts(previous: &[u8], incoming: &[u8]) -> Result<Vec<String>> {
+    if previous.is_empty() {
+        return Ok(Vec::new());
     }
-    let document: StoredImageManifests = serde_json::from_slice(bytes)?;
-    Ok(document.manifests
+    let before: StoredImageManifests<'_> = serde_json::from_slice(previous)?;
+    if before.manifests.is_empty() {
+        return Ok(Vec::new());
+    }
+    let after = if incoming.is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_slice::<StoredImageManifests<'_>>(incoming)?.manifests
+    };
+    Ok(before.manifests
         .into_iter()
+        .filter(|entry| {
+            !after
+                .iter()
+                .any(|kept| kept.digest == entry.digest)
+        })
         .map(|entry| entry.digest.replacen(':', "-", 1))
         .collect())
 }
@@ -139,20 +153,22 @@ pub(super) fn record_oci_manifests(
     if key.ecosystem != Ecosystem::Oci {
         return Ok(());
     }
-    let before = oci_manifest_artifacts(previous)?;
-    let after = oci_manifest_artifacts(incoming)?;
-    let (catalog, ecosystem, name) = key.params();
-    for artifact in before.difference(&after) {
-        connection.execute(
-            "INSERT INTO removed_versions
-               (catalog, ecosystem, name, version, revision_key, generation)
-             VALUES (?1, ?2, ?3, '', ?4, ?5)
-             ON CONFLICT (catalog, ecosystem, name, version, revision_key) DO UPDATE SET
-               generation = excluded.generation",
-            params![catalog, ecosystem, name, artifact, to_column(generation)],
-        )?;
+    let removed = removed_oci_artifacts(previous, incoming)?;
+    if removed.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    let (catalog, ecosystem, name) = key.params();
+    let removed = super::blobs::json_array(&removed);
+    connection.execute(
+        "INSERT INTO removed_versions
+           (catalog, ecosystem, name, version, revision_key, generation)
+         SELECT ?1, ?2, ?3, '', value, ?5
+         FROM (SELECT value FROM json_each(?4)) AS removed
+         WHERE value != ''
+         ON CONFLICT (catalog, ecosystem, name, version, revision_key) DO UPDATE SET
+           generation = excluded.generation",
+        params![catalog, ecosystem, name, removed, to_column(generation)],
+    )
 }
 
 fn maintainer_ids(state: &Value) -> Vec<String> {

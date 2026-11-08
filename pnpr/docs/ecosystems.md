@@ -265,7 +265,10 @@ read sees the whole release or none of it:
 - Every entry must belong to the same org. A batch that spans orgs is refused.
 - A retry gets the original response back while none of its published npm versions
   have been unpublished and none of its published OCI manifests have been deleted
-  by digest. Retrying cannot restore an unpublished version. A client sends an
+  by digest. Retrying cannot restore an unpublished npm version. After deletion
+  by digest, a retry is evaluated again. An unnamed batch can republish the OCI
+  manifest, but a named batch can return `409` because its publication name is
+  taken. A client sends an
   `Idempotency-Key` header, or the digest of the whole request serves as the
   key. Reusing a key for a different request answers `409`. pnpr keeps the
   outcome for 7 days. A retry needs current publish permission like any

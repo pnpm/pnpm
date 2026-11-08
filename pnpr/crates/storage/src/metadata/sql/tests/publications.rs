@@ -293,11 +293,19 @@ async fn a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republi
     let key = CanonicalPackageName::parse("acme/app", Ecosystem::Oci).unwrap();
     let digest = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
     let artifact = "sha256-1111111111111111111111111111111111111111111111111111111111111111";
+    let kept_digest = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+    let kept_artifact = "sha256-2222222222222222222222222222222222222222222222222222222222222222";
     let member = ArtifactMember {
         ecosystem: Ecosystem::Oci,
         name: "acme/app".to_string(),
         version: String::new(),
         artifact: artifact.to_string(),
+    };
+    let kept_member = ArtifactMember {
+        ecosystem: Ecosystem::Oci,
+        name: "acme/app".to_string(),
+        version: String::new(),
+        artifact: kept_artifact.to_string(),
     };
     let doc = |digests: &[&str], tags: &[(&str, &str)], expected| BatchDocument {
         ecosystem: Ecosystem::Oci,
@@ -318,12 +326,34 @@ async fn a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republi
         .await
         .unwrap();
     assert_eq!((first.generation.value, first.publication), (1, Some(1)));
+    let kept = database
+        .commit_publication(
+            "acme",
+            vec![doc(
+                &[digest, kept_digest],
+                &[("1.0", digest), ("kept", kept_digest)],
+                Some(crate::HostedDocumentVersion::Unversioned),
+            )],
+            vec![kept_member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-kept", Some("oci-kept-v1"))),
+        )
+        .await
+        .unwrap();
+    assert_eq!((kept.generation.value, kept.publication), (2, Some(2)));
 
-    // Deleting only a tag leaves the manifest in the document, so the batch
+    // Deleting only a tag leaves both manifests in the document, so the batch
     // outcome stays replayable.
     oci_org
         .update_hosted_document_with_retry(&key, 1, None, |_| {
-            Ok(Some(serde_json::to_vec(&oci_document("acme/app", &[digest], &[])).unwrap()))
+            Ok(Some(
+                serde_json::to_vec(&oci_document(
+                    "acme/app",
+                    &[digest, kept_digest],
+                    &[("kept", kept_digest)],
+                ))
+                .unwrap(),
+            ))
         })
         .await
         .unwrap();
@@ -340,9 +370,19 @@ async fn a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republi
     assert!(replayed.replayed);
     assert_eq!((replayed.generation.value, replayed.publication), (1, Some(1)));
 
-    // Deleting the manifest from the document invalidates the recorded outcome.
+    // Deleting one manifest from the document invalidates only its recorded
+    // outcome, while another manifest in the same repository stays replayable.
     oci_org
-        .update_hosted_document_with_retry(&key, 1, None, |_| Ok(Some(Vec::new())))
+        .update_hosted_document_with_retry(&key, 1, None, |_| {
+            Ok(Some(
+                serde_json::to_vec(&oci_document(
+                    "acme/app",
+                    &[kept_digest],
+                    &[("kept", kept_digest)],
+                ))
+                .unwrap(),
+            ))
+        })
         .await
         .unwrap();
     assert!(
@@ -352,6 +392,18 @@ async fn a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republi
             .unwrap()
             .is_none(),
     );
+    let kept_replayed = database
+        .commit_publication(
+            "acme",
+            vec![doc(&[digest, kept_digest], &[("1.0", digest), ("kept", kept_digest)], None)],
+            vec![kept_member.clone()],
+            PublishNotes::default(),
+            Some(request("oci-kept", Some("oci-kept-v1"))),
+        )
+        .await
+        .unwrap();
+    assert!(kept_replayed.replayed);
+    assert_eq!((kept_replayed.generation.value, kept_replayed.publication), (2, Some(2)));
     let mut reused = request("different", None);
     reused.idempotency_key = "request:oci-one".to_string();
     let err = commit(database, Vec::new(), reused).await.unwrap_err();
@@ -363,7 +415,11 @@ async fn a_deleted_oci_manifest_invalidates_the_outcome_without_blocking_republi
     let second = database
         .commit_publication(
             "acme",
-            vec![doc(&[digest], &[("2.0", digest)], None)],
+            vec![doc(
+                &[kept_digest, digest],
+                &[("kept", kept_digest), ("2.0", digest)],
+                Some(crate::HostedDocumentVersion::Unversioned),
+            )],
             vec![member.clone()],
             PublishNotes::default(),
             Some(request("oci-two", Some("oci-v2"))),

@@ -93,7 +93,7 @@ impl Dialect {
         if matches!(self, Self::Mysql) {
             sql = sql.replace(
                 "SELECT value FROM json_each(",
-                "SELECT JSON_UNQUOTE(value) FROM json_each(",
+                "SELECT JSON_UNQUOTE(value) AS value FROM json_each(",
             );
         }
         sql = self.json_arrays(&sql);
