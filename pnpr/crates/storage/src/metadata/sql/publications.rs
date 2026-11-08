@@ -25,8 +25,8 @@ fn retention_cutoff() -> i64 {
     now_millis() - i64::try_from(OUTCOME_RETENTION.as_millis()).unwrap_or(i64::MAX)
 }
 
-/// The retained outcome of an identical request whose npm versions have not
-/// been unpublished.
+/// The retained outcome of an identical request whose published members have
+/// not been removed since it committed.
 pub(super) fn recorded_outcome(
     connection: &dyn Connection,
     catalog: &str,
@@ -60,6 +60,8 @@ pub(super) fn claim_query<'query>(
                                  AND removed.ecosystem = member.ecosystem
                                  AND removed.name = member.name
                                  AND removed.version = member.version
+                                 AND (member.ecosystem != 'oci'
+                                      OR removed.revision_key = member.artifact)
                                  AND removed.generation > outcome.generation
                            )
                      )

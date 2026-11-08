@@ -6,7 +6,8 @@
 //! The request's outcome commits with it. A retry of the same request by the
 //! same principal gets that outcome back instead of a conflict, whether or not
 //! the client sent an idempotency key: without one, the digest of the whole
-//! request is the key. Unpublishing an npm version invalidates its outcome.
+//! request is the key. Unpublishing an npm version or deleting an OCI manifest
+//! by digest invalidates its outcome.
 //! A retry is authorized against current permissions
 //! like any publish before its outcome is looked up.
 

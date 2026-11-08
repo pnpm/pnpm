@@ -1,7 +1,7 @@
 //! The [`PackageMetadata`] of one `(catalog, ecosystem)` namespace.
 
 use super::{
-    Expected, PackageKey, SqlMetadata, blobs::LookupRead, commit, render, tags,
+    Expected, PackageKey, SqlMetadata, blobs::LookupRead, commit, removed, render, tags,
     transactions::Freshness,
 };
 use crate::{
@@ -197,7 +197,7 @@ impl PackageMetadata {
         let key = self.key(name);
         let principal = principal.map(str::to_string);
         self.database.write(move |connection| {
-            commit::remove_package(connection, &key, principal.as_deref())
+            removed::remove_package(connection, &key, principal.as_deref())
         })
         .await
     }
