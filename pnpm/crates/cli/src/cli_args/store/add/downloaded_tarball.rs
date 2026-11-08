@@ -2,12 +2,16 @@
 //! sandboxed build downloaded before it lost network access.
 
 use super::{AddOne, ArchiveToAdd, Reporter};
+use miette::{IntoDiagnostic, WrapErr};
 use pnpm_local_spec::{is_filespec, is_tarball_filename};
 use pnpm_resolving_local_resolver::local_spec_path;
 use pnpm_store_dir::store_index_key;
 use pnpm_tarball::local_file_tarball_path;
 use rustc_hash::FxHashSet;
-use std::path::{Path, PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 /// The `resolved_via` of a `file:` tarball the local resolver resolved.
 const LOCAL_FILESYSTEM: &str = "local-filesystem";
@@ -33,33 +37,37 @@ pub(super) fn tarball_on_disk(
 /// disk into `file:` specifiers for the tarballs it holds. A directory with a
 /// root `package.json` or with no tarballs is left as-is so the resolver
 /// reports it as an unsupported local package specification.
-pub(super) fn expand_tarball_directories(dir: &Path, packages: &[String]) -> Vec<String> {
+pub(super) fn expand_tarball_directories(
+    dir: &Path,
+    packages: &[String],
+) -> miette::Result<Vec<String>> {
     let mut expanded = Vec::with_capacity(packages.len());
     for package in packages {
-        match tarballs_in_directory(dir, package) {
+        match tarballs_in_directory(dir, package)? {
             Some(tarballs) => expanded.extend(tarballs),
             None => expanded.push(package.clone()),
         }
     }
-    expanded
+    Ok(expanded)
 }
 
-fn tarballs_in_directory(dir: &Path, package: &str) -> Option<Vec<String>> {
-    let root = tarball_directory_path(dir, package)?;
-    let tarballs = collect_tarballs_in_dir(&root);
-    (!tarballs.is_empty()).then(|| {
+fn tarballs_in_directory(dir: &Path, package: &str) -> miette::Result<Option<Vec<String>>> {
+    let Some(root) = tarball_directory_path(dir, package) else {
+        return Ok(None);
+    };
+    let tarballs = collect_tarballs_in_dir(&root)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read tarball directory {}", root.display()))?;
+    Ok((!tarballs.is_empty()).then(|| {
         tarballs
             .into_iter()
             .map(|path| format!("file:{}", path.display()))
             .collect()
-    })
+    }))
 }
 
 fn tarball_directory_path(dir: &Path, package: &str) -> Option<PathBuf> {
-    if is_tarball_filename(package) {
-        return None;
-    }
-    if package.starts_with("file:") || is_filespec(package) || !package.contains([':', '@', '#']) {
+    if package.starts_with("file:") || is_filespec(package) {
         let path = local_spec_path(package, dir);
         return is_tarball_directory(&path).then_some(path);
     }
@@ -70,39 +78,44 @@ fn is_tarball_directory(path: &Path) -> bool {
     path.is_dir() && !path.join("package.json").exists()
 }
 
-fn collect_tarballs_in_dir(root: &Path) -> Vec<PathBuf> {
+fn collect_tarballs_in_dir(root: &Path) -> io::Result<Vec<PathBuf>> {
+    let canonical_root = dunce::canonicalize(root)?;
     let mut tarballs = Vec::new();
     let mut visited_dirs = FxHashSet::default();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        if let Ok(canonical) = dunce::canonicalize(&dir)
-            && !visited_dirs.insert(canonical)
-        {
+        let canonical = dunce::canonicalize(&dir)?;
+        if !canonical.starts_with(&canonical_root) || !visited_dirs.insert(canonical) {
             continue;
         }
-        visit_tarball_dir(&dir, &mut stack, &mut tarballs);
+        visit_tarball_dir(&dir, &canonical_root, &mut stack, &mut tarballs)?;
     }
-    tarballs
+    Ok(tarballs)
 }
 
-fn visit_tarball_dir(dir: &Path, stack: &mut Vec<PathBuf>, tarballs: &mut Vec<PathBuf>) {
-    let Ok(read_dir) = std::fs::read_dir(dir) else {
-        return;
-    };
-    let mut entries: Vec<PathBuf> = read_dir
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .collect();
+fn visit_tarball_dir(
+    dir: &Path,
+    canonical_root: &Path,
+    stack: &mut Vec<PathBuf>,
+    tarballs: &mut Vec<PathBuf>,
+) -> io::Result<()> {
+    let mut entries = std::fs::read_dir(dir)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<io::Result<Vec<PathBuf>>>()?;
     entries.sort();
     let mut subdirs = Vec::new();
     for path in entries {
         if path.is_dir() {
             subdirs.push(path);
-        } else if path.is_file() && is_tarball_path(&path) {
+        } else if path.is_file()
+            && is_tarball_path(&path)
+            && dunce::canonicalize(&path)?.starts_with(canonical_root)
+        {
             tarballs.push(path);
         }
     }
     stack.extend(subdirs.into_iter().rev());
+    Ok(())
 }
 
 fn is_tarball_path(path: &Path) -> bool {

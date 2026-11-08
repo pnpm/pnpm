@@ -333,6 +333,14 @@ async fn resolve_local_tarball(
 ) -> Result<LocalResolveResult, ResolveLocalError> {
     match ctx.tarball_resolution {
         LocalTarballResolution::DeferToFetcher => {
+            if matches!(
+                std::fs::metadata(&spec.fetch_spec),
+                Err(ref err) if pnpm_fs::is_not_found(err),
+            ) {
+                return Err(ResolveLocalError::LinkedPkgDirNotFound {
+                    path: spec.fetch_spec.display().to_string(),
+                });
+            }
             return Ok(tarball_resolve_result(spec, None));
         }
         LocalTarballResolution::ReadMetadata => {}
