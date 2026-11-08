@@ -129,6 +129,33 @@ async fn payload_tables_have_rowids(db: Db) {
     .unwrap();
 }
 
+async fn unused_metadata_objects_are_absent(db: Db) {
+    open(&db).await.unwrap();
+    assert!(!tables(&db).await.contains(&"note_history".to_string()));
+    let index_names = db.sql(
+        "SELECT name FROM sqlite_master WHERE type = 'index'",
+        "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()",
+        "SELECT DISTINCT index_name FROM information_schema.statistics WHERE table_schema = DATABASE()",
+    );
+    let adapter = db.instance_adapter();
+    tokio::task::spawn_blocking(move || {
+        adapter.read(ReadSource::Primary, &mut |connection| {
+            let rows = connection.query(index_names, params![])?;
+            let names = rows
+                .into_iter()
+                .map(|mut row| row.get::<String>(0))
+                .collect::<Result<Vec<_>>>()?;
+            for removed in ["publication_outcomes_by_key", "versions_by_accepted_generation"] {
+                assert!(!names.contains(&removed.to_string()), "{removed}: {names:?}");
+            }
+            Ok(())
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap();
+}
+
 async fn a_matching_version_opens(db: Db) {
     open(&db).await.unwrap();
     let created = tables(&db).await;
@@ -173,12 +200,12 @@ async fn an_integer_schema_version_is_refused(db: Db) {
 async fn a_matching_marker_without_its_tables_is_refused(db: Db) {
     open(&db).await.unwrap();
     // A wipe that drops the tables but leaves the marker.
-    execute(&db, &["DROP TABLE catalogs", "DROP TABLE note_history"]).await;
+    execute(&db, &["DROP TABLE catalogs", "DROP TABLE notes"]).await;
     let reason = refused(&db).await;
     assert!(
         reason.contains(&format!(
             "holds schema version {SCHEMA_VERSION} without the metadata tables catalogs, \
-             note_history,"
+             notes,"
         )),
         "{reason}",
     );
@@ -193,6 +220,7 @@ async fn metadata_tables_without_a_marker_are_refused(db: Db) {
 
 conformance! {
     an_empty_database_initializes,
+    unused_metadata_objects_are_absent,
     a_matching_marker_without_its_tables_is_refused,
     a_matching_version_opens,
     another_version_is_refused,
@@ -205,7 +233,8 @@ fn every_metadata_table_is_known() {
     let tables = schema::table_names(TABLES);
     assert_eq!(tables.len(), TABLES.matches("CREATE TABLE").count(), "{tables:?}");
     assert!(tables.contains(&"catalogs".to_string()));
-    assert!(tables.contains(&"note_history".to_string()));
+    assert!(tables.contains(&"notes".to_string()));
+    assert!(!tables.contains(&"note_history".to_string()));
     assert!(!tables.contains(&MARKER.to_string()));
     assert_eq!(schema::table_names(schema::MARKER_TABLE), [MARKER]);
     let upper = TABLES.to_ascii_uppercase();

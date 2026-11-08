@@ -133,6 +133,9 @@ Metadata timestamps use milliseconds since the Unix epoch and the server's
 application clock. Package publication times must use RFC 3339. Responses
 render them in UTC with millisecond precision.
 
+Release notes retain their current text and publish-time digest. Edits and
+deletions do not retain earlier text for restoration.
+
 ### Schema changes {#metadata-schema-changes}
 
 pnpr creates its tables in an empty database and marks the database with

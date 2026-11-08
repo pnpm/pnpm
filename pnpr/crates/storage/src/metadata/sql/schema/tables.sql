@@ -170,9 +170,6 @@ CREATE TABLE IF NOT EXISTS publications (
     committed_at INTEGER NOT NULL,
     PRIMARY KEY (catalog, id)
 ) STRICT;
--- The versions a commit accepted, which are its publication's members.
-CREATE INDEX IF NOT EXISTS versions_by_accepted_generation
-    ON versions (catalog, accepted_generation);
 CREATE UNIQUE INDEX IF NOT EXISTS publications_by_name
     ON publications (catalog, name) WHERE name IS NOT NULL;
 
@@ -202,8 +199,6 @@ CREATE TABLE IF NOT EXISTS publication_outcomes (
     committed_at INTEGER NOT NULL,
     PRIMARY KEY (catalog, principal, idempotency_key)
 ) STRICT, WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS publication_outcomes_by_key
-    ON publication_outcomes (principal, idempotency_key);
 CREATE INDEX IF NOT EXISTS publication_outcomes_by_committed_at
     ON publication_outcomes (committed_at);
 
@@ -223,20 +218,6 @@ CREATE TABLE IF NOT EXISTS notes (
     initial_digest TEXT,
     PRIMARY KEY (catalog, kind, ecosystem, name, subject)
 ) STRICT, WITHOUT ROWID;
-
--- Insert-only: every change of a note, with the text it replaced, so an
--- accidental or unauthorized edit can be restored.
-CREATE TABLE IF NOT EXISTS note_history (
-    catalog TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    ecosystem TEXT NOT NULL,
-    name TEXT NOT NULL,
-    subject TEXT NOT NULL,
-    changed_at INTEGER NOT NULL,
-    principal TEXT,
-    previous TEXT,
-    next TEXT
-) STRICT;
 
 -- The bytes the hosted store holds, by identity (`<algorithm>-<hex>`), and
 -- the incarnation stored under `<integrity>.<incarnation>` now, `live`,
