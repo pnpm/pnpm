@@ -2,15 +2,10 @@ use super::{DirCloneCache, retires_dir_clone};
 use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_fs::LinkFailure;
 
-/// A volume that cannot clone retires the cache; a failure of one
-/// package or one call does not.
 #[test]
 fn a_failed_clone_retires_the_cache_only_when_the_volume_is_at_fault() {
     for failure in LinkFailure::ALL {
-        let retires = matches!(
-            failure,
-            LinkFailure::CrossDevice | LinkFailure::Denied | LinkFailure::Unsupported,
-        );
+        let retires = matches!(failure, LinkFailure::CrossDevice | LinkFailure::Unsupported);
         assert_eq!(retires_dir_clone(&failure.sample_error()), retires, "{failure:?}");
     }
 }
