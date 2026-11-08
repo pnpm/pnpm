@@ -247,10 +247,17 @@ fn completion_server_completes_file_option_values() {
         assert_eq!(stdout(output), "configs/\ngamma.txt\n", "{words:?}");
     }
 
+    std::fs::write(workspace.path().join("configs/nested.txt"), "").unwrap();
+
     for (words, expected) in [
         (vec!["pnpm", "--env-file", "."], ".env\n"),
         (vec!["pnpm", "--env-file=."], "--env-file=.env\n"),
         (vec!["pnpm", "--env-file=ga"], "--env-file=gamma.txt\n"),
+        (vec!["pnpm", "-C", "configs", "--env-file", ""], "configs/\ngamma.txt\n"),
+        (vec!["pnpm", "-C", "configs", "--npmrc-auth-file", ""], "configs/\ngamma.txt\n"),
+        (vec!["pnpm", "-C", "configs", "--userconfig", ""], "configs/\ngamma.txt\n"),
+        (vec!["pnpm", "-C", "configs", "sbom", "--out", ""], "configs/\ngamma.txt\n"),
+        (vec!["pnpm", "-C", "configs", "pack", "--out", ""], "nested.txt\n"),
     ] {
         let output = pacquet()
             .current_dir(workspace.path())
@@ -259,6 +266,28 @@ fn completion_server_completes_file_option_values() {
             .output()
             .unwrap();
         assert_eq!(stdout(output), expected, "{words:?}");
+    }
+}
+
+#[test]
+fn completion_server_completes_workspace_anchored_path_options_from_workspace_root() {
+    let workspace = TempDir::new().unwrap();
+    std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .unwrap();
+    std::fs::create_dir_all(workspace.path().join("packages/foo/local-dir")).unwrap();
+    std::fs::create_dir(workspace.path().join("root-patches")).unwrap();
+
+    for words in [
+        vec!["pnpm", "-C", "packages/foo", "--store-dir", ""],
+        vec!["pnpm", "-C", "packages/foo", "patch-commit", "dir", "--patches-dir", ""],
+    ] {
+        let output = pacquet()
+            .current_dir(workspace.path())
+            .args(["completion-server", "--"])
+            .args(&words)
+            .output()
+            .unwrap();
+        assert_eq!(stdout(output), "packages/\nroot-patches/\n", "{words:?}");
     }
 }
 
