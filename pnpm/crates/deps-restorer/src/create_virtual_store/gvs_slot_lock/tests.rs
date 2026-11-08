@@ -183,7 +183,7 @@ fn nested_install_slot_paths_preserve_non_utf8_bytes() {
 fn nested_install_slot_paths_preserve_unpaired_surrogates() {
     use std::os::windows::ffi::OsStringExt;
 
-    let wide = "C:\\store\\é"
+    let wide = r"C:\store\é"
         .encode_utf16()
         .chain([0xD800])
         .collect::<Vec<_>>();
