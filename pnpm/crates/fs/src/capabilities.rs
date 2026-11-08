@@ -2,7 +2,7 @@
 //! [`Host`] provider, following the convention in
 //! `pnpm/CODE_STYLE_GUIDE.md`.
 
-use crate::{CopyPermissions, copy_file_exclusive, remove_dirent};
+use crate::remove_dirent;
 use std::{fs, io, path::Path};
 
 /// Move a filesystem entry from `src` to `dst`, as [`fs::rename`].
@@ -42,13 +42,16 @@ pub trait FsHardLink {
     fn hard_link(source: &Path, target: &Path) -> io::Result<()>;
 }
 
-/// Copy `source` to `target`, a path nothing may occupy yet, with
-/// `permissions`, as [`fn@crate::copy_file_exclusive`].
+/// Copy the contents of an open `source` into an open `target`, as
+/// [`io::copy`].
 ///
 /// The seam exists so tests can fail the copy tier, which every import
-/// ladder ends at and which a temp dir on a healthy disk never fails.
-pub trait FsCopyFile {
-    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()>;
+/// ladder ends at and which a temp dir on a healthy disk never fails. It
+/// sits below [`fn@crate::copy_file_exclusive_with`], so a failure
+/// injected here still runs through the exclusive creation of the target
+/// and the removal of the partial file.
+pub trait FsCopyContents {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64>;
 }
 
 pub struct Host;
@@ -65,9 +68,9 @@ impl FsHardLink for Host {
     }
 }
 
-impl FsCopyFile for Host {
-    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
-        copy_file_exclusive(source, target, permissions, |_| Ok(()))
+impl FsCopyContents for Host {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
+        io::copy(source, target)
     }
 }
 

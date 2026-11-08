@@ -4,7 +4,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::{
-    FsCopyFile, FsReflink, Host, LinkFailure, LinkFallback, LinkFallbackPolicy, StoreFile,
+    FsCopyContents, FsReflink, Host, LinkFailure, LinkFallback, LinkFallbackPolicy, StoreFile,
 };
 use pnpm_reporter::{
     LogEvent, LogLevel, PackageImportMethod as WireImportMethod, PackageImportMethodLog, Reporter,
@@ -350,7 +350,7 @@ impl ImportState {
     /// `CloneOrCopy` follow [`LinkFallbackPolicy::NextMethod`], `Hardlink`
     /// follows [`LinkFallbackPolicy::CopyOneFile`], and `Clone` surfaces
     /// every error.
-    pub fn import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink + FsCopyFile>(
+    pub fn import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink + FsCopyContents>(
         &self,
         method: PackageImportMethod,
         logged: &AtomicU8,
@@ -397,7 +397,7 @@ impl Default for ImportState {
 /// A mode that does not match the current umask cannot be fixed on the
 /// store inode every name shares, so the file is copied at the desired
 /// mode instead (pnpm/pnpm#3807).
-fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink + FsCopyFile>(
+fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink + FsCopyContents>(
     logged: &AtomicU8,
     source: &StoreFile,
     target_link: &Path,
@@ -421,7 +421,7 @@ fn hardlink_file<Reporter: self::Reporter, Sys: FsHardLink + FsCopyFile>(
     }
 }
 
-fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink + FsCopyFile>(
+fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink + FsCopyContents>(
     method: PackageImportMethod,
     logged: &AtomicU8,
     source_file: &StoreFile,
@@ -434,13 +434,18 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink + FsCopyFile
 /// Materialize `source_file` at `target_link` for the copy tier, at its
 /// [`desired_permissions`].
 ///
-/// [`FsCopyFile`] creates the target exclusively, so an occupied target
-/// raises `AlreadyExists` and reaches [`recover_from_concurrent_import`],
-/// where every tier sends one. A partial file it removes on failure would
-/// otherwise be adopted by a later import as a concurrent writer's
-/// finished work.
-fn copy_file<Sys: FsCopyFile>(source_file: &Path, target_link: &Path) -> io::Result<()> {
-    Sys::copy_file(source_file, target_link, &desired_permissions(source_file)?)
+/// [`pnpm_fs::copy_file_exclusive_with`] creates the target exclusively,
+/// so an occupied target raises `AlreadyExists` and reaches
+/// [`recover_from_concurrent_import`], where every tier sends one. A
+/// partial file it removes on failure would otherwise be adopted by a
+/// later import as a concurrent writer's finished work.
+fn copy_file<Sys: FsCopyContents>(source_file: &Path, target_link: &Path) -> io::Result<()> {
+    pnpm_fs::copy_file_exclusive_with::<Sys>(
+        source_file,
+        target_link,
+        &desired_permissions(source_file)?,
+        |_| Ok(()),
+    )
 }
 
 /// [`FsReflink::reflink`] for the explicit `Clone` method, then
@@ -465,7 +470,7 @@ fn same_inode(_source: &Path, _target: &Path) -> bool {
     false
 }
 
-fn copy_and_log<Reporter: self::Reporter, Sys: FsCopyFile>(
+fn copy_and_log<Reporter: self::Reporter, Sys: FsCopyContents>(
     logged: &AtomicU8,
     source: &Path,
     target: &Path,
@@ -483,7 +488,7 @@ fn copy_and_log<Reporter: self::Reporter, Sys: FsCopyFile>(
 /// isolation — the production path uses a `static` declared inside
 /// [`link_file`]. [`after_failed_link`] decides which failures downgrade
 /// the cached state.
-fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink + FsCopyFile>(
+fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink + FsCopyContents>(
     logged: &AtomicU8,
     state: &AtomicU8,
     source_file: &StoreFile,
@@ -513,7 +518,7 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink + FsCopyFile>
 /// [`LinkFallbackPolicy::NextMethod`]: `None` retires the tier for the
 /// caller to move on, `Some` is the method that materialized the file
 /// instead, and an error is the caller's to surface.
-fn after_failed_link<Reporter: self::Reporter, Sys: FsCopyFile>(
+fn after_failed_link<Reporter: self::Reporter, Sys: FsCopyContents>(
     error: io::Error,
     logged: &AtomicU8,
     source: &Path,
@@ -532,7 +537,7 @@ fn after_failed_link<Reporter: self::Reporter, Sys: FsCopyFile>(
 /// reflink created the target, so its error is terminal — downgrading
 /// on it would re-attempt the next tier against that just-created file
 /// and mask the real error behind `AlreadyExists`.
-fn clone_tier<Reporter: self::Reporter, Sys: FsReflink + FsCopyFile>(
+fn clone_tier<Reporter: self::Reporter, Sys: FsReflink + FsCopyContents>(
     logged: &AtomicU8,
     source: &StoreFile,
     target: &Path,
@@ -551,7 +556,7 @@ fn clone_tier<Reporter: self::Reporter, Sys: FsReflink + FsCopyFile>(
 /// [`after_failed_link`]. A source whose on-disk mode does not match the
 /// current umask's store-entry mode copies at the right mode, keeping the
 /// tier for the files whose mode does match (pnpm/pnpm#3807).
-fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink + FsCopyFile>(
+fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink + FsCopyContents>(
     logged: &AtomicU8,
     source_file: &StoreFile,
     target: &Path,
@@ -573,7 +578,7 @@ fn hardlink_tier<Reporter: self::Reporter, Sys: FsHardLink + FsCopyFile>(
 /// as [`auto_link`]. Differs from `Auto` by skipping the hardlink tier
 /// entirely — matches pnpm's `createCloneOrCopyImporter`, which on
 /// first reflink failure reassigns its closure directly to `copyPkg`.
-fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink + FsCopyFile>(
+fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink + FsCopyContents>(
     logged: &AtomicU8,
     state: &AtomicU8,
     source: &StoreFile,

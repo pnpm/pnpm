@@ -1,6 +1,6 @@
 use super::FileImport;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{CopyPermissions, FsCopyFile, FsReflink, Host};
+use pnpm_fs::{FsCopyContents, FsReflink, Host};
 use std::{fs, io, path::Path};
 
 #[cfg(unix)]
@@ -106,9 +106,9 @@ fn existing_reflink_targets_are_not_overwritten_by_copy_fallback() {
     assert_eq!(fs::read_to_string(&file.destination).unwrap(), "private");
 }
 
-impl FsCopyFile for Unsupported {
-    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
-        Host::copy_file(source, target, permissions)
+impl FsCopyContents for Unsupported {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
+        Host::copy_contents(source, target)
     }
 }
 
@@ -118,9 +118,9 @@ impl pnpm_deps_restorer::FsHardLink for Unsupported {
     }
 }
 
-impl FsCopyFile for Missing {
-    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
-        Host::copy_file(source, target, permissions)
+impl FsCopyContents for Missing {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
+        Host::copy_contents(source, target)
     }
 }
 
@@ -130,9 +130,9 @@ impl pnpm_deps_restorer::FsHardLink for Missing {
     }
 }
 
-impl FsCopyFile for Occupied {
-    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
-        Host::copy_file(source, target, permissions)
+impl FsCopyContents for Occupied {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
+        Host::copy_contents(source, target)
     }
 }
 
@@ -172,9 +172,9 @@ impl FsReflink for Unlinkable {
     }
 }
 
-impl FsCopyFile for Unlinkable {
-    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
-        Host::copy_file(source, target, permissions)
+impl FsCopyContents for Unlinkable {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
+        Host::copy_contents(source, target)
     }
 }
 
@@ -192,9 +192,9 @@ impl FsReflink for Linkable {
     }
 }
 
-impl FsCopyFile for Linkable {
-    fn copy_file(source: &Path, target: &Path, permissions: &CopyPermissions) -> io::Result<()> {
-        Host::copy_file(source, target, permissions)
+impl FsCopyContents for Linkable {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
+        Host::copy_contents(source, target)
     }
 }
 

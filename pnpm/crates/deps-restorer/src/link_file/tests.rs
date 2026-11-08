@@ -8,7 +8,7 @@ mod installation;
 
 mod fallback;
 
-use super::{FsCopyFile, FsHardLink, FsReflink, Host};
+use super::{FsCopyContents, FsHardLink, FsReflink, Host};
 use pnpm_fs::{LinkFailure, StoreFile};
 use std::{cell::Cell, fs, io, path::Path};
 
@@ -48,8 +48,8 @@ impl FsReflink for FreshClone {
 }
 
 #[cfg(unix)]
-impl FsCopyFile for FreshClone {
-    fn copy_file(_source: &Path, _target: &Path, _: &pnpm_fs::CopyPermissions) -> io::Result<()> {
+impl FsCopyContents for FreshClone {
+    fn copy_contents(_source: &mut fs::File, _target: &mut fs::File) -> io::Result<u64> {
         unreachable!("the clone tier materializes the file, so no copy tier follows it")
     }
 }
@@ -77,8 +77,8 @@ impl FsReflink for ModeDroppingClone {
 }
 
 #[cfg(unix)]
-impl FsCopyFile for ModeDroppingClone {
-    fn copy_file(_source: &Path, _target: &Path, _: &pnpm_fs::CopyPermissions) -> io::Result<()> {
+impl FsCopyContents for ModeDroppingClone {
+    fn copy_contents(_source: &mut fs::File, _target: &mut fs::File) -> io::Result<u64> {
         unreachable!("the clone tier materializes the file, so no copy tier follows it")
     }
 }
@@ -103,7 +103,8 @@ thread_local! {
 
 /// Import calls that fail as [`Faults`] says and otherwise succeed on any
 /// test filesystem: the hardlink is a real one, the reflink a byte copy
-/// that carries the source's mode as a real reflink does.
+/// that carries the source's mode as a real reflink does. A copy fails
+/// after the target was created, as a full disk fails one.
 struct Faulty;
 
 impl Faulty {
@@ -130,15 +131,11 @@ impl FsReflink for Faulty {
     }
 }
 
-impl FsCopyFile for Faulty {
-    fn copy_file(
-        source: &Path,
-        target: &Path,
-        permissions: &pnpm_fs::CopyPermissions,
-    ) -> io::Result<()> {
+impl FsCopyContents for Faulty {
+    fn copy_contents(source: &mut fs::File, target: &mut fs::File) -> io::Result<u64> {
         match FAULTS.with(Cell::get).copy {
             Some(kind) => Err(io::Error::from(kind)),
-            None => Host::copy_file(source, target, permissions),
+            None => Host::copy_contents(source, target),
         }
     }
 }

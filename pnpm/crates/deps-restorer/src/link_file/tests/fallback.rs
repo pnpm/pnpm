@@ -193,8 +193,6 @@ fn assert_copied(source: &Path, target: &Path, context: &str) {
     assert_ne!(super::inode(source), super::inode(target), "{context}: the copy has its own inode");
 }
 
-/// A failed link is answered as [`LinkFailure`] says for the method, and
-/// retires the tier only when the whole filesystem is at fault.
 #[test]
 fn every_failure_under_every_method() {
     let tmp = tempdir().unwrap();
@@ -273,9 +271,6 @@ impl Placed<'_> {
     }
 }
 
-/// With both link calls refusing the file, `auto` reaches the copy tier,
-/// and what the copy then finds wrong is the error the caller sees. A
-/// tier that only copied one file keeps its place.
 #[test]
 fn a_failed_copy_after_a_failed_link_surfaces_the_copy_error() {
     let tmp = tempdir().unwrap();
@@ -305,7 +300,7 @@ fn a_failed_copy_after_a_failed_link_surfaces_the_copy_error() {
             .expect_err(&context);
 
         assert_eq!(error.kind(), io::ErrorKind::StorageFull, "{context}");
-        assert!(!target.exists(), "{context}: nothing is written");
+        assert!(!target.exists(), "{context}: the partial copy is removed");
         let expected_tier = match ladder(failure) {
             Expect::NextMethod => LINK_STATE_COPY,
             Expect::CopiesFile | Expect::Fails => AUTO_FIRST_TIER,
@@ -314,8 +309,6 @@ fn a_failed_copy_after_a_failed_link_surfaces_the_copy_error() {
     }
 }
 
-/// The copy tier has nothing to fall back to: its error surfaces and no
-/// ladder moves.
 #[test]
 fn a_failed_copy_surfaces_under_every_method_that_copies() {
     let tmp = tempdir().unwrap();
@@ -332,7 +325,7 @@ fn a_failed_copy_surfaces_under_every_method_that_copies() {
             .expect_err("the copy fails");
 
         assert_eq!(error.kind(), io::ErrorKind::StorageFull, "{method:?}");
-        assert!(!target.exists(), "{method:?}: nothing is written");
+        assert!(!target.exists(), "{method:?}: the partial copy is removed");
         assert_eq!(tier_of(&state, method), LINK_STATE_COPY, "{method:?}");
     }
 }
