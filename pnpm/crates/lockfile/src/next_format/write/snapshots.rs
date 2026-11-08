@@ -25,7 +25,6 @@ pub(super) struct Snapshot<'a> {
     entry: &'a SnapshotEntry,
     own_peers: HashSet<&'a PkgName>,
     transitive: Vec<(PkgName, SnapshotDepRef)>,
-    missing: Vec<String>,
 }
 
 impl Snapshot<'_> {
@@ -99,9 +98,6 @@ impl Snapshot<'_> {
             optional_dependencies: non_empty(optional_dependencies),
             peer_dependencies: non_empty(peer_dependencies),
             transitive_peer_dependencies: non_empty(transitive),
-            missing_peer_dependencies: (!self.missing.is_empty()).then(|| {
-                self.missing.clone()
-            }),
             optional: self.entry.optional,
         }
     }
@@ -117,12 +113,12 @@ pub(super) struct Snapshots<'a> {
     varying: Vec<HashSet<PkgName>>,
 }
 
-/// A snapshot's transitive peers: those its key names, those left for
-/// [`ProviderFinder`], and those known to be missing.
+/// A snapshot's transitive peers: those its key names, and those left for
+/// [`ProviderFinder`]. A peer nothing provides is not written: the reader
+/// derives it from the `peerDependencies` of the packages below.
 struct Transitive<'a> {
     named: Vec<(PkgName, SnapshotDepRef)>,
     unnamed: Vec<(PkgName, &'a str)>,
-    missing: Vec<String>,
 }
 
 impl<'a> Transitive<'a> {
@@ -135,15 +131,11 @@ impl<'a> Transitive<'a> {
             Some(_) => transitive_named_in_key(key, entry)?,
             None => (Vec::new(), Vec::new()),
         };
-        let mut missing = Vec::new();
         if !unnamed.is_empty() && all_groups_named(key, entry, own_peers, named.len()) {
-            missing.extend(
-                unnamed
-                    .drain(..)
-                    .map(|(_, name)| name.to_string()),
-            );
+            // The key names every provider, so the rest have none.
+            unnamed.clear();
         }
-        Ok(Transitive { named, unnamed, missing })
+        Ok(Transitive { named, unnamed })
     }
 
     /// Finds the providers of the unnamed peers below `key`. A peer whose
@@ -162,9 +154,8 @@ impl<'a> Transitive<'a> {
                         .is_none_or(|segments| names_provider(segments, &alias, reference))
                 })
                 .cloned();
-            match found {
-                Some(reference) => self.named.push((alias, reference)),
-                None => self.missing.push(name.to_string()),
+            if let Some(reference) = found {
+                self.named.push((alias, reference));
             }
         }
     }
@@ -195,7 +186,6 @@ impl<'a> Snapshots<'a> {
                     entry,
                     own_peers: own_peers[key].clone(),
                     transitive: transitive.named,
-                    missing: transitive.missing,
                 });
         }
         Ok(Snapshots::from_groups(grouped))

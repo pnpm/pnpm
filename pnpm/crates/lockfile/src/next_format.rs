@@ -111,10 +111,6 @@ pub struct NextSnapshotEntry {
     )]
     pub transitive_peer_dependencies: Option<HashMap<PkgName, NextRef>>,
 
-    /// The peers needed below this package that nothing provides.
-    #[serde(default, rename = "missingPeers", skip_serializing_if = "Option::is_none")]
-    pub missing_peer_dependencies: Option<Vec<String>>,
-
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
 }

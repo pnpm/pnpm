@@ -96,8 +96,6 @@ pub struct NextPackage {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub transitive_peers: Option<HashMap<PkgName, NextRef>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub missing_peers: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
 
@@ -116,7 +114,6 @@ impl NextPackage {
             optional_dependencies: self.optional_dependencies.take(),
             peer_dependencies: self.peers.take(),
             transitive_peer_dependencies: self.transitive_peers.take(),
-            missing_peer_dependencies: self.missing_peers.take(),
             optional: self.optional,
         }
     }
@@ -237,10 +234,6 @@ fn hoist(
                 rest,
                 |snapshot| &snapshot.transitive_peer_dependencies,
             ),
-            missing_peer_dependencies: common_value(
-                first.missing_peer_dependencies.as_ref(),
-                rest.iter().map(|snapshot| snapshot.missing_peer_dependencies.as_ref()),
-            ),
             optional: first.optional && rest.iter().all(|snapshot| snapshot.optional),
         }
     };
@@ -339,9 +332,6 @@ impl NextSnapshotEntry {
         if shared.id.is_some() {
             self.id = None;
         }
-        if shared.missing_peer_dependencies.is_some() {
-            self.missing_peer_dependencies = None;
-        }
         if shared.optional {
             self.optional = false;
         }
@@ -365,9 +355,6 @@ impl NextSnapshotEntry {
             }
         }
         self.id = self.id.or_else(|| shared.id.clone());
-        self.missing_peer_dependencies = self.missing_peer_dependencies.or_else(|| {
-            shared.missing_peer_dependencies.clone()
-        });
         self.optional |= shared.optional;
         self
     }

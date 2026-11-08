@@ -22,6 +22,7 @@ mod choose;
 mod entries;
 mod keys;
 mod scope;
+mod unbound;
 
 use super::{
     NextImporter, NextSections, NextSnapshotEntry, NextSnapshots, RestoreContext, RestoredSections,

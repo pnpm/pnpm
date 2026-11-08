@@ -10,7 +10,7 @@ use crate::{
     next_format::{NextImporter, NextRef},
 };
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 impl Graph<'_> {
     pub(super) fn snapshot_entries(
@@ -18,9 +18,13 @@ impl Graph<'_> {
         keys: &[PkgNameVerPeer],
         context: RestoreContext<'_>,
     ) -> HashMap<PackageKey, SnapshotEntry> {
+        let unbound = self.unbound_peers(context);
         (0..self.keys.len())
             .into_par_iter()
-            .map(|sid| (keys[sid].clone(), self.snapshot_entry(sid, keys, context)))
+            .map(|sid| {
+                let below = self.unbound_below(sid, &unbound, context);
+                (keys[sid].clone(), self.snapshot_entry(sid, keys, context, &below))
+            })
             .collect()
     }
 
@@ -29,6 +33,7 @@ impl Graph<'_> {
         sid: Sid,
         keys: &[PkgNameVerPeer],
         context: RestoreContext<'_>,
+        unbound_below: &HashSet<String>,
     ) -> SnapshotEntry {
         let entry = self.entries[sid];
         let mut dependencies = self.restored_children(sid, entry.dependencies.as_ref(), keys);
@@ -48,7 +53,7 @@ impl Graph<'_> {
             id: entry.id.clone(),
             dependencies: non_empty(dependencies),
             optional_dependencies: non_empty(optional_dependencies),
-            transitive_peer_dependencies: transitive_peer_names(entry),
+            transitive_peer_dependencies: transitive_peer_names(entry, unbound_below),
             patched: None,
             optional: entry.optional,
         }
@@ -133,18 +138,20 @@ fn importer_version_with_key(
 }
 
 /// Today's `transitivePeerDependencies`: the bound transitive peers and the
-/// missing ones, sorted.
-fn transitive_peer_names(entry: &NextSnapshotEntry) -> Option<Vec<String>> {
+/// peers below that nothing binds, sorted.
+fn transitive_peer_names(
+    entry: &NextSnapshotEntry,
+    unbound_below: &HashSet<String>,
+) -> Option<Vec<String>> {
     let bound = entry.transitive_peer_dependencies
         .iter()
         .flatten()
         .map(|(name, _)| name.to_string());
-    let missing = entry.missing_peer_dependencies
-        .iter()
-        .flatten()
-        .cloned();
-    let mut names: Vec<String> = bound.chain(missing).collect();
+    let mut names: Vec<String> = bound
+        .chain(unbound_below.iter().cloned())
+        .collect();
     names.sort_unstable();
+    names.dedup();
     (!names.is_empty()).then_some(names)
 }
 
