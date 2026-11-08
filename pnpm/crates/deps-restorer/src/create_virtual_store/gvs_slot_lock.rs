@@ -1,5 +1,6 @@
 //! The owner of global virtual store slot state and its cross-process lock.
 
+pub(crate) use acquire::{slot_retry_deadline, slot_retry_expired};
 pub use path_codec::GVS_LOCKED_SLOT_PATHS_ENV;
 pub(crate) use path_codec::{encode_slot_lock_paths, inherited_slot_locks};
 mod acquire;
@@ -83,6 +84,13 @@ pub struct GlobalVirtualStoreSlotState {
     pub linked_archive: Option<String>,
 }
 
+/// The outcome of [`GlobalVirtualStoreSlot::try_acquire`].
+pub enum SlotAttempt {
+    /// The lock is held, or the slot is not in the global virtual store.
+    Acquired(Option<GlobalVirtualStoreSlot>),
+    Busy,
+}
+
 pub struct GlobalVirtualStoreSlot {
     path: PathBuf,
     package_path: PathBuf,
@@ -111,6 +119,24 @@ impl GlobalVirtualStoreSlot {
         Self::acquire_path(path, key).map(Some)
     }
 
+    /// [`Self::acquire`] without waiting: [`SlotAttempt::Busy`] when another
+    /// install holds the lock.
+    pub fn try_acquire(
+        layout: &VirtualStoreLayout,
+        key: &PackageKey,
+    ) -> Result<SlotAttempt, GvsSlotLockError> {
+        let Some(path) = layout.hashed_slot_dir(key) else {
+            return Ok(SlotAttempt::Acquired(None));
+        };
+        if layout.frozen_store() {
+            return Err(GvsSlotLockError {
+                dep_path: key.to_string(),
+                source: io::Error::new(io::ErrorKind::PermissionDenied, "store is read-only"),
+            });
+        }
+        Self::try_acquire_path(path, key)
+    }
+
     pub fn acquire_existing(
         layout: &VirtualStoreLayout,
         key: &PackageKey,
@@ -122,6 +148,30 @@ impl GlobalVirtualStoreSlot {
             return Self::open_existing_path(path, key);
         }
         Self::acquire_existing_path(path, key)
+    }
+
+    /// Whether the slot at `path` has to be imported or built again before
+    /// `key` can use it, read without the slot's lock: its package carries
+    /// `.pnpm-needs-build`, or its population never finished. Writers keep
+    /// both under the lock, and an import that dies leaves them behind.
+    pub fn needs_recovery_at(path: &std::path::Path, key: &PackageKey) -> io::Result<bool> {
+        let marker = path
+            .join("node_modules")
+            .join(key.name.to_string())
+            .join(crate::NEEDS_BUILD_MARKER);
+        if marker.is_file() {
+            return Ok(true);
+        }
+        Self::population_unfinished_at(path)
+    }
+
+    fn population_unfinished_at(path: &std::path::Path) -> io::Result<bool> {
+        match fs::read_to_string(path.join(crate::GVS_SLOT_STATE_FILE)) {
+            Ok(state) => Ok(GlobalVirtualStoreSlotPhase::parse(&state)?
+                == GlobalVirtualStoreSlotPhase::Populating),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
     }
 
     pub fn open_existing_path(
@@ -200,8 +250,10 @@ impl GlobalVirtualStoreSlot {
         if !self.package_path.is_dir() {
             return Ok(GlobalVirtualStoreSlotPhase::Missing);
         }
-        self.read_state_file()?
-            .map_or_else(|| self.legacy_state(completion_marker, build_requirement), Ok)
+        match self.read_state_file()? {
+            Some(phase) => Ok(phase),
+            None => self.legacy_state(completion_marker, build_requirement),
+        }
     }
 
     fn read_state_file(&self) -> io::Result<Option<GlobalVirtualStoreSlotPhase>> {

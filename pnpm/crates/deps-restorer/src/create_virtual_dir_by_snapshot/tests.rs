@@ -1008,3 +1008,59 @@ fn unlink_fetch_failed_children_keeps_the_parent_package_directory() {
 
     assert!(own_dir.join("package.json").exists(), "the parent's own files must stay");
 }
+
+/// A rayon worker must never wait for a slot lock: it could be holding
+/// another slot's lock while it runs a stolen job.
+#[test]
+fn try_run_reports_a_slot_another_install_holds_without_writing_it() {
+    let dir = tempdir().expect("tempdir");
+    let package_key: PackageKey = "dep@1.0.0".parse().expect("parse key");
+    let snapshot = SnapshotEntry::default();
+    let snapshots = HashMap::from([(package_key.clone(), snapshot.clone())]);
+    let mut config = pnpm_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.store_dir = dir.path().join("store").into();
+    config.global_virtual_store_dir = dir.path().join("store/links");
+    let layout = crate::VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
+    let held = crate::GlobalVirtualStoreSlot::acquire(&layout, &package_key)
+        .expect("hold the slot lock")
+        .expect("a global virtual store slot");
+    let cas_paths = pnpm_fs::CasPaths::new();
+    let logged_methods = AtomicU8::new(0);
+    let skipped = crate::SkippedSnapshots::default();
+
+    let outcome = CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            swap_lock: None,
+            requester: "/proj",
+            isolate_mutable_sources: false,
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            source_exists: true,
+            force: false,
+            build_marker: None,
+            needs_build: false,
+        },
+        layout: &layout,
+        cas_paths: &cas_paths,
+        package_id: "dep@1.0.0",
+        dir_clone_cache: None,
+        link_concurrency_probe: None,
+    }
+    .try_run::<pnpm_reporter::SilentReporter>()
+    .expect("try the slot");
+
+    assert_eq!(outcome, crate::SlotRun::Busy);
+    assert!(!held.package_path().exists(), "a busy slot must not be written");
+}

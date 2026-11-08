@@ -4,9 +4,11 @@ pub use cache_keys::lookup_known_bins;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use gvs_slot_lock::{
     BuildRequirement, GVS_LOCKED_SLOT_PATHS_ENV, GlobalVirtualStoreSlot,
-    GlobalVirtualStoreSlotPhase, GlobalVirtualStoreSlotState, GvsSlotLockError,
+    GlobalVirtualStoreSlotPhase, GlobalVirtualStoreSlotState, GvsSlotLockError, SlotAttempt,
 };
-pub(crate) use gvs_slot_lock::{encode_slot_lock_paths, inherited_slot_locks};
+pub(crate) use gvs_slot_lock::{
+    encode_slot_lock_paths, inherited_slot_locks, slot_retry_deadline, slot_retry_expired,
+};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
 pub use output::{CreateVirtualStoreOutput, SideEffectsOutput, SnapshotPlacement};

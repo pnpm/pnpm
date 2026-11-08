@@ -136,19 +136,18 @@ pub(super) fn gvs_slot_needs_rebuild(
     layout: &crate::VirtualStoreLayout,
     allow_build_policy: &crate::AllowBuildPolicy,
     snapshot_key: &PackageKey,
-) -> bool {
+) -> Result<bool, CreateVirtualStoreError> {
     if !layout.enable_global_virtual_store() {
-        return false;
+        return Ok(false);
     }
     let can_build = crate::snapshot_has_patch(snapshot_key)
         || allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true);
-    can_build
-        && layout
-            .slot_dir(snapshot_key)
-            .join("node_modules")
-            .join(snapshot_key.name.to_string())
-            .join(crate::NEEDS_BUILD_MARKER)
-            .is_file()
+    if !can_build {
+        return Ok(false);
+    }
+    let slot_dir = layout.slot_dir(snapshot_key);
+    crate::GlobalVirtualStoreSlot::needs_recovery_at(&slot_dir, snapshot_key)
+        .map_err(|error| CreateVirtualStoreError::ReadSlotState { path: slot_dir, error })
 }
 /// The pristine CAS paths of every warm snapshot whose package may publish
 /// shared side effects.

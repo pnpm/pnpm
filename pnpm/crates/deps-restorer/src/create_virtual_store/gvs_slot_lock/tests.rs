@@ -191,3 +191,23 @@ fn existing_slot_acquisition_rejects_the_empty_parent_left_by_prune() {
     assert!(slot.is_none(), "the newly created lock directory is not a populated slot");
     assert!(!slot_path.exists(), "the empty slot directory is removed");
 }
+
+#[test]
+fn an_unfinished_population_needs_recovery_without_a_build_marker() {
+    let root = tempdir().expect("temporary slot root");
+    let key: pnpm_lockfile::PackageKey = "dep@1.0.0".parse().expect("package key");
+    let slot_path = root.path().join("slot");
+    let slot = GlobalVirtualStoreSlot::acquire_path(slot_path.clone(), &key).expect("lock slot");
+    std::fs::create_dir_all(slot.package_path()).expect("create package directory");
+    std::fs::write(slot.package_path().join("package.json"), "{}").expect("write manifest");
+
+    slot.begin_population().expect("mark slot populating");
+    assert!(
+        GlobalVirtualStoreSlot::needs_recovery_at(&slot_path, &key).expect("probe populating slot"),
+    );
+
+    slot.finish_population(super::BuildRequirement::NotRequired).expect("mark slot populated");
+    assert!(
+        !GlobalVirtualStoreSlot::needs_recovery_at(&slot_path, &key).expect("probe populated slot"),
+    );
+}

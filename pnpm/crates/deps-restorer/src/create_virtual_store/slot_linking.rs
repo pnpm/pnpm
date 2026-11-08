@@ -155,13 +155,11 @@ pub(super) struct LinkSlotsParallel<'a> {
 pub(super) fn link_slots_parallel<Reporter: self::Reporter>(
     opts: LinkSlotsParallel<'_>,
 ) -> Result<(), CreateVirtualStoreError> {
-    use rayon::prelude::*;
-
     let phase_start = std::time::Instant::now();
     let groups = group_slots_by_dir(opts.slots, opts.link.layout);
-    let link_work =
-        || groups.par_iter().try_for_each(|group| link_slot_group::<Reporter>(group, &opts));
-    crate::block_in_place_if_multi_thread(|| crate::link_pool::in_link_pool(link_work))?;
+    let all_groups = groups.iter().collect::<Vec<_>>();
+    let busy = link_pass::<Reporter>(&all_groups, &opts, LinkAttempt::First)?;
+    retry_busy_groups::<Reporter>(busy, &opts)?;
     tracing::info!(
         target: "pacquet::install::phase",
         phase = "link_slots",
@@ -174,13 +172,77 @@ pub(super) fn link_slots_parallel<Reporter: self::Reporter>(
 
     Ok(())
 }
+
+/// How long [`retry_busy_groups`] sleeps between passes.
+const SLOT_RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LinkAttempt {
+    First,
+    Retry,
+}
+
+/// Link `groups` in parallel and return the ones whose slot another install
+/// holds. The first attempt also reports each group's warm progress.
+fn link_pass<'groups, 'slots, Reporter: self::Reporter>(
+    groups: &[&'groups SlotDirGroup<'slots>],
+    opts: &LinkSlotsParallel<'_>,
+    attempt: LinkAttempt,
+) -> Result<Vec<&'groups SlotDirGroup<'slots>>, CreateVirtualStoreError> {
+    use rayon::prelude::*;
+
+    let link_work = || {
+        groups
+            .par_iter()
+            .filter_map(|group| {
+                if attempt == LinkAttempt::First {
+                    emit_group_warm_progress::<Reporter>(
+                        group,
+                        opts.import.requester,
+                        opts.progress_reported,
+                    );
+                }
+                match link_slot_group::<Reporter>(group, opts) {
+                    Ok(crate::SlotRun::Linked) => None,
+                    Ok(crate::SlotRun::Busy) => Some(Ok(*group)),
+                    Err(error) => Some(Err(error)),
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()
+    };
+    crate::block_in_place_if_multi_thread(|| crate::link_pool::in_link_pool(link_work))
+}
+
+/// Link the groups another install held during the first pass, once it
+/// releases them. An install started by a build script gives up after its
+/// slot retry deadline, since its parent holds slot locks meanwhile.
+fn retry_busy_groups<Reporter: self::Reporter>(
+    mut busy: Vec<&SlotDirGroup<'_>>,
+    opts: &LinkSlotsParallel<'_>,
+) -> Result<(), CreateVirtualStoreError> {
+    let Some(first_busy) = busy.first() else { return Ok(()) };
+    let deadline = crate::slot_retry_deadline(first_busy.representative.snapshot_key)
+        .map_err(CreateVirtualStoreError::SlotLock)?;
+    while let Some(group) = busy.first() {
+        if deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+            return Err(CreateVirtualStoreError::SlotLock(crate::slot_retry_expired(
+                group.representative.snapshot_key,
+            )));
+        }
+        crate::block_in_place_if_multi_thread(|| std::thread::sleep(SLOT_RETRY_INTERVAL));
+        busy = link_pass::<Reporter>(&busy, opts, LinkAttempt::Retry)?;
+    }
+    Ok(())
+}
+
+/// Link one group without waiting for its slot lock; see
+/// [`crate::CreateVirtualDirBySnapshot::try_run`].
 pub(super) fn link_slot_group<Reporter: self::Reporter>(
     group: &SlotDirGroup<'_>,
     opts: &LinkSlotsParallel<'_>,
-) -> Result<(), CreateVirtualStoreError> {
+) -> Result<crate::SlotRun, CreateVirtualStoreError> {
     let slot = group.representative;
     let package_id = slot.snapshot_key.pkg_id();
-    emit_group_warm_progress::<Reporter>(group, opts.import.requester, opts.progress_reported);
 
     crate::CreateVirtualDirBySnapshot {
         dependencies: crate::SnapshotDependencyLinks {
@@ -202,7 +264,7 @@ pub(super) fn link_slot_group<Reporter: self::Reporter>(
         #[cfg(test)]
         link_concurrency_probe: opts.link_concurrency_probe,
     }
-    .run::<Reporter>()
+    .try_run::<Reporter>()
     .map_err(|error| {
         CreateVirtualStoreError::InstallPackageBySnapshot(
             InstallPackageBySnapshotError::CreateVirtualDir(error),

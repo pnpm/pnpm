@@ -4,7 +4,7 @@ use std::fs;
 use tempfile::tempdir;
 
 #[test]
-fn frozen_store_marker_probe_does_not_create_a_slot_lock() {
+fn marker_probe_does_not_create_a_slot_lock() {
     let root = tempdir().expect("temporary store");
     let version_dir = root.path().join("foo@1.0.0");
     let slot_dir = version_dir.join("hash");
@@ -18,7 +18,7 @@ fn frozen_store_marker_probe_does_not_create_a_slot_lock() {
         .expect("read slot directory");
     let key: PackageKey = "foo@1.0.0".parse().expect("package key");
 
-    let probe = hash_dir_marker(Ok(hash_dir), &key, true);
+    let probe = hash_dir_marker(Ok(hash_dir), &key);
 
     assert!(matches!(probe, MarkerProbe::None));
     assert!(!slot_dir.join(".pnpm-build.lock").exists());

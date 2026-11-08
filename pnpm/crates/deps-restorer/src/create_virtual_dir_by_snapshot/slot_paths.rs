@@ -94,13 +94,20 @@ fn create_slot_dirs(
 /// and so undoes whatever the build did to them. Without the marker
 /// [`slot_carries_overlay`](crate::build_modules::slot_carries_overlay) would read the re-imported files as a
 /// cache hit and skip the rebuild.
+/// Why [`cas_paths_with_build_marker`] may have to re-add the marker.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct SlotReimport {
+    pub(super) interrupted_build: bool,
+    pub(super) force_import: bool,
+}
+
 pub(super) fn cas_paths_with_build_marker(
     cas_paths: &CasPaths,
     save_path: &Path,
     needs_build_marker_source: Option<&Path>,
-    forced: (bool, bool),
+    reimport: SlotReimport,
 ) -> Option<CasPaths> {
-    let (interrupted_build, force_import) = forced;
+    let SlotReimport { interrupted_build, force_import } = reimport;
     let source = needs_build_marker_source?;
     if !interrupted_build && !force_import && marker_present(save_path, cas_paths) {
         return None;

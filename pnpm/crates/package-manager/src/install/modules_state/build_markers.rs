@@ -57,7 +57,7 @@ pub(in super::super) fn gvs_build_marker_present(
     if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
         return true;
     }
-    any_slot_build_marker(&eligible_snapshots, &layout, config.frozen_store)
+    any_slot_build_marker(&eligible_snapshots, &layout)
 }
 /// What a `.pnpm-needs-build` probe found.
 pub(super) enum MarkerProbe {
@@ -88,7 +88,7 @@ pub(super) fn sibling_store_marker(
         if !visited_version_dirs.insert(version_dir.clone()) {
             continue;
         }
-        match version_dir_marker(&version_dir, snapshot_key, config.frozen_store) {
+        match version_dir_marker(&version_dir, snapshot_key) {
             MarkerProbe::None => {}
             found => return found,
         }
@@ -98,7 +98,6 @@ pub(super) fn sibling_store_marker(
 pub(super) fn version_dir_marker(
     version_dir: &Path,
     snapshot_key: &pnpm_lockfile::PackageKey,
-    frozen_store: bool,
 ) -> MarkerProbe {
     let hash_dirs = match std::fs::read_dir(version_dir) {
         Ok(hash_dirs) => hash_dirs,
@@ -106,7 +105,7 @@ pub(super) fn version_dir_marker(
         Err(_) => return MarkerProbe::Unreadable,
     };
     for hash_dir in hash_dirs {
-        match hash_dir_marker(hash_dir, snapshot_key, frozen_store) {
+        match hash_dir_marker(hash_dir, snapshot_key) {
             MarkerProbe::None => {}
             found => return found,
         }
@@ -116,7 +115,6 @@ pub(super) fn version_dir_marker(
 pub(super) fn hash_dir_marker(
     hash_dir: std::io::Result<std::fs::DirEntry>,
     snapshot_key: &pnpm_lockfile::PackageKey,
-    frozen_store: bool,
 ) -> MarkerProbe {
     let Ok(hash_dir) = hash_dir else {
         return MarkerProbe::Unreadable;
@@ -135,16 +133,7 @@ pub(super) fn hash_dir_marker(
     {
         return MarkerProbe::Unreadable;
     }
-    let slot = match if frozen_store {
-        crate::GlobalVirtualStoreSlot::open_existing_path(hash_dir.path(), snapshot_key)
-    } else {
-        crate::GlobalVirtualStoreSlot::acquire_existing_path(hash_dir.path(), snapshot_key)
-    } {
-        Ok(Some(slot)) => slot,
-        Ok(None) => return MarkerProbe::None,
-        Err(_) => return MarkerProbe::Unreadable,
-    };
-    match slot.has_build_marker() {
+    match crate::GlobalVirtualStoreSlot::needs_recovery_at(&hash_dir.path(), snapshot_key) {
         Ok(true) => MarkerProbe::Found,
         Ok(false) => MarkerProbe::None,
         Err(_) => MarkerProbe::Unreadable,
@@ -171,33 +160,18 @@ pub(super) fn installability_node_version<'a>(
 pub(super) fn any_slot_build_marker(
     eligible_snapshots: &[&pnpm_lockfile::PackageKey],
     layout: &crate::VirtualStoreLayout,
-    frozen_store: bool,
 ) -> bool {
     for snapshot_key in eligible_snapshots {
+        let slot_dir = layout.slot_dir(snapshot_key);
         if crate::safe_join_modules_dir::safe_join_modules_dir(
-            &layout.slot_dir(snapshot_key).join("node_modules"),
+            &slot_dir.join("node_modules"),
             &snapshot_key.name.to_string(),
         )
         .is_err()
+            || crate::GlobalVirtualStoreSlot::needs_recovery_at(&slot_dir, snapshot_key)
+                .unwrap_or(true)
         {
             return true;
-        }
-        let slot = match if frozen_store {
-            crate::GlobalVirtualStoreSlot::open_existing_path(
-                layout.slot_dir(snapshot_key),
-                snapshot_key,
-            )
-        } else {
-            crate::GlobalVirtualStoreSlot::acquire_existing(layout, snapshot_key)
-        } {
-            Ok(Some(slot)) => slot,
-            Ok(None) => continue,
-            Err(_) => return true,
-        };
-        match slot.has_build_marker() {
-            Ok(true) => return true,
-            Ok(false) => {}
-            Err(_) => return true,
         }
     }
     false

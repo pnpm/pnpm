@@ -1,18 +1,18 @@
 pub(super) mod slot_paths;
 #[cfg(test)]
 pub mod tests;
+pub use error::CreateVirtualDirError;
+mod error;
 use slot_paths::{
-    OpenedSlot, SlotForceInputs, SlotPaths, cas_paths_with_build_marker, slot_import_opts,
+    OpenedSlot, SlotForceInputs, SlotPaths, SlotReimport, cas_paths_with_build_marker,
+    slot_import_opts,
 };
 
 use crate::{
-    DirCloneCache, ImportIndexedDirError, NEEDS_BUILD_MARKER, SymlinkPackageError,
-    VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
-    import_indexed_dir::marker_present,
-    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+    DirCloneCache, NEEDS_BUILD_MARKER, VirtualStoreLayout, create_symlink_layout,
+    import_indexed_dir, import_indexed_dir::marker_present,
+    safe_join_modules_dir::safe_join_modules_dir,
 };
-use derive_more::{Display, Error};
-use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::{is_subdir, is_symlink_or_junction, remove_symlink_dir};
 use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
@@ -23,7 +23,7 @@ use pnpm_reporter::{
 use std::{
     collections::{HashMap, HashSet},
     fs, io,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 /// This subroutine creates the virtual-store slot for one package and then
@@ -62,86 +62,60 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     pub link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
 
-/// Error type of [`CreateVirtualDirBySnapshot`].
-#[derive(Debug, Display, Error, Diagnostic)]
-pub enum CreateVirtualDirError {
-    #[display("Failed to create node_modules directory at {dir:?}: {error}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_NODE_MODULES_DIR))]
-    CreateNodeModulesDir {
-        dir: PathBuf,
-        #[error(source)]
-        error: io::Error,
-    },
-
-    #[display("Failed to create virtual store slot directory at {dir:?}: {error}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_SLOT_DIR))]
-    CreateSlotDir {
-        dir: PathBuf,
-        #[error(source)]
-        error: io::Error,
-    },
-
-    #[diagnostic(transparent)]
-    ImportIndexedDir(#[error(source)] ImportIndexedDirError),
-
-    #[diagnostic(transparent)]
-    SlotLock(#[error(source)] crate::GvsSlotLockError),
-
-    #[display("Failed to read global virtual store slot state at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_READ_GVS_SLOT_STATE))]
-    ReadSlotState {
-        path: PathBuf,
-        #[error(source)]
-        source: io::Error,
-    },
-
-    #[display("Failed to read the build marker at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_READ_BUILD_MARKER))]
-    ReadBuildMarker {
-        path: PathBuf,
-        #[error(source)]
-        source: io::Error,
-    },
-
-    #[display("Failed to update global virtual store slot state at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_GVS_SLOT_STATE))]
-    WriteSlotState {
-        path: PathBuf,
-        #[error(source)]
-        source: io::Error,
-    },
-
-    #[diagnostic(transparent)]
-    SymlinkPackage(#[error(source)] SymlinkPackageError),
-
-    /// The snapshot's package name is not a valid npm package name, so
-    /// joining it under the slot's `node_modules` could escape the
-    /// directory. Surfaces pnpm's `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
-    #[diagnostic(transparent)]
-    InvalidAlias(#[error(source)] InvalidDependencyAliasError),
-
-    #[display("Failed to remove obsolete child link at {path:?}: {error}")]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_OBSOLETE_CHILD))]
-    RemoveObsoleteChild {
-        path: PathBuf,
-        #[error(source)]
-        error: io::Error,
-    },
+/// What [`CreateVirtualDirBySnapshot::try_run`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotRun {
+    Linked,
+    /// Another install holds the slot's lock, and nothing was written.
+    Busy,
 }
 
 impl CreateVirtualDirBySnapshot<'_> {
-    /// Execute the subroutine.
+    /// Execute the subroutine, waiting for the slot's lock.
     pub fn run<Reporter: self::Reporter>(self) -> Result<(), CreateVirtualDirError> {
+        let paths = SlotPaths::new(self.layout, self.dependencies.package_key)?;
+        let global_slot =
+            crate::GlobalVirtualStoreSlot::acquire(self.layout, self.dependencies.package_key)
+                .map_err(CreateVirtualDirError::SlotLock)?;
+        self.link_slot::<Reporter>(paths, global_slot)
+    }
+
+    /// [`Self::run`] that returns [`SlotRun::Busy`] instead of waiting for
+    /// another install's slot lock. Rayon workers link slots this way: a
+    /// worker waiting inside the import's `rayon::join` can steal another
+    /// slot's job, so a blocking wait there would hold one slot lock while
+    /// waiting for another.
+    pub fn try_run<Reporter: self::Reporter>(self) -> Result<SlotRun, CreateVirtualDirError> {
+        let paths = SlotPaths::new(self.layout, self.dependencies.package_key)?;
+        match crate::GlobalVirtualStoreSlot::try_acquire(self.layout, self.dependencies.package_key)
+            .map_err(CreateVirtualDirError::SlotLock)?
+        {
+            crate::SlotAttempt::Busy => Ok(SlotRun::Busy),
+            crate::SlotAttempt::Acquired(global_slot) => {
+                self.link_slot::<Reporter>(paths, global_slot)?;
+                Ok(SlotRun::Linked)
+            }
+        }
+    }
+
+    fn link_slot<Reporter: self::Reporter>(
+        self,
+        paths: SlotPaths,
+        global_slot: Option<crate::GlobalVirtualStoreSlot>,
+    ) -> Result<(), CreateVirtualDirError> {
         #[cfg(test)]
         let _link_concurrency_guard =
             self.link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let slot = self.open_slot()?;
+        let slot = open_slot(paths, global_slot)?;
         let marked_cas_paths = cas_paths_with_build_marker(
             self.cas_paths,
             &slot.paths.save_path,
             self.source.build_marker,
-            (slot.interrupted_build, self.source.force),
+            SlotReimport {
+                interrupted_build: slot.interrupted_build,
+                force_import: self.source.force,
+            },
         );
         let cas_paths = marked_cas_paths.as_ref().unwrap_or(self.cas_paths);
 
@@ -193,24 +167,6 @@ impl CreateVirtualDirBySnapshot<'_> {
         )?;
 
         Ok(())
-    }
-
-    fn open_slot(&self) -> Result<OpenedSlot, CreateVirtualDirError> {
-        let slot = SlotPaths::new(self.layout, self.dependencies.package_key)?;
-        let global_slot =
-            crate::GlobalVirtualStoreSlot::acquire(self.layout, self.dependencies.package_key)
-                .map_err(CreateVirtualDirError::SlotLock)?;
-        slot.create_dirs()?;
-        let interrupted_build = match &global_slot {
-            Some(global_slot) => global_slot
-                .has_build_marker()
-                .map_err(|source| CreateVirtualDirError::ReadBuildMarker {
-                    path: slot.save_path.join(NEEDS_BUILD_MARKER),
-                    source,
-                })?,
-            None => slot.save_path.join(NEEDS_BUILD_MARKER).is_file(),
-        };
-        Ok(OpenedSlot { paths: slot, global_slot, interrupted_build })
     }
 
     fn import_method(&self) -> PackageImportMethod {
@@ -502,4 +458,21 @@ fn remove_obsolete_child(
         let _ = fs::remove_dir(virtual_node_modules_dir.join(format!("@{scope}")));
     }
     Ok(())
+}
+
+fn open_slot(
+    slot: SlotPaths,
+    global_slot: Option<crate::GlobalVirtualStoreSlot>,
+) -> Result<OpenedSlot, CreateVirtualDirError> {
+    slot.create_dirs()?;
+    let interrupted_build = match &global_slot {
+        Some(global_slot) => global_slot
+            .has_build_marker()
+            .map_err(|source| CreateVirtualDirError::ReadBuildMarker {
+                path: slot.save_path.join(NEEDS_BUILD_MARKER),
+                source,
+            })?,
+        None => slot.save_path.join(NEEDS_BUILD_MARKER).is_file(),
+    };
+    Ok(OpenedSlot { paths: slot, global_slot, interrupted_build })
 }
