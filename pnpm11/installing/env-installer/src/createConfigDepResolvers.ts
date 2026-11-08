@@ -3,12 +3,13 @@ import { PnpmError } from '@pnpm/error'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
 import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/resolving.npm-resolver'
-import type { RegistryConfig } from '@pnpm/types'
+import type { RegistryConfig, RegistryContext } from '@pnpm/types'
 
 export type ResolveConfigDep = ReturnType<typeof createNpmResolver>['resolveFromNpm']
 
 export type ConfigDepResolverOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & {
   configByUri?: Record<string, RegistryConfig>
+  registryOptionsByUrl?: RegistryContext['registryOptionsByUrl']
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeIgnoreMissingTime?: boolean

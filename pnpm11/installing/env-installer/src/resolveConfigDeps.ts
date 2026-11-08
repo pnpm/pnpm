@@ -1,3 +1,4 @@
+import { getRegistryServerType } from '@pnpm/config.normalize-registries'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
@@ -87,13 +88,14 @@ async function addConfigDepToLockfile (ctx: AddConfigDepContext, configDep: stri
     resolution: toLockfileResolution(
       { name: pkgName, version },
       resolution.resolution,
-      { registry }
+      { registry, serverType: getRegistryServerType(opts, registry) }
     ),
   }
   const optionalSubdeps = await resolveOptionalSubdeps(pkgName, resolution.manifest, {
     envLockfile,
     lockfileDir: opts.rootDir,
     registriesByScope: opts.registriesByScope,
+    registryOptionsByUrl: opts.registryOptionsByUrl,
     resolveFromNpm: ctx.resolveFromNpm,
   })
   envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}

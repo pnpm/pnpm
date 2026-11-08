@@ -11,6 +11,7 @@ pub(crate) fn package_metadata(
     version: &str,
     result: &ResolveResult,
     registry: &str,
+    server_type: Option<pnpm_lockfile::RegistryServerType>,
     lockfile_include_tarball_url: bool,
 ) -> Result<PackageMetadata, LockfileFormError> {
     let manifest = result.package.manifest.as_deref();
@@ -20,7 +21,7 @@ pub(crate) fn package_metadata(
             version,
             LockfileFormOptions {
                 registry,
-                server_type: None,
+                server_type,
                 include_tarball_url: lockfile_include_tarball_url,
             },
         )?,

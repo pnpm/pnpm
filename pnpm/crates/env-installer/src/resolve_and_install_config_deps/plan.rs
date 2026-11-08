@@ -90,7 +90,7 @@ fn plan_detailed(
         return Ok(ConfigDepPlan::Resolve { specifier: version, integrity: Some(integrity) });
     };
     let registry = opts.verification.pick_registry(name);
-    migrate_into_lockfile(env_lockfile, name, &version, integrity, tarball, registry)?;
+    migrate_into_lockfile(env_lockfile, name, &version, integrity, tarball, registry, opts)?;
     Ok(ConfigDepPlan::Migrated)
 }
 

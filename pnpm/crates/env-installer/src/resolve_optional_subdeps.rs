@@ -86,8 +86,18 @@ fn record_optional_subdep(
 
     env_lockfile.packages.insert(
         pkg_key.clone(),
-        package_metadata(subdep_name, subdep_version, result, registry, false)
-            .map_err(ConfigDepError::LockfileForm)?,
+        package_metadata(
+            subdep_name,
+            subdep_version,
+            result,
+            registry,
+            pnpm_lockfile::registry_server_type(
+                opts.verification.registry_options_by_url,
+                registry,
+            ),
+            false,
+        )
+        .map_err(ConfigDepError::LockfileForm)?,
     );
     env_lockfile.snapshots
         .entry(pkg_key)

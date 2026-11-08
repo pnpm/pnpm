@@ -1,3 +1,4 @@
+import { getRegistryServerType } from '@pnpm/config.normalize-registries'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
@@ -5,7 +6,7 @@ import { createEnvLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileResolution } from '@pnpm/lockfile.types'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
-import type { ConfigDependencies, ConfigDependencySpecifiers, RegistriesByScope } from '@pnpm/types'
+import type { ConfigDependencies, ConfigDependencySpecifiers, RegistriesByScope, RegistryContext } from '@pnpm/types'
 
 import type { NormalizedConfigDep } from './parseIntegrity.js'
 import { parseIntegrity } from './parseIntegrity.js'
@@ -13,6 +14,7 @@ import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 interface MigrateOpts {
   registriesByScope: RegistriesByScope
+  registryOptionsByUrl?: RegistryContext['registryOptionsByUrl']
   rootDir: string
 }
 
@@ -35,7 +37,9 @@ export async function migrateConfigDepsToLockfile (
   const normalizedDeps: Record<string, NormalizedConfigDep> = {}
 
   for (const [pkgName, pkgSpec] of Object.entries(configDeps)) {
-    const migrated = migrateConfigDep(pkgName, pkgSpec, pickRegistryForPackage(opts.registriesByScope, pkgName))
+    const registry = pickRegistryForPackage(opts.registriesByScope, pkgName)
+    const serverType = getRegistryServerType(opts, registry)
+    const migrated = migrateConfigDep(pkgName, pkgSpec, registry, serverType)
     if (!migrated) continue
     const { version, lockfileResolution, resolution } = migrated
     cleanSpecifiers[pkgName] = version
@@ -75,17 +79,18 @@ interface MigratedConfigDep {
 function migrateConfigDep (
   pkgName: string,
   pkgSpec: ConfigDependencies[string],
-  registry: string
+  registry: string,
+  serverType: ReturnType<typeof getRegistryServerType>
 ): MigratedConfigDep | undefined {
   if (typeof pkgSpec === 'object') {
     const { version, integrity } = parseIntegrity(pkgName, pkgSpec.integrity)
-    const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry })
+    const tarball = pkgSpec.tarball ?? getNpmTarballUrl(pkgName, version, { registry, serverType })
     return {
       version,
       lockfileResolution: toLockfileResolution(
         { name: pkgName, version },
         { integrity, tarball },
-        { registry }
+        { registry, serverType }
       ),
       resolution: { integrity, tarball },
     }
@@ -107,6 +112,6 @@ function migrateConfigDep (
   return {
     version,
     lockfileResolution: { integrity },
-    resolution: { integrity, tarball: getNpmTarballUrl(pkgName, version, { registry }) },
+    resolution: { integrity, tarball: getNpmTarballUrl(pkgName, version, { registry, serverType }) },
   }
 }

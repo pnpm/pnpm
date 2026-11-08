@@ -52,6 +52,8 @@ pub struct ConfigDependencyStoreIndex {
 pub struct ConfigDependencyVerification<'a> {
     /// `default` plus per-scope (`@scope`) registry entries.
     pub registries: &'a HashMap<String, String>,
+    pub registry_options_by_url:
+        &'a std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>,
     pub resolution_verifiers: Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>,
     /// Applied when resolving a config dependency, so a resolution never
     /// picks a version the resolution verifiers reject.

@@ -1,11 +1,12 @@
 
+import { getRegistryServerType } from '@pnpm/config.normalize-registries'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { isError, PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.fs'
 import type { ResolvedDependencies } from '@pnpm/lockfile.types'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
-import type { DependencyManifest, RegistriesByScope } from '@pnpm/types'
+import type { DependencyManifest, RegistriesByScope, RegistryContext } from '@pnpm/types'
 import semver from 'semver'
 
 import type { ResolveConfigDep } from './createConfigDepResolvers.js'
@@ -14,6 +15,7 @@ export interface ResolveOptionalSubdepsOpts {
   envLockfile: EnvLockfile
   lockfileDir: string
   registriesByScope: RegistriesByScope
+  registryOptionsByUrl?: RegistryContext['registryOptionsByUrl']
   resolveFromNpm: ResolveConfigDep
 }
 
@@ -74,7 +76,7 @@ async function resolveOptionalSubdep (ctx: OptionalSubdepContext, subdepName: st
     resolution: toLockfileResolution(
       { name: subdepName, version: subdepVersion },
       resolution.resolution,
-      { registry }
+      { registry, serverType: getRegistryServerType(opts, registry) }
     ),
     ...pickPlatformFields(resolution.manifest),
   }

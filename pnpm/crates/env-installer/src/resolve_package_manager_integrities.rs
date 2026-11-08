@@ -147,7 +147,7 @@ async fn record_package(
 ) -> Result<Vec<EnvPackage>, ConfigDepError> {
     let registry = opts.verification.pick_registry(&package.name);
     let mut metadata =
-        package_metadata(&package.name, &package.version, &package.result, registry, false)
+        package_metadata(&package.name, &package.version, &package.result, registry, None, false)
             .map_err(ConfigDepError::LockfileForm)?;
     metadata.resolution = strip_registry_tarball_url(metadata.resolution);
     env_lockfile.packages.insert(package.key.clone(), metadata);

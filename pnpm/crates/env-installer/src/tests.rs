@@ -113,6 +113,7 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
 struct Harness {
     registry_url: String,
     registries: std::collections::HashMap<String, String>,
+    registry_options_by_url: BTreeMap<String, pnpm_lockfile::RegistryOptions>,
     http_client: ThrottledClient,
     auth_headers: AuthHeaders,
     store_dir: &'static StoreDir,
@@ -132,6 +133,7 @@ fn harness() -> Harness {
     Harness {
         registry_url,
         registries,
+        registry_options_by_url: BTreeMap::new(),
         http_client: ThrottledClient::default(),
         auth_headers: AuthHeaders::default(),
         store_dir,
@@ -148,6 +150,7 @@ fn options<'a>(
         mode: crate::ConfigDepsInstallMode::Reconcile,
         verification: ConfigDependencyVerification {
             registries: &harness.registries,
+            registry_options_by_url: &harness.registry_options_by_url,
             resolution_verifiers: pnpm_package_manager::build_resolution_verifiers(
                 &pnpm_config::Config {
                     registry: harness.registry_url.clone(),
