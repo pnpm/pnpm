@@ -422,3 +422,28 @@ fn mark_fails_when_a_dependency_link_cannot_be_read() {
             if path == link && error.kind() == std::io::ErrorKind::PermissionDenied
     ));
 }
+
+#[test]
+fn prune_keeps_live_packages_and_ignores_a_real_dangling_directory_link() {
+    let root = tempdir().unwrap();
+    let store = StoreDir::new(root.path().join("store"));
+    let live = make_slot(&store.links(), "@", "live", "1", "hash");
+    let orphan = make_slot(&store.links(), "@", "orphan", "1", "hash");
+    let project = root.path().join("project");
+    let modules = project.join("node_modules");
+    fs::create_dir_all(modules.join("ordinary-directory")).unwrap();
+    symlink_dir(&live.join("node_modules/live"), &modules.join("live")).unwrap();
+    let missing = root.path().join("removed-package");
+    fs::create_dir(&missing).unwrap();
+    symlink_dir(&missing, &modules.join("dangling")).unwrap();
+    fs::remove_dir(&missing).unwrap();
+    register_project(&store, &project).unwrap();
+
+    store
+        .prune(&root.path().join("cache"), &[])
+        .unwrap();
+
+    assert!(modules.join("live/package.json").is_file());
+    assert!(live.exists());
+    assert!(!orphan.exists());
+}

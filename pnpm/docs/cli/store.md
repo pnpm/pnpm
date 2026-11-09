@@ -99,7 +99,7 @@ project pins a version that another pnpm process is installing at that moment.
 
 Without the global virtual store, an install with `--frozen-store` or `enableModulesDir: false` does not write the registry. Neither do `--lockfile-only` and `--dry-run` installs.
 
-`pnpm store prune` removes the directory-clone cache used by local installs on macOS. Installed packages remain available, and later installs recreate the cache as needed.
+`pnpm store prune` removes the directory-clone cache used by local installs on macOS. Installed packages remain available, and later installs recreate the cache as needed. The cache requires the store and project to be on the same volume. A frozen store uses per-file imports when its cache is missing.
 
 When the [global virtual store] is enabled, `pnpm store prune` also performs mark-and-sweep garbage collection on its `links/` directory. It walks the registered projects to find the packages still in use and removes the rest. If no registered project links into `links/`, prune leaves it unchanged.
 
