@@ -31,7 +31,7 @@ pub(crate) fn is_valid_request_id(value: &str) -> bool {
             .all(|byte| (33..=126).contains(&byte))
 }
 
-/// Generate a fresh RFC 4122 UUID v4 request identifier.
+/// Generate a fresh UUID v4 request identifier.
 #[must_use]
 pub(crate) fn generate_request_id() -> String {
     super::uuid_v4::generate()

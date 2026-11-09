@@ -24,7 +24,7 @@ fn set_rfc_9562_variant(bytes: &mut [u8; 16]) {
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
 }
 
-/// Render `bytes` as hex in the groups [`GROUP_BYTES`] names.
+/// Render `bytes` as hyphen-separated hex groups, sized by [`GROUP_BYTES`].
 fn hyphenate(bytes: &[u8; 16]) -> String {
     let mut text = String::with_capacity(36);
     let mut rest = bytes.as_slice();
