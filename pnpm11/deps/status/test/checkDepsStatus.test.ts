@@ -78,7 +78,13 @@ describe('checkDepsStatus - settings change detection', () => {
     const workspaceState: WorkspaceState = {
       lastValidatedTimestamp: recentTimestamp(),
       pnpmfiles: [],
-      settings: { nodeLinker: 'pnp', runtimeOnFail: 'ignore' },
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        nodeLinker: 'pnp',
+        runtimeOnFail: 'ignore',
+      },
       projects: {},
       filteredInstall: false,
     }
