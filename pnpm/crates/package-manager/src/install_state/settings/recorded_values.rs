@@ -1,10 +1,9 @@
 //! Config values in the form the workspace state records them.
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{LinkWorkspacePackages, NodeLinker, RuntimeOnFail, TrustPolicy};
+use pnpm_config::{LinkWorkspacePackages, NodeLinker, TrustPolicy};
 use pnpm_workspace_state::{
-    NodeLinker as WorkspaceStateNodeLinker, RuntimeOnFail as WorkspaceStateRuntimeOnFail,
-    TrustPolicy as WorkspaceStateTrustPolicy,
+    NodeLinker as WorkspaceStateNodeLinker, TrustPolicy as WorkspaceStateTrustPolicy,
 };
 
 pub(crate) fn catalogs_to_json(catalogs: &Catalogs) -> serde_json::Value {
@@ -35,15 +34,6 @@ pub(crate) fn map_node_linker(linker: NodeLinker) -> WorkspaceStateNodeLinker {
         NodeLinker::Hoisted => WorkspaceStateNodeLinker::Hoisted,
         NodeLinker::Pnp => WorkspaceStateNodeLinker::Pnp,
         NodeLinker::Loaded => WorkspaceStateNodeLinker::Loaded,
-    }
-}
-
-pub(super) fn map_runtime_on_fail(on_fail: RuntimeOnFail) -> WorkspaceStateRuntimeOnFail {
-    match on_fail {
-        RuntimeOnFail::Download => WorkspaceStateRuntimeOnFail::Download,
-        RuntimeOnFail::Error => WorkspaceStateRuntimeOnFail::Error,
-        RuntimeOnFail::Warn => WorkspaceStateRuntimeOnFail::Warn,
-        RuntimeOnFail::Ignore => WorkspaceStateRuntimeOnFail::Ignore,
     }
 }
 

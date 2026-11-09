@@ -28,7 +28,7 @@ use equivalence::{
 };
 use install_policy::install_policy_settings;
 use platforms::{live_linked_platform, supported_architectures_json};
-use recorded_values::{map_runtime_on_fail, map_trust_policy};
+use recorded_values::map_trust_policy;
 
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker};
