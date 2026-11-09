@@ -1,12 +1,14 @@
 //! Building a package into its global virtual store slot.
 //!
 //! A slot's package directory is final once its `package.json` exists:
-//! nothing writes into it afterwards, so installs share slots without
+//! its files never change afterwards, so installs share slots without
 //! locks. The link phase imports a package that this install builds into
 //! a staging directory beside the slot's package directory
 //! ([`crate::VirtualStoreLayout::staging_package_dir`]). The build runs
 //! there, and the built package is renamed into place. A side-effects
-//! cache hit is imported into the slot directly, like any package.
+//! cache hit is imported into the slot directly, like any package. Only the
+//! shims in the package's `node_modules/.bin` are linked again later, to
+//! the same targets.
 
 use super::{
     BuildCandidate, BuildModulesError, BuildOneSnapshot, LogEvent, LogLevel, PackageKey, Path,
@@ -81,14 +83,29 @@ fn build_and_place<Reporter: self::Reporter>(
     if !slot.staged()? {
         return Ok(());
     }
-    let built =
-        build_staged::<Reporter>(context, snapshot_key, candidate, cache_key, &slot.staging)
-            .inspect_err(|_| slot.discard_staging())?;
-    if !built || (slot.placed && rerun == Rerun::OutsideEffects) {
+    let built = build_staged::<Reporter>(context, snapshot_key, candidate, &slot.staging)
+        .inspect_err(|_| slot.discard_staging())?;
+    let Some(has_side_effects) = built.filter(|_| !(slot.placed && rerun == Rerun::OutsideEffects))
+    else {
         slot.discard_staging();
         return Ok(());
-    }
-    slot.place_staged(slot.placed)
+    };
+    slot.place_staged(slot.placed)?;
+    // Only once the package is placed, so a cache row always names a placed
+    // package, and no install imports it into a slot a build still places.
+    side_effects::upload_side_effects_cache(
+        context,
+        snapshot_key,
+        &SideEffectsUpload {
+            metadata_key: &candidate.metadata_key,
+            pkg_dir: &slot.target,
+            cache_key,
+            patch: candidate.patch,
+            is_patched: candidate.patch.is_some(),
+            has_side_effects,
+        },
+    );
+    Ok(())
 }
 
 /// Why a placed package is built again.
@@ -137,17 +154,16 @@ fn already_placed<Reporter: self::Reporter>(
     dependency_bins::refresh_private_hoisted_for(context, snapshot_key)
 }
 
-/// Patch and build the staged package. `false` when the package is
-/// skipped instead: an optional dependency whose build failed or whose
-/// engines the patch made incompatible.
+/// Patch and build the staged package, reporting whether its scripts left
+/// side effects. `None` when the package is skipped instead: an optional
+/// dependency whose build failed or whose engines the patch made
+/// incompatible.
 fn build_staged<Reporter: self::Reporter>(
     context: &BuildOneSnapshot<'_>,
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
-    cache_key: Option<&str>,
     staging: &Path,
-) -> Result<bool, BuildModulesError> {
-    let is_patched = candidate.patch.is_some();
+) -> Result<Option<bool>, BuildModulesError> {
     if let Some(patch) = candidate.patch {
         let patch_file_path = patch.patch_file_path
             .as_deref()
@@ -157,35 +173,23 @@ fn build_staged<Reporter: self::Reporter>(
         dependency_bins::record_mutation(context, snapshot_key)?;
         apply_patch_to_dir(staging, patch_file_path).map_err(BuildModulesError::PatchApply)?;
         if skip_incompatible_optional_at::<Reporter>(context, snapshot_key, candidate, staging)? {
-            return Ok(false);
+            return Ok(None);
         }
     }
     let has_side_effects = if candidate.should_run_scripts {
-        dependency_bins::refresh(context, snapshot_key)?;
+        dependency_bins::link_staged(context, snapshot_key)?;
         dependency_bins::record_mutation(context, snapshot_key)?;
         match run_scripts::<Reporter>(context, snapshot_key, candidate, staging)? {
             Some(ran) => ran,
-            None => return Ok(false),
+            None => return Ok(None),
         }
     } else {
         false
     };
-    if is_patched || candidate.should_run_scripts {
+    if candidate.patch.is_some() || candidate.should_run_scripts {
         dependency_bins::refresh_private_hoisted_for(context, snapshot_key)?;
     }
-    side_effects::upload_side_effects_cache(
-        context,
-        snapshot_key,
-        &SideEffectsUpload {
-            metadata_key: &candidate.metadata_key,
-            pkg_dir: staging,
-            cache_key,
-            patch: candidate.patch,
-            is_patched,
-            has_side_effects,
-        },
-    );
-    Ok(true)
+    Ok(Some(has_side_effects))
 }
 
 /// Whether the scripts left side effects behind. `None` when an optional
@@ -295,7 +299,7 @@ impl PlacedPackage {
     fn place_staged(&self, replace_placed: bool) -> Result<(), BuildModulesError> {
         const ATTEMPTS: usize = 3;
         for attempt in 1..=ATTEMPTS {
-            let error = match pnpm_fs::rename_with_retry(&self.staging, &self.target) {
+            let error = match self.rename_into_place() {
                 Ok(()) => return Ok(()),
                 Err(error) => error,
             };
@@ -313,6 +317,16 @@ impl PlacedPackage {
             self.move_target_aside().inspect_err(|_| self.discard_staging())?;
         }
         unreachable!("the last attempt returns")
+    }
+
+    /// A target that exists is a lost race or a rebuild, which a rename
+    /// retried for transient Windows file locks would only delay.
+    fn rename_into_place(&self) -> io::Result<()> {
+        if self.target.exists() {
+            fs::rename(&self.staging, &self.target)
+        } else {
+            pnpm_fs::rename_with_retry(&self.staging, &self.target)
+        }
     }
 
     /// Move the slot's package directory out of the way and remove it. A

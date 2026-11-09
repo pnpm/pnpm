@@ -824,3 +824,99 @@ fn gvs_builds_each_slot_of_a_git_dependency() {
 
     drop((root, mock_instance));
 }
+
+/// A package is built in a staging directory, so its build scripts must find
+/// the bins of its own dependencies there. With hoisting off, nothing else
+/// puts `hello-world-js-bin`, which the scripts call, on their `PATH`.
+#[test]
+fn a_staged_build_runs_the_bins_of_its_dependencies() {
+    const PKG: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ PKG: "1.0.0" }));
+    let workspace_settings = format!("{}hoist: false\n", allow_builds_yaml(&[(PKG, true)]));
+    set_gvs_workspace_yaml(&workspace, &workspace_settings);
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let pkg = pkg_in_slot(&sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0")), PKG);
+    assert!(pkg.join("generated-by-postinstall.js").exists(), "the build must have run");
+    assert!(
+        pkg.join("node_modules/.bin/hello-world-js-bin").exists(),
+        "the dependency's bin must be placed with the package",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// <https://github.com/pnpm/pnpm/issues/15568>: installs that share a store
+/// and build the same package at the same time all succeed, and every
+/// project links the one built package, with no staging directory left
+/// behind.
+#[test]
+fn concurrent_installs_build_one_shared_slot() {
+    const PKG: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, &serde_json::json!({ PKG: "1.0.0" }));
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[(PKG, true)]));
+    let projects: Vec<_> = std::iter::once(workspace.clone())
+        .chain((1..4).map(|index| {
+            let project = root
+                .path()
+                .join(format!("project-{index}"));
+            fs::create_dir(&project).expect("create project");
+            for entry in fs::read_dir(&workspace).expect("read workspace") {
+                let entry = entry.expect("read workspace entry");
+                if entry
+                    .file_type()
+                    .expect("stat workspace entry")
+                    .is_file()
+                {
+                    fs::copy(entry.path(), project.join(entry.file_name())).expect("copy file");
+                }
+            }
+            project
+        }))
+        .collect();
+
+    let installs: Vec<_> = projects
+        .iter()
+        .map(|project| {
+            pacquet(project)
+                .with_arg("install")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .expect("spawn an install")
+        })
+        .collect();
+    for install in installs {
+        let output = install.wait_with_output().expect("wait for an install");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    let slot = sole_hash_dir(&pkg_version_dir(&store_dir, PKG, "1.0.0"));
+    for project in &projects {
+        let linked =
+            fs::canonicalize(project.join("node_modules").join(PKG)).expect("resolve the link");
+        assert_eq!(linked, fs::canonicalize(pkg_in_slot(&slot, PKG)).expect("resolve the slot"));
+        assert!(linked.join("generated-by-postinstall.js").exists(), "the package must be built");
+    }
+    let leftovers: Vec<_> = fs::read_dir(slot.join("node_modules/@pnpm.e2e"))
+        .expect("read the slot's scope")
+        .map(|entry| entry.expect("read entry").file_name())
+        .filter(|name| name.to_string_lossy().starts_with('.'))
+        .collect();
+    assert!(leftovers.is_empty(), "staging directories left behind: {leftovers:?}");
+
+    drop((root, mock_instance));
+}

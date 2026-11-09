@@ -39,22 +39,37 @@ pub(crate) fn remove_abandoned_staging_dirs(package_dir: &Path) -> io::Result<us
     };
     let mut removed = 0;
     for entry in entries {
-        let entry = entry?;
-        if !entry
-            .file_name()
-            .as_encoded_bytes()
-            .starts_with(prefix.as_encoded_bytes())
-            || !is_abandoned(&entry.metadata()?)
-        {
-            continue;
-        }
-        match fs::remove_dir_all(entry.path()) {
-            Ok(()) => removed += 1,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
+        if remove_if_abandoned(&entry?, &prefix)? {
+            removed += 1;
         }
     }
     Ok(removed)
+}
+
+/// Remove `entry` when it is a staging directory, named with `prefix`, that
+/// no install has changed for [`ABANDONED_AFTER`]. An entry that an install
+/// renamed into place meanwhile is gone, and left alone.
+fn remove_if_abandoned(entry: &fs::DirEntry, prefix: &OsStr) -> io::Result<bool> {
+    if !entry
+        .file_name()
+        .as_encoded_bytes()
+        .starts_with(prefix.as_encoded_bytes())
+    {
+        return Ok(false);
+    }
+    let metadata = match entry.metadata() {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    if !is_abandoned(&metadata) {
+        return Ok(false);
+    }
+    match fs::remove_dir_all(entry.path()) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 fn is_abandoned(metadata: &fs::Metadata) -> bool {
