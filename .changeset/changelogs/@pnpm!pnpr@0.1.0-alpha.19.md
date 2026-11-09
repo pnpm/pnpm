@@ -11,7 +11,7 @@ pnpr 0.1.0-alpha.19 stores package metadata in PostgreSQL or MySQL as well as SQ
   - Back up these databases, then delete pnpr's tables or point pnpr at new, empty databases.
   - Point `storage` or the `s3:` prefix at a fresh location. Hosted archives use a new layout. A fresh local `storage` directory also gives you a fresh SQLite metadata file.
   - Replace the `backend` and `metadata` blocks with `database.url`. pnpr refuses to start while either block is present.
-  - Rename `auth.htpasswd` to `auth.users`. Run `pnpr import-htpasswd --source <old htpasswd>` to bring over existing passwords.
+  - Rename `auth.htpasswd` to `auth.users`. If accounts stay in the local account file, which is the case without `database.url` or with a `sqlite:` one, run `pnpr import-htpasswd --source <old htpasswd>` to bring over existing passwords. With any other `database.url`, recreate the accounts.
   - List account IDs, not usernames, in `auth.admins`, access lists, and OIDC bindings. Give each entry under `teams` a `name` and `members`.
   - Replace `pnpr oci-gc` and `pnpr verify --prune-orphans` with `pnpr gc`.
   - Recreate accounts and tokens, republish packages, and reconcile the SCIM directory with the identity provider. Recreated accounts get new IDs.
@@ -26,7 +26,7 @@ pnpr 0.1.0-alpha.19 stores package metadata in PostgreSQL or MySQL as well as SQ
 
 - `pnpr gc` removes the archives that no hosted package maps, in every hosted npm, PyPI, Cargo, and OCI registry. It runs while the registry keeps serving and other replicas keep publishing. It removes the bytes of unpublished versions and packages, image blobs that no retained manifest reaches, and the archives of publishes that stopped or were refused at their commit. It also finishes interrupted reclaims. The new `gc.lease` setting sets how long an interrupted reclaim is left before another run finishes it. It defaults to `1h`.
 
-  `pnpr verify` now only reports orphaned blobs. Its `--prune-orphans` and `--min-age` options are removed.
+  `pnpr verify` no longer removes orphaned blobs. It still fails on missing or corrupted blobs and reports orphaned ones. Its `--prune-orphans` and `--min-age` options are removed.
 
 #### Clients
 
