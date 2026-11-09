@@ -888,3 +888,42 @@ fn filtered_run_follows_npm_alias_of_a_sibling() {
 
     drop(root);
 }
+
+#[test]
+fn update_config_relative_path_filter_works_with_dir_and_subdir_cwd() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("packages/app", build_writes_marker("packages/app")),
+            ("packages/other", build_writes_marker("packages/other")),
+        ],
+    );
+    fs::write(
+        workspace.join(".pnpmfile.mjs"),
+        "export const hooks = { updateConfig (config) { return Object.assign(config, { filter: config.filter ?? ['./packages/app'] }) } }\n",
+    )
+    .expect("write .pnpmfile.mjs");
+
+    let app_marker = workspace.join("packages/app/ran.txt");
+    let other_marker = workspace.join("packages/other/ran.txt");
+
+    pacquet
+        .with_args(["--dir", "packages/other", "-r", "run", "build"])
+        .assert()
+        .success();
+    assert!(app_marker.exists(), "--dir packages/other should select packages/app");
+    assert!(!other_marker.exists(), "packages/other must not run");
+
+    fs::remove_file(&app_marker).expect("remove app marker");
+    Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(workspace.join("packages/other"))
+        .with_args(["-r", "run", "build"])
+        .assert()
+        .success();
+    assert!(app_marker.exists(), "running from packages/other should select packages/app");
+    assert!(!other_marker.exists(), "packages/other must not run");
+
+    drop(root);
+}

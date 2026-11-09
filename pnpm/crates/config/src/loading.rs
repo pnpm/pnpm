@@ -231,6 +231,7 @@ impl Config {
 
     /// Anchor module defaults to the requested directory, which may differ from the process cwd.
     pub(super) fn anchor_default_module_dirs(&mut self, start_dir: &std::path::Path) {
+        self.dir = start_dir.to_path_buf();
         self.modules_dir = start_dir.join("node_modules");
         self.install_state_dir = self.modules_dir.join(".pnpm");
     }

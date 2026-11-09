@@ -1,4 +1,6 @@
-use crate::parse_project_selector::{ProjectSelector, parse_project_selector};
+use crate::parse_project_selector::{
+    ProjectSelector, parse_project_selector, rebase_project_selector,
+};
 use std::path::{Path, PathBuf};
 
 const PREFIX: &str = "/prefix";
@@ -295,4 +297,28 @@ fn empty_braces_fall_back_to_name() {
 #[test]
 fn dot_prefixed_name_is_not_a_location() {
     assert_eq!(parse(".foo"), ProjectSelector { name_pattern: name(".foo"), ..Default::default() });
+}
+
+#[test]
+fn rebase_project_selector_preserves_target_dir_and_modifiers() {
+    let from = Path::new("/ws");
+    let to = Path::new("/ws/packages/other");
+    let same = Path::new("/ws/packages/app");
+    for raw in [
+        "./packages/app",
+        "!./packages/app",
+        ".",
+        "{packages/*}",
+        "...^pattern{./packages/app}[main]...",
+        "app",
+        "[main]",
+    ] {
+        let rebased = rebase_project_selector(raw, from, to);
+        assert_eq!(parse_project_selector(&rebased, to), parse_project_selector(raw, from));
+        let rebased_same = rebase_project_selector(raw, from, same);
+        assert_eq!(parse_project_selector(&rebased_same, same), parse_project_selector(raw, from));
+    }
+    assert_eq!(rebase_project_selector("./packages/app", from, to), "../app");
+    assert_eq!(rebase_project_selector("./packages/app", from, same), ".");
+    assert_eq!(rebase_project_selector("./packages/app/sub", from, same), "./sub");
 }

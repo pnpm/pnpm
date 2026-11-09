@@ -91,7 +91,7 @@ pub(super) fn apply_hook_delta(
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
     apply_state_dir_change(config, &delta);
-    apply_project_selector_changes(config, &delta)?;
+    apply_project_selector_changes(config, &delta, base_dir)?;
     if delta.get("shamefullyHoist").is_some() || config.cli_settings.contains("shamefullyHoist") {
         config.apply_shamefully_hoist_derivation();
     }
@@ -173,19 +173,38 @@ fn restore_defaults_of_nulled_settings(config: &mut Config, delta: &Value, base_
 /// Apply the `filter` / `filterProd` selectors a hook set. Either one
 /// replaces the `{.}...` default, which pnpm falls back to only when
 /// nothing selected projects.
-fn apply_project_selector_changes(config: &mut Config, delta: &Value) -> Result<()> {
+///
+/// Relative directory selectors a hook sets are rebased from `base_dir` to
+/// [`Config::dir`] so they select the same projects when `--dir` or the
+/// working directory is not the workspace root.
+fn apply_project_selector_changes(
+    config: &mut Config,
+    delta: &Value,
+    base_dir: &Path,
+) -> Result<()> {
     let filter = hook_selectors(delta, "filter")?;
     let filter_prod = hook_selectors(delta, "filterProd")?;
     if filter.is_none() && filter_prod.is_none() {
         return Ok(());
     }
+    let prefix = if config.dir.as_os_str().is_empty() { base_dir } else { &config.dir };
     if let Some(filter) = filter {
-        config.filter = filter;
+        config.filter = filter
+            .into_iter()
+            .map(|selector| {
+                pnpm_workspace_projects_filter::rebase_project_selector(&selector, base_dir, prefix)
+            })
+            .collect();
     } else if !config.cli_settings.contains("filter") {
         config.filter.clear();
     }
     if let Some(filter_prod) = filter_prod {
-        config.filter_prod = filter_prod;
+        config.filter_prod = filter_prod
+            .into_iter()
+            .map(|selector| {
+                pnpm_workspace_projects_filter::rebase_project_selector(&selector, base_dir, prefix)
+            })
+            .collect();
     }
     Ok(())
 }
