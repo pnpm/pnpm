@@ -339,7 +339,12 @@ fn unc_roots_follow_minimatch_platform_semantics() {
 #[test]
 fn lockfile_staging_entries_are_pruned_before_visiting_even_with_a_files_allowlist() {
     let root = tempfile::tempdir().unwrap();
-    for name in ["index.js", ".pnpm-lock.yaml.123.0.tmp", ".pnpm-lock.yaml.backup"] {
+    for name in [
+        "index.js",
+        ".pnpm-lock.yaml.123.0.tmp",
+        ".pnpm-lock.yaml.123.5f0e2c1a-7a3b-4c8d-9e0f-1a2b3c4d5e6f.tmp",
+        ".pnpm-lock.yaml.backup",
+    ] {
         std::fs::write(root.path().join(name), "contents").unwrap();
     }
     let temporary = root.path().join(".pnpm-lock.yaml.123.1.tmp");
