@@ -1,6 +1,5 @@
 ---
 "get-pnpm": patch
-"pacquet": patch
 ---
 
-`get-pnpm` now respects workspace exclusions for hidden directories when choosing the project's pinned version.
+`get-pnpm` now installs the version that a project in a hidden directory pins when the workspace's `packages` patterns exclude that project. It used to install the workspace root's pin for that project.
