@@ -3715,6 +3715,10 @@
   dir: pnpm/npm/napi
   intents:
     - force-symlink-stale-link-survives-removal
+"@pnpm/napi@12.19.0":
+  dir: pnpm/npm/napi
+  intents:
+    - project-scoped-optional-peers-napi
 "@pnpm/napi@12.4.0":
   dir: pnpm/npm/napi
   intents:
@@ -4216,6 +4220,45 @@
     - sqlite-metadata-by-default
     - sqlite-package-metadata
     - unpublish-tombstone-first
+"@pnpm/pnpr@0.1.0-alpha.19":
+  dir: pnpr/npm/pnpr
+  intents:
+    - cargo-index-validators
+    - clean-registry-metadata
+    - friendly-keys-publish
+    - mysql-auth-usernames
+    - oci-empty-repository-cleanup
+    - pnpr-authoritative-records
+    - pnpr-body-timeout-breaker
+    - pnpr-clear-validation-errors
+    - pnpr-metadata-foreign-keys
+    - pnpr-metadata-timestamps
+    - pnpr-named-registry-cacheable
+    - pnpr-new-package-names
+    - pnpr-oci-chunk-hint
+    - pnpr-oci-replay-invalidation
+    - pnpr-online-archive-gc
+    - pnpr-packument-workers
+    - pnpr-payload-rowids
+    - pnpr-publication-outcomes-index
+    - pnpr-refuse-unpublished-retries
+    - pnpr-reserve-deleted-usernames
+    - pnpr-search-usernames
+    - pnpr-trim-metadata-writes
+    - pnpr-unified-schema-migrations
+    - pnpr-upstream-idle-timeout
+    - project-scoped-optional-peers-pnpr
+    - pypi-core-metadata
+    - pypi-upload-recovery
+    - quiet-npm-errors
+    - quiet-registry-accounts
+    - quiet-rosters-recover
+    - redact-malformed-urls
+    - safe-packument-rewrites
+    - shared-registry-database
+    - tidy-crates-route
+    - tidy-scoped-urls
+    - valid-registry-dist-tags
 "@pnpm/pnpr@0.1.0-alpha.2":
   dir: pnpr/npm/pnpr
   intents:
@@ -7307,6 +7350,89 @@ pacquet@12.18.0:
     - verify-deps-local-directory-manifest
     - workspace-default-store
     - workspace-project-version-bump
+pacquet@12.19.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - 16666-optional-peers-without-dedupe
+    - 17712-frozen-install-empty-project-dir
+    - 17727-install-without-manifest-fails
+    - 17732-self-update-engines-pnpm
+    - 17740-deploy-workspace-project-builds
+    - 17747-network-share-link-hint
+    - 17774-os-only-name-inference
+    - 17791-filtered-install-missing-projects-resolution
+    - 17804-legacy-deploy-workspace-path
+    - 17806-frozen-install-outdated-range-link
+    - 17884-completion-path-options
+    - 259-sigstore-sign
+    - 280-reflink-mode-check
+    - 288-overlap-tar-hash
+    - bright-dogs-netbsd
+    - bright-drivers-remap
+    - calm-berries-smile
+    - calm-geese-smile
+    - catalog-workspace-lockfile
+    - clean-unused-clone-cache
+    - cyclic-peer-variant-suffix
+    - dedupe-link-dependencies-by-target
+    - deduped-link-reported-once
+    - deploy-publish-directory
+    - dist-tag-web-auth
+    - every-project-engines
+    - gvs-lock-free-builds
+    - hoisted-build-packages-private-files
+    - hoisted-empty-scope-dir
+    - hoisted-filtered-install-missing-projects
+    - hoisted-orphan-through-symlinked-scope
+    - hoisted-project-modules-dir
+    - injected-local-path-spelling
+    - injected-path-catalog-child-v12
+    - legacy-store-rows-install-scripts
+    - loaded-linker-automatic-materialization
+    - lock-process-spawns
+    - mode-codepage-shim
+    - modules-dir-outside-the-project
+    - modules-dir-through-a-symlink
+    - neat-eagles-count
+    - next-lockfile-format
+    - no-cache-mirror-shortcuts
+    - offline-deploy-lockfile
+    - optional-peer-skipped-dedupe
+    - optional-peer-unmet-chain
+    - outdated-without-lockfile
+    - pack-ignore-file-bom
+    - packlist-disappearing-entries
+    - pinned-pnpm-native-download-error
+    - pnpm-fund-command
+    - pnpm-supported-architectures-extra-deps
+    - pnpm-supported-architectures-link
+    - posix-shims-fewer-processes
+    - project-scoped-optional-peers
+    - prune-unreadable-links
+    - quiet-lemons-patch
+    - record-runtime-on-fail
+    - registry-env-placeholder-fails
+    - release-cancelled-tarball-cache-slot
+    - removed-link-dependency-version
+    - run-interrupt-pending-signal
+    - runtime-install-ignores-inherited-layout
+    - self-update-unclean-tls-close
+    - shim-dispatch-reentry
+    - shim-helpers-in-darwin-sandbox
+    - stale-mirror-excluded-version
+    - store-add-tarball-directory
+    - tarball-offline-error-redacts-url
+    - tarball-retry-budget-once
+    - tasks-279-junction-staging-leak
+    - tasks-283-link-fallback-in-one-place
+    - unpublish-web-auth
+    - update-config-relative-filter-dir
+    - wild-cobras-melt
+    - windows-auto-import-hardlinks-first
+    - windows-delay-load-system-dlls
+    - windows-refused-hardlink-falls-back
+    - workspace-range-non-semver-version
+    - young-pandas-check
 pacquet@12.2.0:
   dir: pnpm/npm/pnpm
   intents:
