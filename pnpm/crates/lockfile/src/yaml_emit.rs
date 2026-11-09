@@ -74,7 +74,7 @@ const ORDERED_KEYS: [&str; 20] = [
 ];
 
 /// Top-level key priority, matching pnpm's lockfile root-key sort.
-const ROOT_KEYS: [&str; 10] = [
+const ROOT_KEYS: [&str; 11] = [
     "lockfileVersion",
     "settings",
     "catalogs",
@@ -84,6 +84,7 @@ const ROOT_KEYS: [&str; 10] = [
     "untrackedPnpmfileReadPackageHook",
     "patchedDependencies",
     "importers",
+    "projects",
     "packages",
 ];
 
@@ -127,7 +128,7 @@ fn sort_lockfile_keys(value: Value) -> (Value, Format) {
         ("packages", &ORDERED_KEYS[..]),
         ("snapshots", &ORDERED_KEYS[..]),
     ] {
-        if !(next && matches!(section, "packages" | "importers")) {
+        if !(next && matches!(section, "packages" | "importers" | "projects")) {
             sort_entries_by_priority(&mut root, section, priority);
         }
     }
@@ -298,12 +299,13 @@ fn render_map(
         let lines = if single_line { ScalarLines::OneLine } else { ScalarLines::Multiline };
         return write_flow_mapping(map, level, lines, nesting.format);
     }
-    let spacing =
-        if level == 0 || matches!(object_key, Some("packages" | "importers" | "snapshots")) {
-            EntrySpacing::BlankLine
-        } else {
-            EntrySpacing::Tight
-        };
+    let spacing = if level == 0
+        || matches!(object_key, Some("packages" | "importers" | "projects" | "snapshots"))
+    {
+        EntrySpacing::BlankLine
+    } else {
+        EntrySpacing::Tight
+    };
     let values = one_line_values(object_key, nesting);
     write_block_mapping(map, level, first_entry, spacing, Nesting { values, ..nesting })
 }

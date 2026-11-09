@@ -199,7 +199,7 @@ test('readEnvLockfile reads the env document of a lockfile in the v13 format', a
     '{',
     '  "lockfileVersion": "13.0",',
     '',
-    '  "importers": {',
+    '  "projects": {',
     '    ".": {',
     '      "configDependencies": {',
     '        "my-config": {"specifier": "^1.0.0", "version": "1.0.0"},',
@@ -236,7 +236,7 @@ test('readEnvLockfile reads the env document of a lockfile in the v13 format', a
     '}',
     '',
   ].join('\n')
-  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), `---\n${envDocument}---\n{"lockfileVersion": "13.0", "importers": {".": {}}}\n`)
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), `---\n${envDocument}---\n{"lockfileVersion": "13.0", "projects": {".": {}}}\n`)
 
   await expect(readEnvLockfile(dir)).resolves.toStrictEqual({
     lockfileVersion: '9.0',
@@ -279,7 +279,7 @@ test('readEnvLockfile reads the env document of a lockfile in the v13 format', a
 
 test('readEnvLockfile rejects a v13 env document whose config dependency implies no version', async () => {
   const dir = temporaryDirectory()
-  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), '---\n{"lockfileVersion": "13.0", "importers": {".": {"configDependencies": {"renamed": "npm:real"}}}}\n---\n')
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), '---\n{"lockfileVersion": "13.0", "projects": {".": {"configDependencies": {"renamed": "npm:real"}}}}\n---\n')
 
   await expect(readEnvLockfile(dir)).rejects.toMatchObject({ code: 'ERR_PNPM_NEXT_LOCKFILE_UNDERIVABLE_VERSION' })
 })

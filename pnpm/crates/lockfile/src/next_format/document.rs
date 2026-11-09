@@ -13,7 +13,12 @@ pub(super) struct NextDocument<'a> {
     lockfile_version: &'a LockfileVersion<9>,
     #[serde(skip_serializing_if = "Option::is_none")]
     settings: Option<NextSettingsOut<'a>>,
-    #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
+    /// `projects`: the word pnpm uses for these entries everywhere else.
+    #[serde(
+        rename = "projects",
+        skip_serializing_if = "HashMap::is_empty",
+        serialize_with = "sorted_map"
+    )]
     importers: &'a HashMap<String, NextImporter>,
     #[serde(skip_serializing_if = "HashMap::is_empty", serialize_with = "sorted_map")]
     packages: &'a HashMap<PackageKey, NextPackageOut<'a>>,

@@ -302,13 +302,13 @@ fn importer_dependency_that_names_its_snapshot_omits_an_implied_version() {
         "  react@18.0.0: {}"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    let start = yaml.find("\n  \"importers\"").expect("an importers section");
+    let start = yaml.find("\n  \"projects\"").expect("an importers section");
     let end = yaml.find("\n  \"packages\"").expect("a packages section");
     assert_eq!(
         &yaml[start..end],
         text_block_macros::text_block_fnl! {
             ""
-            r#"  "importers": {"#
+            r#"  "projects": {"#
             r#"    ".": {"#
             r#"      "dependencies": {"#
             r#"        "child": {"#
@@ -502,7 +502,7 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             "    },"
             "  },"
             ""
-            r#"  "importers": {"#
+            r#"  "projects": {"#
             r#"    ".": {"#
             r#"      "dependencies": {"#
             r#"        "@scope/renamed": "catalog:","#
@@ -588,12 +588,12 @@ fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
         "        version: link:../tool"
     });
     let (yaml, _) = written_and_read(&lockfile);
-    let start = yaml.find("\n  \"importers\"").expect("an importers section");
+    let start = yaml.find("\n  \"projects\"").expect("an importers section");
     assert_eq!(
         &yaml[start..],
         text_block_macros::text_block_fnl! {
             ""
-            r#"  "importers": {"#
+            r#"  "projects": {"#
             r#"    ".": {"#
             r#"      "devDependencies": {"#
             r#"        "@scope/a": "workspace:*","#
@@ -636,7 +636,7 @@ fn json_reader_allows_a_trailing_comma_and_keeps_one_in_a_string() {
 /// takes the whole-document path.
 #[test]
 fn json_document_in_another_layout_is_parsed_whole() {
-    let text = r#"{"lockfileVersion":"13.0","importers":{".":{"dependencies":{"a":"1.0.0"}}},"packages":{"a@1.0.0":{"integrity":"sha512-AAAA"}}}"#;
+    let text = r#"{"lockfileVersion":"13.0","projects":{".":{"dependencies":{"a":"1.0.0"}}},"packages":{"a@1.0.0":{"integrity":"sha512-AAAA"}}}"#;
     let lockfile = parse(text);
     assert_eq!(lockfile.importers.len(), 1);
     assert_eq!(lockfile.packages.as_ref().map(std::collections::HashMap::len), Some(1));
@@ -652,7 +652,7 @@ fn json_document_in_another_layout_is_parsed_whole() {
 /// format the document is in.
 #[test]
 fn json_document_with_todays_version_is_todays_format() {
-    let text = r#"{"lockfileVersion":"9.0","importers":{".":{"dependencies":{"a":{"specifier":"1.0.0","version":"1.0.0"}}}},"packages":{"a@1.0.0":{"resolution":{"integrity":"sha512-AAAA"}}},"snapshots":{"a@1.0.0":{}}}"#;
+    let text = r#"{"lockfileVersion":"9.0","projects":{".":{"dependencies":{"a":{"specifier":"1.0.0","version":"1.0.0"}}}},"packages":{"a@1.0.0":{"resolution":{"integrity":"sha512-AAAA"}}},"snapshots":{"a@1.0.0":{}}}"#;
     let lockfile = parse(text);
     assert!(!lockfile.is_next_format());
     assert_eq!(lockfile.snapshots.as_ref().map(std::collections::HashMap::len), Some(1));
@@ -666,7 +666,7 @@ fn json_document_with_todays_version_is_todays_format() {
 fn catalog_entry_with_an_odd_npm_alias_is_rejected() {
     for specifier in ["npm:", "npm:\u{e9}"] {
         let text = format!(
-            r#"{{"lockfileVersion": "13.0", "settings": {{"catalogs": {{"default": {{"renamed": "{specifier}"}}}}}}, "importers": {{".": {{}}}}}}"#,
+            r#"{{"lockfileVersion": "13.0", "settings": {{"catalogs": {{"default": {{"renamed": "{specifier}"}}}}}}, "projects": {{".": {{}}}}}}"#,
         );
         let error = Lockfile::parse(&text, Path::new("pnpm-lock.yaml"))
             .expect_err("a catalog entry without a version");
@@ -679,7 +679,7 @@ fn catalog_entry_with_an_odd_npm_alias_is_rejected() {
 /// without metadata.
 #[test]
 fn registry_entry_without_a_resolution_is_rejected() {
-    let text = r#"{"lockfileVersion": "13.0", "importers": {".": {"dependencies": {"foo": "1.0.0"}}}, "packages": {"foo@1.0.0": {}}}"#;
+    let text = r#"{"lockfileVersion": "13.0", "projects": {".": {"dependencies": {"foo": "1.0.0"}}}, "packages": {"foo@1.0.0": {}}}"#;
     let error = Lockfile::parse(text, Path::new("pnpm-lock.yaml"))
         .expect_err("an entry without a resolution");
     assert!(error.to_string().contains("records no resolution for foo@1.0.0"), "{error}");

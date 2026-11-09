@@ -1,5 +1,5 @@
 //! The JSON syntax's sections, parsed on separate threads. The next format
-//! writes `importers` and `packages` with the header `  "<name>": {` alone
+//! writes `projects` and `packages` with the header `  "<name>": {` alone
 //! on a line, each entry starting at four spaces, and the closing `  },`
 //! alone on a line, so the text splits at lines, without a parser. A
 //! document laid out otherwise does not split, and is parsed whole.
@@ -12,9 +12,9 @@ use rayon::prelude::*;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 
-const SECTIONS: [&str; 2] = ["importers", "packages"];
+const SECTIONS: [&str; 2] = ["projects", "packages"];
 
-/// The document parsed as `importers`, `packages` and the rest, on separate
+/// The document parsed as `projects`, `packages` and the rest, on separate
 /// threads. `None` when the document does not split into those sections,
 /// or when any part fails to parse: the caller then parses it whole, which
 /// reports an error at its place in the document.
@@ -39,7 +39,7 @@ where
                     },
                     || {
                         parse_chunked::<Importers<Importer>, _, _>(
-                            "importers",
+                            "projects",
                             importers,
                             |section| section.importers,
                         )

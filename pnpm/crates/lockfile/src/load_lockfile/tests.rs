@@ -216,7 +216,7 @@ fn fix_loader_keeps_next_format_entries_pinned_by_integrity() {
             "{"
             r#"  "lockfileVersion": "13.0","#
             r#"  "settings": "invalid","#
-            r#"  "importers": {".": {"dependencies": {"valid": "1.0.0"}}},"#
+            r#"  "projects": {".": {"dependencies": {"valid": "1.0.0"}}},"#
             r#"  "packages": {"#
             r#"    "broken@1.0.0": {"engines": "invalid"},"#
             r#"    "valid@1.0.0": {"#

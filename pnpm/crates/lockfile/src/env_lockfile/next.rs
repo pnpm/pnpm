@@ -31,6 +31,7 @@ use std::{
 #[serde(rename_all = "camelCase", bound(deserialize = "Package: Deserialize<'de>"))]
 struct NextEnvDocument<Package> {
     lockfile_version: LockfileVersion<9>,
+    #[serde(rename = "projects")]
     importers: BTreeMap<String, NextEnvImporter>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     packages: Option<HashMap<crate::PackageKey, Package>>,

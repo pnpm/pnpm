@@ -256,6 +256,8 @@ pub struct LockfileDocument<
         skip_serializing_if = "HashMap::is_empty",
         serialize_with = "crate::serialize_yaml::sorted_map"
     )]
+    /// `importers` in today's format and `projects` in the next.
+    #[serde(alias = "projects")]
     pub importers: HashMap<String, Importer>,
 
     #[serde(

@@ -4,7 +4,7 @@
 //! `pnpm-lock.yaml` keeps its name and its readers, while a JSON reader that
 //! allows the trailing comma parses it several times faster. The layout
 //! follows the block emitter's: a blank line between the entries of the
-//! top-level map and of `importers` and `packages`, the maps
+//! top-level map and of `projects` and `packages`, the maps
 //! [`one_line_values`] names on their keys' lines, and a map that
 //! [names a snapshot](names_snapshot) one binding per line.
 
@@ -66,7 +66,8 @@ fn write_map(
         write_one_line_map(out, map, level, nesting.format);
         return;
     }
-    let blank_lines = level == 0 || matches!(key, Some("packages" | "importers" | "snapshots"));
+    let blank_lines =
+        level == 0 || matches!(key, Some("packages" | "importers" | "projects" | "snapshots"));
     let nesting = Nesting { values: one_line_values(key, nesting), ..nesting };
     out.push('{');
     if map.len() < PARALLEL_ENTRY_THRESHOLD {

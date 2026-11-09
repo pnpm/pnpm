@@ -33,7 +33,7 @@ fn a_flow_style_document_keeps_its_sections() {
         "  is-odd@1.0.0: {}"
     });
     let flow = parse(concat!(
-        r#"{"lockfileVersion":"9.0","importers":{".":{"dependencies":{"is-odd":{"specifier":"^1.0.0","version":"1.0.0"}}}},"#,
+        r#"{"lockfileVersion":"9.0","projects":{".":{"dependencies":{"is-odd":{"specifier":"^1.0.0","version":"1.0.0"}}}},"#,
         r#""packages":{"is-odd@1.0.0":{"resolution":{"integrity":"sha512-AAAA"}}},"snapshots":{"is-odd@1.0.0":{}}}"#,
     ));
     assert_eq!(flow, block);

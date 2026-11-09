@@ -19,7 +19,7 @@ const SECTIONS: [&str; 3] = ["importers:", "packages:", "snapshots:"];
 #[derive(Deserialize)]
 #[serde(bound(deserialize = "Importer: Deserialize<'de>"))]
 struct Importers<Importer> {
-    #[serde(default = "HashMap::new")]
+    #[serde(default = "HashMap::new", alias = "projects")]
     importers: HashMap<String, Importer>,
 }
 

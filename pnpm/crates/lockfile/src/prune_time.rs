@@ -30,7 +30,10 @@ pub fn prune_time(document: &mut Value) {
 /// the keys a `time:` entry is allowed to carry.
 fn importer_dep_paths(document: &Value) -> HashSet<String> {
     let mut dep_paths = HashSet::new();
-    let Some(Value::Object(importers)) = document.get("importers") else { return dep_paths };
+    let importers = document
+        .get("importers")
+        .or_else(|| document.get("projects"));
+    let Some(Value::Object(importers)) = importers else { return dep_paths };
     for importer in importers.values() {
         for group in IMPORTER_DEPENDENCY_GROUPS {
             let Some(Value::Object(dependencies)) = importer.get(group) else { continue };

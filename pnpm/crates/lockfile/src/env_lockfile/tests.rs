@@ -75,7 +75,7 @@ fn write_then_read_round_trips_in_the_next_format() {
         "{"
         r#"  "lockfileVersion": "13.0","#
         ""
-        r#"  "importers": {"#
+        r#"  "projects": {"#
         r#"    ".": {"#
         r#"      "configDependencies": {"#
         r#"        "@pnpm.e2e/foo": "100.0.0","#
@@ -606,7 +606,7 @@ fn reads_a_next_format_env_document_written_as_block_yaml() {
         other => panic!("a registry resolution, not {other:?}"),
     };
     let yaml = format!(
-        "---\nlockfileVersion: '13.0'\nimporters:\n  .:\n    configDependencies:\n      '@pnpm.e2e/foo': 100.0.0\npackages:\n  '@pnpm.e2e/foo@100.0.0':\n    integrity: {integrity}\n---\n",
+        "---\nlockfileVersion: '13.0'\nprojects:\n  .:\n    configDependencies:\n      '@pnpm.e2e/foo': 100.0.0\npackages:\n  '@pnpm.e2e/foo@100.0.0':\n    integrity: {integrity}\n---\n",
     );
     std::fs::write(dir.path().join(Lockfile::FILE_NAME), yaml).unwrap();
 

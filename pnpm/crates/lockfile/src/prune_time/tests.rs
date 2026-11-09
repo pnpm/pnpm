@@ -94,7 +94,7 @@ fn an_aliased_dependency_matches_its_target_key() {
 fn a_dependency_without_a_version_matches_the_key_its_specifier_implies() {
     let document = pruned(json!({
         "lockfileVersion": "13.0",
-        "importers": {
+        "projects": {
             ".": {
                 "dependencies": {
                     "react-dom": { "specifier": "17.0.2", "with": { "react": "17.0.2" } },

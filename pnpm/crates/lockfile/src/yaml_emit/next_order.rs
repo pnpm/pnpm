@@ -124,7 +124,7 @@ fn sort_next_settings(settings: Map<String, Value>) -> Map<String, Value> {
     sorted
 }
 
-/// Sorts the `packages`, `importers` and `settings` of a next-format
+/// Sorts the `packages`, `projects` and `settings` of a next-format
 /// document in place, and says whether the document is one.
 pub(super) fn sort_next_sections(root: &mut Map<String, Value>) -> bool {
     if !is_next_format(root) {
@@ -137,7 +137,7 @@ pub(super) fn sort_next_sections(root: &mut Map<String, Value>) -> bool {
         root.insert("time".to_string(), Value::Object(sort_direct_keys(time)));
     }
     let sorts: [(&str, SortEntry); 2] =
-        [("packages", sort_next_package), ("importers", sort_next_importer)];
+        [("packages", sort_next_package), ("projects", sort_next_importer)];
     for (section, sort) in sorts {
         if let Some(Value::Object(entries)) = root.remove(section) {
             let sorted = map_values(sort_direct_keys(entries), sort);

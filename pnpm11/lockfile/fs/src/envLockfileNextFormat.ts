@@ -49,7 +49,8 @@ interface NextEnvImporter {
 
 export interface NextEnvDocument {
   lockfileVersion: string
-  importers?: Record<string, NextEnvImporter>
+  /** `projects`: the next format's name for today's `importers`. */
+  projects?: Record<string, NextEnvImporter>
   packages?: Record<string, NextPackage>
 }
 
@@ -68,7 +69,7 @@ export function isNextFormatDocument (document: Record<string, unknown>): docume
  */
 export function envLockfileFromNextFormat (document: NextEnvDocument): EnvLockfile {
   const importers: Record<string, EnvImporterSnapshot> = {}
-  for (const [id, importer] of Object.entries(document.importers ?? {})) {
+  for (const [id, importer] of Object.entries(document.projects ?? {})) {
     importers[id] = { configDependencies: resolvedGroup(importer.configDependencies ?? {}) }
     if (importer.packageManagerDependencies) {
       importers[id].packageManagerDependencies = resolvedGroup(importer.packageManagerDependencies)
