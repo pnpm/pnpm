@@ -5,7 +5,7 @@
 //! and writes those references with their peer groups, until nothing changes.
 
 use super::{NextFormatError, NextSections, RestoreContext, RestoredSections, read};
-use crate::{Lockfile, PackageKey, PkgName, SnapshotDepRef, SnapshotEntry};
+use crate::{Lockfile, PackageKey, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
 use rayon::prelude::*;
 use snapshots::Snapshots;
 use std::collections::{HashMap, HashSet};
@@ -88,16 +88,21 @@ impl Explicit {
     }
 }
 
-/// Fails unless `restored` equals the lockfile's own sections.
+/// Fails unless `restored` equals the lockfile's own sections, as written:
+/// an importer's `specifiers` is the resolver's working copy and never
+/// reaches the file, so it does not count.
 pub(super) fn check_round_trip(
     lockfile: &Lockfile,
     restored: &RestoredSections,
 ) -> Result<(), NextFormatError> {
-    if let Some((id, _)) = lockfile.importers
+    if let Some((id, importer)) = lockfile.importers
         .iter()
-        .find(|(id, importer)| restored.importers.get(*id) != Some(importer))
+        .find(|(id, importer)| !same_as_written(importer, restored.importers.get(*id)))
     {
-        return Err(NextFormatError::NotRepresentable { detail: format!("importer {id}") });
+        let fields = differing_importer_fields(importer, restored.importers.get(id));
+        return Err(NextFormatError::NotRepresentable {
+            detail: format!("importer {id}: {fields}"),
+        });
     }
     let empty = HashMap::new();
     let original = lockfile.snapshots.as_ref().unwrap_or(&empty);
@@ -137,4 +142,33 @@ pub(super) fn children(entry: &SnapshotEntry) -> impl Iterator<Item = (&PkgName,
         .iter()
         .chain(entry.optional_dependencies.iter())
         .flatten()
+}
+
+/// Whether `restored` is `original` as the file holds it.
+fn same_as_written(original: &ProjectSnapshot, restored: Option<&ProjectSnapshot>) -> bool {
+    restored.is_some_and(|restored| {
+        let written = ProjectSnapshot { specifiers: None, ..original.clone() };
+        written == *restored
+    })
+}
+
+/// The names of the importer fields `restored` differs from `original`
+/// in, so the error says what did not round-trip.
+fn differing_importer_fields(
+    original: &ProjectSnapshot,
+    restored: Option<&ProjectSnapshot>,
+) -> String {
+    let Some(restored) = restored else { return "missing".to_string() };
+    let differing: Vec<&str> = [
+        ("dependencies", original.dependencies != restored.dependencies),
+        ("devDependencies", original.dev_dependencies != restored.dev_dependencies),
+        ("optionalDependencies", original.optional_dependencies != restored.optional_dependencies),
+        ("dependenciesMeta", original.dependencies_meta != restored.dependencies_meta),
+        ("publishDirectory", original.publish_directory != restored.publish_directory),
+        ("linkDirectory", original.link_directory != restored.link_directory),
+    ]
+    .into_iter()
+    .filter_map(|(name, differs)| differs.then_some(name))
+    .collect();
+    format!("{} differ", differing.join(", "))
 }

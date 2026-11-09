@@ -59,14 +59,14 @@ fn catalog_entry(entry: &Value) -> Option<(String, String)> {
 
 /// The peer-suffix-stripped depPath one importer dependency entry resolves
 /// to. An entry the reader cannot parse names no `time:` key. In the next
-/// lockfile format, an entry can be the specifier alone, whose version is
-/// implied, through `catalogs`, under `settings` in that format, for a
-/// `catalog:` specifier. A `workspace:` specifier alone names an injected
+/// lockfile format, an entry can be the specifier alone, or a map without
+/// `version`, whose version is implied, through `catalogs`, under
+/// `settings` in that format, for a `catalog:` specifier. A `workspace:` specifier alone names an injected
 /// or a linked workspace project, which has no `time:` entry, so it is not
 /// looked up.
 fn resolved_dep_path(alias: &str, dependency: &Value, document: &Value) -> Option<String> {
-    let version = match dependency {
-        Value::String(specifier) => crate::implied_version::implied_version(
+    let implied = |specifier: &str| {
+        crate::implied_version::implied_version(
             alias,
             specifier,
             |catalog, alias| {
@@ -77,11 +77,14 @@ fn resolved_dep_path(alias: &str, dependency: &Value, document: &Value) -> Optio
             },
             |_| None,
             |_| None,
-        )?,
-        _ => dependency
-            .get("version")
-            .and_then(Value::as_str)?
-            .to_string(),
+        )
+    };
+    let version = match dependency {
+        Value::String(specifier) => implied(specifier)?,
+        _ => match dependency.get("version").and_then(Value::as_str) {
+            Some(version) => version.to_string(),
+            None => implied(dependency.get("specifier")?.as_str()?)?,
+        },
     };
     let alias = PkgName::parse(alias).ok()?;
     let version = version.parse::<ImporterDepVersion>().ok()?;

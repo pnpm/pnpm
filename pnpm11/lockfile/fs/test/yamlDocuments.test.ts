@@ -153,6 +153,12 @@ describe('extractEnvDocument', () => {
     expect(extractEnvDocument('lockfileVersion: 9.0\npackages: {}\n')).toBeNull()
   })
 
+  test('reads a v13 env document with no separator as env-only', () => {
+    const env = '{\n  "lockfileVersion": "13.0",\n\n  "importers": {\n    ".": {\n      "configDependencies": {},\n    },\n  },\n}'
+    expect(extractEnvDocument(`---\n${env}\n---`)).toBe(env)
+    expect(extractMainDocument(`---\n${env}\n---`)).toBe('')
+  })
+
   test('reads a file that starts with --- but has no separator as env-only', () => {
     expect(extractEnvDocument(`---\n${ENV_ONLY}\n`)).toBe(ENV_ONLY)
     expect(extractEnvDocument(`---\n${ENV_ONLY}\n`.replace(/\n/g, '\r\n'))).toBe(ENV_ONLY)

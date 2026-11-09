@@ -124,8 +124,9 @@ where
 
 /// The start of the first top-level entry at or after `from`: a line that
 /// starts with two spaces and a non-space. The end of `body` when there is
-/// none.
-fn next_entry_start(body: &str, from: usize) -> usize {
+/// none. `from` is a byte offset that may fall inside a character.
+pub(crate) fn next_entry_start(body: &str, from: usize) -> usize {
+    let from = char_boundary_at_or_after(body, from);
     if from >= body.len() {
         return body.len();
     }
@@ -134,6 +135,16 @@ fn next_entry_start(body: &str, from: usize) -> usize {
         .map(|(offset, _)| from + offset + 1)
         .find(|&at| body[at + 2..].starts_with(|first: char| !first.is_whitespace()))
         .unwrap_or(body.len())
+}
+
+/// The first character boundary at or after the byte offset `at`, so a cut
+/// made by byte count never slices a character.
+pub(crate) fn char_boundary_at_or_after(text: &str, at: usize) -> usize {
+    let mut at = at.min(text.len());
+    while !text.is_char_boundary(at) {
+        at += 1;
+    }
+    at
 }
 
 /// Enough chunks to spread a section over the threads, each at least

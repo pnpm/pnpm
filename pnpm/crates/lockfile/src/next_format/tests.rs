@@ -617,8 +617,6 @@ fn linked_workspace_dependency_is_its_specifier_and_names_its_project() {
     );
 }
 
-/// The JSON reader allows a trailing comma, and leaves a comma inside a
-/// string alone.
 #[test]
 fn json_reader_allows_a_trailing_comma_and_keeps_one_in_a_string() {
     let value = crate::json_document::from_json_str::<serde_json::Value>(
@@ -634,8 +632,8 @@ fn json_reader_allows_a_trailing_comma_and_keeps_one_in_a_string() {
     assert_eq!(value, serde_json::json!({"a": "x,]", "b": [1, 2], "c": {"d": r#"",}"#}}));
 }
 
-/// A JSON document laid out otherwise than pnpm writes it, here on one
-/// line, does not split into sections and is parsed whole.
+/// The section splitter expects pnpm's layout; a document on one line
+/// takes the whole-document path.
 #[test]
 fn json_document_in_another_layout_is_parsed_whole() {
     let text = r#"{"lockfileVersion":"13.0","importers":{".":{"dependencies":{"a":"1.0.0"}}},"packages":{"a@1.0.0":{"integrity":"sha512-AAAA"}}}"#;

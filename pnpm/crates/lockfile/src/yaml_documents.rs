@@ -258,11 +258,16 @@ fn env_only_document(rest: &str) -> Option<&str> {
         .strip_suffix("\n---")
         .or_else(|| rest.strip_suffix('\n'))
         .unwrap_or(rest);
-    document.contains(ROOT_IMPORTER_CONFIG_DEPENDENCIES).then_some(document)
+    (document.contains(ROOT_IMPORTER_CONFIG_DEPENDENCIES)
+        || document.contains(ROOT_IMPORTER_CONFIG_DEPENDENCIES_JSON))
+    .then_some(document)
 }
 
-/// How an env document lays out the start of its root importer.
+/// How an env document lays out the start of its root importer, in
+/// today's format and in the next format's JSON.
 const ROOT_IMPORTER_CONFIG_DEPENDENCIES: &str = "\n  .:\n    configDependencies:";
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES_JSON: &str =
+    "\n    \".\": {\n      \"configDependencies\":";
 
 #[cfg(test)]
 mod tests;

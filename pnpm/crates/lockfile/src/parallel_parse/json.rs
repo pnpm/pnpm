@@ -4,7 +4,9 @@
 //! alone on a line, so the text splits at lines, without a parser. A
 //! document laid out otherwise does not split, and is parsed whole.
 
-use super::{CHUNKED_SECTION_BYTES, Importers, Packages, chunk_count, pool};
+use super::{
+    CHUNKED_SECTION_BYTES, Importers, Packages, char_boundary_at_or_after, chunk_count, pool,
+};
 use crate::{LockfileDocument, json_document::from_json_str};
 use rayon::prelude::*;
 use serde::de::DeserializeOwned;
@@ -103,8 +105,10 @@ fn chunks(name: &str, body: &str, count: usize) -> Vec<String> {
 }
 
 /// The start of the first entry at or after `from`: a line that starts with
-/// four spaces and a quote. The end of `body` when there is none.
-fn next_entry_start(body: &str, from: usize) -> usize {
+/// four spaces and a quote. The end of `body` when there is none. `from` is
+/// a byte offset that may fall inside a character.
+pub(super) fn next_entry_start(body: &str, from: usize) -> usize {
+    let from = char_boundary_at_or_after(body, from);
     if from >= body.len() {
         return body.len();
     }

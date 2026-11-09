@@ -10,8 +10,9 @@ export const YAML_DOCUMENT_START = '---\n'
 
 const READ_BUFFER_SIZE = 64 * 1024
 
-/** How an env document lays out the start of its root importer. */
+/** How an env document lays out the start of its root importer, in today's format and in the v13 format's JSON. */
 const ROOT_IMPORTER_CONFIG_DEPENDENCIES = '\n  .:\n    configDependencies:'
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES_JSON = '\n    ".": {\n      "configDependencies":'
 
 /**
  * Reads the first YAML document from a multi-document YAML file using streaming.
@@ -152,7 +153,9 @@ function envOnlyDocument (rest: string): string | null {
       break
     }
   }
-  return document.includes(ROOT_IMPORTER_CONFIG_DEPENDENCIES) ? document : null
+  const isEnvDocument = document.includes(ROOT_IMPORTER_CONFIG_DEPENDENCIES) ||
+    document.includes(ROOT_IMPORTER_CONFIG_DEPENDENCIES_JSON)
+  return isEnvDocument ? document : null
 }
 
 /**

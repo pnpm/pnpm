@@ -564,8 +564,6 @@ fn a_write_refuses_an_env_document_whose_conflict_cannot_be_merged() {
     );
 }
 
-/// The env document's format follows the pinned pnpm's major, and changes
-/// one major after the main document's.
 #[test]
 fn env_document_format_follows_the_pinned_major() {
     assert_eq!(EnvDocumentFormat::for_pnpm("12.16.1"), EnvDocumentFormat::V9);
@@ -573,4 +571,21 @@ fn env_document_format_follows_the_pinned_major() {
     assert_eq!(EnvDocumentFormat::for_pnpm("14.0.0-beta.1"), EnvDocumentFormat::V13);
     assert_eq!(EnvDocumentFormat::for_pnpm("15.2.0"), EnvDocumentFormat::V13);
     assert_eq!(EnvDocumentFormat::for_pnpm("not a version"), EnvDocumentFormat::V9);
+}
+
+/// A project whose pin moves back to an older pnpm has its env document
+/// rewritten in today's format, version included, so it reads back.
+#[test]
+fn writing_todays_format_over_a_next_format_env_document_resets_its_version() {
+    let dir = TempDir::new().unwrap();
+    let env = sample_env_lockfile();
+    env.write(dir.path(), SymlinkedLockfile::Refuse, EnvDocumentFormat::V13).unwrap();
+    let read = EnvLockfile::read(dir.path()).unwrap().expect("env document present");
+    assert_eq!(read.lockfile_version, "13.0");
+
+    read.write(dir.path(), SymlinkedLockfile::Refuse, EnvDocumentFormat::V9).unwrap();
+    let raw = std::fs::read_to_string(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    assert!(raw.starts_with("---\nlockfileVersion: '9.0'\n"), "{raw}");
+    let read_again = EnvLockfile::read(dir.path()).unwrap().expect("env document present");
+    assert_eq!(read_again, env);
 }

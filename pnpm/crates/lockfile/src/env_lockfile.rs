@@ -218,14 +218,30 @@ impl EnvDocumentFormat {
 
 impl EnvLockfile {
     /// This document's text in `format`, which decides its shape and
-    /// syntax and the `lockfileVersion` it declares.
+    /// syntax and the `lockfileVersion` it declares. A document read in
+    /// the next format and written in today's declares today's version,
+    /// so that it reads back as today's shape; any other version string is
+    /// kept, since the env installer does not own it.
     fn document_text(&self, format: EnvDocumentFormat) -> Result<String, SaveLockfileError> {
         match format {
             EnvDocumentFormat::V13 => next::to_text(self, format.lockfile_version()),
+            EnvDocumentFormat::V9 if self.declares_next_format() => {
+                let mut env = self.clone();
+                env.lockfile_version = EnvDocumentFormat::V9.lockfile_version().to_string();
+                serialize_yaml::to_string(&env).map_err(SaveLockfileError::SerializeYaml)
+            }
             EnvDocumentFormat::V9 => {
                 serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)
             }
         }
+    }
+
+    fn declares_next_format(&self) -> bool {
+        self.lockfile_version
+            .split('.')
+            .next()
+            .and_then(|major| major.parse::<u16>().ok())
+            == Some(crate::NEXT_LOCKFILE_MAJOR)
     }
 }
 
