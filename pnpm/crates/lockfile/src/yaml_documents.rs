@@ -267,7 +267,7 @@ fn env_only_document(rest: &str) -> Option<&str> {
 /// today's format and in the next format's JSON.
 const ROOT_IMPORTER_CONFIG_DEPENDENCIES: &str = "\n  .:\n    configDependencies:";
 const ROOT_IMPORTER_CONFIG_DEPENDENCIES_JSON: &str =
-    "\n    \".\": {\n      \"configDependencies\":";
+    "\n\t\t\".\": {\n\t\t\t\"configDependencies\":";
 
 #[cfg(test)]
 mod tests;

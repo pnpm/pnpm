@@ -257,11 +257,11 @@ impl NextPackage {
         let snapshots = self.snapshots.take();
         let metadata = self.into_metadata(key, peers.ranges, peers.meta)?;
         let snapshots = match snapshots {
-            None => vec![shared],
-            Some(snapshots) => snapshots
+            Some(snapshots) if !snapshots.is_empty() => snapshots
                 .into_iter()
                 .map(|snapshot| snapshot.over(&shared))
                 .collect(),
+            _ => vec![shared],
         };
         Ok((metadata, snapshots))
     }

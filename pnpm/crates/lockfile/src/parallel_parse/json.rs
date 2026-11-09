@@ -1,6 +1,6 @@
 //! The JSON syntax's sections, parsed on separate threads. The next format
-//! writes `projects` and `packages` with the header `  "<name>": {` alone
-//! on a line, each entry starting at four spaces, and the closing `  },`
+//! writes `projects` and `packages` with the header `\t"<name>": {` alone
+//! on a line, each entry starting at two tabs, and the closing `\t},`
 //! alone on a line, so the text splits at lines, without a parser. A
 //! document laid out otherwise does not split, and is parsed whole.
 
@@ -113,13 +113,13 @@ pub(super) fn next_entry_start(body: &str, from: usize) -> usize {
         return body.len();
     }
     body[from..]
-        .find("\n    \"")
+        .find("\n\t\t\"")
         .map_or(body.len(), |offset| from + offset + 1)
 }
 
 /// The document with each section's entries removed, and the entries of
 /// each section, `""` for an absent one. `None` unless every section found
-/// has its header alone on a line, appears once, and closes with `  },` or
+/// has its header alone on a line, appears once, and closes with `\t},` or
 /// `  }` alone on a line.
 fn split_sections(document: &str) -> Option<(String, [&str; 2])> {
     let mut splitter = Splitter::new();
@@ -150,7 +150,7 @@ struct Splitter {
 impl Splitter {
     fn new() -> Self {
         Splitter {
-            headers: SECTIONS.map(|name| format!(r#"  "{name}": {{"#)),
+            headers: SECTIONS.map(|name| format!("\t\"{name}\": {{")),
             rest: String::with_capacity(1024),
             sections: [None; 2],
             current: None,
@@ -162,7 +162,7 @@ impl Splitter {
     fn take_line(&mut self, line: &str, offset: usize) -> Option<()> {
         let content = line.trim_end();
         if let Some((index, start)) = self.current {
-            if content == "  }," || content == "  }" {
+            if content == "\t}," || content == "\t}" {
                 self.sections[index] = Some((start, offset));
                 self.rest.push_str(line);
                 self.current = None;

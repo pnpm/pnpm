@@ -1,16 +1,18 @@
-//! The next format's syntax: JSON, with a trailing comma after every entry
-//! of a multi-line collection. That is YAML flow style with every scalar
-//! double-quoted, so a YAML reader parses the file as the same document and
-//! `pnpm-lock.yaml` keeps its name and its readers, while a JSON reader that
-//! allows the trailing comma parses it several times faster. The layout
-//! follows the block emitter's: a blank line between the entries of the
+//! The next format's syntax: JSON, indented with one tab per level, with a
+//! trailing comma after every entry of a multi-line collection. That is YAML
+//! flow style with every scalar double-quoted, so a YAML reader parses the
+//! file as the same document and `pnpm-lock.yaml` keeps its name and its
+//! readers, while a JSON reader that allows the trailing comma parses it
+//! several times faster. A tab is a tenth of the file's bytes smaller than
+//! two spaces and is separation whitespace inside a flow collection, where
+//! YAML allows it. The layout follows the block emitter's: a blank line between the entries of the
 //! top-level map and of `projects` and `packages`, the maps
 //! [`one_line_values`] names on their keys' lines, and a map that
 //! [names a snapshot](names_snapshot) one binding per line.
 
 use super::{
-    Format, INDENT, Nesting, PARALLEL_ENTRY_THRESHOLD, ValueStyle, is_single_line_key,
-    is_single_line_map, names_snapshot, one_line_values,
+    Format, Nesting, PARALLEL_ENTRY_THRESHOLD, ValueStyle, is_single_line_key, is_single_line_map,
+    names_snapshot, one_line_values,
 };
 use rayon::prelude::*;
 use serde_json::{Map, Value};
@@ -179,7 +181,7 @@ fn write_list(
 
 fn next_line(out: &mut String, level: usize) {
     out.push('\n');
-    out.extend(std::iter::repeat_n(' ', INDENT * level));
+    out.extend(std::iter::repeat_n('\t', level));
 }
 
 /// `text` as a JSON string: `"` and `\` escaped, and a control character

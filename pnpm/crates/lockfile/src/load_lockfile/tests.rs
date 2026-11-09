@@ -214,20 +214,20 @@ fn fix_loader_keeps_next_format_entries_pinned_by_integrity() {
         tmp.path().join(Lockfile::FILE_NAME),
         text_block! {
             "{"
-            r#"  "lockfileVersion": "13.0","#
-            r#"  "settings": "invalid","#
-            r#"  "projects": {".": {"dependencies": {"valid": "1.0.0"}}},"#
-            r#"  "packages": {"#
-            r#"    "broken@1.0.0": {"engines": "invalid"},"#
-            r#"    "valid@1.0.0": {"#
-            r#"      "integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
-            r#"      "engines": "invalid","#
-            r#"      "dependencies": {"child": "1.0.0"},"#
-            "    },"
-            r#"    "child@1.0.0": {"#
-            r#"      "integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
-            "    },"
-            "  },"
+            r#"	"lockfileVersion": "13.0","#
+            r#"	"settings": "invalid","#
+            r#"	"projects": {".": {"dependencies": {"valid": "1.0.0"}}},"#
+            r#"	"packages": {"#
+            r#"		"broken@1.0.0": {"engines": "invalid"},"#
+            r#"		"valid@1.0.0": {"#
+            r#"			"integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
+            r#"			"engines": "invalid","#
+            r#"			"dependencies": {"child": "1.0.0"},"#
+            "		},"
+            r#"		"child@1.0.0": {"#
+            r#"			"integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
+            "		},"
+            "	},"
             "}"
         },
     )
@@ -267,22 +267,22 @@ fn fix_loader_narrows_next_format_settings_and_pins() {
         tmp.path().join(Lockfile::FILE_NAME),
         text_block! {
             "{"
-            r#"  "lockfileVersion": "13.0","#
-            r#"  "settings": {"#
-            r#"    "overrides": "invalid","#
-            r#"    "catalogs": {"default": {"from-catalog": {"specifier": "^2.0.0", "version": "2.0.0"}}},"#
-            "  },"
-            r#"  "projects": {"#
-            r#"    ".": {"dependencies": {"from-catalog": "catalog:", "injected": "workspace:*"}},"#
-            "  },"
-            r#"  "packages": {"#
-            r#"    "from-catalog@2.0.0": {"#
-            r#"      "integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
-            r#"      "dependencies": "invalid","#
-            "    },"
-            r#"    "nothing@1.0.0": {},"#
-            r#"    "injected@file:packages/injected": {},"#
-            "  },"
+            r#"	"lockfileVersion": "13.0","#
+            r#"	"settings": {"#
+            r#"		"overrides": "invalid","#
+            r#"		"catalogs": {"default": {"from-catalog": {"specifier": "^2.0.0", "version": "2.0.0"}}},"#
+            "	},"
+            r#"	"projects": {"#
+            r#"		".": {"dependencies": {"from-catalog": "catalog:", "injected": "workspace:*"}},"#
+            "	},"
+            r#"	"packages": {"#
+            r#"		"from-catalog@2.0.0": {"#
+            r#"			"integrity": "sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==","#
+            r#"			"dependencies": "invalid","#
+            "		},"
+            r#"		"nothing@1.0.0": {},"#
+            r#"		"injected@file:packages/injected": {},"#
+            "	},"
             "}"
         },
     )

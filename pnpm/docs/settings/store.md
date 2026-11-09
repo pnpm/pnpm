@@ -254,7 +254,7 @@ lockfile:
   format: v13
 ```
 
-A lockfile in the `v13` format is JSON with a trailing comma after every entry. That is valid YAML, so `pnpm-lock.yaml` keeps its name and tools that read it as YAML still can. Its `lockfileVersion` is `13.0`, the pnpm major planned to write the format by default.
+A lockfile in the `v13` format is JSON, indented with tabs, with a trailing comma after every entry. That is valid YAML, so `pnpm-lock.yaml` keeps its name and tools that read it as YAML still can. Its `lockfileVersion` is `13.0`, the pnpm major planned to write the format by default.
 
 The format differs from today's in these ways:
 

@@ -96,22 +96,22 @@ fn write_then_read_round_trips_in_the_next_format() {
     let env_doc = extract_env_document(&raw).expect("an env document");
     let head = text_block_fnl! {
         "{"
-        r#"  "lockfileVersion": "13.0","#
+        r#"	"lockfileVersion": "13.0","#
         ""
-        r#"  "projects": {"#
-        r#"    ".": {"#
-        r#"      "configDependencies": {"#
-        r#"        "@pnpm.e2e/foo": "100.0.0","#
-        "      },"
-        "    },"
-        "  },"
+        r#"	"projects": {"#
+        r#"		".": {"#
+        r#"			"configDependencies": {"#
+        r#"				"@pnpm.e2e/foo": "100.0.0","#
+        "			},"
+        "		},"
+        "	},"
         ""
-        r#"  "packages": {"#
-        r#"    "@pnpm.e2e/foo@100.0.0": {"#
-        r#"      "integrity": "sha"#
+        r#"	"packages": {"#
+        r#"		"@pnpm.e2e/foo@100.0.0": {"#
+        r#"			"integrity": "sha"#
     };
     assert!(env_doc.starts_with(head.trim_end_matches('\n')), "{env_doc}");
-    assert!(env_doc.trim_end().ends_with("\n    },\n  },\n}"), "{env_doc}");
+    assert!(env_doc.trim_end().ends_with("\n\t\t},\n\t},\n}"), "{env_doc}");
     assert!(!env_doc.contains("snapshots"), "{env_doc}");
 
     let read_back = EnvLockfile::read(dir.path()).unwrap().expect("env document present");

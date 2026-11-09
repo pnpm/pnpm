@@ -29,10 +29,10 @@ fn install_writes_the_v13_lockfile_and_a_frozen_install_reads_it() {
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read the lockfile");
-    assert!(lockfile.starts_with("{\n  \"lockfileVersion\": \"13.0\",\n"), "{lockfile}");
-    assert!(lockfile.contains("\n    \"@pnpm.e2e/pkg-with-1-dep@100.0.0\": {\n"), "{lockfile}");
+    assert!(lockfile.starts_with("{\n\t\"lockfileVersion\": \"13.0\",\n"), "{lockfile}");
+    assert!(lockfile.contains("\n\t\t\"@pnpm.e2e/pkg-with-1-dep@100.0.0\": {\n"), "{lockfile}");
     assert!(
-        lockfile.contains("\n        \"@pnpm.e2e/pkg-with-1-dep\": \"100.0.0\",\n"),
+        lockfile.contains("\n\t\t\t\t\"@pnpm.e2e/pkg-with-1-dep\": \"100.0.0\",\n"),
         "{lockfile}",
     );
     assert!(!lockfile.contains("snapshots"), "{lockfile}");

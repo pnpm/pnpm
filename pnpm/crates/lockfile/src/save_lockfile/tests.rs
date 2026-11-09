@@ -1043,7 +1043,7 @@ fn a_hook_lockfile_is_written_in_the_format_its_version_names() {
         "snapshots": { "foo@1.0.0": {} },
     });
     let next = crate::render_hook_lockfile(&document).expect("render the next format");
-    assert!(next.starts_with("{\n  \"lockfileVersion\": \"13.0\",\n"), "{next}");
+    assert!(next.starts_with("{\n\t\"lockfileVersion\": \"13.0\",\n"), "{next}");
     assert!(!next.contains("snapshots"), "{next}");
 
     let mut today = document;
