@@ -1,1 +1,1 @@
-export { pickSettingByUrl } from './config.js'
+export { isNoProxy, pickSettingByUrl } from './config.js'

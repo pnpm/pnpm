@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@jest/globals'
-import { pickSettingByUrl } from '@pnpm/network.config'
+import { isNoProxy, pickSettingByUrl } from '@pnpm/network.config'
 
 describe('pickSettingByUrl', () => {
   test('should return undefined if generic object is undefined', () => {
@@ -42,6 +42,19 @@ describe('pickSettingByUrl', () => {
   })
 })
 
+describe('isNoProxy', () => {
+  test.each([
+    [undefined, false],
+    [true, true],
+    [false, false],
+    ['', false],
+    ['.example.com, localhost', true],
+    ['ample.com', false],
+  ])('matches %s as %s', (noProxy, expected) => {
+    expect(isNoProxy('https://registry.example.com', noProxy)).toBe(expected)
+  })
+})
+
 test('returns a matching setting whose value is falsy', () => {
   expect(pickSettingByUrl({ '//example.com/': false }, 'https://example.com/foo')).toBe(false)
   expect(pickSettingByUrl({ 'https://example.com/foo': '' }, 'https://example.com/foo')).toBe('')
@@ -49,4 +62,5 @@ test('returns a matching setting whose value is falsy', () => {
 
 test('keeps the path of a URL with a port and a query when matching without the port', () => {
   expect(pickSettingByUrl({ '//example.com/path/': 'PathSetting' }, 'https://example.com:8080/path?a=1')).toBe('PathSetting')
+  expect(pickSettingByUrl({ 'https://example.com/foo': '', '//example.com/': 'fallback' }, 'https://example.com/foo', { skipFalsyValues: true })).toBe('fallback')
 })

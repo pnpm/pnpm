@@ -47,6 +47,7 @@ export async function mutateModules (
   const detachReporter = attachReporter(maybeOpts?.reporter)
 
   const opts = extendOptions(maybeOpts)
+  opts.allProjects ??= []
 
   // Taken before any fetching so the store-verification figures this
   // install reports are its own. See the tally in `@pnpm/worker` for

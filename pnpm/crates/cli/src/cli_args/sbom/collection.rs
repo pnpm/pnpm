@@ -94,7 +94,7 @@ pub(super) fn collect_components(
     let lockfile = required_sbom_lockfile(state)?;
 
     let lockfile_dir = state.lockfile_dir().to_path_buf();
-    let (manifest, root_manifest) = read_sbom_manifests(state, &lockfile_dir, filter_importer_ids);
+    let (manifest, root_manifest) = read_sbom_manifests(state, &lockfile_dir, filter_importer_ids)?;
     let root = RootMetadata::from_manifests(&manifest, root_manifest.as_ref());
     let peer_edges = PeerSatisfactionEdges::of_lockfile(lockfile, state.config.peer_edge_options());
     let dep_types = detect_dep_types(lockfile, TransitiveEdges::classifying(include, &peer_edges));
@@ -128,7 +128,7 @@ pub(super) fn collect_components(
             ctx: &ctx,
         },
         &mut stores,
-    );
+    )?;
 
     Ok(assemble_sbom_result(root, sbom_type, stores))
 }
@@ -217,7 +217,7 @@ fn read_sbom_manifests(
     state: &State,
     lockfile_dir: &Path,
     filter_importer_ids: Option<&[&str]>,
-) -> (serde_json::Value, Option<serde_json::Value>) {
+) -> miette::Result<(serde_json::Value, Option<serde_json::Value>)> {
     let fallback = |importer_id: &str| {
         if state.active_importer_id() == importer_id && state.manifest.path().exists() {
             state.manifest.value().clone()
@@ -225,21 +225,22 @@ fn read_sbom_manifests(
             serde_json::json!({})
         }
     };
-    let root_manifest = safe_read_project_manifest_from_dir(lockfile_dir)
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| fallback("."));
+    let root_manifest =
+        safe_read_project_manifest_from_dir(lockfile_dir)?.unwrap_or_else(|| fallback("."));
 
     let single_id = match filter_importer_ids {
         Some(&[single_id]) if single_id != "." => single_id,
-        _ => return (root_manifest, None),
+        _ => return Ok((root_manifest, None)),
     };
 
-    let project_manifest = confined_importer_dir(lockfile_dir, single_id)
-        .and_then(|dir| safe_read_project_manifest_from_dir(&dir).ok().flatten())
-        .unwrap_or_else(|| fallback(single_id));
+    let project_manifest = match confined_importer_dir(lockfile_dir, single_id) {
+        Some(dir) => {
+            safe_read_project_manifest_from_dir(&dir)?.unwrap_or_else(|| fallback(single_id))
+        }
+        None => fallback(single_id),
+    };
 
-    (project_manifest, Some(root_manifest))
+    Ok((project_manifest, Some(root_manifest)))
 }
 
 fn assemble_sbom_result(

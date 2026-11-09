@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject, type ProjectSnapshot, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { createFormat, createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
-import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
+import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import type { ProjectId, ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -13,6 +13,7 @@ import normalizePath from 'normalize-path'
 import { writeJsonFile } from 'write-json-file'
 
 import { NPM_SIGNING_KEYS_FILE, type NpmSigningKey, renderNpmSigningKeysModule, replaceRustNpmSigningKeys } from './npmSigningKeys.js'
+import { PUBLISH_EXECUTABLE_FILES, sortKeysInManifest, updateManifest } from './updateManifest.js'
 
 const CLI_PKG_NAME = 'pnpm'
 
@@ -33,27 +34,6 @@ const NON_TYPESCRIPT_PKGS = new Set([
 // `@pnpm/exe` ships the same `dist/` tree as `pnpm`, so the two manifests'
 // `publishConfig.executableFiles` lists must stay identical — otherwise the
 // shims end up packed at 0644 in one of the tarballs (see pnpm/pnpm#11483).
-const PUBLISH_EXECUTABLE_FILES = [
-  './dist/node-gyp-bin/node-gyp',
-  './dist/node-gyp-bin/node-gyp.cmd',
-  './dist/node_modules/node-gyp/bin/node-gyp.js',
-  './dist/node_modules/node-gyp/gyp/gyp_main.py',
-  './dist/node_modules/node-gyp/gyp/gyp',
-]
-
-// Packages whose tests spawn the local pnpm CLI binary (pnpm/bin/pnpm.mjs)
-// and therefore need the CLI bundle (pnpm/dist/pnpm.mjs) to be built first.
-const PKGS_NEEDING_CLI_COMPILE = new Set([
-  '@pnpm/building.commands',
-  '@pnpm/cache.commands',
-  '@pnpm/deps.inspection.commands',
-  '@pnpm/exec.commands',
-  '@pnpm/lockfile.make-dedicated-lockfile',
-  '@pnpm/releasing.commands',
-  '@pnpm/releasing.exportable-manifest',
-  '@pnpm/store.commands',
-])
-
 export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
   const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm11/pnpm/package.json'))
@@ -226,96 +206,12 @@ async function updateTSConfig (
   }: FormatPluginFnOptions
 ): Promise<object | null> {
   if (tsConfig == null) return tsConfig
-  if (manifest.name === '@pnpm/tsconfig') return tsConfig
-  if (manifest.name === '@pnpm-private/typecheck') return tsConfig
-  if (manifest.name != null && NON_TYPESCRIPT_PKGS.has(manifest.name)) return tsConfig
+  if (shouldKeepTSConfig(manifest.name)) return tsConfig
   const relative = normalizePath(path.relative(context.workspaceDir, dir)) as ProjectId
   const importer = context.lockfile.importers[relative]
   if (!importer) return tsConfig
-  const deps = {
-    ...importer.dependencies,
-    ...importer.devDependencies,
-  }
-  const linkValues: string[] = []
-  for (const [depName, spec] of Object.entries(deps)) {
-    if (!spec.startsWith('link:') || spec.length === 5) continue
-    const relativePath = spec.slice(5)
-    const linkedPkgDir = path.join(dir, relativePath)
-    if (!fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json'))) continue
-    if (!isSubdir(context.workspaceDir, linkedPkgDir)) continue
-    if (
-      depName === '@pnpm/store.controller' && (
-        manifest.name === '@pnpm/fetching.git-fetcher' ||
-        manifest.name === '@pnpm/fetching.tarball-fetcher' ||
-        manifest.name === '@pnpm/installing.package-requester'
-      ) ||
-      depName === 'pnpm' && manifest.name === '@pnpm/lockfile.make-dedicated-lockfile'
-    ) {
-      // This is to avoid a circular graph (which TypeScript references do not support.
-      continue
-    }
-    linkValues.push(relativePath)
-  }
-  linkValues.sort()
-
-  async function writeTestTsconfig () {
-    const testDir = path.join(dir, 'test')
-    if (!fs.existsSync(testDir)) {
-      return
-    }
-
-    await writeJsonFile(path.join(dir, 'test/tsconfig.json'), {
-      extends: '../tsconfig.json',
-      compilerOptions: {
-        noEmit: false,
-        outDir: '../node_modules/.test.lib',
-        rootDir: '..',
-        isolatedModules: true,
-      },
-      include: [
-        '**/*.ts',
-        normalizePath(path.relative(testDir, path.join(context.workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
-      ],
-      references: (tsConfig as any)?.compilerOptions?.composite === false // eslint-disable-line
-        // If composite is explicitly set to false, we can't add the main
-        // tsconfig.json as a project reference. Only composite enabled projects
-        // can be referenced by definition. Instead, we have to add all the
-        // project references directly. This check is approximate. The
-        // main tsconfig.json could inherit another config that sets composite
-        // to be false.
-        //
-        // The link values are relative to the current packages root. We'll need
-        // to re-compute them based off of the "test" directory, which is one
-        // directory deeper. In practice the path.relative(...) call below just
-        // prepends another "../" to the relPath, but let's use the correct
-        // methods to be defensive against future changes to testDir, dir, or
-        // relPath.
-        ? linkValues.map(relPath => ({
-          path: normalizePath(path.relative(testDir, path.join(dir, relPath))),
-        }))
-
-        // If the main project is composite (the more common case), we can
-        // reference that. The main project will have more project
-        // references that will apply to the tests too.
-        //
-        // The project reference allows editor features like Go to Definition
-        // jump to files in src for imports using the current package's name
-        // (ex: @pnpm/config.reader).
-        : [{ path: '..' }],
-    }, { indent: 2 })
-  }
-
-  await Promise.all([
-    writeTestTsconfig(),
-    writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
-      extends: './tsconfig.json',
-      include: [
-        'src/**/*.ts',
-        'test/**/*.ts',
-        normalizePath(path.relative(dir, path.join(context.workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
-      ],
-    }, { indent: 2 }),
-  ])
+  const linkValues = findTypeScriptReferences(context.workspaceDir, dir, importer, manifest.name)
+  await writeTsConfigFiles(context.workspaceDir, dir, tsConfig, linkValues)
   return {
     ...tsConfig,
     extends: '@pnpm/tsconfig',
@@ -325,6 +221,93 @@ async function updateTSConfig (
     },
     references: linkValues.map(path => ({ path })),
   }
+}
+
+function shouldKeepTSConfig (name: string | undefined): boolean {
+  return name === '@pnpm/tsconfig' || name === '@pnpm-private/typecheck' ||
+    (name != null && NON_TYPESCRIPT_PKGS.has(name))
+}
+
+function findTypeScriptReferences (
+  workspaceDir: string,
+  dir: string,
+  importer: ProjectSnapshot,
+  projectName: string | undefined
+): string[] {
+  const deps = { ...importer.dependencies, ...importer.devDependencies }
+  return Object.entries(deps)
+    .filter(([depName, spec]) => {
+      if (!spec.startsWith('link:') || spec.length === 5) return false
+      const linkedPkgDir = path.join(dir, spec.slice(5))
+      return fs.existsSync(path.join(linkedPkgDir, 'tsconfig.json')) &&
+        isSubdir(workspaceDir, linkedPkgDir) &&
+        !isExcludedTypeScriptReference(depName, projectName)
+    })
+    .map(([, spec]) => spec.slice(5))
+    .sort()
+}
+
+function isExcludedTypeScriptReference (dependencyName: string, projectName: string | undefined): boolean {
+  return dependencyName === '@pnpm/store.controller' && [
+    '@pnpm/fetching.git-fetcher',
+    '@pnpm/fetching.tarball-fetcher',
+    '@pnpm/installing.package-requester',
+  ].includes(projectName ?? '') ||
+    dependencyName === 'pnpm' && projectName === '@pnpm/lockfile.make-dedicated-lockfile'
+}
+
+async function writeTsConfigFiles (
+  workspaceDir: string,
+  dir: string,
+  tsConfig: object,
+  linkValues: string[]
+): Promise<void> {
+  const testDir = path.join(dir, 'test')
+  const testConfig = fs.existsSync(testDir)
+    ? writeTestTsConfig(workspaceDir, dir, testDir, tsConfig, linkValues)
+    : Promise.resolve()
+  await Promise.all([
+    testConfig,
+    writeJsonFile(path.join(dir, 'tsconfig.lint.json'), {
+      extends: './tsconfig.json',
+      include: [
+        'src/**/*.ts',
+        'test/**/*.ts',
+        normalizePath(path.relative(dir, path.join(workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
+      ],
+    }, { indent: 2 }),
+  ])
+}
+
+async function writeTestTsConfig (
+  workspaceDir: string,
+  dir: string,
+  testDir: string,
+  tsConfig: object,
+  linkValues: string[]
+): Promise<void> {
+  await writeJsonFile(path.join(testDir, 'tsconfig.json'), {
+    extends: '../tsconfig.json',
+    compilerOptions: {
+      noEmit: false,
+      outDir: '../node_modules/.test.lib',
+      rootDir: '..',
+      isolatedModules: true,
+    },
+    include: [
+      '**/*.ts',
+      normalizePath(path.relative(testDir, path.join(workspaceDir, 'pnpm11/__typings__/**/*.d.ts'))),
+    ],
+    references: getTestReferences(tsConfig, dir, testDir, linkValues),
+  }, { indent: 2 })
+}
+
+function getTestReferences (tsConfig: object, dir: string, testDir: string, linkValues: string[]): Array<{ path: string }> {
+  const compilerOptions = (tsConfig as any)?.compilerOptions // eslint-disable-line
+  if (compilerOptions?.composite !== false) return [{ path: '..' }]
+  return linkValues.map(relativePath => ({
+    path: normalizePath(path.relative(testDir, path.join(dir, relativePath))),
+  }))
 }
 
 // `devEngines.runtime` in the root manifest is the single source of truth for
@@ -377,239 +360,3 @@ const textFormat = createFormat<string>({
     fs.writeFileSync(resolvedPath, expected)
   },
 })
-
-const registryMockPortForCore = 7769
-
-async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string, nextTag: string): Promise<ProjectManifest> {
-  const relative = normalizePath(path.relative(workspaceDir, dir))
-  let scripts: Record<string, string>
-  let preset = '@pnpm/jest-config'
-  switch (manifest.name) {
-    case '@pnpm/bins.cmd-shim':
-    case '@pnpm/lockfile.types':
-      scripts = { ...manifest.scripts }
-      break
-    case '@pnpm/building.commands':
-    case '@pnpm/installing.deps-restorer':
-    case '@pnpm/installing.env-installer':
-    case '@pnpm/deps.inspection.outdated':
-    case '@pnpm/installing.package-requester':
-    case '@pnpm/cache.commands':
-    case '@pnpm/plugin-commands-import':
-    case '@pnpm/installing.commands':
-    case '@pnpm/deps.inspection.commands':
-    case '@pnpm/patching.commands':
-    case '@pnpm/registry-access.commands':
-    case '@pnpm/releasing.commands':
-    case '@pnpm/exec.commands':
-    case '@pnpm/store.commands':
-    case '@pnpm/deps.compliance.commands':
-    case CLI_PKG_NAME:
-    case '@pnpm/installing.deps-installer': {
-      preset = '@pnpm/jest-config/with-registry'
-      scripts = {
-        ...(manifest.scripts as Record<string, string>),
-      }
-      scripts.test = 'pn compile && pn .test'
-      if (manifest.name === '@pnpm/installing.deps-installer') {
-      // @pnpm/installing.deps-installer tests currently works only with port 7769 due to the usage of
-      // the next package: pkg-with-tarball-dep-from-registry
-      //
-      // deepRecursive resolves @teambit/bit's enormous circular/peer graph and
-      // needs ~3.6 GB on its own — enough to fit Node's default ~4 GB heap, but
-      // not with the memory the other test files leave behind in the same
-      // process (Jest's `--experimental-vm-modules` registry isn't reclaimed
-      // between files). Run it in a dedicated jest process (`.test:heavy`) so it
-      // gets the whole heap to itself, and run the rest (`.test:rest`) in a
-      // separate process with it excluded.
-        const heavyTestPath = 'test/install/deepRecursive.ts'
-        const testEnv = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169"`
-        scripts['.test'] = 'pn .test:heavy && pn .test:rest'
-        scripts['.test:heavy'] = `${testEnv} jest ${heavyTestPath}`
-        scripts['.test:rest'] = `${testEnv} jest "^(?!.*deepRecursive)"`
-      } else {
-        scripts['.test'] = 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest'
-      }
-      break
-    }
-    default:
-      if (fs.existsSync(path.join(dir, 'test'))) {
-        scripts = {
-          ...(manifest.scripts as Record<string, string>),
-          '.test': 'cross-env NODE_OPTIONS="$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169" jest',
-          test: 'pn compile && pn .test',
-        }
-      } else {
-        scripts = {
-          ...(manifest.scripts as Record<string, string>),
-          test: 'pn compile',
-        }
-      }
-      break
-  }
-  if (manifest.name && PKGS_NEEDING_CLI_COMPILE.has(manifest.name)) {
-    scripts.test = 'pn compile && pn --filter=pnpm compile && pn .test'
-  }
-  // Clean up old underscore-prefixed script names
-  delete scripts._test
-  delete scripts._compile
-  if (manifest.name === CLI_PKG_NAME) {
-    manifest.publishConfig!.tag = nextTag
-    manifest.publishConfig!.executableFiles = [...PUBLISH_EXECUTABLE_FILES]
-  }
-  if (scripts['.test']) {
-    if (scripts.pretest) {
-      scripts['.test'] = `pn pretest && ${scripts['.test']}`
-    }
-    if (scripts.posttest) {
-      scripts['.test'] = `${scripts['.test']} && pn posttest`
-    }
-    if (manifest.name === '@pnpm/server') {
-      scripts['.test'] += ' --detectOpenHandles'
-    }
-  }
-  scripts.compile = 'tsgo --build && pn lint --fix'
-  delete scripts.tsc
-  if (scripts.start && scripts.start.includes('tsc --watch')) {
-    scripts.start = scripts.start.replace('tsc --watch', 'tsgo --watch')
-  }
-  if (scripts['.compile'] && scripts['.compile'].includes('tsc --build')) {
-    scripts['.compile'] = scripts['.compile'].replace('tsc --build', 'tsgo --build')
-  }
-  let homepage: string
-  let repository: string | { type: 'git', url: string, directory: 'pnpm11/pnpm' }
-  if (manifest.name === CLI_PKG_NAME) {
-    homepage = 'https://pnpm.io'
-    repository = {
-      type: 'git',
-      url: 'git+https://github.com/pnpm/pnpm.git',
-      directory: 'pnpm11/pnpm',
-    }
-    // Publishing runs `prepublishOnly`, so it must build without linting:
-    // the release runner can't reliably reproduce the lint environment, and
-    // CI already lints every PR. `build` produces the artifacts; `compile`
-    // keeps lint for local development and `pnpm test`.
-    scripts.build = 'tsgo --build && rimraf dist bin/nodes && pn bundle \
-&& shx cp -r node-gyp-bin dist/node-gyp-bin \
-&& shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates \
-&& shx cp -r node_modules/ps-list/vendor dist/vendor \
-&& shx cp pnpmrc dist/pnpmrc'
-    scripts.compile = 'pn lint --fix && pn build'
-    scripts.prepublishOnly = 'pn build && node bundle-deps.ts'
-  } else {
-    scripts.prepublishOnly = 'tsgo --build'
-    homepage = `https://github.com/pnpm/pnpm/tree/main/${relative}#readme`
-    repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
-  }
-  if (scripts.lint) {
-    if (fs.existsSync(path.join(dir, 'test')) && manifest.name !== '@pnpm/bins.cmd-shim') {
-      scripts.lint = 'eslint "src/**/*.ts" "test/**/*.ts"'
-    } else {
-      scripts.lint = 'eslint "src/**/*.ts"'
-    }
-  }
-  const files: string[] = []
-  if (manifest.name === CLI_PKG_NAME || manifest.name?.endsWith('/pnpm')) {
-    files.push('dist')
-    files.push('!dist/**/*.map')
-    files.push('bin')
-  } else {
-    // the order is important
-    files.push('lib')
-    files.push('!*.map')
-    if (manifest.bin) {
-      files.push('bin')
-    }
-    if (manifest.name === '@pnpm/exec.npm-lifecycle') {
-      // The node-gyp wrappers the runner puts on a script's PATH.
-      files.push('node-gyp-bin')
-    }
-  }
-  if (manifest.dependencies?.['@types/ramda']) {
-    // We should never release @types/ramda as a prod dependency as it breaks the bit repository.
-    manifest.devDependencies = {
-      ...manifest.devDependencies,
-      '@types/ramda': manifest.dependencies['@types/ramda'],
-    }
-    delete manifest.dependencies['@types/ramda']
-  }
-  if (scripts.test && manifest.name !== '@pnpm/bins.cmd-shim') {
-    Object.assign(manifest, {
-      jest: {
-        ...(manifest as any).jest, // eslint-disable-line
-        preset,
-      },
-    })
-  }
-  return sortKeysInManifest({
-    ...manifest,
-    type: 'module',
-    bugs: {
-      url: 'https://github.com/pnpm/pnpm/issues',
-    },
-    engines: { node: '>=22.13' },
-    files,
-    funding: 'https://opencollective.com/pnpm',
-    homepage,
-    license: manifest.license ?? 'MIT',
-    repository,
-    scripts,
-    exports: {
-      ...manifest.exports,
-      '.': manifest.name === 'pnpm' ? './package.json' : './lib/index.js',
-    },
-  })
-}
-
-const priority = Object.fromEntries([
-  // Metadata
-  'name',
-  'private',
-  'version',
-  'description',
-  'keywords',
-  'license',
-  'author',
-  'contributors',
-  'funding',
-  'repository',
-  'homepage',
-  'bugs',
-
-  // Package Behavior
-  'type',
-  'main',
-  'types',
-  'module',
-  'browser',
-  'exports',
-  'files',
-  'bin',
-  'man',
-  'directories',
-  'unpkg',
-
-  // Scripts & Configuration
-  'scripts',
-  'config',
-
-  // Dependencies
-  'dependencies',
-  'peerDependencies',
-  'optionalDependencies',
-  'devDependencies',
-  'bundledDependencies', // alias: bundleDependencies
-
-  // Engines & Compatibility
-  'engines',
-  'os',
-  'cpu',
-
-  // pnpm/yarn/npm specific fields
-  'pnpm',
-  'packageManager',
-].map((key, index) => [key, index]))
-
-function sortKeysInManifest (manifest: ProjectManifest): ProjectManifest {
-  return sortKeysByPriority({ priority }, manifest)
-}

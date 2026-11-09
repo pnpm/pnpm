@@ -369,6 +369,21 @@ test.each(pnprResolutionSettings)('a mutation forwards %s to pnpr', async (_sett
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining(expected))
 })
 
+test('a mutation without allProjects resolves locally', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    version: '1.2.3',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await mutateModules([{ mutation: 'install', rootDir }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+})
+
 function createOptions (
   workspaceRoot: string,
   rootDir: ProjectRootDir,

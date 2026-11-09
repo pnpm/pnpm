@@ -3868,6 +3868,7 @@ snapshots:
 				"@pnpm/core-loggers": "workspace:*",
 				"@pnpm/error": "workspace:*",
 				"@pnpm/fetching.types": "workspace:*",
+				"@pnpm/network.config": "workspace:*",
 				"@pnpm/types": "workspace:*",
 				"@zkochan/retry": "catalog:",
 				"lru-cache": "catalog:",

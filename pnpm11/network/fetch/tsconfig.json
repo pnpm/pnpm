@@ -26,6 +26,9 @@
     },
     {
       "path": "../../fetching/types"
+    },
+    {
+      "path": "../config"
     }
   ]
 }
