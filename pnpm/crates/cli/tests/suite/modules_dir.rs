@@ -694,8 +694,6 @@ fn has_bin(modules_dir: &Path, command: &str) -> bool {
         })
 }
 
-/// `path` as a `pnpm-workspace.yaml` value: forward slashes on every
-/// platform, so a Windows path is not read as YAML escapes.
 fn yaml_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
