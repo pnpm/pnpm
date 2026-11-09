@@ -318,7 +318,13 @@ fn rebase_project_selector_preserves_target_dir_and_modifiers() {
         let rebased_same = rebase_project_selector(raw, from, same);
         assert_eq!(parse_project_selector(&rebased_same, same), parse_project_selector(raw, from));
     }
+    assert_eq!(rebase_project_selector("./packages/app", from, from), "./packages/app");
     assert_eq!(rebase_project_selector("./packages/app", from, to), "../app");
     assert_eq!(rebase_project_selector("./packages/app", from, same), ".");
     assert_eq!(rebase_project_selector("./packages/app/sub", from, same), "./sub");
+    assert_eq!(rebase_project_selector("./packages/app", Path::new("rel"), from), "./packages/app");
+    assert_eq!(
+        rebase_project_selector("{./packages/app}", Path::new("rel"), from),
+        "{./packages/app}",
+    );
 }

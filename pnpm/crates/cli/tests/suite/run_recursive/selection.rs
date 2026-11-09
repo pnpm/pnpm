@@ -8,6 +8,7 @@ use super::{
 #[cfg(unix)]
 use crate::_utils::terminal::Terminal;
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use pnpm_testing_utils::command_env::CommandTestExt;
 
 /// A single filtered script cannot run alongside a sibling, so at a
 /// terminal it stays in pacquet's own process group: a child moved into
@@ -918,6 +919,7 @@ fn update_config_relative_path_filter_works_with_dir_and_subdir_cwd() {
     fs::remove_file(&app_marker).expect("remove app marker");
     Command::cargo_bin("pnpm")
         .expect("find pnpm binary")
+        .without_ambient_pnpm_config()
         .with_current_dir(workspace.join("packages/other"))
         .with_args(["-r", "run", "build"])
         .assert()
