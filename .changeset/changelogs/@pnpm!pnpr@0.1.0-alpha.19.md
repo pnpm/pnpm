@@ -12,6 +12,7 @@ pnpr 0.1.0-alpha.19 stores package metadata in PostgreSQL or MySQL as well as SQ
   - Point `storage` or the `s3:` prefix at a fresh location. Hosted archives use a new layout. A fresh local `storage` directory also gives you a fresh SQLite metadata file.
   - Replace the `backend` and `metadata` blocks with `database.url`. pnpr refuses to start while either block is present.
   - Rename `auth.htpasswd` to `auth.users`. If accounts stay in the local account file, which is the case without `database.url` or with a `sqlite:` one, run `pnpr import-htpasswd --source <old htpasswd>` to bring over existing passwords. With any other `database.url`, recreate the accounts.
+  - Passwords now need at least 8 characters, and pnpr checks this at login too. Run `pnpr add-user <username>` to set a new password for an account with a shorter one.
   - List account IDs, not usernames, in `auth.admins`, access lists, and OIDC bindings. Give each entry under `teams` a `name` and `members`.
   - Replace `pnpr oci-gc` and `pnpr verify --prune-orphans` with `pnpr gc`.
   - Recreate accounts and tokens, republish packages, and reconcile the SCIM directory with the identity provider. Recreated accounts get new IDs.
@@ -26,7 +27,7 @@ pnpr 0.1.0-alpha.19 stores package metadata in PostgreSQL or MySQL as well as SQ
 
 - `pnpr gc` removes the archives that no hosted package maps, in every hosted npm, PyPI, Cargo, and OCI registry. It runs while the registry keeps serving and other replicas keep publishing. It removes the bytes of unpublished versions and packages, image blobs that no retained manifest reaches, and the archives of publishes that stopped or were refused at their commit. It also finishes interrupted reclaims. The new `gc.lease` setting sets how long an interrupted reclaim is left before another run finishes it. It defaults to `1h`.
 
-  `pnpr verify` no longer removes orphaned blobs. It still fails on missing or corrupted blobs and reports orphaned ones. Its `--prune-orphans` and `--min-age` options are removed.
+  `pnpr verify` no longer removes orphaned blobs. It still fails on missing or corrupted npm package blobs, and reports orphaned blobs in every hosted registry. Its `--prune-orphans` and `--min-age` options are removed.
 
 #### Clients
 
@@ -42,7 +43,7 @@ pnpr 0.1.0-alpha.19 stores package metadata in PostgreSQL or MySQL as well as SQ
 
 - Renaming an account preserves its permissions and package ownership. Reusing a deleted username or team name starts with fresh permissions.
 
-- User lookups now require authentication. Team names and rosters are visible only to registry team members and administrators. Passwords must contain at least 8 characters. New accounts cannot use usernames that look like an existing username.
+- User lookups now require authentication. Team names and rosters are visible only to registry team members and administrators. New accounts cannot use usernames that look like an existing username.
 
 - pnpr now refuses stale authorization when a team roster, managed access rule, or SCIM directory read exceeds five seconds. A stalled roster or rule read no longer delays SCIM refreshes [#17836](https://github.com/pnpm/pnpm/issues/17836).
 
