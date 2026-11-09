@@ -434,7 +434,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         ("user", "$npm_config_platform_arch"),
         ("auth", "$npm_config__authtoken"),
     ];
-    // `printf`, not `echo`, so the line endings are deterministic across shells.
+    // `printf`, not `echo`, so the line endings are consistent across shells.
     let mut template = String::new();
     let mut arguments = String::new();
     for (label, expression) in DUMPED {
