@@ -385,8 +385,10 @@ fn patched_packages_carry_no_hash() {
 /// from it: an exact version, a `catalog:` entry, with the alias the catalog
 /// names, an injected workspace package, through its `packages` entry, under
 /// an alias too. A range writes both, and so does a workspace link to a
-/// project the lockfile does not list. A catalog entry follows the same
-/// rule, with the bare version of an `npm:` alias.
+/// project the lockfile does not list, an exact version that a workspace
+/// link stands in for, and a `file:` path that reads differently from the
+/// project and from the lockfile's directory. A catalog entry follows the
+/// same rule, with the bare version of an `npm:` alias.
 #[test]
 fn importer_versions_that_follow_from_the_specifier_are_not_written() {
     let lockfile = parse(text_block_macros::text_block! {
@@ -433,6 +435,15 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "        specifier: 'catalog:'"
         "        version: 2.1.0"
         ""
+        "  packages/app:"
+        "    dependencies:"
+        "      lib:"
+        "        specifier: file:../lib"
+        "        version: file:packages/lib"
+        "      pinned-link:"
+        "        specifier: 1.0.0"
+        "        version: link:../pinned-link"
+        ""
         "packages:"
         ""
         "  '@scope/real@1.0.0':"
@@ -443,6 +454,9 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         ""
         "  injected@file:packages/injected:"
         "    resolution: {directory: packages/injected, type: directory}"
+        ""
+        "  lib@file:packages/lib:"
+        "    resolution: {directory: packages/lib, type: directory}"
         ""
         "  pinned@3.0.0:"
         "    resolution: {integrity: sha512-EEEE}"
@@ -460,6 +474,8 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "  exact@1.2.3: {}"
         ""
         "  injected@file:packages/injected: {}"
+        ""
+        "  lib@file:packages/lib: {}"
         ""
         "  pinned@3.0.0: {}"
         ""
@@ -499,9 +515,45 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             r#"        "tool": "catalog:","#
             "      },"
             "    },"
+            ""
+            r#"    "packages/app": {"#
+            r#"      "dependencies": {"#
+            r#"        "lib": {"specifier": "file:../lib", "version": "file:packages/lib"},"#
+            r#"        "pinned-link": {"specifier": "1.0.0", "version": "link:../pinned-link"},"#
+            "      },"
+            "    },"
             "  },"
         },
     );
+}
+
+/// A lockfile with a boot document keeps it: a YAML document before the
+/// main one, which is JSON, as a two-document stream.
+#[test]
+fn next_format_keeps_the_boot_document() {
+    let (yaml, lockfile) = written_and_read(&parse(OPTIONAL_PEER_LOCKFILE));
+    let boot = text_block_macros::text_block_fnl! {
+        "---"
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    configDependencies: {}"
+        "packages: {}"
+        "snapshots: {}"
+        "---"
+    };
+    let combined = format!("{boot}{yaml}");
+    let read = Lockfile::parse(&combined, Path::new("pnpm-lock.yaml"))
+        .expect("parse the two documents")
+        .expect("the lockfile has content");
+    assert_eq!(read, lockfile);
+    let dir = tempfile::tempdir().expect("create a temporary directory");
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    std::fs::write(&path, &combined).expect("write the lockfile");
+    lockfile
+        .save_to_path(&path, crate::SymlinkedLockfile::Refuse)
+        .expect("save over the two documents");
+    assert_eq!(std::fs::read_to_string(&path).expect("read the lockfile"), combined);
 }
 
 /// A `workspace:` dependency linked to another project is its specifier
