@@ -404,12 +404,16 @@ fn mark_fails_when_a_dependency_link_cannot_be_read() {
         }
     }
     let root = tempdir().unwrap();
-    let store = StoreDir::new(root.path().join("store"));
+    let actual = root.path().join("actual");
+    fs::create_dir(&actual).unwrap();
+    let alias = root.path().join("alias");
+    symlink_dir(&actual, &alias).unwrap();
+    let store = StoreDir::new(alias.join("store"));
     let slot = make_slot(&store.links(), "@scope", "installed", "1", "hash");
-    let project = root.path().join("project");
+    let project = alias.join("project");
     let scope = project.join("node_modules/@scope");
     fs::create_dir_all(&scope).unwrap();
-    let link = scope.join("installed");
+    let link = dunce::canonicalize(&scope).unwrap().join("installed");
     symlink_dir(&slot.join("node_modules/installed"), &link).unwrap();
 
     let error =
