@@ -32,7 +32,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
             snapshots,
             Some(packages),
             engine,
-            policy,
+            super::super::BuildGating { policy, runs_builds: true },
             dir,
             &crate::platform_selection::VariantPlatforms::host(),
         )

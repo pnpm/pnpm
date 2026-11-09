@@ -80,7 +80,8 @@ export function calcGraphNodeHash<Meta extends PkgMeta> (
   // to build or transitively depend on a package that is allowed to build.
   // This makes GVS hashes engine-agnostic for pure-JS packages,
   // so they survive Node.js upgrades and architecture changes.
-  const includeEngine = buildRequiredDepPaths === undefined || buildRequiredDepPaths.has(depPath)
+  const built = buildRequiredDepPaths?.has(depPath) === true
+  const includeEngine = built || buildRequiredDepPaths === undefined
   // A snapshot that declares engines.runtime carries the desugared
   // node@runtime:<version> pin as a child; that's the Node the bin
   // linker spawns for its lifecycle scripts, so it has to drive the
@@ -99,9 +100,14 @@ export function calcGraphNodeHash<Meta extends PkgMeta> (
   // know that the package is a local directory, so a caller that leaves
   // lockfileDir out still gets a well-formed path.
   const project = isLocalDirectory ? lockfileDir : undefined
-  const hexDigest = project == null
-    ? hashObjectWithoutSorting({ engine, deps }, { encoding: 'hex' })
-    : hashObjectWithoutSorting({ engine, deps, project }, { encoding: 'hex' })
+  // A built slot holds the package an install renames into place once its
+  // build finishes, so it never shares a path with the pristine package.
+  const hexDigest = hashObjectWithoutSorting({
+    engine,
+    deps,
+    ...(built ? { built } : {}),
+    ...(project == null ? {} : { project }),
+  }, { encoding: 'hex' })
   return formatGlobalVirtualStorePath(name, isLocalDirectory ? LOCAL_DIRECTORY_SEGMENT : version, hexDigest)
 }
 

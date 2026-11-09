@@ -158,6 +158,7 @@ impl PlanFixture {
             Some(&snapshots),
             Some(&packages),
             None,
+            true,
             None,
             &crate::platform_selection::VariantPlatforms::host(),
         );
@@ -321,6 +322,7 @@ fn gvs_slot_missing_a_regular_child_link_survives() {
         Some(&snapshots),
         Some(&packages),
         None,
+        true,
         None,
         &crate::platform_selection::VariantPlatforms::host(),
     );

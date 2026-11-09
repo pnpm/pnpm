@@ -20,7 +20,7 @@
 //! [`pnpm_graph_hasher::format_global_virtual_store_path`]: pnpm_graph_hasher::format_global_virtual_store_path
 
 mod graph_hash;
-use graph_hash::GvsHasher;
+use graph_hash::{BuildGating, GvsHasher};
 
 use crate::{
     AllowBuildPolicy,
@@ -202,6 +202,7 @@ impl VirtualStoreLayout {
             snapshots,
             packages,
             allow_build_policy,
+            !config.ignore_scripts,
             lockfile_dir,
             &selected_platform(config),
         )
@@ -239,7 +240,7 @@ impl VirtualStoreLayout {
             snapshots,
             packages,
             engine,
-            allow_build_policy,
+            BuildGating { policy: allow_build_policy, runs_builds: !config.ignore_scripts },
             lockfile_dir,
             &platform,
         );
@@ -298,6 +299,7 @@ impl VirtualStoreLayout {
         snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
         allow_build_policy: Option<&AllowBuildPolicy>,
+        runs_builds: bool,
         lockfile_dir: Option<&Path>,
         platform: &VariantPlatforms,
     ) -> Self {
@@ -310,8 +312,14 @@ impl VirtualStoreLayout {
                 lockfile_dir: lockfile_dir.map(Path::to_path_buf),
             };
         };
-        let mut hasher =
-            GvsHasher::new(snapshots, packages, engine, allow_build_policy, lockfile_dir, platform);
+        let mut hasher = GvsHasher::new(
+            snapshots,
+            packages,
+            engine,
+            BuildGating { policy: allow_build_policy, runs_builds },
+            lockfile_dir,
+            platform,
+        );
         VirtualStoreLayout {
             engine_name: engine.map(str::to_owned),
             package_store_dir,

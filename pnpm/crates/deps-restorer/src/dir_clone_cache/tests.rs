@@ -167,6 +167,7 @@ mod macos {
             Some(&snapshots),
             None,
             None,
+            true,
             None,
             &crate::platform_selection::VariantPlatforms::host(),
         )

@@ -131,18 +131,34 @@ pub(super) struct GvsHasher<'h> {
     engine: Option<&'h str>,
     packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
 }
+/// Which snapshots an install builds, for the slot hash.
+#[derive(Clone, Copy)]
+pub(crate) struct BuildGating<'p> {
+    /// `None` gates nothing: every snapshot hashes with the engine.
+    pub(crate) policy: Option<&'p AllowBuildPolicy>,
+    /// `false` under `ignoreScripts`, whose install builds nothing, so
+    /// every snapshot takes the slot of its pristine package.
+    pub(crate) runs_builds: bool,
+}
+
 impl<'h> GvsHasher<'h> {
     pub(super) fn new(
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
         packages: Option<&'h HashMap<PackageKey, PackageMetadata>>,
         engine: Option<&'h str>,
-        allow_build_policy: Option<&AllowBuildPolicy>,
+        gating: BuildGating<'_>,
         lockfile_dir: Option<&'h Path>,
         platform: &VariantPlatforms,
     ) -> Self {
         let graph = lockfile_to_dep_graph(snapshots, packages, lockfile_dir, platform);
-        let build_required_dep_paths =
-            allow_build_policy.map(|policy| engine_gating_dep_paths(policy, snapshots, &graph));
+        let allow_build_policy = gating.policy;
+        let build_required_dep_paths = allow_build_policy.map(|policy| {
+            if gating.runs_builds {
+                engine_gating_dep_paths(policy, snapshots, &graph)
+            } else {
+                HashSet::new()
+            }
+        });
         let uncached_builds = allow_build_policy
             .map(|policy| uncached_build_dep_paths(policy, snapshots, &graph))
             .unwrap_or_default();

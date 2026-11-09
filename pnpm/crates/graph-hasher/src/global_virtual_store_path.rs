@@ -34,6 +34,12 @@ use std::{
 ///   [`crate::build_required_dep_paths`]. `None` disables the gating and
 ///   forces `include_engine = true`.
 ///
+/// A snapshot in a `Some` `build_required_dep_paths` also hashes
+/// `built: true`. Its slot holds the built package, which an install
+/// renames into place once the build has finished, so it never shares a
+/// path with the pristine package that an install not running the build
+/// imports.
+///
 /// `project` scopes the slot to one project instead of sharing it
 /// across every project in the store. Callers pass `Some(lockfile_dir)`
 /// for a snapshot resolved from a local directory and `None` for
@@ -50,7 +56,8 @@ pub fn calc_graph_node_hash<Key>(
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    let include_engine = build_required_dep_paths.is_none_or(|set| set.contains(dep_path));
+    let built = build_required_dep_paths.is_some_and(|set| set.contains(dep_path));
+    let include_engine = built || build_required_dep_paths.is_none();
     let engine_value = if include_engine {
         match engine {
             Some(s) => Value::String(s.to_owned()),
@@ -61,13 +68,14 @@ where
     };
     let deps_hash = calc_dep_graph_hash(graph, cache, dep_path);
     // The object-hash serialization of
-    // `{ engine, deps }`, plus `project` when the caller has one, with
+    // `{ engine, deps }`, plus `built` and `project` when they apply, with
     // `sort = false`: keys stay in the order written here, which is the
     // order `hash_object_without_sorting` reads them out of a
     // `preserve_order` `serde_json` map.
     let mut buf = Vec::with_capacity(256);
     buf.extend_from_slice(b"object:");
-    buf.extend_from_slice(if project.is_some() { b"3" } else { b"2" });
+    let field_count = 2 + usize::from(built) + usize::from(project.is_some());
+    buf.extend_from_slice(field_count.to_string().as_bytes());
     buf.push(b':');
     serialize_str(&mut buf, "engine");
     buf.push(b':');
@@ -80,6 +88,10 @@ where
     buf.push(b':');
     serialize_str(&mut buf, &deps_hash);
     buf.push(b',');
+    if built {
+        serialize_str(&mut buf, "built");
+        buf.extend_from_slice(b":bool:true,");
+    }
     if let Some(project) = project {
         serialize_str(&mut buf, "project");
         buf.push(b':');

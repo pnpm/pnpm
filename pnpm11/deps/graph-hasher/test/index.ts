@@ -182,7 +182,7 @@ describe('calcGraphNodeHash', () => {
     expect(hash).toBe(`@/foo/1.0.0/${expectedDigest}`)
   })
 
-  test('includes ENGINE_NAME for packages that require a build', () => {
+  test('includes ENGINE_NAME and built for packages that require a build', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
       { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
@@ -190,13 +190,13 @@ describe('calcGraphNodeHash', () => {
     )
     const depsHash = hashObject({ id: 'native@1.0.0:002', deps: {} })
     const expectedDigest = hashObjectWithoutSorting(
-      { engine: ENGINE_NAME, deps: depsHash },
+      { engine: ENGINE_NAME, deps: depsHash, built: true },
       { encoding: 'hex' }
     )
     expect(hash).toBe(`@/native/1.0.0/${expectedDigest}`)
   })
 
-  test('includes ENGINE_NAME for packages that transitively depend on a built package', () => {
+  test('includes ENGINE_NAME and built for packages that transitively depend on a built package', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
       { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
@@ -209,7 +209,7 @@ describe('calcGraphNodeHash', () => {
       },
     })
     const expectedDigest = hashObjectWithoutSorting(
-      { engine: ENGINE_NAME, deps: depsHash },
+      { engine: ENGINE_NAME, deps: depsHash, built: true },
       { encoding: 'hex' }
     )
     expect(hash).toBe(`@/depends-on-native/1.0.0/${expectedDigest}`)

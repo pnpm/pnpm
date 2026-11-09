@@ -458,3 +458,52 @@ fn graph_node_hash_matches_the_object_hash_of_the_value_it_models() {
         assert_eq!(actual, expected, "graph-node hash diverged for {engine:?} / {project:?}");
     }
 }
+
+#[test]
+fn a_built_slot_hashes_the_built_field() {
+    let graph: HashMap<String, DepsGraphNode<String>> = HashMap::from([(
+        "native".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "native@1.0.0:sha512-native".to_string(),
+            children: IndexMap::new(),
+        },
+    )]);
+    let built = HashSet::from(["native".to_string()]);
+    let deps_hash =
+        crate::dep_state::calc_dep_graph_hash(&graph, &mut HashMap::new(), &"native".to_string());
+
+    for project in [None, Some("/workspace/app")] {
+        let actual = calc_graph_node_hash(
+            &graph,
+            &mut HashMap::new(),
+            &"native".to_string(),
+            Some("linux-x64-node22"),
+            Some(&built),
+            project,
+        );
+        let mut payload = serde_json::json!({
+            "engine": "linux-x64-node22",
+            "deps": deps_hash,
+            "built": true,
+        });
+        if let Some(project) = project {
+            payload["project"] = serde_json::Value::String(project.to_owned());
+        }
+        let expected = crate::hash_object_without_sorting(&payload, crate::HashEncoding::Hex);
+        assert_eq!(actual, expected, "built-slot hash diverged for {project:?}");
+    }
+
+    let unbuilt = calc_graph_node_hash(
+        &graph,
+        &mut HashMap::new(),
+        &"native".to_string(),
+        Some("linux-x64-node22"),
+        Some(&HashSet::new()),
+        None,
+    );
+    let pristine = crate::hash_object_without_sorting(
+        &serde_json::json!({ "engine": null, "deps": deps_hash }),
+        crate::HashEncoding::Hex,
+    );
+    assert_eq!(unbuilt, pristine, "a package nobody builds keeps the pristine slot");
+}
