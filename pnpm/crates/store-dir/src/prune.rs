@@ -92,6 +92,14 @@ pub enum PruneError {
         error: io::Error,
     },
 
+    #[display("Failed to read project link during mark phase {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_READ_MARK_LINK))]
+    ReadMarkLink {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
     #[display("Failed to read cache directory {path:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_READ_CACHE_DIR))]
     ReadCacheDir {
@@ -113,9 +121,9 @@ pub enum PruneError {
 }
 
 impl StoreDir {
-    /// Remove unreferenced packages from the global virtual store, the
-    /// registry metadata cached under `cache_dir`, and content-addressable
-    /// files that have no hard links outside the store. A metadata directory
+    /// Remove the directory-clone cache, unreferenced packages from the
+    /// global virtual store, registry metadata under `cache_dir`, and
+    /// content-addressable files that have no hard links outside the store. A metadata directory
     /// that is or holds one of `protected_dirs` is kept.
     ///
     /// Pacquet doesn't yet thread the install-time reporter into
@@ -142,6 +150,7 @@ impl StoreDir {
         let in_use = in_use()?;
         references.files.extend(in_use.files);
         self.prune_global_virtual_store(&references.package_roots, &in_use.modules_dirs)?;
+        remove_slot_dir(&self.dir_clone_cache())?;
         self.remove_cached_metadata(cache_dir, protected_dirs)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
             .map_err(PruneError::PruneCas)?;
@@ -186,8 +195,18 @@ impl StoreDir {
             projects.len(),
         );
 
-        let reachable =
-            mark::mark_reachable_slots(&links_dir, &projects, loader_roots, modules_dirs)?;
+        let reachable = mark::mark_reachable_slots::<mark::Host>(
+            &links_dir,
+            &projects,
+            loader_roots,
+            modules_dirs,
+        )?;
+        // Registration is best-effort, so no reachable slots does not prove
+        // that the global virtual store is unused.
+        if reachable.is_empty() {
+            pnpm_diagnostics::eprintln!("No registered project uses the global virtual store");
+            return Ok(());
+        }
         let removed = remove_unreachable_packages(&links_dir, &reachable)?;
         if removed > 0 {
             pnpm_diagnostics::eprintln!(

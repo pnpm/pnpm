@@ -1,7 +1,7 @@
 //! The macOS directory-clone materialization cache
 //! (`pnpm-deps-restorer/src/dir_clone_cache.rs`): a local-virtual-store
 //! install materializes each package's canonical slot under
-//! `<store_dir>/links` and projects it into `node_modules/.pnpm` with
+//! `<store_dir>/dir-clone-cache` and projects it into `node_modules/.pnpm` with
 //! one directory `clonefile(2)`. Regression coverage for the macOS
 //! hot-install slowdown of
 //! <https://github.com/pnpm/pnpm/issues/14231>.
@@ -9,7 +9,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_store_dir::STORE_VERSION;
+use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{
     fs,
@@ -17,15 +17,14 @@ use std::{
     process::Command,
 };
 
-/// `<store_dir>/v11/links` — where the canonical slots live, shared
-/// with `enableGlobalVirtualStore` installs.
-fn links_root(store_dir: &Path) -> PathBuf {
-    store_dir.join(STORE_VERSION).join("links")
+/// The disposable canonical slots used by local-store installs.
+fn cache_root(store_dir: &Path) -> PathBuf {
+    StoreDir::new(store_dir).dir_clone_cache()
 }
 
 /// The package's materialized directory inside its sole canonical slot.
 fn canonical_pkg_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
-    let version_dir = links_root(store_dir).join(name).join(version);
+    let version_dir = cache_root(store_dir).join(name).join(version);
     let hashes: Vec<PathBuf> = fs::read_dir(&version_dir)
         .unwrap_or_else(|err| panic!("read hash dirs under {version_dir:?}: {err}"))
         .map(|entry| entry.expect("read hash dir entry").path())
@@ -163,7 +162,7 @@ fn explicit_copy_method_bypasses_the_cache() {
         "the package must land on the flat project-local layout",
     );
     assert!(
-        !links_root(&store_dir).exists(),
+        !cache_root(&store_dir).exists(),
         "an explicit copy install must not populate canonical slots",
     );
 
@@ -183,6 +182,7 @@ fn prune_removes_cached_clones_without_global_virtual_store() {
         .success();
     let cached_package = canonical_pkg_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     assert!(cached_package.join("package.json").exists());
+    assert!(!StoreDir::new(&store_dir).links().exists());
     let installed_manifest = project_pkg_manifest(&workspace);
     let manifest = fs::read(&installed_manifest).unwrap();
 

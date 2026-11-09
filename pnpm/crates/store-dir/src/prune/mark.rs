@@ -3,12 +3,24 @@ use pnpm_fs::read_symlink_dir;
 use std::{
     collections::HashSet,
     fs,
-    io::ErrorKind,
+    io::{self, ErrorKind},
     path::{Path, PathBuf},
 };
 
+pub(super) trait FsReadLink {
+    fn read_link(path: &Path) -> io::Result<PathBuf>;
+}
+
+pub(super) struct Host;
+
+impl FsReadLink for Host {
+    fn read_link(path: &Path) -> io::Result<PathBuf> {
+        read_symlink_dir(path)
+    }
+}
+
 /// Every `<store_dir>/links` slot the registered projects link into.
-pub(super) fn mark_reachable_slots(
+pub(super) fn mark_reachable_slots<Sys: FsReadLink>(
     links_dir: &Path,
     projects: &[PathBuf],
     loader_roots: &[PathBuf],
@@ -23,22 +35,27 @@ pub(super) fn mark_reachable_slots(
         dunce::canonicalize(links_dir).unwrap_or_else(|_| links_dir.to_path_buf());
     let mut reachable: HashSet<PathBuf> = HashSet::new();
     let mut visited: HashSet<PathBuf> = HashSet::new();
-    mark_loader_roots(loader_roots, &canonical_links, &mut reachable, &mut visited)?;
+    mark_loader_roots::<Sys>(loader_roots, &canonical_links, &mut reachable, &mut visited)?;
     for project_dir in projects {
         for modules_dir in find_all_node_modules_dirs(
             project_dir,
             canonical_links.parent().expect("links directory has a store root"),
         )? {
-            walk_symlinks_to_store(&modules_dir, &canonical_links, &mut reachable, &mut visited)?;
+            walk_symlinks_to_store::<Sys>(
+                &modules_dir,
+                &canonical_links,
+                &mut reachable,
+                &mut visited,
+            )?;
         }
     }
     for modules_dir in modules_dirs {
-        walk_symlinks_to_store(modules_dir, &canonical_links, &mut reachable, &mut visited)?;
+        walk_symlinks_to_store::<Sys>(modules_dir, &canonical_links, &mut reachable, &mut visited)?;
     }
     Ok(reachable)
 }
 
-fn mark_loader_roots(
+fn mark_loader_roots<Sys: FsReadLink>(
     loader_roots: &[PathBuf],
     canonical_links: &Path,
     reachable: &mut HashSet<PathBuf>,
@@ -48,7 +65,7 @@ fn mark_loader_roots(
         if let Some(slot) = store_slot_from_target(root, canonical_links) {
             let directory = canonical_links.join(&slot).join("node_modules");
             reachable.insert(slot);
-            walk_symlinks_to_store(&directory, canonical_links, reachable, visited)?;
+            walk_symlinks_to_store::<Sys>(&directory, canonical_links, reachable, visited)?;
         }
     }
     Ok(())
@@ -123,7 +140,7 @@ fn project_subdirectories(dir: &Path, excluded_store: &Path) -> Result<Vec<PathB
 /// of `dir`. Storing the canonical `PathBuf` directly is enough — the
 /// set is never serialised, so there's no need to hash the realpath
 /// first.
-fn walk_symlinks_to_store(
+fn walk_symlinks_to_store<Sys: FsReadLink>(
     dir: &Path,
     canonical_links: &Path,
     reachable: &mut HashSet<PathBuf>,
@@ -146,8 +163,8 @@ fn walk_symlinks_to_store(
     for entry in entries {
         let entry =
             entry.map_err(|error| PruneError::ReadMarkDir { path: dir.to_path_buf(), error })?;
-        if let Some(next_dir) = next_walk_dir(&entry, canonical_links, reachable) {
-            walk_symlinks_to_store(&next_dir, canonical_links, reachable, visited)?;
+        if let Some(next_dir) = next_walk_dir::<Sys>(&entry, canonical_links, reachable)? {
+            walk_symlinks_to_store::<Sys>(&next_dir, canonical_links, reachable, visited)?;
         }
     }
     Ok(())
@@ -160,32 +177,47 @@ fn walk_symlinks_to_store(
 /// we want are reached *through* its symlinks, not by descending into it
 /// directly. (When GVS is on, `.pnpm` may also be absent, in which case the
 /// skip is a no-op.)
-fn next_walk_dir(
+fn next_walk_dir<Sys: FsReadLink>(
     entry: &fs::DirEntry,
     canonical_links: &Path,
     reachable: &mut HashSet<PathBuf>,
-) -> Option<PathBuf> {
-    let file_type = entry.file_type().ok()?;
+) -> Result<Option<PathBuf>, PruneError> {
+    let file_type = entry
+        .file_type()
+        .map_err(|error| PruneError::ReadMarkDir { path: entry.path(), error })?;
     let entry_path = entry.path();
     if file_type.is_symlink() {
-        let slot = linked_store_slot(&entry_path, canonical_links)?;
+        let Some(slot) = linked_store_slot::<Sys>(&entry_path, canonical_links)? else {
+            return Ok(None);
+        };
         let inner_modules = canonical_links.join(&slot).join("node_modules");
         reachable.insert(slot);
-        return Some(inner_modules);
+        return Ok(Some(inner_modules));
     }
     if file_type.is_dir()
         && entry.file_name().to_string_lossy() != ".pnpm"
         && canonical_links.parent() != Some(entry_path.as_path())
     {
-        return Some(entry_path);
+        return Ok(Some(entry_path));
     }
-    None
+    Ok(None)
 }
 
 /// The `<scope>/<name>/<version>/<hash>` slot a `node_modules` symlink
 /// points at, or `None` when it leads somewhere else.
-fn linked_store_slot(entry_path: &Path, canonical_links: &Path) -> Option<PathBuf> {
-    let target = read_symlink_dir(entry_path).ok()?;
+fn linked_store_slot<Sys: FsReadLink>(
+    entry_path: &Path,
+    canonical_links: &Path,
+) -> Result<Option<PathBuf>, PruneError> {
+    let target = match Sys::read_link(entry_path) {
+        Ok(target) => target,
+        Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::InvalidInput) => {
+            return Ok(None);
+        }
+        Err(error) => {
+            return Err(PruneError::ReadMarkLink { path: entry_path.to_path_buf(), error });
+        }
+    };
     let absolute_target = if target.is_absolute() {
         target
     } else {
@@ -194,7 +226,7 @@ fn linked_store_slot(entry_path: &Path, canonical_links: &Path) -> Option<PathBu
             .map(|parent| parent.join(&target))
             .unwrap_or(target)
     };
-    store_slot_from_target(&absolute_target, canonical_links)
+    Ok(store_slot_from_target(&absolute_target, canonical_links))
 }
 
 pub(super) fn store_slot_from_target(

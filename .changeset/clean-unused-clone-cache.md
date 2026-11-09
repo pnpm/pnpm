@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm store prune` now removes unused cached clones when registered projects do not use the global virtual store. This fixes cached packages accumulating on macOS with the default import method [pnpm/pnpm#17907](https://github.com/pnpm/pnpm/issues/17907).
+Local installs on macOS now keep cached clones separate from the global virtual store. `pnpm store prune` removes this cache, preventing unused cached packages from accumulating [pnpm/pnpm#17907](https://github.com/pnpm/pnpm/issues/17907).

@@ -3,7 +3,7 @@ import { type Dirent, promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
 
 import { isStagingDirName } from '@pnpm/deps.graph-hasher'
-import { isError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
 import { isSubdir } from 'is-subdir'
@@ -139,11 +139,7 @@ async function processDirEntry (
 ): Promise<void> {
   const entryPath = path.join(dir, entry.name)
   if (entry.isSymbolicLink()) {
-    try {
-      await markSymlinkTargetReachable({ dir, entryPath, linksDir, reachable, visited })
-    } catch {
-      // Ignore broken symlinks
-    }
+    await markSymlinkTargetReachable({ dir, entryPath, linksDir, reachable, visited })
   } else if (entry.isDirectory() && entry.name !== '.pnpm') {
     await walkSymlinksToStore(entryPath, linksDir, reachable, visited)
   }
@@ -158,7 +154,14 @@ interface MarkSymlinkTargetReachableOptions {
 }
 
 async function markSymlinkTargetReachable ({ dir, entryPath, linksDir, reachable, visited }: MarkSymlinkTargetReachableOptions): Promise<void> {
-  const target = await fs.readlink(entryPath)
+  let target: string
+  try {
+    target = await fs.readlink(entryPath)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'EINVAL')) return
+    const message = isError(err) ? err.message : String(err)
+    throw new PnpmError('STORE_DIR_PRUNE_READ_MARK_LINK', `Failed to read project link during mark phase ${JSON.stringify(entryPath)}: ${message}`, { cause: err })
+  }
   const absoluteTarget = path.isAbsolute(target)
     ? target
     : path.resolve(dir, target)

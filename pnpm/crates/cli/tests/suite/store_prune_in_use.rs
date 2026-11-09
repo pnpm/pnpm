@@ -299,6 +299,28 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_custom_modules_dir() {
 }
 
 #[test]
+fn store_prune_keeps_global_virtual_store_packages_with_a_cli_only_modules_dir() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance: _mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace);
+    enable_gvs_in_workspace_yaml(&workspace, "");
+    pacquet_at(&workspace)
+        .with_args(["install", "--modules-dir=custom_modules", "--reporter=silent"])
+        .assert()
+        .success();
+    let manifest = workspace.join("custom_modules/is-positive/package.json");
+    let installed = fs::read(&manifest).expect("read the installed package");
+    let target = dunce::canonicalize(&manifest).expect("resolve the installed package");
+
+    prune(&workspace);
+
+    assert_eq!(fs::read(&manifest).expect("the dependency link must remain valid"), installed);
+    assert!(target.is_file(), "the global virtual store package must survive");
+}
+
+#[test]
 fn store_prune_keeps_global_virtual_store_slots_from_package_configs_modules_dir() {
     assert_prune_keeps_global_virtual_store_slots(|workspace| {
         move_dependencies_to_a_project_with_its_own_lockfile(
