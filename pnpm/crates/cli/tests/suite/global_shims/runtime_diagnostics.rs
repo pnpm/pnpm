@@ -6,14 +6,33 @@ use super::{Path, windows_shim_command};
 
 #[test]
 fn failed_runtime_download_explains_global_mirror_configuration() {
+    check_runtime_download_diagnostics(None);
+}
+
+#[test]
+fn explicit_workspace_override_is_identified_in_runtime_download_diagnostics() {
+    for name in [
+        "PNPM_CONFIG_WORKSPACE_DIR",
+        "NPM_CONFIG_WORKSPACE_DIR",
+        "pnpm_config_workspace_dir",
+        "npm_config_workspace_dir",
+    ] {
+        check_runtime_download_diagnostics(Some(name));
+    }
+}
+
+fn check_runtime_download_diagnostics(workspace_dir_env: Option<&str>) {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
+    let mirror_path =
+        if workspace_dir_env.is_some() { "/mirrors/node" } else { "/mirrors/release" };
+    let checksums_path = format!("{mirror_path}/v24.19.0/SHASUMS256.txt");
     let checksums = server
-        .mock("GET", "/mirrors/release/v24.19.0/SHASUMS256.txt")
+        .mock("GET", checksums_path.as_str())
         .with_status(404)
         .create();
     let _index = server
-        .mock("GET", "/mirrors/release/index.json")
+        .mock("GET", format!("{mirror_path}/index.json").as_str())
         .with_status(404)
         .create();
     let project = root.path().join("project");
@@ -48,6 +67,9 @@ fn failed_runtime_download_explains_global_mirror_configuration() {
     };
     #[cfg(windows)]
     let mut command = windows_shim_command(&root, &project, "node", Path::new("pkg:node"));
+    if let Some(name) = workspace_dir_env {
+        command.env(name, &project);
+    }
     let output = command
         .env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":"always"}"#)
         .arg("--version")
@@ -57,11 +79,19 @@ fn failed_runtime_download_explains_global_mirror_configuration() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     checksums.assert();
+    let checksums_url = format!("{}{checksums_path}", server.url());
+    let unwrapped_stderr = stderr
+        .replace(['│', '|'], "")
+        .split_whitespace()
+        .collect::<String>();
+    assert!(unwrapped_stderr.contains(&checksums_url), "{stderr}");
     for expected in [
         "pnpm: failed to prepare node@runtime:24.19.0",
-        "/mirrors/release/",
+        "(status: 404)",
         "global configuration and environment settings",
-        "pnpm-workspace.yaml is ignored",
+        "pnpm-workspace.yaml is ignored unless",
+        "PNPM_CONFIG_WORKSPACE_DIR",
+        "NPM_CONFIG_WORKSPACE_DIR",
         "tools.node",
         "nodeDownloadMirrors",
         "PNPM_CONFIG_TOOLS",

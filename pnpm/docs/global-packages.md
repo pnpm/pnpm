@@ -187,7 +187,9 @@ If the project provides nothing, or the lookup is declined, the globally install
 
 ### Runtime download mirrors
 
-Project-aware global runtime commands download their pinned versions using the [global configuration file](./cli/config.md) and environment settings. They ignore `pnpm-workspace.yaml`, including `nodeDownloadMirrors`. A project's mirror settings still apply to runtime dependencies installed by `pnpm install`.
+Project-aware global runtime commands download their pinned versions using the [global configuration file](./cli/config.md) and environment settings. They do not automatically load the project's `pnpm-workspace.yaml`. A project's mirror settings still apply to runtime dependencies installed by `pnpm install`.
+
+An explicit `PNPM_CONFIG_WORKSPACE_DIR` or `NPM_CONFIG_WORKSPACE_DIR` environment setting selects a workspace whose `pnpm-workspace.yaml` can supply settings, including `nodeDownloadMirrors`. Lowercase spellings of these variables also work.
 
 For example, to use a Node.js mirror for the global `node` command, put this in the global configuration file:
 
@@ -198,9 +200,9 @@ nodeDownloadMirrors:
 
 Alternatively, configure [`tools.node.channels.release`](./settings/cli.md#tools).
 
-If `pnpm install` prints `pnpm: failed to prepare node@runtime:...`, check whether `node --version` fails the same way inside the project. A command launched through `node` can fail while preparing Node.js before the install starts. Check the global mirror settings and the `PNPM_CONFIG_TOOLS` and `PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS` environment variables. A mirror configured only in `pnpm-workspace.yaml` does not affect this download.
+If `pnpm install` prints `pnpm: failed to prepare node@runtime:...`, check whether `node --version` fails the same way inside the project. A command launched through `node` can fail while preparing Node.js before the install starts. Check the global mirror settings and the `PNPM_CONFIG_TOOLS` and `PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS` environment variables.
 
-Runtime preparation failures explain that workspace settings are ignored. For Node.js, the diagnostic also lists the global mirror settings and environment variables to check.
+Runtime preparation failures explain which configuration applies, including workspace-directory environment overrides. For Node.js, the diagnostic also lists the global mirror settings and environment variables to check.
 
 ### `.nvmrc` and `.node-version`
 
