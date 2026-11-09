@@ -49,6 +49,7 @@ fn failed_runtime_download_explains_global_mirror_configuration() {
     #[cfg(windows)]
     let mut command = windows_shim_command(&root, &project, "node", Path::new("pkg:node"));
     let output = command
+        .env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":"always"}"#)
         .arg("--version")
         .output()
         .unwrap();
