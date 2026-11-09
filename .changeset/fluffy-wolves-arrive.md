@@ -3,6 +3,7 @@
 "pnpm": patch
 "@pnpm/workspace.state": patch
 "@pnpm/deps.status": patch
+"@pnpm/exec.commands": patch
 "@pnpm/installing.commands": patch
 ---
 

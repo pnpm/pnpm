@@ -45,7 +45,7 @@ export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions
     // A script also runs the same from whichever store `node_modules` was linked from,
     // and whatever keys the lockfile records, and with the runtime the last
     // install linked or skipped.
-    ignoredWorkspaceStateSettings: ['dev', 'optional', 'production', 'registryPrefixes', 'runtime', 'storeDir', 'virtualStoreDir', 'virtualStoreDirMaxLength'] satisfies Array<keyof WorkspaceStateSettings>,
+    ignoredWorkspaceStateSettings: ['dev', 'optional', 'production', 'registryPrefixes', 'runtime', 'runtimeOnFail', 'storeDir', 'virtualStoreDir', 'virtualStoreDirMaxLength'] satisfies Array<keyof WorkspaceStateSettings>,
     selectedProjectsGraph: await selectProjectsToVerify(commandOpts),
   }
 

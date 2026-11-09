@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 test.each(['isolated', 'hoisted', 'pnp'])('repeat install applies runtimeOnFail changes with %s', async (nodeLinker) => {
   const project = prepare({
@@ -27,6 +27,25 @@ test.each(['isolated', 'hoisted', 'pnp'])('repeat install applies runtimeOnFail 
   expect(project.readLockfile().importers['.'].devDependencies).toStrictEqual({
     node: { specifier: 'runtime:24.0.0', version: 'runtime:24.0.0' },
   })
+})
+
+test('a script runs after an install that set runtimeOnFail only on the command line', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24.0.0',
+      },
+    },
+    scripts: {
+      start: 'echo hello from script',
+    },
+  })
+  await execPnpm(['install', '--config.runtime-on-fail=warn'])
+
+  const { stdout } = execPnpmSync(['--config.verify-deps-before-run=error', 'start'], { expectSuccess: true })
+
+  expect(stdout.toString()).toContain('hello from script')
 })
 
 test('runtimeOnFail=download causes Node.js to be downloaded even when the manifest does not set onFail', async () => {

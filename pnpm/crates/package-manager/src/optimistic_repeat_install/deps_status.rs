@@ -12,8 +12,8 @@ use super::{
 
 /// The workspace-state settings the run check does not compare. Scripts always
 /// run with the default dependency groups, and with the runtime the last
-/// install linked or skipped. A script runs the same from
-/// whichever store and virtual store `node_modules` was linked from, and
+/// install linked or skipped under its `runtimeOnFail`. A script runs the same
+/// from whichever store and virtual store `node_modules` was linked from, and
 /// whatever keys the lockfile records. Only an install has to act on a store
 /// location change or re-key the lockfile.
 const RUN_IGNORED_SETTINGS: &[&str] = &[
@@ -22,6 +22,7 @@ const RUN_IGNORED_SETTINGS: &[&str] = &[
     "production",
     "registryPrefixes",
     "runtime",
+    "runtimeOnFail",
     "storeDir",
     "virtualStoreDir",
     "virtualStoreDirMaxLength",

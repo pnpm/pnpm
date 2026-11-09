@@ -503,6 +503,31 @@ fn returns_skipped_when_the_declared_registry_prefixes_drift() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
+/// `pnpm install --runtime-on-fail=download` followed by a plain `pnpm run`
+/// must not report drift: the script runs with the runtime the install linked.
+#[test]
+fn run_gate_ignores_runtime_on_fail_drift() {
+    let (dir, recorded_config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| config.runtime_on_fail = Some(pnpm_config::RuntimeOnFail::Download),
+    );
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let mut declared = recorded_config.clone();
+    declared.runtime_on_fail = None;
+    let declared = declared.leak();
+
+    let status = super::single_project_deps_status(&dir, declared, &project_manifests);
+
+    assert_eq!(status, super::RunDepsStatus::UpToDate);
+    let state = pnpm_workspace_state::load_workspace_state(dir.path())
+        .expect("read the workspace state")
+        .expect("a workspace state");
+    assert_eq!(state.settings.runtime_on_fail, Some(pnpm_config::RuntimeOnFail::Download));
+}
+
 /// A script runs the same whatever keys the lockfile records, so the run
 /// gate leaves re-keying to the next install, which the state still asks
 /// for.
