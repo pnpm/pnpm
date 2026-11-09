@@ -14,6 +14,7 @@ mod release_record_logs;
 use lifecycle::load_active_osv_index;
 
 mod tcp_listener;
+mod uuid_v4;
 use tcp_listener::NodelayTcpListener;
 
 mod pnpr_protocol;

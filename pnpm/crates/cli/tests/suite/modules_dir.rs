@@ -694,6 +694,10 @@ fn has_bin(modules_dir: &Path, command: &str) -> bool {
         })
 }
 
+fn yaml_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
 /// The root's and project-1's modules directories for `setting`, after
 /// writing it to `pnpm-workspace.yaml`.
 fn set_modules_dir_outside_the_project(
@@ -713,7 +717,7 @@ fn set_modules_dir_outside_the_project(
     };
     let modules_dir = match setting {
         ModulesDirSetting::Climbing => "../vendor".to_string(),
-        _ => root_modules_dir.to_string_lossy().replace('\\', "/"),
+        _ => yaml_path(&root_modules_dir),
     };
     append_workspace_yaml_key(workspace, "modulesDir", &modules_dir);
     (root_modules_dir, workspace.join("project-1/vendor"))
@@ -896,3 +900,5 @@ fn assert_commands_use(dir: &Path, modules_dir: &Path, command: &str, setting: M
             .success();
     }
 }
+
+mod frozen_offline;

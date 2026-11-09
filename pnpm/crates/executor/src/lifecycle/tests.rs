@@ -423,8 +423,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     let pkg_root = dir.path();
     let dump_path = pkg_root.join("env.dump");
 
-    // Each line of the dump, as a label and the shell expression behind it.
-    const DUMPED: &[(&str, &str)] = &[
+    const DUMP_LINES: &[(&str, &str)] = &[
         ("stage", "$npm_lifecycle_event"),
         ("script", "$npm_lifecycle_script"),
         ("name", "$npm_package_name"),
@@ -437,7 +436,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
     // `printf`, not `echo`, so the line endings are consistent across shells.
     let mut template = String::new();
     let mut arguments = String::new();
-    for (label, expression) in DUMPED {
+    for (label, expression) in DUMP_LINES {
         write!(template, r"{label}=%s\n").expect("write to a String");
         write!(arguments, r#" "{expression}""#).expect("write to a String");
     }
