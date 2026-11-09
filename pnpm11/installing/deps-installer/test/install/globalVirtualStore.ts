@@ -745,6 +745,37 @@ test('local directory dependency works with global virtual store', async () => {
   expect(fs.realpathSync(path.resolve('node_modules/dep'))).toBe(slotBeforeReinstall)
 })
 
+test('GVS rebuilds a built local directory dependency whose files changed', async () => {
+  prepareEmpty()
+  fs.mkdirSync('dep')
+  fs.writeFileSync('dep/package.json', JSON.stringify({
+    name: 'dep',
+    version: '1.0.0',
+    scripts: { postinstall: 'node -e "require(\'fs\').copyFileSync(\'data.txt\', \'built.txt\')"' },
+  }), 'utf8')
+  fs.writeFileSync('dep/data.txt', 'v1')
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = { dependencies: { dep: 'file:dep' } }
+  const installOpts = {
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    dangerouslyAllowAllBuilds: true,
+  }
+  const opts = testDefaults(installOpts)
+  await install(manifest, opts)
+  const pkgInGvs = fs.realpathSync(path.resolve('node_modules/dep'))
+  expect(fs.readFileSync(path.join(pkgInGvs, 'built.txt'), 'utf8')).toBe('v1')
+
+  fs.writeFileSync('dep/data.txt', 'v2')
+  await install(manifest, testDefaults({ ...installOpts, storeDir: opts.storeDir }))
+
+  expect(fs.realpathSync(path.resolve('node_modules/dep'))).toBe(pkgInGvs)
+  expect(fs.readFileSync(path.join(pkgInGvs, 'data.txt'), 'utf8')).toBe('v2')
+  expect(fs.readFileSync(path.join(pkgInGvs, 'built.txt'), 'utf8')).toBe('v2')
+  expect(readStagingLeftovers(pkgInGvs)).toStrictEqual([])
+})
+
 test('two projects with a same-named local directory dependency get separate global virtual store slots', async () => {
   preparePackages([
     { location: 'project-1', package: { name: 'project-1', version: '1.0.0' } },

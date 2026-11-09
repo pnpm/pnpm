@@ -303,9 +303,19 @@ async function removeAbandonedStagingDirs (slotDir: string, pkgPath: string): Pr
     .filter((entry) => entry.isDirectory() && isStagingDirName(pkgName, entry.name))
     .map(async (entry) => {
       const stagingDir = path.join(parentDir, entry.name)
-      const { mtimeMs } = await fs.stat(stagingDir)
-      if (mtimeMs <= abandonedBefore) await rimraf(stagingDir)
+      const mtimeMs = await readMtimeMs(stagingDir)
+      if (mtimeMs != null && mtimeMs <= abandonedBefore) await rimraf(stagingDir)
     }))
+}
+
+/** `undefined` when the entry is gone, as when an install renamed its staging directory into place. */
+async function readMtimeMs (entryPath: string): Promise<number | undefined> {
+  try {
+    return (await fs.stat(entryPath)).mtimeMs
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    throw err
+  }
 }
 
 async function pathExists (checkedPath: string): Promise<boolean> {

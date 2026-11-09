@@ -43,7 +43,7 @@ test('placeBuiltPackage() renames the staging directory onto a missing package d
   const stagingDir = getStagingDir(pkgDir, createStagingToken())
   writePackage(stagingDir, { 'package.json': '{}', 'built.txt': 'built' })
 
-  await placeBuiltPackage(stagingDir, pkgDir)
+  expect(await placeBuiltPackage(stagingDir, pkgDir)).toBe('renamed')
 
   expect(fs.readFileSync(path.join(pkgDir, 'built.txt'), 'utf8')).toBe('built')
   expect(fs.existsSync(stagingDir)).toBe(false)
@@ -55,10 +55,11 @@ test('placeBuiltPackage() keeps a package another install placed first', async (
   const stagingDir = getStagingDir(pkgDir, createStagingToken())
   writePackage(stagingDir, { 'package.json': '{}', 'built.txt': 'second' })
 
-  await placeBuiltPackage(stagingDir, pkgDir)
+  expect(await placeBuiltPackage(stagingDir, pkgDir)).toBe('placedByOther')
 
   expect(fs.readFileSync(path.join(pkgDir, 'built.txt'), 'utf8')).toBe('first')
-  expect(fs.existsSync(stagingDir)).toBe(false)
+  // The caller discards the staging directory.
+  expect(fs.existsSync(stagingDir)).toBe(true)
 })
 
 test('placeBuiltPackage() moves aside a package directory without package.json', async () => {
@@ -99,6 +100,13 @@ test('selectImportDir() stages only a package that this install builds and that 
 
   writePackage(pkgDir, { 'package.json': '{}' })
   expect(await selectImportDir(pkg, { hasCachedBuild: false, opts })).toBeUndefined()
+  // A package from a local directory is staged again, for its build to replace the placed package.
+  expect(await selectImportDir({ ...pkg, resolution: { type: 'directory', directory: '../foo' } }, { hasCachedBuild: true, opts }))
+    .toBe(getStagingDir(pkgDir, 'tok'))
+})
+
+test('createStagingToken() carries random bits', () => {
+  expect(createStagingToken()).toMatch(/^[\da-f]+-[\da-f]+-[\da-f]{16}$/)
 })
 
 test('removeLinksToSkippedOptionalDependency() removes links to a package that was never placed', async () => {

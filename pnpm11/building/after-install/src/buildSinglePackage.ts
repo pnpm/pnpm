@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
-import { createStagingToken, getStagingDir, isPackagePlaced, removeDir, replacePlacedPackage } from '@pnpm/building.during-install'
+import { createStagingToken, discardStagingDir, getStagingDir, isPackagePlaced, replacePlacedPackage } from '@pnpm/building.during-install'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState } from '@pnpm/deps.graph-hasher'
@@ -127,37 +127,42 @@ interface BuildContext {
 }
 
 /** Runs the package's build scripts in `pkg.pkgRoot`. Resolves to whether they left side effects. */
-async function buildInDir (pkg: PackageToBuild, { pkgId, resolution, sideEffectsCacheKey, state }: BuildContext): Promise<boolean> {
-  const extraBinPaths = await prepareBinPaths(pkg, state)
-  const hasSideEffects = await runPostinstallIfRequired(pkg, extraBinPaths, state)
-  if (hasSideEffects && (state.opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
+async function buildInDir (pkg: PackageToBuild, ctx: BuildContext): Promise<boolean> {
+  const extraBinPaths = await prepareBinPaths(pkg, ctx.state)
+  const hasSideEffects = await runPostinstallIfRequired(pkg, extraBinPaths, ctx.state)
+  if (hasSideEffects) await storeSideEffects(pkg, ctx)
+  return hasSideEffects
+}
+
+async function storeSideEffects (pkg: PackageToBuild, { pkgId, resolution, sideEffectsCacheKey, state }: BuildContext): Promise<void> {
+  if ((state.opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
     await uploadSideEffects(pkg, { resolution, pkgId, sideEffectsCacheKey, state })
   }
-  return hasSideEffects
 }
 
 /**
  * Rebuilds a package placed in a global virtual store slot without writing
  * into it: a copy is built in a staging directory and replaces the placed
- * package. A slot that holds no placed package, or one this rebuild placed
- * built, is left alone.
+ * package. The build output is cached once the rebuilt package is placed. A
+ * slot that holds no placed package, or one this rebuild placed built, is
+ * left alone.
  */
 async function rebuildPlacedPackage (pkg: PackageToBuild, ctx: BuildContext): Promise<boolean> {
   if (ctx.state.ctx.placedPackageDirs?.has(pkg.pkgRoot) || !await isPackagePlaced(pkg.pkgRoot)) return false
   const stagingDir = getStagingDir(pkg.pkgRoot, createStagingToken())
   let replaced = false
   try {
-    await removeDir(stagingDir)
     await fs.promises.cp(pkg.pkgRoot, stagingDir, { recursive: true, verbatimSymlinks: true })
-    const hasSideEffects = await buildInDir({ ...pkg, pkgRoot: stagingDir }, ctx)
-    if (hasSideEffects) {
-      await replacePlacedPackage(stagingDir, pkg.pkgRoot)
-      replaced = true
-    }
-    return hasSideEffects
+    const stagedPkg = { ...pkg, pkgRoot: stagingDir }
+    const hasSideEffects = await runPostinstallIfRequired(stagedPkg, await prepareBinPaths(stagedPkg, ctx.state), ctx.state)
+    if (!hasSideEffects) return false
+    await replacePlacedPackage(stagingDir, pkg.pkgRoot)
+    replaced = true
   } finally {
-    if (!replaced) await removeDir(stagingDir)
+    if (!replaced) await discardStagingDir(stagingDir)
   }
+  await storeSideEffects(pkg, ctx)
+  return true
 }
 
 export async function prepareBinPaths ({ depPath, pkgRoot }: Pick<PackageToBuild, 'depPath' | 'pkgRoot'>, state: RebuildState): Promise<string[]> {

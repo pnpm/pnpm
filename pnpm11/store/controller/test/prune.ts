@@ -338,6 +338,28 @@ test('prune removes abandoned staging directories beside the package directories
   expect(existsSync(path.join(scopedModules, 'bar'))).toBe(true)
 })
 
+test('prune skips a staging directory that disappears while it scans the slot', async () => {
+  const options = createPruneOptions()
+  const projectDir = path.join(options.cacheDir, '..', 'project')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  await writeInstalledLockfile(modulesDir, ['.'])
+  const slotDir = await linkGlobalVirtualStorePackage(options.storeDir, 'foo', modulesDir)
+  await registerProject(options.storeDir, projectDir)
+  const stagingDir = path.join(slotDir, 'node_modules', '.foo-1a2b-0')
+  await fs.mkdir(stagingDir)
+  const stat = fs.stat.bind(fs)
+  jest.spyOn(fs, 'stat').mockImplementation(async (target, ...args) => {
+    if (target === stagingDir) {
+      throw Object.assign(new Error(`ENOENT: no such file or directory, stat '${stagingDir}'`), { code: 'ENOENT' })
+    }
+    return stat(target, ...args as [])
+  })
+
+  await prune(options)
+
+  expect(existsSync(path.join(slotDir, 'node_modules', 'foo'))).toBe(true)
+})
+
 async function writeInstalledLockfile (modulesDir: string, importerIds: string[]): Promise<void> {
   await fs.mkdir(path.join(modulesDir, '.pnpm'), { recursive: true })
   await fs.writeFile(path.join(modulesDir, '.pnpm', 'lock.yaml'), JSON.stringify({

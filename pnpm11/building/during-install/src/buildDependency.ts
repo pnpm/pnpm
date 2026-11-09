@@ -5,14 +5,12 @@ import { relinkModulesDirPackageBins } from '@pnpm/bins.linker'
 import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
+import type { DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { isError, PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
-import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import { publishBuiltSharedSideEffects } from '@pnpm/pnpr.client'
-import type { StoreController, UploadPkgToStoreResult } from '@pnpm/store.controller-types'
+import type { StoreController } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
   DepPath,
@@ -26,13 +24,14 @@ import { isSubdir } from 'is-subdir'
 import pDefer, { type DeferredPromise } from 'p-defer'
 
 import type { DependenciesGraph, DependenciesGraphNode } from './buildGraph.js'
-import { isPackagePlaced, placeBuiltPackage, removeDir } from './globalVirtualStoreSlot.js'
+import { discardStagingDir, isFromLocalDirectory, isPackagePlaced, placeBuiltPackage, replacePlacedPackage } from './globalVirtualStoreSlot.js'
 import { linkBinsOfDependencies } from './linkBinsOfDependencies.js'
 import {
   removeIncompatibleOptional,
   removeLinksToSkippedOptionalDependency,
   removeSkippedOptionalDependency,
 } from './removeSkippedDependency.js'
+import { type BuildOutput, storeBuildOutput } from './storeBuildOutput.js'
 
 export interface BuildDependencyOptions {
   allowBuild: AllowBuild
@@ -117,7 +116,7 @@ export async function buildDependency<NodeId extends string> (
   const state: BuildState = { succeeded: false }
   try {
     state.succeeded = depNode.stagingDir == null
-      ? await buildPackage(depPath, depGraph, depNode, opts)
+      ? await buildInPackageDir(depPath, depGraph, opts)
       : await buildInStagingDir(depPath, depGraph, opts)
   } catch (err: unknown) {
     await skipFailedOptionalBuild(err, depNode, opts)
@@ -133,10 +132,23 @@ export async function buildDependency<NodeId extends string> (
   }
 }
 
+async function buildInPackageDir<NodeId extends string> (
+  depPath: NodeId,
+  depGraph: DependenciesGraph<NodeId>,
+  opts: BuildDependencyOptions
+): Promise<boolean> {
+  const built = await buildPackage(depPath, depGraph, depGraph[depPath], opts)
+  if (built == null) return false
+  if (built.output != null) await storeBuildOutput(built.output)
+  return true
+}
+
 /**
  * Builds a package that the link phase staged for its global virtual store
  * slot, then renames it into place. A package another install placed first is
- * not built. A failed build leaves nothing in the slot.
+ * not built, unless it comes from a local directory, whose build replaces the
+ * placed package. A failed build leaves nothing in the slot. The build output
+ * is cached only once the package is placed.
  */
 async function buildInStagingDir<NodeId extends string> (
   depPath: NodeId,
@@ -145,8 +157,9 @@ async function buildInStagingDir<NodeId extends string> (
 ): Promise<boolean> {
   const depNode = depGraph[depPath]
   const stagingDir = depNode.stagingDir!
-  if (await isPackagePlaced(depNode.dir)) {
-    await removeDir(stagingDir)
+  const replacesPlaced = isFromLocalDirectory(depNode)
+  if (!replacesPlaced && await isPackagePlaced(depNode.dir)) {
+    await discardStagingDir(stagingDir)
     // The placed package's bins may differ from those linked before the build.
     if (depNode.patch != null || depNode.hasBin) {
       opts.builtDepPaths?.add(depNode.depPath)
@@ -154,21 +167,32 @@ async function buildInStagingDir<NodeId extends string> (
     }
     return true
   }
-  let placed = false
+  let built: BuiltPackage<NodeId> | undefined
+  let staged = true
   try {
-    if (await buildPackage(depPath, depGraph, { ...depNode, dir: stagingDir }, opts)) {
-      await placeBuiltPackage(stagingDir, depNode.dir)
-      placed = true
+    built = await buildPackage(depPath, depGraph, { ...depNode, dir: stagingDir }, opts)
+    if (built == null) return false
+    if (replacesPlaced) {
+      await replacePlacedPackage(stagingDir, depNode.dir)
+      staged = false
+    } else {
+      staged = await placeBuiltPackage(stagingDir, depNode.dir) === 'placedByOther'
     }
   } finally {
-    if (!placed) await removeDir(stagingDir)
+    if (staged) await discardStagingDir(stagingDir)
   }
-  return placed
+  if (built.output != null) await storeBuildOutput({ ...built.output, pkgNode: depNode })
+  return true
+}
+
+interface BuiltPackage<NodeId extends string> {
+  /** The build output to cache. Absent when the build was withheld. */
+  output?: BuildOutput<NodeId>
 }
 
 /**
  * Patches and builds `pkgNode`, which is `depGraph[depPath]` or a copy of it
- * located in a staging directory. Resolves to `false` when a patch made an
+ * located in a staging directory. Resolves to `undefined` when a patch made an
  * optional package uninstallable.
  */
 async function buildPackage<NodeId extends string> (
@@ -176,10 +200,10 @@ async function buildPackage<NodeId extends string> (
   depGraph: DependenciesGraph<NodeId>,
   pkgNode: DependenciesGraphNode<NodeId>,
   opts: BuildDependencyOptions
-): Promise<boolean> {
+): Promise<BuiltPackage<NodeId> | undefined> {
   await linkBinsOfDependencies(pkgNode, depGraph, opts)
   const patchOutcome = await patchDependency(depPath, depGraph, pkgNode, opts)
-  if (patchOutcome === 'uninstallable') return false
+  if (patchOutcome === 'uninstallable') return undefined
   const isPatched = patchOutcome === 'patched'
   const { requiresBuild, ignoreScripts } = await gateBuildScripts(pkgNode, isPatched, opts)
   const hasSideEffects = !ignoreScripts && await runBuildScripts(depPath, pkgNode, opts)
@@ -196,10 +220,7 @@ async function buildPackage<NodeId extends string> (
   // the patch alone produced would replay on the install that finally runs
   // the build, and the scripts would never get their chance.
   const buildPending = requiresBuild && ignoreScripts
-  if (!buildPending) {
-    await storeBuildOutput({ depPath, depGraph, pkgNode, opts, isPatched, hasSideEffects })
-  }
-  return true
+  return { output: buildPending ? undefined : { depPath, depGraph, pkgNode, opts, isPatched, hasSideEffects } }
 }
 
 async function patchDependency<NodeId extends string> (
@@ -290,87 +311,6 @@ async function runBuildScripts<NodeId extends string> (
     shellEmulator: opts.shellEmulator,
     unsafePerm: opts.unsafePerm || false,
     userAgent: opts.userAgent,
-  })
-}
-
-interface BuildOutput<NodeId extends string> {
-  depPath: NodeId
-  depGraph: DependenciesGraph<NodeId>
-  /** The node whose directory holds the build output. See `buildPackage`. */
-  pkgNode: DependenciesGraphNode<NodeId>
-  opts: BuildDependencyOptions
-  isPatched: boolean
-  hasSideEffects: boolean
-}
-
-async function storeBuildOutput<NodeId extends string> (output: BuildOutput<NodeId>): Promise<void> {
-  const { pkgNode: depNode, opts, isPatched, hasSideEffects } = output
-  // frozenStore opens the store read-only, so the side-effects cache (which
-  // lives in the store) cannot be written. extendInstallOptions already forces
-  // sideEffectsCacheWrite off under frozenStore; this guards callers that
-  // bypass it.
-  const shouldPublishSharedSideEffects = hasSideEffects && sharesSideEffectsOf(depNode, opts)
-  if (!isPatched && !hasSideEffects) return
-  if (!(opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) || opts.frozenStore) return
-  try {
-    await uploadBuildOutput(output, shouldPublishSharedSideEffects)
-  } catch (err: unknown) {
-    assert(isError(err))
-    logger.warn({
-      error: err,
-      message: `An error occurred while uploading ${depNode.dir}`,
-      prefix: opts.lockfileDir,
-    })
-  }
-}
-
-async function uploadBuildOutput<NodeId extends string> (
-  output: BuildOutput<NodeId>,
-  shouldPublishSharedSideEffects: boolean
-): Promise<void> {
-  const { depPath, depGraph, pkgNode: depNode, opts, hasSideEffects } = output
-  const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
-    patchFileHash: depNode.patch?.hash,
-    includeDepGraphHash: hasSideEffects,
-    nodeVersion: opts.nodeVersion,
-  })
-  if (!depNode.filesIndexFile) return
-  const upload = await opts.storeController.upload(depNode.dir, {
-    sideEffectsCacheKey,
-    filesIndexFile: depNode.filesIndexFile,
-  })
-  if (shouldPublishSharedSideEffects && depNode.resolution != null) {
-    await publishSideEffects({ depPath, depGraph, opts, resolution: depNode.resolution, upload })
-  }
-}
-
-function sharesSideEffectsOf<NodeId extends string> (depNode: DependenciesGraphNode<NodeId>, opts: BuildDependencyOptions): boolean {
-  return opts.remoteSideEffectsCache?.publish === true &&
-    opts.pnprServer != null &&
-    opts.remoteSideEffectsCache?.packages?.includes(depNode.name) === true &&
-    depNode.resolution != null
-}
-
-async function publishSideEffects<NodeId extends string> (
-  { depPath, depGraph, opts, resolution, upload }: Pick<BuildOutput<NodeId>, 'depPath' | 'depGraph' | 'opts'> & {
-    resolution: NonNullable<DependenciesGraphNode<NodeId>['resolution']>
-    upload: UploadPkgToStoreResult
-  }
-): Promise<void> {
-  const depNode = depGraph[depPath]
-  await publishBuiltSharedSideEffects({
-    configByUri: opts.configByUri ?? {},
-    depsGraph: depGraph,
-    graphKey: depPath,
-    name: depNode.name,
-    nodeVersion: opts.nodeVersion,
-    patchFileHash: depNode.patch?.hash,
-    pnprServer: opts.pnprServer,
-    resolution,
-    settings: opts.remoteSideEffectsCache,
-    supportedArchitectures: opts.supportedArchitectures,
-    upload,
-    version: depNode.version,
   })
 }
 

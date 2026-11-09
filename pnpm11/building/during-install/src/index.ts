@@ -22,6 +22,7 @@ import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from '
 
 export {
   createStagingToken,
+  discardStagingDir,
   isPackagePlaced,
   placeBuiltPackage,
   removeDir,
