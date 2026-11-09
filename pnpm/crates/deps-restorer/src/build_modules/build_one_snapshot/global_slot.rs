@@ -14,7 +14,7 @@ use super::{
     BuildCandidate, BuildModulesError, BuildOneSnapshot, LogEvent, LogLevel, PackageKey, Path,
     Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     apply_patch_to_dir, dependency_bins, lifecycle_scripts,
-    patched_engines::skip_incompatible_optional_at,
+    patched_engines::{remove_linked_copies, skip_incompatible_optional_at},
     reject_frozen_store_build,
     side_effects::{self, FrozenStoreWrites, SideEffectsUpload},
     skip_incompatible_optional,
@@ -85,12 +85,32 @@ fn build_and_place<Reporter: self::Reporter>(
     }
     let built = build_staged::<Reporter>(context, snapshot_key, candidate, &slot.staging)
         .inspect_err(|_| slot.discard_staging())?;
-    let Some(has_side_effects) = built.filter(|_| !(slot.placed && rerun == Rerun::OutsideEffects))
-    else {
+    settle_built(context, (snapshot_key, cache_key), candidate, (slot, rerun), built)
+}
+
+/// Place what the build left in staging, then cache it. `built` is `None`
+/// when the package was skipped instead.
+fn settle_built(
+    context: &BuildOneSnapshot<'_>,
+    (snapshot_key, cache_key): (&PackageKey, Option<&str>),
+    candidate: &BuildCandidate<'_>,
+    (slot, rerun): (&PlacedPackage, Rerun),
+    built: Option<bool>,
+) -> Result<(), BuildModulesError> {
+    let Some(has_side_effects) = built else {
         slot.discard_staging();
+        // A package that never reaches its slot must not stay linked. A
+        // placed package keeps its links, as a failed rebuild leaves it.
+        if !slot.placed {
+            remove_linked_copies(context, snapshot_key);
+        }
         return Ok(());
     };
-    slot.place_staged(slot.placed)?;
+    if slot.placed && rerun == Rerun::OutsideEffects {
+        slot.discard_staging();
+        return Ok(());
+    }
+    slot.place_staged(if slot.placed { WhenPlaced::Replace } else { WhenPlaced::Keep })?;
     // Only once the package is placed, so a cache row always names a placed
     // package, and no install imports it into a slot a build still places.
     side_effects::upload_side_effects_cache(
@@ -228,6 +248,16 @@ fn run_scripts<Reporter: self::Reporter>(
     }
 }
 
+/// What placing a staged package does to a package already in the slot.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WhenPlaced {
+    /// Another install placed the package first, so this one discards its
+    /// copy.
+    Keep,
+    /// A rebuild or a changed local directory replaces the placed package.
+    Replace,
+}
+
 /// A package's directory in its slot, and this install's staging
 /// directory beside it.
 struct PlacedPackage {
@@ -288,15 +318,13 @@ impl PlacedPackage {
             overlay,
         )
         .inspect_err(|_| self.discard_staging())?;
-        self.place_staged(false)
+        self.place_staged(WhenPlaced::Keep)
     }
 
-    /// Rename the staged package into the slot. Another install that
-    /// placed the package first wins, and this one discards its copy,
-    /// unless `replace_placed` asks to replace it, as a rebuild does. A
-    /// directory without a `package.json` is an import that did not
-    /// finish, and the staged package takes its place.
-    fn place_staged(&self, replace_placed: bool) -> Result<(), BuildModulesError> {
+    /// Rename the staged package into the slot. A directory without a
+    /// `package.json` is an import that did not finish, and the staged
+    /// package takes its place.
+    fn place_staged(&self, when_placed: WhenPlaced) -> Result<(), BuildModulesError> {
         const ATTEMPTS: usize = 3;
         for attempt in 1..=ATTEMPTS {
             let error = match self.rename_into_place() {
@@ -310,7 +338,7 @@ impl PlacedPackage {
                     source: error,
                 });
             }
-            if !replace_placed && self.is_placed()? {
+            if when_placed == WhenPlaced::Keep && self.is_placed()? {
                 self.discard_staging();
                 return Ok(());
             }

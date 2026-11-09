@@ -10,8 +10,6 @@ use pnpm_reporter::SilentReporter;
 use std::{collections::HashMap, fs, path::PathBuf};
 use tempfile::{TempDir, tempdir};
 
-/// The link phase stages a package this install builds. The build runs
-/// there, and the built package is renamed into the slot.
 #[test]
 fn a_staged_package_is_built_and_renamed_into_its_slot() {
     let slot = PatchedSlot::new();
@@ -23,8 +21,6 @@ fn a_staged_package_is_built_and_renamed_into_its_slot() {
     assert!(!slot.staging_dir().exists(), "the staging directory must be gone");
 }
 
-/// A slot that holds its package is final, so a build that another install
-/// already placed is not repeated, and the staged copy is discarded.
 #[test]
 fn a_placed_package_is_left_alone() {
     let slot = PatchedSlot::new();
@@ -38,8 +34,6 @@ fn a_placed_package_is_left_alone() {
     assert!(!slot.staging_dir().exists(), "the staging directory must be gone");
 }
 
-/// An import that did not finish leaves a package directory without its
-/// `package.json`. The built package takes its place.
 #[test]
 fn a_built_package_replaces_an_unfinished_import() {
     let slot = PatchedSlot::new();
@@ -53,8 +47,6 @@ fn a_built_package_replaces_an_unfinished_import() {
     assert!(!slot.pkg_dir.join("partial.txt").exists(), "the unfinished import must be gone");
 }
 
-/// A build that fails leaves nothing in the slot, so no project links a
-/// package whose build did not finish.
 #[test]
 fn a_failed_build_leaves_the_slot_without_its_package() {
     let slot = PatchedSlot::new();

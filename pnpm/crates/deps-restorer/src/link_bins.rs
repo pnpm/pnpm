@@ -487,22 +487,24 @@ fn slot_own_pkg_dir(modules_dir: &Path, slot_key: &PackageKey) -> PathBuf {
     pkg_dir_under(modules_dir, &slot_key.name)
 }
 
-/// The directory holding the slot's own package: the staging directory of
-/// a package this install builds and has not placed yet, so the build's
-/// scripts find the bins of their dependencies there and the bins are
-/// renamed into the slot with the package, and the slot's package
-/// directory otherwise.
+/// The directory holding the slot's own package for this install: the
+/// staging directory of a package this install builds, so the build's
+/// scripts find the bins of their dependencies there and the bins reach the
+/// slot with the package, and the slot's package directory otherwise. A
+/// staged package that replaces a placed one, as a rebuild does, is built
+/// in staging too, so staging wins whenever it exists.
 fn staged_or_own_pkg_dir(
     layout: &crate::VirtualStoreLayout,
     modules_dir: &Path,
     slot_key: &PackageKey,
 ) -> PathBuf {
-    let own = slot_own_pkg_dir(modules_dir, slot_key);
-    if !layout.enable_global_virtual_store() || own.join("package.json").exists() {
-        return own;
+    if layout.enable_global_virtual_store() {
+        let staging = layout.staging_package_dir(slot_key);
+        if staging.is_dir() {
+            return staging;
+        }
     }
-    let staging = layout.staging_package_dir(slot_key);
-    if staging.is_dir() { staging } else { own }
+    slot_own_pkg_dir(modules_dir, slot_key)
 }
 
 /// Join a package name onto a `node_modules` directory, handling the

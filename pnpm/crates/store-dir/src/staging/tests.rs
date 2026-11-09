@@ -1,10 +1,10 @@
 use super::{remove_abandoned_staging_dirs, staging_dir_name};
-use std::{ffi::OsStr, fs};
+use std::fs;
 use tempfile::tempdir;
 
 #[test]
-fn a_staging_dir_is_a_hidden_sibling_named_after_the_package() {
-    assert_eq!(staging_dir_name(OsStr::new("esbuild"), "1a-2"), ".esbuild-1a-2");
+fn a_staging_dir_name_is_short_and_hidden() {
+    assert_eq!(staging_dir_name("1a2b3c4d"), ".pnpm-1a2b3c4d");
 }
 
 #[test]
@@ -13,7 +13,7 @@ fn a_staging_dir_an_install_may_still_use_is_kept() {
     let package_dir = modules_dir.path().join("esbuild");
     let staging = modules_dir
         .path()
-        .join(staging_dir_name(OsStr::new("esbuild"), "1a-2"));
+        .join(staging_dir_name("1a2b3c4d"));
     fs::create_dir(&staging).expect("create staging dir");
 
     assert_eq!(remove_abandoned_staging_dirs(&package_dir).expect("sweep"), 0);
@@ -28,11 +28,9 @@ fn an_abandoned_staging_dir_is_removed_and_nothing_else() {
     fs::create_dir(&package_dir).expect("create package dir");
     let abandoned = modules_dir
         .path()
-        .join(staging_dir_name(OsStr::new("esbuild"), "1a-2"));
-    let other_package = modules_dir
-        .path()
-        .join(staging_dir_name(OsStr::new("other"), "1a-2"));
-    for dir in [&abandoned, &other_package] {
+        .join(staging_dir_name("1a2b3c4d"));
+    let unrelated = modules_dir.path().join(".bin");
+    for dir in [&abandoned, &unrelated] {
         fs::create_dir(dir).expect("create dir");
         let two_hours_ago = std::time::SystemTime::now() - std::time::Duration::from_hours(2);
         fs::File::open(dir)
@@ -43,5 +41,5 @@ fn an_abandoned_staging_dir_is_removed_and_nothing_else() {
     assert_eq!(remove_abandoned_staging_dirs(&package_dir).expect("sweep"), 1);
     assert!(!abandoned.exists());
     assert!(package_dir.exists());
-    assert!(other_package.exists(), "another package's staging dir is not this slot's");
+    assert!(unrelated.exists(), "a directory without the staging prefix stays");
 }

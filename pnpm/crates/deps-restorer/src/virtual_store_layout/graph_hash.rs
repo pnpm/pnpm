@@ -296,7 +296,10 @@ impl<'h> GvsHasher<'h> {
             &mut self.cache,
             &dep_path,
             own_engine.as_deref().or(self.engine),
-            (self.build_required_dep_paths.as_ref(), self.runs_builds),
+            pnpm_graph_hasher::BuildRequired {
+                dep_paths: self.build_required_dep_paths.as_ref(),
+                builds_run: self.runs_builds,
+            },
             project_scope,
         );
         format_global_virtual_store_path(

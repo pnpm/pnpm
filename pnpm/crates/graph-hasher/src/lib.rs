@@ -21,7 +21,7 @@ pub use engine_name::{
     detect_node_major, detect_node_version, engine_name, host_arch, host_libc, host_platform,
 };
 pub use global_virtual_store_path::{
-    calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
+    BuildRequired, calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
     calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
     join_global_virtual_store_path,
 };

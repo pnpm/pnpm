@@ -34,7 +34,7 @@ use std::{
 ///   [`crate::build_required_dep_paths`]. `None` disables the gating and
 ///   forces `include_engine = true`.
 ///
-/// With `builds_run`, a snapshot in a `Some` `build_required_dep_paths`
+/// With [`BuildRequired::builds_run`], a snapshot in its `dep_paths`
 /// also hashes `built: true`. Its slot holds the built package, which an
 /// install renames into place once the build has finished, so it never
 /// shares a path with the pristine package that an install not running
@@ -50,13 +50,14 @@ pub fn calc_graph_node_hash<Key>(
     cache: &mut DepsStateCache<Key>,
     dep_path: &Key,
     engine: Option<&str>,
-    build_required: (Option<&HashSet<Key>>, bool),
+    build_required: BuildRequired<'_, Key>,
     project: Option<&str>,
 ) -> String
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    let (engine_value, built) = engine_and_built(dep_path, engine, build_required);
+    let NodeHashFields { engine: engine_value, built } =
+        node_hash_fields(dep_path, engine, build_required);
     let deps_hash = calc_dep_graph_hash(graph, cache, dep_path);
     // The object-hash serialization of
     // `{ engine, deps }`, plus `built` and `project` when they apply, with
@@ -92,19 +93,46 @@ where
     digest_hex(&buf)
 }
 
-/// The `engine` a snapshot hashes, `None` for `null`, and whether it hashes
-/// `built: true`. See [`calc_graph_node_hash`].
-fn engine_and_built<'e, Key>(
+/// Which snapshots [`calc_graph_node_hash`] treats as built.
+pub struct BuildRequired<'a, Key> {
+    /// When `Some`, the set [`crate::build_required_dep_paths`] returns.
+    /// `None` disables the gating and includes the engine everywhere.
+    pub dep_paths: Option<&'a HashSet<Key>>,
+    /// Whether the install runs the builds. `false` under `ignoreScripts`.
+    pub builds_run: bool,
+}
+
+// Implemented by hand: deriving would require `Key: Copy`.
+impl<Key> Clone for BuildRequired<'_, Key> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<Key> Copy for BuildRequired<'_, Key> {}
+
+/// What a snapshot's hash payload holds besides its dependencies.
+struct NodeHashFields<'e> {
+    /// `None` hashes `null`.
+    engine: Option<&'e str>,
+    /// Whether the payload holds `built: true`.
+    built: bool,
+}
+
+fn node_hash_fields<'e, Key>(
     dep_path: &Key,
     engine: Option<&'e str>,
-    (build_required_dep_paths, builds_run): (Option<&HashSet<Key>>, bool),
-) -> (Option<&'e str>, bool)
+    build_required: BuildRequired<'_, Key>,
+) -> NodeHashFields<'e>
 where
     Key: Eq + std::hash::Hash,
 {
-    let gated = build_required_dep_paths.is_some_and(|set| set.contains(dep_path));
-    let include_engine = gated || build_required_dep_paths.is_none();
-    (engine.filter(|_| include_engine), gated && builds_run)
+    let gated = build_required.dep_paths.is_some_and(|set| set.contains(dep_path));
+    let include_engine = gated || build_required.dep_paths.is_none();
+    NodeHashFields {
+        engine: engine.filter(|_| include_engine),
+        built: gated && build_required.builds_run,
+    }
 }
 
 /// Compute the GVS hash for a config dependency that has no children

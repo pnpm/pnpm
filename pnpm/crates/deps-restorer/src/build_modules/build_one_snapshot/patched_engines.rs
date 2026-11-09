@@ -50,7 +50,7 @@ pub(super) fn skip_incompatible_optional_at<EventReporter: Reporter>(
 /// Remove an engine-incompatible optional dependency and every link to it.
 /// Cleanup failures leave a stale entry for the next install to repair, so
 /// they are not reported.
-fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKey) {
+pub(super) fn remove_linked_copies(context: &BuildOneSnapshot<'_>, snapshot_key: &PackageKey) {
     let dirs = context.pkg_roots().all(snapshot_key);
     let targets = LinkTargets::resolve(&dirs);
     let layout = context.directories.layout;

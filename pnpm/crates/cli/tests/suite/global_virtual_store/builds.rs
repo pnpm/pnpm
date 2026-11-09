@@ -920,3 +920,64 @@ fn concurrent_installs_build_one_shared_slot() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn a_failed_optional_build_leaves_no_project_link() {
+    const PKG: &str = "@pnpm.e2e/failing-postinstall";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({ "optionalDependencies": { PKG: "1.0.0" } });
+    fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[(PKG, true)]));
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules").join(PKG)).is_err(),
+        "the project must not link a package that never reached its slot",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn a_rebuilt_local_directory_package_runs_the_bins_of_its_dependencies() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let local = root.path().join("local");
+    fs::create_dir(&local).expect("create the local package");
+    let write_local = |version: &str| {
+        let manifest = serde_json::json!({
+            "name": "local",
+            "version": version,
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+            "scripts": {
+                "postinstall": r#"hello-world-js-bin && node -e "require('fs').writeFileSync('built.txt', '')""#,
+            },
+        });
+        fs::write(local.join("package.json"), manifest.to_string()).expect("write local manifest");
+    };
+    write_local("1.0.0");
+    write_manifest(&workspace, &serde_json::json!({ "local": "file:../local" }));
+    set_gvs_workspace_yaml(&workspace, "dangerouslyAllowAllBuilds: true\nhoist: false\n");
+
+    for install in ["first", "second"] {
+        fs::write(local.join("data.txt"), install).expect("change the local package");
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let linked = fs::canonicalize(workspace.join("node_modules/local")).expect("resolve link");
+        assert!(linked.join("built.txt").exists(), "the {install} install must build the package");
+        assert_eq!(fs::read_to_string(linked.join("data.txt")).expect("read data"), install);
+    }
+
+    drop((root, mock_instance));
+}
