@@ -257,5 +257,20 @@ fn read_env_document(path: &Path) -> io::Result<Option<String>> {
     }
 }
 
+impl EnvLockfile {
+    /// The version of the package manager the env document pins, when it
+    /// records one.
+    #[must_use]
+    pub fn pinned_package_manager_version(&self) -> Option<&str> {
+        self.importers
+            .get(Self::ROOT_IMPORTER_KEY)?
+            .package_manager_dependencies
+            .as_ref()?
+            .values()
+            .next()
+            .map(|pin| pin.version.as_str())
+    }
+}
+
 #[cfg(test)]
 mod tests;

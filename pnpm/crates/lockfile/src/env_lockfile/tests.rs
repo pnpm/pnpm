@@ -1,9 +1,10 @@
-use super::{EnvLockfile, SpecifierAndResolution};
+use super::{EnvImporterSnapshot, EnvLockfile, SpecifierAndResolution};
 use crate::{
     EnvDocumentFormat, Lockfile, LockfileResolution, PackageKey, PackageMetadata,
     RegistryResolution, SnapshotEntry, SymlinkedLockfile, extract_env_document,
     extract_main_document,
 };
+use std::collections::{BTreeMap, HashMap};
 use tempfile::TempDir;
 use text_block_macros::text_block_fnl;
 
@@ -63,6 +64,28 @@ fn write_then_read_round_trips() {
 /// In the next format the env document has the main document's shape and
 /// syntax: JSON, one `packages` entry per package, the config dependencies
 /// as the specifier alone when the version follows from it.
+#[test]
+fn the_pinned_package_manager_version_is_the_root_pin() {
+    let mut env = EnvLockfile {
+        lockfile_version: "9.0".to_string(),
+        importers: HashMap::new(),
+        packages: HashMap::new(),
+        snapshots: HashMap::new(),
+    };
+    assert_eq!(env.pinned_package_manager_version(), None);
+    env.importers.insert(
+        EnvLockfile::ROOT_IMPORTER_KEY.to_string(),
+        EnvImporterSnapshot {
+            package_manager_dependencies: Some(BTreeMap::from([(
+                "pnpm".to_string(),
+                SpecifierAndResolution { specifier: "^14.0.0".into(), version: "14.2.0".into() },
+            )])),
+            ..EnvImporterSnapshot::default()
+        },
+    );
+    assert_eq!(env.pinned_package_manager_version(), Some("14.2.0"));
+}
+
 #[test]
 fn write_then_read_round_trips_in_the_next_format() {
     let dir = TempDir::new().unwrap();

@@ -54,14 +54,59 @@ fn blank_trailing_commas(bytes: &mut [u8]) {
     }
 }
 
-/// The string after the first `"lockfileVersion":` of a JSON document.
+/// The root object's `lockfileVersion`, read without parsing the document.
+/// The scan tracks nesting so that a field of that name inside another
+/// object is skipped. `None` when the root has no such string field.
 pub(crate) fn json_lockfile_version(document: &str) -> Option<&str> {
-    const KEY: &str = r#""lockfileVersion""#;
-    let after_key = &document[document.find(KEY)? + KEY.len()..];
+    let mut depth = 0usize;
+    let mut expecting_key = false;
+    let mut rest = document;
+    loop {
+        let index = rest.find(['{', '}', '[', ']', ',', ':', '"'])?;
+        let (found, tail) = (rest.as_bytes()[index], &rest[index + 1..]);
+        rest = tail;
+        match found {
+            b'"' => {
+                let (text, after) = string_end(tail)?;
+                if depth == 1 && expecting_key && text == "lockfileVersion" {
+                    return string_value(after);
+                }
+                rest = after;
+                expecting_key = false;
+            }
+            b'{' | b'[' => {
+                depth += 1;
+                expecting_key = depth == 1 && found == b'{';
+            }
+            b'}' | b']' => depth = depth.checked_sub(1)?,
+            b',' => expecting_key = depth == 1,
+            _ => expecting_key = false,
+        }
+    }
+}
+
+/// The text of a string literal whose opening quote is consumed, and the
+/// text after its closing quote.
+fn string_end(text: &str) -> Option<(&str, &str)> {
+    let mut from = 0;
+    loop {
+        let index = from + text.get(from..)?.find(['"', '\\'])?;
+        if text.as_bytes()[index] == b'"' {
+            return Some((&text[..index], &text[index + 1..]));
+        }
+        from = index + 2;
+    }
+}
+
+/// The string value after a key, with the `:` between them.
+fn string_value(after_key: &str) -> Option<&str> {
     let value = after_key
         .trim_start()
         .strip_prefix(':')?
-        .trim_start();
-    let value = value.strip_prefix('"')?;
-    value.split('"').next()
+        .trim_start()
+        .strip_prefix('"')?;
+    string_end(value).map(|(text, _)| text)
 }
+
+#[cfg(test)]
+mod tests;

@@ -325,10 +325,15 @@ async fn resolve_and_install<Reporter: self::Reporter>(
 
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-    // The running pnpm installs the config dependencies, and after a version
-    // switch it is the pinned one, so its own version picks the format.
-    let mut options =
-        context.options(root_dir, frozen_lockfile, EnvDocumentFormat::for_pnpm(PNPM_VERSION));
+    // The pinned pnpm's version picks the format; a project that pins none
+    // gets the running pnpm's.
+    let mut options = context.options(
+        root_dir,
+        frozen_lockfile,
+        EnvDocumentFormat::for_pnpm(
+            env_lockfile.pinned_package_manager_version().unwrap_or(PNPM_VERSION),
+        ),
+    );
     options.mode = mode;
     // Sampled before the verifiers so the resolution cutoff is never later
     // than the verification cutoff.

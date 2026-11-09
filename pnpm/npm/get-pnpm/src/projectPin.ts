@@ -179,10 +179,21 @@ function lockedPnpmVersion (lockfileDir: string, range: string): string | undefi
   const content = readOptionalFile(lockfilePath)
   const envDocument = content == null ? undefined : extractEnvDocument(content)
   if (envDocument == null) return undefined
-  const locked = valueAt(parseYaml(lockfilePath, envDocument), ['importers', '.', 'packageManagerDependencies', 'pnpm', 'version'])
+  const locked = lockedVersionOf(parseYaml(lockfilePath, envDocument))
   // In range the way pnpm checks a locked version, prereleases included.
   if (typeof locked !== 'string' || semver.valid(locked) == null) return undefined
   return semver.satisfies(locked, range, { includePrerelease: true }) ? locked : undefined
+}
+
+/**
+ * The locked pnpm version of an env document. Lockfile format 13 names the
+ * root `projects` and writes the entry as its specifier alone when that is
+ * an exact version.
+ */
+function lockedVersionOf (envDocument: unknown): unknown {
+  const root = valueAt(envDocument, ['projects', '.']) ?? valueAt(envDocument, ['importers', '.'])
+  const entry = valueAt(root, ['packageManagerDependencies', 'pnpm'])
+  return typeof entry === 'string' ? entry : valueAt(entry, ['version'])
 }
 
 /**
