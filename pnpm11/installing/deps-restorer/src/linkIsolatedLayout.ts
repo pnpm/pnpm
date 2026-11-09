@@ -78,7 +78,6 @@ async function importAndLinkPackages (ctx: HeadlessContext, depGraph: HeadlessDe
       remoteSideEffectsCache: opts.remoteSideEffectsCache,
       pnprServer: opts.pnprServer,
       configByUri: opts.configByUri,
-      storeDir: opts.storeDir,
       supportedArchitectures: opts.supportedArchitectures,
     }),
   ])

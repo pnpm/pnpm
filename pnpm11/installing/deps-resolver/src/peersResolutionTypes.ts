@@ -27,6 +27,8 @@ export interface BaseGenericDependenciesGraphNode {
   isPure: boolean
   resolvedPeerNames: Set<string>
   requiresBuild?: boolean
+  /** See `DependenciesGraphNode.stagingDir` in `@pnpm/building.during-install`. */
+  stagingDir?: string
 }
 
 export interface GenericDependenciesGraphNode extends BaseGenericDependenciesGraphNode {

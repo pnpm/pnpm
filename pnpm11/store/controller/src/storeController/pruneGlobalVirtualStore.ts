@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { type Dirent, promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { isStagingDirName } from '@pnpm/deps.graph-hasher'
 import { isError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { rimraf } from '@zkochan/rimraf'
@@ -10,13 +11,16 @@ import { isSubdir } from 'is-subdir'
 import { getRegisteredProjects } from './projectRegistry.js'
 
 const LINKS_DIR = 'links'
+// An install may still be building in a younger staging directory.
+const ABANDONED_STAGING_DIR_AGE_MS = 60 * 60 * 1000
 
 /**
  * Prune unused packages from the global virtual store using mark-and-sweep:
  * 1. Get all registered projects
  * 2. Find all node_modules directories in each project (including workspace packages)
  * 3. Walk symlinks from each node_modules and from each of `modulesDirs` to mark reachable packages
- * 4. Remove any package directories that weren't marked as reachable
+ * 4. Remove any package directories that weren't marked as reachable, and the
+ *    abandoned staging directories of the reachable ones
  */
 export async function pruneGlobalVirtualStore (storeDir: string, modulesDirs: string[] = []): Promise<void> {
   const linksDir = path.join(storeDir, LINKS_DIR)
@@ -262,6 +266,8 @@ async function removeUnreachableVersions (
             await rimraf(path.join(versionDir, hash))
             removedHashes++
             count++
+          } else {
+            await removeAbandonedStagingDirs(path.join(versionDir, hash), pkgPath)
           }
         })
       )
@@ -277,6 +283,29 @@ async function removeUnreachableVersions (
     count,
     allRemoved: removedVersions === versions.length && versions.length > 0,
   }
+}
+
+/**
+ * Removes the staging directories beside a slot's package directory that no
+ * install has written to for {@link ABANDONED_STAGING_DIR_AGE_MS}. The package
+ * directory is `node_modules/<name>` in the slot for an unscoped package (store
+ * scope `@`) and `node_modules/<scope>/<name>` for a scoped one.
+ */
+async function removeAbandonedStagingDirs (slotDir: string, pkgPath: string): Promise<void> {
+  const [scope, pkgName] = pkgPath.split(path.sep)
+  const parentDir = scope === '@'
+    ? path.join(slotDir, 'node_modules')
+    : path.join(slotDir, 'node_modules', scope)
+  const entries = await readDirEntriesSafely(parentDir)
+  if (!entries) return
+  const abandonedBefore = Date.now() - ABANDONED_STAGING_DIR_AGE_MS
+  await Promise.all(entries
+    .filter((entry) => entry.isDirectory() && isStagingDirName(pkgName, entry.name))
+    .map(async (entry) => {
+      const stagingDir = path.join(parentDir, entry.name)
+      const { mtimeMs } = await fs.stat(stagingDir)
+      if (mtimeMs <= abandonedBefore) await rimraf(stagingDir)
+    }))
 }
 
 async function pathExists (checkedPath: string): Promise<boolean> {

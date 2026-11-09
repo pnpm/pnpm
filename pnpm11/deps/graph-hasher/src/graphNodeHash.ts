@@ -28,6 +28,25 @@ export interface GraphNodeHashOptions {
    * hashing. Omitting it is only safe for a lockfile known to contain neither.
    */
   lockfileDir?: string
+  /**
+   * Whether the install builds the packages it places. See
+   * {@link buildsDependenciesDuringInstall}. Defaults to `true`.
+   */
+  buildsRun?: boolean
+}
+
+/**
+ * Whether an install builds dependencies into the global virtual store slots
+ * it places. An install that defers its builds to a rebuild still builds the
+ * packages it places in slots keyed as built. Every caller that locates a slot
+ * an install placed passes the install's own options.
+ */
+export function buildsDependenciesDuringInstall (opts: {
+  deferDependencyBuilds?: boolean
+  enableGlobalVirtualStore?: boolean
+  ignoreScripts?: boolean
+}): boolean {
+  return !opts.ignoreScripts || (opts.enableGlobalVirtualStore === true && opts.deferDependencyBuilds === true)
 }
 
 export function * iterateHashedGraphNodes<Meta extends PkgMeta> (
@@ -48,6 +67,7 @@ export function * iterateHashedGraphNodes<Meta extends PkgMeta> (
     graph,
     cache: {},
     buildRequiredDepPaths,
+    buildsRun: opts.buildsRun,
     supportedArchitectures: opts.supportedArchitectures,
     nodeVersion: opts.nodeVersion,
     lockfileDir: opts.lockfileDir,
@@ -61,11 +81,13 @@ export function * iterateHashedGraphNodes<Meta extends PkgMeta> (
 }
 
 export function calcGraphNodeHash<Meta extends PkgMeta> (
-  { graph, cache, buildRequiredDepPaths, supportedArchitectures, nodeVersion, lockfileDir }: {
+  { graph, cache, buildRequiredDepPaths, buildsRun, supportedArchitectures, nodeVersion, lockfileDir }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
     /** See computeBuildRequiredDepPaths. */
     buildRequiredDepPaths?: Set<DepPath>
+    /** See GraphNodeHashOptions.buildsRun. */
+    buildsRun?: boolean
     supportedArchitectures?: SupportedArchitectures
     /** See GraphNodeHashOptions.nodeVersion. */
     nodeVersion?: string
@@ -80,8 +102,9 @@ export function calcGraphNodeHash<Meta extends PkgMeta> (
   // to build or transitively depend on a package that is allowed to build.
   // This makes GVS hashes engine-agnostic for pure-JS packages,
   // so they survive Node.js upgrades and architecture changes.
-  const built = buildRequiredDepPaths?.has(depPath) === true
-  const includeEngine = built || buildRequiredDepPaths === undefined
+  const buildRequired = buildRequiredDepPaths?.has(depPath) === true
+  const includeEngine = buildRequired || buildRequiredDepPaths === undefined
+  const built = buildRequired && buildsRun !== false
   // A snapshot that declares engines.runtime carries the desugared
   // node@runtime:<version> pin as a child; that's the Node the bin
   // linker spawns for its lifecycle scripts, so it has to drive the

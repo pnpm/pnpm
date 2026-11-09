@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
+import { buildsDependenciesDuringInstall, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
 import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { LockfileObject } from '@pnpm/lockfile.types'
@@ -18,8 +18,10 @@ export function extendGraph (
   graph: DependenciesGraph,
   opts: {
     allowBuild?: AllowBuild
+    deferDependencyBuilds?: boolean
     globalVirtualStoreDir: string
     enableGlobalVirtualStore?: boolean
+    ignoreScripts?: boolean
     lockfileDir: string
     supportedArchitectures?: SupportedArchitectures
     wantedLockfile: LockfileObject
@@ -37,6 +39,7 @@ export function extendGraph (
   const nodeVersion = findLockedRootNodeRuntime(opts.wantedLockfile)?.version
   for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter, {
     allowBuild,
+    buildsRun: buildsDependenciesDuringInstall(opts),
     supportedArchitectures: opts.supportedArchitectures,
     nodeVersion,
     lockfileDir: opts.lockfileDir,

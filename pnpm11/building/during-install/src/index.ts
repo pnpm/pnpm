@@ -20,8 +20,17 @@ import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-schedul
 import { buildDependency, type BuildDependencyOptions, buildIsAllowed, relinkBuiltHoistedBins } from './buildDependency.js'
 import { buildGraph, type DependenciesGraph, type DependenciesGraphNode } from './buildGraph.js'
 
-export { lockGlobalVirtualStoreSlot } from './globalVirtualStoreSlot.js'
+export {
+  createStagingToken,
+  isPackagePlaced,
+  placeBuiltPackage,
+  removeDir,
+  replacePlacedPackage,
+  selectImportDir,
+  type SlotImportOptions,
+} from './globalVirtualStoreSlot.js'
 export { linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from './linkBinsOfDependencies.js'
+export { buildsDependenciesDuringInstall, getStagingDir } from '@pnpm/deps.graph-hasher'
 
 export type { DepsStateCache }
 

@@ -1,7 +1,6 @@
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { lockGlobalVirtualStoreSlot } from '@pnpm/building.during-install'
+import { createStagingToken, selectImportDir } from '@pnpm/building.during-install'
 import { reportPackageImported } from '@pnpm/core-loggers'
 import type { DependenciesGraph, DependenciesGraphNode } from '@pnpm/deps.graph-builder'
 import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
@@ -18,7 +17,6 @@ import type {
   RemoteSideEffectsCacheSettings,
   SupportedArchitectures,
 } from '@pnpm/types'
-import { pathExists } from 'path-exists'
 import { isEmpty } from 'ramda'
 
 import { limitLinking } from './limits.js'
@@ -43,12 +41,12 @@ export interface LinkAllPkgsOptions {
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   pnprServer?: string
   configByUri: Record<string, RegistryConfig>
-  storeDir: string
   supportedArchitectures?: SupportedArchitectures
 }
 
 interface PackageImportContext {
-  needsBuildMarkerSrc?: string
+  /** Names this install's global virtual store staging directories. */
+  stagingToken?: string
   opts: LinkAllPkgsOptions
   restorer: ReturnType<typeof createRemoteSideEffectsRestorer>
   storeController: StoreController
@@ -66,11 +64,6 @@ export async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: LinkAllPkgsOptions
 ): Promise<Set<string>> {
-  let needsBuildMarkerSrc: string | undefined
-  if (opts.enableGlobalVirtualStore) {
-    needsBuildMarkerSrc = path.join(opts.storeDir, '.pnpm-needs-build-marker')
-    await fs.writeFile(needsBuildMarkerSrc, '')
-  }
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
@@ -85,7 +78,12 @@ export async function linkAllPkgs (
     supportedArchitectures: opts.supportedArchitectures,
     warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
   })
-  const importContext: PackageImportContext = { needsBuildMarkerSrc, opts, restorer, storeController }
+  const importContext: PackageImportContext = {
+    opts,
+    restorer,
+    stagingToken: opts.enableGlobalVirtualStore ? createStagingToken() : undefined,
+    storeController,
+  }
   const fetchFailedDirs = new Set<string>()
   await Promise.all(depNodes.map(async (depNode) => {
     if (!await importDepNode(depNode, importContext)) {
@@ -102,18 +100,15 @@ async function importDepNode (depNode: DependenciesGraphNode, importContext: Pac
   if (filesResponse == null) return false
   depNode.requiresBuild = filesResponse.requiresBuild
   const sideEffectsCacheKey = await findSideEffectsCacheKey(depNode, filesResponse, importContext)
-  const imported = await importIntoSlot(depNode, {
-    filesResponse: addNeedsBuildMarker(filesResponse, { depNode, needsBuildMarkerSrc: importContext.needsBuildMarkerSrc, sideEffectsCacheKey }),
-    sideEffectsCacheKey,
-  }, importContext)
+  const imported = await importIntoSlot(depNode, { filesResponse, sideEffectsCacheKey }, importContext)
   if (imported?.importMethod) {
     reportPackageImported({
       method: imported.importMethod,
       requester: importContext.opts.lockfileDir,
-      to: depNode.dir,
+      to: imported.dir,
     })
   }
-  if (imported != null) depNode.isBuilt = imported.isBuilt
+  depNode.isBuilt = imported?.isBuilt ?? true
   await linkSelfDependency(depNode, importContext.opts.depGraph)
   return true
 }
@@ -163,57 +158,37 @@ async function findSideEffectsCacheKey (
   return filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null ? localCacheKey : remoteCacheKey
 }
 
-// For GVS packages that need building, add a .pnpm-needs-build marker to the
-// filesMap. The import pipeline treats it as a normal file, so it gets
-// written into the staging directory and atomically renamed with the rest
-// of the package. On the next install, GVS fast paths detect the marker
-// and force a re-fetch/re-import/re-build.
-// Skip the marker when cached side effects will be applied (the package
-// is already built and no build will run).
-function addNeedsBuildMarker (
-  filesResponse: PackageFilesResponse,
-  { depNode, needsBuildMarkerSrc, sideEffectsCacheKey }: {
-    depNode: DependenciesGraphNode
-    needsBuildMarkerSrc: string | undefined
-    sideEffectsCacheKey: SideEffectsCacheKey
-  }
-): PackageFilesResponse {
-  if (needsBuildMarkerSrc == null) return filesResponse
-  const hasCachedSideEffects = sideEffectsCacheKey != null &&
-    filesResponse.sideEffectsMaps?.has(sideEffectsCacheKey) === true
-  if (hasCachedSideEffects || !(depNode.requiresBuild || depNode.patch != null)) return filesResponse
-  return {
-    ...filesResponse,
-    filesMap: new Map([...filesResponse.filesMap, ['.pnpm-needs-build', needsBuildMarkerSrc]]),
-  }
-}
-
+/** Resolves to `undefined` when the global virtual store slot already holds the package. See `selectImportDir`. */
 async function importIntoSlot (
   depNode: DependenciesGraphNode,
   { filesResponse, sideEffectsCacheKey }: { filesResponse: PackageFilesResponse, sideEffectsCacheKey: SideEffectsCacheKey },
-  { opts, storeController }: PackageImportContext
-): Promise<ImportPackageResult | undefined> {
-  // The marker is also there while another install builds the slot,
-  // which a re-import would overwrite.
-  const slotMarker = path.join(depNode.dir, '.pnpm-needs-build')
-  const slotLock = opts.enableGlobalVirtualStore && await pathExists(slotMarker)
-    ? await lockGlobalVirtualStoreSlot(depNode.modules)
-    : undefined
-  try {
-    if (slotLock != null && !await pathExists(slotMarker)) {
-      depNode.isBuilt = true
-      return undefined
+  { opts, stagingToken, storeController }: PackageImportContext
+): Promise<(ImportPackageResult & { dir: string }) | undefined> {
+  const hasCachedBuild = sideEffectsCacheKey != null && filesResponse.sideEffectsMaps?.has(sideEffectsCacheKey) === true
+  const importDir = await selectImportDir(depNode, { hasCachedBuild, opts: { ...opts, stagingToken } })
+  if (importDir == null) return undefined
+  if (importDir !== depNode.dir) {
+    depNode.stagingDir = importDir
+    return {
+      ...await storeController.importPackage(importDir, {
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        filesResponse,
+        force: true,
+        requiresBuild: true,
+      }),
+      dir: importDir,
     }
-    return await storeController.importPackage(depNode.dir, {
+  }
+  return {
+    ...await storeController.importPackage(depNode.dir, {
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       filesResponse,
       force: depNode.forceImportPackage || opts.force,
-      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       requiresBuild: depNode.patch != null || depNode.requiresBuild,
       safeToSkip: opts.enableGlobalVirtualStore,
       sideEffectsCacheKey,
-    })
-  } finally {
-    await slotLock?.release()
+    }),
+    dir: depNode.dir,
   }
 }
 
@@ -222,6 +197,6 @@ async function linkSelfDependency (depNode: DependenciesGraphNode, depGraph: Dep
   if (!selfDep) return
   const pkg = depGraph[selfDep]
   if (!pkg) return
-  const targetModulesDir = path.join(depNode.modules, depNode.name, 'node_modules')
+  const targetModulesDir = path.join(depNode.stagingDir ?? path.join(depNode.modules, depNode.name), 'node_modules')
   await limitLinking(async () => symlinkDependency(pkg.dir, targetModulesDir, depNode.name))
 }

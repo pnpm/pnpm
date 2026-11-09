@@ -43,9 +43,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fs/dir-lock"
-    },
-    {
       "path": "../../fs/hard-link-dir"
     },
     {

@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
+import { createStagingToken, getStagingDir, isPackagePlaced, removeDir, replacePlacedPackage } from '@pnpm/building.during-install'
 import { pkgRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState } from '@pnpm/deps.graph-hasher'
@@ -103,23 +104,60 @@ function acquireGvsBuildLock (gvsDir: string): () => void {
 
 async function buildPackage (pkg: PackageToBuild, state: RebuildState): Promise<void> {
   const { depPath, pkgInfo } = pkg
-  const extraBinPaths = await prepareBinPaths(pkg, state)
   const resolution = (pkg.pkgSnapshot.resolution as TarballResolution)
   const pkgId = pkgInfo.nonSemverVersion ?? `${pkgInfo.name}@${pkgInfo.version}`
   const cached = lookUpSideEffectsCache(pkg, { resolution, pkgId, state })
   if (cached.hit) {
+    if (pkg.gvsDir == null) await prepareBinPaths(pkg, state)
     state.pkgsThatWereRebuilt.add(depPath)
     return
   }
-  const hasSideEffects = await runPostinstallIfRequired(pkg, extraBinPaths, state)
+  const hasSideEffects = pkg.gvsDir == null
+    ? await buildInDir(pkg, { pkgId, resolution, sideEffectsCacheKey: cached.sideEffectsCacheKey, state })
+    : await rebuildPlacedPackage(pkg, { pkgId, resolution, sideEffectsCacheKey: cached.sideEffectsCacheKey, state })
   if (hasSideEffects) state.builtDepPaths.add(depPath)
-  if (hasSideEffects && pkg.gvsDir != null) {
-    await fs.promises.rm(path.join(pkg.pkgRoot, '.pnpm-needs-build'), { force: true })
-  }
-  if (hasSideEffects && (state.opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
-    await uploadSideEffects(pkg, { resolution, pkgId, sideEffectsCacheKey: cached.sideEffectsCacheKey, state })
-  }
   state.pkgsThatWereRebuilt.add(depPath)
+}
+
+interface BuildContext {
+  pkgId: string
+  resolution: TarballResolution
+  sideEffectsCacheKey: string | undefined
+  state: RebuildState
+}
+
+/** Runs the package's build scripts in `pkg.pkgRoot`. Resolves to whether they left side effects. */
+async function buildInDir (pkg: PackageToBuild, { pkgId, resolution, sideEffectsCacheKey, state }: BuildContext): Promise<boolean> {
+  const extraBinPaths = await prepareBinPaths(pkg, state)
+  const hasSideEffects = await runPostinstallIfRequired(pkg, extraBinPaths, state)
+  if (hasSideEffects && (state.opts.sideEffectsCacheWrite ?? true) && (resolution.gitHosted || resolution.integrity)) {
+    await uploadSideEffects(pkg, { resolution, pkgId, sideEffectsCacheKey, state })
+  }
+  return hasSideEffects
+}
+
+/**
+ * Rebuilds a package placed in a global virtual store slot without writing
+ * into it: a copy is built in a staging directory and replaces the placed
+ * package. A slot that holds no placed package, or one this rebuild placed
+ * built, is left alone.
+ */
+async function rebuildPlacedPackage (pkg: PackageToBuild, ctx: BuildContext): Promise<boolean> {
+  if (ctx.state.ctx.placedPackageDirs?.has(pkg.pkgRoot) || !await isPackagePlaced(pkg.pkgRoot)) return false
+  const stagingDir = getStagingDir(pkg.pkgRoot, createStagingToken())
+  let replaced = false
+  try {
+    await removeDir(stagingDir)
+    await fs.promises.cp(pkg.pkgRoot, stagingDir, { recursive: true, verbatimSymlinks: true })
+    const hasSideEffects = await buildInDir({ ...pkg, pkgRoot: stagingDir }, ctx)
+    if (hasSideEffects) {
+      await replacePlacedPackage(stagingDir, pkg.pkgRoot)
+      replaced = true
+    }
+    return hasSideEffects
+  } finally {
+    if (!replaced) await removeDir(stagingDir)
+  }
 }
 
 export async function prepareBinPaths ({ depPath, pkgRoot }: Pick<PackageToBuild, 'depPath' | 'pkgRoot'>, state: RebuildState): Promise<string[]> {
@@ -141,11 +179,11 @@ interface SideEffectsCacheLookup {
 }
 
 function lookUpSideEffectsCache (
-  { depPath, pkgRoot }: PackageToBuild,
+  { depPath }: PackageToBuild,
   { resolution, pkgId, state }: { resolution: TarballResolution, pkgId: string, state: RebuildState }
 ): SideEffectsCacheLookup {
   const { opts } = state
-  if (!opts.skipIfHasSideEffectsCache || fs.existsSync(path.join(pkgRoot, '.pnpm-needs-build')) || !(resolution.gitHosted || resolution.integrity)) {
+  if (!opts.skipIfHasSideEffectsCache || !(resolution.gitHosted || resolution.integrity)) {
     return { hit: false }
   }
   const filesIndexFile = pickStoreIndexKey(resolution, pkgId, { built: true })

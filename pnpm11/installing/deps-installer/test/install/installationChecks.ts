@@ -252,7 +252,7 @@ test('engine-strict unlinks a skipped optional patched dependency from every wor
   }
 })
 
-test('engine-strict keeps the global virtual store slot of a skipped optional patched dependency', async () => {
+test('engine-strict places nothing in the global virtual store slot of a skipped optional patched dependency', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
   const manifest = { optionalDependencies: { 'legacy-node': 'npm:@pnpm.e2e/for-legacy-node@1.0.0' } }
@@ -269,7 +269,9 @@ test('engine-strict keeps the global virtual store slot of a skipped optional pa
   const versionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/for-legacy-node/1.0.0')
   const slots = fs.readdirSync(versionDir)
   expect(slots).toHaveLength(1)
-  expect(fs.existsSync(path.join(versionDir, slots[0], 'node_modules/@pnpm.e2e/for-legacy-node/package.json'))).toBe(true)
+  const scopeDir = path.join(versionDir, slots[0], 'node_modules/@pnpm.e2e')
+  expect(fs.existsSync(path.join(scopeDir, 'for-legacy-node'))).toBe(false)
+  expect(fs.readdirSync(scopeDir).filter((entry) => entry.startsWith('.'))).toStrictEqual([])
 })
 
 test('engine-strict cleanup does not follow a linked scope directory', async () => {

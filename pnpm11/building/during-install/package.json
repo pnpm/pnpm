@@ -42,7 +42,6 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
-    "@pnpm/fs.dir-lock": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",

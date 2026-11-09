@@ -299,6 +299,45 @@ test('prune fails when modulesDir has an unresolved environment placeholder', as
   await expect(prune(options)).rejects.toThrow('Failed to replace env in config')
 })
 
+test('prune removes abandoned staging directories beside the package directories of reachable slots', async () => {
+  const options = createPruneOptions()
+  const projectDir = path.join(options.cacheDir, '..', 'project')
+  const modulesDir = path.join(projectDir, 'node_modules')
+  await writeInstalledLockfile(modulesDir, ['.'])
+  const unscopedSlot = await linkGlobalVirtualStorePackage(options.storeDir, 'foo', modulesDir)
+  const scopedSlot = path.join(options.storeDir, 'links', '@scope', 'bar', '1.0.0', 'hash')
+  await fs.mkdir(path.join(scopedSlot, 'node_modules', '@scope', 'bar'), { recursive: true })
+  await fs.mkdir(path.join(modulesDir, '@scope'), { recursive: true })
+  await fs.symlink(path.join(scopedSlot, 'node_modules', '@scope', 'bar'), path.join(modulesDir, '@scope', 'bar'), 'junction')
+  await registerProject(options.storeDir, projectDir)
+
+  const oldDate = new Date(Date.now() - 2 * 60 * 60_000)
+  const createStagingDir = async (dir: string, old: boolean) => {
+    await fs.mkdir(dir, { recursive: true })
+    if (old) await fs.utimes(dir, oldDate, oldDate)
+    return dir
+  }
+  const unscopedModules = path.join(unscopedSlot, 'node_modules')
+  const scopedModules = path.join(scopedSlot, 'node_modules', '@scope')
+  const oldStaging = await createStagingDir(path.join(unscopedModules, '.foo-1a2b-0'), true)
+  const oldReplaced = await createStagingDir(path.join(unscopedModules, '.foo-1a2b-1-replaced'), true)
+  const freshStaging = await createStagingDir(path.join(unscopedModules, '.foo-1a2b-2'), false)
+  const otherPackageStaging = await createStagingDir(path.join(unscopedModules, '.baz-1a2b-0'), true)
+  const oldScopedStaging = await createStagingDir(path.join(scopedModules, '.bar-1a2b-0'), true)
+  const freshScopedStaging = await createStagingDir(path.join(scopedModules, '.bar-1a2b-1'), false)
+
+  await prune(options)
+
+  expect(existsSync(oldStaging)).toBe(false)
+  expect(existsSync(oldReplaced)).toBe(false)
+  expect(existsSync(oldScopedStaging)).toBe(false)
+  expect(existsSync(freshStaging)).toBe(true)
+  expect(existsSync(freshScopedStaging)).toBe(true)
+  expect(existsSync(otherPackageStaging)).toBe(true)
+  expect(existsSync(path.join(unscopedModules, 'foo'))).toBe(true)
+  expect(existsSync(path.join(scopedModules, 'bar'))).toBe(true)
+})
+
 async function writeInstalledLockfile (modulesDir: string, importerIds: string[]): Promise<void> {
   await fs.mkdir(path.join(modulesDir, '.pnpm'), { recursive: true })
   await fs.writeFile(path.join(modulesDir, '.pnpm', 'lock.yaml'), JSON.stringify({

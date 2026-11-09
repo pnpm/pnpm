@@ -18,6 +18,7 @@ export {
   formatGlobalVirtualStorePath,
 } from './formatGlobalVirtualStorePath.js'
 export {
+  buildsDependenciesDuringInstall,
   calcGraphNodeHash,
   type GraphNodeHashOptions,
   iterateHashedGraphNodes,
@@ -31,6 +32,7 @@ export {
   lockfileToDepGraph,
 } from './lockfileToDepGraph.js'
 export { readSnapshotRuntimePin } from './readSnapshotRuntimePin.js'
+export { getStagingDir, isStagingDirName } from './stagingDir.js'
 export type {
   DepGraphHashContext,
   DepsGraph,

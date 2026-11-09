@@ -1,5 +1,4 @@
 import assert from 'node:assert'
-import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { relinkModulesDirPackageBins } from '@pnpm/bins.linker'
@@ -9,7 +8,6 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache } from '@pnpm/deps.graph-hasher'
 import { isError, PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
-import type { DirLock } from '@pnpm/fs.dir-lock'
 import { logger } from '@pnpm/logger'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
@@ -28,9 +26,13 @@ import { isSubdir } from 'is-subdir'
 import pDefer, { type DeferredPromise } from 'p-defer'
 
 import type { DependenciesGraph, DependenciesGraphNode } from './buildGraph.js'
-import { lockSlotForBuild, NEEDS_BUILD_MARKER } from './globalVirtualStoreSlot.js'
+import { isPackagePlaced, placeBuiltPackage, removeDir } from './globalVirtualStoreSlot.js'
 import { linkBinsOfDependencies } from './linkBinsOfDependencies.js'
-import { removeIncompatibleOptional, removeSkippedOptionalDependency } from './removeSkippedDependency.js'
+import {
+  removeIncompatibleOptional,
+  removeLinksToSkippedOptionalDependency,
+  removeSkippedOptionalDependency,
+} from './removeSkippedDependency.js'
 
 export interface BuildDependencyOptions {
   allowBuild: AllowBuild
@@ -79,7 +81,6 @@ export interface BuildDependencyOptions {
 
 interface BuildState {
   succeeded: boolean
-  slotLock?: DirLock
 }
 
 type PatchOutcome = 'notPatched' | 'patched' | 'uninstallable'
@@ -115,11 +116,12 @@ export async function buildDependency<NodeId extends string> (
   }
   const state: BuildState = { succeeded: false }
   try {
-    await buildInSlot(depPath, depGraph, opts, state)
+    state.succeeded = depNode.stagingDir == null
+      ? await buildPackage(depPath, depGraph, depNode, opts)
+      : await buildInStagingDir(depPath, depGraph, opts)
   } catch (err: unknown) {
-    await skipFailedOptionalBuild(err, depNode, opts, state.slotLock)
+    await skipFailedOptionalBuild(err, depNode, opts)
   } finally {
-    await state.slotLock?.release()
     try {
       if (state.succeeded) {
         await copyToOtherHoistedLocations(depNode, opts)
@@ -131,26 +133,63 @@ export async function buildDependency<NodeId extends string> (
   }
 }
 
-async function buildInSlot<NodeId extends string> (
+/**
+ * Builds a package that the link phase staged for its global virtual store
+ * slot, then renames it into place. A package another install placed first is
+ * not built. A failed build leaves nothing in the slot.
+ */
+async function buildInStagingDir<NodeId extends string> (
   depPath: NodeId,
   depGraph: DependenciesGraph<NodeId>,
-  opts: BuildDependencyOptions,
-  state: BuildState
-): Promise<void> {
+  opts: BuildDependencyOptions
+): Promise<boolean> {
   const depNode = depGraph[depPath]
-  const slotBuild = await lockSlotIfWriting(depNode, opts)
-  if (slotBuild == null) return
-  state.slotLock = slotBuild.lock
-  await linkBinsOfDependencies(depNode, depGraph, opts)
-  const patchOutcome = await patchDependency(depPath, depGraph, opts)
-  if (patchOutcome === 'uninstallable') return
+  const stagingDir = depNode.stagingDir!
+  if (await isPackagePlaced(depNode.dir)) {
+    await removeDir(stagingDir)
+    // The placed package's bins may differ from those linked before the build.
+    if (depNode.patch != null || depNode.hasBin) {
+      opts.builtDepPaths?.add(depNode.depPath)
+      opts.builtPackageDirs?.add(path.normalize(depNode.dir))
+    }
+    return true
+  }
+  let placed = false
+  try {
+    if (await buildPackage(depPath, depGraph, { ...depNode, dir: stagingDir }, opts)) {
+      await placeBuiltPackage(stagingDir, depNode.dir)
+      placed = true
+    }
+  } finally {
+    if (!placed) await removeDir(stagingDir)
+  }
+  return placed
+}
+
+/**
+ * Patches and builds `pkgNode`, which is `depGraph[depPath]` or a copy of it
+ * located in a staging directory. Resolves to `false` when a patch made an
+ * optional package uninstallable.
+ */
+async function buildPackage<NodeId extends string> (
+  depPath: NodeId,
+  depGraph: DependenciesGraph<NodeId>,
+  pkgNode: DependenciesGraphNode<NodeId>,
+  opts: BuildDependencyOptions
+): Promise<boolean> {
+  await linkBinsOfDependencies(pkgNode, depGraph, opts)
+  const patchOutcome = await patchDependency(depPath, depGraph, pkgNode, opts)
+  if (patchOutcome === 'uninstallable') return false
   const isPatched = patchOutcome === 'patched'
-  const { requiresBuild, ignoreScripts } = await gateBuildScripts(depNode, isPatched, opts)
-  const hasSideEffects = !ignoreScripts && await runBuildScripts(depPath, depNode, opts)
-  if (isPatched || (hasSideEffects && depNode.hasBin)) {
-    opts.builtDepPaths?.add(depNode.depPath)
-    opts.builtPackageDirs?.add(path.normalize(depNode.dir))
-    await linkBinsOfDependencies(depNode, depGraph, opts)
+  const { requiresBuild, ignoreScripts } = await gateBuildScripts(pkgNode, isPatched, opts)
+  const hasSideEffects = !ignoreScripts && await runBuildScripts(depPath, pkgNode, opts)
+  if (isPatched || (hasSideEffects && pkgNode.hasBin)) {
+    opts.builtDepPaths?.add(pkgNode.depPath)
+    opts.builtPackageDirs?.add(path.normalize(depGraph[depPath].dir))
+    await linkBinsOfDependencies(pkgNode, depGraph, {
+      ...opts,
+      builtPackageDirs: new Set([...opts.builtPackageDirs ?? [], path.normalize(pkgNode.dir)]),
+    })
   }
   // A package whose build was withheld - the allow-build policy said so, or
   // ignoreScripts did - must not be cached as if it were built. The entry
@@ -158,26 +197,17 @@ async function buildInSlot<NodeId extends string> (
   // the build, and the scripts would never get their chance.
   const buildPending = requiresBuild && ignoreScripts
   if (!buildPending) {
-    await storeBuildOutput({ depPath, depGraph, opts, isPatched, hasSideEffects })
+    await storeBuildOutput({ depPath, depGraph, pkgNode, opts, isPatched, hasSideEffects })
   }
-  state.succeeded = true
-}
-
-async function lockSlotIfWriting<NodeId extends string> (
-  depNode: DependenciesGraphNode<NodeId>,
-  opts: BuildDependencyOptions
-): Promise<{ lock?: DirLock } | undefined> {
-  const writesIntoSlot = opts.enableGlobalVirtualStore && (depNode.patch != null || !opts.ignoreScripts)
-  if (!writesIntoSlot) return {}
-  return lockSlotForBuild(depNode, opts.lockfileDir)
+  return true
 }
 
 async function patchDependency<NodeId extends string> (
   depPath: NodeId,
   depGraph: DependenciesGraph<NodeId>,
+  depNode: DependenciesGraphNode<NodeId>,
   opts: BuildDependencyOptions
 ): Promise<PatchOutcome> {
-  const depNode = depGraph[depPath]
   if (!depNode.patch) return 'notPatched'
   if (!depNode.patch.patchFilePath) {
     throw new PnpmError('PATCH_FILE_PATH_MISSING',
@@ -188,7 +218,7 @@ async function patchDependency<NodeId extends string> (
   const isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
   if (!isPatched) return 'notPatched'
   if (!opts.engineStrict || await patchedPackageIsInstallable(depPath, depNode, opts)) return 'patched'
-  await removeIncompatibleOptional(depPath, depNode, depGraph, opts)
+  await removeIncompatibleOptional(depPath, depGraph[depPath], depGraph, opts)
   return 'uninstallable'
 }
 
@@ -266,20 +296,15 @@ async function runBuildScripts<NodeId extends string> (
 interface BuildOutput<NodeId extends string> {
   depPath: NodeId
   depGraph: DependenciesGraph<NodeId>
+  /** The node whose directory holds the build output. See `buildPackage`. */
+  pkgNode: DependenciesGraphNode<NodeId>
   opts: BuildDependencyOptions
   isPatched: boolean
   hasSideEffects: boolean
 }
 
 async function storeBuildOutput<NodeId extends string> (output: BuildOutput<NodeId>): Promise<void> {
-  const { depPath, depGraph, opts, isPatched, hasSideEffects } = output
-  const depNode = depGraph[depPath]
-  // Remove the .pnpm-needs-build marker before uploading side effects,
-  // so it doesn't get cached as part of the package's side effects diff.
-  // A withheld build keeps it, so the install that runs the build finds it.
-  if (opts.enableGlobalVirtualStore) {
-    await fs.unlink(path.join(depNode.dir, NEEDS_BUILD_MARKER)).catch(() => {})
-  }
+  const { pkgNode: depNode, opts, isPatched, hasSideEffects } = output
   // frozenStore opens the store read-only, so the side-effects cache (which
   // lives in the store) cannot be written. extendInstallOptions already forces
   // sideEffectsCacheWrite off under frozenStore; this guards callers that
@@ -303,8 +328,7 @@ async function uploadBuildOutput<NodeId extends string> (
   output: BuildOutput<NodeId>,
   shouldPublishSharedSideEffects: boolean
 ): Promise<void> {
-  const { depPath, depGraph, opts, hasSideEffects } = output
-  const depNode = depGraph[depPath]
+  const { depPath, depGraph, pkgNode: depNode, opts, hasSideEffects } = output
   const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
     patchFileHash: depNode.patch?.hash,
     includeDepGraphHash: hasSideEffects,
@@ -353,14 +377,14 @@ async function publishSideEffects<NodeId extends string> (
 async function skipFailedOptionalBuild<NodeId extends string> (
   err: unknown,
   depNode: DependenciesGraphNode<NodeId>,
-  opts: BuildDependencyOptions,
-  slotLock: DirLock | undefined
+  opts: BuildDependencyOptions
 ): Promise<void> {
   assert(isError(err))
   if (!depNode.optional) throw err
-  // Without the lock another install may be writing into the shared
-  // slot, so the slot is kept, marked for the next install to rebuild.
-  if (!opts.enableGlobalVirtualStore || slotLock != null) {
+  // A global virtual store slot is shared, so only this install's links to it are removed.
+  if (depNode.stagingDir != null) {
+    await removeLinksToSkippedOptionalDependency(depNode, opts)
+  } else if (!opts.enableGlobalVirtualStore) {
     await removeSkippedOptionalDependency(depNode, opts)
   }
   // TODO: add parents field to the log

@@ -1,8 +1,9 @@
 import path from 'node:path'
 
+import { isPackagePlaced } from '@pnpm/building.during-install'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { projectLinksMatchPackageDirs } from '@pnpm/deps.graph-builder'
-import { iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
+import { buildsDependenciesDuringInstall, iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { getContext, type PnpmContext, type ProjectOptions } from '@pnpm/installing.context'
@@ -14,16 +15,36 @@ import type { DepPath } from '@pnpm/types'
 
 import type { StrictBuildOptions } from './extendBuildOptions.js'
 
-export async function getRebuildContext (projects: ProjectOptions[], opts: StrictBuildOptions): Promise<PnpmContext> {
+/**
+ * The build options of the install that places the installed graph in the
+ * slots of the current build policy. Packages placed in slots keyed as built
+ * are built by it. The slot paths the rebuild computes use the same options.
+ */
+const SLOT_PLACEMENT_BUILD_OPTIONS = { deferDependencyBuilds: true, enableGlobalVirtualStore: true, ignoreScripts: true } as const
+
+/** Whether the packages in the slots a rebuild locates hash as built. */
+export const REBUILD_BUILDS_RUN = buildsDependenciesDuringInstall(SLOT_PLACEMENT_BUILD_OPTIONS)
+
+export type RebuildContext = PnpmContext & {
+  /**
+   * The global virtual store packages that the rebuild placed in the slots of
+   * the current build policy, built. The rebuild does not build them again.
+   */
+  placedPackageDirs?: ReadonlySet<string>
+}
+
+export async function getRebuildContext (projects: ProjectOptions[], opts: StrictBuildOptions): Promise<RebuildContext> {
   const ctx = await getContext({ ...opts, allProjects: projects })
   if (!opts.enableGlobalVirtualStore || opts.nodeLinker !== 'isolated' || !ctx.currentLockfile.packages) return ctx
-  if (!buildPolicyChanged(ctx, opts) && await projectsUseCurrentBuildSlots(ctx, opts)) return ctx
+  const slotPackageDirs = getBuildSlotPackageDirs(ctx, opts)
+  if (!buildPolicyChanged(ctx, opts) && await projectsUseCurrentBuildSlots(ctx, slotPackageDirs)) return ctx
 
   const resolvedPatches = resolvePatchedDependencies(opts.patchedDependencies, opts.lockfileDir)
   await ensurePatchesMatchInstallation(ctx, resolvedPatches)
 
   // A policy change also changes the slots of packages depending on the build.
   // Materialize the installed graph before running only the selected scripts.
+  const unplacedPackageDirs = await filterUnplaced(slotPackageDirs.values())
   await headlessInstall({
     ...opts,
     ...ctx,
@@ -34,7 +55,7 @@ export async function getRebuildContext (projects: ProjectOptions[], opts: Stric
     engineStrict: false,
     force: false,
     globalVirtualStoreDir: getGlobalVirtualStoreDir(opts),
-    ignoreScripts: true,
+    ...SLOT_PLACEMENT_BUILD_OPTIONS,
     wantedLockfile: ctx.currentLockfile,
     useLockfile: false,
     pruneStore: false,
@@ -51,7 +72,17 @@ export async function getRebuildContext (projects: ProjectOptions[], opts: Stric
   if (rebuiltContext.modulesFile) {
     rebuiltContext.modulesFile.ignoredBuilds = ctx.modulesFile?.ignoredBuilds
   }
-  return rebuiltContext
+  const stillUnplaced = new Set(await filterUnplaced(unplacedPackageDirs))
+  return {
+    ...rebuiltContext,
+    placedPackageDirs: new Set(unplacedPackageDirs.filter((dir) => !stillUnplaced.has(dir))),
+  }
+}
+
+async function filterUnplaced (packageDirs: Iterable<string>): Promise<string[]> {
+  const dirs = Array.from(packageDirs)
+  const placed = await Promise.all(dirs.map(isPackagePlaced))
+  return dirs.filter((_, index) => !placed[index])
 }
 
 function getGlobalVirtualStoreDir (opts: StrictBuildOptions): string {
@@ -80,8 +111,7 @@ async function ensurePatchesMatchInstallation (
   }
 }
 
-async function projectsUseCurrentBuildSlots (ctx: PnpmContext, opts: StrictBuildOptions): Promise<boolean> {
-  const packageDirs = getBuildSlotPackageDirs(ctx, opts)
+async function projectsUseCurrentBuildSlots (ctx: PnpmContext, packageDirs: Map<DepPath, string>): Promise<boolean> {
   return projectLinksMatchPackageDirs(Object.values(ctx.projects), { lockfile: ctx.currentLockfile, packageDirs })
 }
 
@@ -92,6 +122,7 @@ function getBuildSlotPackageDirs (ctx: PnpmContext, opts: StrictBuildOptions): M
   const packageDirs = new Map<DepPath, string>()
   for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, iteratePkgMeta(ctx.currentLockfile, graph), {
     allowBuild: createAllowBuildFunction(opts) ?? (() => undefined),
+    buildsRun: REBUILD_BUILDS_RUN,
     supportedArchitectures: opts.supportedArchitectures,
     nodeVersion: findLockedRootNodeRuntime(ctx.currentLockfile)?.version,
     lockfileDir: opts.lockfileDir,

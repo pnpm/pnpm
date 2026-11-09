@@ -3,7 +3,6 @@ import path from 'node:path'
 
 import { afterAll, expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import { DirLock } from '@pnpm/fs.dir-lock'
 import { install, type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
@@ -324,44 +323,51 @@ test('GVS re-links when allowBuilds changes', async () => {
   expect(updatedState?.allowBuilds).toEqual({ '@pnpm.e2e/dep-of-pkg-with-1-dep': true })
 })
 
-test('GVS successful build creates package directory with build artifacts', async () => {
+const BUILT_PKG = '@pnpm.e2e/pre-and-postinstall-scripts-example'
+
+function readSlotPackageDirs (globalVirtualStoreDir: string, pkgName: string, version: string): string[] {
+  const pkgVersionDir = path.join(globalVirtualStoreDir, pkgName, version)
+  return fs.readdirSync(pkgVersionDir)
+    .map((hash) => path.join(pkgVersionDir, hash, 'node_modules', pkgName))
+}
+
+/** The entries an install left in the scope directory of a slot's package, such as a staging directory. */
+function readStagingLeftovers (pkgDir: string): string[] {
+  return fs.readdirSync(path.dirname(pkgDir)).filter((entry) => entry.startsWith('.'))
+}
+
+test('GVS places a built package by renaming its staging directory into the slot', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
   const manifest = {
     dependencies: {
-      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      [BUILT_PKG]: '1.0.0',
     },
   }
   const opts = testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     fastUnpack: false,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    sideEffectsCacheWrite: true,
+    allowBuilds: { [BUILT_PKG]: true },
   })
   await install(manifest, opts)
 
-  // The GVS directory should exist with build artifacts
-  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
-  const hashes = fs.readdirSync(pkgDir)
-  expect(hashes).toHaveLength(1)
-  const pkgInGvs = path.join(pkgDir, hashes[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  const pkgDirs = readSlotPackageDirs(globalVirtualStoreDir, BUILT_PKG, '1.0.0')
+  expect(pkgDirs).toHaveLength(1)
+  const [pkgInGvs] = pkgDirs
   expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
-  // Build artifacts created by postinstall script should be present
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-preinstall.js'))).toBeTruthy()
-  // The .pnpm-needs-build marker should have been removed after successful build
-  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
+  expect(readStagingLeftovers(pkgInGvs)).toStrictEqual([])
 
-  // The .pnpm-needs-build marker must not be uploaded to the side effects cache
-  const filesIndexKey = storeIndexKey(getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  // The build output is cached from the staging directory.
+  const filesIndexKey = storeIndexKey(getIntegrity(BUILT_PKG, '1.0.0'), `${BUILT_PKG}@1.0.0`)
   const storeIndex = new StoreIndex(opts.storeDir)
   storeIndexes.push(storeIndex)
   const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
-  if (filesIndex.sideEffects) {
-    for (const [, diff] of filesIndex.sideEffects) {
-      expect(diff.added?.has('.pnpm-needs-build')).toBeFalsy()
-    }
-  }
+  const addedFiles = Array.from(filesIndex.sideEffects!.values()).flatMap((diff) => Array.from(diff.added?.keys() ?? []))
+  expect(addedFiles).toContain('generated-by-postinstall.js')
 })
 
 test('GVS: approve-builds scenario — install with no builds, then reinstall with allowBuilds', async () => {
@@ -412,7 +418,7 @@ test('GVS: approve-builds scenario — install with no builds, then reinstall wi
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy()
 })
 
-test('GVS build failure keeps the slot and marks it for a rebuild', async () => {
+test('GVS build failure leaves no package in the slot', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
   const manifest = {
@@ -420,22 +426,23 @@ test('GVS build failure keeps the slot and marks it for a rebuild', async () => 
       '@pnpm.e2e/failing-postinstall': '1.0.0',
     },
   }
-  await expect(
-    install(manifest, testDefaults({
-      enableGlobalVirtualStore: true,
-      virtualStoreDir: globalVirtualStoreDir,
-      fastUnpack: false,
-      allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
-    }))
-  ).rejects.toThrow()
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    fastUnpack: false,
+    allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
+  })
+  // A repeat install builds the package again, since the failed build placed nothing.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // eslint-disable-next-line no-await-in-loop -- each install must see the store left by the previous one
+    await expect(install(manifest, opts)).rejects.toThrow()
 
-  // https://github.com/pnpm/pnpm/issues/15568
-  const pkgVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/failing-postinstall/1.0.0')
-  const hashes = fs.readdirSync(pkgVersionDir)
-  expect(hashes).toHaveLength(1)
-  const pkgInGvs = path.join(pkgVersionDir, hashes[0], 'node_modules/@pnpm.e2e/failing-postinstall')
-  expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
-  expect(fs.readFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'utf8')).toBe('started')
+    // https://github.com/pnpm/pnpm/issues/15568
+    const pkgDirs = readSlotPackageDirs(globalVirtualStoreDir, '@pnpm.e2e/failing-postinstall', '1.0.0')
+    expect(pkgDirs).toHaveLength(1)
+    expect(fs.existsSync(pkgDirs[0])).toBeFalsy()
+    expect(readStagingLeftovers(pkgDirs[0])).toStrictEqual([])
+  }
 })
 
 test('GVS removes an optional dependency whose build failed from its slot', async () => {
@@ -471,55 +478,40 @@ test('GVS removes an optional dependency whose build failed from its slot', asyn
   }
 })
 
-test('GVS build waits for another install building the same slot', async () => {
+test('GVS never rebuilds or overwrites a placed package', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
   const manifest = {
     dependencies: {
-      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      [BUILT_PKG]: '1.0.0',
     },
   }
   const opts = {
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     fastUnpack: false,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    allowBuilds: { [BUILT_PKG]: true },
   }
   await install(manifest, testDefaults(opts))
 
-  // https://github.com/pnpm/pnpm/issues/15568
-  const pkgVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
-  const hashes = fs.readdirSync(pkgVersionDir)
-  expect(hashes).toHaveLength(1)
-  const hashDir = path.join(pkgVersionDir, hashes[0])
-  const pkgInGvs = path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
-  // As a build that died mid-way leaves the slot, which only a re-import makes safe to build again.
-  fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'started')
+  const [pkgInGvs] = readSlotPackageDirs(globalVirtualStoreDir, BUILT_PKG, '1.0.0')
+  // Changes that a rebuild or a re-import of the slot would undo.
   fs.unlinkSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))
   fs.unlinkSync(path.join(pkgInGvs, 'README.md'))
-  rimrafSync('node_modules')
 
-  const lock = await DirLock.acquire(path.join(hashDir, '.pnpm-build.lock'), { waitMs: 0, abandonedMs: 30 * 60_000 })
-  expect(lock).toBeDefined()
-  let settled = false
-  const installing = install(manifest, testDefaults({ ...opts, frozenLockfile: true })).finally(() => {
-    settled = true
-  })
-  try {
-    await new Promise((resolve) => setTimeout(resolve, 3000))
-    expect(settled).toBe(false)
+  for (const extraOpts of [{ frozenLockfile: true }, { force: true }]) {
+    rimrafSync('node_modules')
+    // eslint-disable-next-line no-await-in-loop -- each install must see the store left by the previous one
+    await install(manifest, testDefaults({ ...opts, ...extraOpts }))
+
+    expect(fs.realpathSync(path.resolve('node_modules', BUILT_PKG))).toBe(fs.realpathSync(pkgInGvs))
     expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
     expect(fs.existsSync(path.join(pkgInGvs, 'README.md'))).toBeFalsy()
-  } finally {
-    await lock!.release()
+    expect(readStagingLeftovers(pkgInGvs)).toStrictEqual([])
   }
-  await installing
-  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
-  expect(fs.existsSync(path.join(pkgInGvs, 'README.md'))).toBeTruthy()
-  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
 })
 
-test('GVS install with ignoreScripts leaves a patched slot marked for the install that builds it', async () => {
+test('GVS install with ignoreScripts gets a different slot than a building install', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
   const patchPath = path.resolve('pre-and-postinstall-scripts-example.patch')
@@ -532,35 +524,29 @@ new file mode 100644
 `)
   const manifest = {
     dependencies: {
-      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      [BUILT_PKG]: '1.0.0',
     },
   }
   const opts = {
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     fastUnpack: false,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-    patchedDependencies: { '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0': patchPath },
+    allowBuilds: { [BUILT_PKG]: true },
+    patchedDependencies: { [`${BUILT_PKG}@1.0.0`]: patchPath },
   }
   await install(manifest, testDefaults({ ...opts, ignoreScripts: true }))
-  // Only an install from the lockfile writes the marker into a fresh slot.
-  rimrafSync('node_modules')
-  rimrafSync(globalVirtualStoreDir)
-  await install(manifest, testDefaults({ ...opts, frozenLockfile: true, ignoreScripts: true }))
-
-  const pkgVersionDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
-  const hashes = fs.readdirSync(pkgVersionDir)
-  expect(hashes).toHaveLength(1)
-  const pkgInGvs = path.join(pkgVersionDir, hashes[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
-  expect(fs.existsSync(path.join(pkgInGvs, 'patched.txt'))).toBeTruthy()
-  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
-  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeTruthy()
+  const [unbuiltPkg] = readSlotPackageDirs(globalVirtualStoreDir, BUILT_PKG, '1.0.0')
+  expect(fs.existsSync(path.join(unbuiltPkg, 'patched.txt'))).toBeTruthy()
+  expect(fs.existsSync(path.join(unbuiltPkg, 'generated-by-postinstall.js'))).toBeFalsy()
 
   rimrafSync('node_modules')
   await install(manifest, testDefaults({ ...opts, frozenLockfile: true }))
-  expect(fs.existsSync(path.join(pkgInGvs, 'patched.txt'))).toBeTruthy()
-  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
-  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
+
+  const builtPkg = fs.realpathSync(path.resolve('node_modules', BUILT_PKG))
+  expect(builtPkg).not.toBe(fs.realpathSync(unbuiltPkg))
+  expect(fs.existsSync(path.join(builtPkg, 'patched.txt'))).toBeTruthy()
+  expect(fs.existsSync(path.join(builtPkg, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(unbuiltPkg, 'generated-by-postinstall.js'))).toBeFalsy()
 })
 
 test('GVS rebuilds successfully after simulated build failure cleanup', async () => {
@@ -607,55 +593,44 @@ test('GVS rebuilds successfully after simulated build failure cleanup', async ()
   expect(fs.existsSync(path.join(pkgDir, hashesAfter[0], 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeTruthy()
 })
 
-test('GVS .pnpm-needs-build marker triggers re-import on next install', async () => {
+test('GVS imports a cached build into the slot in place', async () => {
   prepareEmpty()
   const globalVirtualStoreDir = path.resolve('links')
   const manifest = {
     dependencies: {
-      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      [BUILT_PKG]: '1.0.0',
     },
   }
-
-  // Step 1: Install with build
-  await install(manifest, testDefaults({
+  const installOpts = {
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     fastUnpack: false,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-  }))
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    verifyStoreIntegrity: false,
+    allowBuilds: { [BUILT_PKG]: true },
+  }
+  const opts = testDefaults(installOpts)
+  await install(manifest, opts)
 
-  const pkgDir = path.join(globalVirtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
-  const hashes = fs.readdirSync(pkgDir)
-  expect(hashes).toHaveLength(1)
-  const hashDir = path.join(pkgDir, hashes[0])
-  const pkgInGvs = path.join(hashDir, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
-  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
-  // Marker should not be present after successful build
-  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
+  // Drop a file from the cached build, so a package imported from the cache lacks it.
+  const filesIndexKey = storeIndexKey(getIntegrity(BUILT_PKG, '1.0.0'), `${BUILT_PKG}@1.0.0`)
+  const storeIndex = new StoreIndex(opts.storeDir)
+  storeIndexes.push(storeIndex)
+  const filesIndex = storeIndex.get(filesIndexKey) as PackageFilesIndex
+  for (const diff of filesIndex.sideEffects!.values()) {
+    diff.added?.delete('generated-by-postinstall.js')
+  }
+  storeIndex.set(filesIndexKey, filesIndex)
 
-  // Step 2: Simulate a crash between import and build — write a .pnpm-needs-build
-  // marker and remove build artifacts (as if the build never completed)
-  // As a build that died mid-way leaves the slot, which only a re-import makes safe to build again.
-  fs.writeFileSync(path.join(pkgInGvs, '.pnpm-needs-build'), 'started')
-  fs.unlinkSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))
-  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeTruthy()
-
-  // Remove node_modules to force a re-install
   rimrafSync('node_modules')
+  rimrafSync(globalVirtualStoreDir)
+  await install(manifest, testDefaults({ ...installOpts, frozenLockfile: true, storeDir: opts.storeDir }))
 
-  // Step 3: Reinstall — the GVS fast path should detect the .pnpm-needs-build
-  // marker and force a re-fetch, re-import, and re-build.
-  await install(manifest, testDefaults({
-    enableGlobalVirtualStore: true,
-    virtualStoreDir: globalVirtualStoreDir,
-    frozenLockfile: true,
-    fastUnpack: false,
-    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-  }))
-
-  // The marker should be gone and the package rebuilt with artifacts
-  expect(fs.existsSync(path.join(pkgInGvs, '.pnpm-needs-build'))).toBeFalsy()
-  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+  const [pkgInGvs] = readSlotPackageDirs(globalVirtualStoreDir, BUILT_PKG, '1.0.0')
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-preinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
+  expect(readStagingLeftovers(pkgInGvs)).toStrictEqual([])
 })
 
 test('injected local packages work with global virtual store', async () => {
