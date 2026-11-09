@@ -12,7 +12,7 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
-pub use importer::{NextImporter, NextImporterDep, NextImporterDeps, NextResolvedDep};
+pub use importer::{Implied, NextImporter, NextImporterDep, NextImporterDeps, NextResolvedDep};
 pub use package::{NextPackage, NextPackageOut, PeerDetails, PeerEntry};
 pub use read::restore_sections;
 pub use reference::{NamedBindings, NextRef, names_binding, without_groups};
@@ -22,7 +22,7 @@ pub(crate) use parse::{Shape, declares_next_format};
 
 use crate::{
     Lockfile, LockfileSettings, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,
-    SnapshotEntry,
+    SnapshotEntry, implied_version::injected_paths,
 };
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{self, Diagnostic};
@@ -209,6 +209,18 @@ pub enum NextFormatError {
     UnderivableVersion { importer: String, name: String, specifier: String },
 }
 
+/// Every importer with its versions written out.
+fn resolve_importers(
+    importers: HashMap<String, NextImporter>,
+    implied: Implied<'_>,
+) -> Result<HashMap<String, NextImporter>, NextFormatError> {
+    importers
+        .into_iter()
+        .map(|(id, importer)| Ok((importer.resolve_specifiers(&id, implied)?, id)))
+        .map(|entry| entry.map(|(importer, id)| (id, importer)))
+        .collect()
+}
+
 impl Lockfile {
     /// The lockfile a next-format document describes, with peer-suffixed keys.
     ///
@@ -219,13 +231,9 @@ impl Lockfile {
             None => (None, None),
         };
         let settings = next.settings.unwrap_or_default();
-        let importers = next.importers
-            .into_iter()
-            .map(|(id, importer)| {
-                Ok((importer.resolve_specifiers(&id, settings.catalogs.as_ref())?, id))
-            })
-            .map(|entry| entry.map(|(importer, id)| (id, importer)))
-            .collect::<Result<HashMap<String, NextImporter>, NextFormatError>>()?;
+        let injected = injected_paths(packages.iter().flat_map(HashMap::keys));
+        let implied = Implied { catalogs: settings.catalogs.as_ref(), injected: &injected };
+        let importers = resolve_importers(next.importers, implied)?;
         let sections = NextSections { importers, snapshots };
         let context = RestoreContext {
             packages: packages.as_ref(),
@@ -270,9 +278,11 @@ impl Lockfile {
         let NextSections { importers, snapshots } =
             self.to_next_sections().map_err(crate::SaveLockfileError::NextFormat)?;
         let packages = merge_packages(self.packages.as_ref(), snapshots);
+        let injected = injected_paths(packages.keys());
+        let implied = Implied { catalogs: self.catalogs.as_ref(), injected: &injected };
         let importers: HashMap<String, NextImporter> = importers
             .iter()
-            .map(|(id, importer)| (id.clone(), importer.collapsed(self.catalogs.as_ref())))
+            .map(|(id, importer)| (id.clone(), importer.collapsed(implied)))
             .collect();
         crate::serialize_yaml::to_string(&document::NextDocument::new(self, &importers, &packages))
             .map_err(crate::SaveLockfileError::SerializeYaml)

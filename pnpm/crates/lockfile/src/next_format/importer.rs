@@ -3,15 +3,17 @@
 //! `with` where the project's scope does not say which snapshot it links.
 //!
 //! The version follows from an exact version, from an `npm:` alias of an
-//! exact version, from a `link:` or `file:` path, and from a `catalog:`
-//! specifier through the `catalogs` section. A `workspace:` specifier
-//! always writes its `link:` version, so the lockfile says where the
-//! workspace dependency lives without the workspace.
+//! exact version, from a `link:` or `file:` path, from a `catalog:`
+//! specifier through the `catalogs` section, and from a `workspace:`
+//! specifier through the injected package's `name@file:<path>` entry in
+//! `packages`. A linked workspace dependency writes its `link:` version, so
+//! the lockfile says where it lives without the workspace.
 
 use super::{NamedBindings, NextFormatError};
 use crate::{
     CatalogSnapshots, ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, implied_version::implied_version,
+    ResolvedDependencySpec,
+    implied_version::{InjectedPaths, implied_version},
 };
 use serde::{
     Deserialize, Deserializer, Serialize,
@@ -135,10 +137,10 @@ impl NextImporter {
     pub fn resolve_specifiers(
         mut self,
         id: &str,
-        catalogs: Option<&CatalogSnapshots>,
+        implied: Implied<'_>,
     ) -> Result<Self, NextFormatError> {
         for map in self.groups_mut() {
-            resolve_map(id, map, catalogs)?;
+            resolve_map(id, map, implied)?;
         }
         Ok(self)
     }
@@ -146,11 +148,11 @@ impl NextImporter {
     /// This importer with every dependency whose version follows from its
     /// specifier, and which names no snapshot, written as the specifier.
     #[must_use]
-    pub fn collapsed(&self, catalogs: Option<&CatalogSnapshots>) -> NextImporter {
+    pub fn collapsed(&self, implied: Implied<'_>) -> NextImporter {
         let mut collapsed = self.clone();
         for map in collapsed.groups_mut() {
             for (alias, dep) in map.iter_mut() {
-                collapse(alias, dep, catalogs);
+                collapse(alias, dep, implied);
             }
         }
         collapsed
@@ -195,15 +197,38 @@ fn resolved_map(
         .collect()
 }
 
+/// What a specifier's version follows from: the `catalogs` section and the
+/// injected packages' entries.
+#[derive(Clone, Copy)]
+pub struct Implied<'a> {
+    pub catalogs: Option<&'a CatalogSnapshots>,
+    pub injected: &'a InjectedPaths,
+}
+
+impl Implied<'_> {
+    /// The version `specifier` implies for `alias`, if any.
+    fn version(self, alias: &PkgName, specifier: &str) -> Option<String> {
+        implied_version(
+            &alias.to_string(),
+            specifier,
+            |catalog, alias| {
+                let entry = self.catalogs?.get(catalog)?.get(alias)?;
+                Some((entry.specifier.clone(), entry.version.clone()))
+            },
+            |name| self.injected.get(name).map(String::as_str),
+        )
+    }
+}
+
 fn resolve_map(
     id: &str,
     map: &mut NextImporterDeps,
-    catalogs: Option<&CatalogSnapshots>,
+    implied: Implied<'_>,
 ) -> Result<(), NextFormatError> {
     for (alias, dep) in map.iter_mut() {
         if let NextImporterDep::Specifier(specifier) = dep {
             let specifier = std::mem::take(specifier);
-            *dep = NextImporterDep::Resolved(Box::new(resolved(id, alias, specifier, catalogs)?));
+            *dep = NextImporterDep::Resolved(Box::new(resolved(id, alias, specifier, implied)?));
         }
     }
     Ok(())
@@ -213,37 +238,28 @@ fn resolved(
     id: &str,
     alias: &PkgName,
     specifier: String,
-    catalogs: Option<&CatalogSnapshots>,
+    implied: Implied<'_>,
 ) -> Result<NextResolvedDep, NextFormatError> {
     let underivable = || NextFormatError::UnderivableVersion {
         importer: id.to_string(),
         name: alias.to_string(),
         specifier: specifier.clone(),
     };
-    let version = implied_version(&alias.to_string(), &specifier, catalog_entry(catalogs))
+    let version = implied
+        .version(alias, &specifier)
         .ok_or_else(underivable)?
         .parse::<ImporterDepVersion>()
         .map_err(|_| underivable())?;
     Ok(NextResolvedDep { specifier, version, peers: None })
 }
 
-fn collapse(alias: &PkgName, dep: &mut NextImporterDep, catalogs: Option<&CatalogSnapshots>) {
+fn collapse(alias: &PkgName, dep: &mut NextImporterDep, implied: Implied<'_>) {
     let NextImporterDep::Resolved(resolved) = dep else { return };
     if resolved.peers.is_some() {
         return;
     }
-    let implied = implied_version(&alias.to_string(), &resolved.specifier, catalog_entry(catalogs));
+    let implied = implied.version(alias, &resolved.specifier);
     if implied.is_some_and(|implied| implied == resolved.version.to_string()) {
         *dep = NextImporterDep::Specifier(std::mem::take(&mut resolved.specifier));
-    }
-}
-
-/// The lookup [`implied_version`] takes, over the typed `catalogs` section.
-fn catalog_entry(
-    catalogs: Option<&CatalogSnapshots>,
-) -> impl FnOnce(&str, &str) -> Option<(String, String)> {
-    move |catalog, alias| {
-        let entry = catalogs?.get(catalog)?.get(alias)?;
-        Some((entry.specifier.clone(), entry.version.clone()))
     }
 }

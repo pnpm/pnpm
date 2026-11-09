@@ -50,19 +50,23 @@ fn importer_dep_paths(document: &Value) -> HashSet<String> {
 /// to. An entry the reader cannot parse names no `time:` key. In the next
 /// lockfile format, an entry can be the specifier alone, whose version is
 /// implied, through `catalogs`, under `settings` in that format, for a
-/// `catalog:` specifier.
+/// `catalog:` specifier. A `workspace:` specifier alone names an injected
+/// package, which has no `time:` entry, so it is not looked up.
 fn resolved_dep_path(alias: &str, dependency: &Value, document: &Value) -> Option<String> {
     let version = match dependency {
-        Value::String(specifier) => {
-            crate::implied_version::implied_version(alias, specifier, |catalog, alias| {
+        Value::String(specifier) => crate::implied_version::implied_version(
+            alias,
+            specifier,
+            |catalog, alias| {
                 let catalogs = document
                     .get("catalogs")
                     .or_else(|| document.get("settings")?.get("catalogs"))?;
                 let entry = catalogs.get(catalog)?.get(alias)?;
                 let text = |key: &str| Some(entry.get(key)?.as_str()?.to_string());
                 Some((text("specifier")?, text("version")?))
-            })?
-        }
+            },
+            |_| None,
+        )?,
         _ => dependency
             .get("version")
             .and_then(Value::as_str)?

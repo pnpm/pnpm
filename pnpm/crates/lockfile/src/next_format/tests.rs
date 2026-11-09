@@ -261,7 +261,8 @@ fn patched_packages_carry_no_hash() {
 
 /// An importer's dependency is its specifier alone when the version follows
 /// from it: an exact version, a `catalog:` entry, with the alias the catalog
-/// names. A range and a workspace link write both.
+/// names, an injected workspace package, through its `packages` entry, under
+/// an alias too. A range and a workspace link write both.
 #[test]
 fn importer_versions_that_follow_from_the_specifier_are_not_written() {
     let lockfile = parse(text_block_macros::text_block! {
@@ -286,6 +287,12 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "      exact:"
         "        specifier: 1.2.3"
         "        version: 1.2.3"
+        "      injected:"
+        "        specifier: workspace:*"
+        "        version: file:packages/injected"
+        "      injected-alias:"
+        "        specifier: workspace:injected@*"
+        "        version: injected@file:packages/injected"
         "      ranged:"
         "        specifier: ^1.0.0"
         "        version: 1.2.3"
@@ -304,6 +311,9 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "  exact@1.2.3:"
         "    resolution: {integrity: sha512-BBBB}"
         ""
+        "  injected@file:packages/injected:"
+        "    resolution: {directory: packages/injected, type: directory}"
+        ""
         "  ranged@1.2.3:"
         "    resolution: {integrity: sha512-CCCC}"
         ""
@@ -315,6 +325,8 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
         "  '@scope/real@1.0.0': {}"
         ""
         "  exact@1.2.3: {}"
+        ""
+        "  injected@file:packages/injected: {}"
         ""
         "  ranged@1.2.3: {}"
         ""
@@ -339,6 +351,8 @@ fn importer_versions_that_follow_from_the_specifier_are_not_written() {
             "    dependencies:"
             "      '@scope/renamed': 'catalog:'"
             "      exact: 1.2.3"
+            "      injected: workspace:*"
+            "      injected-alias: workspace:injected@*"
             "      ranged: {specifier: ^1.0.0, version: 1.2.3}"
             "      shared: {specifier: workspace:*, version: link:../shared}"
             "      tool: 'catalog:'"
