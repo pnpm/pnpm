@@ -570,117 +570,6 @@ fn registry_bin_sets_node_path(project_dir: &Path) -> bool {
 }
 
 #[test]
-fn frozen_offline_install_keeps_links_in_an_external_modules_dir() {
-    for cli_setting in [ModulesDirSource::Workspace, ModulesDirSource::Cli] {
-        for explicit_virtual_store in [VirtualStore::Default, VirtualStore::Explicit] {
-            check_frozen_offline_modules_dir(cli_setting, explicit_virtual_store);
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ModulesDirSource {
-    Workspace,
-    Cli,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum VirtualStore {
-    Default,
-    Explicit,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InstallMode {
-    Initial,
-    FrozenOffline,
-}
-
-fn check_frozen_offline_modules_dir(
-    cli_setting: ModulesDirSource,
-    explicit_virtual_store: VirtualStore,
-) {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let modules = workspace
-        .parent()
-        .expect("workspace parent")
-        .join("external/node_modules");
-    if cli_setting == ModulesDirSource::Workspace {
-        let modules_setting = modules.to_string_lossy().replace('\\', "/");
-        append_workspace_yaml_key(&workspace, "modulesDir", &modules_setting);
-    }
-    if explicit_virtual_store == VirtualStore::Explicit {
-        let virtual_store = modules
-            .join(".pnpm")
-            .to_string_lossy()
-            .replace('\\', "/");
-        append_workspace_yaml_key(&workspace, "virtualStoreDir", &virtual_store);
-    }
-    append_workspace_yaml_key(&workspace, "preferSymlinkedExecutables", "true");
-    write_manifest(
-        &workspace,
-        &serde_json::json!({
-            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
-        }),
-    );
-    install_with_external_modules(
-        &workspace,
-        &modules,
-        cli_setting,
-        explicit_virtual_store,
-        InstallMode::Initial,
-    );
-    fs::remove_dir_all(&modules).expect("remove modules directory");
-    let default_modules = workspace.join("node_modules");
-    if default_modules.exists() {
-        fs::remove_dir_all(default_modules).expect("remove default modules directory");
-    }
-    install_with_external_modules(
-        &workspace,
-        &modules,
-        cli_setting,
-        explicit_virtual_store,
-        InstallMode::FrozenOffline,
-    );
-    drop((root, mock_instance));
-}
-
-fn install_with_external_modules(
-    workspace: &Path,
-    modules: &Path,
-    cli_setting: ModulesDirSource,
-    virtual_store: VirtualStore,
-    mode: InstallMode,
-) {
-    let mut command = pacquet_in(workspace);
-    command.arg("install");
-    if cli_setting == ModulesDirSource::Cli {
-        command.arg("--modules-dir").arg(modules);
-    }
-    if mode == InstallMode::FrozenOffline {
-        command.args(["--offline", "--frozen-lockfile"]);
-    }
-    command.assert().success();
-    let context =
-        format!("{cli_setting:?} {virtual_store:?} {mode:?}, modules: {}", modules.display());
-    assert!(modules.join("@pnpm.e2e/hello-world-js-bin/package.json").exists(), "{context}");
-    let bin_name = if cfg!(windows) { "hello-world-js-bin.cmd" } else { "hello-world-js-bin" };
-    let bin = modules.join(".bin").join(bin_name);
-    let output = Command::new(&bin)
-        .output()
-        .unwrap_or_else(|error| panic!("{context}: {}: {error}", bin.display()));
-    assert!(
-        output.status.success(),
-        "{context}: {}: {}",
-        bin.display(),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    assert!(!workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(), "{context}");
-}
-
-#[test]
 fn a_modules_dir_outside_the_project_is_the_root_projects_only() {
     for linker in ["isolated", "hoisted"] {
         for setting in MODULES_DIR_SETTINGS {
@@ -805,6 +694,12 @@ fn has_bin(modules_dir: &Path, command: &str) -> bool {
         })
 }
 
+/// `path` as a `pnpm-workspace.yaml` value: forward slashes on every
+/// platform, so a Windows path is not read as YAML escapes.
+fn yaml_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
 /// The root's and project-1's modules directories for `setting`, after
 /// writing it to `pnpm-workspace.yaml`.
 fn set_modules_dir_outside_the_project(
@@ -824,7 +719,7 @@ fn set_modules_dir_outside_the_project(
     };
     let modules_dir = match setting {
         ModulesDirSetting::Climbing => "../vendor".to_string(),
-        _ => root_modules_dir.to_string_lossy().replace('\\', "/"),
+        _ => yaml_path(&root_modules_dir),
     };
     append_workspace_yaml_key(workspace, "modulesDir", &modules_dir);
     (root_modules_dir, workspace.join("project-1/vendor"))
@@ -1007,3 +902,5 @@ fn assert_commands_use(dir: &Path, modules_dir: &Path, command: &str, setting: M
             .success();
     }
 }
+
+mod frozen_offline;
